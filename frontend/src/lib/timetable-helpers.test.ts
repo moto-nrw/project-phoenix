@@ -49,6 +49,7 @@ import {
   mapWeeklyInstances,
   firstSchoolDayInPeriod,
   nextWorkdayISO,
+  offeringPhaseStartWarning,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
   toISODate,
@@ -102,6 +103,25 @@ describe("parseTimeToMinutes", () => {
     expect(Number.isNaN(parseTimeToMinutes("24:00"))).toBe(true);
     expect(Number.isNaN(parseTimeToMinutes("09:60"))).toBe(true);
     expect(Number.isNaN(parseTimeToMinutes("-1:30"))).toBe(true);
+  });
+});
+
+describe("offeringPhaseStartWarning", () => {
+  const offering = {
+    phaseName: "Schuljahr 2026/27",
+    phaseServiceStart: "2026-08-13",
+  };
+
+  it("explains an occurrence before the care service starts", () => {
+    expect(offeringPhaseStartWarning(offering, "2026-08-10")).toBe(
+      "Die Betreuung aus „Schuljahr 2026/27“ beginnt am 13.08.2026. Termine vor diesem Datum haben noch keine Kinder aus dem Angebot.",
+    );
+  });
+
+  it("does not warn on the start date or without a usable date", () => {
+    expect(offeringPhaseStartWarning(offering, "2026-08-13")).toBeNull();
+    expect(offeringPhaseStartWarning(offering, "")).toBeNull();
+    expect(offeringPhaseStartWarning(undefined, "2026-08-10")).toBeNull();
   });
 });
 
@@ -792,6 +812,11 @@ describe("backend mappers", () => {
       cancel_reason: "Ausflug",
       expected_students_count: 0,
       present_students_count: 0,
+      empty_roster_reason: {
+        kind: "before_offering_start",
+        phase_name: "Schuljahr 2026/27",
+        service_start_date: "2026-08-13",
+      },
       required_staff_count: 0,
       assigned_staff_count: 0,
     });
@@ -801,6 +826,11 @@ describe("backend mappers", () => {
       understaffedAck: true,
       understaffedNote: "keine Vertretung",
       cancelReason: "Ausflug",
+      emptyRosterReason: {
+        kind: "before_offering_start",
+        phaseName: "Schuljahr 2026/27",
+        serviceStartDate: "2026-08-13",
+      },
     });
   });
 
@@ -1773,6 +1803,7 @@ describe("mapOfferingSourceOptions (#2137)", () => {
             name: "Frühbetreuung",
             phase_id: 3,
             phase_name: "Schuljahr 2026/27",
+            phase_service_start: "2026-08-13",
             total_count: 18,
             // "0" = Kinder ohne ableitbaren Jahrgang.
             grade_counts: { "0": 2, "1": 9, "2": 7 },
@@ -1790,6 +1821,7 @@ describe("mapOfferingSourceOptions (#2137)", () => {
         name: "Frühbetreuung",
         phaseId: "3",
         phaseName: "Schuljahr 2026/27",
+        phaseServiceStart: "2026-08-13",
         totalCount: 18,
         gradeCounts: { 0: 2, 1: 9, 2: 7 },
         sourcedTemplates: [

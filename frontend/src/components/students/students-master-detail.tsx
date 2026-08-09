@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Bus, CalendarClock, MoreVertical } from "lucide-react";
+import { AlertCircle, CheckSquare, MoreVertical } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { DatabaseListItem } from "~/components/database/database-list-item";
 import {
   DetailPanel,
@@ -23,8 +25,11 @@ import {
   type GroupDecorator,
   type Grouper,
 } from "~/components/database/use-grouped-items";
-import { ClassBulkArrivalModal } from "./class-bulk-arrival-modal";
+import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
+import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
+import { Button } from "~/components/ui/button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ArrivalScheduleManager } from "./arrival-schedule-manager";
 import { StudentAbholungTab } from "./student-abholung-tab";
 import { StudentGuardiansTab } from "./student-guardians-tab";
@@ -34,11 +39,14 @@ import { StudentStammdatenTab } from "./student-stammdaten-tab";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { getInitials } from "~/lib/format-utils";
 import type { Student } from "~/lib/api";
+import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
 
 export type GroupingMode = "class" | "group" | "none";
 
 interface StudentsMasterDetailProps {
   students: Student[];
+  /** Unfiltered source used for bulk previews so search never narrows writes. */
+  bulkStudents?: Student[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   grouping: GroupingMode;
@@ -49,10 +57,22 @@ interface StudentsMasterDetailProps {
   onUpdateStudent: (studentId: string, data: Partial<Student>) => Promise<void>;
   canViewEnrollments?: boolean;
   detailActions?: ReactNode;
+  selectionMode?: boolean;
+  selectedStudentIds?: ReadonlySet<string>;
+  onToggleStudentSelection?: (studentId: string) => void;
+  onClearSelection?: () => void;
+  onFinishSelection?: () => void;
 }
 
 const UNKNOWN_CLASS_LABEL = "Ohne Klasse";
 const UNKNOWN_GROUP_LABEL = "Ohne Gruppe";
+const UNKNOWN_GROUP_ID = "__without_group__";
+const EMPTY_STUDENT_SELECTION: ReadonlySet<string> = new Set();
+
+interface BulkArrivalTarget {
+  filter: BulkArrivalFilter;
+  label: string;
+}
 
 function keyForStudent(student: Student): string {
   return String(student.id);
@@ -74,6 +94,7 @@ function buildHeaderSubtitle(student: Student): string {
 
 export function StudentsMasterDetail({
   students,
+  bulkStudents = students,
   selectedId,
   onSelect,
   grouping,
@@ -84,13 +105,19 @@ export function StudentsMasterDetail({
   onUpdateStudent,
   canViewEnrollments = false,
   detailActions,
+  selectionMode = false,
+  selectedStudentIds = EMPTY_STUDENT_SELECTION,
+  onToggleStudentSelection,
+  onClearSelection,
+  onFinishSelection,
 }: StudentsMasterDetailProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
-  const [bulkClass, setBulkClass] = useState<string | null>(null);
+  const [bulkTarget, setBulkTarget] = useState<BulkArrivalTarget | null>(null);
   const [classTripTarget, setClassTripTarget] = useState<{
     label: string;
     students: Student[];
   } | null>(null);
+  const [pickupSelectionOpen, setPickupSelectionOpen] = useState(false);
   // Photo feature gate. When off, the detail header falls back to the
   // legacy light-blue initials chip (string avatar form) instead of the
   // shared <Avatar> — matches what the header looked like before the
@@ -106,12 +133,37 @@ export function StudentsMasterDetail({
         return { id: value, title: value };
       },
       group: (student) => {
-        const value = student.group_name?.trim() || UNKNOWN_GROUP_LABEL;
-        return { id: value, title: value };
+        const title = student.group_name?.trim() || UNKNOWN_GROUP_LABEL;
+        return {
+          id: student.group_id ? `group-${student.group_id}` : UNKNOWN_GROUP_ID,
+          title,
+          sortKey: title,
+        };
       },
     }),
     [],
   );
+
+  // Unfiltered cohort maps for bulk actions — search must not shrink class/group
+  // writes while the UI still names the full bucket.
+  const bulkStudentsByFilter = useMemo(() => {
+    const byClass = new Map<string, Student[]>();
+    const byGroup = new Map<string, Student[]>();
+    for (const student of bulkStudents) {
+      const schoolClass = student.school_class?.trim();
+      if (schoolClass) {
+        const classStudents = byClass.get(schoolClass) ?? [];
+        classStudents.push(student);
+        byClass.set(schoolClass, classStudents);
+      }
+      if (student.group_id) {
+        const groupStudents = byGroup.get(student.group_id) ?? [];
+        groupStudents.push(student);
+        byGroup.set(student.group_id, groupStudents);
+      }
+    }
+    return { byClass, byGroup };
+  }, [bulkStudents]);
 
   const decorateGroup = useCallback<GroupDecorator<Student>>(
     (group) => {
@@ -125,24 +177,42 @@ export function StudentsMasterDetail({
       const variant = missing.length > 0 ? "warning" : "neutral";
       const countSuffix =
         missing.length > 0 ? `· ${missing.length} offen` : undefined;
-      const canEditArrival =
-        grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL;
+      const groupID = group.items[0]?.group_id;
+      const arrivalTarget: BulkArrivalTarget | null =
+        grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL
+          ? {
+              filter: { type: "school_class", schoolClass: group.id },
+              label: group.title,
+            }
+          : grouping === "group" && groupID
+            ? {
+                filter: { type: "group", groupId: groupID },
+                label: group.title,
+              }
+            : null;
+      const canEditArrival = arrivalTarget !== null;
       const canPlanClassTrip =
         (grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL) ||
-        (grouping === "group" && group.id !== UNKNOWN_GROUP_LABEL);
+        (grouping === "group" && group.id !== UNKNOWN_GROUP_ID);
+      const classTripStudents =
+        grouping === "class" && group.id !== UNKNOWN_CLASS_LABEL
+          ? (bulkStudentsByFilter.byClass.get(group.id) ?? [])
+          : grouping === "group" && groupID
+            ? (bulkStudentsByFilter.byGroup.get(groupID) ?? [])
+            : [];
       const bulkAction =
         canEditArrival || canPlanClassTrip ? (
           <GroupActionsMenu
-            label={group.id}
+            label={group.title}
             onEditArrival={
-              canEditArrival ? () => setBulkClass(group.id) : undefined
+              arrivalTarget ? () => setBulkTarget(arrivalTarget) : undefined
             }
             onPlanClassTrip={
               canPlanClassTrip
                 ? () =>
                     setClassTripTarget({
-                      label: group.id,
-                      students: group.items,
+                      label: group.title,
+                      students: classTripStudents,
                     })
                 : undefined
             }
@@ -150,7 +220,7 @@ export function StudentsMasterDetail({
         ) : null;
       return { variant, countSuffix, bulkAction };
     },
-    [grouping, studentsWithArrival],
+    [bulkStudentsByFilter, grouping, studentsWithArrival],
   );
 
   const groupDefinitions = useGroupedItems(
@@ -170,19 +240,29 @@ export function StudentsMasterDetail({
     [selectedId, students],
   );
 
-  const studentsByClass = useMemo(() => {
-    const map = new Map<string, Student[]>();
-    for (const student of students) {
-      const key = student.school_class?.trim();
-      if (!key) continue;
-      const list = map.get(key) ?? [];
-      list.push(student);
-      map.set(key, list);
+  const studentsForBulkTarget = useMemo(() => {
+    if (!bulkTarget) return [];
+    if (bulkTarget.filter.type === "school_class") {
+      return (
+        bulkStudentsByFilter.byClass.get(bulkTarget.filter.schoolClass) ?? []
+      );
     }
-    return map;
-  }, [students]);
+    if (bulkTarget.filter.type === "group") {
+      return bulkStudentsByFilter.byGroup.get(bulkTarget.filter.groupId) ?? [];
+    }
+    const ids = new Set(bulkTarget.filter.studentIds);
+    return bulkStudents.filter((student) => ids.has(String(student.id)));
+  }, [bulkStudents, bulkStudentsByFilter, bulkTarget]);
 
-  const handleBulkClose = useCallback(() => setBulkClass(null), []);
+  const selectedStudents = useMemo(
+    () =>
+      bulkStudents.filter((student) =>
+        selectedStudentIds.has(String(student.id)),
+      ),
+    [bulkStudents, selectedStudentIds],
+  );
+
+  const handleBulkClose = useCallback(() => setBulkTarget(null), []);
   const handleClassTripClose = useCallback(() => setClassTripTarget(null), []);
   const handleBulkSuccess = useCallback(() => {
     onArrivalDataChanged();
@@ -202,7 +282,7 @@ export function StudentsMasterDetail({
     }
     const subtitleText = subtitleParts.join(" · ") || "—";
     const subtitle = !hasArrival ? (
-      <span className="font-medium text-[#F78C10]">{subtitleText}</span>
+      <span className="text-moto-orange font-medium">{subtitleText}</span>
     ) : (
       subtitleText
     );
@@ -216,26 +296,53 @@ export function StudentsMasterDetail({
         trailingAccessory={
           !hasArrival ? (
             <AlertCircle
-              className="h-4 w-4 shrink-0 text-[#F78C10]"
+              className="text-moto-orange h-4 w-4 shrink-0"
               aria-label="Ankunft fehlt"
             />
           ) : null
         }
+        selectionMode={selectionMode}
+        isChecked={selectedStudentIds.has(id)}
+        onToggleSelection={() => onToggleStudentSelection?.(id)}
       />
     );
   };
 
   const listNode = (
-    <GroupedList
-      groups={groupDefinitions}
-      renderItem={renderItem}
-      keyFor={keyForStudent}
-      emptyState={
-        <div className="text-center text-sm text-gray-500">
-          Keine Kinder gefunden.
-        </div>
-      }
-    />
+    <div className={selectionMode ? "pb-28 md:pb-0" : undefined}>
+      {selectionMode ? (
+        <SelectionBar
+          count={selectedStudentIds.size}
+          onClear={() => onClearSelection?.()}
+          onFinish={() => onFinishSelection?.()}
+          onArrival={() =>
+            setBulkTarget({
+              filter: {
+                type: "students",
+                studentIds: selectedStudents.map((student) =>
+                  String(student.id),
+                ),
+              },
+              label: "Auswahl",
+            })
+          }
+          onPickup={() => setPickupSelectionOpen(true)}
+          onClassTrip={() =>
+            setClassTripTarget({ label: "Auswahl", students: selectedStudents })
+          }
+        />
+      ) : null}
+      <GroupedList
+        groups={groupDefinitions}
+        renderItem={renderItem}
+        keyFor={keyForStudent}
+        emptyState={
+          <div className="text-center text-sm text-gray-500">
+            Keine Kinder gefunden.
+          </div>
+        }
+      />
+    </div>
   );
 
   const detailNode = selectedStudent ? (
@@ -300,12 +407,13 @@ export function StudentsMasterDetail({
           selectedStudent ? formatStudentName(selectedStudent) : "Kinder"
         }
       />
-      {bulkClass ? (
-        <ClassBulkArrivalModal
-          isOpen={bulkClass !== null}
+      {bulkTarget ? (
+        <FilteredBulkArrivalModal
+          isOpen={true}
           onClose={handleBulkClose}
-          schoolClass={bulkClass}
-          studentsInClass={studentsByClass.get(bulkClass) ?? []}
+          filter={bulkTarget.filter}
+          filterLabel={bulkTarget.label}
+          studentsInFilter={studentsForBulkTarget}
           onSuccess={handleBulkSuccess}
         />
       ) : null}
@@ -318,7 +426,68 @@ export function StudentsMasterDetail({
           onSuccess={handleBulkSuccess}
         />
       ) : null}
+      {pickupSelectionOpen ? (
+        <SelectionBulkPickupModal
+          isOpen
+          onClose={() => setPickupSelectionOpen(false)}
+          studentIds={selectedStudents.map((student) => String(student.id))}
+          onSuccess={handleBulkSuccess}
+        />
+      ) : null}
     </>
+  );
+}
+
+interface SelectionBarProps {
+  count: number;
+  onClear: () => void;
+  onFinish: () => void;
+  onArrival: () => void;
+  onPickup: () => void;
+  onClassTrip: () => void;
+}
+
+function SelectionBar({
+  count,
+  onClear,
+  onFinish,
+  onArrival,
+  onPickup,
+  onClassTrip,
+}: SelectionBarProps) {
+  const disabled = count === 0;
+  return (
+    <div className="moto-content-surface border-moto-green/30 fixed right-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 z-40 flex items-center gap-2 rounded-xl border p-2 shadow-lg md:sticky md:top-0 md:right-auto md:bottom-auto md:left-auto md:rounded-none md:border-x-0 md:shadow-sm">
+      <CheckSquare className="text-moto-green h-5 w-5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 text-sm font-semibold text-gray-900">
+        {count} ausgewählt
+      </span>
+      <Button
+        variant="ghost"
+        size="compact"
+        onClick={onClear}
+        disabled={disabled}
+      >
+        Aufheben
+      </Button>
+      <OverflowMenu
+        ariaLabel="Aktion für Auswahl"
+        triggerContent="Aktion"
+        triggerClassName="h-8 rounded-md bg-moto-green px-3 text-sm font-medium !text-gray-950 hover:bg-moto-green/90 disabled:opacity-40"
+        items={
+          disabled
+            ? []
+            : [
+                { label: "Ankunftszeiten ändern", onClick: onArrival },
+                { label: "Gehzeiten ändern", onClick: onPickup },
+                { label: "Klassenfahrt planen", onClick: onClassTrip },
+              ]
+        }
+      />
+      <Button variant="outline" size="compact" onClick={onFinish}>
+        Fertig
+      </Button>
+    </div>
   );
 }
 
@@ -455,7 +624,11 @@ function GroupActionsMenu({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
             >
-              <CalendarClock className="h-4 w-4 text-gray-500" aria-hidden />
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.carePlan.icon}
+                tone={MOTO_CONCEPTS.carePlan.tone}
+                size={18}
+              />
               Ankunftszeit bearbeiten
             </button>
           ) : null}
@@ -470,7 +643,11 @@ function GroupActionsMenu({
               }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
             >
-              <Bus className="h-4 w-4 text-gray-500" aria-hidden />
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.classTrip.icon}
+                tone={MOTO_CONCEPTS.classTrip.tone}
+                size={18}
+              />
               Klassenfahrt planen
             </button>
           ) : null}

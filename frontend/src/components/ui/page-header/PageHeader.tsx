@@ -1,11 +1,13 @@
 "use client";
 
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { OverflowMenu } from "./OverflowMenu";
 import { StatusIndicator } from "./StatusIndicator";
 import type { PageHeaderProps } from "./types";
 
 export function PageHeader({
   title,
+  concept,
   badge,
   statusIndicator,
   actionButton,
@@ -22,8 +24,11 @@ export function PageHeader({
   return (
     <div className={`mb-6 md:hidden ${className}`}>
       <div className="flex items-center justify-between gap-4">
-        {/* Title */}
-        <div>
+        {/* Title, optionally preceded by a concept icon tile */}
+        <div className="flex min-w-0 items-center gap-3">
+          {concept ? (
+            <ConceptIconTile concept={concept} variant="page" />
+          ) : null}
           <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         </div>
 

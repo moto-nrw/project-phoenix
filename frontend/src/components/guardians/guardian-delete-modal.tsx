@@ -46,7 +46,7 @@ interface GuardianDeleteModalProps {
 
 // Selectable action row used on the choice step. The kit has no option-card
 // primitive, so this is a small local component styled with kit tokens
-// (rounded-xl, gray borders, brand red `#FF3130` = LOCATION_COLORS.HOME).
+// (rounded-xl, gray borders, brand red `#DC2626` = LOCATION_COLORS.DANGER).
 function OptionCard({
   icon,
   title,
@@ -71,14 +71,14 @@ function OptionCard({
       disabled={disabled}
       className={`group flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
         danger
-          ? "border-[#FF3130]/30 hover:bg-[#FF3130]/5"
+          ? "border-moto-red/30 hover:bg-moto-red/5"
           : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
       }`}
     >
       <span
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
           danger
-            ? "bg-[#FF3130]/10 text-[#CC2626]"
+            ? "bg-moto-red/10 text-moto-red-strong"
             : "bg-gray-100 text-gray-600"
         }`}
       >
@@ -88,7 +88,7 @@ function OptionCard({
         <span className="flex items-center gap-2">
           <span
             className={`text-sm font-semibold ${
-              danger ? "text-[#CC2626]" : "text-gray-900"
+              danger ? "text-moto-red-strong" : "text-gray-900"
             }`}
           >
             {title}
@@ -237,9 +237,9 @@ export function GuardianDeleteModal({
         <div className="space-y-3">
           {fullDeleteWarning ? (
             // Backend message — count-aware (singular vs. multiple children).
-            // Brand red (LOCATION_COLORS.HOME), same surface the kit
+            // Brand red (LOCATION_COLORS.DANGER), same surface the kit
             // ConfirmDeleteModal uses for destructive warnings.
-            <p className="rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+            <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
               {fullDeleteWarning}
             </p>
           ) : isWarningLoading ? (
@@ -252,7 +252,7 @@ export function GuardianDeleteModal({
               <strong>{guardianName}</strong> wird vollständig gelöscht.
             </p>
           )}
-          <p className="text-sm font-medium text-[#FF3130]">
+          <p className="text-moto-red text-sm font-medium">
             Diese Aktion kann nicht rückgängig gemacht werden.
           </p>
         </div>

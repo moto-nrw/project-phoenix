@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StaffPage from "./page";
 
@@ -21,6 +27,11 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
+}));
+
+vi.mock("~/components/staff/staff-pending-inbox", () => ({
+  StaffPendingInbox: () => null,
+  useStaffPendingInbox: vi.fn(() => ({ rows: [], canReview: false })),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -74,6 +85,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 import { useSession } from "next-auth/react";
 import { useSWRAuth } from "~/lib/swr";
+import { useStaffPendingInbox } from "~/components/staff/staff-pending-inbox";
 
 const mockStaff = [
   {
@@ -105,6 +117,10 @@ const mockStaff = [
 describe("StaffPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useStaffPendingInbox).mockReturnValue({
+      rows: [],
+      canReview: false,
+    });
     vi.mocked(useSession).mockReturnValue({
       data: { user: { id: "1", permissions: ["users:read"] } },
       status: "authenticated",
@@ -273,6 +289,35 @@ describe("StaffPage", () => {
     render(<StaffPage />);
 
     expect(screen.getByText("Notiz")).toBeInTheDocument();
+  });
+
+  it("shows open absence requests as a separate action row", () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: mockStaff,
+      isLoading: false,
+      error: null,
+    } as never);
+    vi.mocked(useStaffPendingInbox).mockReturnValue({
+      rows: [{ staff_id: 1 }, { staff_id: 1 }] as never,
+      canReview: true,
+    });
+
+    render(<StaffPage />);
+
+    const requestLabel = screen.getByText(
+      (_content, element) =>
+        element?.tagName === "SPAN" &&
+        element.textContent?.trim() === "2 offene Abwesenheitsanträge",
+    );
+    const requestRow = requestLabel.parentElement;
+    expect(requestRow).toHaveClass("text-moto-orange-strong");
+    expect(requestRow).not.toHaveClass("text-gray-600");
+    expect(requestRow).not.toHaveClass(
+      "border-moto-orange/30",
+      "bg-moto-orange/10",
+    );
+    expect(within(requestLabel).getByText("2")).toHaveClass("font-semibold");
+    expect(screen.queryByText("2 Anfragen")).not.toBeInTheDocument();
   });
 
   it("shows loading state while data is loading", () => {

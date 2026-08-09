@@ -224,8 +224,11 @@ describe("StudentRoomHistoryPage", () => {
     setupFetch(mockAttendanceHistoryResponse());
     render(<StudentRoomHistoryPage />);
 
+    // The group name renders as its own interpolated text node next to the
+    // school class (" · Sterne"), so match it as a substring rather than an
+    // exact string.
     await waitFor(() => {
-      expect(screen.getByText("Sterne")).toBeInTheDocument();
+      expect(screen.getByText(/Sterne/)).toBeInTheDocument();
     });
   });
 
@@ -324,7 +327,7 @@ describe("StudentRoomHistoryPage", () => {
     // Find the styled zurück button (not the BackButton component)
     const buttons = screen.getAllByRole("button");
     const zurueckButton = buttons.find(
-      (b) => b.textContent === "Zurück" && b.className.includes("rounded-full"),
+      (b) => b.textContent === "Zurück" && b.className.includes("rounded-lg"),
     );
     expect(zurueckButton).toBeDefined();
     fireEvent.click(zurueckButton!);
@@ -624,7 +627,9 @@ describe("StudentRoomHistoryPage", () => {
     render(<StudentRoomHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Anwesenheitsprotokoll" }),
+      ).toBeInTheDocument();
     });
   });
 

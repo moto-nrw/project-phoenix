@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 import { PresenceBadge } from "./presence-badge";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, getLocationBadgeTone } from "~/lib/location-helper";
 
 // Helper to fetch the rendered pill so assertions can interrogate both
 // the label (visible text) and the inline color style. The render tree has
@@ -29,7 +29,12 @@ describe("PresenceBadge", () => {
     expect(screen.getByText("Anwesend")).toBeInTheDocument();
     const pill = getPill();
     expect(pill.getAttribute("data-presence-state")).toBe("anwesend");
-    expect(bgMatchesBrandColor(pill, LOCATION_COLORS.GROUP_ROOM)).toBe(true);
+    expect(
+      bgMatchesBrandColor(
+        pill,
+        getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM).backgroundColor,
+      ),
+    ).toBe(true);
   });
 
   it("renders Schulhof in brand orange when on yard", () => {
@@ -37,7 +42,12 @@ describe("PresenceBadge", () => {
     expect(screen.getByText("Schulhof")).toBeInTheDocument();
     const pill = getPill();
     expect(pill.getAttribute("data-presence-state")).toBe("schulhof");
-    expect(bgMatchesBrandColor(pill, LOCATION_COLORS.SCHOOLYARD)).toBe(true);
+    expect(
+      bgMatchesBrandColor(
+        pill,
+        getLocationBadgeTone(LOCATION_COLORS.SCHOOLYARD).backgroundColor,
+      ),
+    ).toBe(true);
   });
 
   it("renders Abwesend in brand red when checked out", () => {
@@ -118,6 +128,15 @@ describe("PresenceBadge", () => {
     expect(screen.getByText("Anwesend")).toBeInTheDocument();
     // eslint-disable-next-line testing-library/no-node-access
     expect(container.querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("renders the modern indicator without animation or glow", () => {
+    const { container } = render(
+      <PresenceBadge student={{ current_location: "Anwesend" }} />,
+    );
+
+    expect(container.querySelector(".animate-pulse")).toBeNull();
+    expect(getPill().style.boxShadow).toBe("");
   });
 
   it("renders the small size with the sm class shape", () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Mail } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -117,19 +118,7 @@ export function PendingInvitationsList({
     <div className="rounded-2xl border border-gray-200/50 bg-white/90 p-3 shadow-sm backdrop-blur-sm md:p-4">
       <div className="mb-2 flex items-center gap-2">
         <div className="rounded-lg bg-gray-100 p-1.5">
-          <svg
-            className="h-4 w-4 text-gray-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-            />
-          </svg>
+          <Mail className="h-4 w-4 text-gray-500" aria-hidden="true" />
         </div>
         <h2 className="text-sm font-semibold text-gray-900">
           Offene Einladungen
@@ -140,28 +129,19 @@ export function PendingInvitationsList({
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl border border-red-200/50 bg-red-50/50 p-3">
+        <div className="border-moto-red/20 bg-moto-red-soft mb-4 rounded-xl border p-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-start gap-2">
-              <svg
-                className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              <p className="text-sm text-red-700">{error}</p>
+              <AlertTriangle
+                className="text-moto-red mt-0.5 h-4 w-4 flex-shrink-0"
+                aria-hidden="true"
+              />
+              <p className="text-moto-red-strong text-sm">{error}</p>
             </div>
             <button
               type="button"
               onClick={() => loadInvitations()}
-              className="rounded-lg bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200"
+              className="bg-moto-red/10 text-moto-red-strong hover:bg-moto-red/20 rounded-lg px-2 py-1 text-xs font-medium"
             >
               Erneut versuchen
             </button>
@@ -240,7 +220,7 @@ export function PendingInvitationsList({
                     <td className="hidden px-3 py-2 whitespace-nowrap md:table-cell md:px-4 md:py-3">
                       {isValidDate && expiresDate ? (
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap md:px-2.5 md:py-1 ${isExpired ? "bg-red-50 text-red-700" : "bg-gray-100 text-gray-700"}`}
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap md:px-2.5 md:py-1 ${isExpired ? "bg-moto-red-soft text-moto-red-strong" : "bg-gray-100 text-gray-700"}`}
                         >
                           {expiresDate.toLocaleDateString("de-DE", {
                             day: "2-digit",
@@ -272,7 +252,7 @@ export function PendingInvitationsList({
                           type="button"
                           onClick={() => setRevokeTarget(invitation)}
                           disabled={actionLoading === invitation.id}
-                          className="min-h-[32px] rounded-lg bg-red-50 px-2 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-3 md:py-1.5"
+                          className="bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/20 min-h-[32px] rounded-lg px-2 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0 md:px-3 md:py-1.5"
                         >
                           Löschen
                         </button>
@@ -293,7 +273,7 @@ export function PendingInvitationsList({
         title="Einladung widerrufen?"
         confirmText="Widerrufen"
         cancelText="Abbrechen"
-        confirmButtonClass="bg-red-600 hover:bg-red-700"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover text-white"
       >
         <p className="text-sm text-gray-600">
           Möchtest du die Einladung für{" "}

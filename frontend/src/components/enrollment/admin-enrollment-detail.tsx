@@ -9,17 +9,15 @@ import {
   Check,
   ClipboardList,
   ExternalLink,
-  History,
   type LucideIcon,
   Mail,
   Pencil,
   Phone,
   RotateCcw,
-  ShieldCheck,
   Trash2,
-  UserRound,
   X,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type AdminRequestChild,
   type AdminRequestDetail,
@@ -43,6 +41,7 @@ import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
@@ -197,7 +196,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   }
   if (!data) {
     return (
-      <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
         {error ?? "Anmeldung nicht gefunden."}
       </div>
     );
@@ -237,7 +236,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-5 sm:p-6">
             <header>
-              <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                 Anmeldung prüfen
               </p>
               <h1 className="mt-1 text-xl font-semibold text-gray-900">
@@ -250,12 +249,12 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             </header>
 
             {error && (
-              <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]">
+              <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
                 {error}
               </div>
             )}
             {info && (
-              <div className="rounded-lg border border-[#83CD2D]/20 bg-[#83CD2D]/10 p-3 text-sm text-[#5A8B1F]">
+              <div className="border-moto-green/20 bg-moto-green/10 text-moto-green-strong rounded-lg border p-3 text-sm">
                 {info}
               </div>
             )}
@@ -275,7 +274,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
 
             <section className="space-y-3">
               <div>
-                <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                   Kinder
                 </p>
                 <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -381,8 +380,8 @@ function EnrollmentSummary({
   return (
     <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-          <UserRound className="h-4 w-4" aria-hidden="true" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+          <MotoConceptIcon concept="parents" size={16} />
         </span>
         <div>
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -764,7 +763,7 @@ function DecisionPanel({
     <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
-          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+          <MotoConceptIcon concept="enrollments" size={18} />
         </span>
         <div>
           <h4 className="text-sm font-semibold text-gray-900">
@@ -813,10 +812,10 @@ function getDecisionButtonClass(tone: ActionDef["tone"]): string {
   const base =
     "inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45";
   if (tone === "success") {
-    return `${base} border border-gray-200 bg-white text-gray-700 hover:border-[#83CD2D]/60 hover:bg-[#83CD2D]/10 hover:text-[#5A8B1F]`;
+    return `${base} border border-gray-200 bg-white text-gray-700 hover:border-moto-green/60 hover:bg-moto-green/10 hover:text-moto-green-strong`;
   }
   if (tone === "danger") {
-    return `${base} border border-[#FF3130]/20 bg-white text-[#CC2626] hover:bg-[#FF3130]/10`;
+    return `${base} border border-moto-red/20 bg-white text-moto-red-strong hover:bg-moto-red/10`;
   }
   if (tone === "primary") {
     return `${base} border border-gray-900 bg-gray-900 text-white hover:bg-gray-700`;
@@ -925,7 +924,10 @@ export function RequestExtraSection({
                 <span
                   className="inline-block h-2 w-2 rounded-full"
                   style={{
-                    backgroundColor: val === true ? "#83CD2D" : "#6B7280",
+                    backgroundColor:
+                      val === true
+                        ? MOTO_COLOR_PALETTE.green.base
+                        : MOTO_COLOR_PALETTE.neutral.base,
                   }}
                 />
                 <span className="text-gray-700">
@@ -1037,7 +1039,7 @@ export function ChildOfferings({
                     {parentChoice ? dayDetails : `Tage: ${dayDetails}`}
                   </span>
                 ) : parentChoice ? (
-                  <span className="text-xs text-[#CC2626] italic">
+                  <span className="text-moto-red-strong text-xs italic">
                     Keine Tage gewählt
                   </span>
                 ) : null}
@@ -1306,7 +1308,7 @@ export function ChildOfferingAdjustment({
           }
         >
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-            <History className="h-3.5 w-3.5" aria-hidden />
+            <MotoConceptIcon concept="changeHistory" size={14} />
             Änderungshistorie
           </div>
           <ul className="mt-2 space-y-2">
@@ -1348,7 +1350,7 @@ export function ChildOfferingAdjustment({
                   {error ? (
                     <div
                       role="alert"
-                      className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 p-3 text-sm text-[#CC2626]"
+                      className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
                     >
                       {error}
                     </div>
@@ -1374,7 +1376,7 @@ export function ChildOfferingAdjustment({
                                 checked={checked}
                                 disabled={offering.is_required}
                                 onChange={() => handleToggle(offering)}
-                                className="mt-1 h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
+                                className="text-moto-blue focus:ring-moto-blue mt-1 h-4 w-4 rounded border-gray-300"
                               />
                               <span className="min-w-0 flex-1">
                                 <span className="flex flex-wrap items-center gap-2">
@@ -1387,12 +1389,12 @@ export function ChildOfferingAdjustment({
                                     </span>
                                   ) : null}
                                   {offering.is_required ? (
-                                    <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs text-[#355A9A]">
+                                    <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
                                       Pflichtangebot
                                     </span>
                                   ) : null}
                                   {autoDays.length > 0 ? (
-                                    <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs text-[#355A9A]">
+                                    <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
                                       automatisch mitgebucht:{" "}
                                       {formatAdminDays(autoDays)}
                                     </span>
@@ -1418,7 +1420,7 @@ export function ChildOfferingAdjustment({
                                     }
                                     className={`h-8 rounded-lg border px-3 text-sm font-medium ${
                                       (days[offering.id] ?? []).includes(day)
-                                        ? "border-[#5080D8] bg-[#5080D8]/10 text-[#355A9A]"
+                                        ? "border-moto-blue bg-moto-blue/10 text-moto-blue-strong"
                                         : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
                                     }`}
                                   >

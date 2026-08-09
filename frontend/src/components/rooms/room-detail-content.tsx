@@ -13,15 +13,9 @@
 
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
-import {
-  Building2,
-  CalendarClock,
-  CircleDot,
-  Layers,
-  Tag,
-  UserCog,
-  Users,
-} from "lucide-react";
+import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { RoomStatusBadge } from "./room-status-badge";
 import { useSWRAuth } from "~/lib/swr";
 import {
   formatDate,
@@ -35,6 +29,7 @@ import {
   ROOM_HISTORY_STATUS_FEATURE_DISABLED,
 } from "~/lib/room-helpers";
 import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { StudentsInRoomSection } from "./students-in-room-section";
 
@@ -137,25 +132,6 @@ function mapBackendToFrontendHistoryEntry(
     supervisorName: backendEntry.supervisor_name,
     studentCount: backendEntry.student_count,
   };
-}
-
-function StatusBadge({ isOccupied }: Readonly<{ isOccupied: boolean }>) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold ${
-        isOccupied
-          ? "bg-[#FF3130]/15 text-[#FF3130]"
-          : "bg-[#83CD2D]/15 text-[#4a7a15]"
-      }`}
-    >
-      <span
-        className={`mr-2 h-2 w-2 rounded-full ${
-          isOccupied ? "animate-pulse bg-[#FF3130]" : "bg-[#83CD2D]"
-        }`}
-      />
-      {isOccupied ? "Belegt" : "Frei"}
-    </span>
-  );
 }
 
 function groupByDate(entries: readonly RoomHistoryEntry[]): DateGroup[] {
@@ -384,6 +360,11 @@ export function RoomDetailContent({
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.rooms.icon}
+              tone={MOTO_CONCEPTS.rooms.tone}
+              size={32}
+            />
             <h1
               ref={titleRef}
               tabIndex={isModalContext ? -1 : undefined}
@@ -392,7 +373,7 @@ export function RoomDetailContent({
               {room.name}
             </h1>
             <div className="flex-shrink-0">
-              <StatusBadge isOccupied={room.isOccupied} />
+              <RoomStatusBadge isOccupied={room.isOccupied} />
             </div>
           </div>
           {headerAction && (room.building || room.floor !== undefined) ? (
@@ -435,33 +416,67 @@ export function RoomDetailContent({
                 header above; review feedback (#1323): redundant. */}
             {room.building && (
               <IconDetailRow
-                icon={<Building2 className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={BuildingsIcon}
+                    tone="neutral"
+                    size={16}
+                  />
+                }
                 label="Gebäude"
                 value={room.building}
               />
             )}
             {room.floor !== undefined && (
               <IconDetailRow
-                icon={<Layers className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={StackSimpleIcon}
+                    tone="neutral"
+                    size={16}
+                  />
+                }
                 label="Etage"
                 value={formatFloor(room.floor)}
               />
             )}
             {room.category && (
               <IconDetailRow
-                icon={<Tag className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon icon={TagIcon} tone="neutral" size={16} />
+                }
                 label="Kategorie"
                 value={room.category}
               />
             )}
             <IconDetailRow
-              icon={<CircleDot className="h-4 w-4" />}
+              icon={
+                room.isOccupied ? (
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.rooms.icon}
+                    tone={MOTO_CONCEPTS.rooms.tone}
+                    size={16}
+                  />
+                ) : (
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.freeRooms.icon}
+                    tone={MOTO_CONCEPTS.freeRooms.tone}
+                    size={16}
+                  />
+                )
+              }
               label="Status"
               value={room.isOccupied ? "Belegt" : "Frei"}
             />
             {room.isOccupied && room.groupName && (
               <IconDetailRow
-                icon={<CalendarClock className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.activities.icon}
+                    tone={MOTO_CONCEPTS.activities.tone}
+                    size={18}
+                  />
+                }
                 label="Aktuelle Aktivität"
                 value={room.groupName}
               />
@@ -470,7 +485,13 @@ export function RoomDetailContent({
               room.studentCount !== undefined &&
               room.studentCount > 0 && (
                 <IconDetailRow
-                  icon={<Users className="h-4 w-4" />}
+                  icon={
+                    <MotoDuotoneIcon
+                      icon={MOTO_CONCEPTS.children.icon}
+                      tone={MOTO_CONCEPTS.children.tone}
+                      size={18}
+                    />
+                  }
                   label="Aktuell anwesend"
                   value={`${room.studentCount} ${
                     room.studentCount === 1 ? "Kind" : "Kinder"
@@ -479,7 +500,13 @@ export function RoomDetailContent({
               )}
             {room.isOccupied && room.supervisorName && (
               <IconDetailRow
-                icon={<UserCog className="h-4 w-4" />}
+                icon={
+                  <MotoDuotoneIcon
+                    icon={MOTO_CONCEPTS.supervision.icon}
+                    tone={MOTO_CONCEPTS.supervision.tone}
+                    size={18}
+                  />
+                }
                 label="Aktuelle Aufsicht"
                 value={room.supervisorName}
               />
@@ -716,7 +743,7 @@ export function RoomDetailLoader({
   if (error || !room) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
-        <div className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red rounded-lg border p-4">
           {error ?? "Raum nicht gefunden"}
         </div>
         {emptyAction}

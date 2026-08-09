@@ -139,7 +139,7 @@ function Stat({
     <div className="rounded-xl bg-gray-50 px-3 py-2">
       <span
         className={`block text-sm font-semibold ${
-          highlight && value > 0 ? "text-[#CC2626]" : "text-gray-900"
+          highlight && value > 0 ? "text-moto-red-strong" : "text-gray-900"
         }`}
       >
         {value}
@@ -239,7 +239,9 @@ function GroupDetail({ group }: { readonly group: DayLogGroup }) {
         <div key={section.status}>
           <h3
             className={`mb-1 text-xs font-semibold tracking-wide uppercase ${
-              section.status === "absent" ? "text-[#CC2626]" : "text-gray-500"
+              section.status === "absent"
+                ? "text-moto-red-strong"
+                : "text-gray-500"
             }`}
           >
             {MODAL_SECTION_TITLES[section.status]} ({section.students.length})
@@ -443,7 +445,7 @@ export default function DayLogPage() {
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Tagesauswertung
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">

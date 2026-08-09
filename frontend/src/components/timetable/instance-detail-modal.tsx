@@ -15,24 +15,20 @@ import {
   Check,
   CheckCircle2,
   CircleX,
-  DoorOpen,
   Palette,
   Pencil,
   Repeat,
   RotateCcw,
-  ShieldCheck,
   StickyNote,
-  Timer,
   Trash2,
   TriangleAlert,
-  UserCheck,
-  UserCog,
   UserPlus,
-  Users,
   X,
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
@@ -42,7 +38,7 @@ import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
-import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getActivityTypeBadge,
@@ -96,7 +92,7 @@ const CONFIRM_DIALOGS: Record<
     title: "Abgesagten Termin löschen?",
     body: "Der abgesagte Termin wird dauerhaft entfernt.",
     confirmText: "Löschen",
-    confirmButtonClass: "bg-[#FF3130] hover:bg-[#CC2626]",
+    confirmButtonClass: "bg-moto-red hover:bg-moto-red-strong",
   },
 };
 
@@ -182,7 +178,7 @@ function StatusBadge({ status }: StatusBadgeProps) {
     planned: { bg: "#F3F4F6", text: "#374151" },
     active: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
     completed: { bg: "#E5E7EB", text: "#6B7280" },
-    cancelled: { bg: LOCATION_COLORS.HOME, text: "#FFFFFF" },
+    cancelled: { bg: LOCATION_COLORS.DANGER, text: "#FFFFFF" },
   };
   const { bg, text } = palette[status];
   return (
@@ -244,9 +240,9 @@ const NOT_SCHEDULED_TONE = "border-gray-200 bg-gray-50 text-gray-600";
 function attendanceTone(status: InstanceStudentSummary["status"]): string {
   switch (status) {
     case "present":
-      return "border-[#83CD2D]/20 bg-[#83CD2D]/10 text-[#6BA023]";
+      return "border-moto-green/20 bg-moto-green/10 text-moto-green-strong";
     case "absent":
-      return "border-[#FF3130]/20 bg-[#FF3130]/10 text-[#CC2626]";
+      return "border-moto-red/20 bg-moto-red/10 text-moto-red-strong";
     case "expected":
       return "border-gray-200 bg-gray-50 text-gray-600";
   }
@@ -352,7 +348,7 @@ function AssignedStaffSection({
             {canManageStaffPool ? (
               <UserPlus className="h-3.5 w-3.5" />
             ) : (
-              <Users className="h-3.5 w-3.5" />
+              <MotoConceptIcon concept="staff" size={16} />
             )}
             {canManageStaffPool ? "Person hinzuziehen" : "Personalpool ansehen"}
           </span>
@@ -386,9 +382,21 @@ function InstanceStudentsSection({
   students: InstanceStudentSummary[];
 }>) {
   if (students.length === 0) {
+    const reason = instance.emptyRosterReason;
+    let message = "Keine Kinder geplant.";
+    if (reason?.kind === "before_offering_start" && reason.serviceStartDate) {
+      message = `Dieser Termin liegt vor dem Betreuungsbeginn am ${formatDate(reason.serviceStartDate)}. Die Kinder aus den ausgewählten Angeboten werden erst ab diesem Tag übernommen.`;
+    } else if (reason?.kind === "offering_source_empty") {
+      message =
+        "Aus den ausgewählten Angeboten wurden für diesen Termin keine Kinder übernommen. Das kann an den gebuchten Wochentagen, den gewählten Filtern oder geänderten Anmeldungen liegen.";
+    }
     return (
       <Section title="Kinder">
-        <EmptyLine>Keine Kinder geplant.</EmptyLine>
+        {reason ? (
+          <Alert type="info" message={message} announce="polite" />
+        ) : (
+          <EmptyLine>{message}</EmptyLine>
+        )}
       </Section>
     );
   }
@@ -636,7 +644,7 @@ export function InstanceDetailModal({
               )}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
-              <UserCog className="h-4 w-4" />
+              <MotoConceptIcon concept="substitution" size={18} />
               Vertretung bearbeiten
             </Link>
           )}
@@ -800,11 +808,11 @@ export function InstanceDetailModal({
           </div>
           {instance.conflictWarnings.length > 0 && (
             <div className={timetableDangerPanel}>
-              <div className="flex items-center gap-2 text-xs font-bold text-[#CC2626]">
+              <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
                 <TriangleAlert className="h-4 w-4" />
                 {instance.conflictWarnings.length} Konflikt(e)
               </div>
-              <ul className="mt-1 space-y-0.5 text-xs text-[#CC2626]">
+              <ul className="text-moto-red-strong mt-1 space-y-0.5 text-xs">
                 {instance.conflictWarnings.map((warning) => (
                   <li key={warning.message}>• {warning.message}</li>
                 ))}
@@ -815,17 +823,23 @@ export function InstanceDetailModal({
           <StatsRow instance={instance} />
 
           <Section title="Details">
-            <Row icon={<Timer className="h-4 w-4" />} label="Zeit">
+            <Row
+              icon={<MotoConceptIcon concept="careTimes" size={18} />}
+              label="Zeit"
+            >
               {instance.startTime} – {instance.endTime}
             </Row>
-            <Row icon={<DoorOpen className="h-4 w-4" />} label="Raum">
+            <Row
+              icon={<MotoConceptIcon concept="rooms" size={18} />}
+              label="Raum"
+            >
               {instance.roomName || `Raum #${instance.roomId}`}
             </Row>
             <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
               {instance.planningTrackName ?? "Keine Planungsspur"}
             </Row>
             <Row
-              icon={<UserCheck className="h-4 w-4" />}
+              icon={<MotoConceptIcon concept="staff" size={18} />}
               label={`Personal (${instance.staffCount})`}
             >
               {instance.staffCount === 0
@@ -837,7 +851,10 @@ export function InstanceDetailModal({
                   }`}
             </Row>
             {showTimetableCounts ? (
-              <Row icon={<Users className="h-4 w-4" />} label="Kinder">
+              <Row
+                icon={<MotoConceptIcon concept="children" size={18} />}
+                label="Kinder"
+              >
                 {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
                 eingetragen
                 {instance.presentStudentsCount > 0
@@ -1105,8 +1122,8 @@ interface IconActionButtonProps {
 
 const ICON_ACTION_PALETTE: Record<IconActionTone, string> = {
   green:
-    "border-[#83CD2D]/20 bg-white text-[#6BA023] hover:border-[#83CD2D]/40 hover:bg-[#83CD2D]/10",
-  red: "border-[#FF3130]/20 bg-white text-[#CC2626] hover:border-[#FF3130]/40 hover:bg-[#FF3130]/10",
+    "border-moto-green/20 bg-white text-moto-green-strong hover:border-moto-green/40 hover:bg-moto-green/10",
+  red: "border-moto-red/20 bg-white text-moto-red-strong hover:border-moto-red/40 hover:bg-moto-red/10",
   slate:
     "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50",
 };
@@ -1156,7 +1173,7 @@ function PersonLine({
     <div
       className={`${NESTED_SURFACE_BASE} px-3 py-2 ${
         danger
-          ? "border-[#FF3130]/20 bg-[#FF3130]/10"
+          ? "border-moto-red/20 bg-moto-red/10"
           : "border-gray-200 bg-white"
       }`}
     >
@@ -1164,7 +1181,7 @@ function PersonLine({
       {labels.length > 0 && (
         <div
           className={`mt-0.5 text-[11px] ${
-            danger ? "text-[#CC2626]" : "text-gray-500"
+            danger ? "text-moto-red-strong" : "text-gray-500"
           }`}
         >
           {labels.join(" • ")}
@@ -1189,14 +1206,14 @@ function StatsRow({ instance }: StatsRowProps) {
     <div className="flex flex-wrap items-center gap-1.5">
       {showTimetableCounts && (
         <TimetableRatioPill
-          icon={<Users className="h-3.5 w-3.5" />}
+          icon={<MotoConceptIcon concept="present" size={16} />}
           label="Anwesend"
           value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
           tone={attendanceStudentTone(present, totalStudents)}
         />
       )}
       <TimetableRatioPill
-        icon={<UserCheck className="h-3.5 w-3.5" />}
+        icon={<MotoConceptIcon concept="staff" size={16} />}
         label="Personal"
         value={
           instance.staffCount === 0
@@ -1209,7 +1226,7 @@ function StatsRow({ instance }: StatsRowProps) {
         )}
       />
       <TimetableRatioPill
-        icon={<ShieldCheck className="h-3.5 w-3.5" />}
+        icon={<MotoConceptIcon concept="supervision" size={16} />}
         label="Besetzung"
         value={
           instance.requiredStaffCount === 0

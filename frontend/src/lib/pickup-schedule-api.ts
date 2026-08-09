@@ -29,6 +29,44 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+export interface BulkPickupScheduleInput {
+  weekday: number;
+  pickup_time: string;
+}
+
+export interface BulkPickupResult {
+  students_affected: number;
+}
+
+export async function bulkUpsertPickupSchedules(
+  studentIds: string[],
+  schedules: BulkPickupScheduleInput[],
+): Promise<BulkPickupResult> {
+  const numericIds = [...new Set(studentIds)].map((id) =>
+    Number.parseInt(id, 10),
+  );
+  if (
+    numericIds.length === 0 ||
+    numericIds.length > 500 ||
+    numericIds.some((id) => !Number.isSafeInteger(id) || id <= 0)
+  ) {
+    throw new Error("Ungültige Kinderauswahl");
+  }
+
+  const response = await fetch("/api/students/pickup-schedules/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ student_ids: numericIds, schedules }),
+  });
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to update pickup schedules");
+  }
+  return parseApiResult<BulkPickupResult>(
+    response,
+    "Failed to update pickup schedules",
+  );
+}
+
 // Error response from failed JSON parsing
 interface ErrorResponse {
   error?: string;

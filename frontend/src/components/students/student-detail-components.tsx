@@ -3,7 +3,7 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
-import { AlertTriangle, Check, Clock, Info, Pencil } from "lucide-react";
+import { AlertTriangle, Check, Clock, Info } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { useMinuteClock } from "~/lib/pickup-helpers";
@@ -40,6 +40,9 @@ import {
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "StudentDetailComponents" });
 
@@ -47,63 +50,17 @@ const logger = createLogger({ component: "StudentDetailComponents" });
 // ICONS - Reusable SVG icons
 // =============================================================================
 
-function GroupIcon({
-  className = "h-4 w-4",
-}: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-      />
-    </svg>
-  );
-}
-
 export function PersonIcon({
   className = "h-5 w-5",
 }: Readonly<{ className?: string }>) {
+  const concept = MOTO_CONCEPTS.children;
   return (
-    <svg
+    <MotoDuotoneIcon
+      icon={concept.icon}
+      tone={concept.tone}
+      size={20}
       className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-      />
-    </svg>
-  );
-}
-
-function ContactIcon({
-  className = "h-5 w-5",
-}: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-      />
-    </svg>
+    />
   );
 }
 
@@ -228,7 +185,7 @@ function FieldHistoryInfo({
         onClick={() => setOpen((v) => !v)}
         onBlur={() => setOpen(false)}
         aria-label="Änderungsinformation anzeigen"
-        className="inline-flex text-[#5080D8] transition-colors hover:text-[#3f66b8]"
+        className="text-moto-blue hover:text-moto-blue-hover inline-flex transition-colors"
       >
         <Info className="h-[18px] w-[18px]" />
       </button>
@@ -302,66 +259,6 @@ export function WarningIcon({
         strokeLinejoin="round"
         strokeWidth={2}
         d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-      />
-    </svg>
-  );
-}
-
-function BuildingIcon({
-  className = "h-4 w-4 text-white",
-}: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-      />
-    </svg>
-  );
-}
-
-function ChatIcon({
-  className = "h-4 w-4 text-white",
-}: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-      />
-    </svg>
-  );
-}
-
-function ForkKnifeIcon({
-  className = "h-4 w-4 text-white",
-}: Readonly<{ className?: string }>) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1ZM6 17h12"
       />
     </svg>
   );
@@ -467,7 +364,11 @@ export function StudentDetailHeader({
             </h1>
             {student.group_name && (
               <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                <GroupIcon className="h-4 w-4 text-gray-400" />
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.groups.icon}
+                  tone={MOTO_CONCEPTS.groups.tone}
+                  size={18}
+                />
                 <span className="truncate">{student.group_name}</span>
               </div>
             )}
@@ -669,8 +570,12 @@ export function SupervisorsCard({
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
-            <ContactIcon />
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.staff.icon}
+              tone={MOTO_CONCEPTS.staff.tone}
+              size={22}
+            />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
             Ansprechpartner
@@ -1081,19 +986,17 @@ function EnrollmentExtraInfoItems({
 // =============================================================================
 
 interface HistoryButtonProps {
-  icon: React.ReactNode;
+  concept: MotoConceptKey;
   title: string;
   description: string;
-  bgColor: string;
   disabled?: boolean;
   onClick?: () => void;
 }
 
 function HistoryButton({
-  icon,
+  concept,
   title,
   description,
-  bgColor,
   disabled = false,
   onClick,
 }: Readonly<HistoryButtonProps>) {
@@ -1110,11 +1013,7 @@ function HistoryButton({
       className={`${baseClasses} ${stateClasses}`}
     >
       <div className="flex items-center gap-3">
-        <div
-          className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${bgColor}`}
-        >
-          {icon}
-        </div>
+        <ConceptIconTile concept={concept} variant="section" />
         <div className="min-w-0 flex-1 text-left">
           <p
             className={`text-sm font-medium sm:text-base ${
@@ -1159,10 +1058,19 @@ export function StudentHistorySection({
   const changeHistoryDisabled = readOnly || !canViewChangeHistory;
 
   return (
-    <InfoCard title="Historien" icon={<ClockIcon />}>
+    <InfoCard
+      title="Historien"
+      icon={
+        <MotoDuotoneIcon
+          icon={MOTO_CONCEPTS.changeHistory.icon}
+          tone={MOTO_CONCEPTS.changeHistory.tone}
+          size={20}
+        />
+      }
+    >
       <div className="grid grid-cols-1 gap-2">
         <HistoryButton
-          icon={<BuildingIcon />}
+          concept="rooms"
           title="Anwesenheitsprotokoll"
           description={
             readOnly
@@ -1171,7 +1079,6 @@ export function StudentHistorySection({
                 ? "Anwesenheit je Betreuungsangebot und besuchte Räume"
                 : "Für Ihre Schule deaktiviert"
           }
-          bgColor="bg-[#5080D8]"
           disabled={attendanceDisabled}
           onClick={
             !attendanceDisabled
@@ -1180,7 +1087,7 @@ export function StudentHistorySection({
           }
         />
         <HistoryButton
-          icon={<ChatIcon />}
+          concept="feedback"
           title="Feedbackhistorie"
           description={
             readOnly
@@ -1189,7 +1096,6 @@ export function StudentHistorySection({
                 ? "Feedback und Bewertungen"
                 : "Für Ihre Schule deaktiviert"
           }
-          bgColor="bg-[#83CD2D]"
           disabled={feedbackDisabled}
           onClick={
             !feedbackDisabled
@@ -1198,21 +1104,19 @@ export function StudentHistorySection({
           }
         />
         <HistoryButton
-          icon={<ForkKnifeIcon />}
+          concept="mealPlan"
           title="Mensaverlauf"
           description="Mahlzeiten und Bestellungen"
-          bgColor="bg-[#F78C10]"
           disabled
         />
         <HistoryButton
-          icon={<Pencil className="h-4 w-4 text-white" />}
+          concept="changeHistory"
           title="Änderungsverlauf"
           description={
             changeHistoryDisabled
               ? "Nur für Gruppenbetreuer"
               : "Wer hat was geändert"
           }
-          bgColor="bg-[#7C3AED]"
           disabled={changeHistoryDisabled}
           onClick={
             !changeHistoryDisabled

@@ -2,7 +2,7 @@
 // abwesenheiten-tab.tsx and leave-requests-card.tsx; the /staff inbox is the
 // third consumer, so the copies were consolidated here.
 
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE, LOCATION_COLORS } from "~/lib/location-helper";
 
 export const ABSENCE_TYPE_LABEL: Record<string, string> = {
   vacation: "Urlaub",
@@ -132,14 +132,19 @@ export function absenceStatusMeta(
     case "requested":
       return {
         label: options?.requestedLabel ?? "Wartet",
-        color: LOCATION_COLORS.SICK,
+        // WARNING, not SICK: SICK is red now and "declined" below is DANGER,
+        // so a pending request and a rejected one would render identically.
+        color: LOCATION_COLORS.WARNING,
       };
     case "question":
       return { label: "Rückfrage", color: LOCATION_COLORS.EXCUSED };
     case "approved":
       return { label: "Genehmigt", color: LOCATION_COLORS.GROUP_ROOM };
     case "declined":
-      return { label: "Abgelehnt", color: LOCATION_COLORS.HOME };
+      // Deep red, not DANGER: the history row puts this pill next to the type
+      // pill, and ABSENCE_TYPE_HEX.sick is DANGER's red since the palette
+      // moved SICK from amber. A denied sick note showed two identical reds.
+      return { label: "Abgelehnt", color: MOTO_COLOR_PALETTE.wine.base };
     case "canceled":
       return { label: "Storniert", color: LOCATION_COLORS.UNKNOWN };
     case "reported":

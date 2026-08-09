@@ -1,4 +1,4 @@
-import { SURFACE_GRAY_50, getAccessibleTextColor } from "~/lib/location-helper";
+import { getLocationBadgeTone } from "~/lib/location-helper";
 
 // Generic label+color status pill following the DataTableStatusBadge recipe
 // (gray-50 pill, colored dot, label tinted via inline style). Use it whenever
@@ -20,16 +20,22 @@ export function StatusDotBadge({
   readonly label: string;
   readonly color: string;
 }) {
+  const tone = getLocationBadgeTone(color);
+
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+      style={{
+        backgroundColor: tone.backgroundColor,
+        color: tone.textColor,
+      }}
+    >
       <span
         aria-hidden
         className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: color }}
+        style={{ backgroundColor: tone.dotColor }}
       />
-      <span style={{ color: getAccessibleTextColor(color, SURFACE_GRAY_50) }}>
-        {label}
-      </span>
+      <span>{label}</span>
     </span>
   );
 }

@@ -333,7 +333,7 @@ export function CalendarPeriodModal({
                   {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
                 </Button>
                 {deleteConfirm && !deleting && (
-                  <p className="text-xs text-[#CC2626]">
+                  <p className="text-moto-red-strong text-xs">
                     {deleteWarning} {deleteConflictHint}
                   </p>
                 )}
@@ -517,7 +517,7 @@ export function CalendarPeriodModal({
                       {phase.name}
                     </span>
                     {linkedElsewhere && (
-                      <span className="shrink-0 text-xs text-[#F78C10]">
+                      <span className="text-moto-orange shrink-0 text-xs">
                         Mit anderem Zeitraum verknüpft
                       </span>
                     )}

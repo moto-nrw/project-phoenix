@@ -122,7 +122,7 @@ export function InstanceBlock({
     } else if (isGap) {
       statusIcon = (
         <TriangleAlert
-          className="h-3.5 w-3.5 text-[#F78C10]"
+          className="text-moto-orange h-3.5 w-3.5"
           aria-label="Offene Lücke"
         />
       );
@@ -144,16 +144,16 @@ export function InstanceBlock({
           aria-label={compactStatusDetails.join(", ")}
         >
           {hasCoverageGap && (
-            <span className="h-1.5 w-1.5 rounded-full bg-[#F78C10]" />
+            <span className="bg-moto-orange h-1.5 w-1.5 rounded-full" />
           )}
           {isActive && (
-            <span className="h-1.5 w-1.5 rounded-full bg-[#83CD2D]" />
+            <span className="bg-moto-green h-1.5 w-1.5 rounded-full" />
           )}
           {absentCount > 0 && (
-            <span className="h-1.5 w-1.5 rounded-full bg-[#CC2626]" />
+            <span className="bg-moto-red-strong h-1.5 w-1.5 rounded-full" />
           )}
           {hasSubstitute && (
-            <span className="h-1.5 w-1.5 rounded-full bg-[#5A8E1F]" />
+            <span className="bg-moto-green-strong h-1.5 w-1.5 rounded-full" />
           )}
         </span>
       );
@@ -219,7 +219,7 @@ export function InstanceBlock({
         <span className="flex flex-wrap items-center gap-1.5 text-[10px] text-gray-500">
           {isActive && (
             <span
-              className="inline-block h-1.5 w-1.5 rounded-full bg-[#83CD2D]"
+              className="bg-moto-green inline-block h-1.5 w-1.5 rounded-full"
               aria-label="läuft"
             />
           )}
@@ -239,12 +239,12 @@ export function InstanceBlock({
       {!isCancelled && (absentCount > 0 || hasSubstitute) && (
         <span className="flex flex-wrap gap-1 text-[10px]">
           {absentCount > 0 && (
-            <span className="font-semibold text-[#CC2626]">
+            <span className="text-moto-red-strong font-semibold">
               {absentCount} abwesend
             </span>
           )}
           {hasSubstitute && (
-            <span className="font-semibold text-[#5A8E1F]">Ersatz</span>
+            <span className="text-moto-green-strong font-semibold">Ersatz</span>
           )}
         </span>
       )}

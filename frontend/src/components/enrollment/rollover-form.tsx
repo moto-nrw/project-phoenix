@@ -133,7 +133,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
     >
       <header className="border-b border-gray-100 pb-4">
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Anschlussphase
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -147,7 +147,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       </header>
 
       {error && (
-        <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
           {error}
         </div>
       )}
@@ -167,12 +167,12 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
             aria-describedby={nameError ? "rollover-name-error" : undefined}
             className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
               nameError !== null
-                ? "border-[#FF3130] focus:border-[#FF3130] focus:ring-[#FF3130]"
+                ? "border-moto-red focus:border-moto-red focus:ring-moto-red"
                 : "border-gray-200"
             }`}
           />
           {nameError !== null && (
-            <p id="rollover-name-error" className="mt-1 text-xs text-[#FF3130]">
+            <p id="rollover-name-error" className="text-moto-red mt-1 text-xs">
               {nameError}
             </p>
           )}

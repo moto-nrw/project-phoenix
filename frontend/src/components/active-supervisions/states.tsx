@@ -1,5 +1,6 @@
 "use client";
 
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { Loading } from "~/components/ui/loading";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
@@ -9,6 +10,8 @@ import type {
 import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 
 interface MinimalActiveGroup {
   id: string;
@@ -56,19 +59,7 @@ export function NoActiveSupervisionAccessView() {
 
       <div className="flex min-h-[60vh] items-center justify-center px-4">
         <div className="flex max-w-md flex-col items-center gap-6 text-center">
-          <svg
-            className="h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-            />
-          </svg>
+          <MotoConceptIcon concept="rooms" size={48} />
           <div className="space-y-2">
             <h3 className="text-lg font-medium text-gray-900">
               Keine aktive Raum-Aufsicht
@@ -126,19 +117,7 @@ export function EmptyRoomsView({
 
       <div className="mt-8 flex min-h-[30vh] items-center justify-center">
         <div className="flex max-w-md flex-col items-center gap-4 text-center">
-          <svg
-            className="h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-            />
-          </svg>
+          <MotoConceptIcon concept="rooms" size={48} />
           <div className="space-y-1">
             <h3 className="text-lg font-medium text-gray-900">
               Keine aktive Raum-Aufsicht
@@ -172,19 +151,12 @@ export function ReleaseSupervisionModal({
       <div className="space-y-4">
         <div className="rounded-lg border border-red-100 bg-red-50/50 p-3">
           <div className="flex items-start gap-3">
-            <svg
-              className="mt-0.5 size-5 flex-shrink-0 text-red-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
+            <MotoDuotoneIcon
+              icon={WarningCircleIcon}
+              tone="red"
+              size={20}
+              className="mt-0.5 flex-shrink-0"
+            />
             <div className="flex-1">
               <p className="text-sm text-gray-600">
                 Du wirst nicht mehr als Aufsicht angezeigt. Der Schulhof wird
@@ -207,19 +179,7 @@ export function SchulhofNotSupervisingView({
 }: SchulhofNotSupervisingViewProps) {
   return (
     <div className="flex flex-col items-center gap-4 py-12 text-center">
-      <svg
-        className="h-12 w-12 text-gray-400"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.5}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z"
-        />
-      </svg>
+      <MotoConceptIcon concept="schoolyard" size={48} />
       <p className="text-lg font-medium text-gray-900">
         Schulhof ohne Aufsicht
       </p>

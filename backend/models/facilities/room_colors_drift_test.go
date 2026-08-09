@@ -101,11 +101,41 @@ func extractLocationColorsHexes(t *testing.T, source string) map[string]struct{}
 	block := source[startIdx : startIdx+closeIdx]
 
 	hexPattern := regexp.MustCompile(`"(#[0-9A-Fa-f]{3,6})"`)
-	matches := hexPattern.FindAllStringSubmatch(block, -1)
+	literalMatches := hexPattern.FindAllStringSubmatch(block, -1)
+	palettePattern := regexp.MustCompile(`MOTO_COLOR_PALETTE\.([A-Za-z][A-Za-z0-9]*)\.base`)
+	paletteMatches := palettePattern.FindAllStringSubmatch(block, -1)
+	paletteBaseHexes := extractPaletteBaseHexes(t, source)
 
-	out := make(map[string]struct{}, len(matches))
-	for _, m := range matches {
+	out := make(map[string]struct{}, len(literalMatches)+len(paletteMatches))
+	for _, m := range literalMatches {
 		out[strings.ToUpper(m[1])] = struct{}{}
+	}
+	for _, m := range paletteMatches {
+		hex, ok := paletteBaseHexes[m[1]]
+		require.True(t, ok, "could not resolve MOTO_COLOR_PALETTE.%s.base", m[1])
+		out[hex] = struct{}{}
+	}
+	return out
+}
+
+func extractPaletteBaseHexes(t *testing.T, source string) map[string]string {
+	t.Helper()
+
+	startIdx := strings.Index(source, "export const MOTO_COLOR_PALETTE")
+	require.NotEqual(t, -1, startIdx,
+		"could not find MOTO_COLOR_PALETTE export — frontend file structure changed")
+
+	closeIdx := strings.Index(source[startIdx:], "} as const")
+	require.NotEqual(t, -1, closeIdx,
+		"could not find end of MOTO_COLOR_PALETTE block — frontend file structure changed")
+	block := source[startIdx : startIdx+closeIdx]
+
+	basePattern := regexp.MustCompile(`(?ms)^\s*([A-Za-z][A-Za-z0-9]*):\s*\{.*?^\s*base:\s*"(#[0-9A-Fa-f]{3,6})"`)
+	matches := basePattern.FindAllStringSubmatch(block, -1)
+
+	out := make(map[string]string, len(matches))
+	for _, m := range matches {
+		out[m[1]] = strings.ToUpper(m[2])
 	}
 	return out
 }
@@ -128,12 +158,15 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 	knownReserved := []string{
 		"#83CD2D",
 		"#5080D8",
-		"#FF3130",
+		"#6B7280",
 		"#F78C10",
 		"#D946EF",
-		"#EAB308",
+		"#78716C",
+		"#DC2626",
 		"#7C3AED",
-		"#6B7280",
+		"#0891B2",
+		"#365D83",
+		"#EAB308",
 	}
 
 	out := make(map[string]struct{}, len(knownReserved))
@@ -155,6 +188,25 @@ func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
 	require.True(t, facilities.IsReservedRoomColor("#4F46E5"),
 		"legacy bug-default #4F46E5 must remain reserved — see "+
 			"migration 1.15.45 / room_colors.go for the rationale")
+}
+
+// TestReservedRoomColors_RetiredStatusColors pins the hexes that used to be
+// frontend status colors. They are backend-only now — LOCATION_COLORS no
+// longer carries them, so exposedReservedHexes deliberately excludes them and
+// nothing else would fail if they were dropped from reservedRoomColors.
+//
+// They must stay reserved regardless: rooms created while these were the live
+// HOME/SICK colors are still out there, and re-opening the hexes for picking
+// would let a room masquerade as a status for anyone whose client still maps
+// the old palette.
+func TestReservedRoomColors_RetiredStatusColors(t *testing.T) {
+	for _, hex := range []string{
+		"#FF3130", // previous HOME status color
+	} {
+		require.True(t, facilities.IsReservedRoomColor(hex),
+			"retired status color %s must remain reserved — see the "+
+				"reservedRoomColors comment in room_colors.go", hex)
+	}
 }
 
 func setDiff(a, b map[string]struct{}) []string {

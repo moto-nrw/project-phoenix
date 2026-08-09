@@ -58,8 +58,8 @@ export function formatOverviewMonth(year: number, month: number): string {
 }
 
 function saldoClass(minutes: number): string {
-  if (minutes < 0) return "text-red-600";
-  if (minutes > 0) return "text-[#4a7a15]";
+  if (minutes < 0) return "text-moto-red-strong";
+  if (minutes > 0) return "text-moto-green-strong";
   return "text-gray-600";
 }
 
@@ -386,7 +386,7 @@ export function StaffTimeAccountsTable({
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-lg border p-4">
           {error}
         </div>
       )}

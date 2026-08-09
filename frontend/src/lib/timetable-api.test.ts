@@ -271,6 +271,47 @@ describe("timetableService", () => {
     );
   });
 
+  it("converts an existing occurrence into a series with one atomic request", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          template_id: 7,
+          timeframe_id: 4,
+          schedule_ids: [9, 10],
+          linked_instance_id: 42,
+        },
+      }),
+    );
+    const body = {
+      name: "Yoga",
+      type: "activity" as const,
+      weekdays: [1],
+      start_time: "14:00",
+      end_time: "15:00",
+      room_id: 3,
+      category_id: 2,
+      calendar_period_id: 5,
+      start_date: "2026-05-04",
+      instance_notes: "Heute draußen",
+    };
+
+    await expect(
+      timetableService.convertInstanceToSeries("42", body),
+    ).resolves.toEqual({
+      templateId: "7",
+      timeframeId: "4",
+      scheduleIds: ["9", "10"],
+      linkedInstanceId: "42",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/42/convert-to-series",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    );
+  });
+
   it("passes series_roster_from through to the update body (#2187)", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ data: backendTemplate }));
 

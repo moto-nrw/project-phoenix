@@ -9,6 +9,7 @@ import {
   updateStudentPickupNote,
   deleteStudentPickupNote,
   fetchBulkPickupTimes,
+  bulkUpsertPickupSchedules,
   type BulkPickupTimeResponse,
 } from "./pickup-schedule-api";
 import type {
@@ -76,6 +77,34 @@ describe("pickup-schedule-api", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe("bulkUpsertPickupSchedules", () => {
+    it("posts only selected children and filled weekdays", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "success",
+          data: { students_affected: 2 },
+        }),
+      );
+
+      const result = await bulkUpsertPickupSchedules(
+        ["9", "4"],
+        [{ weekday: 1, pickup_time: "16:10" }],
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/pickup-schedules/bulk",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            student_ids: [9, 4],
+            schedules: [{ weekday: 1, pickup_time: "16:10" }],
+          }),
+        }),
+      );
+      expect(result.students_affected).toBe(2);
+    });
   });
 
   describe("fetchStudentPickupData", () => {

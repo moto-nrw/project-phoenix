@@ -208,6 +208,12 @@ type UpdateInstanceInput struct {
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// nil = derive from the Betreuungsschlüssel.
 	RequiredStaff *int
+	// CalendarPeriodID, when non-nil, stamps the materializer marker used by
+	// FindPlannedTemplateBackedFrom (activity_group_id set, period set,
+	// is_spontaneous=false). Convert-to-series is the only caller that sets
+	// this on a pre-existing seed; ordinary PUT leaves the column alone so
+	// hand-linked one-offs stay outside enrollment resync.
+	CalendarPeriodID *int64
 }
 
 // StartInstanceResult bundles what the start endpoint returns. ActiveGroupID
@@ -1099,10 +1105,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	instance.RequiredStaff = req.RequiredStaff
 	instance.ListKind = req.ListKind
 	instance.IsSpontaneous = req.ActivityGroupID == nil
-
-	if err := s.updateLifecycleColumns(
-		ctx,
-		instance,
+	columns := []string{
 		"date",
 		"start_time",
 		"end_time",
@@ -1114,7 +1117,13 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		"required_staff",
 		"list_kind",
 		"is_spontaneous",
-	); err != nil {
+	}
+	if req.CalendarPeriodID != nil {
+		instance.CalendarPeriodID = req.CalendarPeriodID
+		columns = append(columns, "calendar_period_id")
+	}
+
+	if err := s.updateLifecycleColumns(ctx, instance, columns...); err != nil {
 		return nil, &ScheduleError{Op: "update instance", Err: err}
 	}
 	if err := s.consumeMovedSlot(ctx, origSlot, req); err != nil {

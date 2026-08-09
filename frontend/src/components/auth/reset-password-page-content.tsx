@@ -287,7 +287,7 @@ export function ResetPasswordPageContent({
     return (
       <AuthShell
         eyebrow={copy.successEyebrow}
-        eyebrowClassName="text-[#83CD2D]"
+        eyebrowClassName="text-moto-green"
         title={copy.successTitle}
         subtitle={copy.successSubtitle}
         variant="reset"
@@ -310,7 +310,7 @@ export function ResetPasswordPageContent({
   return (
     <AuthShell
       eyebrow={copy.formEyebrow}
-      eyebrowClassName="text-[#83CD2D]"
+      eyebrowClassName="text-moto-green"
       title={copy.formTitle}
       subtitle={copy.formSubtitle}
       variant="reset"

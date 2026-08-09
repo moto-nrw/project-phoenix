@@ -172,7 +172,7 @@ export function PickupScheduleFormModal({
                       onChange={(e) =>
                         handleTimeChange(day.value, e.target.value)
                       }
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      className="focus:border-moto-blue focus:ring-moto-blue w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                       placeholder="HH:MM"
                     />
                   </div>
@@ -190,7 +190,7 @@ export function PickupScheduleFormModal({
                       onChange={(e) =>
                         handleNotesChange(day.value, e.target.value)
                       }
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                      className="focus:border-moto-blue focus:ring-moto-blue w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-1 focus:outline-none"
                       placeholder="Abholer, Besonderheiten..."
                       maxLength={500}
                     />

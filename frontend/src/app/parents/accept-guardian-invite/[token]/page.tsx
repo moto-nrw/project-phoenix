@@ -125,7 +125,7 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
   return (
     <AuthShell
       eyebrow={t("eyebrow")}
-      eyebrowClassName="text-[#83CD2D]"
+      eyebrowClassName="text-moto-green"
       title={t("title")}
       subtitle={t("subtitle", { school: schoolName })}
       variant="parents"
@@ -141,8 +141,8 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
     >
       {errorMessage && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4">
-            <p className="text-sm text-[#CC2626]">{errorMessage}</p>
+          <div className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4">
+            <p className="text-moto-red-strong text-sm">{errorMessage}</p>
           </div>
           <div className="text-center text-sm text-gray-600">
             <p>

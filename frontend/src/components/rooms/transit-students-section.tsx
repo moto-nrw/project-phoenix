@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronDown, ExternalLink, Footprints } from "lucide-react";
+import { Check, ChevronDown, ExternalLink } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -15,7 +16,6 @@ import { Button } from "~/components/ui/button";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
 import { useToast } from "~/contexts/ToastContext";
 import { activeService } from "~/lib/active-service";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import type { ActiveGroup, Supervisor } from "~/lib/active-helpers";
 import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
@@ -241,14 +241,10 @@ export function TransitStudentsSection({
           className="group flex w-full min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
         >
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-            style={{ backgroundColor: `${LOCATION_COLORS.TRANSIT}14` }}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100"
             aria-hidden="true"
           >
-            <Footprints
-              className="h-4 w-4"
-              style={{ color: LOCATION_COLORS.TRANSIT }}
-            />
+            <MotoConceptIcon concept="transit" size={18} />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { fn } from "storybook/test";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
-import { ClassBulkArrivalModal } from "./class-bulk-arrival-modal";
+import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 
 const students: Student[] = [
   {
@@ -20,8 +20,8 @@ const students: Student[] = [
 ];
 
 const meta = {
-  title: "students/ClassBulkArrivalModal",
-  component: ClassBulkArrivalModal,
+  title: "students/FilteredBulkArrivalModal",
+  component: FilteredBulkArrivalModal,
   decorators: [
     (Story) => (
       <ToastProvider>
@@ -32,11 +32,12 @@ const meta = {
   args: {
     isOpen: true,
     onClose: fn(),
-    schoolClass: "3a",
-    studentsInClass: students,
+    filter: { type: "school_class", schoolClass: "3a" },
+    filterLabel: "3a",
+    studentsInFilter: students,
     onSuccess: fn(),
   },
-} satisfies Meta<typeof ClassBulkArrivalModal>;
+} satisfies Meta<typeof FilteredBulkArrivalModal>;
 
 export default meta;
 
@@ -46,7 +47,14 @@ export const Default: Story = {};
 
 export const NoStudents: Story = {
   args: {
-    studentsInClass: [],
+    studentsInFilter: [],
+  },
+};
+
+export const Group: Story = {
+  args: {
+    filter: { type: "group", groupId: "12" },
+    filterLabel: "Füchse",
   },
 };
 

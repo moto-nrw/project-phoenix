@@ -2,7 +2,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import DatabasePage from "./page";
 import { mockSessionData } from "~/test/mocks/next-auth";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import useSWR from "swr";
 
 const mockSession = mockSessionData();
@@ -304,22 +303,22 @@ describe("DatabasePage", () => {
     });
   });
 
-  it("uses brand colors for section icons", async () => {
+  it("uses the central concept tones for section icons", async () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
       expect(screen.getByText("Kinder")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("database-section-icon-students")).toHaveStyle({
-      backgroundColor: LOCATION_COLORS.OTHER_ROOM,
-    });
-    expect(screen.getByTestId("database-section-icon-teachers")).toHaveStyle({
-      backgroundColor: LOCATION_COLORS.SCHOOLYARD,
-    });
-    expect(screen.getByTestId("database-section-icon-groups")).toHaveStyle({
-      backgroundColor: LOCATION_COLORS.GROUP_ROOM,
-    });
+    expect(
+      screen.getByTestId("database-section-icon-students").querySelector("svg"),
+    ).toHaveAttribute("data-moto-duotone-tone", "greenVivid");
+    expect(
+      screen.getByTestId("database-section-icon-teachers").querySelector("svg"),
+    ).toHaveAttribute("data-moto-duotone-tone", "orange");
+    expect(
+      screen.getByTestId("database-section-icon-groups").querySelector("svg"),
+    ).toHaveAttribute("data-moto-duotone-tone", "greenDeep");
   });
 });
 

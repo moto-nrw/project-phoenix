@@ -14,7 +14,8 @@ import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
-import { activitiesConfig } from "@/components/database/configs/activities.config";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { isSystemActivity, type Activity } from "@/lib/activity-helpers";
 import { buildActivityFormSections } from "./activity-form-sections";
 
@@ -32,10 +33,6 @@ interface ActivitiesMasterDetailProps {
 
 function keyForActivity(activity: Activity): string {
   return activity.id;
-}
-
-function getInitials(activity: Activity): string {
-  return (activity.name?.slice(0, 2) || "AG").toUpperCase();
 }
 
 function buildActivitySubtitle(activity: Activity): string {
@@ -154,7 +151,13 @@ function ActivityDetailContent({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={getInitials(activity)}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.activities.icon}
+              tone={MOTO_CONCEPTS.activities.tone}
+              size={36}
+            />
+          }
           title={activity.name}
           subtitle={buildActivitySubtitle(activity)}
           actions={headerActions}
@@ -196,7 +199,6 @@ function ActivityStammdatenTab({
       <ActivitySummary activity={activity} />
       <DatabaseForm
         key={formResetKey}
-        theme={activitiesConfig.theme}
         sections={sections}
         initialData={activity}
         onSubmit={onSaveActivity}

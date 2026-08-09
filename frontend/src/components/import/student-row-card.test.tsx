@@ -9,10 +9,7 @@ describe("StudentRowCard", () => {
     errors: [],
     first_name: "Max",
     last_name: "Mustermann",
-    school_class: "1a",
-    group_name: "Gruppe A",
-    guardian_info: "Anna Mustermann",
-    health_info: "",
+    meta: ["1a", "Gruppe A", "Anna Mustermann"],
   };
 
   it("renders student name", () => {
@@ -34,21 +31,11 @@ describe("StudentRowCard", () => {
     expect(screen.getByText("5")).toBeInTheDocument();
   });
 
-  it("displays school class", () => {
+  it("displays every meta chip", () => {
     render(<StudentRowCard student={baseStudent} index={0} />);
 
     expect(screen.getByText("1a")).toBeInTheDocument();
-  });
-
-  it("displays group name", () => {
-    render(<StudentRowCard student={baseStudent} index={0} />);
-
     expect(screen.getByText("Gruppe A")).toBeInTheDocument();
-  });
-
-  it("displays guardian info", () => {
-    render(<StudentRowCard student={baseStudent} index={0} />);
-
     expect(screen.getByText("Anna Mustermann")).toBeInTheDocument();
   });
 
@@ -97,24 +84,22 @@ describe("StudentRowCard", () => {
     expect(screen.queryByText(/Missing field/)).not.toBeInTheDocument();
   });
 
-  it("hides separator when school_class is empty", () => {
-    const student = { ...baseStudent, school_class: "" };
+  it("skips empty meta entries", () => {
+    const student = { ...baseStudent, meta: ["1a", "", "Anna Mustermann"] };
     render(<StudentRowCard student={student} index={0} />);
+
+    expect(screen.getByText("1a")).toBeInTheDocument();
+    expect(screen.getByText("Anna Mustermann")).toBeInTheDocument();
+  });
+
+  it("renders no meta row when every entry is empty", () => {
+    const student = { ...baseStudent, meta: ["", "", ""] };
+    const { container } = render(
+      <StudentRowCard student={student} index={0} />,
+    );
 
     expect(screen.queryByText("1a")).not.toBeInTheDocument();
-  });
-
-  it("hides group name when empty", () => {
-    const student = { ...baseStudent, group_name: "" };
-    render(<StudentRowCard student={student} index={0} />);
-
-    expect(screen.queryByText("Gruppe A")).not.toBeInTheDocument();
-  });
-
-  it("hides guardian info when empty", () => {
-    const student = { ...baseStudent, guardian_info: "" };
-    render(<StudentRowCard student={student} index={0} />);
-
     expect(screen.queryByText("Anna Mustermann")).not.toBeInTheDocument();
+    expect(container.querySelector(".text-gray-500")).not.toBeInTheDocument();
   });
 });

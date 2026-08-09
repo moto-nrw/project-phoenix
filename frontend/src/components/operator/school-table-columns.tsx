@@ -20,7 +20,7 @@ export function buildSchoolColumns(
           <div className="flex items-center gap-2">
             <span className="font-semibold text-gray-900">{row.name}</span>
             {row.hidden && (
-              <span className="rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#854D0E]">
+              <span className="bg-moto-amber/15 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
                 Verborgen
               </span>
             )}

@@ -170,7 +170,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
             onPaste={handlePaste}
             disabled={disabled}
             aria-label={`Stelle ${index + 1}`}
-            className="h-14 w-12 rounded-lg border-0 bg-white text-center text-2xl font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5080D8] disabled:bg-gray-50 disabled:text-gray-400"
+            className="focus-visible:ring-moto-blue h-14 w-12 rounded-lg border-0 bg-white text-center text-2xl font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50 disabled:text-gray-400"
           />
         ))}
       </div>

@@ -10,7 +10,6 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { Building2 } from "lucide-react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
@@ -29,17 +28,21 @@ import type { BackendRoom } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import {
   ArrowRight,
+  ChevronRight,
   FileSpreadsheet,
   FileText,
-  Footprints,
 } from "lucide-react";
+import { IdentificationCardIcon, UsersIcon } from "@phosphor-icons/react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { SectionHeader } from "~/components/ui/concept-section-header";
+import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
 import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   exportRoomSnapshot,
   type RoomSnapshotExportFormat,
@@ -81,31 +84,23 @@ function TransitAssignmentCard({
       aria-controls="room-detail-panel"
       className="group moto-content-surface moto-hover-elevated mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
     >
-      <div className="flex min-w-0 items-center gap-3">
-        <span
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-          style={{ backgroundColor: `${LOCATION_COLORS.TRANSIT}14` }}
-          aria-hidden="true"
-        >
-          <Footprints
-            className="h-5 w-5"
-            style={{ color: LOCATION_COLORS.TRANSIT }}
-          />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-            Unterwegs
-          </h2>
-          <p className="mt-0.5 text-sm text-gray-500">
+      <SectionHeader
+        className="min-w-0 flex-1"
+        title="Unterwegs"
+        icon={<MotoConceptIcon concept="transit" size={22} />}
+        subtitle={
+          <>
             <span className="font-medium text-gray-900">{count}</span>{" "}
             {count === 1 ? "Kind" : "Kinder"} ohne Raumzuweisung
-          </p>
-        </div>
-      </div>
-      <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
-        Zuweisen
-        <ArrowRight className="h-4 w-4 text-gray-500" aria-hidden="true" />
-      </span>
+          </>
+        }
+        actions={
+          <span className="moto-content-surface inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium text-gray-700 transition-colors group-hover:border-gray-300 group-hover:bg-gray-50">
+            Zuweisen
+            <ArrowRight className="h-4 w-4 text-gray-500" aria-hidden="true" />
+          </span>
+        }
+      />
     </button>
   );
 }
@@ -520,21 +515,7 @@ function RoomsPageContent() {
       <PageHeaderWithSearch
         title={isMobile ? "Räume" : ""}
         badge={{
-          icon: (
-            <svg
-              className="h-5 w-5 text-gray-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              />
-            </svg>
-          ),
+          icon: <MotoConceptIcon concept="rooms" size={20} />,
           count: filteredRooms.length,
           label: "Räume",
         }}
@@ -554,13 +535,13 @@ function RoomsPageContent() {
       />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
           {error}
         </div>
       )}
 
       {exportError && (
-        <div className="mb-4 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 p-4 text-[#FF3130]">
+        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
           {exportError}
         </div>
       )}
@@ -592,7 +573,7 @@ function RoomsPageContent() {
 
           {filteredRooms.length === 0 && !showTransitAssignment ? (
             <EmptyState
-              icon={<Building2 className="h-12 w-12" strokeWidth={1.5} />}
+              icon={<MotoConceptIcon concept="rooms" size={48} />}
               title="Keine Räume gefunden"
               description="Versuchen Sie Ihre Suchkriterien anzupassen."
             />
@@ -633,19 +614,10 @@ function RoomsPageContent() {
                               <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
                                 {room.name}
                               </h3>
-                              <svg
+                              <ChevronRight
                                 className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M9 5l7 7-7 7"
-                                />
-                              </svg>
+                                aria-hidden="true"
+                              />
                             </div>
                             {(room.building !== undefined ||
                               room.floor !== undefined) && (
@@ -663,22 +635,11 @@ function RoomsPageContent() {
                             )}
                           </div>
 
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-                              room.isOccupied
-                                ? "bg-[#FF3130]/15 text-[#FF3130]"
-                                : "bg-[#83CD2D]/15 text-[#4a7a15]"
-                            }`}
-                          >
-                            <span
-                              className={`mr-1.5 h-1.5 w-1.5 rounded-full ${
-                                room.isOccupied
-                                  ? "animate-pulse bg-[#FF3130]"
-                                  : "bg-[#83CD2D]"
-                              }`}
-                            ></span>
-                            {room.isOccupied ? "Belegt" : "Frei"}
-                          </span>
+                          <RoomStatusBadge
+                            isOccupied={room.isOccupied}
+                            size="sm"
+                            className="font-bold"
+                          />
                         </div>
 
                         <div className="flex-1 space-y-2">
@@ -698,19 +659,11 @@ function RoomsPageContent() {
                                 {room.studentCount !== undefined &&
                                   room.studentCount > 0 && (
                                     <span className="flex items-center gap-1">
-                                      <svg
-                                        className="h-4 w-4"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                                        />
-                                      </svg>
+                                      <MotoDuotoneIcon
+                                        icon={UsersIcon}
+                                        tone="neutral"
+                                        size={16}
+                                      />
                                       {room.studentCount}{" "}
                                       {room.studentCount === 1
                                         ? "Kind"
@@ -719,19 +672,11 @@ function RoomsPageContent() {
                                   )}
                                 {room.supervisorName && (
                                   <span className="flex items-center gap-1">
-                                    <svg
-                                      className="h-4 w-4"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-                                      />
-                                    </svg>
+                                    <MotoDuotoneIcon
+                                      icon={IdentificationCardIcon}
+                                      tone="neutral"
+                                      size={16}
+                                    />
                                     {room.supervisorName}
                                   </span>
                                 )}

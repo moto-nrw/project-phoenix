@@ -18,6 +18,7 @@ describe("dashboard-helpers", () => {
         students_in_rooms: 75,
         students_sick: 4,
         students_excused: 3,
+        students_home: 18,
         active_activities: 8,
         free_rooms: 5,
         total_rooms: 20,
@@ -88,8 +89,8 @@ describe("dashboard-helpers", () => {
       expect(result.studentsInRooms).toBe(75);
       expect(result.studentsSick).toBe(4);
       expect(result.studentsExcused).toBe(3);
+      expect(result.studentsHome).toBe(18);
       expect(result.activeActivities).toBe(8);
-      expect(result.freeRooms).toBe(5);
       expect(result.totalRooms).toBe(20);
       expect(result.capacityUtilization).toBe(0.75);
       expect(result.activityCategories).toBe(4);
@@ -137,6 +138,7 @@ describe("dashboard-helpers", () => {
         students_in_rooms: 0,
         students_sick: 0,
         students_excused: 0,
+        students_home: 0,
         active_activities: 0,
         free_rooms: 0,
         total_rooms: 0,

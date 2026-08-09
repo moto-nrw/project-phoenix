@@ -3,6 +3,8 @@
 import type { ReactNode } from "react";
 
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 interface EntityHeaderStat {
   label: string;
@@ -11,6 +13,12 @@ interface EntityHeaderStat {
 
 interface EntityHeaderCardProps {
   title: string;
+  /**
+   * Optional fachliches Konzept fuer den Titel. Wenn gesetzt, rendert eine
+   * graue Icon-Kachel links vom Titel (Header-Muster). Ohne Prop
+   * unveraendertes Verhalten.
+   */
+  concept?: MotoConceptKey;
   subdomain?: string | null;
   active: boolean;
   stats?: EntityHeaderStat[];
@@ -31,6 +39,7 @@ function formatYear(value: string | Date): string | null {
 
 export function EntityHeaderCard({
   title,
+  concept,
   subdomain,
   active,
   stats,
@@ -49,22 +58,27 @@ export function EntityHeaderCard({
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-            {subdomain ? (
-              <span className="font-mono text-gray-500">{subdomain}</span>
-            ) : null}
-            {subdomain ? <span className="text-gray-300">·</span> : null}
-            <DataTableStatusBadge
-              active={active}
-              activeLabel={activeLabel}
-              inactiveLabel={inactiveLabel}
-            />
-          </div>
-          {subtitle ? (
-            <div className="mt-2 text-sm text-gray-600">{subtitle}</div>
+        <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+          {concept ? (
+            <ConceptIconTile concept={concept} variant="page" />
           ) : null}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+              {subdomain ? (
+                <span className="font-mono text-gray-500">{subdomain}</span>
+              ) : null}
+              {subdomain ? <span className="text-gray-300">·</span> : null}
+              <DataTableStatusBadge
+                active={active}
+                activeLabel={activeLabel}
+                inactiveLabel={inactiveLabel}
+              />
+            </div>
+            {subtitle ? (
+              <div className="mt-2 text-sm text-gray-600">{subtitle}</div>
+            ) : null}
+          </div>
         </div>
 
         {actions ? (

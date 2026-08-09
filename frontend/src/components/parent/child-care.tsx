@@ -9,13 +9,8 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  CalendarClock,
-  HeartPulse,
-  Loader2,
-  type LucideIcon,
-  Trash2,
-} from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -761,7 +756,7 @@ export function SickNoteModal({
           {t("sick.daysCount", { count: dates.length })}
         </p>
         {noteRequired && excusedRequiresApproval && (
-          <p className="rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 px-3 py-2 text-sm text-[#92710b]">
+          <p className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm">
             {t("sick.approvalHint")}
           </p>
         )}
@@ -781,7 +776,7 @@ export function SickNoteModal({
           />
         </label>
         {error && (
-          <p className="rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+          <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
             {error}
           </p>
         )}
@@ -1003,7 +998,7 @@ export function PickupTimeModal({
         )}
 
         {error && (
-          <p className="rounded-lg bg-[#FF3130]/10 px-3 py-2 text-sm text-[#CC2626]">
+          <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
             {error}
           </p>
         )}
@@ -1196,7 +1191,7 @@ export function SickStatusSummary({
             <p className="text-sm font-semibold text-gray-900">
               {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
             </p>
-            <span className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]">
+            <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.pendingLabel")}
             </span>
             {onWithdraw && r.is_self && (
@@ -1211,7 +1206,9 @@ export function SickStatusSummary({
             )}
           </div>
           {withdrawError?.id === r.id && (
-            <p className="text-xs text-[#CC2626]">{withdrawError.message}</p>
+            <p className="text-moto-red-strong text-xs">
+              {withdrawError.message}
+            </p>
           )}
         </div>
       ))}
@@ -1221,7 +1218,7 @@ export function SickStatusSummary({
             <p className="text-sm font-semibold text-gray-900">
               {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
             </p>
-            <span className="inline-flex items-center rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-xs font-medium text-[#CC2626]">
+            <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.rejectedLabel")}
             </span>
           </div>
@@ -1249,7 +1246,7 @@ export type OgsActionKey = "sick" | "pickup";
 // effect immediately for a single day (no OGS confirmation).
 export interface OgsAction {
   readonly key: OgsActionKey;
-  readonly Icon: LucideIcon;
+  readonly concept: MotoConceptKey;
   readonly enabled: boolean;
 }
 
@@ -1265,12 +1262,12 @@ export function getOgsActions(features: ChildFeatures): OgsAction[] {
   return [
     {
       key: "sick",
-      Icon: HeartPulse,
+      concept: "sick",
       enabled: features.sick_note_enabled,
     },
     {
       key: "pickup",
-      Icon: CalendarClock,
+      concept: "pickup",
       enabled: features.pickup_change_enabled,
     },
   ];

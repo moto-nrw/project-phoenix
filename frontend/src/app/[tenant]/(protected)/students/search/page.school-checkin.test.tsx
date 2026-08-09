@@ -181,12 +181,17 @@ vi.mock("@/components/ui/student-presence-badge", () => ({
   StudentPresenceBadge: () => <span />,
 }));
 
-vi.mock("~/lib/location-helper", () => ({
-  isHomeLocation: (l?: string) => l === "Zuhause",
-  isPresentLocation: (l?: string) => !!l && l !== "Zuhause" && l !== "Schulhof",
-  isTransitLocation: () => false,
-  isSchoolyardLocation: (l?: string) => l === "Schulhof",
-}));
+vi.mock("~/lib/location-helper", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/location-helper")>();
+  return {
+    ...actual,
+    isHomeLocation: (l?: string) => l === "Zuhause",
+    isPresentLocation: (l?: string) =>
+      !!l && l !== "Zuhause" && l !== "Schulhof",
+    isTransitLocation: () => false,
+    isSchoolyardLocation: (l?: string) => l === "Schulhof",
+  };
+});
 
 vi.mock("~/lib/student-helpers", () => ({
   SCHOOL_YEAR_FILTER_OPTIONS: [{ value: "all", label: "Alle" }],

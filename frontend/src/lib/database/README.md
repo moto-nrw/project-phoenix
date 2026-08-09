@@ -48,7 +48,7 @@ export const roomsConfig = defineEntityConfig<Room>({
     plural: 'Räume'
   },
   
-  theme: databaseThemes.rooms,
+  concept: 'rooms',
   
   api: {
     basePath: '/api/rooms',
@@ -154,14 +154,16 @@ The configuration and service factory provide the shared CRUD behavior. Each pag
 - `checkbox`: Boolean checkbox
 - `custom`: Custom component (e.g., GroupSelect)
 
-### Themes
+### Concepts
 
-Pre-defined themes in `lib/database/themes.tsx`:
-- `students`: Teal/Blue
-- `teachers`: Purple/Indigo
-- `rooms`: Green/Emerald
-- `activities`: Orange/Red
-- `groups`: Indigo/Purple
+Each entity config carries a `concept` key instead of a hand-rolled theme
+object. The key indexes `MOTO_CONCEPTS` in `lib/moto-concepts.ts`, which is the
+single source for the icon and color tone a page header, section header and
+card header render — see the `concept` field on `EntityConfig` in `types.ts`.
+
+The former `lib/database/themes.tsx` and its `databaseThemes` export are gone;
+adding a new entity means picking an existing `MotoConceptKey` or adding one to
+`MOTO_CONCEPTS`, not defining a new color pair.
 
 ### Hooks
 

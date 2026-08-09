@@ -126,7 +126,7 @@ export function SuggestionCard({
           {/* Meta row + mobile vote */}
           <div className="mt-3 flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-medium text-blue-700">
+              <span className="bg-moto-blue/15 text-moto-blue-hover flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-medium">
                 {getInitials(suggestion.authorName)}
               </span>
               <span>{suggestion.authorName}</span>

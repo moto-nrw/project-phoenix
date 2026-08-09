@@ -36,7 +36,7 @@ export function Textarea({
         {...props}
       />
       {error && (
-        <p role="alert" className="mt-1 text-xs text-red-600">
+        <p role="alert" className="text-moto-red-strong mt-1 text-xs">
           {error}
         </p>
       )}

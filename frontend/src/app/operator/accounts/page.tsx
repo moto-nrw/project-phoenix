@@ -168,7 +168,7 @@ function OperatorAccountsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Konten" tabs={tabs} />
+      <PageHeaderWithSearch title="Konten" concept="accounts" tabs={tabs} />
 
       <OrgSchoolFilter
         idPrefix="account"

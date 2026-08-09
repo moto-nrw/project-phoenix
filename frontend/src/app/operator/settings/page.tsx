@@ -210,12 +210,12 @@ function OperatorSettingsContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Profil" />
+      <PageHeaderWithSearch title="Profil" concept="settings" />
 
       <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
         {/* Avatar Section */}
         <div className="flex flex-col items-center pt-4">
-          <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-xl">
+          <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gray-800 text-white shadow-xl">
             <span className="text-3xl font-bold">{initials}</span>
           </div>
         </div>
@@ -239,7 +239,7 @@ function OperatorSettingsContent() {
                 }
                 disabled={!isEditing}
                 maxLength={255}
-                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
+                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
               />
             </div>
             <div>
@@ -261,7 +261,7 @@ function OperatorSettingsContent() {
                 <button
                   type="button"
                   onClick={() => setShowEmailChangeDialog(true)}
-                  className="mt-2 text-sm font-medium text-[#5080D8] transition-colors hover:text-[#3060B8]"
+                  className="text-moto-blue hover:text-moto-blue-hover mt-2 text-sm font-medium transition-colors"
                 >
                   E-Mail ändern
                 </button>
@@ -401,7 +401,7 @@ function OperatorSettingsContent() {
                     title="Bitte geben Sie eine gültige E-Mail-Adresse ein (z.B. name@beispiel.de)"
                     value={emailChangeNewEmail}
                     onChange={(e) => setEmailChangeNewEmail(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none"
+                    className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:outline-none"
                     placeholder="neue@email.de"
                   />
                 </div>
@@ -419,7 +419,7 @@ function OperatorSettingsContent() {
                     autoComplete="current-password"
                     value={emailChangePassword}
                     onChange={(e) => setEmailChangePassword(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:ring-[#5080D8] focus:outline-none"
+                    className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:outline-none"
                   />
                 </div>
               </div>

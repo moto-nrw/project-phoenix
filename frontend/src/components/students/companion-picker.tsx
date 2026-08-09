@@ -315,7 +315,7 @@ export function CompanionPicker({
       ))}
 
       {pending ? (
-        <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-2.5">
+        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-2.5">
           <p className="text-xs text-gray-900">
             {pending.result.name} darf {formatDayList(pending.missingDays)} noch
             nicht mit anderen Kindern nach Hause gehen. Soll{" "}

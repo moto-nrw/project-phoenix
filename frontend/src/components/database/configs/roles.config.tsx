@@ -3,7 +3,6 @@
 // Role Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { databaseThemes } from "@/lib/database/themes";
 import type { Role, BackendRole } from "@/lib/auth-helpers";
 import {
   mapRoleResponse,
@@ -19,7 +18,7 @@ export const rolesConfig = defineEntityConfig<Role>({
     plural: "Rollen",
   },
 
-  theme: databaseThemes.roles, // Will add this theme next
+  concept: "roles",
 
   backUrl: "/database",
 
@@ -31,9 +30,7 @@ export const rolesConfig = defineEntityConfig<Role>({
     sections: [
       {
         title: "Rolleninformationen",
-        backgroundColor: "bg-purple-50/30",
-        iconPath:
-          "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+        concept: "roles",
         columns: 1,
         fields: [
           {

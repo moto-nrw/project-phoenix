@@ -38,6 +38,7 @@ const EMPTY_ACTIVE_FILTERS: NonNullable<
 
 export function PageHeaderWithSearch({
   title,
+  concept,
   badge,
   statusIndicator,
   tabs,
@@ -123,6 +124,7 @@ export function PageHeaderWithSearch({
       {title && (
         <PageHeader
           title={title}
+          concept={concept}
           badge={badge}
           statusIndicator={statusIndicator}
           actionButton={mobileActionButton ?? actionButton}

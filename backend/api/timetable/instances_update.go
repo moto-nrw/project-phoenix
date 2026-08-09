@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -116,7 +117,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve care days failed", err))
 		return
 	}
-	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), rs.childrenPerStaffRatio(r.Context()), careDays)
+	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return

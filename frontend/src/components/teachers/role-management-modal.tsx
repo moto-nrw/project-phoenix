@@ -6,9 +6,9 @@ import { Alert } from "~/components/ui/alert";
 import {
   DataField,
   DataGrid,
-  DetailIcons,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { useToast } from "~/contexts/ToastContext";
 import { authService } from "~/lib/auth-service";
@@ -18,6 +18,7 @@ import {
   type Role,
   type RoleOption,
 } from "~/lib/auth-helpers";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "RoleManagementModal" });
@@ -155,7 +156,13 @@ export function RoleManagementModal({
         <div className="space-y-4">
           <InfoSection
             title="Aktuelle Rolle"
-            icon={DetailIcons.person}
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.roles.icon}
+                tone={MOTO_CONCEPTS.roles.tone}
+                size={18}
+              />
+            }
             accentColor="purple"
           >
             <DataGrid>

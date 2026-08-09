@@ -1,5 +1,6 @@
 "use client";
 
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
@@ -25,6 +26,10 @@ import {
   usePresenceMode,
 } from "~/lib/tenant-context";
 import { DashboardSkeleton } from "./page-skeleton";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import type { MotoDuotoneTone } from "~/lib/location-helper";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "DashboardPage" });
 
@@ -36,89 +41,12 @@ function getTimeBasedGreeting(): string {
   return "Guten Abend";
 }
 
-// Icon component
-const Icon: React.FC<{ path: string; className?: string }> = ({
-  path,
-  className,
-}) => (
-  <svg
-    className={className}
-    fill="none"
-    viewBox="0 0 24 24"
-    stroke="currentColor"
-    strokeWidth={2}
-  >
-    <path strokeLinecap="round" strokeLinejoin="round" d={path} />
-  </svg>
-);
-
-// Color theme types and helper
-type ColorTheme = {
-  overlay: string;
-  ring: string;
-};
-
-const COLOR_THEMES: Record<string, ColorTheme> = {
-  "[#5080D8]": {
-    overlay: "from-blue-50/80 to-cyan-100/80",
-    ring: "ring-blue-200/60",
-  },
-  "[#83CD2D]": {
-    overlay: "from-green-50/80 to-lime-100/80",
-    ring: "ring-green-200/60",
-  },
-  "[#FF3130]": {
-    overlay: "from-red-50/80 to-rose-100/80",
-    ring: "ring-red-200/60",
-  },
-  "[#EAB308]": {
-    overlay: "from-amber-50/80 to-yellow-100/80",
-    ring: "ring-amber-200/60",
-  },
-  "[#7C3AED]": {
-    overlay: "from-purple-50/80 to-violet-100/80",
-    ring: "ring-purple-200/60",
-  },
-  "orange-500": {
-    overlay: "from-orange-50/80 to-orange-100/80",
-    ring: "ring-orange-200/60",
-  },
-  "yellow-400": {
-    overlay: "from-yellow-50/80 to-yellow-100/80",
-    ring: "ring-yellow-200/60",
-  },
-  emerald: {
-    overlay: "from-emerald-50/80 to-green-100/80",
-    ring: "ring-emerald-200/60",
-  },
-  purple: {
-    overlay: "from-purple-50/80 to-violet-100/80",
-    ring: "ring-purple-200/60",
-  },
-  indigo: {
-    overlay: "from-indigo-50/80 to-blue-100/80",
-    ring: "ring-indigo-200/60",
-  },
-};
-
-const DEFAULT_THEME: ColorTheme = {
-  overlay: "from-gray-50/80 to-slate-100/80",
-  ring: "ring-gray-200/60",
-};
-
-function getColorTheme(color: string): ColorTheme {
-  const matchedKey = Object.keys(COLOR_THEMES).find((key) =>
-    color.includes(key),
-  );
-  return matchedKey ? COLOR_THEMES[matchedKey]! : DEFAULT_THEME;
-}
-
 // Stat Card Component - matches database page style
 interface StatCardProps {
   readonly title: string;
   readonly value: string | number;
-  readonly icon: string;
-  readonly color: string;
+  readonly icon: PhosphorIcon;
+  readonly tone: MotoDuotoneTone;
   readonly subtitle?: string;
   readonly loading?: boolean;
   readonly href?: string;
@@ -128,29 +56,17 @@ const StatCard: React.FC<StatCardProps> = ({
   title,
   value,
   icon,
-  color,
+  tone,
   subtitle,
   loading,
   href,
 }) => {
-  const theme = getColorTheme(color);
-
   const cardContent = (
     <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
-      <div
-        className={`absolute inset-0 bg-gradient-to-br ${theme.overlay} pointer-events-none rounded-3xl opacity-[0.03]`}
-      ></div>
-      <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-      <div
-        className={`absolute inset-0 rounded-3xl ring-1 ring-white/20 ${theme.ring} pointer-events-none`}
-      ></div>
-
       <div className="relative p-4 md:p-6">
         <div className="mb-3 flex items-start justify-between">
-          <div
-            className={`rounded-2xl bg-gradient-to-br ${color} p-2.5 text-white shadow-lg md:p-3`}
-          >
-            <Icon path={icon} className="h-5 w-5 md:h-6 md:w-6" />
+          <div className="p-0.5">
+            <MotoDuotoneIcon icon={icon} tone={tone} />
           </div>
           {loading && (
             <div className="h-2 w-2 animate-pulse rounded-full bg-gray-400"></div>
@@ -173,7 +89,7 @@ const StatCard: React.FC<StatCardProps> = ({
     return (
       <Link
         href={href}
-        className="group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="focus-visible:ring-moto-blue group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>
@@ -187,7 +103,7 @@ const StatCard: React.FC<StatCardProps> = ({
 interface InfoCardProps {
   readonly title: string;
   readonly children: React.ReactNode;
-  readonly icon?: string;
+  readonly concept: MotoConceptKey;
   readonly href?: string;
   readonly linkText?: string;
 }
@@ -195,27 +111,18 @@ interface InfoCardProps {
 const InfoCard: React.FC<InfoCardProps> = ({
   title,
   children,
-  icon,
+  concept,
   href,
   linkText,
 }) => {
   const cardContent = (
     <div className="moto-content-surface relative h-full overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
-      <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-gray-50/80 to-slate-100/80 opacity-[0.03]"></div>
-      <div className="pointer-events-none absolute inset-px rounded-3xl bg-gradient-to-br from-white/80 to-white/20"></div>
-      <div className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/20"></div>
-
       <div className="relative p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {icon && (
-              <div className="rounded-xl bg-gray-100 p-2">
-                <Icon
-                  path={icon}
-                  className="h-4 w-4 text-gray-600 md:h-5 md:w-5"
-                />
-              </div>
-            )}
+            <div className="rounded-xl bg-gray-100 p-2">
+              <MotoConceptIcon concept={concept} size={20} />
+            </div>
             <h3 className="text-base font-semibold text-gray-900 md:text-lg">
               {title}
             </h3>
@@ -248,7 +155,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
     return (
       <Link
         href={href}
-        className="group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="focus-visible:ring-moto-blue group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>
@@ -267,6 +174,19 @@ function DashboardContent() {
   const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
   const showRoomSurfaces = presenceMode !== "binary";
   const showOnlyStaffSummary = presenceMode === "binary" && openCareGroupMode;
+  const infoCardCount =
+    Number(showRoomSurfaces) +
+    Number(showActivitySurfaces) +
+    Number(!openCareGroupMode) +
+    1;
+  const infoGridColumns =
+    infoCardCount >= 4
+      ? "xl:grid-cols-4"
+      : infoCardCount === 3
+        ? "xl:grid-cols-3"
+        : infoCardCount === 2
+          ? "xl:grid-cols-2"
+          : "xl:grid-cols-1";
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -319,7 +239,7 @@ function DashboardContent() {
   const greeting = getTimeBasedGreeting();
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
+    <div className="w-full">
       {/* Greeting Section */}
       <div className="mb-6 md:mb-8">
         <div className="ml-6">
@@ -334,18 +254,21 @@ function DashboardContent() {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-6 rounded-2xl border p-4 text-sm">
           {error}
         </div>
       )}
 
       {/* Main Stats Grid */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-5">
+      <div
+        data-testid="dashboard-stats-grid"
+        className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4"
+      >
         <StatCard
           title="Kinder anwesend"
           value={dashboardData?.studentsPresent ?? 0}
-          icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-          color="from-[#5080D8] to-[#4070c8]"
+          icon={MOTO_CONCEPTS.present.icon}
+          tone={MOTO_CONCEPTS.present.tone}
           loading={isLoading}
           href="/students/search"
         />
@@ -354,16 +277,16 @@ function DashboardContent() {
             <StatCard
               title="In Räumen"
               value={dashboardData?.studentsInRooms ?? 0}
-              icon="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-              color="from-indigo-500 to-indigo-600"
+              icon={MOTO_CONCEPTS.rooms.icon}
+              tone={MOTO_CONCEPTS.rooms.tone}
               loading={isLoading}
               href="/students/search"
             />
             <StatCard
               title="Unterwegs"
               value={dashboardData?.studentsInTransit ?? 0}
-              icon="M13 10V3L4 14h7v7l9-11h-7z"
-              color="from-orange-500 to-orange-600"
+              icon={MOTO_CONCEPTS.transit.icon}
+              tone={MOTO_CONCEPTS.transit.tone}
               loading={isLoading}
               href="/students/search?status=unterwegs"
             />
@@ -372,55 +295,43 @@ function DashboardContent() {
         <StatCard
           title="Schulhof"
           value={dashboardData?.studentsOnPlayground ?? 0}
-          icon="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"
-          color="from-yellow-400 to-yellow-500"
+          icon={MOTO_CONCEPTS.schoolyard.icon}
+          tone={MOTO_CONCEPTS.schoolyard.tone}
           loading={isLoading}
           href="/students/search?status=schulhof"
         />
         <StatCard
           title="Krank"
           value={dashboardData?.studentsSick ?? 0}
-          icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-          color="from-[#EAB308] to-[#CA9908]"
+          icon={MOTO_CONCEPTS.sick.icon}
+          tone={MOTO_CONCEPTS.sick.tone}
           loading={isLoading}
           href="/students/search?status=krank"
         />
         <StatCard
           title="Entschuldigt"
           value={dashboardData?.studentsExcused ?? 0}
-          icon="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-          color="from-[#7C3AED] to-[#5B21B6]"
+          icon={MOTO_CONCEPTS.excused.icon}
+          tone={MOTO_CONCEPTS.excused.tone}
           loading={isLoading}
           href="/students/search?status=entschuldigt"
         />
-        {!openCareGroupMode ? (
-          <StatCard
-            title="Aktive Gruppen"
-            value={dashboardData?.activeOGSGroups ?? 0}
-            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            color="from-[#83CD2D] to-[#70b525]"
-            loading={isLoading}
-            href="/ogs-groups"
-          />
-        ) : null}
+        <StatCard
+          title="Zuhause"
+          value={dashboardData?.studentsHome ?? 0}
+          icon={MOTO_CONCEPTS.home.icon}
+          tone={MOTO_CONCEPTS.home.tone}
+          loading={isLoading}
+          href="/students/search?status=abwesend"
+        />
         {showActivitySurfaces ? (
           <StatCard
             title="Aktive Aktivitäten"
             value={dashboardData?.activeActivities ?? 0}
-            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-            color="from-[#FF3130] to-[#e02020]"
+            icon={MOTO_CONCEPTS.activities.icon}
+            tone={MOTO_CONCEPTS.activities.tone}
             loading={isLoading}
             href="/activities"
-          />
-        ) : null}
-        {showRoomSurfaces ? (
-          <StatCard
-            title="Freie Räume"
-            value={dashboardData?.freeRooms ?? 0}
-            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-            color="from-emerald-500 to-green-600"
-            loading={isLoading}
-            href="/rooms"
           />
         ) : null}
         {showRoomSurfaces ? (
@@ -431,24 +342,24 @@ function DashboardContent() {
                 ? `${Math.round(dashboardData.capacityUtilization * 100)}%`
                 : "0%"
             }
-            icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-            color="from-purple-500 to-purple-600"
+            icon={MOTO_CONCEPTS.utilization.icon}
+            tone={MOTO_CONCEPTS.utilization.tone}
             loading={isLoading}
           />
         ) : null}
       </div>
 
       {/* Activity Lists Grid */}
-      <div className="grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2">
+      <div
+        data-testid="dashboard-info-grid"
+        className={`grid grid-cols-1 items-stretch gap-4 md:gap-6 lg:grid-cols-2 ${infoGridColumns}`}
+      >
         {/* Geburtstage (#1542) — a full-width strip rather than a half card:
             the list is short, reads horizontally, and never leaves an odd gap
             when the room/activity cards below are hidden per presence mode. */}
         {birthdays?.enabled ? (
-          <div className="lg:col-span-2">
-            <InfoCard
-              title="Geburtstage"
-              icon="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-            >
+          <div className="lg:col-span-2 xl:col-span-full">
+            <InfoCard title="Geburtstage" concept="birthdays">
               <BirthdayList
                 celebrations={birthdays.celebrations}
                 isLoading={birthdaysLoading}
@@ -459,10 +370,7 @@ function DashboardContent() {
 
         {/* Recent Activity */}
         {showRoomSurfaces ? (
-          <InfoCard
-            title="Letzte Bewegungen"
-            icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-          >
+          <InfoCard title="Letzte Bewegungen" concept="changeHistory">
             {(() => {
               if (isLoading) {
                 return (
@@ -537,7 +445,7 @@ function DashboardContent() {
         {showActivitySurfaces ? (
           <InfoCard
             title="Laufende Aktivitäten"
-            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+            concept="activities"
             href="/activities"
           >
             {(() => {
@@ -590,11 +498,7 @@ function DashboardContent() {
 
         {/* Active Groups */}
         {!openCareGroupMode ? (
-          <InfoCard
-            title="Aktive Gruppen"
-            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-            href="/ogs-groups"
-          >
+          <InfoCard title="Aktive Gruppen" concept="groups" href="/ogs-groups">
             {(() => {
               if (isLoading) {
                 return (
@@ -643,12 +547,12 @@ function DashboardContent() {
         ) : null}
 
         {/* Betreuer Summary */}
-        <div className={showOnlyStaffSummary ? "lg:col-span-2" : undefined}>
-          <InfoCard
-            title="Personal heute"
-            icon="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-            href="/staff"
-          >
+        <div
+          className={
+            showOnlyStaffSummary ? "lg:col-span-2 xl:col-span-1" : undefined
+          }
+        >
+          <InfoCard title="Personal heute" concept="staff" href="/staff">
             {isLoading ? (
               <div className="h-32 animate-pulse rounded-lg bg-gray-100"></div>
             ) : (

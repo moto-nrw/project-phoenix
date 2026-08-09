@@ -664,6 +664,7 @@ POST /api/students/excused-absence-requests/{requestId}/decide
 POST /api/students/export
 POST /api/students/master-data-change-requests/{requestId}/decide
 POST /api/students/offering-change-requests/{requestId}/decide
+POST /api/students/pickup-schedules/bulk
 POST /api/students/pickup-times/bulk
 POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
@@ -695,6 +696,7 @@ POST /api/timetable/instances/re-plan-week
 POST /api/timetable/instances/{id}/acknowledge-understaffed
 POST /api/timetable/instances/{id}/cancel
 POST /api/timetable/instances/{id}/complete
+POST /api/timetable/instances/{id}/convert-to-series
 POST /api/timetable/instances/{id}/deviations
 POST /api/timetable/instances/{id}/move-staff
 POST /api/timetable/instances/{id}/start

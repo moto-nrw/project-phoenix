@@ -16,9 +16,10 @@ import { useGroupedItems } from "~/components/database/use-grouped-items";
 import {
   DataField,
   DataGrid,
-  DetailIcons,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type { Permission } from "@/lib/auth-helpers";
 import {
   formatPermissionDisplay,
@@ -44,10 +45,6 @@ function keyForPermission(permission: Permission): string {
 
 function getTitle(permission: Permission): string {
   return formatPermissionDisplay(permission.resource, permission.action);
-}
-
-function getInitial(permission: Permission): string {
-  return (permission.resource?.slice(0, 2) ?? "PE").toUpperCase();
 }
 
 function buildSubtitle(permission: Permission): string {
@@ -165,7 +162,13 @@ function PermissionDetailContent({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={getInitial(permission)}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.permissions.icon}
+              tone={MOTO_CONCEPTS.permissions.tone}
+              size={36}
+            />
+          }
           title={getTitle(permission)}
           subtitle={permission.name || "Systemberechtigung"}
           actions={headerActions}
@@ -191,7 +194,13 @@ function PermissionStammdatenTab({ permission }: { permission: Permission }) {
     <div className="space-y-4">
       <InfoSection
         title="Berechtigungsdetails"
-        icon={DetailIcons.document}
+        icon={
+          <MotoDuotoneIcon
+            icon={MOTO_CONCEPTS.permissions.icon}
+            tone={MOTO_CONCEPTS.permissions.tone}
+            size={18}
+          />
+        }
         accentColor="purple"
       >
         <DataGrid>

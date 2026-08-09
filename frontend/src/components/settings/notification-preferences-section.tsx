@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bell } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { createLogger } from "~/lib/logger";
 import {
@@ -138,25 +138,27 @@ export function NotificationPreferencesSection({
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-gray-800" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-gray-900">
-            Benachrichtigungen
-          </h3>
-        </div>
-        {anyEnabled && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => void disableAll()}
-          >
-            Alle deaktivieren
-          </Button>
-        )}
-      </div>
+      <ConceptSectionHeader
+        className="mb-4"
+        // Die Kanalgruppen darunter sind h4, und auf /parents/settings ist
+        // dieser Abschnitt die oberste Ueberschrift der Seite.
+        level={3}
+        title="Benachrichtigungen"
+        concept="notifications"
+        actions={
+          anyEnabled && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void disableAll()}
+            >
+              Alle deaktivieren
+            </Button>
+          )
+        }
+      />
 
       <p className="mb-4 text-sm text-gray-600">
         Wählen Sie, worüber moto Sie informieren soll. Es wird nur verschickt,

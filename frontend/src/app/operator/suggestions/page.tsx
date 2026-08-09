@@ -320,28 +320,28 @@ function OperatorSuggestionCard({
               {suggestion.title}
             </Link>
             {suggestion.isNew && (
-              <span className="shrink-0 rounded-full bg-blue-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+              <span className="bg-moto-blue shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white">
                 Neu
               </span>
             )}
             {suggestion.isHidden && (
-              <span className="shrink-0 rounded-full bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-700">
+              <span className="bg-moto-amber-soft text-moto-amber-strong shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold">
                 Ausgeblendet
               </span>
             )}
             {suggestion.authorType === "parent" && (
-              <span className="shrink-0 rounded-full bg-[#D946EF]/10 px-2 py-0.5 text-[10px] font-semibold text-[#D946EF]">
+              <span className="bg-moto-magenta/10 text-moto-magenta shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold">
                 Eltern
               </span>
             )}
           </h3>
           <div className="flex shrink-0 items-center gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1 text-[#83CD2D]">
+              <span className="text-moto-green flex items-center gap-1">
                 <ThumbsUp className="h-4 w-4" fill="currentColor" />
                 <span className="text-xs font-bold">{suggestion.upvotes}</span>
               </span>
-              <span className="flex items-center gap-1 text-red-500">
+              <span className="text-moto-red flex items-center gap-1">
                 <ThumbsDown className="h-4 w-4" fill="currentColor" />
                 <span className="text-xs font-bold">
                   {suggestion.downvotes}
@@ -372,7 +372,7 @@ function OperatorSuggestionCard({
           </button>
         )}
         <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-[10px] font-medium text-blue-700">
+          <span className="bg-moto-blue/15 text-moto-blue-hover flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-medium">
             {getInitials(suggestion.authorName)}
           </span>
           <span>{suggestion.authorName}</span>

@@ -50,7 +50,7 @@ describe("PageHeader", () => {
       />,
     );
 
-    const indicator = container.querySelector(".bg-\\[\\#83CD2D\\]");
+    const indicator = container.querySelector(".bg-moto-green");
     expect(indicator).toBeInTheDocument();
     expect(indicator).toHaveClass("animate-pulse");
   });
@@ -60,7 +60,7 @@ describe("PageHeader", () => {
       <PageHeader title="Test" statusIndicator={{ color: "yellow" }} />,
     );
 
-    expect(container.querySelector(".bg-\\[\\#EAB308\\]")).toBeInTheDocument();
+    expect(container.querySelector(".bg-moto-amber")).toBeInTheDocument();
   });
 
   it("renders status indicator with red color", () => {
@@ -68,7 +68,7 @@ describe("PageHeader", () => {
       <PageHeader title="Test" statusIndicator={{ color: "red" }} />,
     );
 
-    expect(container.querySelector(".bg-\\[\\#FF3130\\]")).toBeInTheDocument();
+    expect(container.querySelector(".bg-moto-red")).toBeInTheDocument();
   });
 
   it("renders status indicator with gray color", () => {
@@ -87,7 +87,7 @@ describe("PageHeader", () => {
       />,
     );
 
-    const indicator = container.querySelector(".bg-\\[\\#83CD2D\\]");
+    const indicator = container.querySelector(".bg-moto-green");
     expect(indicator).toHaveAttribute("title", "System Active");
   });
 
@@ -121,7 +121,7 @@ describe("PageHeader", () => {
     );
 
     expect(screen.getByText("10")).toBeInTheDocument();
-    expect(container.querySelector(".bg-\\[\\#83CD2D\\]")).toBeInTheDocument();
+    expect(container.querySelector(".bg-moto-green")).toBeInTheDocument();
   });
 
   it("applies custom className", () => {
@@ -135,5 +135,21 @@ describe("PageHeader", () => {
   it("is hidden on desktop (md:hidden)", () => {
     const { container } = render(<PageHeader title="Test" />);
     expect(container.firstChild).toHaveClass("md:hidden");
+  });
+
+  it("renders the grey concept icon tile when concept is set", () => {
+    const { container } = render(<PageHeader title="Test" concept="staff" />);
+
+    expect(
+      container.querySelector('[data-moto-duotone-tone="orange"]'),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no concept icon tile when concept is omitted", () => {
+    const { container } = render(<PageHeader title="Test" />);
+
+    expect(
+      container.querySelector("[data-moto-duotone-tone]"),
+    ).not.toBeInTheDocument();
   });
 });

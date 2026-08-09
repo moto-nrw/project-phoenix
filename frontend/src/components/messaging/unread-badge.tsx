@@ -1,20 +1,26 @@
+import { NotificationBadge } from "~/components/ui/notification-badge";
+
+export type UnreadBadgeTone = "parents" | "feedback";
+
 /**
- * The red unread-count pill shown on parent-OGS message surfaces (staff inbox,
- * staff student-detail card, parent messages list, parent child detail). One
- * component so the size, weight, 99+ cap, color, and a11y label stay identical
- * everywhere instead of drifting across four hand-copied spans.
+ * The domain-colored unread count shown on parent and feedback surfaces. One
+ * component keeps size, weight, the 99+ cap, and the accessible label aligned.
  */
 export function UnreadBadge({
   count,
+  tone = "parents",
   className,
-}: Readonly<{ count: number; className?: string }>) {
-  if (count <= 0) return null;
+}: Readonly<{
+  count: number;
+  tone?: UnreadBadgeTone;
+  className?: string;
+}>) {
   return (
-    <span
-      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#FF3130] px-1.5 text-xs font-bold text-white ${className ?? ""}`}
-      aria-label={`${count} ungelesene Nachrichten`}
-    >
-      {count > 99 ? "99+" : count}
-    </span>
+    <NotificationBadge
+      count={count}
+      tone={tone}
+      ariaLabel={`${count} ungelesene Nachrichten`}
+      className={className}
+    />
   );
 }

@@ -11,6 +11,7 @@ import {
   StudentAbsenceRow,
   StudentCard,
   StudentInfoRow,
+  StudentPendingExcusedRow,
 } from "./student-card";
 
 // Default the photos feature flag to off so the original test suite (which
@@ -88,18 +89,6 @@ describe("StudentCard", () => {
 
     expect(screen.getByTestId("extra")).toBeInTheDocument();
     expect(screen.getByText("Class 1a")).toBeInTheDocument();
-  });
-
-  it("ignores legacy custom gradient classes", () => {
-    const { container } = render(
-      <StudentCard
-        {...defaultProps}
-        gradient="from-red-50/80 to-pink-100/80"
-      />,
-    );
-
-    const gradientDiv = container.querySelector(".from-red-50\\/80");
-    expect(gradientDiv).not.toBeInTheDocument();
   });
 
   it("does not render the previous default gradient overlay", () => {
@@ -317,7 +306,7 @@ describe("StudentCard", () => {
   });
 
   it("renders the 'anmelden' (+) action icon on the tap-strip for absent students", () => {
-    // Covers tapStrip.action === "anmelden" branch in the SVG path switch.
+    // Covers tapStrip.action === "anmelden" branch in the icon switch.
     const { container } = render(
       <StudentCard
         {...defaultProps}
@@ -328,12 +317,11 @@ describe("StudentCard", () => {
     );
     const strip = container.querySelector("[data-checkin-tap-strip='true']");
     expect(strip).not.toBeNull();
-    // The "anmelden" icon path is the plus sign (vertical + horizontal line).
-    expect(strip?.querySelector('path[d="M12 4v16m8-8H4"]')).not.toBeNull();
+    expect(strip?.querySelector("svg.lucide-plus")).not.toBeNull();
   });
 
   it("renders the 'abmelden' (−) action icon on the tap-strip for present students", () => {
-    // Covers tapStrip.action === "abmelden" branch in the SVG path switch.
+    // Covers tapStrip.action === "abmelden" branch in the icon switch.
     const { container } = render(
       <StudentCard
         {...defaultProps}
@@ -343,8 +331,7 @@ describe("StudentCard", () => {
       />,
     );
     const strip = container.querySelector("[data-checkin-tap-strip='true']");
-    // The "abmelden" icon path is the single horizontal line (minus sign).
-    expect(strip?.querySelector('path[d="M20 12H4"]')).not.toBeNull();
+    expect(strip?.querySelector("svg.lucide-minus")).not.toBeNull();
   });
 
   it("does not set the data-checkin-* attributes when checkinMode is off", () => {
@@ -378,13 +365,13 @@ describe("SchoolClassIcon", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("has proper styling classes", () => {
+  it("renders a muted neutral meta icon at meta-icon size", () => {
     const { container } = render(<SchoolClassIcon />);
 
     const svg = container.querySelector("svg");
-    expect(svg?.className).toContain("h-3.5");
-    expect(svg?.className).toContain("w-3.5");
-    expect(svg?.className).toContain("text-gray-400");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
+    expect(svg).toHaveAttribute("width", "14");
+    expect(svg).toHaveAttribute("height", "14");
   });
 });
 
@@ -395,13 +382,13 @@ describe("GroupIcon", () => {
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("has proper styling classes", () => {
+  it("renders a muted neutral meta icon at meta-icon size", () => {
     const { container } = render(<GroupIcon />);
 
     const svg = container.querySelector("svg");
-    expect(svg?.className).toContain("h-3.5");
-    expect(svg?.className).toContain("w-3.5");
-    expect(svg?.className).toContain("text-gray-400");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
+    expect(svg).toHaveAttribute("width", "14");
+    expect(svg).toHaveAttribute("height", "14");
   });
 });
 
@@ -411,26 +398,38 @@ describe("PickupTimeIcon", () => {
 
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
+
+  it("renders the same muted outline clock as the with-time Gehzeit rows", () => {
+    const { container } = render(<PickupTimeIcon />);
+
+    const svg = container.querySelector("svg");
+    expect(svg?.className).toContain("lucide-clock");
+    expect(svg?.className).toContain("text-gray-400");
+    expect(svg).not.toHaveAttribute("data-moto-duotone-tone");
+  });
 });
 
 describe("ExceptionIcon", () => {
-  it("renders an SVG icon with orange color", () => {
+  it("renders an orange exception marker", () => {
     const { container } = render(<ExceptionIcon />);
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg?.className).toContain("text-orange-500");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "orange");
   });
 });
 
 describe("AbsenceIcon", () => {
-  it("renders a neutral gray clock, not an amber/orange warning", () => {
+  it("renders a neutral calendar-x marker, not a clock or an amber warning", () => {
     const { container } = render(<AbsenceIcon />);
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg?.className).toContain("text-gray-400");
-    expect(svg?.className).not.toContain("text-orange-500");
+    // Distinct glyph: absence lines must never share the Gehzeit clock.
+    expect(svg?.className).not.toContain("lucide-clock");
+    expect(svg).toHaveAttribute("data-moto-duotone-tone", "neutral");
+    expect(svg).toHaveAttribute("width", "14");
+    expect(svg?.className).not.toContain("text-moto-orange-strong");
   });
 });
 
@@ -487,8 +486,10 @@ describe("PickupTimeRow", () => {
       <PickupTimeRow pickupTime="14:00" isException={true} now={now} />,
     );
 
-    const orangeSvg = container.querySelector("svg.text-orange-500");
-    expect(orangeSvg).toBeInTheDocument();
+    const exceptionSvg = container.querySelector(
+      "svg[data-moto-duotone-tone='orange']",
+    );
+    expect(exceptionSvg).toBeInTheDocument();
   });
 
   it("renders exception text when there is no pickup time", () => {
@@ -610,7 +611,9 @@ describe("ArrivalTimeRow", () => {
       />,
     );
 
-    expect(container.querySelector("svg.text-orange-500")).toBeInTheDocument();
+    expect(
+      container.querySelector("svg[data-moto-duotone-tone='orange']"),
+    ).toBeInTheDocument();
   });
 
   it("renders the exception fallback when exception has no time", () => {
@@ -633,11 +636,14 @@ describe("StudentAbsenceRow", () => {
     expect(
       screen.getByText("Kommt heute nicht (krank gemeldet)"),
     ).toBeInTheDocument();
-    // Neutral gray clock — a known absence is information, not a warning. Never
-    // the amber exception triangle, never the red overdue warning.
-    expect(container.querySelector("svg.text-gray-400")).toBeInTheDocument();
+    // Neutral duotone calendar-x: a known absence is information, not a
+    // warning. Never the amber exception triangle, never the red overdue
+    // warning, and never the Gehzeit clock glyph.
     expect(
-      container.querySelector("svg.text-orange-500"),
+      container.querySelector('svg[data-moto-duotone-tone="neutral"]'),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector("svg.text-moto-orange-strong"),
     ).not.toBeInTheDocument();
     expect(
       container.querySelector("svg.lucide-triangle-alert"),
@@ -650,6 +656,17 @@ describe("StudentAbsenceRow", () => {
     expect(
       screen.getByText("Kommt heute nicht (entschuldigt)"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("StudentPendingExcusedRow", () => {
+  it("uses the shared amber status tone", () => {
+    render(<StudentPendingExcusedRow note="Noch offen" />);
+
+    expect(screen.getByText("Freigabe ausstehend")).toHaveStyle({
+      backgroundColor: "#FEF3C7",
+      color: "#92400E",
+    });
   });
 });
 

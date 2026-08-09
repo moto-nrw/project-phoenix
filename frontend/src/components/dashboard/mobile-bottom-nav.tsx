@@ -17,6 +17,8 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { navigationIcons } from "~/lib/navigation-icons";
+import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
@@ -59,10 +61,52 @@ const Icon = ({ path, className }: { path: string; className?: string }) => (
     viewBox="0 0 24 24"
     stroke="currentColor"
     strokeWidth={2}
+    aria-hidden="true"
   >
     <path strokeLinecap="round" strokeLinejoin="round" d={path} />
   </svg>
 );
+
+function MobileNavIcon({
+  item,
+  active,
+  className,
+}: {
+  readonly item: Pick<NavItem, "concept" | "iconKey">;
+  readonly active: boolean;
+  readonly className?: string;
+}) {
+  const concept = item.concept ? MOTO_CONCEPTS[item.concept] : null;
+  if (!concept) {
+    return (
+      <Icon
+        path={navigationIcons[item.iconKey] ?? navigationIcons.home}
+        className={className}
+      />
+    );
+  }
+
+  if (active) {
+    return (
+      <MotoDuotoneIcon
+        icon={concept.icon}
+        tone={concept.tone}
+        size={20}
+        className={className}
+      />
+    );
+  }
+
+  const ConceptIcon = concept.icon;
+  return (
+    <ConceptIcon
+      size={20}
+      weight="regular"
+      className={className}
+      aria-hidden="true"
+    />
+  );
+}
 
 // Animation timing constant for initial mount transition delay
 // This ensures the sliding indicator position is set before enabling smooth transitions
@@ -72,6 +116,7 @@ interface NavItem {
   href: string;
   label: string;
   iconKey: keyof typeof navigationIcons;
+  concept?: MotoConceptKey;
   requiresAdmin?: boolean;
   requiresGroups?: boolean;
   requiresSupervision?: boolean;
@@ -87,7 +132,13 @@ interface NavItem {
 // Static base definitions; actual main items are computed per session
 // Admins don't have assigned groups or supervision duties (#608)
 const ADMIN_MAIN_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Home", iconKey: "home", alwaysShow: true },
+  {
+    href: "/dashboard",
+    label: "Home",
+    iconKey: "home",
+    concept: "dashboard",
+    alwaysShow: true,
+  },
   {
     href: "/students/search",
     label: "Suchen",
@@ -98,17 +149,31 @@ const ADMIN_MAIN_ITEMS: NavItem[] = [
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
+    concept: "activities",
     alwaysShow: true,
   },
-  { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
+  {
+    href: "/rooms",
+    label: "Räume",
+    iconKey: "rooms",
+    concept: "rooms",
+    alwaysShow: true,
+  },
 ];
 
 const STAFF_MAIN_ITEMS: NavItem[] = [
-  { href: "/ogs-groups", label: "Gruppe", iconKey: "group", alwaysShow: true },
+  {
+    href: "/ogs-groups",
+    label: "Gruppe",
+    iconKey: "group",
+    concept: "groups",
+    alwaysShow: true,
+  },
   {
     href: "/active-supervisions",
     label: "Aufsicht",
     iconKey: "supervision",
+    concept: "supervision",
     alwaysShow: true,
   },
   {
@@ -121,6 +186,7 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
+    concept: "activities",
     alwaysShow: true,
   },
 ];
@@ -130,7 +196,8 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
   {
     href: "/operator/organizations",
     label: "Verwaltung",
-    iconKey: "rooms",
+    iconKey: "buildingOffice",
+    concept: "organizations",
     alwaysShow: true,
     // Highlight when on any of the five Verwaltung pages.
     activePaths: [
@@ -147,18 +214,21 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     href: "/operator/suggestions",
     label: "Feedback",
     iconKey: "feedback",
+    concept: "feedback",
     alwaysShow: true,
   },
   {
     href: "/operator/announcements",
     label: "Ankündigungen",
     iconKey: "bell",
+    concept: "announcements",
     alwaysShow: true,
   },
   {
     href: "/operator/operators",
     label: "Operatoren",
     iconKey: "group",
+    concept: "operators",
     alwaysShow: true,
   },
 ];
@@ -168,6 +238,7 @@ interface AdditionalNavItem {
   href: string;
   label: string;
   iconKey: keyof typeof navigationIcons;
+  concept?: MotoConceptKey;
   requiresAdmin?: boolean;
   // Show for admins or anyone holding this tenant permission (matches the
   // backend route gate). Use instead of alwaysShow for permission-gated pages.
@@ -191,30 +262,35 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     href: "/operator/schools",
     label: "Schulen",
     iconKey: "buildingOffice",
+    concept: "schools",
     alwaysShow: true,
   },
   {
     href: "/operator/accounts",
     label: "Konten",
     iconKey: "profile",
+    concept: "accounts",
     alwaysShow: true,
   },
   {
     href: "/operator/devices",
     label: "Geräte",
     iconKey: "device",
+    concept: "devices",
     alwaysShow: true,
   },
   {
     href: "/operator/persons",
     label: "Personen",
     iconKey: "userSingle",
+    concept: "people",
     alwaysShow: true,
   },
   {
     href: "/operator/unregistered-tags",
     label: "Unbekannte RFID",
     iconKey: "security",
+    concept: "rfid",
     alwaysShow: true,
   },
 ];
@@ -229,6 +305,7 @@ const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
     label: "Start",
     tKey: "start",
     iconKey: "home",
+    concept: "dashboard",
     alwaysShow: true,
   },
   {
@@ -236,6 +313,7 @@ const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
     label: "Meine Kinder",
     tKey: "children",
     iconKey: "group",
+    concept: "children",
     alwaysShow: true,
   },
   {
@@ -243,6 +321,7 @@ const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
     label: "Kalender",
     tKey: "calendar",
     iconKey: "calendar",
+    concept: "calendar",
     alwaysShow: true,
   },
 ];
@@ -255,6 +334,7 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     label: "Nachrichten",
     tKey: "messages",
     iconKey: "chat",
+    concept: "parentConversations",
     alwaysShow: true,
   },
   // Neuigkeiten — only shown once a linked school broadcasts announcements
@@ -264,6 +344,7 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     label: "Neuigkeiten",
     tKey: "news",
     iconKey: "newspaper",
+    concept: "news",
   },
   // Essensplan — only shown once a linked school runs a meal plan (gated via
   // useParentMealPlanEnabled in the parent display filter below).
@@ -272,6 +353,7 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     label: "Essensplan",
     tKey: "mealPlan",
     iconKey: "utensils",
+    concept: "mealPlan",
   },
   // Feedback ans Produktteam (#1678) — last of the real entries, mirroring the
   // desktop sidebar where it sits pinned below the daily-use areas. It is a
@@ -281,6 +363,7 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     label: "Feedback",
     tKey: "feedback",
     iconKey: "feedback",
+    concept: "feedback",
     alwaysShow: true,
   },
   {
@@ -288,6 +371,7 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     label: "Kontaktdaten",
     tKey: "contactData",
     iconKey: "profile",
+    concept: "accounts",
     alwaysShow: true,
     comingSoon: true,
   },
@@ -305,11 +389,21 @@ const PLANNING_ICON_KEYS: Record<
   "/payroll": "chart",
 };
 
+const PLANNING_CONCEPT_KEYS: Record<PlanningPageHref, MotoConceptKey> = {
+  "/betreuungsplan": "carePlan",
+  "/dienstplan": "staffPlan",
+  "/vertretung": "substitution",
+  "/lists": "lists",
+  "/calendar-periods": "calendarPeriods",
+  "/payroll": "payroll",
+};
+
 const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
   PLANNING_SUB_PAGES.filter((page) => page.showInMobileNav).map((page) => ({
     href: page.href,
     label: page.label,
     iconKey: PLANNING_ICON_KEYS[page.href],
+    concept: PLANNING_CONCEPT_KEYS[page.href],
     requiresAdmin: page.nonAdminPermission === undefined,
     requiresPermission: page.nonAdminPermission,
     activePaths: getPlanningMobileActivePaths(page.href),
@@ -320,23 +414,38 @@ const additionalNavItems: AdditionalNavItem[] = [
     href: "/activities",
     label: "Aktivitäten",
     iconKey: "activities",
+    concept: "activities",
     alwaysShow: true,
   },
-  { href: "/staff", label: "Mitarbeiter", iconKey: "staff", alwaysShow: true },
+  {
+    href: "/staff",
+    label: "Mitarbeiter",
+    iconKey: "staff",
+    concept: "staff",
+    alwaysShow: true,
+  },
   {
     href: "/calendar",
     label: "Mein Kalender",
     iconKey: "calendar",
+    concept: "calendar",
     // Match the backend calendar:own gate on GET /api/calendar/my.
     requiresPermission: "calendar:own",
   },
-  { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
+  {
+    href: "/rooms",
+    label: "Räume",
+    iconKey: "rooms",
+    concept: "rooms",
+    alwaysShow: true,
+  },
   {
     // Alt-Bereich für temporären Gruppen-Datenzugriff (#1940) — nur bei
     // festen Gruppen sichtbar (Filter unten).
     href: "/substitutions",
     label: "Gruppenzugriff",
     iconKey: "substitutions",
+    concept: "groupAccess",
     requiresAdmin: true,
   },
   // Planning is flattened in the mobile drawer. The shared catalog omits the
@@ -346,12 +455,14 @@ const additionalNavItems: AdditionalNavItem[] = [
     href: DATABASE_SECTION.href,
     label: DATABASE_SECTION.label,
     iconKey: "database",
+    concept: "database",
     requiresAdmin: true,
   },
   {
     href: ENROLLMENT_SECTION.href,
     label: ENROLLMENT_SECTION.label,
     iconKey: "enrollments",
+    concept: "enrollments",
     requiresAdmin: true,
     activePaths: ENROLLMENT_SUB_PAGES.map((page) => page.href),
   },
@@ -359,18 +470,21 @@ const additionalNavItems: AdditionalNavItem[] = [
     href: "/time-tracking",
     label: "Zeiterfassung",
     iconKey: "clock",
+    concept: "timeTracking",
     alwaysShow: true,
   },
   {
     href: "/emergency",
     label: "Notfall",
     iconKey: "emergency",
+    concept: "emergency",
     alwaysShow: true,
   },
   {
     href: "/help",
     label: "Hilfe",
     iconKey: "book",
+    concept: "help",
     alwaysShow: true,
     newTab: true,
   },
@@ -378,12 +492,14 @@ const additionalNavItems: AdditionalNavItem[] = [
     href: "/suggestions",
     label: "Feedback",
     iconKey: "feedback",
+    concept: "feedback",
     alwaysShow: true,
   },
   {
     href: "/settings",
     label: "Einstellungen",
     iconKey: "settings",
+    concept: "settings",
     requiresAdmin: true,
   },
   // Eltern hub — mirrors the desktop "Eltern" accordion. Mobile has no
@@ -395,6 +511,7 @@ const additionalNavItems: AdditionalNavItem[] = [
     href: PARENT_SECTION.href,
     label: PARENT_SECTION.label,
     iconKey: "parents",
+    concept: "parents",
     alwaysShow: true,
     activePaths: PARENT_SUB_PAGES.map((page) => page.href),
   },
@@ -404,6 +521,7 @@ const additionalNavItems: AdditionalNavItem[] = [
     href: "#",
     label: "Berichte",
     iconKey: "chart",
+    concept: "reports",
     requiresAdmin: true,
     comingSoon: true,
   },
@@ -579,6 +697,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
             href: "/active-supervisions",
             label: "Aufsicht",
             iconKey: "supervision" as const,
+            concept: "supervision" as const,
             alwaysShow: true,
           },
           ...baseMain.slice(1),
@@ -777,11 +896,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         key={item.label}
                         className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 opacity-50"
                       >
-                        <Icon
-                          path={
-                            navigationIcons[item.iconKey] ??
-                            navigationIcons.home
-                          }
+                        <MobileNavIcon
+                          item={item}
+                          active={false}
                           className="h-5 w-5 text-gray-400"
                         />
                         <span className="flex-1 text-base font-medium text-gray-400">
@@ -804,15 +921,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                         : {})}
                       className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all ${
                         isActive
-                          ? "bg-gray-900 text-white"
+                          ? "bg-gray-100 font-semibold text-gray-900"
                           : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
                       } `}
                     >
-                      <Icon
-                        path={
-                          navigationIcons[item.iconKey] ?? navigationIcons.home
-                        }
-                        className={`h-5 w-5 ${isActive ? "text-white" : "text-gray-600"}`}
+                      <MobileNavIcon
+                        item={item}
+                        active={isActive}
+                        className={`h-5 w-5 ${isActive ? "" : "text-gray-600"}`}
                       />
                       <span className="text-base font-medium">
                         {item.label}
@@ -838,7 +954,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {/* Sliding background indicator */}
               {indicatorVisible && (
                 <div
-                  className={`absolute top-0 h-full rounded-full bg-gray-900 shadow-md ${
+                  className={`absolute top-0 h-full rounded-full bg-gray-100 ${
                     isInitialMount.current
                       ? ""
                       : "transition-all duration-150 ease-out"
@@ -853,9 +969,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
               {/* Main navigation items */}
               {displayMainItems.map((item, index) => {
                 const isActive = isActiveRoute(item.href, item.activePaths);
-                const iconPath =
-                  navigationIcons[item.iconKey] ?? navigationIcons.home;
-
                 if (item.comingSoon) {
                   return (
                     <button
@@ -871,7 +984,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       className="relative z-10 flex min-h-[44px] cursor-not-allowed items-center justify-center gap-2.5 rounded-full px-3 py-2.5 text-gray-300 transition-colors duration-200"
                       aria-label={`${item.label} bald verfügbar`}
                     >
-                      <Icon path={iconPath} className="h-5 w-5 flex-shrink-0" />
+                      <MobileNavIcon
+                        item={item}
+                        active={false}
+                        className="h-5 w-5 flex-shrink-0"
+                      />
                     </button>
                   );
                 }
@@ -886,12 +1003,16 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     aria-label={item.label}
                     className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                       isActive
-                        ? "bg-gray-900 text-white"
+                        ? "bg-gray-100 text-gray-900"
                         : "text-gray-400 hover:text-gray-600"
                     } `}
                   >
                     {/* Icon */}
-                    <Icon path={iconPath} className="h-5 w-5 flex-shrink-0" />
+                    <MobileNavIcon
+                      item={item}
+                      active={isActive}
+                      className="h-5 w-5 flex-shrink-0"
+                    />
 
                     {/* Label - ONLY show when active */}
                     {isActive && (
@@ -912,7 +1033,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   aria-label="Mehr"
                   className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? "bg-gray-900 text-white"
+                      ? "bg-gray-100 text-gray-900"
                       : "text-gray-400 hover:text-gray-600"
                   } `}
                 >

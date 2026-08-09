@@ -1,7 +1,6 @@
 // Activity Entity Configuration
 
 import { defineEntityConfig } from "@/lib/database/types";
-import { databaseThemes } from "@/lib/database/themes";
 import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 import { getSupervisors } from "@/lib/activity-api";
 import { getCachedSession } from "~/lib/session-cache";
@@ -96,7 +95,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     plural: "Aktivitäten",
   },
 
-  theme: databaseThemes.activities,
+  concept: "activities",
 
   backUrl: "/database",
 
@@ -111,9 +110,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
     sections: [
       {
         title: "Grundinformationen",
-        backgroundColor: "bg-red-50/30",
-        iconPath:
-          "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
+        concept: "activities",
         columns: 2,
         fields: [
           {
@@ -171,9 +168,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       {
         title: "Betreuer",
-        backgroundColor: "bg-purple-50/30",
-        iconPath:
-          "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z",
+        concept: "staff",
         fields: [
           {
             name: "supervisor_id",
@@ -210,12 +205,12 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         {
           label: (activity) =>
             `${activity.participant_count ?? 0}/${activity.max_participant}`,
-          color: "bg-blue-100 text-blue-700",
+          color: "bg-moto-blue-soft text-moto-blue-strong",
           showWhen: () => true,
         },
         {
           label: "Voll",
-          color: "bg-red-100 text-red-700",
+          color: "bg-moto-red-soft text-moto-red-strong",
           showWhen: (activity: Activity) =>
             (activity.participant_count ?? 0) >= activity.max_participant,
         },
@@ -382,18 +377,18 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         {
           label: (activity: Activity) =>
             activity.category_name ?? "Keine Kategorie",
-          color: "bg-purple-100 text-purple-700",
+          color: "bg-moto-purple-soft text-moto-purple-strong",
           showWhen: () => true,
         },
         {
           label: (activity: Activity) =>
             `${activity.participant_count ?? 0}/${activity.max_participant}`,
-          color: "bg-blue-100 text-blue-700",
+          color: "bg-moto-blue-soft text-moto-blue-strong",
           showWhen: () => true,
         },
         {
           label: "Voll",
-          color: "bg-red-100 text-red-700",
+          color: "bg-moto-red-soft text-moto-red-strong",
           showWhen: (activity: Activity) =>
             (activity.participant_count ?? 0) >= activity.max_participant,
         },

@@ -337,7 +337,9 @@ export function VacationRequestModal({
                 </span>
                 {" beantragt · "}
                 <span
-                  className={exceedsBalance ? "text-red-600" : "text-gray-500"}
+                  className={
+                    exceedsBalance ? "text-moto-red-strong" : "text-gray-500"
+                  }
                 >
                   {remainingDays} Tage verfügbar
                 </span>
@@ -402,9 +404,9 @@ export function VacationRequestModal({
                 requestedVacation:
                   "[&>button]:!bg-[#F78C10]/10 [&>button]:!text-[#8A5600] [&>button]:!ring-1 [&>button]:!ring-[#F78C10]/30",
                 questionVacation:
-                  "[&>button]:!bg-[#7C3AED]/15 [&>button]:!text-[#7C3AED] [&>button]:!ring-1 [&>button]:!ring-[#7C3AED]/40",
+                  "[&>button]:!bg-moto-purple/15 [&>button]:!text-moto-purple [&>button]:!ring-1 [&>button]:!ring-moto-purple/40",
                 approvedVacation:
-                  "[&>button]:!bg-[#83CD2D]/15 [&>button]:!text-[#4a7a15] [&>button]:!ring-1 [&>button]:!ring-[#83CD2D]/40",
+                  "[&>button]:!bg-moto-green/15 [&>button]:!text-moto-green-strong [&>button]:!ring-1 [&>button]:!ring-moto-green/40",
               }}
             />
           </div>
@@ -415,11 +417,11 @@ export function VacationRequestModal({
                 Beantragt
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-[#7C3AED]/50" />
+                <span className="bg-moto-purple/50 h-2 w-2 rounded-full" />
                 {"Rückfrage"}
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-[#83CD2D]/50" />
+                <span className="bg-moto-green/50 h-2 w-2 rounded-full" />
                 Genehmigt oder eingetragen
               </span>
             </div>

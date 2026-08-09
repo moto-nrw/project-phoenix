@@ -1,6 +1,7 @@
 "use client";
 
-import { Pencil, ShieldCheck } from "lucide-react";
+import { Pencil } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -17,9 +18,10 @@ import { useGroupedItems } from "~/components/database/use-grouped-items";
 import {
   DataField,
   DataGrid,
-  DetailIcons,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   getBaseRoleLabel,
   getRoleDisplayDescription,
@@ -132,9 +134,9 @@ function RoleDetailContent({
       <button
         type="button"
         onClick={onManagePermissions}
-        className="flex items-center gap-1.5 rounded-md border border-purple-200 bg-purple-50 px-3 py-1.5 text-sm font-medium text-purple-700 hover:bg-purple-100"
+        className="border-moto-purple/20 bg-moto-purple-soft text-moto-purple-strong hover:bg-moto-purple/20 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
       >
-        <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+        <MotoConceptIcon concept="permissions" size={16} />
         Berechtigungen
       </button>
       <button
@@ -161,9 +163,13 @@ function RoleDetailContent({
     <DetailPanel
       header={
         <DatabaseDetailHeader
-          avatar={(
-            getRoleDisplayName(role.name)?.slice(0, 2) ?? "RO"
-          ).toUpperCase()}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.roles.icon}
+              tone={MOTO_CONCEPTS.roles.tone}
+              size={36}
+            />
+          }
           title={getRoleDisplayName(role.name)}
           subtitle={buildSubtitle(role)}
           actions={headerActions}
@@ -199,11 +205,11 @@ function RoleStammdatenTab({
             </span>
           ) : null}
           {!role.isSystem && !role.baseRole ? (
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2.5 py-1 text-xs font-medium">
               Zuordnung fehlt
             </span>
           ) : null}
-          <span className="rounded-full bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700">
+          <span className="bg-moto-purple-soft text-moto-purple-strong rounded-full px-2.5 py-1 text-xs font-medium">
             {role.permissions?.length ?? 0} Berechtigungen
           </span>
         </div>
@@ -211,7 +217,13 @@ function RoleStammdatenTab({
 
       <InfoSection
         title="Rollendetails"
-        icon={DetailIcons.document}
+        icon={
+          <MotoDuotoneIcon
+            icon={MOTO_CONCEPTS.roles.icon}
+            tone={MOTO_CONCEPTS.roles.tone}
+            size={18}
+          />
+        }
         accentColor="purple"
       >
         <DataGrid>

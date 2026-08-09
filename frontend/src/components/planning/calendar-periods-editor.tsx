@@ -9,7 +9,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarDays, CalendarPlus, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import {
   CalendarPeriodModal,
@@ -343,7 +344,7 @@ export function CalendarPeriodsEditor() {
     <div className="space-y-4">
       {error && (
         <div
-          className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]"
+          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
           role="alert"
           aria-live="polite"
         >
@@ -368,7 +369,7 @@ export function CalendarPeriodsEditor() {
               onClick={beginCreateSemester}
               className="shrink-0 gap-2"
             >
-              <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+              <MotoConceptIcon concept="calendarPeriods" size={16} />
               Halbjahr anlegen
             </Button>
             <Button
@@ -387,8 +388,8 @@ export function CalendarPeriodsEditor() {
 
       {periods.length === 0 ? (
         <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#83CD2D]/10 text-[#669f21]">
-            <CalendarDays className="h-6 w-6" aria-hidden="true" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="calendarPeriods" size={28} />
           </div>
           <h2 className="mt-4 text-base font-semibold text-gray-900">
             Noch keine Kalenderzeiträume
@@ -404,7 +405,7 @@ export function CalendarPeriodsEditor() {
             onClick={beginCreateSemester}
             className="mt-5 gap-2"
           >
-            <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+            <MotoConceptIcon concept="calendarPeriods" size={16} />
             Halbjahr anlegen
           </Button>
         </section>

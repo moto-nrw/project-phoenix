@@ -14,21 +14,18 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Lightbulb, MessageSquareHeart } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { SuggestionCard } from "~/components/suggestions/suggestion-card";
 import { SuggestionForm } from "~/components/suggestions/suggestion-form";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
-import {
-  ParentPage,
-  ParentPageHeader,
-} from "~/components/parent/parent-page";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { Suggestion, SortOption } from "~/lib/suggestions-helpers";
@@ -215,7 +212,7 @@ export default function ParentFeedbackPage() {
 
       {noSchools && (
         <EmptyState
-          icon={<MessageSquareHeart className="h-12 w-12" strokeWidth={1.5} />}
+          icon={<MotoConceptIcon concept="feedback" size={48} />}
           title={t("noSchoolsTitle")}
           description={t("noSchoolsDescription")}
         />
@@ -289,7 +286,7 @@ export default function ParentFeedbackPage() {
 
           {boardReady && posts.length === 0 && (
             <EmptyState
-              icon={<Lightbulb className="h-12 w-12" strokeWidth={1.5} />}
+              icon={<MotoConceptIcon concept="feedback" size={48} />}
               title={t("emptyTitle")}
               description={t("emptyDescription")}
               action={
@@ -355,7 +352,7 @@ export default function ParentFeedbackPage() {
         }}
         title={t("deleteTitle")}
         confirmText={t("delete")}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#e02b2a]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         isConfirmLoading={isDeleting}
       >
         <p className="text-sm text-gray-600">{t("deleteBody")}</p>

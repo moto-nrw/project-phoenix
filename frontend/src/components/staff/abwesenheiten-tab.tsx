@@ -635,7 +635,11 @@ function PendingAbsences({
         <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
           Eingehende Anfragen
         </h3>
-        <StatusBadge tone="red" label={String(rows.length)} />
+        {/* Neutral, nicht rot: StatusBadge tone="red" loest auf dasselbe
+            Tripel auf wie StatusDotBadge(LOCATION_COLORS.SICK), und direkt
+            darunter stehen die "Krank"-Typpillen der Zeilen. Ein Zaehler
+            offener Anfragen ist ausserdem keine Fehlermeldung. */}
+        <StatusBadge tone="gray" label={String(rows.length)} />
       </div>
       <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
@@ -1149,7 +1153,7 @@ function EditQuotaModal({
             step="0.5"
             value={entitled}
             onChange={(e) => setEntitled(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <div>
@@ -1167,7 +1171,7 @@ function EditQuotaModal({
             step="0.5"
             value={carryover}
             onChange={(e) => setCarryover(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
+            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
       </div>

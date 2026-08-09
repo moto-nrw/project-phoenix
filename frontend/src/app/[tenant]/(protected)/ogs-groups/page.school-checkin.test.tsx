@@ -237,14 +237,20 @@ vi.mock("~/lib/api", () => ({
   },
 }));
 
-vi.mock("~/lib/location-helper", () => ({
-  LOCATION_STATUSES: { PRESENT: "Anwesend" },
-  isHomeLocation: (loc?: string) => loc === "Zuhause",
-  isSchoolyardLocation: (loc?: string) => loc === "Schulhof",
-  isTransitLocation: () => false,
-  parseLocation: (loc?: string) => ({ status: loc ?? "Anwesend" }),
-  LOCATION_COLORS: { GROUP_ROOM: "#83CD2D" },
-}));
+// Partial mock via importOriginal — MotoConceptIcon (substitution badge)
+// pulls in MOTO_COLOR_PALETTE, which must stay real.
+vi.mock("~/lib/location-helper", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/location-helper")>();
+  return {
+    ...actual,
+    LOCATION_STATUSES: { PRESENT: "Anwesend" },
+    isHomeLocation: (loc?: string) => loc === "Zuhause",
+    isSchoolyardLocation: (loc?: string) => loc === "Schulhof",
+    isTransitLocation: () => false,
+    parseLocation: (loc?: string) => ({ status: loc ?? "Anwesend" }),
+    LOCATION_COLORS: { GROUP_ROOM: "#83CD2D" },
+  };
+});
 
 vi.mock("@/components/ui/location-badge", () => ({
   LocationBadge: () => <span />,

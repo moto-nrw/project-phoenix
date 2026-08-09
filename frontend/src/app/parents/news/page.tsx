@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Newspaper } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useTranslations } from "next-intl";
 
 import {
@@ -18,10 +18,7 @@ import {
 import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import {
-  ParentPage,
-  ParentPageHeader,
-} from "~/components/parent/parent-page";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { createLogger } from "~/lib/logger";
 import { type ParentAnnouncement, listAnnouncements } from "~/lib/parent-api";
 
@@ -96,7 +93,7 @@ export default function ParentNewsPage() {
       ) : items.length === 0 ? (
         <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
           <EmptyState
-            icon={<Newspaper className="h-8 w-8" aria-hidden="true" />}
+            icon={<MotoConceptIcon concept="news" size={32} />}
             title={t("noNewsTitle")}
             description={t("noNewsPageDescription")}
             className="py-8"

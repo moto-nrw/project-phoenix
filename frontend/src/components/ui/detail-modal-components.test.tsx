@@ -70,37 +70,26 @@ describe("InfoSection", () => {
     expect(section).toBeInTheDocument();
   });
 
-  it("applies blue accent color", () => {
+  it("stays on the neutral surface regardless of accentColor (no colored backgrounds behind icons)", () => {
     const { container } = render(
       <InfoSection title="Test" icon={DetailIcons.person} accentColor="blue">
         Content
       </InfoSection>,
     );
 
-    const section = container.querySelector(".bg-blue-50\\/30");
+    const section = container.querySelector(".bg-gray-50");
     expect(section).toBeInTheDocument();
+    expect(container.querySelector(".bg-blue-50\\/30")).not.toBeInTheDocument();
   });
 
-  it("applies orange accent color", () => {
-    const { container } = render(
-      <InfoSection title="Test" icon={DetailIcons.person} accentColor="orange">
-        Content
-      </InfoSection>,
-    );
-
-    const section = container.querySelector(".bg-orange-50\\/30");
-    expect(section).toBeInTheDocument();
-  });
-
-  it("renders icon with correct color class", () => {
+  it("does not apply an accent color class to the icon wrapper (icon supplies its own color)", () => {
     const { container } = render(
       <InfoSection title="Test" icon={DetailIcons.person} accentColor="indigo">
         Content
       </InfoSection>,
     );
 
-    const iconSpan = container.querySelector(".text-indigo-600");
-    expect(iconSpan).toBeInTheDocument();
+    expect(container.querySelector(".text-indigo-600")).not.toBeInTheDocument();
   });
 });
 

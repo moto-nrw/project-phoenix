@@ -367,7 +367,7 @@ describe("OperatorAnnouncementsPage", () => {
       const updatedAdminBtn = Array.from(
         updatedModal.querySelectorAll("button"),
       ).find((b) => b.textContent?.includes("Administratoren"));
-      expect(updatedAdminBtn?.className).toContain("border-[#83CD2D]");
+      expect(updatedAdminBtn?.className).toContain("border-moto-green");
     });
   });
 
@@ -875,13 +875,13 @@ describe("OperatorAnnouncementsPage", () => {
       const orgAlphaBtn = Array.from(modal.querySelectorAll("button")).find(
         (b) => b.textContent?.includes("Org Alpha"),
       );
-      expect(orgAlphaBtn?.className).toContain("border-[#83CD2D]");
+      expect(orgAlphaBtn?.className).toContain("border-moto-green");
 
       // Schule A should be checked
       const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
         (b) => b.textContent?.includes("Schule A"),
       );
-      expect(schuleABtn?.className).toContain("border-[#83CD2D]");
+      expect(schuleABtn?.className).toContain("border-moto-green");
     });
 
     it("publish confirmation shows global vs targeted message", async () => {
@@ -953,7 +953,7 @@ describe("OperatorAnnouncementsPage", () => {
       const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
         (b) => b.textContent?.includes("Schule A"),
       );
-      expect(schuleABtn?.className).toContain("border-[#83CD2D]");
+      expect(schuleABtn?.className).toContain("border-moto-green");
 
       // Now deselect Org Alpha — Schule A (id=10) should be pruned,
       // but unknown id "99" must be preserved since it's not in the picker
@@ -975,7 +975,7 @@ describe("OperatorAnnouncementsPage", () => {
           finalModal.querySelectorAll("button"),
         ).find((b) => b.textContent?.includes("Schule A"));
         // Schule A was pruned because its parent org was deselected
-        expect(updatedSchuleABtn?.className).not.toContain("border-[#83CD2D]");
+        expect(updatedSchuleABtn?.className).not.toContain("border-moto-green");
       });
     });
 
@@ -1005,7 +1005,7 @@ describe("OperatorAnnouncementsPage", () => {
         const schuleABtn = Array.from(modal.querySelectorAll("button")).find(
           (b) => b.textContent?.includes("Schule A"),
         );
-        expect(schuleABtn?.className).toContain("border-[#83CD2D]");
+        expect(schuleABtn?.className).toContain("border-moto-green");
       });
 
       // Deselect Org Alpha — Schule A should be pruned from tenant selection
@@ -1018,7 +1018,7 @@ describe("OperatorAnnouncementsPage", () => {
           (b) => b.textContent?.includes("Schule A"),
         );
         // After pruning, the button should no longer have the selected border
-        expect(schuleABtn?.className).not.toContain("border-[#83CD2D]");
+        expect(schuleABtn?.className).not.toContain("border-moto-green");
       });
     });
   });

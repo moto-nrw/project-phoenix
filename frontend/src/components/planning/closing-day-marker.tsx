@@ -18,11 +18,9 @@
  * eigener Doku aus (bewusst auf drei Stellen begrenzt).
  */
 
-import { CalendarOff } from "lucide-react";
-
 import { ConfirmationModal } from "~/components/ui/modal";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { formatDate } from "~/lib/date-helpers";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 
 /** Was auf den Schließtag gelegt werden soll, steuert nur die Wortwahl. */
 export type ClosingDaySubject = "termin" | "schicht";
@@ -54,11 +52,7 @@ export function ClosingDayChip({
       title={title}
       className={`inline-flex max-w-full items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] leading-tight font-medium text-gray-700 ${className ?? ""}`}
     >
-      <CalendarOff
-        className="h-3 w-3 shrink-0"
-        style={{ color: LOCATION_COLORS.UNKNOWN }}
-        aria-hidden
-      />
+      <MotoConceptIcon concept="closingDays" size={14} />
       {text === undefined ? (
         <span
           className={wrap ? "break-words" : "truncate"}
@@ -102,7 +96,7 @@ export function ClosingDayConfirmModal({
       title="An einem Schließtag planen?"
       confirmText="Trotzdem planen"
       cancelText="Abbrechen"
-      confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+      confirmButtonClass="bg-moto-orange hover:bg-moto-orange-hover"
     >
       <div className="flex flex-col gap-3">
         <p className="text-sm leading-relaxed text-gray-600">

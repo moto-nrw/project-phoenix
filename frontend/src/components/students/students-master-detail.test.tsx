@@ -104,14 +104,31 @@ vi.mock("~/components/database/empty-detail-state", () => ({
 }));
 
 vi.mock("./class-bulk-arrival-modal", () => ({
-  ClassBulkArrivalModal: (props: {
+  FilteredBulkArrivalModal: (props: {
     isOpen: boolean;
     onClose: () => void;
-    schoolClass: string;
+    filter:
+      | { type: "school_class"; schoolClass: string }
+      | { type: "group"; groupId: string }
+      | { type: "students"; studentIds: string[] };
+    filterLabel: string;
+    studentsInFilter: Student[];
     onSuccess?: () => void;
   }) =>
     props.isOpen ? (
-      <div data-testid="bulk-modal" data-class={props.schoolClass}>
+      <div
+        data-testid="bulk-modal"
+        data-filter-type={props.filter.type}
+        data-filter-value={
+          props.filter.type === "school_class"
+            ? props.filter.schoolClass
+            : props.filter.type === "group"
+              ? props.filter.groupId
+              : props.filter.studentIds.join(",")
+        }
+        data-filter-label={props.filterLabel}
+        data-student-count={props.studentsInFilter.length}
+      >
         <button type="button" onClick={props.onClose} data-testid="bulk-close">
           close
         </button>
@@ -129,6 +146,38 @@ vi.mock("./class-bulk-arrival-modal", () => ({
 vi.mock("./arrival-schedule-manager", () => ({
   ArrivalScheduleManager: (props: { studentId: string }) => (
     <div data-testid="arrival-manager">{props.studentId}</div>
+  ),
+}));
+
+vi.mock("./selection-bulk-pickup-modal", () => ({
+  SelectionBulkPickupModal: (props: {
+    studentIds: string[];
+    onClose: () => void;
+  }) => (
+    <div
+      data-testid="pickup-selection-modal"
+      data-student-ids={props.studentIds.join(",")}
+    >
+      <button type="button" onClick={props.onClose}>
+        close pickup
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock("./class-trip-bulk-status-modal", () => ({
+  ClassTripBulkStatusModal: (props: {
+    students: Student[];
+    onClose: () => void;
+  }) => (
+    <div
+      data-testid="class-trip-selection-modal"
+      data-student-ids={props.students.map((student) => student.id).join(",")}
+    >
+      <button type="button" onClick={props.onClose}>
+        close class trip
+      </button>
+    </div>
   ),
 }));
 
@@ -219,6 +268,7 @@ function makeStudent(id: string, overrides: Partial<Student> = {}): Student {
     school_class: "3a",
     current_location: "class",
     group_name: "Füchse",
+    group_id: "10",
     ...overrides,
   } as Student;
 }
@@ -309,7 +359,7 @@ describe("StudentsMasterDetail", () => {
         {...baseProps}
         students={[
           makeStudent("1", { group_name: "Füchse" }),
-          makeStudent("2", { group_name: "" }),
+          makeStudent("2", { group_name: "", group_id: undefined }),
         ]}
         grouping="group"
         studentsWithArrival={new Set(["1", "2"])}
@@ -317,8 +367,12 @@ describe("StudentsMasterDetail", () => {
       />,
     );
 
-    expect(screen.getByTestId("group-title-Füchse")).toBeInTheDocument();
-    expect(screen.getByTestId("group-title-Ohne Gruppe")).toBeInTheDocument();
+    expect(screen.getByTestId("group-title-group-10")).toHaveTextContent(
+      "Füchse",
+    );
+    expect(
+      screen.getByTestId("group-title-__without_group__"),
+    ).toHaveTextContent("Ohne Gruppe");
   });
 
   it("passes arrival summary and arrival flag to list items", () => {
@@ -524,18 +578,24 @@ describe("StudentsMasterDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not render class actions when grouping by group", () => {
+  it("renders arrival actions when grouping by a known group", () => {
     render(
       <StudentsMasterDetail
         {...baseProps}
-        students={[makeStudent("1", { school_class: "3a" })]}
+        students={[
+          makeStudent("1", {
+            school_class: "3a",
+            group_id: "17",
+            group_name: "Füchse",
+          }),
+        ]}
         grouping="group"
         studentsWithArrival={new Set(["1"])}
         arrivalSummaryById={new Map()}
       />,
     );
 
-    expect(screen.queryByLabelText("Aktionen für 3a")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Aktionen für Füchse")).toBeInTheDocument();
   });
 
   it("opens bulk arrival modal from class actions menu", () => {
@@ -555,8 +615,90 @@ describe("StudentsMasterDetail", () => {
     );
 
     expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
-      "data-class",
+      "data-filter-type",
+      "school_class",
+    );
+    expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
+      "data-filter-value",
       "3a",
+    );
+  });
+
+  it("opens bulk arrival modal with the selected group filter", () => {
+    render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1", { group_id: "17", group_name: "Füchse" })]}
+        grouping="group"
+        studentsWithArrival={new Set(["1"])}
+        arrivalSummaryById={new Map()}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Aktionen für Füchse"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /Ankunftszeit bearbeiten/ }),
+    );
+
+    expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
+      "data-filter-type",
+      "group",
+    );
+    expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
+      "data-filter-value",
+      "17",
+    );
+  });
+
+  it("uses the unfiltered cohort for the bulk preview", () => {
+    render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1", { school_class: "3a" })]}
+        bulkStudents={[
+          makeStudent("1", { school_class: "3a" }),
+          makeStudent("2", { school_class: "3a" }),
+        ]}
+        grouping="class"
+        studentsWithArrival={new Set(["1"])}
+        arrivalSummaryById={new Map()}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /Ankunftszeit bearbeiten/ }),
+    );
+
+    expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
+      "data-student-count",
+      "2",
+    );
+  });
+
+  it("uses the unfiltered cohort for class-trip planning", () => {
+    render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1", { school_class: "3a" })]}
+        bulkStudents={[
+          makeStudent("1", { school_class: "3a" }),
+          makeStudent("2", { school_class: "3a" }),
+        ]}
+        grouping="class"
+        studentsWithArrival={new Set(["1"])}
+        arrivalSummaryById={new Map()}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Aktionen für 3a"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Klassenfahrt planen" }),
+    );
+
+    expect(screen.getByTestId("class-trip-selection-modal")).toHaveAttribute(
+      "data-student-ids",
+      "1,2",
     );
   });
 
@@ -621,5 +763,64 @@ describe("StudentsMasterDetail", () => {
 
     fireEvent.mouseDown(screen.getByTestId("outside"));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("uses the controlled selection for bulk actions and selection controls", () => {
+    const onClearSelection = vi.fn();
+    const onFinishSelection = vi.fn();
+    render(
+      <StudentsMasterDetail
+        {...baseProps}
+        students={[makeStudent("1"), makeStudent("2"), makeStudent("3")]}
+        grouping="none"
+        studentsWithArrival={new Set(["1", "2", "3"])}
+        arrivalSummaryById={new Map()}
+        selectionMode
+        selectedStudentIds={new Set(["1", "3"])}
+        onClearSelection={onClearSelection}
+        onFinishSelection={onFinishSelection}
+      />,
+    );
+
+    expect(screen.getByText("2 ausgewählt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Aufheben" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+    expect(onClearSelection).toHaveBeenCalledOnce();
+    expect(onFinishSelection).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByLabelText("Aktion für Auswahl"));
+    expect(
+      screen.getByRole("menuitem", { name: "Gehzeiten ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Klassenfahrt planen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Ankunftszeiten ändern" }),
+    );
+    expect(screen.getByTestId("bulk-modal")).toHaveAttribute(
+      "data-filter-value",
+      "1,3",
+    );
+    fireEvent.click(screen.getByTestId("bulk-success"));
+    expect(screen.getByText("2 ausgewählt")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("bulk-close"));
+
+    fireEvent.click(screen.getByLabelText("Aktion für Auswahl"));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Gehzeiten ändern" }));
+    expect(screen.getByTestId("pickup-selection-modal")).toHaveAttribute(
+      "data-student-ids",
+      "1,3",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "close pickup" }));
+
+    fireEvent.click(screen.getByLabelText("Aktion für Auswahl"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Klassenfahrt planen" }),
+    );
+    expect(screen.getByTestId("class-trip-selection-modal")).toHaveAttribute(
+      "data-student-ids",
+      "1,3",
+    );
   });
 });

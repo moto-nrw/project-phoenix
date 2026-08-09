@@ -12,20 +12,14 @@
  * bar that ties the card back to the activity type.
  */
 
-import {
-  Archive,
-  Clock,
-  DoorOpen,
-  Palette,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { Archive, Palette, Users } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface TemplateCardProps {
   template: TimetableTemplate;
@@ -151,7 +145,7 @@ export function TemplateCard({
 
         <dl className="space-y-1.5 text-xs text-gray-600">
           <div className="flex items-center gap-2">
-            <Clock className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+            <MotoConceptIcon concept="careTimes" size={14} />
             <span className="tabular-nums">
               {timeRange ?? "Keine Zeiten hinterlegt"}
             </span>
@@ -165,7 +159,7 @@ export function TemplateCard({
             </div>
           ) : null}
           <div className="flex items-center gap-2">
-            <DoorOpen className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+            <MotoConceptIcon concept="rooms" size={16} />
             <span className="truncate">{template.roomName ?? "Kein Raum"}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -185,9 +179,9 @@ export function TemplateCard({
           </div>
           {template.requiredStaffCount > 0 && (
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+              <MotoConceptIcon concept="supervision" size={16} />
               <TimetableRatioPill
-                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                icon={<MotoConceptIcon concept="supervision" size={16} />}
                 label="Besetzung"
                 value={`${template.assignedStaffCount}/${template.requiredStaffCount}`}
                 tone={capacityTone(
@@ -203,7 +197,7 @@ export function TemplateCard({
         {!template.roomId && (
           <p className="flex items-center gap-1.5 text-xs text-gray-600">
             <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#EAB308]"
+              className="bg-moto-amber h-1.5 w-1.5 shrink-0 rounded-full"
               aria-hidden
             />
             Raum fehlt – wird nicht eingeplant

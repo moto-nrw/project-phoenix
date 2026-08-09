@@ -27,16 +27,16 @@ describe("CoverageIndicator", () => {
     expect(dot).toHaveStyle({ backgroundColor: "#F78C10" });
 
     const istNumber = screen.getByText("1");
-    expect(istNumber).toHaveStyle({ color: "#FF3130" });
+    expect(istNumber).toHaveStyle({ color: "#DC2626" });
     // The "/3" part stays the default bold gray, not red.
-    expect(screen.getByText("/3")).not.toHaveStyle({ color: "#FF3130" });
+    expect(screen.getByText("/3")).not.toHaveStyle({ color: "#DC2626" });
   });
 
   it("does not color the Ist number red when the pair is not actually understaffed", () => {
     render(<CoverageIndicator state="gap" current={3} total={3} />);
 
     const istNumber = screen.getByText("3");
-    expect(istNumber).not.toHaveStyle({ color: "#FF3130" });
+    expect(istNumber).not.toHaveStyle({ color: "#DC2626" });
   });
 
   it('renders the "bewusst unbesetzt" note for the acknowledged state', () => {
@@ -88,7 +88,7 @@ describe("CoverageIndicator", () => {
       <CoverageIndicator state="covered" label="18/20,25 h" tone="under" />,
     );
 
-    expect(screen.getByText("18/20,25 h")).toHaveStyle({ color: "#FF3130" });
+    expect(screen.getByText("18/20,25 h")).toHaveStyle({ color: "#DC2626" });
   });
 
   it("colors a free-form label amber for tone=over (Überdeckung, text only)", () => {

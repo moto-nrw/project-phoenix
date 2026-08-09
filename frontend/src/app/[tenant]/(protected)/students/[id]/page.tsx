@@ -376,7 +376,7 @@ function StudentDetailPageContent() {
   const canViewDocuments =
     sessionStatus === "authenticated" &&
     (hasPermission(session, "users:update") ||
-    hasPermission(session, "student_documents:health") ||
+      hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal"));
   const visibleTabs = useMemo(
     () =>
@@ -630,7 +630,7 @@ function StudentDetailPageContent() {
         <button
           type="button"
           onClick={() => router.push(referrer)}
-          className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
+          className="bg-moto-blue/10 text-moto-blue-strong hover:bg-moto-blue/20 mt-4 rounded px-4 py-2 transition-colors"
         >
           Zurück
         </button>
@@ -973,7 +973,7 @@ function StudentDetailPageContent() {
 
     if (activeGroups.length === 0) {
       return (
-        <p className="text-sm text-amber-600">
+        <p className="text-moto-amber-strong text-sm">
           Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive
           Aufsicht in einem Raum über ein NFC-Tablet.
         </p>

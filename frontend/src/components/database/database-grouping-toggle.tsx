@@ -30,7 +30,7 @@ export function DatabaseGroupingToggle<K extends string>({
       menuAlign="end"
       menuClassName="w-44 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg"
       optionClassName="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-      activeOptionClassName="flex w-full items-center justify-between bg-[#DCF5C1]/60 px-3 py-2 text-left text-sm font-semibold text-gray-900"
+      activeOptionClassName="flex w-full items-center justify-between bg-moto-green-soft/60 px-3 py-2 text-left text-sm font-semibold text-gray-900"
       renderTrigger={({ selectedLabel }) => (
         <>
           <Layers className="h-4 w-4 text-gray-500" aria-hidden />

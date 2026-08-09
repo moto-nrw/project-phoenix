@@ -1,18 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import {
-  CalendarClock,
-  ChevronDown,
-  CircleAlert,
-  Clock,
-  type LucideIcon,
-  MapPin,
-  Play,
-  ShieldCheck,
-  UserCheck,
-  Users,
-} from "lucide-react";
+import { ChevronDown, CircleAlert, Play } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
@@ -85,7 +76,7 @@ export function PlannedNowSection({
       <section className="moto-content-surface mb-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Als Nächstes
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -93,7 +84,7 @@ export function PlannedNowSection({
             </h2>
           </div>
           <span className="inline-flex h-9 items-center gap-2 rounded-lg bg-gray-100 px-3 text-sm font-medium text-gray-600">
-            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+            <MotoConceptIcon concept="carePlan" size={18} />
             Heute
           </span>
         </div>
@@ -137,14 +128,14 @@ export function PlannedNowSection({
           onClick={() =>
             setSectionExpanded((current) => !(current ?? hasActionableSlot))
           }
-          className="group flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+          className="group focus-visible:ring-moto-blue/30 flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:outline-none"
           aria-expanded={isSectionExpanded}
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#4070C8]">
-            <CalendarClock className="h-4 w-4" aria-hidden="true" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+            <MotoConceptIcon concept="carePlan" size={20} />
           </span>
           <span className="min-w-0">
-            <span className="block text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <span className="text-moto-blue block text-xs font-semibold tracking-wide uppercase">
               Als Nächstes
             </span>
             <span className="block truncate text-base font-semibold text-gray-900">
@@ -158,22 +149,22 @@ export function PlannedNowSection({
         </button>
         <div className="flex flex-wrap gap-2 sm:justify-end">
           <SummaryPill
-            icon={CalendarClock}
+            concept="carePlan"
             label={`${sortedPlanned.length} geplant`}
             tone="info"
           />
           {showTimetableCounts && (
-            <SummaryPill icon={Users} label={`${expectedCount} Kinder`} />
+            <SummaryPill concept="children" label={`${expectedCount} Kinder`} />
           )}
           {overdueCount > 0 ? (
             <SummaryPill
-              icon={CircleAlert}
+              concept="emergency"
               label={`${overdueCount} überfällig`}
               tone="warning"
             />
           ) : soonCount > 0 ? (
             <SummaryPill
-              icon={Clock}
+              concept="careTimes"
               label={`${soonCount} startet gleich`}
               tone="success"
             />
@@ -211,17 +202,11 @@ export function PlannedNowSection({
                         </div>
                         <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
                           <span className="inline-flex items-center gap-1.5">
-                            <CalendarClock
-                              className="h-4 w-4 text-gray-400"
-                              aria-hidden="true"
-                            />
+                            <MotoConceptIcon concept="careTimes" size={16} />
                             {instance.startTime}-{instance.endTime}
                           </span>
                           <span className="inline-flex items-center gap-1.5">
-                            <MapPin
-                              className="h-4 w-4 text-gray-400"
-                              aria-hidden="true"
-                            />
+                            <MotoConceptIcon concept="rooms" size={18} />
                             {instance.roomName ?? `Raum ${instance.roomId}`}
                           </span>
                         </div>
@@ -277,10 +262,7 @@ export function PlannedNowSection({
                       aria-expanded={isExpanded}
                     >
                       <span className="inline-flex items-center gap-2">
-                        <Users
-                          className="h-4 w-4 text-gray-400"
-                          aria-hidden="true"
-                        />
+                        <MotoConceptIcon concept="children" size={18} />
                         Kinder
                         <span className="text-xs font-normal text-gray-500">
                           {rosterPreviewLabel(
@@ -306,7 +288,7 @@ export function PlannedNowSection({
                           <button
                             type="button"
                             onClick={() => toggleExpanded(instance.id)}
-                            className="text-xs font-medium text-[#4070C8] hover:text-[#305FAE] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
+                            className="focus-visible:ring-moto-blue/30 text-moto-blue-hover hover:text-moto-blue-strong text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
                           >
                             {showTimetableCounts
                               ? `${hiddenCount} weitere anzeigen`
@@ -331,14 +313,14 @@ function SlotStatusBadge({
 }: Readonly<{ instance: PlannedTimetableInstance }>) {
   if (instance.isOverdue) {
     return (
-      <span className="rounded-full bg-[#F3B63F]/20 px-2 py-0.5 text-xs font-medium text-[#A66F00]">
+      <span className="bg-moto-amber/20 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
         Überfällig
       </span>
     );
   }
   if (instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES) {
     return (
-      <span className="rounded-full bg-[#83CD2D]/15 px-2 py-0.5 text-xs font-medium text-[#5A8B1F]">
+      <span className="bg-moto-green/15 text-moto-green-strong rounded-full px-2 py-0.5 text-xs font-medium">
         Startet gleich
       </span>
     );
@@ -348,6 +330,20 @@ function SlotStatusBadge({
       Heute
     </span>
   );
+}
+
+/**
+ * Mirrors the label ranking below field for field. Branching on a different
+ * field than the label does leaves "Zuständig" wearing the same icon as
+ * "Zugewiesen" and "Info", which is what happened when this moved from a
+ * ShieldCheck/UserCheck pair to the concept system.
+ */
+function responsibilityConcept(
+  instance: PlannedTimetableInstance,
+): MotoConceptKey {
+  if (instance.isPrimary) return "responsibility";
+  if (instance.isSubstitute) return "substitution";
+  return "supervision";
 }
 
 function ResponsibilityBadge({
@@ -361,14 +357,13 @@ function ResponsibilityBadge({
         ? "Zugewiesen"
         : "Info";
   const className = instance.isAssigned
-    ? "bg-[#5080D8]/10 text-[#4070C8]"
+    ? "bg-moto-blue/10 text-moto-blue-hover"
     : "bg-gray-100 text-gray-500";
-  const Icon = instance.isPrimary ? ShieldCheck : UserCheck;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${className}`}
     >
-      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <MotoConceptIcon concept={responsibilityConcept(instance)} size={16} />
       {label}
     </span>
   );
@@ -385,9 +380,9 @@ function SlotStat({
 }>) {
   const className =
     tone === "success"
-      ? "bg-[#83CD2D]/10 text-[#4A7A15]"
+      ? "bg-moto-green/10 text-moto-green-strong"
       : tone === "info"
-        ? "bg-[#5080D8]/10 text-[#4070C8]"
+        ? "bg-moto-blue/10 text-moto-blue-hover"
         : "bg-gray-50 text-gray-900";
   return (
     <div className={`rounded-lg px-3 py-2 ${className}`}>
@@ -400,27 +395,27 @@ function SlotStat({
 }
 
 function SummaryPill({
-  icon: Icon,
+  concept,
   label,
   tone = "neutral",
 }: Readonly<{
-  icon: LucideIcon;
+  concept?: MotoConceptKey;
   label: string;
   tone?: "neutral" | "info" | "success" | "warning";
 }>) {
   const className =
     tone === "info"
-      ? "bg-[#5080D8]/10 text-[#4070C8]"
+      ? "bg-moto-blue/10 text-moto-blue-hover"
       : tone === "success"
-        ? "bg-[#83CD2D]/10 text-[#4A7A15]"
+        ? "bg-moto-green/10 text-moto-green-strong"
         : tone === "warning"
-          ? "bg-[#F3B63F]/20 text-[#A66F00]"
+          ? "bg-moto-amber/20 text-moto-amber-strong"
           : "bg-gray-100 text-gray-600";
   return (
     <span
       className={`inline-flex h-8 items-center gap-2 rounded-lg px-3 text-sm font-medium ${className}`}
     >
-      <Icon className="h-4 w-4" aria-hidden="true" />
+      {concept ? <MotoConceptIcon concept={concept} size={18} /> : null}
       {label}
     </span>
   );
@@ -458,7 +453,7 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
         <div className="flex shrink-0 items-center gap-2">
           {warningLabel ? (
             <span
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#F3B63F]/20 text-[#A66F00]"
+              className="bg-moto-amber/20 text-moto-amber-strong inline-flex h-7 w-7 items-center justify-center rounded-full"
               title={warningLabel}
               aria-label={`${warnings.length} Planungs-Hinweis`}
             >
@@ -476,11 +471,20 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
         </div>
       </div>
       {warnings.length > 0 ? (
-        <p className="mt-2 text-xs text-[#A66F00]">{warnings[0]?.message}</p>
+        <p className="text-moto-amber-strong mt-2 text-xs">
+          {warnings[0]?.message}
+        </p>
       ) : null}
     </div>
   );
 }
+
+/**
+ * Tailwind gray-300. The "Erwartet" dot is the one roster state with no
+ * standing in the location palette — it says "nothing has happened yet", so it
+ * stays a light neutral rather than borrowing a status hue.
+ */
+const EXPECTED_DOT_COLOR = "#D1D5DB";
 
 function rosterDotColor(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") {
@@ -493,9 +497,13 @@ function rosterDotColor(row: TimetableRosterRow) {
     return LOCATION_COLORS.UNKNOWN;
   }
   if (row.status === "absent") {
-    return LOCATION_COLORS.HOME;
+    return LOCATION_COLORS.DANGER;
   }
-  return "#D1D5DB";
+  // "Erwartet" — deliberately NOT LOCATION_COLORS.UNKNOWN, which the
+  // isNotScheduled branch above already owns. Sharing the hex would make a
+  // child that is merely expected indistinguishable from one the care plan
+  // leaves out today.
+  return EXPECTED_DOT_COLOR;
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {

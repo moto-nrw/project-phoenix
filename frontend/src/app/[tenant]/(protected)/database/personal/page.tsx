@@ -13,6 +13,8 @@ import {
   type Grouper,
 } from "~/components/database/use-grouped-items";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
 import { useToast } from "~/contexts/ToastContext";
@@ -303,19 +305,11 @@ function TeachersPageContent() {
           title={isMobile ? "Personal" : ""}
           badge={{
             icon: (
-              <svg
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-                />
-              </svg>
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.staff.icon}
+                tone={MOTO_CONCEPTS.staff.tone}
+                size={20}
+              />
             ),
             count: filteredTeachers.length,
             label: "Personal",
@@ -409,19 +403,12 @@ function TeachersPageContent() {
       ) : !loading ? (
         <DatabaseEmptyState
           icon={
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-              />
-            </svg>
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.staff.icon}
+              tone={MOTO_CONCEPTS.staff.tone}
+              size={48}
+              className="mx-auto"
+            />
           }
           title={
             searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"

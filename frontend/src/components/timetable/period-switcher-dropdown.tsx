@@ -169,7 +169,7 @@ export function PeriodSwitcherDropdown({
         title="Planungszeitraum wechseln"
       >
         <span
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]"
+          className="bg-moto-green h-1.5 w-1.5 shrink-0 rounded-full"
           aria-hidden
         />
         <span className="truncate">{triggerLabel}</span>

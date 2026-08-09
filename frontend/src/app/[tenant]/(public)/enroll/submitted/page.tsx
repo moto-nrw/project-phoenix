@@ -7,10 +7,10 @@ export default async function EnrollSubmittedPage() {
   return (
     <PublicEnrollmentPageShell>
       <section className="moto-content-surface mx-auto max-w-4xl rounded-3xl border p-6 text-center shadow-sm sm:p-10">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#83CD2D]/15 text-[#5A8E1F]">
+        <div className="bg-moto-green/15 text-moto-green-strong mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
           <Check className="h-7 w-7" />
         </div>
-        <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+        <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
           {t("submittedEyebrow")}
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">

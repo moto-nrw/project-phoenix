@@ -5,6 +5,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { getInitials } from "~/lib/format-utils";
+import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 
 type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
@@ -24,8 +25,8 @@ interface AvatarProps {
 // background is the OPAQUE equivalent of LOCATION_COLORS.GROUP_ROOM (#83CD2D)
 // at 15% over white — kept opaque so a dotted/colored page background never
 // shows through the avatar.
-const FALLBACK_BG = "#ECF8DF";
-const FALLBACK_TEXT = "#5A8E1F";
+const FALLBACK_BG = MOTO_COLOR_PALETTE.green.soft;
+const FALLBACK_TEXT = MOTO_COLOR_PALETTE.green.strong;
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
   xs: "w-6 h-6 text-[10px]",

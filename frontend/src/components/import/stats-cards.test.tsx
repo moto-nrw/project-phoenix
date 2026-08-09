@@ -38,16 +38,18 @@ describe("StatsCards", () => {
     expect(svgElements.length).toBe(4);
   });
 
-  it("applies correct color classes to icon containers", () => {
+  it("renders icon tiles as neutral gray tiles, not colored gradients", () => {
     const { container } = render(
       <StatsCards total={10} newCount={5} existing={3} errors={2} />,
     );
 
-    // Check for gradient color classes in icon containers
-    const iconContainers = container.querySelectorAll(
-      "[class*='bg-gradient-to-br']",
-    );
-    expect(iconContainers.length).toBeGreaterThanOrEqual(4);
+    // Icon tiles use the shared neutral-gray pattern; no gradients behind
+    // functional icons.
+    const iconTiles = container.querySelectorAll("[class*='bg-gray-100']");
+    expect(iconTiles.length).toBe(4);
+    expect(
+      container.querySelectorAll("[class*='bg-gradient-to-br']").length,
+    ).toBe(0);
   });
 
   it("renders in a responsive grid layout", () => {

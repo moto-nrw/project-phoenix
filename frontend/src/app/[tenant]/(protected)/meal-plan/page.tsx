@@ -480,7 +480,9 @@ export default function MealPlanPage() {
                 <div className="text-sm font-semibold text-gray-900">
                   KW {weekNumber}
                   {isCurrentWeek ? (
-                    <span className="ml-1.5 text-[#83CD2D]">· Diese Woche</span>
+                    <span className="text-moto-green ml-1.5">
+                      · Diese Woche
+                    </span>
                   ) : null}
                 </div>
                 <div className="text-xs text-gray-500">{rangeLabel}</div>
@@ -557,11 +559,11 @@ export default function MealPlanPage() {
                   <div
                     key={date}
                     data-meal-day-column
-                    className={`flex flex-col ${isToday ? "bg-[#83CD2D]/[0.04]" : ""}`}
+                    className={`flex flex-col ${isToday ? "bg-moto-green/[0.04]" : ""}`}
                   >
                     <div
                       className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
-                        isToday ? "border-[#83CD2D]/30" : "border-gray-200"
+                        isToday ? "border-moto-green/30" : "border-gray-200"
                       }`}
                     >
                       <div>
@@ -574,7 +576,7 @@ export default function MealPlanPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         {isToday && (
-                          <span className="rounded-full bg-[#83CD2D] px-2 py-0.5 text-[11px] font-semibold text-white">
+                          <span className="bg-moto-green rounded-full px-2 py-0.5 text-[11px] font-semibold text-gray-950">
                             Heute
                           </span>
                         )}
@@ -712,7 +714,7 @@ export default function MealPlanPage() {
           title="Gericht entfernen?"
           confirmText="Entfernen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-[#FF3130] hover:bg-[#e02020]"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-600">
             {deleteTarget
@@ -728,7 +730,7 @@ export default function MealPlanPage() {
           title="Ungespeicherte Änderungen"
           confirmText="Verwerfen & wechseln"
           cancelText="Hierbleiben"
-          confirmButtonClass="bg-[#FF3130] hover:bg-[#e02020]"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-600">
             Du hast Änderungen in dieser Woche, die noch nicht gespeichert sind.
@@ -743,7 +745,7 @@ export default function MealPlanPage() {
           title="Ungespeicherte Änderungen"
           confirmText="Verwerfen & verlassen"
           cancelText="Hierbleiben"
-          confirmButtonClass="bg-[#FF3130] hover:bg-[#e02020]"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-600">
             Du hast Änderungen, die noch nicht gespeichert sind. Beim Verlassen

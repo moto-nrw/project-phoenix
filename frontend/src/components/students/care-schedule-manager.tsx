@@ -3,17 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mutate } from "swr";
 import {
-  CalendarDays,
-  CalendarX,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Loader2,
   SquarePen,
   StickyNote,
-  Users,
   X,
 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   type CareExceptionSubmit,
   type CarePlanWeeklySubmit,
@@ -59,7 +58,6 @@ import {
   mergeSchedulesWithTemplate as mergePickupSchedulesWithTemplate,
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import type {
   StudentStatusDay,
   StudentStatusKind,
@@ -107,7 +105,6 @@ interface CareBoundaryItem {
   readonly value: string;
   readonly description?: string;
   readonly marker: string | null;
-  readonly color: string;
   readonly icon: React.ReactNode;
   readonly onEdit?: () => void;
 }
@@ -720,7 +717,7 @@ export function CareScheduleManager({
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-4 text-sm text-[#CC2626]">
+      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
         {error}
       </div>
     );
@@ -729,48 +726,40 @@ export function CareScheduleManager({
   return (
     <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
       <div className="border-b border-gray-100 p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Wochenübersicht
-            </p>
-            <div className="mt-1 flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
-              <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">
-                Betreuungsplan
-              </h2>
-              <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-600">
-                {weekRange}
-              </span>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => showWeek(0)}
-              disabled={weekOffset === 0}
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
-            >
-              Heute
-            </button>
-            {/* Labelled on purpose: an unlabelled pencil here was
-                indistinguishable from the per-day pencils below, which is the
-                confusion issue #893 reports. */}
-            {!readOnly ? (
+        <ConceptSectionHeader
+          title="Betreuungszeiten"
+          concept="careTimes"
+          subtitle={weekRange}
+          actions={
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setEditorTarget({ date: null })}
-                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                title="Wochenplan bearbeiten"
+                onClick={() => showWeek(0)}
+                disabled={weekOffset === 0}
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
               >
-                <SquarePen className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {/* Label kept on mobile too: an icon-only pencil here is the
+                Heute
+              </button>
+              {/* Labelled on purpose: an unlabelled pencil here was
+                indistinguishable from the per-day pencils below, which is the
+                confusion issue #893 reports. */}
+              {!readOnly ? (
+                <button
+                  type="button"
+                  onClick={() => setEditorTarget({ date: null })}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  title="Wochenplan bearbeiten"
+                >
+                  <SquarePen className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {/* Label kept on mobile too: an icon-only pencil here is the
                     exact ambiguity with the per-day pencils that #893 reports,
                     and the header has room for the word on both layouts. */}
-                <span>Wochenplan</span>
-              </button>
-            ) : null}
-          </div>
-        </div>
+                  <span>Wochenplan</span>
+                </button>
+              ) : null}
+            </div>
+          }
+        />
         <div className="relative mt-4 hidden items-center justify-between gap-2 xl:flex">
           <div>
             <WeekNavButton
@@ -862,7 +851,7 @@ export function CareScheduleManager({
         confirmText="Entfernen"
         cancelText="Abbrechen"
         isConfirmLoading={deletingStatusDayId === statusDayToDelete?.id}
-        confirmButtonClass="bg-[#CC2626] hover:bg-[#B91C1C]"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
       >
         <p className="text-sm leading-6 text-gray-600">
           {statusDayToDelete
@@ -1014,7 +1003,7 @@ function MobileDayButton({
       <span
         className={`mt-1 inline-flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold ${
           day.isToday
-            ? "bg-[#FF3130] text-white"
+            ? "bg-moto-orange text-white"
             : isSelected
               ? "bg-white text-gray-900"
               : "bg-gray-100 text-gray-700"
@@ -1080,8 +1069,8 @@ function CareDayCard({
               <span className="text-xs font-semibold text-gray-500">Heute</span>
             ) : null}
             {parentChanged ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-semibold text-[#3a63b0]">
-                <Users className="h-3 w-3" aria-hidden="true" />
+              <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
+                <MotoConceptIcon concept="parents" size={14} />
                 Von Eltern
               </span>
             ) : null}
@@ -1089,7 +1078,7 @@ function CareDayCard({
           <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
             {day.isToday ? (
               <>
-                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-[#FF3130] px-1.5 text-sm font-semibold text-white">
+                <span className="bg-moto-orange flex h-7 min-w-7 items-center justify-center rounded-full px-1.5 text-sm font-semibold text-white">
                   {day.date.getDate()}
                 </span>
                 <span>.</span>
@@ -1159,24 +1148,23 @@ function AbsencePlaceholder({
   readonly onRequestDeleteStatusDay: (statusDay: StudentStatusDay) => void;
 }) {
   if (!status) return null;
-  const isSick = status === "sick";
+  const concept: MotoConceptKey =
+    status === "class_trip"
+      ? "classTrip"
+      : status === "sick"
+        ? "sick"
+        : "excused";
   const label =
     status === "class_trip"
       ? "Ganztägig Klassenfahrt"
-      : isSick
+      : status === "sick"
         ? "Ganztägig krank gemeldet"
         : "Ganztägig entschuldigt";
   const isInteractive = !readOnly && statusDay !== null;
   const content = (
     <div className="flex min-w-0 items-center gap-3 pr-8 text-left">
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm ${
-          isSick
-            ? "bg-[#EAB308]/10 text-[#A16207]"
-            : "bg-[#7C3AED]/10 text-[#6D28D9]"
-        }`}
-      >
-        <CalendarX className="h-4.5 w-4.5" aria-hidden="true" />
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 shadow-sm">
+        <MotoConceptIcon concept={concept} size={18} />
       </span>
       <div className="min-w-0">
         <div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
@@ -1259,13 +1247,12 @@ function CareBoundaryRow({
   return (
     <div className="flex flex-1 px-3 py-2.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <span
-          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md shadow-sm"
-          style={{
-            backgroundColor: `${boundary.color}14`,
-            color: boundary.color,
-          }}
-        >
+        {/* Neutrale Kachel, wie bei AbsencePlaceholder in derselben Datei:
+            MotoConceptIcon setzt seine Farbe selbst aus MOTO_CONCEPTS und
+            ueberschreibt ein geerbtes color. Eine getoente Kachel ergab
+            deshalb eine indigofarbene Uhr auf Gruen und ein petrolfarbenes
+            Auto auf Orange. */}
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 shadow-sm">
           {boundary.icon}
         </span>
         <div className="min-w-0 flex-1">
@@ -1335,14 +1322,20 @@ function CareNotesSection({ notes }: { readonly notes: CareNoteItem[] }) {
   );
 }
 
+// Muss dieselbe Dreiteilung tragen wie AbsencePlaceholder in derselben Karte,
+// sonst zeigt ein Klassenfahrt-Tag eine lila Pille ueber einem cyanfarbenen
+// Icon und ist ausserdem nicht von "Entschuldigt" zu unterscheiden.
+const STATUS_PILL_CLASSES: Record<StudentStatusKind, string> = {
+  sick: "border-moto-red/30 bg-moto-red/10 text-moto-red-strong",
+  class_trip: "border-moto-cyan/30 bg-moto-cyan/10 text-moto-cyan-strong",
+  excused: "border-moto-purple/25 bg-moto-purple/10 text-moto-purple-strong",
+};
+
 function StatusPill({ status }: { readonly status: StudentStatusKind }) {
-  const isSick = status === "sick";
   return (
     <span
       className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-        isSick
-          ? "border-[#EAB308]/30 bg-[#EAB308]/10 text-[#854D0E]"
-          : "border-[#7C3AED]/25 bg-[#7C3AED]/10 text-[#5B21B6]"
+        STATUS_PILL_CLASSES[status]
       }`}
     >
       {getStatusLabel(status)}
@@ -1398,8 +1391,7 @@ function getCareBoundaries(
       value: getArrivalValue(day.arrival),
       description: getArrivalDescription(day.arrival),
       marker: getArrivalMarker(day.arrival),
-      color: LOCATION_COLORS.GROUP_ROOM,
-      icon: <Clock className="h-4 w-4" aria-hidden="true" />,
+      icon: <MotoConceptIcon concept="careTimes" size={18} />,
       onEdit: actions.onEditArrival,
     },
     {
@@ -1408,8 +1400,7 @@ function getCareBoundaries(
       value: getPickupValue(day.pickup),
       description: getPickupDescription(day.pickup),
       marker: getPickupMarker(day.pickup),
-      color: LOCATION_COLORS.SCHOOLYARD,
-      icon: <CalendarDays className="h-4 w-4" aria-hidden="true" />,
+      icon: <MotoConceptIcon concept="pickup" size={18} />,
       onEdit: actions.onEditPickup,
     },
   ];

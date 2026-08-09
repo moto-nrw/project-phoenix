@@ -9,7 +9,7 @@ describe("PlanLegend", () => {
     render(
       <PlanLegend
         entries={[
-          { key: "care", label: "Arbeit am Kind", color: "#5A8E1F" },
+          { key: "care", label: "Arbeit am Kind", color: "#3F6F12" },
           { key: "prep", label: "Vorbereitung", color: "#4A6FA5" },
         ]}
       />,
@@ -23,12 +23,12 @@ describe("PlanLegend", () => {
   it("renders a colored edge-bar swatch from the hex color prop", () => {
     const { container } = render(
       <PlanLegend
-        entries={[{ key: "care", label: "Arbeit am Kind", color: "#5A8E1F" }]}
+        entries={[{ key: "care", label: "Arbeit am Kind", color: "#3F6F12" }]}
       />,
     );
 
     const swatch = container.querySelector('[aria-hidden="true"]');
-    expect(swatch).toHaveStyle({ backgroundColor: "#5A8E1F" });
+    expect(swatch).toHaveStyle({ backgroundColor: "#3F6F12" });
   });
 
   it("falls back to the neutral swatch color when no color is given", () => {
