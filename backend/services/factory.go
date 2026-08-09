@@ -876,11 +876,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	// Initialize pickup schedule service
-	pickupScheduleService := schedule.NewPickupScheduleService(
+	pickupScheduleService := schedule.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
+		repos.Student,
+		repos.Person,
 		db,
+		logger.With("service", "pickup-schedule"),
 	)
 
 	// Initialize RFID check-in service (issue #575 B8). Orchestrates the

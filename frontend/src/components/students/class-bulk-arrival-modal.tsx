@@ -9,19 +9,21 @@ import type { Student } from "~/lib/api";
 import { createLogger } from "~/lib/logger";
 import {
   type ArrivalScheduleInput,
+  type BulkArrivalFilter,
   WEEKDAYS,
-  bulkUpsertArrivalByClass,
+  bulkUpsertArrivalSchedules,
   fetchArrivalData,
 } from "~/lib/student-arrival-api";
 import { cn } from "~/lib/utils";
 
-const logger = createLogger({ component: "ClassBulkArrivalModal" });
+const logger = createLogger({ component: "FilteredBulkArrivalModal" });
 
-interface ClassBulkArrivalModalProps {
+interface FilteredBulkArrivalModalProps {
   isOpen: boolean;
   onClose: () => void;
-  schoolClass: string;
-  studentsInClass: Student[];
+  filter: BulkArrivalFilter;
+  filterLabel: string;
+  studentsInFilter: Student[];
   onSuccess?: () => void;
 }
 
@@ -44,13 +46,14 @@ function isValidTime(value: string): boolean {
   return /^\d{2}:\d{2}$/.test(value);
 }
 
-export function ClassBulkArrivalModal({
+export function FilteredBulkArrivalModal({
   isOpen,
   onClose,
-  schoolClass,
-  studentsInClass,
+  filter,
+  filterLabel,
+  studentsInFilter,
   onSuccess,
-}: ClassBulkArrivalModalProps) {
+}: FilteredBulkArrivalModalProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
@@ -62,7 +65,7 @@ export function ClassBulkArrivalModal({
     setCollisionCount(null);
 
     let cancelled = false;
-    const ids = studentsInClass.map((student) => String(student.id));
+    const ids = studentsInFilter.map((student) => String(student.id));
     Promise.all(
       ids.map((id) =>
         fetchArrivalData(id)
@@ -83,7 +86,14 @@ export function ClassBulkArrivalModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, studentsInClass]);
+  }, [isOpen, studentsInFilter]);
+
+  const targetTitle =
+    filter.type === "school_class"
+      ? `Klasse ${filterLabel}`
+      : filter.type === "group"
+        ? `Gruppe ${filterLabel}`
+        : filterLabel;
 
   const hasAnyTime = useMemo(
     () => Object.values(draft).some((value) => value.trim() !== ""),
@@ -113,16 +123,16 @@ export function ClassBulkArrivalModal({
 
     setSaving(true);
     try {
-      await bulkUpsertArrivalByClass(schoolClass, schedules);
+      await bulkUpsertArrivalSchedules(filter, schedules);
       toastSuccess(
-        `Ankunftszeiten für Klasse ${schoolClass} gesetzt (${childCountLabel(studentsInClass.length)})`,
+        `Ankunftszeiten für ${targetTitle} gesetzt (${childCountLabel(studentsInFilter.length)})`,
       );
       onSuccess?.();
       onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("Failed to bulk upsert arrival", {
-        schoolClass,
+      logger.error("failed to bulk upsert arrival schedules", {
+        filter_type: filter.type,
         error: message,
       });
       toastError(`Fehler beim Speichern: ${message}`);
@@ -135,7 +145,7 @@ export function ClassBulkArrivalModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Ankunftszeiten für Klasse ${schoolClass}`}
+      title={`Ankunftszeiten für ${targetTitle}`}
       size="md"
       mobilePosition="bottom"
       footer={
@@ -150,16 +160,15 @@ export function ClassBulkArrivalModal({
           >
             {saving
               ? "Speichern..."
-              : `Für ${childCountLabel(studentsInClass.length)} setzen`}
+              : `Für ${childCountLabel(studentsInFilter.length)} setzen`}
           </Button>
         </div>
       }
     >
       <div className="space-y-4 p-4">
         <p className="text-sm text-gray-600">
-          Setzt die Ankunftszeit für alle{" "}
-          {childCountLabel(studentsInClass.length)} der Klasse {schoolClass}.
-          Leere Felder bleiben unverändert.
+          Setzt die Ankunftszeit für {childCountLabel(studentsInFilter.length)}{" "}
+          aus {targetTitle}. Leere Felder bleiben unverändert.
         </p>
         {collisionCount !== null && collisionCount > 0 ? (
           <div className="border-moto-orange bg-moto-orange/5 flex items-start gap-2 rounded-lg border p-3 text-sm">

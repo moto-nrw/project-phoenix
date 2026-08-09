@@ -61,13 +61,29 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 }
 
 // BulkCreateForDates applies CreateForDates' orchestration to several students
-// within a single tenant transaction.
+// within a single tenant transaction. Authorization runs for the full set
+// before any writes so a mixed-scope selection cannot partially commit.
 func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc StatusDayWriteContext, studentIDs []int64, status, reason string, dates []timezone.Date) error {
 	studentIDs = dedupeStudentIDs(studentIDs)
 	now := time.Now()
 	today := timezone.TodayDate()
 	notePtr := strutil.TrimPtrToNil(&reason)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
+		// Phase 1: lock and authorize every student before writing any row.
+		// Order by ID for stable lock acquisition across concurrent bulk ops.
+		sortedIDs := append([]int64(nil), studentIDs...)
+		slices.Sort(sortedIDs)
+		for _, studentID := range sortedIDs {
+			fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
+			if err != nil {
+				return err
+			}
+			if !wc.Authorize(ctx, fresh) {
+				return ErrStudentStatusDayReassigned
+			}
+		}
+
+		// Phase 2: write only after the full selection is in scope.
 		absenceStudentIDs := make([]int64, 0, len(studentIDs))
 		for _, studentID := range studentIDs {
 			notifyAbsence, err := s.writeStatusForStudent(ctx, wc, studentID, status, dates, notePtr, now, today)
