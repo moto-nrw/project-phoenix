@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -262,9 +263,48 @@ func (rs *Resource) resolveStaffPresence(ctx context.Context, staff *users.Staff
 	return present, workStatus, absence
 }
 
+// accountHoldsLehrkraftRole reports whether the account carries the Lehrkraft
+// system role (#1772). The staff form provisions the role on the account
+// before the staff record is created, so the roles are already in place when
+// createStaff runs.
+func (rs *Resource) accountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
+	roles, err := rs.AuthService.GetAccountRoles(ctx, int(accountID))
+	if err != nil {
+		return false, err
+	}
+	for _, role := range roles {
+		if authSvc.IsLehrkraftSystemRole(role) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // grantDefaultPermissions grants default permissions to a newly created account
 func (rs *Resource) grantDefaultPermissions(ctx context.Context, accountID int64, role string) {
 	if rs.AuthService == nil {
+		return
+	}
+
+	// The Lehrkraft role (#1772) is deliberately class_day:read only. groups:read
+	// would open the tenant-wide group list and every group's student names, far
+	// beyond the classes assigned to that Lehrkraft. Decide this on the account's
+	// actual roles, not on is_teacher: a Lehrkraft is created without a caregiver
+	// profile and would otherwise fall into the plain staff branch and be granted
+	// the permission. The invitation path never reaches this helper.
+	isLehrkraft, roleErr := rs.accountHoldsLehrkraftRole(ctx, accountID)
+	if roleErr != nil {
+		// Fail closed: an unreadable role set is no licence to widen access. The
+		// permission can be granted later; an over-grant leaks student data.
+		rs.getLogger().Error("failed to resolve account roles, skipping default permission grant",
+			slog.String("role", role),
+			slog.Int64("account_id", accountID),
+			slog.String("error", roleErr.Error()))
+		return
+	}
+	if isLehrkraft {
+		rs.getLogger().Info("skipping groups:read for lehrkraft account",
+			slog.Int64("account_id", accountID))
 		return
 	}
 
