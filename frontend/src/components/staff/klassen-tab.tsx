@@ -67,6 +67,10 @@ export function KlassenTab({
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Zählt die Ladeversuche: ein fehlgeschlagener Initial-Load (transienter
+  // 500) darf die Zuweisungs-UI nicht dauerhaft sperren — "Erneut versuchen"
+  // stößt den Effect neu an, statt einen Full Reload zu erzwingen.
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,7 +96,12 @@ export function KlassenTab({
     return () => {
       cancelled = true;
     };
-  }, [staffId]);
+  }, [staffId, loadAttempt]);
+
+  const retryLoad = useCallback(() => {
+    setError(null);
+    setLoadAttempt((attempt) => attempt + 1);
+  }, []);
 
   const persist = useCallback(
     async (next: string[]) => {
@@ -157,8 +166,18 @@ export function KlassenTab({
       </p>
 
       {error && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
           <Alert type="error" message={error} />
+          {assigned === null && (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={retryLoad}
+            >
+              Erneut versuchen
+            </Button>
+          )}
         </div>
       )}
 

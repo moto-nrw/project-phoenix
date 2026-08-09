@@ -256,7 +256,15 @@ export default function KlassenPage() {
     isLoading: classesLoading,
   } = useSWRAuth("class-day-my-classes", fetchMyClasses);
 
-  const selectedClass = selectedClassState || (classes?.[0] ?? "");
+  // Auswahl gegen die aktuelle Klassenliste abgleichen: verschwindet die
+  // gewählte Klasse, während die Seite offen ist (Admin entfernt oder
+  // benennt sie um, die Revalidierung zieht die neue Liste nach), fällt
+  // die Ansicht auf die erste Klasse zurück, statt mit einer Auswahl ohne
+  // Report und ohne Fehlerzustand leer zu bleiben.
+  const selectedClass =
+    selectedClassState && classes?.includes(selectedClassState)
+      ? selectedClassState
+      : (classes?.[0] ?? "");
 
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Karten oben
   // zeigen jede Klasse, die Listen darunter die ausgewählte. allSettled,
