@@ -107,7 +107,7 @@ export function describeCareOfferingAvailabilityRule(
  * Explains, in the admin's words, why this offering cannot be picked for a
  * child of this grade — or null when it can. Parent-facing forms keep hiding
  * blocked offerings; admins need the reason instead of a gap in the list
- * (#2216).
+ * (#2186).
  */
 export function careOfferingAvailabilityReason(
   offering: AvailabilityAwareOffering & { name?: string },
@@ -147,7 +147,7 @@ export interface CareOfferingBookingGradeCounts {
  * Counts the existing bookings a rule would contradict. Nothing is blocked by
  * this — existing bookings keep Bestandsschutz — but an admin tightening a
  * rule should see that the catalog and the booked reality now disagree
- * (#2216).
+ * (#2186).
  *
  * A booking whose grade is unknown counts as contradicting any rule: the
  * backend evaluator (`CareOfferingAvailabilityRule.MatchesGradeLevel`) never

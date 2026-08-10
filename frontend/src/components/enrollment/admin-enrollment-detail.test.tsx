@@ -763,8 +763,8 @@ describe("ChildOfferingAdjustment", () => {
     });
   });
 
-  // Bestandsschutz (#2216): a rule tightened after the fact does NOT revoke a
-  // booking the child already holds. Until #2216 the editor dropped it from
+  // Bestandsschutz (#2186): a rule tightened after the fact does NOT revoke a
+  // booking the child already holds. Until #2186 the editor dropped it from
   // the selection and the very next save deleted it — silently, in the flow
   // an admin opens to FIX the support case. The offering is now shown greyed
   // with the reason and stays in the payload unless explicitly unchecked.

@@ -415,7 +415,7 @@ func TestCloneCareOfferingHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
 	assert.NotContains(t, w.Body.String(), "synthetic boom")
 }
 
-// --- listCareOfferingBookingStats (#2216) ----------------------------
+// --- listCareOfferingBookingStats (#2186) ----------------------------
 
 func TestListCareOfferingBookingStatsHandler_NilServiceReturns500(t *testing.T) {
 	router := buildCareOfferingRouter(nil)

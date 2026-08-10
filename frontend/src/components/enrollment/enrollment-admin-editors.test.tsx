@@ -791,7 +791,7 @@ describe("CareOfferingsEditor", () => {
     );
   }
 
-  // #2216: the catalog listed every other offering attribute as a pill but
+  // #2186: the catalog listed every other offering attribute as a pill but
   // not the availability rule, so a restriction was only discoverable by
   // opening the offering and scrolling to "Bedingungen für die Verfügbarkeit".
   it("shows a set availability rule as a pill in the catalog", async () => {
@@ -825,7 +825,7 @@ describe("CareOfferingsEditor", () => {
     expect(screen.queryByText(/^Nicht für Klasse/)).not.toBeInTheDocument();
   });
 
-  // #2216: tightening a rule leaves contradicting bookings in place
+  // #2186: tightening a rule leaves contradicting bookings in place
   // (Bestandsschutz). Without this hint the data just looks inconsistent.
   it("warns how many existing bookings a rule contradicts", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);

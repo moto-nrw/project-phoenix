@@ -1,4 +1,4 @@
-// Per-offering booking summary for the ADMIN flows (#2216). Capacity and
+// Per-offering booking summary for the ADMIN flows (#2186). Capacity and
 // availability rules are enforced on save; without this the only way an admin
 // learns an offering is full is the error message after submitting a whole
 // manual enrollment.

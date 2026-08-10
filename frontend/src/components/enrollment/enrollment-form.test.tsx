@@ -507,7 +507,7 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
-  // #2216: parents must keep seeing only what they can pick (the test above),
+  // #2186: parents must keep seeing only what they can pick (the test above),
   // but for an admin a filtered-out offering reads as a missing feature. The
   // support case: a grade-3 child cannot be added to a "Randstunde" limited
   // to grades 1-2, and the form said nothing at all.

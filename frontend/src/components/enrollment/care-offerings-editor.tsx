@@ -390,7 +390,7 @@ export function CareOfferingsEditor() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
-  // Booking stats are display-only (#2216): the availability-rule editor uses
+  // Booking stats are display-only (#2186): the availability-rule editor uses
   // them to say how many existing bookings a rule would contradict. A failure
   // to load them must never block catalog editing, so it is logged and the
   // hint simply stays absent.
@@ -1072,7 +1072,7 @@ function EmptyCareOfferingState({
 // Without this pill an availability rule is only visible after opening the
 // offering and scrolling to "Bedingungen für die Verfügbarkeit" — which is how
 // a school ends up filing a support ticket for a restriction it configured
-// itself (#2216).
+// itself (#2186).
 function AvailabilityRulePill({
   rule,
 }: Readonly<{ rule: CareOfferingAvailabilityRule | null | undefined }>) {
@@ -1640,7 +1640,7 @@ function CareOfferingAvailabilityFields({
   const error = careOfferingAvailabilityRuleError(rule, gradeLevelMax);
   // Bestandsschutz is intentional — an existing booking is never revoked by a
   // rule change. Saying so out loud is what keeps the data from looking
-  // inconsistent later (#2216).
+  // inconsistent later (#2186).
   const conflicts = countCareOfferingRuleConflicts(rule, bookingGradeCounts);
 
   return (

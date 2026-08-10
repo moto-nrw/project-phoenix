@@ -1111,7 +1111,7 @@ function OfferingAttributePills({
 /**
  * One-line occupancy hint under an offering in the admin pickers. Renders
  * nothing when there is no stats entry, so a failed stats load degrades to
- * the previous UI instead of an empty placeholder (#2216).
+ * the previous UI instead of an empty placeholder (#2186).
  */
 function OfferingOccupancyLine({
   stats,
@@ -1132,7 +1132,7 @@ function OfferingOccupancyLine({
 /**
  * An offering the child's grade level rules out. Parents never see these;
  * admins must, or a configured restriction reads as a missing feature
- * (#2216). A booking the child already holds stays removable — Bestandsschutz
+ * (#2186). A booking the child already holds stays removable — Bestandsschutz
  * means the rule does not revoke it, not that it can never be corrected — but
  * a blocked offering can never be newly added here. The documented workaround
  * is to relax the rule in the Angebots-Katalog first.
@@ -1202,7 +1202,7 @@ export function ChildOfferingAdjustment({
   // Offerings the child's grade level rules out. Kept separate from `catalog`
   // so payload building and the auto-add preview keep operating on exactly
   // the selectable set, while the UI can still SHOW the blocked ones with a
-  // reason instead of leaving a silent gap in the list (#2216).
+  // reason instead of leaving a silent gap in the list (#2186).
   const [blockedCatalog, setBlockedCatalog] = useState<CareOffering[]>([]);
   const [rawCatalog, setRawCatalog] = useState<CareOffering[]>([]);
   const [bookingStats, setBookingStats] = useState<
@@ -1254,7 +1254,7 @@ export function ChildOfferingAdjustment({
     const availableIDs = new Set(available.map((offering) => offering.id));
     // Bestandsschutz: a booking the child already holds survives a rule that
     // was tightened after the fact. Dropping it here would silently delete
-    // the booking on the next save — the exact failure mode #2216 reports,
+    // the booking on the next save — the exact failure mode #2186 reports,
     // in the flow meant to fix it. adjustmentPayloadOfferings carries such
     // ids through via the child's existing offerings.
     const nextSelected = new Set(initialManualOfferingIDs(child.offerings));
@@ -1276,7 +1276,7 @@ export function ChildOfferingAdjustment({
     setError(null);
     setDays(initialManualOfferingDays(child.offerings));
     // Occupancy is advisory: without it a full offering only announces itself
-    // as an error after the whole correction is submitted (#2216). Loaded
+    // as an error after the whole correction is submitted (#2186). Loaded
     // beside the catalog rather than awaited with it — a slow or failing
     // stats call must never keep the editor in its loading state.
     void fetchCareOfferingBookingStats(phaseId)

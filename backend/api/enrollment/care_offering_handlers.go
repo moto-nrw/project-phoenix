@@ -250,7 +250,7 @@ type CareOfferingBookingStatsResponse struct {
 }
 
 // listCareOfferingBookingStats backs the admin-side capacity display and the
-// availability-rule conflict hint (#2216). It is deliberately aggregate-only:
+// availability-rule conflict hint (#2186). It is deliberately aggregate-only:
 // the client learns how many children hold a slot per grade level, never who
 // they are, so a display feature adds no new PII surface.
 func (rs *Resource) listCareOfferingBookingStats(w http.ResponseWriter, r *http.Request) {

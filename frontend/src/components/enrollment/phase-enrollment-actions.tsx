@@ -163,7 +163,7 @@ export function ManualApprovedEnrollmentModal({
 }>) {
   const [prefetchedData, setPrefetchedData] =
     useState<EnrollmentFormPrefetchedData | null>(null);
-  // Occupancy per offering (#2216). Advisory only: a failed load simply
+  // Occupancy per offering (#2186). Advisory only: a failed load simply
   // hides the capacity lines, it must never block a manual enrollment.
   const [bookingStats, setBookingStats] = useState<
     Record<string, CareOfferingBookingStats>

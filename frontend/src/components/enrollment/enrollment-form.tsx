@@ -165,14 +165,14 @@ interface Props {
   readonly lockChildStructure?: boolean;
   readonly submitLabel?: string;
   /**
-   * ADMIN ONLY (#2216). Renders offerings the child's grade level rules out
+   * ADMIN ONLY (#2186). Renders offerings the child's grade level rules out
    * as disabled entries with the reason, instead of omitting them. Parents
    * must keep seeing only what they can pick — for them a hidden offering is
    * correct; for an admin it is a blackbox that produces support tickets.
    */
   readonly showBlockedOfferings?: boolean;
   /**
-   * ADMIN ONLY (#2216). Per-offering occupancy, keyed by offering id. When
+   * ADMIN ONLY (#2186). Per-offering occupancy, keyed by offering id. When
    * provided, each offering shows how full it is so a capacity rejection is
    * visible before the form is submitted rather than after.
    */
@@ -1669,7 +1669,7 @@ export function EnrollmentForm({
             offerings,
             child.target_grade_level,
           );
-          // Admin flows only (#2216): everything the grade rule filtered out,
+          // Admin flows only (#2186): everything the grade rule filtered out,
           // so the picker can show it greyed with a reason. The parent form
           // leaves this empty and is byte-for-byte unchanged.
           const blockedOfferings = showBlockedOfferings
@@ -2548,7 +2548,7 @@ function InfoBlock({
 // checkbox. The day picker stays available for parent_choice offerings in
 // both cases.
 /**
- * Occupancy line under an offering in ADMIN flows (#2216). Renders nothing
+ * Occupancy line under an offering in ADMIN flows (#2186). Renders nothing
  * without stats, so the parent form and a failed stats load look exactly as
  * they did before.
  */
@@ -2571,7 +2571,7 @@ function OfferingOccupancyLine({
 /**
  * An offering an availability rule rules out for this child, shown greyed
  * with the reason. Admin flows only — for parents, silently omitting an
- * unavailable offering is the correct behaviour (#2216).
+ * unavailable offering is the correct behaviour (#2186).
  */
 function BlockedOfferingCard({
   offering,
@@ -2626,7 +2626,7 @@ function OfferingCard({
   readonly automaticDays?: Set<string>;
   readonly toggleLocked?: boolean;
   readonly dayError: boolean;
-  /** Admin-only occupancy (#2216); undefined on the parent form. */
+  /** Admin-only occupancy (#2186); undefined on the parent form. */
   readonly stats?: CareOfferingBookingStats;
   readonly onToggle: () => void;
   readonly onToggleDay: (day: string) => void;
