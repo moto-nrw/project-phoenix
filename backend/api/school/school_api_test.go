@@ -361,10 +361,22 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 	// The challenge the enroll/start step handed out. verifiedFor decides
 	// which (account, school) the mocked service says the redeemed challenge
 	// belonged to.
+	//
+	// The owner-bound verifier is stubbed EXPLICITLY. MFAServiceMock falls back
+	// from VerifyChallengeForOwner through VerifyChallengeForScope, so stubbing
+	// only the scope-aware one would let this test stay green against a handler
+	// that had quietly dropped the identity binding — the exact regression it
+	// exists to catch. ownerBoundVerify records that the handler took the bound
+	// path, and the stub asserts the pinned arguments in place.
 	var (
 		verifiedAccountID  int64
 		verifiedTenantID   int64
 		requestedScope     string
+		requestedToken     string
+		pinnedAccountID    int64
+		pinnedTenantID     int64
+		ownerBoundVerify   bool
+		scopeOnlyVerify    bool
 		accountWideVerify  bool
 		startedScope       string
 		startedChallengeID = "school-enroll-challenge"
@@ -374,9 +386,16 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 			startedScope = scope
 			return startedChallengeID, nil
 		},
-		VerifyChallengeForScopeFn: func(_ context.Context, _, _, scope string) (*authService.VerifiedChallenge, error) {
+		VerifyChallengeForOwnerFn: func(_ context.Context, challengeToken, _, scope string, accountID, tenantID int64) (*authService.VerifiedChallenge, error) {
+			ownerBoundVerify = true
+			requestedToken = challengeToken
 			requestedScope = scope
+			pinnedAccountID, pinnedTenantID = accountID, tenantID
 			return &authService.VerifiedChallenge{AccountID: verifiedAccountID, Scope: scope, TenantID: verifiedTenantID}, nil
+		},
+		VerifyChallengeForScopeFn: func(_ context.Context, _, _, _ string) (*authService.VerifiedChallenge, error) {
+			scopeOnlyVerify = true
+			return &authService.VerifiedChallenge{AccountID: verifiedAccountID, Scope: jwt.MFAChallengeScopeSchool, TenantID: verifiedTenantID}, nil
 		},
 		VerifyCodeForAccountFn: func(context.Context, int64, int64, string, string) error {
 			accountWideVerify = true
@@ -436,8 +455,18 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 		assert.Equal(t, tenant.ScopeSchool, scope)
 	})
 
-	assert.Equal(t, jwt.MFAChallengeScopeSchool, requestedScope,
-		"enroll confirm must redeem the challenge for the school scope")
+	assert.True(t, ownerBoundVerify,
+		"enroll confirm must redeem the challenge through the owner-bound verifier")
+	assert.False(t, scopeOnlyVerify,
+		"enroll confirm must not redeem through the scope-only verifier: that one consumes the code before the account/school comparison")
 	assert.False(t, accountWideVerify,
 		"enroll confirm must not fall back to the account-wide newest-code lookup")
+	assert.Equal(t, startedChallengeID, requestedToken,
+		"enroll confirm must redeem the exact challenge enroll/start handed out")
+	assert.Equal(t, jwt.MFAChallengeScopeSchool, requestedScope,
+		"enroll confirm must redeem the challenge for the school scope")
+	assert.Equal(t, accountID, pinnedAccountID,
+		"the enrollment token's account must be pinned INSIDE the verify, before the code is consumed")
+	assert.Equal(t, tenantID, pinnedTenantID,
+		"the enrollment token's school must be pinned INSIDE the verify, before the code is consumed")
 }

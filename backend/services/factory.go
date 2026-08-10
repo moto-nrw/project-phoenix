@@ -1274,6 +1274,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffShiftRepo:         repos.StaffShift,
 		StaffShiftSeriesRepo:   repos.StaffShiftSeries,
 		StaffAbsenceRepo:       repos.StaffAbsence,
+		AccountRepo:            repos.Account,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
 		AccountPermissionRepo:  repos.AccountPermission,

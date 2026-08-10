@@ -466,9 +466,21 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	// Rate-limit code issuance. Cooldown is per-tenant configurable but the
 	// hard cap (3 codes / 15 min) stays in code — it's an abuse defense, not
 	// a UX knob.
+	//
+	// A failed count is refused, not waved through: challenge creation and the
+	// email dispatch below do not depend on this query, so ignoring the error
+	// meant every repeat request under a struggling database issued another
+	// code — the cap silently stopped existing exactly when the system was
+	// least healthy. Same fail-closed contract as HasEnrollment above.
 	since := time.Now().Add(-MFAEmailRateLimitWindow)
 	count, err := s.Repos.MFAEmailChallenge.CountRecentByAccountID(ctx, accountID, since)
-	if err == nil && count >= MFAEmailRateLimitMaxSent {
+	if err != nil {
+		s.Logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()))
+		return "", ErrMFAStatusUnavailable
+	}
+	if count >= MFAEmailRateLimitMaxSent {
 		return "", ErrMFARateLimited
 	}
 

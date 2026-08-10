@@ -292,77 +292,107 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 // hands them back untouched and the caller wraps them with its own op.
 func (s *Service) schoolMintGuard(accountID, tenantID int64) mintGuard {
 	return func(ctx context.Context) error {
-		// (1) Account liveness, re-read under the lock. The entry-point check
-		// read a snapshot from an already-committed transaction; an operator
-		// deactivating the account in the meantime must cut the mint, not
-		// merely the next login.
-		account, err := s.repos.Account.FindByIDForUpdate(ctx, accountID)
-		if err != nil {
-			if isNotFoundError(err) {
-				return ErrAccountNotFound
-			}
-			return fmt.Errorf("re-check account %d at school token mint: %w", accountID, err)
-		}
-		if account == nil {
-			return ErrAccountNotFound
-		}
-		if !account.Active {
-			return ErrAccountInactive
-		}
-
-		school, err := s.repos.School.FindByIDForShare(ctx, tenantID)
-		if err != nil {
-			if isNotFoundError(err) {
-				return ErrTenantNotFound
-			}
-			return fmt.Errorf("re-check school %d at school token mint: %w", tenantID, err)
-		}
-		if school == nil || school.IsDeleted() || !school.Active {
-			return ErrTenantNotFound
-		}
-
-		activeMapping, err := s.repos.AccountTenant.ExistsActiveByAccountAndTenantForShare(ctx, accountID, tenantID)
-		if err != nil {
-			return fmt.Errorf("re-check membership of account %d at school %d: %w", accountID, tenantID, err)
-		}
-		if !activeMapping {
-			return ErrTenantAccessDenied
-		}
-
-		accountRoles, err := s.repos.AccountRole.FindByAccountIDForTenantForShare(ctx, accountID, tenantID)
-		if err != nil {
-			if isNotFoundError(err) {
-				return ErrAccountNoSchoolPortalRole
-			}
-			return fmt.Errorf("re-check school portal role of account %d at school %d: %w", accountID, tenantID, err)
-		}
-		for _, ar := range accountRoles {
-			if ar.Role != nil && isSchoolPortalRole(ar.Role) {
-				return nil
-			}
-		}
-		return ErrAccountNoSchoolPortalRole
+		_, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
+		return err
 	}
+}
+
+// checkSchoolMintPreconditions runs the four checks described above and hands
+// back the LOCKED account row, so a caller that needs to read more state under
+// the same lock (the refresh guard, which assembles the token's claims there)
+// does not fetch it a second time from a fresher snapshot.
+func (s *Service) checkSchoolMintPreconditions(ctx context.Context, accountID, tenantID int64) (*authModels.Account, error) {
+	// (1) Account liveness, re-read under the lock. The entry-point check
+	// read a snapshot from an already-committed transaction; an operator
+	// deactivating the account in the meantime must cut the mint, not
+	// merely the next login.
+	account, err := s.repos.Account.FindByIDForUpdate(ctx, accountID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return nil, ErrAccountNotFound
+		}
+		return nil, fmt.Errorf("re-check account %d at school token mint: %w", accountID, err)
+	}
+	if account == nil {
+		return nil, ErrAccountNotFound
+	}
+	if !account.Active {
+		return nil, ErrAccountInactive
+	}
+
+	school, err := s.repos.School.FindByIDForShare(ctx, tenantID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return nil, ErrTenantNotFound
+		}
+		return nil, fmt.Errorf("re-check school %d at school token mint: %w", tenantID, err)
+	}
+	if school == nil || school.IsDeleted() || !school.Active {
+		return nil, ErrTenantNotFound
+	}
+
+	activeMapping, err := s.repos.AccountTenant.ExistsActiveByAccountAndTenantForShare(ctx, accountID, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("re-check membership of account %d at school %d: %w", accountID, tenantID, err)
+	}
+	if !activeMapping {
+		return nil, ErrTenantAccessDenied
+	}
+
+	accountRoles, err := s.repos.AccountRole.FindByAccountIDForTenantForShare(ctx, accountID, tenantID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return nil, ErrAccountNoSchoolPortalRole
+		}
+		return nil, fmt.Errorf("re-check school portal role of account %d at school %d: %w", accountID, tenantID, err)
+	}
+	for _, ar := range accountRoles {
+		if ar.Role != nil && isSchoolPortalRole(ar.Role) {
+			return account, nil
+		}
+	}
+	return nil, ErrAccountNoSchoolPortalRole
 }
 
 // schoolRefreshMintGuard is schoolMintGuard as the refresh path needs it.
 //
-// Two differences, both about the answer the caller gets rather than about
-// what is checked. A revoked school-portal role is reported to a refreshing
-// client as ErrTenantAccessDenied, not ErrAccountNoSchoolPortalRole: from the
-// session's point of view the access is simply gone, and that is the sentinel
-// /auth/refresh already maps. And the refusal is logged through
-// logRefreshDecision so a cut session shows up in the same stream as every
-// other refresh rejection instead of vanishing into the mint path.
+// It also LOADS the rotated token's claims, into *metadata, while still inside
+// the rotation transaction and under the account lock the checks above took.
+// That is not a convenience: assembling the claims afterwards left a window
+// where a school soft-deleted right after the guard failed the metadata lookup
+// while SoftDeleteSchool had already deleted every token of that school — the
+// freshly written successor and its recovery record included. The caller got an
+// error and nothing to retry with. In here the two outcomes collapse into one
+// transaction: claims and rotation commit together, or neither does and the
+// presented refresh token survives untouched for the next attempt.
+//
+// Two further differences from schoolMintGuard, both about the answer the
+// caller gets rather than about what is checked. A revoked school-portal role
+// is reported to a refreshing client as ErrTenantAccessDenied, not
+// ErrAccountNoSchoolPortalRole: from the session's point of view the access is
+// simply gone, and that is the sentinel /auth/refresh already maps. And the
+// refusal is logged through logRefreshDecision so a cut session shows up in the
+// same stream as every other refresh rejection instead of vanishing into the
+// mint path.
 //
 // DB errors keep propagating verbatim (the guard wraps them with %w, so they
 // stay distinguishable from the sentinels): a transient blip must surface as
 // a retryable 500, never as a revocation — masking it would log the user out
 // for good instead of for one request.
-func (s *Service) schoolRefreshMintGuard(accountID, tenantID int64) mintGuard {
-	guard := s.schoolMintGuard(accountID, tenantID)
+func (s *Service) schoolRefreshMintGuard(accountID, tenantID int64, metadata **accountMetadata) mintGuard {
 	return func(ctx context.Context) error {
-		err := guard(ctx)
+		account, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
+		if err == nil {
+			// Same transaction, same locked account row: schoolClaimsPayloadInTx
+			// deliberately re-runs no liveness gate — the checks above just did,
+			// atomically with the write they authorize.
+			payload, payloadErr := s.schoolClaimsPayloadInTx(ctx, account, tenantID)
+			if payloadErr != nil {
+				return payloadErr
+			}
+			*metadata = payload
+			return nil
+		}
 		if errors.Is(err, ErrAccountNoSchoolPortalRole) {
 			s.logRefreshDecision("refresh_session_rejected", "school_portal_role_revoked", int(accountID), tenantID)
 			return ErrTenantAccessDenied
@@ -394,8 +424,8 @@ func wrapSchoolMintError(op string, err error) error {
 // This is the ONE choke point every school token mint runs through BEFORE it
 // writes anything — login, switch, MFA verify, MFA enrollment confirm — so the
 // liveness gates live here rather than being repeated per entry point. (The
-// refresh path assembles its claims through schoolClaimsPayload instead; see
-// there for why gating after a committed rotation is worse than not gating.)
+// refresh path assembles its claims through schoolClaimsPayloadInTx instead,
+// from inside its rotation transaction; see there.)
 //
 // The gates themselves:
 //
@@ -416,10 +446,11 @@ func wrapSchoolMintError(op string, err error) error {
 // plus the portal-role check — inside the transaction that actually writes
 // the token. Fixing one of the two without the other is not enough.
 func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
-	metadata, err := s.schoolClaimsPayload(ctx, account, tenantID)
+	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
 	if err != nil {
 		return nil, err
 	}
+	metadata.scope = tenant.ScopeSchool
 
 	// Both lookups run as phoenix_admin: auth.account_tenants is RLS-guarded
 	// and the school auth flows have no tenant transaction yet.
@@ -451,31 +482,23 @@ func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *auth
 	return metadata, nil
 }
 
-// schoolClaimsPayload loads the claims payload of a school token — roles,
+// schoolClaimsPayloadInTx loads the claims payload of a school token — roles,
 // permissions, person, org — and stamps the school scope. No authorization,
 // no liveness: just what the JWT is built from.
 //
-// This is what the REFRESH path uses, and the split exists for that one
-// caller. Refresh settles authorization inside the rotation transaction
-// (schoolRefreshMintGuard, under the account lock), so by the time the claims
-// are assembled the refresh token has already been consumed and its successor
-// persisted. Running the entry-point gates again at that point could only
-// produce the worst outcome available: a school deactivated in the microseconds
-// between the guard and this load would fail the request AFTER burning the
-// caller's refresh token — a permanent logout in place of a session that ends
-// cleanly at the next refresh, where validateTenantAccess rejects it before any
-// rotation happens.
+// This is what the REFRESH path uses, and the split exists for that one caller.
+// Refresh settles authorization inside the rotation transaction
+// (schoolRefreshMintGuard, under the account lock) and calls this from THERE,
+// on the very same transaction — hence the InTx suffix and the phoenix_admin
+// requirement inherited from loadAccountMetadataForTenantInTx. Re-running the
+// entry-point gates in here would be pointless duplication (the guard checked
+// the same four facts microseconds earlier, atomically with this write) and
+// would push a failure past the rotation, where nothing can repair it.
 //
-// The remaining post-rotation error is a school that disappears entirely
-// (loadAccountMetadataForTenant needs its organization_id for the org claim).
-// That state is terminal rather than racy, and it stays recoverable: the
-// rotation records a handoff, so a client retry inside the recovery grace
-// replays the same successor instead of losing the session to the race.
-//
-// Every OTHER caller wants loadSchoolMetadataForTenant, which wraps this with
-// the liveness gates that decide the response BEFORE any token work.
-func (s *Service) schoolClaimsPayload(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
-	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
+// Every OTHER caller wants loadSchoolMetadataForTenant, which pairs the payload
+// with the liveness gates that decide the response BEFORE any token work.
+func (s *Service) schoolClaimsPayloadInTx(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
+	metadata, err := s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
 	if err != nil {
 		return nil, err
 	}

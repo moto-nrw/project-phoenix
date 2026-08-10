@@ -405,7 +405,7 @@ func countAccountTokens(t *testing.T, db *bun.DB, accountID int64) int {
 	return count
 }
 
-// --- schoolClaimsPayload -----------------------------------------------------------
+// --- schoolClaimsPayloadInTx -------------------------------------------------------
 
 // insertPersonForAccountAtTenant links a person row at ONE school to an
 // account. Accounts that work at two schools have one row per school, which is
@@ -428,11 +428,12 @@ func insertPersonForAccountAtTenant(t *testing.T, db *bun.DB, tenantID, accountI
 }
 
 func TestSchoolClaimsPayload_RunsNoLivenessGate(t *testing.T) {
-	// The refresh path assembles its claims AFTER the rotation has committed,
-	// so a gate here could only fail a request whose refresh token is already
-	// spent — a permanent logout instead of a session that ends at the next
-	// refresh. loadSchoolMetadataForTenant (every pre-mint caller) must still
-	// refuse the same school.
+	// The refresh path assembles its claims inside the rotation transaction,
+	// where schoolRefreshMintGuard has just checked liveness under the account
+	// lock. The claims loader must therefore NOT gate again: a second opinion
+	// taken microseconds later can only differ by racing, and the mint it would
+	// abort was already authorized. loadSchoolMetadataForTenant (every pre-mint
+	// caller) must still refuse the same school.
 	service, db, account, tenantID := newMintGuardFixture(t)
 	_, err := db.Exec("UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
 	require.NoError(t, err)
@@ -444,9 +445,11 @@ func TestSchoolClaimsPayload_RunsNoLivenessGate(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
 
-	payload, err := service.schoolClaimsPayload(context.Background(), account, tenantID)
-	require.NoError(t, err,
-		"the post-rotation claims load must not re-gate: the refresh token is already spent")
+	var payload *accountMetadata
+	require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+		payload, err = service.schoolClaimsPayloadInTx(adminCtx, account, tenantID)
+		return err
+	}), "the in-rotation claims load must not re-gate: the guard just authorized this mint")
 	require.NotNil(t, payload)
 	assert.Equal(t, tenant.ScopeSchool, payload.scope)
 	assert.Equal(t, tenantID, payload.tenantID)
@@ -499,4 +502,83 @@ func TestLoadAccountMetadataForTenant_NoPersonAtTargetFallsBack(t *testing.T) {
 	require.NotNil(t, metadata)
 	assert.Equal(t, "Traeger", metadata.firstName,
 		"with no person row at the target school the lookup must fall back, not blank the name")
+}
+
+// failingPersonRepo fails the account → person lookup and delegates the rest.
+type failingPersonRepo struct {
+	userModels.PersonRepository
+	err error
+}
+
+func (r failingPersonRepo) FindByAccountID(context.Context, int64) (*userModels.Person, error) {
+	return nil, r.err
+}
+
+func TestLoadAccountMetadataForTenant_PersonLookupError_Propagates(t *testing.T) {
+	// A failed person lookup used to be indistinguishable from "this account
+	// has no person row here", which sent the mint into the cross-school
+	// fallback on the strength of a DB error — and could stamp another
+	// school's name into the token. It has to fail the mint instead.
+	service, db, account, tenantID := newMintGuardFixture(t)
+
+	lookupErr := errors.New("person lookup unavailable")
+	service.repos.Person = failingPersonRepo{PersonRepository: service.repos.Person, err: lookupErr}
+
+	metadata, err := service.loadAccountMetadataForTenant(context.Background(), account, tenantID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, lookupErr, "a failed person lookup must surface, not turn into a nameless token")
+	assert.Nil(t, metadata)
+	_ = db
+}
+
+func TestLoadAccountMetadataForTenant_AmbiguousNameAcrossSchools_YieldsNoName(t *testing.T) {
+	// No person row at the target school, but two OTHER schools the account is
+	// mapped to disagree about the name. The old unscoped fallback had no
+	// ORDER BY and took whichever row the database returned first — a coin
+	// flip between two schools' data. Refusing to guess is the only correct
+	// answer here; the name is cosmetic, picking the wrong school's is not.
+	service, db, account, homeTenantID := newMintGuardFixture(t)
+
+	secondTenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, secondTenantID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, secondTenantID)
+
+	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
+
+	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Erste", "Schule")
+	insertPersonForAccountAtTenant(t, db, secondTenantID, account.ID, "Zweite", "Schule")
+
+	metadata, err := service.loadAccountMetadataForTenant(context.Background(), account, targetTenantID)
+
+	require.NoError(t, err)
+	require.NotNil(t, metadata)
+	assert.Empty(t, metadata.firstName, "an ambiguous name must be dropped, never guessed")
+	assert.Empty(t, metadata.lastName)
+}
+
+func TestLoadAccountMetadataForTenant_FallbackIgnoresUnmappedSchools(t *testing.T) {
+	// The fallback consults only schools the account is ACTIVELY mapped to.
+	// A person row at a school the account has no mapping to must not reach
+	// the token — that row belongs to someone else's tenant boundary.
+	service, db, account, homeTenantID := newMintGuardFixture(t)
+
+	strangerTenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, strangerTenantID) })
+	insertPersonForAccountAtTenant(t, db, strangerTenantID, account.ID, "Fremde", "Schule")
+
+	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
+
+	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Eigene", "Schule")
+
+	metadata, err := service.loadAccountMetadataForTenant(context.Background(), account, targetTenantID)
+
+	require.NoError(t, err)
+	require.NotNil(t, metadata)
+	assert.Equal(t, "Eigene", metadata.firstName,
+		"only the mapped school's person row may fill the name")
 }
