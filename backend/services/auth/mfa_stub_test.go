@@ -97,7 +97,7 @@ func (s *MFAStub) ResendChallengeForScope(context.Context, string, net.IP, strin
 	return "challenge-token", nil
 }
 
-func (s *MFAStub) VerifyCodeForAccount(_ context.Context, accountID int64, code string) error {
+func (s *MFAStub) VerifyCodeForAccount(_ context.Context, accountID, _ int64, code, _ string) error {
 	s.panicIfStrict("VerifyCodeForAccount")
 	s.VerifiedAccountID = accountID
 	s.VerifiedCode = code

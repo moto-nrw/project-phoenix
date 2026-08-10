@@ -259,26 +259,57 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 	)
 }
 
-// schoolMintGuard re-verifies the three facts a school session rests on,
+// schoolMintGuard re-verifies the four facts a school session rests on,
 // inside the transaction that persists the refresh token:
 //
-//  1. the school exists, is not soft-deleted, and is active,
-//  2. the account's auth.account_tenants mapping is still `active`,
-//  3. the account still holds a school-portal role at that school.
+//  1. the account itself is still active,
+//  2. the school exists, is not soft-deleted, and is active,
+//  3. the account's auth.account_tenants mapping is still `active`,
+//  4. the account still holds a school-portal role at that school.
 //
 // Every school entry point checks the same facts up front — that is where the
 // precise 401/403/404 responses come from — but those checks run in their own
 // transactions, which have committed by the time the token is written. On the
 // MFA path minutes can pass in between; even on the direct password path the
 // checks and the write were two separate transactions. This guard closes that
-// window: the school and mapping rows are read FOR SHARE, so a concurrent
-// deactivation or role revocation blocks until the mint commits and can never
-// interleave between "may they?" and "here is the token".
+// window: the rows are locked, so a concurrent deactivation or role
+// revocation blocks until the mint commits and can never interleave between
+// "may they?" and "here is the token".
+//
+// LOCK ORDER — auth.accounts FIRST, and deliberately FOR UPDATE rather than
+// FOR SHARE. RevokeAccountTenantAccess (and the operator deactivation flows
+// that follow it) take auth.accounts FOR UPDATE before they delete roles and
+// deactivate the mapping. A guard that started at the school or mapping row
+// and only reached the account later would be walking that chain backwards
+// and could deadlock against a concurrent revocation. Taking the same row,
+// in the same mode, first makes the two paths serialize instead: whoever
+// wins the account row runs to completion. It also costs nothing — the very
+// next statement of the mint (UpdateLastLogin in persistTokenInTransaction)
+// takes that exclusive lock anyway; this just takes it a few statements
+// earlier, before the decision instead of after it.
 //
 // Errors are returned as bare sentinels; createRefreshTokenWithRetryGuarded
 // hands them back untouched and the caller wraps them with its own op.
 func (s *Service) schoolMintGuard(accountID, tenantID int64) mintGuard {
 	return func(ctx context.Context) error {
+		// (1) Account liveness, re-read under the lock. The entry-point check
+		// read a snapshot from an already-committed transaction; an operator
+		// deactivating the account in the meantime must cut the mint, not
+		// merely the next login.
+		account, err := s.repos.Account.FindByIDForUpdate(ctx, accountID)
+		if err != nil {
+			if isNotFoundError(err) {
+				return ErrAccountNotFound
+			}
+			return fmt.Errorf("re-check account %d at school token mint: %w", accountID, err)
+		}
+		if account == nil {
+			return ErrAccountNotFound
+		}
+		if !account.Active {
+			return ErrAccountInactive
+		}
+
 		school, err := s.repos.School.FindByIDForShare(ctx, tenantID)
 		if err != nil {
 			if isNotFoundError(err) {
@@ -311,6 +342,35 @@ func (s *Service) schoolMintGuard(accountID, tenantID int64) mintGuard {
 			}
 		}
 		return ErrAccountNoSchoolPortalRole
+	}
+}
+
+// schoolRefreshMintGuard is schoolMintGuard as the refresh path needs it.
+//
+// Two differences, both about the answer the caller gets rather than about
+// what is checked. A revoked school-portal role is reported to a refreshing
+// client as ErrTenantAccessDenied, not ErrAccountNoSchoolPortalRole: from the
+// session's point of view the access is simply gone, and that is the sentinel
+// /auth/refresh already maps. And the refusal is logged through
+// logRefreshDecision so a cut session shows up in the same stream as every
+// other refresh rejection instead of vanishing into the mint path.
+//
+// DB errors keep propagating verbatim (the guard wraps them with %w, so they
+// stay distinguishable from the sentinels): a transient blip must surface as
+// a retryable 500, never as a revocation — masking it would log the user out
+// for good instead of for one request.
+func (s *Service) schoolRefreshMintGuard(accountID, tenantID int64) mintGuard {
+	guard := s.schoolMintGuard(accountID, tenantID)
+	return func(ctx context.Context) error {
+		err := guard(ctx)
+		if errors.Is(err, ErrAccountNoSchoolPortalRole) {
+			s.logRefreshDecision("refresh_session_rejected", "school_portal_role_revoked", int(accountID), tenantID)
+			return ErrTenantAccessDenied
+		}
+		if errors.Is(err, ErrTenantAccessDenied) {
+			s.logRefreshDecision("refresh_session_rejected", "tenant_access_revoked", int(accountID), tenantID)
+		}
+		return err
 	}
 }
 

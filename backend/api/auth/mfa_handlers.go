@@ -193,7 +193,11 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// context". (#1430 review round 3, finding ①)
 	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
 
-	if err := rs.MFAService.VerifyCodeForAccount(ctx, accountID, req.Code); err != nil {
+	// Pin the lookup to THIS portal and school. The confirm has no challenge
+	// id to verify against, so without the scope the account's newest active
+	// code answers — and since #2207 that can be a school-portal login
+	// challenge, which would mint a tenant session off a school code.
+	if err := rs.MFAService.VerifyCodeForAccount(ctx, accountID, claims.TenantID, req.Code, jwt.MFAChallengeScopeTenant); err != nil {
 		mapMFAError(w, r, err)
 		return
 	}

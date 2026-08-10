@@ -251,7 +251,7 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	// (where the credential row was already written) advances to the
 	// token-pair branch instead of bubbling up.
 	svc := newStubMFAService()
-	svc.VerifyCodeForAccountFn = func(context.Context, int64, string) error { return nil }
+	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
 	svc.EnrollFn = func(context.Context, int64) error { return authService.ErrMFAAlreadyEnrolled }
 	rs := &Resource{
 		MFAService:  svc,
@@ -272,7 +272,7 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 
 func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 	svc := newStubMFAService()
-	svc.VerifyCodeForAccountFn = func(context.Context, int64, string) error { return nil }
+	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
 	svc.EnrollFn = func(context.Context, int64) error { return errors.New("db down") }
 	rs := &Resource{MFAService: svc}
 
@@ -295,7 +295,7 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 	const tenantID int64 = 70010001
 	var verifyTenant, enrollTenant int64
 	svc := newStubMFAService()
-	svc.VerifyCodeForAccountFn = func(ctx context.Context, _ int64, _ string) error {
+	svc.VerifyCodeForAccountFn = func(ctx context.Context, _, _ int64, _, _ string) error {
 		verifyTenant = tenant.FromContext(ctx)
 		return nil
 	}
@@ -374,7 +374,7 @@ func TestMFAEnrollStart_RejectsPlatformScopeToken(t *testing.T) {
 // counterpart of TestMFAEnrollStart_RejectsPlatformScopeToken.
 func TestMFAEnrollConfirm_RejectsPlatformScopeToken(t *testing.T) {
 	svc := newStubMFAService()
-	svc.VerifyCodeForAccountFn = func(context.Context, int64, string) error {
+	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error {
 		t.Fatal("VerifyCodeForAccount must not run on a platform-scope token")
 		return nil
 	}
@@ -427,7 +427,7 @@ func TestMFAEnrollConfirm_BindRejectsShortCode(t *testing.T) {
 
 func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 	svc := newStubMFAService()
-	svc.VerifyCodeForAccountFn = func(context.Context, int64, string) error { return authService.ErrMFACodeInvalid }
+	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error { return authService.ErrMFACodeInvalid }
 	rs := &Resource{MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",

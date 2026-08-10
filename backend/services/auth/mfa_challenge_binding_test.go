@@ -29,6 +29,7 @@ func seedChallenge(t *testing.T, repo authmodel.MFAEmailChallengeRepository, acc
 	require.NoError(t, err)
 	challenge := &authmodel.MFAEmailChallenge{
 		AccountID: accountID,
+		Scope:     authjwt.MFAChallengeScopeTenant,
 		CodeHash:  hash,
 		ExpiresAt: time.Now().Add(ttl),
 		IPAddress: net.ParseIP("203.0.113.10"),
@@ -50,7 +51,7 @@ func TestStartChallenge_TokenCarriesItsChallengeID(t *testing.T) {
 	claims, err := tokenAuth.ParseMFAChallengeJWT(token)
 	require.NoError(t, err)
 
-	persisted, err := repos.MFAEmailChallenge.FindActiveByAccountID(ctx, accID)
+	persisted, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accID, 0, authjwt.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	assert.Equal(t, persisted.ID, claims.ChallengeID,
 		"the challenge token must name the row it was minted for")

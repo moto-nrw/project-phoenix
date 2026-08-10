@@ -137,11 +137,15 @@ type MFAService interface {
 	ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 
 	// VerifyCodeForAccount is the JWT-less sibling of VerifyChallenge used by
-	// enrollment confirmation, where the user is already authenticated and a
-	// challenge JWT would just be ceremony. Returns ErrMFACodeInvalid on a
-	// mismatch and otherwise mirrors VerifyChallenge's audit + lockout
-	// bookkeeping.
-	VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error
+	// enrollment confirmation and passkey registration, where the user is
+	// already authenticated and a challenge JWT would just be ceremony.
+	// Returns ErrMFACodeInvalid on a mismatch and otherwise mirrors
+	// VerifyChallenge's audit + lockout bookkeeping.
+	//
+	// expectedScope and tenantID scope the lookup to the calling portal —
+	// mandatory, because without a challenge id this resolves the account's
+	// newest active code and would otherwise reach across portals.
+	VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
 
 	// Enrollment / lifecycle.
 	Enroll(ctx context.Context, accountID int64) error
@@ -469,8 +473,14 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		return "", fmt.Errorf("hash email code: %w", err)
 	}
 
+	// Scope + tenant travel with the ROW, not just with the JWT: the
+	// enrollment-confirm and passkey-registration paths look a challenge up
+	// by account instead of by id, and only these columns keep that lookup
+	// from reaching another portal's in-flight code.
 	challenge := &auth.MFAEmailChallenge{
 		AccountID: accountID,
+		Scope:     scope,
+		TenantID:  tenantID,
 		CodeHash:  codeHash,
 		ExpiresAt: time.Now().Add(MFAChallengeTTL),
 		IPAddress: ip,
@@ -539,6 +549,16 @@ func (s *mfaService) VerifyChallengeForScope(ctx context.Context, challengeToken
 		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return nil, ErrMFACodeInvalid
 	}
+	// The scope check above trusts the JWT alone. Re-check it against the
+	// stored row so a token whose claims disagree with the challenge it names
+	// — a forged or mixed-up pairing — is refused before the code comparison
+	// rather than after it. Rows written before the portal binding existed
+	// carry no scope/tenant and are refused too; the challenge TTL is five
+	// minutes, so the cost is one re-login inside the deploy window.
+	if active.Scope != expectedScope || (claims.TenantID > 0 && active.TenantID != claims.TenantID) {
+		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "challenge portal mismatch", nil)
+		return nil, ErrMFAUnsupportedScope
+	}
 
 	ok, verifyErr := VerifyShortCode(code, active.CodeHash)
 	if verifyErr != nil || !ok {
@@ -589,8 +609,17 @@ func (s *mfaService) VerifyChallengeForScope(ctx context.Context, challengeToken
 
 // VerifyCodeForAccount runs the same verify pipeline as VerifyChallenge but
 // without the JWT round-trip — the caller has already authenticated the user
-// out-of-band (typically a regular access token from /auth/mfa/enroll/confirm).
-func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error {
+// out-of-band (an enrollment token at /auth/mfa/enroll/confirm, a tenant
+// session at passkey registration).
+//
+// Because there is no challenge JWT, the row cannot be named by id; it is
+// resolved as "the newest active code of this account". That key is only safe
+// once it is narrowed to the portal asking: expectedScope and tenantID are
+// therefore required, not decorative. Without them a Lehrkraft with a
+// school-portal login challenge in one tab and a tenant enrollment in another
+// could have the school code consumed here — and a tenant session minted from
+// a second factor that was issued for a different portal (#2207).
+func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
 	account, err := s.Repos.Account.FindByID(ctx, accountID)
 	if err != nil {
 		return ErrMFACodeInvalid
@@ -598,11 +627,12 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	if s.isMFALocked(account, time.Now()) {
 		return ErrMFALocked
 	}
-	// VerifyCodeForAccount runs INSIDE TenantTxMiddleware (called from
-	// authenticated /auth/mfa/enroll/confirm), so tenant.FromContext(ctx)
-	// is set. Pass 0 below; recordAuthEvent + handleFailedAttempt fall
-	// back to the context tenant.
-	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountID(ctx, accountID)
+	// Callers run INSIDE a tenant context (TenantTxMiddleware, or an
+	// explicitly injected tenant on the enrollment routes), so 0 below lets
+	// recordAuthEvent + handleFailedAttempt fall back to the context tenant.
+	// The tenantID argument narrows the challenge LOOKUP, which is a
+	// different job.
+	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, expectedScope)
 	if err != nil || active == nil {
 		s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return ErrMFACodeInvalid

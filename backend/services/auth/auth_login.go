@@ -1189,7 +1189,12 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 // Uses WithAdminTx (BYPASSRLS) because token refresh is a pre-authentication flow
 // with no JWT/tenant context yet. The phoenix_auth connection role cannot pass RLS
 // policies on auth.tokens (same reason persistTokenInTransaction uses WithAdminTx).
-func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64) (*auth.Account, *auth.Token, bool, error) {
+// guard (optional) re-validates the caller's authorization inside this
+// transaction, immediately after the account row is locked and before any
+// token is written — see mintGuard. It is what keeps a scope-specific
+// authorization decision (today: school-portal access) from being made
+// against state the rotation has already committed past.
+func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64, guard mintGuard) (*auth.Account, *auth.Token, bool, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
 	var newToken *auth.Token
@@ -1221,6 +1226,18 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			}
 			s.logRefreshDecision("refresh_session_rejected", reason, refreshClaims.ID, refreshClaims.TenantID)
 			return err
+		}
+
+		// Authorization runs HERE — after the account row is locked, before
+		// the rotation writes anything. Doing it after the transaction
+		// committed (where the school checks used to live) meant a
+		// revocation could land in between and still be answered with a
+		// freshly minted token; it also meant a legitimate refusal had
+		// already consumed the caller's refresh token.
+		if guard != nil {
+			if err := guard(ctx); err != nil {
+				return err
+			}
 		}
 
 		dbToken, err = s.repos.Token.FindByTokenForUpdate(ctx, refreshClaims.Token)
@@ -1498,8 +1515,22 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		}
 	}
 
+	// School-scope refreshes carry their authorization INTO the rotation
+	// transaction. Everything the school portal rests on — account liveness,
+	// school liveness, an active mapping, the school-portal role — is
+	// re-checked under the account lock, so a revocation that commits while
+	// the refresh is in flight either loses the race outright or blocks until
+	// the rotation is done and cuts the NEXT one. Checking after the rotation
+	// (as this path used to) had both failure modes: a token minted for an
+	// account whose access had just been revoked, and a rejected refresh that
+	// had nonetheless burned the caller's refresh token.
+	var guard mintGuard
+	if refreshClaims.Scope == tenant.ScopeSchool && refreshClaims.TenantID > 0 {
+		guard = s.schoolRefreshMintGuard(int64(refreshClaims.ID), refreshClaims.TenantID)
+	}
+
 	// Validate and refresh token in transaction (pass tenant from old JWT for the new token)
-	account, newToken, recovered, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent, refreshClaims.TenantID)
+	account, newToken, recovered, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent, refreshClaims.TenantID, guard)
 	if err != nil {
 		return nil, err
 	}
@@ -1527,33 +1558,16 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	//   - backward-compat: account is guardian-only at the refresh tenant
 	//     (old in-flight refresh tokens issued before Scope was added).
 	// School-scope refresh tokens must round-trip as school tokens for the
-	// same reason (#2207) — and additionally re-verify the school-portal
-	// role: a Lehrkraft whose role was revoked keeps a valid refresh token
-	// until expiry, and without this check it would keep minting
-	// school-scope sessions. Unlike the login/switch/MFA paths this cannot
-	// use schoolMintGuard: the only DB write on the refresh path is the token
-	// rotation, which has already committed above and is scope-agnostic. What
-	// the checks below gate is the in-memory GenTokenPair a few lines down —
-	// there is no commit between them for a revocation to slip into.
-	// hasSchoolPortalRoleAtTenant propagates DB
-	// errors as retryable failures — the rotation has already committed at
-	// this point, so mistaking a transient blip for a revocation would be
-	// a permanent logout; a 500 instead lets the client retry and recover
-	// the rotation via the token-family handoff.
+	// same reason (#2207). The authorization behind that scope was already
+	// settled by schoolRefreshMintGuard inside the rotation transaction —
+	// this call only loads the claims payload (roles, permissions, person,
+	// org) the new JWT is built from.
 	var metadata *accountMetadata
 	switch {
 	case refreshClaims.Scope == tenant.ScopeSchool:
 		metadata, err = s.loadSchoolMetadataForTenant(ctx, account, refreshClaims.TenantID)
 		if err != nil {
 			return nil, err
-		}
-		hasRole, roleErr := s.hasSchoolPortalRoleAtTenant(ctx, int64(refreshClaims.ID), refreshClaims.TenantID)
-		if roleErr != nil {
-			return nil, roleErr
-		}
-		if !hasRole {
-			s.logRefreshDecision("refresh_session_rejected", "school_portal_role_revoked", refreshClaims.ID, refreshClaims.TenantID)
-			return nil, &AuthError{Op: "refresh token", Err: ErrTenantAccessDenied}
 		}
 	case refreshClaims.Scope == tenant.ScopeParent || s.isGuardianOnlyAccount(ctx, account, refreshClaims.TenantID):
 		metadata = s.buildParentMetadata(account)
@@ -1628,6 +1642,19 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 	}
 	if school == nil || school.IsDeleted() {
 		s.logRefreshDecision("refresh_session_rejected", "tenant_deleted", claims.ID, claims.TenantID)
+		return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
+	}
+
+	// An inactive school cannot be logged into on ANY portal — every resolver
+	// (resolveAccountTenantBySlug, resolveAccountTenantDefault, the school
+	// portal-tenant finder) skips it. Refusing it here too keeps a running
+	// session from outliving the switch-off, and it has to happen HERE rather
+	// than after rotation: the later liveness gate only ran once the refresh
+	// token had already been consumed, so a school deactivated mid-session
+	// answered its next refresh with an error AND destroyed the token that
+	// would have let the client retry.
+	if !school.Active {
+		s.logRefreshDecision("refresh_session_rejected", "tenant_inactive", claims.ID, claims.TenantID)
 		return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
 	}
 

@@ -223,8 +223,13 @@ type MFACredentialRepository interface {
 type MFAEmailChallengeRepository interface {
 	Create(ctx context.Context, challenge *MFAEmailChallenge) error
 	FindByID(ctx context.Context, id interface{}) (*MFAEmailChallenge, error)
-	// FindActiveByAccountID returns the most recent unconsumed, unexpired challenge for an account.
-	FindActiveByAccountID(ctx context.Context, accountID int64) (*MFAEmailChallenge, error)
+	// FindActiveByAccountIDInScope returns the most recent unconsumed,
+	// unexpired challenge an account holds FOR ONE PORTAL. The scope (and,
+	// when known, the school) is part of the key on purpose: the enrollment
+	// confirm paths have no challenge id to look up by, and an account-wide
+	// "newest active code" would let a school-portal code be redeemed at the
+	// tenant surface whenever both are in flight.
+	FindActiveByAccountIDInScope(ctx context.Context, accountID, tenantID int64, scope string) (*MFAEmailChallenge, error)
 	// FindActiveByIDForAccount returns one specific unconsumed, unexpired challenge
 	// owned by the account — the lookup the challenge-token verify path uses so a
 	// code is only ever redeemed against the challenge it was minted for.

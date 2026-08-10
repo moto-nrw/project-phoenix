@@ -378,7 +378,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 			requestedScope = scope
 			return &authService.VerifiedChallenge{AccountID: verifiedAccountID, Scope: scope, TenantID: verifiedTenantID}, nil
 		},
-		VerifyCodeForAccountFn: func(context.Context, int64, string) error {
+		VerifyCodeForAccountFn: func(context.Context, int64, int64, string, string) error {
 			accountWideVerify = true
 			return nil
 		},
