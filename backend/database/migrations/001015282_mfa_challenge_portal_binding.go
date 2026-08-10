@@ -71,35 +71,20 @@ func mfaChallengePortalBindingUp(ctx context.Context, db *bun.DB) error {
 	// school. A NULL there stops matching, and the code the user was just
 	// emailed reads back as invalid with nothing explaining why.
 	//
-	// Fill the school in wherever it is unambiguous: an account with exactly
-	// one active mapping has exactly one school its tenant-portal code can
-	// have been issued for. Only unconsumed, unexpired rows are touched —
+	// So retire those rows rather than let them linger active-but-unmatchable.
+	// Retiring, NOT reconstructing: nothing on a pre-binding row records which
+	// school asked for it, and the account's mappings are not a substitute for
+	// that record. They describe the account TODAY, not the moment the code was
+	// issued — a Lehrkraft whose school A was switched off or whose mapping was
+	// revoked after the code was mailed now looks like a single-school account
+	// at school B, and stamping B on A's code makes it redeemable at the wrong
+	// school. There is no immutable provenance to recover the issuer from, and a
+	// guess here is exactly the cross-school redemption this migration exists to
+	// prevent.
+	//
+	// The cost is bounded and visible: whoever had a code in flight during the
+	// deploy requests a new one. Only unconsumed, unexpired rows are touched —
 	// history stays as it was recorded.
-	_, err = db.NewRaw(`
-		UPDATE auth.mfa_email_challenges AS c
-		SET tenant_id = m.tenant_id
-		FROM (
-			SELECT account_id, MIN(tenant_id) AS tenant_id
-			FROM auth.account_tenants
-			WHERE status = 'active'
-			GROUP BY account_id
-			HAVING COUNT(*) = 1
-		) AS m
-		WHERE m.account_id = c.account_id
-		  AND c.tenant_id IS NULL
-		  AND c.consumed_at IS NULL
-		  AND c.expires_at > NOW();
-	`).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed backfilling tenant_id on in-flight auth.mfa_email_challenges rows: %w", err)
-	}
-
-	// What is left is genuinely ambiguous — an account mapped to several
-	// active schools, where nothing on the row says which one asked. Guessing
-	// would make the code redeemable at the wrong school, so retire those rows
-	// instead of leaving them active-but-unmatchable. The user requests a new
-	// code; the alternative is a row that looks alive in the table and answers
-	// no lookup.
 	_, err = db.NewRaw(`
 		UPDATE auth.mfa_email_challenges
 		SET expires_at = NOW()
@@ -108,7 +93,7 @@ func mfaChallengePortalBindingUp(ctx context.Context, db *bun.DB) error {
 		  AND expires_at > NOW();
 	`).Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed retiring ambiguous in-flight auth.mfa_email_challenges rows: %w", err)
+		return fmt.Errorf("failed retiring pre-binding in-flight auth.mfa_email_challenges rows: %w", err)
 	}
 
 	return nil

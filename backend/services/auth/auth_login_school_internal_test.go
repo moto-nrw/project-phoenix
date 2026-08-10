@@ -321,7 +321,9 @@ func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantI
 	guard := service.schoolMintGuard(accountID, tenantID)
 	var guardErr error
 	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
-		guardErr = guard(ctx)
+		// nil account: schoolMintGuard re-reads and locks the row itself,
+		// exactly as it does behind persistTokenInTransaction.
+		guardErr = guard(ctx, nil)
 		return nil
 	})
 	require.NoError(t, txErr)

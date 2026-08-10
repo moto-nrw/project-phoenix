@@ -219,6 +219,50 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 	assert.Equal(t, tenantID, tokenTenantID)
 }
 
+func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing.T) {
+	// A school-scope refresh token that names no school is refused, and the
+	// refusal must land BEFORE the rotation. Judged only afterwards (as it
+	// was), the rotation had already resolved the account's default mapping,
+	// minted a successor for a school this session never proved access to, and
+	// burned the presented token on the way to the error.
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+
+	tenantID, _ := newSchoolTenant(t, db)
+	email, accountID := createLehrkraftAccount(t, db, service, "school-refresh-no-tenant", tenantID)
+
+	login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+	require.NoError(t, err)
+
+	// Same session, same DB token row — only the tenant claim is stripped.
+	tokenAuth := authjwt.MustNewTokenAuth()
+	decoded, err := tokenAuth.JwtAuth.Decode(login.RefreshToken)
+	require.NoError(t, err)
+	var sessionToken string
+	require.NoError(t, decoded.Get("token", &sessionToken))
+	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(authjwt.RefreshClaims{
+		ID:    int(accountID),
+		Token: sessionToken,
+		Scope: tenant.ScopeSchool,
+	})
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), tenantlessRefresh, "", "")
+	require.Error(t, err, "a school token without a school must not refresh")
+	var authErr *auth.AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, auth.ErrTenantAccessDenied)
+
+	// The session itself is untouched: nothing rotated, so its own refresh
+	// token still works and still carries the school.
+	accessToken, _, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+	require.NoError(t, err, "the rejected refresh must not have consumed the session's token")
+	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
+	assert.Equal(t, tenant.ScopeSchool, scope)
+	assert.Equal(t, tenantID, tokenTenantID)
+}
+
 func TestRefreshToken_SchoolScope_RoleRevoked_Rejected(t *testing.T) {
 	// Revoking the lehrkraft role must cut the session at the next refresh:
 	// the refresh path re-verifies the school-portal role instead of

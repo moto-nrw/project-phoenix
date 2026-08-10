@@ -290,8 +290,11 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 //
 // Errors are returned as bare sentinels; createRefreshTokenWithRetryGuarded
 // hands them back untouched and the caller wraps them with its own op.
+// The account the guard is handed is deliberately ignored: the checks below
+// need the row as it is NOW and under this transaction's lock, which is what
+// checkSchoolMintPreconditions re-reads FOR UPDATE.
 func (s *Service) schoolMintGuard(accountID, tenantID int64) mintGuard {
-	return func(ctx context.Context) error {
+	return func(ctx context.Context, _ *authModels.Account) error {
 		_, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
 		return err
 	}
@@ -380,7 +383,7 @@ func (s *Service) checkSchoolMintPreconditions(ctx context.Context, accountID, t
 // a retryable 500, never as a revocation — masking it would log the user out
 // for good instead of for one request.
 func (s *Service) schoolRefreshMintGuard(accountID, tenantID int64, metadata **accountMetadata) mintGuard {
-	return func(ctx context.Context) error {
+	return func(ctx context.Context, _ *authModels.Account) error {
 		account, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
 		if err == nil {
 			// Same transaction, same locked account row: schoolClaimsPayloadInTx

@@ -65,9 +65,11 @@ func (r *MFAEmailChallengeRepository) Create(ctx context.Context, challenge *aut
 // endpoint mints a tenant session from a second factor that was never meant
 // for it. tenantID = 0 drops the school predicate and is for callers that
 // genuinely have no school (there are none on the portal surfaces today);
-// rows predating the binding were resolved by migration 1.15.282, which
-// backfilled the school where it was unambiguous and retired the rest, so a
-// production lookup with a real school id no longer misses in-flight codes.
+// rows predating the binding carry no school and none can be reconstructed, so
+// migration 1.15.282 retired them outright rather than guess one — a lookup
+// with a real school id therefore never matches a pre-binding row, and the few
+// codes in flight during that deploy are re-requested instead of redeemed
+// somewhere they were never issued for.
 func (r *MFAEmailChallengeRepository) FindActiveByAccountIDInScope(ctx context.Context, accountID, tenantID int64, scope string) (*auth.MFAEmailChallenge, error) {
 	challenge := new(auth.MFAEmailChallenge)
 	query := base.GetDB(ctx, r.db).NewSelect().

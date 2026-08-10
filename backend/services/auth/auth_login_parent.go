@@ -167,24 +167,28 @@ func IsGuardianOnlyForTenant(roleNames []string) bool {
 	return true
 }
 
-// isGuardianOnlyAccount is the refresh-path backward-compat check for
+// isGuardianOnlyAccountInTx is the refresh-path backward-compat check for
 // parent-scope detection on refresh tokens that predate
 // RefreshClaims.Scope. Returns true when the account has only the
 // guardian role at the refresh's pinned tenant. New tokens carry an
 // explicit Scope claim and don't need this fallback.
 //
-// Errors from role loading are treated as "not guardian-only" — the
-// caller falls back to the regular tenant refresh path, which is the
-// safe default for ambiguous cases.
-func (s *Service) isGuardianOnlyAccount(ctx context.Context, account *authModels.Account, tenantID int64) bool {
+// InTx: it is called from refreshClaimsGuard, which already holds the
+// phoenix_admin rotation transaction — hence the direct repository call
+// instead of a nested WithAdminTx (bun does not nest, and a second connection
+// would read a different snapshot than the rotation it is guarding).
+//
+// A failed role load is an ERROR, not a "no": it used to be swallowed into
+// "not guardian-only", which was tolerable only because the caller
+// immediately reloaded the same roles and failed there instead. From inside
+// the guard the two outcomes are distinguishable and must stay that way — a
+// DB blip must not mint a tenant-scope JWT for a guardian-only account.
+func (s *Service) isGuardianOnlyAccountInTx(ctx context.Context, account *authModels.Account, tenantID int64) (bool, error) {
 	if account == nil || tenantID <= 0 {
-		return false
+		return false, nil
 	}
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		return s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
-	})
-	if err != nil {
-		return false
+	if err := s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID); err != nil {
+		return false, err
 	}
-	return IsGuardianOnlyForTenant(s.extractRoleNames(account.Roles))
+	return IsGuardianOnlyForTenant(s.extractRoleNames(account.Roles)), nil
 }

@@ -354,7 +354,17 @@ func (s *Service) verifyPassword(account *auth.Account, password string) error {
 // (bun does not nest — that would take a second connection and defeat the
 // point). Returning an error aborts the transaction and the mint; it is
 // surfaced verbatim, never retried.
-type mintGuard func(ctx context.Context) error
+//
+// The account is the one the CALLER holds. In refreshTokenInTransaction that is
+// the row this very transaction locked FOR UPDATE, so a guard may read it as
+// current; on the login path it is the pre-transaction read, and a guard that
+// needs fresh account state must re-read (and lock) it itself.
+//
+// A guard is also where anything the JWT is built from belongs. Assembling
+// claims AFTER the transaction committed means a failure at that point has
+// already rotated the caller's refresh token and has no successor to hand
+// back — see refreshClaimsGuard.
+type mintGuard func(ctx context.Context, account *auth.Account) error
 
 // mintGuardError marks an error as coming from a mintGuard so the retry loop
 // can pass the caller's sentinel through untouched instead of burying it under
@@ -434,7 +444,7 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
 	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		if guard != nil {
-			if err := guard(ctx); err != nil {
+			if err := guard(ctx, account); err != nil {
 				return &mintGuardError{err: err}
 			}
 		}
@@ -1347,7 +1357,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 		// freshly minted token; it also meant a legitimate refusal had
 		// already consumed the caller's refresh token.
 		if guard != nil {
-			if err := guard(ctx); err != nil {
+			if err := guard(ctx, account); err != nil {
 				return err
 			}
 		}
@@ -1627,31 +1637,48 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		}
 	}
 
-	// School-scope refreshes carry their authorization AND their claims INTO
-	// the rotation transaction. Everything the school portal rests on — account
-	// liveness, school liveness, an active mapping, the school-portal role —
-	// is re-checked under the account lock, so a revocation that commits while
-	// the refresh is in flight either loses the race outright or blocks until
-	// the rotation is done and cuts the NEXT one. Checking after the rotation
-	// (as this path used to) had both failure modes: a token minted for an
-	// account whose access had just been revoked, and a rejected refresh that
-	// had nonetheless burned the caller's refresh token.
+	// A school token without a school is dead on arrival: SchoolMiddleware
+	// refuses tenant_id=0 on every request, and nothing downstream can pin the
+	// session to a school either — the rotation would fall back to the
+	// account's default mapping and mint a successor for a school this session
+	// never proved access to. Refusing BEFORE the rotation matters as much as
+	// refusing at all: this used to be caught only after the transaction had
+	// committed, so a token nothing accepts was answered by burning the
+	// caller's refresh token.
+	if refreshClaims.Scope == tenant.ScopeSchool && refreshClaims.TenantID <= 0 {
+		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", refreshClaims.ID, refreshClaims.TenantID)
+		return nil, &AuthError{Op: "refresh school session", Err: ErrTenantAccessDenied}
+	}
+
+	// Every refresh carries its authorization AND its claims INTO the rotation
+	// transaction. For the school scope that is the whole portal's footing —
+	// account liveness, school liveness, an active mapping, the school-portal
+	// role — re-checked under the account lock, so a revocation that commits
+	// while the refresh is in flight either loses the race outright or blocks
+	// until the rotation is done and cuts the NEXT one. Checking after the
+	// rotation (as this path used to) had both failure modes: a token minted
+	// for an account whose access had just been revoked, and a rejected refresh
+	// that had nonetheless burned the caller's refresh token.
 	//
-	// The claims payload is loaded in the same transaction for the second half
-	// of that argument. Loading it afterwards left one window open that no
-	// handoff could repair: a school soft-deleted between the guard and the
-	// load fails the metadata lookup, while SoftDeleteSchool deletes the
-	// school's tokens — predecessor AND the successor this rotation just wrote,
-	// recovery record included. The caller got an error and had nothing left to
-	// retry with. Inside the transaction that outcome cannot exist: either both
-	// the rotation and the claims succeed, or the transaction rolls back and
-	// the presented refresh token is still the caller's.
+	// The claims payload is assembled in the same transaction for the second
+	// half of that argument, and that half is not school-specific — hence a
+	// guard on EVERY path, not just the school one. Loading claims afterwards
+	// left a window no handoff could repair: roles, permissions or the person
+	// lookup failing there (a soft-deleted school, a DB blip) returns an error
+	// to a caller whose refresh token the rotation has already consumed, and
+	// whose successor it never received. With no recovery proof in hand the
+	// retry cannot reach the handoff and may be read as replay. Inside the
+	// transaction that outcome cannot exist: either the rotation and the claims
+	// commit together, or the transaction rolls back and the presented refresh
+	// token is still the caller's.
 	var (
-		guard          mintGuard
-		schoolMetadata *accountMetadata
+		guard    mintGuard
+		metadata *accountMetadata
 	)
-	if refreshClaims.Scope == tenant.ScopeSchool && refreshClaims.TenantID > 0 {
-		guard = s.schoolRefreshMintGuard(int64(refreshClaims.ID), refreshClaims.TenantID, &schoolMetadata)
+	if refreshClaims.Scope == tenant.ScopeSchool {
+		guard = s.schoolRefreshMintGuard(int64(refreshClaims.ID), refreshClaims.TenantID, &metadata)
+	} else {
+		guard = s.refreshClaimsGuard(refreshClaims.Scope, refreshClaims.TenantID, &metadata)
 	}
 
 	// Validate and refresh token in transaction (pass tenant from old JWT for the new token)
@@ -1667,44 +1694,14 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		)
 	}
 
-	// Load account metadata (roles, permissions, person info)
-	// Refresh flow preserves the tenant from the existing refresh token — never re-resolve
-	// via default fallback, which could silently switch to a different tenant for multi-tenant users.
-	//
-	// Parent-scope refresh tokens must round-trip as parent tokens.
-	// loadAccountMetadataForTenant returns tenant-scope metadata (scope="",
-	// tenant_id pinned), so a naive refresh would silently demote a parent
-	// JWT to a tenant JWT — that token then fails the parents-portal
-	// ParentMiddleware on the very next request and the parent dashboard
-	// gets stuck on the auth-guard loading state.
-	//
-	// We detect this via:
-	//   - explicit scope claim (new tokens, see RefreshClaims.Scope), OR
-	//   - backward-compat: account is guardian-only at the refresh tenant
-	//     (old in-flight refresh tokens issued before Scope was added).
-	// School-scope refresh tokens must round-trip as school tokens for the
-	// same reason (#2207). Both their authorization and their claims were
-	// settled by schoolRefreshMintGuard inside the rotation transaction — see
-	// there — so there is nothing left to load here and, deliberately, no
-	// second chance to fail after the rotation committed.
-	var metadata *accountMetadata
-	switch {
-	case refreshClaims.Scope == tenant.ScopeSchool:
-		if schoolMetadata == nil {
-			// A school token with no tenant never had a guard: SchoolMiddleware
-			// refuses tenant_id=0 on every request, so this session is already
-			// dead and re-minting it would only prolong a token nothing accepts.
-			s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", refreshClaims.ID, refreshClaims.TenantID)
-			return nil, &AuthError{Op: "refresh school session", Err: ErrTenantAccessDenied}
-		}
-		metadata = schoolMetadata
-	case refreshClaims.Scope == tenant.ScopeParent || s.isGuardianOnlyAccount(ctx, account, refreshClaims.TenantID):
-		metadata = s.buildParentMetadata(account)
-	default:
-		metadata, err = s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
-		if err != nil {
-			return nil, err
-		}
+	// The claims are already assembled: the guard built them inside the
+	// rotation transaction (see above), so there is deliberately nothing left
+	// to load here and no second chance to fail after the rotation committed.
+	// A nil payload past a successful rotation would mean a guard returned nil
+	// without filling it — impossible today, and an internal error rather than
+	// a token minted from an empty claims struct.
+	if metadata == nil {
+		return nil, &AuthError{Op: "refresh session", Err: fmt.Errorf("refresh claims payload missing after rotation")}
 	}
 
 	// Build JWT claims from account and metadata
@@ -1726,6 +1723,63 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		return nil, err
 	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshToken}, nil
+}
+
+// refreshClaimsGuard assembles the claims payload of a NON-school refresh from
+// inside the rotation transaction — the tenant and parent scopes.
+//
+// It exists for atomicity, not for authorization: the tenant scope settles its
+// access in validateTenantAccess before any of this runs. What the guard buys
+// is that a claims load which FAILS cannot leave the caller stranded. Run after
+// the transaction (where this used to live), a failing role, permission or
+// person lookup returned an error on a rotation that had already committed:
+// the presented refresh token was consumed, the successor was never handed
+// back, and a retry without a recovery proof cannot reach the handoff — it
+// looks like replay and can take the whole token family down. In here the two
+// halves share one transaction, so an error rolls the rotation back and the
+// caller still holds the token it presented.
+//
+// The scope decision itself is unchanged. Parent-scope refresh tokens must
+// round-trip as parent tokens: loadAccountMetadataForTenantInTx returns
+// tenant-scope metadata (scope="", tenant_id pinned), so a naive refresh would
+// silently demote a parent JWT to a tenant JWT — that token then fails the
+// parents-portal ParentMiddleware on the very next request and the parent
+// dashboard gets stuck on the auth-guard loading state. It is detected via:
+//   - the explicit scope claim (new tokens, see RefreshClaims.Scope), OR
+//   - backward-compat: the account is guardian-only at the refresh tenant
+//     (old in-flight refresh tokens issued before Scope was added).
+//
+// That backward-compat probe now PROPAGATES its errors instead of reading a
+// failed role load as "not guardian-only" (isGuardianOnlyAccount's contract,
+// which the post-rotation caller could afford because the very next step
+// reloaded the same roles and failed there). Inside the guard the distinction
+// is real: guessing here would mint a tenant JWT for a guardian.
+func (s *Service) refreshClaimsGuard(scope string, tenantID int64, out **accountMetadata) mintGuard {
+	return func(ctx context.Context, account *auth.Account) error {
+		if scope == tenant.ScopeParent {
+			*out = s.buildParentMetadata(account)
+			return nil
+		}
+
+		guardianOnly, err := s.isGuardianOnlyAccountInTx(ctx, account, tenantID)
+		if err != nil {
+			return err
+		}
+		if guardianOnly {
+			*out = s.buildParentMetadata(account)
+			return nil
+		}
+
+		// Refresh preserves the tenant of the existing refresh token — never
+		// re-resolve via the default fallback, which could silently switch a
+		// multi-school account to a different school.
+		metadata, err := s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
+		if err != nil {
+			return err
+		}
+		*out = metadata
+		return nil
+	}
 }
 
 // validateTenantAccess ensures the account still has active access to the tenant from the refresh token

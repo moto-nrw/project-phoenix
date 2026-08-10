@@ -790,3 +790,51 @@ func TestValidateTenantAccess_SchoolNilReturnsErrTenantNotFound(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
 }
+
+// TestRefreshTokenInTransaction_GuardFailureLeavesPresentedTokenUsable pins the
+// reason the claims payload is assembled INSIDE the rotation transaction.
+//
+// The guard stands in for what refreshClaimsGuard does: load roles,
+// permissions and the person row. When that fails after a committed rotation —
+// where it used to run — the caller is handed an error on a refresh token the
+// rotation has already consumed, with no successor to retry with. From inside
+// the transaction the same failure simply rolls the rotation back, and the
+// session the caller still holds keeps working.
+func TestRefreshTokenInTransaction_GuardFailureLeavesPresentedTokenUsable(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	service := setupInternalAuthService(t, db)
+
+	unique := time.Now().UnixNano()
+	accountEmail := fmt.Sprintf("refresh-guard-atomic-%d@test.local", unique)
+	account, err := service.Register(ctx, accountEmail, fmt.Sprintf("refresh-guard-atomic-%d", unique), "Test1234%", nil, 0)
+	require.NoError(t, err)
+	// LIFO: the account rows reference the school, so the school teardown has
+	// to be registered first and therefore run last.
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+
+	_, refreshJWT, err := service.Login(ctx, accountEmail, "Test1234%")
+	require.NoError(t, err)
+	claims, err := service.parseRefreshTokenClaims(refreshJWT)
+	require.NoError(t, err)
+
+	claimsFailure := errors.New("claims assembly failed")
+	_, _, _, err = service.refreshTokenInTransaction(ctx, claims, "", "", claims.TenantID,
+		func(context.Context, *authModels.Account) error { return claimsFailure })
+	require.ErrorIs(t, err, claimsFailure)
+
+	// Nothing rotated: the presented row is still the account's only token.
+	tokens, err := service.repos.Token.FindByAccountID(ctx, account.ID)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	assert.Equal(t, claims.Token, tokens[0].Token, "a failed claims assembly must not consume the presented token")
+
+	// And it is still a working session — no recovery proof needed.
+	_, _, err = service.RefreshToken(ctx, refreshJWT)
+	require.NoError(t, err, "the caller must be able to retry with the token it still holds")
+}
