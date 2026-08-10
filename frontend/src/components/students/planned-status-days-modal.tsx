@@ -153,6 +153,10 @@ export function PlannedStatusDaysModal({
     [rangeDateKeys, selectedDates, usesRangeSelection],
   );
   const selectionKey = candidateDateKeys.join(",");
+  const candidateDateKeySet = useMemo(
+    () => new Set(candidateDateKeys),
+    [candidateDateKeys],
+  );
   const hasIndividualSelectionTooWide =
     !usesRangeSelection &&
     candidateDateKeys.length > 1 &&
@@ -169,13 +173,18 @@ export function PlannedStatusDaysModal({
       for (const date of candidateDateKeys) {
         days.delete(date);
       }
+      // Only re-apply rows that sit on the actual selection. The range lookup
+      // may return intervening days for non-contiguous individual picks.
       for (const day of checkedExistingDays) {
-        if (!day.cleared_at) days.set(day.date, day);
+        if (!day.cleared_at && candidateDateKeySet.has(day.date)) {
+          days.set(day.date, day);
+        }
       }
     }
     return days;
   }, [
     activeExistingDayByDate,
+    candidateDateKeySet,
     candidateDateKeys,
     checkedCurrentSelection,
     checkedExistingDays,
@@ -187,9 +196,9 @@ export function PlannedStatusDaysModal({
         .filter((day): day is StudentStatusDay => day !== undefined),
     [candidateDateKeys, candidateExistingDayByDate],
   );
-  // Rows the user can clear: same-status days from the parent list plus any
-  // conflicts discovered for the current selection (including out-of-window
-  // dates) so Entfernen is available without changing the selection.
+  // Rows the user can clear: same-status days from the parent list plus
+  // selection conflicts (including out-of-window dates). Fetched rows that
+  // only fall between non-contiguous picks are excluded.
   const removableExistingDays = useMemo(() => {
     const byId = new Map<string, StudentStatusDay>();
     for (const day of activeExistingDays) {
@@ -197,14 +206,25 @@ export function PlannedStatusDaysModal({
     }
     if (checkedCurrentSelection) {
       for (const day of checkedExistingDays) {
-        if (day.cleared_at || byId.has(day.id)) continue;
+        if (
+          day.cleared_at ||
+          byId.has(day.id) ||
+          !candidateDateKeySet.has(day.date)
+        ) {
+          continue;
+        }
         byId.set(day.id, day);
       }
     }
     return Array.from(byId.values()).sort((a, b) =>
       a.date.localeCompare(b.date),
     );
-  }, [activeExistingDays, checkedCurrentSelection, checkedExistingDays]);
+  }, [
+    activeExistingDays,
+    candidateDateKeySet,
+    checkedCurrentSelection,
+    checkedExistingDays,
+  ]);
   const removableListTitle = useMemo(() => {
     if (
       removableExistingDays.length > 0 &&
@@ -349,6 +369,17 @@ export function PlannedStatusDaysModal({
       resetForm(false);
       onClose();
     }
+  };
+
+  // Drop the row from the local conflict check immediately. Out-of-window
+  // deletes never touch the parent SWR range, so fingerprint refresh alone
+  // would leave the date blocked until the modal reopens.
+  const handleDeleteStatusDay = async (statusDayId: string) => {
+    if (!onDeleteStatusDay) return;
+    await onDeleteStatusDay(statusDayId);
+    setCheckedExistingDays((current) =>
+      current.filter((day) => day.id !== statusDayId),
+    );
   };
 
   const handleSubmit = async () => {
@@ -660,7 +691,9 @@ export function PlannedStatusDaysModal({
                   {onDeleteStatusDay ? (
                     <button
                       type="button"
-                      onClick={() => onDeleteStatusDay(day.id)}
+                      onClick={() => {
+                        void handleDeleteStatusDay(day.id);
+                      }}
                       disabled={isSubmitting || deletingStatusDayId === day.id}
                       className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                     >

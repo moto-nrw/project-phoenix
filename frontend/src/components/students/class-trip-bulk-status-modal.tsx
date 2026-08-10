@@ -186,24 +186,41 @@ export function ClassTripBulkStatusModal({
   );
 }
 
+const MAX_BULK_CONFLICT_DETAILS = 8;
+
 function formatBulkConflictMessage(
   conflicts: StudentStatusDay[],
   students: Student[],
 ): string {
   const studentNameById = new Map(
-    students.map((student) => [
-      student.id,
-      `${student.first_name} ${student.second_name}`.trim() || student.name,
-    ]),
+    students.map((student) => [student.id, studentDisplayName(student)]),
   );
-  const details = conflicts
+  const total = conflicts.length;
+  const shown = conflicts.slice(0, MAX_BULK_CONFLICT_DETAILS);
+  const details = shown
     .map((day) => {
       const studentName =
         studentNameById.get(day.student_id) ?? `Schüler ${day.student_id}`;
       return `${studentName}: ${formatCalendarDate(day.date)} (${statusKindLabel(day.status).toLowerCase()})`;
     })
     .join("; ");
-  return `${conflicts.length === 1 ? "1 Konflikt" : `${conflicts.length} Konflikte`} — ${details}. Diese Status-Tage wurden nicht überschrieben.`;
+  const remaining = total - shown.length;
+  const more = remaining > 0 ? ` und ${remaining} weitere` : "";
+  const countLabel = total === 1 ? "1 Konflikt" : `${total} Konflikte`;
+  return `${countLabel} — ${details}${more}. Diese Status-Tage wurden nicht überschrieben.`;
+}
+
+function studentDisplayName(student: Student): string {
+  const parts = [student.first_name, student.second_name].filter(
+    (part): part is string => Boolean(part?.trim()),
+  );
+  if (parts.length > 0) {
+    return parts.join(" ");
+  }
+  if (student.name?.trim()) {
+    return student.name.trim();
+  }
+  return `Schüler ${student.id}`;
 }
 
 function statusKindLabel(status: StudentStatusKind): string {

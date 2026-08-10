@@ -646,11 +646,54 @@ describe("PlannedStatusDaysModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
     await waitFor(() => {
       expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
+    // Out-of-window delete must unblock the date immediately without reopening.
     await clickEnabledButton("Entschuldigen");
+    expect(onSubmit).toHaveBeenCalledWith([
+      "2027-01-01",
+      "2027-01-02",
+      "2027-01-03",
+    ]);
+  });
 
-    expect(onSubmit).toHaveBeenCalledWith(["2027-01-01", "2027-01-03"]);
+  it("does not list intervening statuses for non-contiguous individual picks", async () => {
+    // Selected mock dates are 26 + 28; a status only on 27 must not surface.
+    const intervening: StudentStatusDay = {
+      ...existingDays[0]!,
+      id: "9",
+      date: "2026-05-27",
+      status: "sick",
+    };
+    const loadExistingDays = vi.fn().mockResolvedValue([intervening]);
+    const onDeleteStatusDay = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadExistingDays}
+        onSubmit={vi.fn()}
+        onDeleteStatusDay={onDeleteStatusDay}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Nicht zusammenhängende Tage auswählen"));
+
+    await waitFor(() => {
+      expect(loadExistingDays).toHaveBeenCalledWith("2026-05-26", "2026-05-28");
+    });
+
+    expect(screen.queryByText("Bereits vorhanden")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Entfernen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("does not close while submitting", () => {
