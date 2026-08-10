@@ -561,7 +561,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der `Kindersuche` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
-          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
+          "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Im Dialog zwischen `Einzelne Tage` (auch mehrere nicht zusammenhängende Tage) und `Zeitraum` mit Von- und Bis-Datum wählen; vor dem Speichern werden Zeitraum und Anzahl der Tage angezeigt. Ein Zeitraum darf höchstens 366 Tage umfassen. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
           "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
           "Tab `Erziehungsberechtigte`: Bezugspersonen mit Kontaktdaten, Abholberechtigung und Notfallkontakten pflegen. Pro Person zeigt ein Status, ob sie ein Konto für das Elternportal hat (`Konto aktiv`, `Einladung offen` oder `Kein Konto`); mit `Einladen` laden Sie eine bereits hinterlegte Bezugsperson zum Elternportal ein, ohne die Daten erneut einzugeben.",
@@ -579,8 +579,19 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kinderdetailansicht mit Statuskopf, den Aktionen Krank melden, Entschuldigen und weiteren Statusaktionen im Drei-Punkte-Menü sowie den Tabs Stammdaten, Nachrichten, Erziehungsberechtigte, Betreuungsplan, Betreuungszeiten, Historie und Anmeldungen.",
-        image: "/help/screens/kinderdetailansicht.webp",
+          "Kinderdetailansicht mit den Statusaktionen sowie der Dialog Krankmeldung planen mit der Auswahl zwischen einzelnen Tagen und einem Zeitraum.",
+        gallery: [
+          {
+            image: "/help/screens/kinderdetailansicht.webp",
+            caption:
+              "Kinderdetailansicht: Krank melden, Entschuldigen und weitere Statusaktionen öffnen die Planung.",
+          },
+          {
+            image: "/help/screens/geplante-abwesenheit-zeitraum.webp",
+            caption:
+              "Dialog „Krankmeldung planen“: „Zeitraum“ wählen, Von- und Bis-Datum prüfen und die angezeigte Anzahl der Tage vor dem Speichern kontrollieren.",
+          },
+        ],
       },
       {
         id: "eltern-konten-verbinden",

@@ -10,8 +10,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
 import { useSession } from "next-auth/react";
 
-const { mockSWRMutate } = vi.hoisted(() => ({
+const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
   mockSWRMutate: vi.fn(),
+  MockStudentStatusDayConflictError: class extends Error {
+    conflicts: unknown[];
+
+    constructor(conflicts: unknown[]) {
+      super("conflict");
+      this.conflicts = conflicts;
+    }
+  },
 }));
 vi.mock("swr", async (importOriginal) => {
   const actual = await importOriginal<typeof import("swr")>();
@@ -230,7 +238,7 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
         <button
           type="button"
           data-testid="planned-status-submit"
-          onClick={() => void onSubmit(["2026-05-25"])}
+          onClick={() => void onSubmit(["2026-05-25"]).catch(() => undefined)}
         >
           Speichern
         </button>
@@ -500,6 +508,7 @@ vi.mock("~/lib/api", () => ({
 const mockCreateStudentStatusDays = vi.fn();
 const mockFetchStudentStatusDays = vi.fn();
 vi.mock("~/lib/student-status-days-api", () => ({
+  StudentStatusDayConflictError: MockStudentStatusDayConflictError,
   createStudentStatusDays: (
     studentId: string,
     status: "sick" | "excused" | "class_trip",
@@ -512,12 +521,13 @@ vi.mock("~/lib/student-status-days-api", () => ({
 // Mock useToast hook
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
+const mockToastWarning = vi.fn();
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: vi.fn(() => ({
     success: mockToastSuccess,
     error: mockToastError,
     info: vi.fn(),
-    warning: vi.fn(),
+    warning: mockToastWarning,
     remove: vi.fn(),
   })),
 }));
@@ -1341,6 +1351,36 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockToastError).toHaveBeenCalled();
       });
+    });
+
+    it("explains an atomic conflict without reporting a successful save", async () => {
+      mockCreateStudentStatusDays.mockRejectedValue(
+        new MockStudentStatusDayConflictError([
+          {
+            id: "7",
+            student_id: "1",
+            date: "2026-05-25",
+            status: "excused",
+            label: "Entschuldigt",
+          },
+        ]),
+      );
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("sick-toggle-button"));
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("planned-status-modal-sick"),
+        ).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId("planned-status-submit"));
+
+      await waitFor(() => {
+        expect(mockToastWarning).toHaveBeenCalledWith(
+          "25.05.2026 (entschuldigt) wurde zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.",
+        );
+      });
+      expect(mockToastSuccess).not.toHaveBeenCalled();
     });
 
     it("shows healthy-toggle modal when student is already sick", async () => {

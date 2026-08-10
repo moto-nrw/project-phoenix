@@ -78,6 +78,20 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), student.ID, req.Status, req.Reason, dates); err != nil {
+		var conflictErr *activeService.StudentStatusDayConflictError
+		if errors.As(err, &conflictErr) {
+			common.RespondWithJSON(
+				w,
+				r,
+				http.StatusConflict,
+				map[string]any{
+					"status":    "error",
+					"error":     "existing student status days were not overwritten",
+					"conflicts": newStudentStatusDayResponses(conflictErr.Conflicts),
+				},
+			)
+			return
+		}
 		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return

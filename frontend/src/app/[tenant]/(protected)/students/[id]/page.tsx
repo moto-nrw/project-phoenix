@@ -72,9 +72,11 @@ import {
   createStudentStatusDays,
   deleteStudentStatusDay,
   fetchStudentStatusDays,
+  StudentStatusDayConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
 import { StudentDetailSkeleton } from "./page-skeleton";
 
 type TodayArrival = {
@@ -492,6 +494,10 @@ function StudentDetailPageContent() {
   const ensureStatusDayRange = useCallback((from: string, to: string) => {
     setStatusDayRange((current) => extendStatusDayRange(current, [from, to]));
   }, []);
+  const loadPlannedStatusExistingDays = useCallback(
+    (from: string, to: string) => fetchStudentStatusDays(studentId, from, to),
+    [studentId],
+  );
   // Reason attached to today's sick day (set by staff or by a parent via the
   // portal), shown next to the absence badge in the header.
   const currentSickReason = useMemo(() => {
@@ -903,7 +909,21 @@ function StudentDetailPageContent() {
         status: plannedStatusModal,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Geplanter Status konnte nicht gespeichert werden");
+      if (err instanceof StudentStatusDayConflictError) {
+        const conflicts = err.conflicts
+          .map(
+            (day) =>
+              `${formatCalendarDate(day.date)} (${day.label.toLowerCase()})`,
+          )
+          .join(", ");
+        const wasOrWere = err.conflicts.length === 1 ? "wurde" : "wurden";
+        toast.warning(
+          `${conflicts} ${wasOrWere} zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.`,
+        );
+      } else {
+        toast.error("Geplanter Status konnte nicht gespeichert werden");
+      }
+      throw err;
     } finally {
       setPlannedStatusLoading(false);
     }
@@ -1238,6 +1258,7 @@ function StudentDetailPageContent() {
         existingDays={statusDays}
         deletingStatusDayId={deletingPlannedStatusDayId}
         onClose={() => setPlannedStatusModal(null)}
+        loadExistingDays={loadPlannedStatusExistingDays}
         onSubmit={handleCreatePlannedStatus}
         onDeleteStatusDay={handleDeletePlannedStatus}
       />

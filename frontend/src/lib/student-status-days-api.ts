@@ -18,6 +18,7 @@ export interface StudentStatusDay {
 interface ApiResponse<T> {
   status: string;
   data?: T;
+  conflicts?: T;
   message?: string;
   error?: string;
 }
@@ -42,6 +43,16 @@ function mapStatusDay(row: BackendStudentStatusDay): StudentStatusDay {
     id: row.id.toString(),
     student_id: row.student_id.toString(),
   };
+}
+
+export class StudentStatusDayConflictError extends Error {
+  readonly conflicts: StudentStatusDay[];
+
+  constructor(conflicts: StudentStatusDay[]) {
+    super("Vorhandene Status-Tage wurden nicht überschrieben");
+    this.name = "StudentStatusDayConflictError";
+    this.conflicts = conflicts;
+  }
 }
 
 async function parseApiResult<T>(
@@ -88,6 +99,14 @@ export async function createStudentStatusDays(
       reason ? { status, dates, reason } : { status, dates },
     ),
   });
+  if (response.status === 409) {
+    const result = (await response.json()) as ApiResponse<
+      BackendStudentStatusDay[]
+    >;
+    throw new StudentStatusDayConflictError(
+      (result.conflicts ?? result.data ?? []).map(mapStatusDay),
+    );
+  }
   if (!response.ok) {
     throw new Error("Geplante Einträge konnten nicht gespeichert werden");
   }

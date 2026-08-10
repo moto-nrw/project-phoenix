@@ -4,6 +4,7 @@ import {
   createStudentStatusDays,
   deleteStudentStatusDay,
   fetchStudentStatusDays,
+  StudentStatusDayConflictError,
 } from "./student-status-days-api";
 
 const backendDay = {
@@ -66,6 +67,28 @@ describe("student-status-days-api", () => {
       }),
     });
     expect(days[0]?.id).toBe("7");
+  });
+
+  it("returns conflicting rows from an atomic create rejection", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        { status: "error", conflicts: [backendDay] },
+        { status: 409 },
+      ),
+    );
+
+    const error = await createStudentStatusDays("42", "sick", [
+      "2026-05-26",
+    ]).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(StudentStatusDayConflictError);
+    expect((error as StudentStatusDayConflictError).conflicts).toEqual([
+      expect.objectContaining({
+        id: "7",
+        date: "2026-05-26",
+        status: "excused",
+      }),
+    ]);
   });
 
   it("deletes a planned status day", async () => {

@@ -64,7 +64,7 @@ export function SegmentedControl<T extends string>({
   readonly className?: string;
 }) {
   const base =
-    "px-3 py-1.5 text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+    "px-3 py-1.5 text-xs font-medium transition-[background-color,box-shadow,color,opacity] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
 
   if (variant === "pills") {
     return (
