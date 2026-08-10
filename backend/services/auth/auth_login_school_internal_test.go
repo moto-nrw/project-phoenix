@@ -16,9 +16,11 @@ import (
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // --- repository failure injectors -------------------------------------------------
@@ -273,4 +275,131 @@ func TestLoadSchoolMetadataForTenant_LivenessLookupError_Propagates(t *testing.T
 	require.Error(t, err)
 	assert.Nil(t, metadata)
 	assert.ErrorIs(t, err, dbErr)
+}
+
+// --- schoolMintGuard ---------------------------------------------------------------
+
+// newMintGuardFixture builds a Lehrkraft who may legitimately hold a school
+// session: active account, active mapping, lehrkraft role, live school. Each
+// test below then breaks exactly one of those facts.
+//
+// The school row itself gets deactivated and soft-deleted here, so the tenant
+// must be one nobody else shares — CreateTestTenant, not a literal id.
+func newMintGuardFixture(t *testing.T) (service *Service, db *bun.DB, account *authModels.Account, tenantID int64) {
+	t.Helper()
+	db = testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service = setupInternalAuthService(t, db)
+
+	tenantID, _ = testpkg.CreateTestTenant(t, db)
+	unique := time.Now().UnixNano()
+	account, err := service.Register(
+		testpkg.TenantContext(tenantID),
+		fmt.Sprintf("school-guard-%d@test.local", unique),
+		fmt.Sprintf("school-guard-%d", unique),
+		schoolPortalFixturePassword,
+		nil, 0,
+	)
+	require.NoError(t, err)
+	// Cleanup order matters: the account rows reference the school, so the
+	// school teardown has to run after them (t.Cleanup is LIFO).
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
+
+	return service, db, account, tenantID
+}
+
+// runMintGuard executes the guard the way the mint does: inside a
+// phoenix_admin transaction, which is what its FOR SHARE reads require.
+func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantID int64) error {
+	t.Helper()
+	guard := service.schoolMintGuard(accountID, tenantID)
+	var guardErr error
+	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+		guardErr = guard(ctx)
+		return nil
+	})
+	require.NoError(t, txErr)
+	return guardErr
+}
+
+func TestSchoolMintGuard_LiveSessionPasses(t *testing.T) {
+	service, db, account, tenantID := newMintGuardFixture(t)
+	require.NoError(t, runMintGuard(t, service, db, account.ID, tenantID))
+}
+
+func TestSchoolMintGuard_RefusesRevokedMembership(t *testing.T) {
+	// Membership is revoked by flipping account_tenants.status. Everything
+	// else about the account stays valid, which is exactly why the guard has
+	// to look at this row rather than trust the earlier resolution.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	_, err := db.Exec(
+		"UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?",
+		account.ID, tenantID)
+	require.NoError(t, err)
+
+	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrTenantAccessDenied)
+}
+
+func TestSchoolMintGuard_RefusesRevokedPortalRole(t *testing.T) {
+	service, db, account, tenantID := newMintGuardFixture(t)
+	_, err := db.Exec(
+		"DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?",
+		account.ID, tenantID)
+	require.NoError(t, err)
+
+	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrAccountNoSchoolPortalRole)
+}
+
+func TestSchoolMintGuard_RefusesDeactivatedSchool(t *testing.T) {
+	service, db, account, tenantID := newMintGuardFixture(t)
+	_, err := db.Exec("UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
+	require.NoError(t, err)
+
+	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrTenantNotFound)
+}
+
+func TestSchoolMintGuard_RefusesSoftDeletedSchool(t *testing.T) {
+	service, db, account, tenantID := newMintGuardFixture(t)
+	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?", tenantID)
+	require.NoError(t, err)
+
+	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrTenantNotFound)
+}
+
+func TestCreateRefreshTokenWithRetryGuarded_GuardRefusalWritesNoToken(t *testing.T) {
+	// The point of the guard is that it runs INSIDE the persistence
+	// transaction: a refusal must abort the whole thing, leaving no token
+	// row behind and surfacing the sentinel untouched (not buried under the
+	// generic "login transaction" wrapper).
+	service, db, account, tenantID := newMintGuardFixture(t)
+	_, err := db.Exec(
+		"UPDATE auth.account_tenants SET status = 'inactive' WHERE account_id = ? AND tenant_id = ?",
+		account.ID, tenantID)
+	require.NoError(t, err)
+
+	before := countAccountTokens(t, db, account.ID)
+
+	token, err := service.createRefreshTokenWithRetryGuarded(
+		context.Background(), account, tenantID, service.schoolMintGuard(account.ID, tenantID))
+
+	require.Error(t, err)
+	assert.Nil(t, token)
+	assert.ErrorIs(t, err, ErrTenantAccessDenied)
+	assert.Equal(t, before, countAccountTokens(t, db, account.ID),
+		"a refused mint must not leave a refresh token behind")
+}
+
+func countAccountTokens(t *testing.T, db *bun.DB, accountID int64) int {
+	t.Helper()
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", accountID).
+		Count(context.Background())
+	require.NoError(t, err)
+	return count
 }

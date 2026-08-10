@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -121,9 +122,14 @@ func (s *Service) LoginSchoolWithMFAGate(
 		}, nil
 	}
 
-	token, err := s.createRefreshTokenWithRetry(ctx, account, portalTenantID)
+	// The portal-role lookup above ran minutes ago in wall-clock terms once MFA
+	// or a trusted-device check sat in between — and in its own, already
+	// committed transaction either way. The guard re-checks school liveness,
+	// membership and portal role INSIDE the transaction that writes the token,
+	// so a revocation can no longer land in the gap.
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, s.schoolMintGuard(account.ID, portalTenantID))
 	if err != nil {
-		return nil, err
+		return nil, wrapSchoolMintError("school login", err)
 	}
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
 	// Attribute the audit event to the school the portal-role lookup actually
@@ -178,9 +184,9 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 		return "", "", &AuthError{Op: "issue school tokens", Err: ErrAccountNoSchoolPortalRole}
 	}
 
-	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, metadata.tenantID, s.schoolMintGuard(account.ID, metadata.tenantID))
 	if err != nil {
-		return "", "", err
+		return "", "", wrapSchoolMintError("issue school tokens", err)
 	}
 
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
@@ -198,7 +204,12 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 // active mapping, and the account must hold a school-portal role THERE:
 // being a Lehrkraft at school A and a caregiver at school B does not open
 // school B's portal view.
-func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug string) (string, string, error) {
+//
+// ipAddress and userAgent are threaded through from the request because
+// generateAndLogTokens skips the audit write entirely when the IP is empty —
+// passing "" here silently means "no tenant_switch event was ever recorded",
+// which is the one thing this event exists for.
+func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (string, string, error) {
 	account, err := s.repos.Account.FindByID(ctx, accountID)
 	if err != nil {
 		return "", "", &AuthError{Op: "switch school", Err: ErrAccountNotFound}
@@ -234,9 +245,9 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug 
 		return "", "", &AuthError{Op: "switch school", Err: ErrAccountNoSchoolPortalRole}
 	}
 
-	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, metadata.tenantID, s.schoolMintGuard(accountID, metadata.tenantID))
 	if err != nil {
-		return "", "", err
+		return "", "", wrapSchoolMintError("switch school", err)
 	}
 
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
@@ -244,8 +255,74 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug 
 	// happens to be oldest.
 	return s.generateAndLogTokens(
 		tenant.WithTenantID(ctx, metadata.tenantID),
-		account.ID, appClaims, refreshClaims, "", "", audit.EventTypeTenantSwitch,
+		account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeTenantSwitch,
 	)
+}
+
+// schoolMintGuard re-verifies the three facts a school session rests on,
+// inside the transaction that persists the refresh token:
+//
+//  1. the school exists, is not soft-deleted, and is active,
+//  2. the account's auth.account_tenants mapping is still `active`,
+//  3. the account still holds a school-portal role at that school.
+//
+// Every school entry point checks the same facts up front — that is where the
+// precise 401/403/404 responses come from — but those checks run in their own
+// transactions, which have committed by the time the token is written. On the
+// MFA path minutes can pass in between; even on the direct password path the
+// checks and the write were two separate transactions. This guard closes that
+// window: the school and mapping rows are read FOR SHARE, so a concurrent
+// deactivation or role revocation blocks until the mint commits and can never
+// interleave between "may they?" and "here is the token".
+//
+// Errors are returned as bare sentinels; createRefreshTokenWithRetryGuarded
+// hands them back untouched and the caller wraps them with its own op.
+func (s *Service) schoolMintGuard(accountID, tenantID int64) mintGuard {
+	return func(ctx context.Context) error {
+		school, err := s.repos.School.FindByIDForShare(ctx, tenantID)
+		if err != nil {
+			if isNotFoundError(err) {
+				return ErrTenantNotFound
+			}
+			return fmt.Errorf("re-check school %d at school token mint: %w", tenantID, err)
+		}
+		if school == nil || school.IsDeleted() || !school.Active {
+			return ErrTenantNotFound
+		}
+
+		activeMapping, err := s.repos.AccountTenant.ExistsActiveByAccountAndTenantForShare(ctx, accountID, tenantID)
+		if err != nil {
+			return fmt.Errorf("re-check membership of account %d at school %d: %w", accountID, tenantID, err)
+		}
+		if !activeMapping {
+			return ErrTenantAccessDenied
+		}
+
+		accountRoles, err := s.repos.AccountRole.FindByAccountIDForTenantForShare(ctx, accountID, tenantID)
+		if err != nil {
+			if isNotFoundError(err) {
+				return ErrAccountNoSchoolPortalRole
+			}
+			return fmt.Errorf("re-check school portal role of account %d at school %d: %w", accountID, tenantID, err)
+		}
+		for _, ar := range accountRoles {
+			if ar.Role != nil && isSchoolPortalRole(ar.Role) {
+				return nil
+			}
+		}
+		return ErrAccountNoSchoolPortalRole
+	}
+}
+
+// wrapSchoolMintError gives a guard sentinel the AuthError envelope every
+// school handler switches on, while leaving errors that already carry one
+// (the generic token-persistence failures) alone.
+func wrapSchoolMintError(op string, err error) error {
+	var authErr *AuthError
+	if errors.As(err, &authErr) {
+		return err
+	}
+	return &AuthError{Op: op, Err: err}
 }
 
 // loadSchoolMetadataForTenant loads the tenant-scoped metadata (roles,
@@ -268,6 +345,12 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug 
 //     password login used to trust the mapping resolved minutes earlier: an
 //     in-flight MFA challenge, a school switch, or a refresh would keep minting
 //     school tokens for an account that was already removed from the school.
+//
+// These checks decide the RESPONSE (which sentinel, hence which status code)
+// and run before any token work. They are not the last word on authorization:
+// they commit in their own transaction, so schoolMintGuard repeats them —
+// plus the portal-role check — inside the transaction that actually writes
+// the token. Fixing one of the two without the other is not enough.
 func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
 	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
 	if err != nil {

@@ -2551,6 +2551,67 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 	return staff
 }
 
+// CreateTestStaffWithAccountForTenant is CreateTestStaffWithAccount for a
+// caller-owned tenant instead of the shared tenant 1. Use it whenever the test
+// also needs the account's tenant mapping, roles, or the school row itself —
+// those all hang off the tenant id, and tenant 1 is shared with every other
+// package running in parallel.
+func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &account.ID,
+	}
+	person.SetTenantID(tenantID)
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account for tenant")
+
+	staff := &users.Staff{PersonID: person.ID}
+	staff.SetTenantID(tenantID)
+	err = db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff with account for tenant")
+
+	staff.Person = person
+	return staff, account
+}
+
+// CreateTestClassTeacherForTenant is CreateTestClassTeacher for a caller-owned
+// tenant. The class-day surface reads these rows under RLS, so the assignment
+// must live in the same tenant as the JWT the test presents.
+func CreateTestClassTeacherForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, schoolClass string) *education.ClassTeacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ct := &education.ClassTeacher{
+		StaffID:     staffID,
+		SchoolClass: schoolClass,
+	}
+	ct.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(ct).
+		ModelTableExpr(`education.class_teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test class teacher assignment for tenant")
+
+	return ct
+}
+
 // CreateTestActivityCategoryForTenant creates an activity category belonging to a specific tenant.
 func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *activities.Category {
 	tb.Helper()

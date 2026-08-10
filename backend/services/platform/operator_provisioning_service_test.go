@@ -294,7 +294,7 @@ func (m *mockAuthService) LoginSchoolWithMFAGate(context.Context, string, string
 func (m *mockAuthService) IssueSchoolTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
 	return "", "", nil
 }
-func (m *mockAuthService) SwitchSchool(context.Context, int64, string) (string, string, error) {
+func (m *mockAuthService) SwitchSchool(context.Context, int64, string, string, string) (string, string, error) {
 	return "", "", nil
 }
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {

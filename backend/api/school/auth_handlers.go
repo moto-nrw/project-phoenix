@@ -197,6 +197,10 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		mapMFAError(w, r, err)
 		return
 	}
+	if verified == nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
 
 	rs.completeSchoolExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
 }
@@ -227,6 +231,12 @@ func (rs *Resource) completeSchoolExchange(w http.ResponseWriter, r *http.Reques
 				// School deactivated or deleted between challenge and
 				// exchange — same 404 the other school surfaces return.
 				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
+			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
+				// Membership revoked between challenge and exchange. Without
+				// this case the mint guard's refusal fell through to a 500,
+				// which reads as "our fault, retry" instead of "you are no
+				// longer at this school".
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
@@ -273,6 +283,14 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, common.MFAResendResponse{ChallengeToken: renewed})
 }
 
+// EnrollStartResponse carries the challenge token minted alongside the
+// enrollment email code. The client must send it back at
+// /school/auth/mfa/enroll/confirm — see mfaEnrollConfirm for why the code
+// alone is not a safe key.
+type EnrollStartResponse struct {
+	ChallengeToken string `json:"challenge_token"`
+}
+
 // mfaEnrollStart triggers the enrollment email code for a school-scope
 // enrollment token (minted by the school login for accounts on an
 // MFA-required school without a credential). Mirrors the tenant handler's
@@ -280,6 +298,9 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 // enrollment scope, so this handler must pin the SCHOOL scope — a tenant-
 // or platform-scope enrollment token is refused even when account_id
 // matches.
+//
+// Unlike the tenant endpoint's 204, this returns the challenge token the
+// service just minted; the confirm step is bound to that exact challenge.
 func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -289,18 +310,31 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	_, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeSchool, clientip.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeSchool, clientip.ParseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	render.JSON(w, r, EnrollStartResponse{ChallengeToken: challengeToken})
 }
 
 // mfaEnrollConfirm verifies the emailed code, marks the account as enrolled,
 // and mints a SCHOOL-scope session — the school sibling of the tenant
 // enroll-confirm, so the enrollment detour never converts a school login
 // into a tenant session.
+//
+// The confirm is bound to the CHALLENGE, not to the account: it redeems the
+// challenge token from enroll/start through VerifyChallengeForScope, which
+// resolves the exact challenge row named in the token and refuses any scope
+// but school. Verifying "the account's newest active code" instead — what
+// VerifyCodeForAccount does — would let a concurrent challenge from another
+// portal, or from another school, be consumed here: the same person logging
+// into the tenant portal in a second tab is enough to produce one.
+//
+// Belt and braces on top of the scope check: the redeemed challenge must
+// name the same account AND the same school as the enrollment token, so two
+// school challenges for one account at different schools cannot cross over
+// either.
 func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -313,7 +347,9 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	req := &common.MFAEnrollConfirmRequest{}
+	// Same body shape as the verify endpoint: challenge token + code (+
+	// remember_device), because this IS a challenge redemption.
+	req := &common.MFAVerifyRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -326,10 +362,16 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// the tenant enroll-confirm).
 	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
 
-	if err := rs.MFAService.VerifyCodeForAccount(ctx, claims.AccountID, req.Code); err != nil {
+	verified, err := rs.MFAService.VerifyChallengeForScope(ctx, req.ChallengeToken, req.Code, jwt.MFAChallengeScopeSchool)
+	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
+	if verified == nil || verified.AccountID != claims.AccountID || verified.TenantID != claims.TenantID {
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
+
 	if err := rs.MFAService.Enroll(ctx, claims.AccountID); err != nil {
 		// Already enrolled is fine — a retried request must still produce
 		// a valid session.
@@ -354,7 +396,10 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	accessToken, refreshToken, err := rs.AuthService.SwitchSchool(r.Context(), int64(claims.ID), req.TenantSlug)
+	accessToken, refreshToken, err := rs.AuthService.SwitchSchool(
+		r.Context(), int64(claims.ID), req.TenantSlug,
+		clientip.GetClientIPString(r), r.Header.Get(headerUserAgent),
+	)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {

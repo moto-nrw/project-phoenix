@@ -76,6 +76,9 @@ func (s stubAuthLoginAccountTenantRepo) FindActiveGuardianByAccountID(context.Co
 func (s stubAuthLoginAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	return s.existsFn(ctx, accountID, tenantID)
 }
+func (s stubAuthLoginAccountTenantRepo) ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	return s.existsFn(ctx, accountID, tenantID)
+}
 func (s stubAuthLoginAccountTenantRepo) ListAccountsByTenantID(context.Context, int64) ([]authModels.TenantAccountInfo, error) {
 	panic("unexpected ListAccountsByTenantID")
 }

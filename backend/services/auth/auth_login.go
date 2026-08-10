@@ -342,16 +342,55 @@ func (s *Service) verifyPassword(account *auth.Account, password string) error {
 	return nil
 }
 
+// mintGuard runs inside the token-persistence transaction, immediately before
+// the token row is written. It is the only place where an authorization fact
+// can be re-checked atomically with the write it authorizes: everything a
+// login flow verified earlier lives in an already-committed transaction and
+// may be stale by the time the token is minted.
+//
+// Implementations receive a context carrying the phoenix_admin transaction, so
+// they MUST call repositories directly instead of opening a nested WithAdminTx
+// (bun does not nest — that would take a second connection and defeat the
+// point). Returning an error aborts the transaction and the mint; it is
+// surfaced verbatim, never retried.
+type mintGuard func(ctx context.Context) error
+
+// mintGuardError marks an error as coming from a mintGuard so the retry loop
+// can pass the caller's sentinel through untouched instead of burying it under
+// the generic "login transaction" wrapper.
+type mintGuardError struct{ err error }
+
+func (e *mintGuardError) Error() string { return e.err.Error() }
+func (e *mintGuardError) Unwrap() error { return e.err }
+
 // createRefreshTokenWithRetry creates a refresh token with retry logic for concurrent logins
 func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account, tenantID int64) (*auth.Token, error) {
+	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, nil)
+}
+
+// createRefreshTokenWithRetryGuarded is createRefreshTokenWithRetry with an
+// authorization re-check that runs inside the persistence transaction. A guard
+// failure is terminal — the retry loop only exists for token-family
+// collisions, and re-running a guard that just said "no" would be pointless.
+func (s *Service) createRefreshTokenWithRetryGuarded(
+	ctx context.Context,
+	account *auth.Account,
+	tenantID int64,
+	guard mintGuard,
+) (*auth.Token, error) {
 	token := s.newRefreshToken(account.ID)
 
 	maxRetries := 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := s.persistTokenInTransaction(ctx, account, token, tenantID)
+		err := s.persistTokenInTransaction(ctx, account, token, tenantID, guard)
 
 		if err == nil {
 			return token, nil
+		}
+
+		var guardErr *mintGuardError
+		if errors.As(err, &guardErr) {
+			return nil, guardErr.err
 		}
 
 		if !s.isTokenFamilyConflict(err) {
@@ -388,8 +427,17 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 // Uses WithAdminTx (BYPASSRLS) because this is a public login route with no JWT/tenant
 // context. The phoenix_auth connection role cannot pass RLS policies on auth.tokens,
 // so we switch to phoenix_admin for the token write.
-func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
+//
+// guard (optional) re-validates the caller's authorization inside this
+// transaction, before anything is written — see mintGuard.
+func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
 	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		if guard != nil {
+			if err := guard(ctx); err != nil {
+				return &mintGuardError{err: err}
+			}
+		}
+
 		// Updating the account first acquires its row lock for the rest of this
 		// transaction. Concurrent token issuers for the same account then enforce
 		// the session cap serially instead of deleting from identical snapshots.
@@ -1482,7 +1530,12 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	// same reason (#2207) — and additionally re-verify the school-portal
 	// role: a Lehrkraft whose role was revoked keeps a valid refresh token
 	// until expiry, and without this check it would keep minting
-	// school-scope sessions. hasSchoolPortalRoleAtTenant propagates DB
+	// school-scope sessions. Unlike the login/switch/MFA paths this cannot
+	// use schoolMintGuard: the only DB write on the refresh path is the token
+	// rotation, which has already committed above and is scope-agnostic. What
+	// the checks below gate is the in-memory GenTokenPair a few lines down —
+	// there is no commit between them for a revocation to slip into.
+	// hasSchoolPortalRoleAtTenant propagates DB
 	// errors as retryable failures — the rotation has already committed at
 	// this point, so mistaking a transient blip for a revocation would be
 	// a permanent logout; a 500 instead lets the client retry and recover
@@ -1514,8 +1567,18 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	// Build JWT claims from account and metadata
 	appClaims, newRefreshClaims := s.buildJWTClaims(account, newToken, metadata, account.Email)
 
-	// Generate token pair and log success as token refresh
-	accessToken, refreshToken, err := s.generateAndLogTokens(ctx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent, audit.EventTypeTokenRefresh)
+	// Generate token pair and log success as token refresh.
+	//
+	// The whole refresh validates against refreshClaims.TenantID, so the audit
+	// event must be filed there too. The incoming context has no tenant (the
+	// refresh route is pre-authentication), and logAuthEvent then falls back to
+	// the account's FIRST active mapping — for anyone mapped to several schools
+	// that routinely attributes the refresh to the wrong school.
+	auditCtx := ctx
+	if refreshClaims.TenantID > 0 {
+		auditCtx = tenant.WithTenantID(ctx, refreshClaims.TenantID)
+	}
+	accessToken, refreshToken, err := s.generateAndLogTokens(auditCtx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent, audit.EventTypeTokenRefresh)
 	if err != nil {
 		return nil, err
 	}

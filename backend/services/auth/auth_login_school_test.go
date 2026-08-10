@@ -8,8 +8,10 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
@@ -74,6 +76,33 @@ func createLehrkraftAccount(t *testing.T, db *bun.DB, service auth.AuthService, 
 // missingAccountID is an id no fixture ever produces — used for the
 // "account vanished between challenge and exchange" gates.
 const missingAccountID int64 = 999999999
+
+// switchIP / switchUserAgent stand in for the request metadata the handler
+// threads into SwitchSchool. They must be non-empty: generateAndLogTokens
+// skips the audit write entirely when the IP is empty, so passing "" here
+// would make the audit assertions below vacuous.
+const (
+	switchIP        = "203.0.113.10"
+	switchUserAgent = "school-portal-test-agent"
+)
+
+// requireAuthEventEventually waits for an audit.auth_events row of the given
+// type for the account AT the tenant — the school flows must attribute their
+// events to the school they actually acted on, not to the account's oldest
+// mapping. logAuthEvent writes from a detached goroutine, hence the polling.
+func requireAuthEventEventually(t *testing.T, db *bun.DB, accountID, tenantID int64, eventType string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		count, err := db.NewSelect().
+			TableExpr("audit.auth_events").
+			Where("account_id = ?", accountID).
+			Where("tenant_id = ?", tenantID).
+			Where("event_type = ?", eventType).
+			Count(context.Background())
+		return err == nil && count > 0
+	}, 5*time.Second, 25*time.Millisecond,
+		"expected a %q audit event for account %d at tenant %d", eventType, accountID, tenantID)
+}
 
 // setAccountActive flips auth.accounts.active for the deactivation gates.
 func setAccountActive(t *testing.T, db *bun.DB, accountID int64, active bool) {
@@ -227,7 +256,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	testpkg.MapAccountToTenant(t, db, accountID, tenantB)
 
 	t.Run("mapping without portal role at target is refused", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), accountID, slugB)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent)
 		require.Error(t, err)
 		var authErr *auth.AuthError
 		require.ErrorAs(t, err, &authErr)
@@ -237,13 +266,18 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	t.Run("portal role at target switches the pinned school", func(t *testing.T) {
 		testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantB)
 
-		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, slugB)
+		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, slugB, switchIP, switchUserAgent)
 		require.NoError(t, err)
 		require.NotEmpty(t, refreshToken)
 
 		scope, tokenTenantID := decodeTokenClaims(t, accessToken)
 		assert.Equal(t, tenant.ScopeSchool, scope)
 		assert.Equal(t, tenantB, tokenTenantID)
+
+		// The switch must leave a trace at the TARGET school. Without the
+		// request IP reaching generateAndLogTokens this event is silently
+		// never written — a school switch that nothing records.
+		requireAuthEventEventually(t, db, accountID, tenantB, audit.EventTypeTenantSwitch)
 	})
 }
 
@@ -533,7 +567,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 	_, accountID := createLehrkraftAccount(t, db, service, "school-switch-gates", tenantID)
 
 	t.Run("unknown account", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, slug)
+		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, slug, switchIP, switchUserAgent)
 
 		require.Error(t, err)
 		var authErr *auth.AuthError
@@ -545,7 +579,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 		setAccountActive(t, db, accountID, false)
 		defer setAccountActive(t, db, accountID, true)
 
-		_, _, err := service.SwitchSchool(context.Background(), accountID, slug)
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent)
 
 		require.Error(t, err)
 		var authErr *auth.AuthError
@@ -554,7 +588,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 	})
 
 	t.Run("unknown slug", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), accountID, "definitely-no-such-school")
+		_, _, err := service.SwitchSchool(context.Background(), accountID, "definitely-no-such-school", switchIP, switchUserAgent)
 
 		require.Error(t, err)
 		var authErr *auth.AuthError
@@ -634,7 +668,7 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 	})
 
 	t.Run("school switch", func(t *testing.T) {
-		_, _, switchErr := service.SwitchSchool(context.Background(), accountID, slug)
+		_, _, switchErr := service.SwitchSchool(context.Background(), accountID, slug, switchIP, switchUserAgent)
 
 		require.Error(t, switchErr)
 		var authErr *auth.AuthError

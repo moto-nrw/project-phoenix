@@ -122,6 +122,11 @@ type AccountRoleRepository interface {
 	base.CRUDRepository[*AccountRole]
 	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountRole, error)
 	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
+	// FindByAccountIDForTenantForShare is FindByAccountIDForTenant with a FOR
+	// SHARE row lock. Transaction-only: it lets a caller re-check a role and
+	// write in the same transaction without a concurrent revocation slipping
+	// in between.
+	FindByAccountIDForTenantForShare(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
@@ -369,6 +374,11 @@ type AccountTenantRepository interface {
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
+	// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
+	// FOR SHARE row lock. Transaction-only: it blocks a concurrent Deactivate
+	// until the caller's transaction commits, which is what makes a
+	// membership check and a token write in that transaction atomic.
+	ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)

@@ -121,8 +121,10 @@ type AuthService interface {
 	SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
 	// SwitchSchool is the school-portal sibling of SwitchTenant (#2207):
 	// re-authenticates a school-scope session to another school where the
-	// account holds a school-portal role.
-	SwitchSchool(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
+	// account holds a school-portal role. ipAddress/userAgent are required for
+	// the tenant_switch audit event — the audit write is skipped when the IP
+	// is empty.
+	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 
 	// Multi-Tenant Account Linking
 	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error)

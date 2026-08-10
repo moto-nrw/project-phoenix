@@ -873,6 +873,10 @@ func (noopAccountRoleRepository) FindByAccountIDForTenant(context.Context, int64
 	panic("FindByAccountIDForTenant not implemented")
 }
 
+func (noopAccountRoleRepository) FindByAccountIDForTenantForShare(context.Context, int64, int64) ([]*authModel.AccountRole, error) {
+	panic("FindByAccountIDForTenantForShare not implemented")
+}
+
 func (noopAccountRoleRepository) FindByRoleID(context.Context, int64) ([]*authModel.AccountRole, error) {
 	panic("FindByRoleID not implemented")
 }
@@ -945,6 +949,12 @@ func (r *stubAccountRoleRepository) FindByAccountIDForTenant(_ context.Context, 
 		}
 	}
 	return roles, nil
+}
+
+// FindByAccountIDForTenantForShare mirrors the unlocked variant — the stub has
+// no transactions, so the FOR SHARE lock has nothing to model here.
+func (r *stubAccountRoleRepository) FindByAccountIDForTenantForShare(ctx context.Context, accountID, tenantID int64) ([]*authModel.AccountRole, error) {
+	return r.FindByAccountIDForTenant(ctx, accountID, tenantID)
 }
 
 func (r *stubAccountRoleRepository) Assignments() []*authModel.AccountRole {
@@ -1246,6 +1256,12 @@ func (r *stubAccountTenantRepository) ExistsByAccountAndTenant(_ context.Context
 		}
 	}
 	return false, nil
+}
+
+// ExistsActiveByAccountAndTenantForShare mirrors the unlocked variant — the
+// stub has no transactions, so the FOR SHARE lock has nothing to model here.
+func (r *stubAccountTenantRepository) ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	return r.ExistsByAccountAndTenant(ctx, accountID, tenantID)
 }
 
 func (r *stubAccountTenantRepository) ListAccountsByTenantID(context.Context, int64) ([]authModel.TenantAccountInfo, error) {
