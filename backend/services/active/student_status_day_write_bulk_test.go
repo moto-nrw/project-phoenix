@@ -94,6 +94,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	var conflictErr *StudentStatusDayConflictError
 	require.ErrorAs(t, err, &conflictErr)
 	require.Len(t, conflictErr.Conflicts, 1)
+	assert.Equal(t, 1, conflictErr.ConflictTotal())
 	assert.Equal(t, withConflict.ID, conflictErr.Conflicts[0].StudentID)
 	assert.Equal(t, conflictDate, conflictErr.Conflicts[0].Date)
 	assert.Equal(t, activeModels.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
@@ -109,6 +110,22 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 		}
 		assert.Empty(t, rows, "clear student must not receive any rows on conflict")
 	}
+}
+
+func TestStudentStatusDayConflictError_SampleAndTotal(t *testing.T) {
+	rows := make([]*activeModels.StudentStatusDay, 0, MaxStudentStatusDayConflictDetails+5)
+	for i := 0; i < MaxStudentStatusDayConflictDetails+5; i++ {
+		rows = append(rows, &activeModels.StudentStatusDay{StudentID: int64(i + 1)})
+	}
+
+	capped := &StudentStatusDayConflictError{Conflicts: rows, Total: 100}
+	assert.Equal(t, 100, capped.ConflictTotal())
+	assert.Len(t, capped.SampleConflicts(), MaxStudentStatusDayConflictDetails)
+	assert.Equal(t, int64(1), capped.SampleConflicts()[0].StudentID)
+
+	uncapped := &StudentStatusDayConflictError{Conflicts: rows[:3]}
+	assert.Equal(t, 3, uncapped.ConflictTotal())
+	assert.Len(t, uncapped.SampleConflicts(), 3)
 }
 
 // Mixed-scope bulk status writes must fail closed before any row lands.

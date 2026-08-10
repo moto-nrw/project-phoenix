@@ -21,15 +21,47 @@ import (
 // transaction. Handlers map it to 403.
 var ErrStudentStatusDayReassigned = errors.New("student reassigned out of caller scope")
 
+// MaxStudentStatusDayConflictDetails is the maximum number of conflict rows
+// returned in a 409 response body. Larger totals are reported via Total only so
+// bulk class-trip writes cannot serialize tens of thousands of rows.
+const MaxStudentStatusDayConflictDetails = 32
+
 // StudentStatusDayConflictError reports active rows that prevented an atomic
 // planned-status write. Callers must surface these rows to the user instead of
-// clearing or replacing them.
+// clearing or replacing them. Conflicts may be a capped sample; Total is the
+// full count when set (or len(Conflicts) when zero).
 type StudentStatusDayConflictError struct {
 	Conflicts []*activeModels.StudentStatusDay
+	// Total is the full conflict count before sampling. Zero means "use
+	// len(Conflicts)" for single-student writes that return the full set.
+	Total int
 }
 
 func (e *StudentStatusDayConflictError) Error() string {
 	return "student status days conflict with active rows"
+}
+
+// ConflictTotal returns the full conflict count for API payloads.
+func (e *StudentStatusDayConflictError) ConflictTotal() int {
+	if e == nil {
+		return 0
+	}
+	if e.Total > 0 {
+		return e.Total
+	}
+	return len(e.Conflicts)
+}
+
+// SampleConflicts returns at most MaxStudentStatusDayConflictDetails rows for
+// a 409 body. Bulk writers should already keep Conflicts within this bound.
+func (e *StudentStatusDayConflictError) SampleConflicts() []*activeModels.StudentStatusDay {
+	if e == nil {
+		return nil
+	}
+	if len(e.Conflicts) <= MaxStudentStatusDayConflictDetails {
+		return e.Conflicts
+	}
+	return e.Conflicts[:MaxStudentStatusDayConflictDetails]
 }
 
 // StatusDayWriteContext carries the collaborators the status-day write
@@ -121,17 +153,31 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 		}
 
 		// Phase 2: preflight every student/date pair so no existing sick,
-		// excused, or class-trip row is cleared or overwritten.
-		conflicts := make([]*activeModels.StudentStatusDay, 0)
+		// excused, or class-trip row is cleared or overwritten. Keep only a
+		// sample of rows for the 409 body; Total carries the full count.
+		conflictSamples := make([]*activeModels.StudentStatusDay, 0, MaxStudentStatusDayConflictDetails)
+		conflictTotal := 0
 		for _, studentID := range sortedIDs {
 			studentConflicts, err := s.findRequestedActiveConflicts(ctx, studentID, dates)
 			if err != nil {
 				return err
 			}
-			conflicts = append(conflicts, studentConflicts...)
+			conflictTotal += len(studentConflicts)
+			remaining := MaxStudentStatusDayConflictDetails - len(conflictSamples)
+			if remaining <= 0 {
+				continue
+			}
+			if len(studentConflicts) > remaining {
+				conflictSamples = append(conflictSamples, studentConflicts[:remaining]...)
+			} else {
+				conflictSamples = append(conflictSamples, studentConflicts...)
+			}
 		}
-		if len(conflicts) > 0 {
-			return &StudentStatusDayConflictError{Conflicts: conflicts}
+		if conflictTotal > 0 {
+			return &StudentStatusDayConflictError{
+				Conflicts: conflictSamples,
+				Total:     conflictTotal,
+			}
 		}
 
 		// Phase 3: write only after the full selection is in scope and clear.

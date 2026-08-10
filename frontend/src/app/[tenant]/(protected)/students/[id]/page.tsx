@@ -945,6 +945,9 @@ function StudentDetailPageContent() {
         error: err instanceof Error ? err.message : String(err),
       });
       toast.error("Geplanter Status konnte nicht entfernt werden");
+      // Re-throw so the modal does not clear local conflict state for a
+      // delete that never landed on the server.
+      throw err;
     } finally {
       setDeletingPlannedStatusDayId(null);
     }

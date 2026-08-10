@@ -658,6 +658,60 @@ describe("PlannedStatusDaysModal", () => {
     ]);
   });
 
+  it("keeps out-of-window conflicts when delete fails", async () => {
+    const unseenConflict: StudentStatusDay = {
+      ...existingDays[1]!,
+      id: "3",
+      date: "2027-01-02",
+      status: "sick",
+    };
+    const loadExistingDays = vi.fn().mockResolvedValue([unseenConflict]);
+    const onDeleteStatusDay = vi
+      .fn()
+      .mockRejectedValue(new Error("delete failed"));
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadExistingDays}
+        onSubmit={onSubmit}
+        onDeleteStatusDay={onDeleteStatusDay}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2027-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2027-01-03" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "02.01.2027 (krank): 1 von 3 Tagen hat bereits einen Status",
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    await waitFor(() => {
+      expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "02.01.2027 (krank): 1 von 3 Tagen hat bereits einen Status",
+    );
+
+    await clickEnabledButton("Entschuldigen");
+    expect(onSubmit).toHaveBeenCalledWith(["2027-01-01", "2027-01-03"]);
+  });
+
   it("does not list intervening statuses for non-contiguous individual picks", async () => {
     // Selected mock dates are 26 + 28; a status only on 27 must not surface.
     const intervening: StudentStatusDay = {

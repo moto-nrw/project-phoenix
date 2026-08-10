@@ -19,6 +19,8 @@ interface ApiResponse<T> {
   status: string;
   data?: T;
   conflicts?: T;
+  /** Full conflict count when `conflicts` is a capped sample. */
+  conflict_count?: number;
   message?: string;
   error?: string;
 }
@@ -47,12 +49,27 @@ function mapStatusDay(row: BackendStudentStatusDay): StudentStatusDay {
 
 export class StudentStatusDayConflictError extends Error {
   readonly conflicts: StudentStatusDay[];
+  /** Full conflict count; may exceed `conflicts.length` when the API capped samples. */
+  readonly totalCount: number;
 
-  constructor(conflicts: StudentStatusDay[]) {
+  constructor(conflicts: StudentStatusDay[], totalCount?: number) {
     super("Vorhandene Status-Tage wurden nicht überschrieben");
     this.name = "StudentStatusDayConflictError";
     this.conflicts = conflicts;
+    this.totalCount = totalCount ?? conflicts.length;
   }
+}
+
+function parseConflictError(
+  result: ApiResponse<BackendStudentStatusDay[]>,
+): StudentStatusDayConflictError {
+  const conflicts = (result.conflicts ?? result.data ?? []).map(mapStatusDay);
+  const totalCount =
+    typeof result.conflict_count === "number" &&
+    Number.isFinite(result.conflict_count)
+      ? result.conflict_count
+      : conflicts.length;
+  return new StudentStatusDayConflictError(conflicts, totalCount);
 }
 
 async function parseApiResult<T>(
@@ -103,9 +120,7 @@ export async function createStudentStatusDays(
     const result = (await response.json()) as ApiResponse<
       BackendStudentStatusDay[]
     >;
-    throw new StudentStatusDayConflictError(
-      (result.conflicts ?? result.data ?? []).map(mapStatusDay),
-    );
+    throw parseConflictError(result);
   }
   if (!response.ok) {
     throw new Error("Geplante Einträge konnten nicht gespeichert werden");
@@ -137,9 +152,7 @@ export async function bulkCreateStudentStatusDays(
     const result = (await response.json()) as ApiResponse<
       BackendStudentStatusDay[]
     >;
-    throw new StudentStatusDayConflictError(
-      (result.conflicts ?? result.data ?? []).map(mapStatusDay),
-    );
+    throw parseConflictError(result);
   }
   if (!response.ok) {
     throw new Error("Klassenfahrt konnte nicht gespeichert werden");

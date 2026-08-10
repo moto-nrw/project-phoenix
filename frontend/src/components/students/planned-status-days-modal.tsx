@@ -371,12 +371,17 @@ export function PlannedStatusDaysModal({
     }
   };
 
-  // Drop the row from the local conflict check immediately. Out-of-window
-  // deletes never touch the parent SWR range, so fingerprint refresh alone
-  // would leave the date blocked until the modal reopens.
+  // Drop the row from the local conflict check only after the caller confirms
+  // deletion. Out-of-window deletes never touch the parent SWR range, so a
+  // local clear is required on success; a failed delete must keep the row.
+  // The caller owns the user-facing error toast, so failures are swallowed here.
   const handleDeleteStatusDay = async (statusDayId: string) => {
     if (!onDeleteStatusDay) return;
-    await onDeleteStatusDay(statusDayId);
+    try {
+      await onDeleteStatusDay(statusDayId);
+    } catch {
+      return;
+    }
     setCheckedExistingDays((current) =>
       current.filter((day) => day.id !== statusDayId),
     );

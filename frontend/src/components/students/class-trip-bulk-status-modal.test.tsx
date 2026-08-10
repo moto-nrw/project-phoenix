@@ -172,7 +172,7 @@ describe("ClassTripBulkStatusModal", () => {
   });
 
   it("caps bulk conflict details and falls back to student.name", async () => {
-    const manyConflicts = Array.from({ length: 12 }, (_, index) => ({
+    const manyConflicts = Array.from({ length: 8 }, (_, index) => ({
       id: String(index + 1),
       student_id: "99",
       date: `2026-05-${String(index + 1).padStart(2, "0")}`,
@@ -184,8 +184,9 @@ describe("ClassTripBulkStatusModal", () => {
       created_at: "2026-05-01T08:00:00Z",
       updated_at: "2026-05-01T08:00:00Z",
     }));
+    // Backend may return a capped sample with a higher total count.
     vi.mocked(bulkCreateStudentStatusDays).mockRejectedValueOnce(
-      new StudentStatusDayConflictError(manyConflicts),
+      new StudentStatusDayConflictError(manyConflicts, 48),
     );
 
     render(
@@ -210,11 +211,11 @@ describe("ClassTripBulkStatusModal", () => {
 
     await waitFor(() => {
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent("12 Konflikte");
+      expect(alert).toHaveTextContent("48 Konflikte");
       expect(alert).toHaveTextContent("Nur Name: 01.05.2026 (krank)");
-      expect(alert).toHaveTextContent("und 4 weitere");
+      expect(alert).toHaveTextContent("und 40 weitere");
       expect(alert).not.toHaveTextContent("undefined");
-      expect(alert).not.toHaveTextContent("13.05.2026");
+      expect(alert).not.toHaveTextContent("09.05.2026");
     });
   });
 });

@@ -84,11 +84,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 				w,
 				r,
 				http.StatusConflict,
-				map[string]any{
-					"status":    "error",
-					"error":     "existing student status days were not overwritten",
-					"conflicts": newStudentStatusDayConflictResponses(conflictErr.Conflicts),
-				},
+				statusDayConflictResponse(conflictErr),
 			)
 			return
 		}
@@ -151,11 +147,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 				w,
 				r,
 				http.StatusConflict,
-				map[string]any{
-					"status":    "error",
-					"error":     "existing student status days were not overwritten",
-					"conflicts": newStudentStatusDayConflictResponses(conflictErr.Conflicts),
-				},
+				statusDayConflictResponse(conflictErr),
 			)
 			return
 		}
@@ -291,6 +283,17 @@ func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
 		dates = append(dates, date)
 	}
 	return dates
+}
+
+// statusDayConflictResponse builds the shared 409 body for single and bulk
+// planned-status writes: a capped conflict sample plus the full total.
+func statusDayConflictResponse(conflictErr *activeService.StudentStatusDayConflictError) map[string]any {
+	return map[string]any{
+		"status":         "error",
+		"error":          "existing student status days were not overwritten",
+		"conflicts":      newStudentStatusDayConflictResponses(conflictErr.SampleConflicts()),
+		"conflict_count": conflictErr.ConflictTotal(),
+	}
 }
 
 func applyLiveStatusForToday(student *users.Student, status string, now time.Time) {

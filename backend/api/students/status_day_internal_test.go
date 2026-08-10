@@ -368,6 +368,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	assert.Contains(t, repeatedSickRR.Body.String(), `"status":"error"`)
 	assert.Contains(t, repeatedSickRR.Body.String(), `"conflicts":[`)
 	assert.Contains(t, repeatedSickRR.Body.String(), `"status":"sick"`)
+	assert.Contains(t, repeatedSickRR.Body.String(), `"conflict_count":1`)
 	assert.Len(t, notifier.reports, 1, "re-saving the same absence must not notify twice")
 
 	fresh, err := resource.PersonService.GetStudentByID(testpkg.TenantContext(1), student.ID)

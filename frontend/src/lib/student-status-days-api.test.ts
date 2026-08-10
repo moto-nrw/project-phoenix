@@ -180,6 +180,7 @@ describe("student-status-days-api", () => {
           status: "error",
           error: "existing student status days were not overwritten",
           conflicts: [backendDay],
+          conflict_count: 48,
         },
         { status: 409 },
       ),
@@ -201,6 +202,7 @@ describe("student-status-days-api", () => {
         status: "excused",
       }),
     ]);
+    expect((error as StudentStatusDayConflictError).totalCount).toBe(48);
   });
 
   it("throws backend errors from successful HTTP responses", async () => {

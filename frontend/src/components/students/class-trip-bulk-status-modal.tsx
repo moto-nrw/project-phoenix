@@ -45,6 +45,7 @@ export function ClassTripBulkStatusModal({
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [conflicts, setConflicts] = useState<StudentStatusDay[]>([]);
+  const [conflictTotal, setConflictTotal] = useState(0);
 
   useEffect(() => {
     if (!isOpen) {
@@ -56,6 +57,7 @@ export function ClassTripBulkStatusModal({
     setTo(today);
     setReason("");
     setConflicts([]);
+    setConflictTotal(0);
   }, [isOpen]);
 
   const handleSubmit = async () => {
@@ -66,6 +68,7 @@ export function ClassTripBulkStatusModal({
 
     setSaving(true);
     setConflicts([]);
+    setConflictTotal(0);
     try {
       await bulkCreateStudentStatusDays(
         students.map((student) => student.id),
@@ -80,6 +83,7 @@ export function ClassTripBulkStatusModal({
     } catch (err) {
       if (err instanceof StudentStatusDayConflictError) {
         setConflicts(err.conflicts);
+        setConflictTotal(err.totalCount);
         toastError(
           "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
         );
@@ -178,7 +182,11 @@ export function ClassTripBulkStatusModal({
         {conflicts.length > 0 ? (
           <Alert
             type="warning"
-            message={formatBulkConflictMessage(conflicts, students)}
+            message={formatBulkConflictMessage(
+              conflicts,
+              students,
+              conflictTotal,
+            )}
           />
         ) : null}
       </div>
@@ -191,11 +199,12 @@ const MAX_BULK_CONFLICT_DETAILS = 8;
 function formatBulkConflictMessage(
   conflicts: StudentStatusDay[],
   students: Student[],
+  totalCount: number,
 ): string {
   const studentNameById = new Map(
     students.map((student) => [student.id, studentDisplayName(student)]),
   );
-  const total = conflicts.length;
+  const total = Math.max(totalCount, conflicts.length);
   const shown = conflicts.slice(0, MAX_BULK_CONFLICT_DETAILS);
   const details = shown
     .map((day) => {
