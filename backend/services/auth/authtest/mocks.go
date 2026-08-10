@@ -29,6 +29,7 @@ import (
 type MFAServiceMock struct {
 	IsRequiredFn                   func(ctx context.Context, account *authModels.Account, tenantID int64) (bool, error)
 	ResolvePolicyFn                func(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error)
+	ResolvePolicyInTxFn            func(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error)
 	HasEnrollmentFn                func(ctx context.Context, accountID int64) (bool, error)
 	AccountBelongsToTenantFn       func(ctx context.Context, accountID, tenantID int64) (bool, error)
 	StartChallengeFn               func(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
@@ -82,6 +83,17 @@ func (m *MFAServiceMock) ResolvePolicy(ctx context.Context, accountID, tenantID 
 		return svcauth.MFAPolicyForced(required), nil
 	}
 	return svcauth.MFAPolicy{}, nil
+}
+
+// ResolvePolicyInTx falls back to ResolvePolicy so a mock that describes one
+// MFA state describes it on both sides of the mint transaction — a test that
+// configures "MFA required" must not see the guard's in-transaction re-read
+// answer "off".
+func (m *MFAServiceMock) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error) {
+	if m.ResolvePolicyInTxFn != nil {
+		return m.ResolvePolicyInTxFn(ctx, accountID, tenantID)
+	}
+	return m.ResolvePolicy(ctx, accountID, tenantID)
 }
 
 func (m *MFAServiceMock) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -698,6 +699,19 @@ func adminSystemRoleID(t *testing.T, db *bun.DB) int64 {
 	return roleID
 }
 
+// staticPolicyResolver is the resolver a mint guard gets in tests that only
+// care about the verdict. It records the context it was called with so a test
+// can assert WHERE the policy was read — inside the mint transaction, not
+// before it.
+func staticPolicyResolver(policy MFAPolicy, calls *[]context.Context) mfaPolicyResolver {
+	return func(ctx context.Context) (MFAPolicy, error) {
+		if calls != nil {
+			*calls = append(*calls, ctx)
+		}
+		return policy, nil
+	}
+}
+
 func TestSchoolMintGuard_MFARequirementAppearingMidLogin_AbortsMint(t *testing.T) {
 	// The finding this pins: the MFA gate ran BEFORE the mint transaction and
 	// was never revisited. Under `required_admins` an admin role granted after
@@ -707,7 +721,7 @@ func TestSchoolMintGuard_MFARequirementAppearingMidLogin_AbortsMint(t *testing.T
 	assignAdminRoleAtTenant(t, db, account.ID, tenantID)
 
 	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
-		withMFAGateRecheck(MFAPolicyForMode(configModels.MFAModeRequiredAdmins)))
+		withMFAGateRecheck(staticPolicyResolver(MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil)))
 
 	require.ErrorIs(t, guardErr, errSchoolMFARequiredAtMint)
 	assert.Nil(t, claims, "an aborted mint must not publish claims")
@@ -720,11 +734,46 @@ func TestSchoolMintGuard_MFARecheckPassesForNonAdmin(t *testing.T) {
 	service, db, account, tenantID := newMintGuardFixture(t)
 
 	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
-		withMFAGateRecheck(MFAPolicyForMode(configModels.MFAModeRequiredAdmins)))
+		withMFAGateRecheck(staticPolicyResolver(MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil)))
 
 	require.NoError(t, guardErr)
 	require.NotNil(t, claims)
 	assert.Equal(t, tenant.ScopeSchool, claims.scope)
+}
+
+func TestSchoolMintGuard_MFAPolicyIsReadInsideTheMintTransaction(t *testing.T) {
+	// A policy resolved BEFORE the transaction is the stale input the re-check
+	// exists to replace: a school switching security.mfa_mode from off to
+	// required mid-login would otherwise be evaluated against "off". The guard
+	// must therefore RESOLVE, not merely re-apply — and it must do so on the
+	// transaction whose locks make the answer binding.
+	service, db, account, tenantID := newMintGuardFixture(t)
+
+	var seen []context.Context
+	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
+		withMFAGateRecheck(staticPolicyResolver(MFAPolicyForMode(configModels.MFAModeOff), &seen)))
+
+	require.NoError(t, guardErr)
+	require.NotNil(t, claims)
+	require.Len(t, seen, 1, "the policy must be resolved exactly once per mint")
+	tx, ok := modelBase.TxFromContext(seen[0])
+	assert.True(t, ok && tx != nil,
+		"the policy must be resolved on the mint transaction, not from a pre-transaction snapshot")
+}
+
+func TestSchoolMintGuard_UnreadableMFAPolicyFailsClosed(t *testing.T) {
+	// Fail-closed, exactly like the pre-transaction gate: if the policy cannot
+	// be read we do not know whether a second factor is owed, so this mint is
+	// refused with the 503 sentinel instead of proceeding as "not required".
+	service, db, account, tenantID := newMintGuardFixture(t)
+
+	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
+		withMFAGateRecheck(func(context.Context) (MFAPolicy, error) {
+			return MFAPolicy{}, errors.New("settings unavailable")
+		}))
+
+	require.ErrorIs(t, guardErr, ErrMFAStatusUnavailable)
+	assert.Nil(t, claims, "an aborted mint must not publish claims")
 }
 
 func TestSchoolMintGuard_WithoutRecheckAdminRoleStillMints(t *testing.T) {

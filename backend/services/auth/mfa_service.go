@@ -106,10 +106,22 @@ type MFAService interface {
 	IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error)
 	// ResolvePolicy is IsRequired with the role predicate left unapplied: it
 	// performs the database reads (admin overrides, security.mfa_mode) and
-	// hands back a pure MFAPolicy. Callers that must re-decide the gate
-	// against a role set they hold a lock on — the school mint guard —
-	// resolve the policy before the transaction and apply it inside.
+	// hands back a pure MFAPolicy, ready to be applied to a concrete role set.
 	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
+	// ResolvePolicyInTx is ResolvePolicy for a caller that is already inside a
+	// transaction and must re-decide the gate there: it reads the overrides on
+	// the ambient transaction and the tenant's mfa_mode past every cache, so
+	// the verdict reflects committed state as of NOW rather than whatever the
+	// same request resolved before the transaction opened.
+	//
+	// The school mint guard uses it. Re-applying the policy the login had
+	// already resolved was not enough: an admin switching security.mfa_mode
+	// from off to required while a login is in flight left the guard
+	// evaluating the stale "off" and minting a session with no second factor.
+	//
+	// Requires an ambient phoenix_admin transaction (the token mint runs in
+	// one); see config.SettingsService.ResolveStringForTenantInTx.
+	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
 	// AccountBelongsToTenant reports whether the account has a tenant mapping
 	// for the given school — the operator MFA admin endpoints gate on this
@@ -324,12 +336,13 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 // database (admin overrides, the tenant's security.mfa_mode) resolved once,
 // and the role predicate left as a pure function of a role set.
 //
-// The split exists because the roles are the one input that can change while a
-// login is in flight. The school-portal mint guard re-evaluates the gate under
-// the account lock it already holds (see schoolMintGuard): an admin role
-// granted after `required_admins` came back false must not slip a session
-// through without a second factor. Re-running IsRequired in there is not an
-// option — it opens its own transaction, and the guard is already inside one.
+// The split exists because the school-portal mint guard has to settle the gate
+// under the account lock it already holds (see schoolMintGuard): it resolves
+// the policy freshly in its own transaction (ResolvePolicyInTx) and applies it
+// to the role set it read under that lock. Both halves can change while a
+// login is in flight — an admin role granted after `required_admins` came back
+// false, or the tenant's mfa_mode switched on — and neither may slip a session
+// through without a second factor.
 //
 // The zero value requires nothing, which is what a nil MFA service means.
 type MFAPolicy struct {
@@ -399,6 +412,18 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 // can't tell whether the override is force_off, we must not silently
 // honor it.
 func (s *mfaService) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
+	return s.resolvePolicy(ctx, accountID, tenantID, false)
+}
+
+// ResolvePolicyInTx re-resolves the policy from inside the caller's
+// transaction, past the request-scoped settings cache — see the interface doc.
+// Same reads, same fail-closed semantics; only the transaction handling and
+// the cache bypass differ.
+func (s *mfaService) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
+	return s.resolvePolicy(ctx, accountID, tenantID, true)
+}
+
+func (s *mfaService) resolvePolicy(ctx context.Context, accountID, tenantID int64, inTx bool) (MFAPolicy, error) {
 	// Both override lookups must run as phoenix_admin (BYPASSRLS).
 	// The login flow has no tenant transaction yet, so app.current_tenant_id
 	// is unset and the RLS policy on auth.mfa_overrides hides every
@@ -411,7 +436,13 @@ func (s *mfaService) ResolvePolicy(ctx context.Context, accountID, tenantID int6
 		global         *auth.MFAOverride
 		tenantOverride *auth.MFAOverride
 	)
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	// In-transaction resolution reuses the caller's admin transaction
+	// (WithAdminTxOrDirect) instead of opening a second one: taking another
+	// pooled connection while the mint transaction holds one risks exhausting
+	// the pool, and a statement in the caller's own transaction already sees
+	// everything committed up to now, which is exactly the freshness the
+	// re-read is for.
+	loadOverrides := func(txCtx context.Context) error {
 		var err error
 		global, err = s.Repos.MFAOverride.FindGlobal(txCtx, accountID)
 		if err != nil {
@@ -424,7 +455,15 @@ func (s *mfaService) ResolvePolicy(ctx context.Context, accountID, tenantID int6
 			}
 		}
 		return nil
-	})
+	}
+	var txErr error
+	if inTx {
+		txErr = tenant.WithAdminTxOrDirect(ctx, s.DB, loadOverrides)
+	} else {
+		txErr = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+			return loadOverrides(txCtx)
+		})
+	}
 	if txErr != nil {
 		s.Logger.Warn("mfa override lookup failed; refusing login",
 			slog.Int64("account_id", accountID),
@@ -460,9 +499,15 @@ func (s *mfaService) ResolvePolicy(ctx context.Context, accountID, tenantID int6
 			val string
 			err error
 		)
-		if tenantID > 0 {
+		switch {
+		case tenantID > 0 && inTx:
+			// Past the request-scoped memo cache: the same request already
+			// resolved this key before the transaction opened, and returning
+			// that memoized value would make the re-read a no-op.
+			val, err = s.Settings.ResolveStringForTenantInTx(ctx, tenantID, configModel.KeyMFAMode)
+		case tenantID > 0:
 			val, err = s.Settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyMFAMode)
-		} else {
+		default:
 			val, err = s.Settings.ResolveString(ctx, configModel.KeyMFAMode)
 		}
 		if err != nil {

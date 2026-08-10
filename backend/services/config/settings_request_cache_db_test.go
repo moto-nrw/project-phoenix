@@ -81,6 +81,65 @@ func TestSlotListCutoffWriteSeesConcurrentCommitDespiteRequestCache(t *testing.T
 	require.True(t, errors.As(err, &invalid), "expected InvalidValueError, got %v", err)
 }
 
+// TestResolveStringForTenantInTxBypassesRequestCache is the #2207 regression:
+// the school mint guard re-reads security.mfa_mode inside its token
+// transaction to catch a school switching MFA on mid-login. Every other
+// resolve path is memoized per request — and the same request already read
+// that key at the login gate — so a cached re-read would hand the guard back
+// exactly the stale verdict it exists to replace.
+func TestResolveStringForTenantInTxBypassesRequestCache(t *testing.T) {
+	db, tenantID, service := setupRequestCacheDBTest(t)
+	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
+
+	// The login gate reads the mode and memoizes "off" for this request.
+	requestCtx := configService.WithSettingsRequestCache(context.Background())
+	mode, err := service.ResolveStringForTenant(requestCtx, tenantID, config.KeyMFAMode)
+	require.NoError(t, err)
+	require.Equal(t, config.MFAModeOff, mode)
+
+	// An admin switches the school to required_all while the login is in flight.
+	repository := configRepository.NewSettingValueRepository(db)
+	override := &config.SettingValue{
+		SettingKey: config.KeyMFAMode,
+		Value:      json.RawMessage(`"` + config.MFAModeRequiredAll + `"`),
+	}
+	override.SetTenantID(tenantID)
+	require.NoError(t, repository.Upsert(
+		tenant.WithTenantID(context.Background(), tenantID), override,
+	))
+
+	// The cached path still answers with the pre-flip value...
+	cached, err := service.ResolveStringForTenant(requestCtx, tenantID, config.KeyMFAMode)
+	require.NoError(t, err)
+	require.Equal(t, config.MFAModeOff, cached,
+		"precondition: the request cache still serves the stale value")
+
+	// ...while the in-transaction read, on the mint's own transaction, sees the
+	// committed state and refuses to mint an MFA-free session.
+	err = tenant.WithAdminTx(requestCtx, db, func(txCtx context.Context, _ bun.Tx) error {
+		fresh, resolveErr := service.ResolveStringForTenantInTx(txCtx, tenantID, config.KeyMFAMode)
+		require.NoError(t, resolveErr)
+		assert.Equal(t, config.MFAModeRequiredAll, fresh,
+			"the in-transaction re-read must observe the concurrent commit")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestResolveStringForTenantInTxRequiresTransaction pins the guard rail: read
+// outside a transaction, the query runs under the request's own role, where
+// RLS on config.setting_values hides every row and the caller would silently
+// be told the school has no override at all. That must be an error, not a
+// wrong answer.
+func TestResolveStringForTenantInTxRequiresTransaction(t *testing.T) {
+	_, tenantID, service := setupRequestCacheDBTest(t)
+	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
+
+	_, err := service.ResolveStringForTenantInTx(context.Background(), tenantID, config.KeyMFAMode)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ambient transaction")
+}
+
 // TestLockClassCollectionPairFlushesGradeLevelMax pins the whole-bucket flush:
 // the enrollment phase guard reads enrollment.grade_level_max under
 // LockClassCollectionPair, a key outside the class-collection toggle pair. A

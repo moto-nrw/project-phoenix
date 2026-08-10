@@ -130,27 +130,35 @@ func (r *PermissionRepository) FindByAccountIDForTenant(ctx context.Context, acc
 // UPDATE) and take these locks AFTER the account-role read, matching the order
 // every revocation path walks (account → roles → permissions; see
 // operator_account_access.go and staff_offboarding.go).
+// Both statements are consumed with Scan into a throwaway slice rather than
+// Exec. A locking SELECT returns rows, and pgdriver's Exec path (readQuery)
+// has no case for the DataRow message — it survives today only because the
+// protocol tag 'D' collides with Describe, which that switch happens to
+// discard. Scanning the rows uses readQueryData, which handles them by
+// contract instead of by coincidence. Do not "simplify" this back to Exec.
 func (r *PermissionRepository) LockAccountPermissionSourcesForTenant(ctx context.Context, accountID int64, tenantID int64) error {
 	db := base.GetDB(ctx, r.db)
 
-	if _, err := db.NewSelect().
+	var lockedDirect []int
+	if err := db.NewSelect().
 		ColumnExpr("1").
 		TableExpr("auth.account_permissions AS ap").
 		Where("ap.account_id = ? AND ap.tenant_id = ?", accountID, tenantID).
 		For("SHARE OF ap").
-		Exec(ctx); err != nil {
+		Scan(ctx, &lockedDirect); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock direct account permissions",
 			Err: err,
 		}
 	}
 
-	if _, err := db.NewSelect().
+	var lockedFromRoles []int
+	if err := db.NewSelect().
 		ColumnExpr("1").
 		TableExpr(rolePermissionsTable+" AS rp").
 		Where(`rp.role_id IN (SELECT ar.role_id FROM auth.account_roles AS ar WHERE ar.account_id = ? AND ar.tenant_id = ?)`, accountID, tenantID).
 		For("SHARE OF rp").
-		Exec(ctx); err != nil {
+		Scan(ctx, &lockedFromRoles); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "lock role permissions",
 			Err: err,

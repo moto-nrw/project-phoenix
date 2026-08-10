@@ -73,13 +73,15 @@ func (s *Service) LoginSchoolWithMFAGate(
 	// errors we refuse THIS login with 503 instead of silently dropping to
 	// "not required".
 	//
-	// The policy is resolved separately from its role predicate so the mint
-	// guard can re-apply it under the account lock — see MFAPolicy.
-	var mfaPolicy MFAPolicy
+	// This verdict decides which BRANCH the login takes (challenge, enrollment,
+	// or straight to the token). It is deliberately NOT carried into the mint:
+	// the policy resolved here is a snapshot of two independently moving inputs
+	// (the account's roles and the school's mfa_mode), so the guard re-resolves
+	// it inside its own transaction instead — see schoolMintGuard.
 	mfaRequired := false
 	if s.mfaService != nil {
-		mfaPolicy, err = s.mfaService.ResolvePolicy(ctx, account.ID, portalTenantID)
-		if err != nil {
+		mfaPolicy, policyErr := s.mfaService.ResolvePolicy(ctx, account.ID, portalTenantID)
+		if policyErr != nil {
 			return nil, &AuthError{Op: "check mfa required", Err: ErrMFAStatusUnavailable}
 		}
 		mfaRequired = mfaPolicy.RequiredFor(account)
@@ -114,14 +116,15 @@ func (s *Service) LoginSchoolWithMFAGate(
 	// so a revocation can no longer land in the gap, and it assembles the
 	// claims there too — see schoolMintGuard.
 	//
-	// It also re-applies the MFA gate, but only where the gate concluded "no
-	// second factor needed": a role granted between that conclusion and the
-	// mint (`required_admins` flipping to true) would otherwise hand out an
-	// admin session that never saw a challenge. When a trusted device satisfied
+	// It also re-decides the MFA gate, but only where the gate concluded "no
+	// second factor needed": both inputs of that verdict can move in the gap —
+	// a role granted (`required_admins` flipping to true) or the school's
+	// mfa_mode switched on — and either would otherwise hand out a session that
+	// never saw a challenge. When a trusted device or an email code satisfied
 	// an MFA requirement, the factor IS proven and nothing is re-decided.
 	guardOpts := []schoolMintOption{}
 	if !mfaRequired && s.mfaService != nil {
-		guardOpts = append(guardOpts, withMFAGateRecheck(mfaPolicy))
+		guardOpts = append(guardOpts, withMFAGateRecheck(s.freshSchoolMFAPolicy(account.ID, portalTenantID)))
 	}
 	var metadata *accountMetadata
 	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, s.schoolMintGuard(account.ID, portalTenantID, &metadata, guardOpts...))
@@ -360,19 +363,35 @@ var errSchoolMFARequiredAtMint = errors.New("mfa became required before the scho
 type schoolMintOption func(*schoolMintChecks)
 
 type schoolMintChecks struct {
-	// mfaPolicy, when set, is re-applied to the role set the guard reads under
+	// resolveMFAPolicy, when set, re-reads the MFA policy inside the mint
+	// transaction; the guard applies the result to the role set it read under
 	// its lock. nil means the second factor is already settled for this mint —
 	// proven by an email code or a trusted device, or (on refresh and school
 	// switch) never gated here in the first place.
-	mfaPolicy *MFAPolicy
+	resolveMFAPolicy mfaPolicyResolver
 }
+
+// mfaPolicyResolver re-reads the MFA policy from inside the mint transaction.
+// A function rather than a resolved MFAPolicy: a policy resolved before the
+// transaction is precisely the stale input this re-check exists to replace.
+type mfaPolicyResolver func(ctx context.Context) (MFAPolicy, error)
 
 // withMFAGateRecheck re-decides the MFA requirement inside the mint
 // transaction. Pass it exactly where the pre-transaction gate concluded "no
-// second factor needed" — that verdict is the one a concurrent role grant can
-// invalidate.
-func withMFAGateRecheck(policy MFAPolicy) schoolMintOption {
-	return func(c *schoolMintChecks) { c.mfaPolicy = &policy }
+// second factor needed" — that verdict is the one a concurrent role grant or
+// mfa_mode change can invalidate.
+func withMFAGateRecheck(resolve mfaPolicyResolver) schoolMintOption {
+	return func(c *schoolMintChecks) { c.resolveMFAPolicy = resolve }
+}
+
+// freshSchoolMFAPolicy is the resolver the school login hands to the guard: it
+// re-reads overrides and the school's mfa_mode on the mint transaction, past
+// the request-scoped settings cache that would otherwise replay the value the
+// login gate already read.
+func (s *Service) freshSchoolMFAPolicy(accountID, tenantID int64) mfaPolicyResolver {
+	return func(ctx context.Context) (MFAPolicy, error) {
+		return s.mfaService.ResolvePolicyInTx(ctx, accountID, tenantID)
+	}
 }
 
 // schoolMintGuard re-verifies the four facts a school session rests on and
@@ -428,11 +447,13 @@ func withMFAGateRecheck(policy MFAPolicy) schoolMintOption {
 // SHARE locks on the rows the permission set is derived from, in the same
 // account → roles → permissions order every revocation path walks.
 //
-// MFA — with checks.mfaPolicy set, the gate itself is re-decided here against
-// the role set read under the lock. The pre-transaction gate answers "no second
-// factor needed" from roles that a concurrent grant can still change; under
-// `required_admins` that is the difference between an admin session that saw a
-// challenge and one that did not.
+// MFA — with checks.resolveMFAPolicy set, the gate itself is re-decided here:
+// the policy is re-READ inside this transaction (past the request-scoped
+// settings cache) and applied to the role set read under the lock. Both of its
+// inputs move independently. Re-applying the policy the login resolved would
+// only have caught the role half; a school switching security.mfa_mode from off
+// to required while the login is in flight would still have produced a session
+// that never saw a challenge. An unreadable policy fails the mint closed.
 //
 // Errors are returned as bare sentinels; createRefreshTokenWithRetryGuarded
 // hands them back untouched and the caller wraps them with its own op.
@@ -464,12 +485,26 @@ func (s *Service) schoolMintGuard(accountID, tenantID int64, claims **accountMet
 		if payloadErr != nil {
 			return payloadErr
 		}
-		if checks.mfaPolicy != nil && checks.mfaPolicy.RequiredFor(account) {
-			s.getLogger().Info("mfa requirement appeared during school login; refusing to mint",
-				slog.Int64("account_id", accountID),
-				slog.Int64("tenant_id", tenantID),
-			)
-			return errSchoolMFARequiredAtMint
+		if checks.resolveMFAPolicy != nil {
+			policy, policyErr := checks.resolveMFAPolicy(ctx)
+			if policyErr != nil {
+				// Fail closed, exactly like the pre-transaction gate: an
+				// unreadable policy must refuse THIS mint (503) rather than
+				// fall through to "no second factor needed".
+				s.getLogger().Warn("mfa policy re-read failed at school token mint; refusing to mint",
+					slog.Int64("account_id", accountID),
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", policyErr.Error()),
+				)
+				return ErrMFAStatusUnavailable
+			}
+			if policy.RequiredFor(account) {
+				s.getLogger().Info("mfa requirement appeared during school login; refusing to mint",
+					slog.Int64("account_id", accountID),
+					slog.Int64("tenant_id", tenantID),
+				)
+				return errSchoolMFARequiredAtMint
+			}
 		}
 		*claims = payload
 		return nil

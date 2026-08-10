@@ -808,6 +808,13 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	// The race is reproduced deterministically by granting the role from
 	// inside the policy lookup — the last thing that happens before the gate
 	// decides, using the roles loaded a moment earlier.
+	//
+	// The grant stays on the PRE-TRANSACTION lookup. The guard's own re-read
+	// runs inside the mint transaction, which holds auth.accounts FOR UPDATE;
+	// an account_roles INSERT from another connection would block on that row's
+	// foreign key there and hang the test instead of exercising it. That is not
+	// a test artifact — it is the reason the in-transaction resolver reads on
+	// the caller's transaction and never opens a second one.
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
@@ -832,6 +839,11 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 			assignment.SetTenantID(tenantID)
 			_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
 			require.NoError(t, err)
+			return auth.MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil
+		},
+		// The guard re-reads the policy inside the mint transaction; the school
+		// still says `required_admins`, and this time it meets the admin role.
+		ResolvePolicyInTxFn: func(context.Context, int64, int64) (auth.MFAPolicy, error) {
 			return auth.MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil
 		},
 		HasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },

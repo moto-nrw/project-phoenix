@@ -263,6 +263,45 @@ func (s *settingsService) ResolveStringForTenant(ctx context.Context, tenantID i
 	return snapshot.String(key)
 }
 
+// ResolveStringForTenantInTx resolves a setting as a string on the caller's
+// already-open transaction, deliberately consulting neither the context
+// snapshot nor the request-scoped memo cache — see the interface doc for why
+// that matters and who needs it.
+//
+// It opens no transaction of its own: the repository read runs on the ambient
+// tx via base.GetDB, so the value is the committed state seen by a statement
+// of THAT transaction, and the caller's locks still hold when it is used. The
+// alternative — resolving through ResolveManyForTenant, which opens its own
+// transaction — would take a second pooled connection while the caller holds
+// one, which is a deadlock waiting for a saturated pool.
+func (s *settingsService) ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error) {
+	if tenantID <= 0 {
+		return "", &SettingsError{
+			Op:  "resolve_in_tx",
+			Err: fmt.Errorf("tenant id is required to resolve %q inside a transaction", key),
+		}
+	}
+	if tx, ok := modelBase.TxFromContext(ctx); !ok || tx == nil {
+		return "", &SettingsError{
+			Op:  "resolve_in_tx",
+			Err: fmt.Errorf("resolving %q inside a transaction requires an ambient transaction", key),
+		}
+	}
+	if config.GetDefinition(key) == nil {
+		return "", &SettingsError{Op: "resolve_in_tx", Err: &DefinitionNotFoundError{Key: key}}
+	}
+
+	stored, err := s.valueRepo.FindByTenantAndKeys(ctx, tenantID, []string{key})
+	if err != nil {
+		return "", &SettingsError{Op: "resolve_in_tx", Err: err}
+	}
+	snapshot, err := newSettingsSnapshot(tenantID, []string{key}, stored)
+	if err != nil {
+		return "", err
+	}
+	return snapshot.String(key)
+}
+
 // ResolveBoolForTenant resolves a setting as a bool for a specific tenant,
 // wrapping the query in a tenant transaction to satisfy RLS. Required from
 // call sites that run outside TenantTxMiddleware (e.g. /auth/mfa/verify)

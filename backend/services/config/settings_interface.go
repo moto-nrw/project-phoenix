@@ -31,6 +31,25 @@ type SettingsService interface {
 	// before the tenant middleware sets PostgreSQL-level tenant context.
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
 
+	// ResolveStringForTenantInTx resolves a setting as a string on the
+	// caller's ALREADY OPEN transaction, bypassing both the context snapshot
+	// and the request-scoped memo cache.
+	//
+	// For callers that must observe committed state as of NOW, from inside a
+	// transaction whose locks make that observation meaningful — the
+	// school-portal mint guard re-decides the MFA gate this way (#2207).
+	// Every other resolve path is deliberately memoized per request, which is
+	// exactly wrong there: the login already resolved the same key minutes
+	// earlier, so a cached re-read would return the stale value it is meant
+	// to replace.
+	//
+	// Requires an ambient transaction (base.ContextWithTx) whose role can
+	// read config.setting_values for tenantID — phoenix_admin, or a tenant
+	// transaction on the same tenant. Without one it returns an error rather
+	// than silently falling back to an RLS-filtered read that would report
+	// every setting as unset.
+	ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error)
+
 	// ResolveBool resolves a setting as a bool.
 	ResolveBool(ctx context.Context, key string) (bool, error)
 

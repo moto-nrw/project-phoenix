@@ -65,6 +65,12 @@ func (s *MFAStub) ResolvePolicy(context.Context, int64, int64) (MFAPolicy, error
 	return MFAPolicyForced(s.IsRequiredResult), nil
 }
 
+// ResolvePolicyInTx answers exactly like ResolvePolicy: the stub's single knob
+// must describe the same MFA state on both sides of the mint transaction.
+func (s *MFAStub) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
+	return s.ResolvePolicy(ctx, accountID, tenantID)
+}
+
 func (s *MFAStub) HasEnrollment(context.Context, int64) (bool, error) {
 	return s.HasEnrollmentRes, s.HasEnrollmentErr
 }
