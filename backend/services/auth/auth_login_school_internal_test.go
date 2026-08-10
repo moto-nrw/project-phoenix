@@ -315,10 +315,13 @@ func newMintGuardFixture(t *testing.T) (service *Service, db *bun.DB, account *a
 }
 
 // runMintGuard executes the guard the way the mint does: inside a
-// phoenix_admin transaction, which is what its FOR SHARE reads require.
-func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantID int64) error {
+// phoenix_admin transaction, which is what its FOR SHARE reads require. It
+// returns the claims payload the guard assembled there — the token is built
+// from that, not from anything loaded before the transaction.
+func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantID int64) (*accountMetadata, error) {
 	t.Helper()
-	guard := service.schoolMintGuard(accountID, tenantID)
+	var claims *accountMetadata
+	guard := service.schoolMintGuard(accountID, tenantID, &claims)
 	var guardErr error
 	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
 		// nil account: schoolMintGuard re-reads and locks the row itself,
@@ -327,12 +330,65 @@ func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantI
 		return nil
 	})
 	require.NoError(t, txErr)
-	return guardErr
+	return claims, guardErr
 }
 
 func TestSchoolMintGuard_LiveSessionPasses(t *testing.T) {
 	service, db, account, tenantID := newMintGuardFixture(t)
-	require.NoError(t, runMintGuard(t, service, db, account.ID, tenantID))
+	claims, err := runMintGuard(t, service, db, account.ID, tenantID)
+	require.NoError(t, err)
+	// The guard is also where the JWT payload comes from — a nil payload on a
+	// passing guard would mint a token with no roles and no permissions.
+	require.NotNil(t, claims)
+	assert.Equal(t, tenant.ScopeSchool, claims.scope)
+	assert.Equal(t, tenantID, claims.tenantID)
+}
+
+func TestSchoolMintGuard_ClaimsDropPermissionRevokedMidFlight(t *testing.T) {
+	// The finding this pins: the mint paths used to build their claims from
+	// metadata loaded BEFORE the guarded transaction. The guard re-checked
+	// membership and portal role, but not what the account may DO — so a
+	// permission revoked while a login (or an MFA exchange, which can sit
+	// minutes in between) was in flight travelled into the access token and
+	// stayed valid until it expired.
+	service, db, account, tenantID := newMintGuardFixture(t)
+
+	role := testpkg.CreateTestRoleForTenant(t, db, "school-extra", tenantID)
+	permission := testpkg.CreateTestPermission(t, db, "school-extra", "school_extra", "read")
+	t.Cleanup(func() { testpkg.CleanupRoleRecords(t, db, role.ID) })
+	t.Cleanup(func() { testpkg.CleanupPermissionRecords(t, db, permission.ID) })
+
+	rolePermission := &authModels.RolePermission{RoleID: role.ID, PermissionID: permission.ID}
+	_, err := db.NewInsert().Model(rolePermission).ModelTableExpr(`auth.role_permissions`).Exec(context.Background())
+	require.NoError(t, err)
+
+	extraRole := &authModels.AccountRole{AccountID: account.ID, RoleID: role.ID}
+	extraRole.SetTenantID(tenantID)
+	_, err = db.NewInsert().Model(extraRole).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
+	require.NoError(t, err)
+
+	// What the entry point sees, in its own already-committed transaction.
+	// Permissions travel into the JWT as "resource:action", not by name.
+	permissionClaim := permission.GetFullName()
+	before, err := service.loadSchoolMetadataForTenant(context.Background(), account, tenantID)
+	require.NoError(t, err)
+	require.Contains(t, before.permissionStrs, permissionClaim,
+		"fixture check: the extra permission must be visible before the revocation")
+
+	// The revocation lands between that load and the mint. The lehrkraft role
+	// stays, so the guard still authorizes the session — only the permission
+	// set changed, which is exactly the case the old code missed.
+	_, err = db.Exec(
+		"DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ? AND role_id = ?",
+		account.ID, tenantID, role.ID)
+	require.NoError(t, err)
+
+	claims, err := runMintGuard(t, service, db, account.ID, tenantID)
+
+	require.NoError(t, err)
+	require.NotNil(t, claims)
+	assert.NotContains(t, claims.permissionStrs, permissionClaim,
+		"claims must come from inside the guard, so a permission revoked mid-flight never reaches the token")
 }
 
 func TestSchoolMintGuard_RefusesRevokedMembership(t *testing.T) {
@@ -345,7 +401,8 @@ func TestSchoolMintGuard_RefusesRevokedMembership(t *testing.T) {
 		account.ID, tenantID)
 	require.NoError(t, err)
 
-	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrTenantAccessDenied)
+	_, guardErr := runMintGuard(t, service, db, account.ID, tenantID)
+	assert.ErrorIs(t, guardErr, ErrTenantAccessDenied)
 }
 
 func TestSchoolMintGuard_RefusesRevokedPortalRole(t *testing.T) {
@@ -355,7 +412,8 @@ func TestSchoolMintGuard_RefusesRevokedPortalRole(t *testing.T) {
 		account.ID, tenantID)
 	require.NoError(t, err)
 
-	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrAccountNoSchoolPortalRole)
+	_, guardErr := runMintGuard(t, service, db, account.ID, tenantID)
+	assert.ErrorIs(t, guardErr, ErrAccountNoSchoolPortalRole)
 }
 
 func TestSchoolMintGuard_RefusesDeactivatedSchool(t *testing.T) {
@@ -363,7 +421,8 @@ func TestSchoolMintGuard_RefusesDeactivatedSchool(t *testing.T) {
 	_, err := db.Exec("UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
 	require.NoError(t, err)
 
-	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrTenantNotFound)
+	_, guardErr := runMintGuard(t, service, db, account.ID, tenantID)
+	assert.ErrorIs(t, guardErr, ErrTenantNotFound)
 }
 
 func TestSchoolMintGuard_RefusesSoftDeletedSchool(t *testing.T) {
@@ -371,7 +430,8 @@ func TestSchoolMintGuard_RefusesSoftDeletedSchool(t *testing.T) {
 	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?", tenantID)
 	require.NoError(t, err)
 
-	assert.ErrorIs(t, runMintGuard(t, service, db, account.ID, tenantID), ErrTenantNotFound)
+	_, guardErr := runMintGuard(t, service, db, account.ID, tenantID)
+	assert.ErrorIs(t, guardErr, ErrTenantNotFound)
 }
 
 func TestCreateRefreshTokenWithRetryGuarded_GuardRefusalWritesNoToken(t *testing.T) {
@@ -388,7 +448,7 @@ func TestCreateRefreshTokenWithRetryGuarded_GuardRefusalWritesNoToken(t *testing
 	before := countAccountTokens(t, db, account.ID)
 
 	token, err := service.createRefreshTokenWithRetryGuarded(
-		context.Background(), account, tenantID, service.schoolMintGuard(account.ID, tenantID))
+		context.Background(), account, tenantID, service.schoolMintGuard(account.ID, tenantID, new(*accountMetadata)))
 
 	require.Error(t, err)
 	assert.Nil(t, token)

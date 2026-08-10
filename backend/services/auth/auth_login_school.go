@@ -59,10 +59,12 @@ func (s *Service) LoginSchoolWithMFAGate(
 		return nil, &AuthError{Op: "school login", Err: ErrAccountNoSchoolPortalRole}
 	}
 
-	// Loads roles + permissions for the resolved school and hydrates
-	// account.Roles — the MFA IsRequired check below reads them.
-	metadata, err := s.loadSchoolMetadataForTenant(ctx, account, portalTenantID)
-	if err != nil {
+	// Runs the liveness gates that decide the RESPONSE and hydrates
+	// account.Roles — the MFA IsRequired check below reads them. What the JWT
+	// is built from is deliberately NOT taken from here: the payload this
+	// returns is a pre-transaction snapshot, and the mint guard below reloads
+	// it under its own lock.
+	if _, err := s.loadSchoolMetadataForTenant(ctx, account, portalTenantID); err != nil {
 		return nil, err
 	}
 
@@ -126,10 +128,15 @@ func (s *Service) LoginSchoolWithMFAGate(
 	// or a trusted-device check sat in between — and in its own, already
 	// committed transaction either way. The guard re-checks school liveness,
 	// membership and portal role INSIDE the transaction that writes the token,
-	// so a revocation can no longer land in the gap.
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, s.schoolMintGuard(account.ID, portalTenantID))
+	// so a revocation can no longer land in the gap, and it assembles the
+	// claims there too — see schoolMintGuard.
+	var metadata *accountMetadata
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, s.schoolMintGuard(account.ID, portalTenantID, &metadata))
 	if err != nil {
 		return nil, wrapSchoolMintError("school login", err)
+	}
+	if metadata == nil {
+		return nil, &AuthError{Op: "school login", Err: errMissingSchoolClaimsPayload}
 	}
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
 	// Attribute the audit event to the school the portal-role lookup actually
@@ -171,8 +178,9 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 		return "", "", &AuthError{Op: "issue school tokens", Err: ErrAccountInactive}
 	}
 
-	metadata, err := s.loadSchoolMetadataForTenant(ctx, account, tenantID)
-	if err != nil {
+	// Liveness gates first — they decide which sentinel (and hence which
+	// status code) the caller sees. The claims themselves come from the guard.
+	if _, err := s.loadSchoolMetadataForTenant(ctx, account, tenantID); err != nil {
 		return "", "", err
 	}
 	hasRole, err := s.hasSchoolPortalRoleAtTenant(ctx, accountID, tenantID)
@@ -184,9 +192,13 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 		return "", "", &AuthError{Op: "issue school tokens", Err: ErrAccountNoSchoolPortalRole}
 	}
 
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, metadata.tenantID, s.schoolMintGuard(account.ID, metadata.tenantID))
+	var metadata *accountMetadata
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, s.schoolMintGuard(account.ID, tenantID, &metadata))
 	if err != nil {
 		return "", "", wrapSchoolMintError("issue school tokens", err)
+	}
+	if metadata == nil {
+		return "", "", &AuthError{Op: "issue school tokens", Err: errMissingSchoolClaimsPayload}
 	}
 
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
@@ -233,8 +245,8 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 		return "", "", err
 	}
 
-	metadata, err := s.loadSchoolMetadataForTenant(ctx, account, targetTenantID)
-	if err != nil {
+	// Same split as the other two mint paths: gates here, claims in the guard.
+	if _, err := s.loadSchoolMetadataForTenant(ctx, account, targetTenantID); err != nil {
 		return "", "", err
 	}
 	hasRole, err := s.hasSchoolPortalRoleAtTenant(ctx, accountID, targetTenantID)
@@ -245,9 +257,13 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 		return "", "", &AuthError{Op: "switch school", Err: ErrAccountNoSchoolPortalRole}
 	}
 
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, metadata.tenantID, s.schoolMintGuard(accountID, metadata.tenantID))
+	var metadata *accountMetadata
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, targetTenantID, s.schoolMintGuard(accountID, targetTenantID, &metadata))
 	if err != nil {
 		return "", "", wrapSchoolMintError("switch school", err)
+	}
+	if metadata == nil {
+		return "", "", &AuthError{Op: "switch school", Err: errMissingSchoolClaimsPayload}
 	}
 
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
@@ -259,8 +275,16 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 	)
 }
 
-// schoolMintGuard re-verifies the four facts a school session rests on,
-// inside the transaction that persists the refresh token:
+// errMissingSchoolClaimsPayload guards against a guard returning nil without
+// filling its payload — impossible today, and an internal error rather than a
+// token minted from an empty claims struct.
+var errMissingSchoolClaimsPayload = errors.New("school claims payload missing after mint")
+
+// schoolMintGuard re-verifies the four facts a school session rests on and
+// assembles the claims the JWT is built from, inside the transaction that
+// persists the refresh token.
+//
+// The four facts:
 //
 //  1. the account itself is still active,
 //  2. the school exists, is not soft-deleted, and is active,
@@ -288,15 +312,37 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 // takes that exclusive lock anyway; this just takes it a few statements
 // earlier, before the decision instead of after it.
 //
+// CLAIMS — the guard also loads the payload the JWT is built from, into
+// *claims, under the very same lock. Assembling them BEFORE the transaction
+// (as the login, MFA-exchange and switch paths did) meant the roles and
+// permissions in the access token came from a snapshot the guard's own checks
+// had already superseded: a permission revoked while the login was in flight
+// stayed in the minted token until it expired, even though the guard had
+// re-read membership and portal role microseconds later. Anything a revocation
+// can touch has to be read on the authorized side of the lock, not just the
+// two facts the guard originally checked.
+//
 // Errors are returned as bare sentinels; createRefreshTokenWithRetryGuarded
 // hands them back untouched and the caller wraps them with its own op.
 // The account the guard is handed is deliberately ignored: the checks below
 // need the row as it is NOW and under this transaction's lock, which is what
-// checkSchoolMintPreconditions re-reads FOR UPDATE.
-func (s *Service) schoolMintGuard(accountID, tenantID int64) mintGuard {
+// checkSchoolMintPreconditions re-reads FOR UPDATE — and it is that locked row
+// the claims are then loaded for.
+func (s *Service) schoolMintGuard(accountID, tenantID int64, claims **accountMetadata) mintGuard {
 	return func(ctx context.Context, _ *authModels.Account) error {
-		_, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
-		return err
+		account, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
+		if err != nil {
+			return err
+		}
+		// Same transaction, same locked account row: schoolClaimsPayloadInTx
+		// deliberately re-runs no liveness gate — the checks above just did,
+		// atomically with the write they authorize.
+		payload, payloadErr := s.schoolClaimsPayloadInTx(ctx, account, tenantID)
+		if payloadErr != nil {
+			return payloadErr
+		}
+		*claims = payload
+		return nil
 	}
 }
 
@@ -357,43 +403,36 @@ func (s *Service) checkSchoolMintPreconditions(ctx context.Context, accountID, t
 	return nil, ErrAccountNoSchoolPortalRole
 }
 
-// schoolRefreshMintGuard is schoolMintGuard as the refresh path needs it.
+// schoolRefreshMintGuard is schoolMintGuard as the refresh path needs it: the
+// same four checks and the same in-transaction claims load, wrapped in the two
+// differences the refresh path needs — both about the ANSWER the caller gets,
+// not about what is checked.
 //
-// It also LOADS the rotated token's claims, into *metadata, while still inside
-// the rotation transaction and under the account lock the checks above took.
-// That is not a convenience: assembling the claims afterwards left a window
-// where a school soft-deleted right after the guard failed the metadata lookup
-// while SoftDeleteSchool had already deleted every token of that school — the
-// freshly written successor and its recovery record included. The caller got an
-// error and nothing to retry with. In here the two outcomes collapse into one
+// A revoked school-portal role is reported to a refreshing client as
+// ErrTenantAccessDenied, not ErrAccountNoSchoolPortalRole: from the session's
+// point of view the access is simply gone, and that is the sentinel
+// /auth/refresh already maps. And the refusal is logged through
+// logRefreshDecision so a cut session shows up in the same stream as every
+// other refresh rejection instead of vanishing into the mint path.
+//
+// Loading the claims inside the transaction matters twice as much here as on
+// the mint paths: assembling them afterwards left a window where a school
+// soft-deleted right after the guard failed the metadata lookup while
+// SoftDeleteSchool had already deleted every token of that school — the freshly
+// written successor and its recovery record included. The caller got an error
+// and nothing to retry with. In here the two outcomes collapse into one
 // transaction: claims and rotation commit together, or neither does and the
 // presented refresh token survives untouched for the next attempt.
-//
-// Two further differences from schoolMintGuard, both about the answer the
-// caller gets rather than about what is checked. A revoked school-portal role
-// is reported to a refreshing client as ErrTenantAccessDenied, not
-// ErrAccountNoSchoolPortalRole: from the session's point of view the access is
-// simply gone, and that is the sentinel /auth/refresh already maps. And the
-// refusal is logged through logRefreshDecision so a cut session shows up in the
-// same stream as every other refresh rejection instead of vanishing into the
-// mint path.
 //
 // DB errors keep propagating verbatim (the guard wraps them with %w, so they
 // stay distinguishable from the sentinels): a transient blip must surface as
 // a retryable 500, never as a revocation — masking it would log the user out
 // for good instead of for one request.
 func (s *Service) schoolRefreshMintGuard(accountID, tenantID int64, metadata **accountMetadata) mintGuard {
-	return func(ctx context.Context, _ *authModels.Account) error {
-		account, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
+	guard := s.schoolMintGuard(accountID, tenantID, metadata)
+	return func(ctx context.Context, account *authModels.Account) error {
+		err := guard(ctx, account)
 		if err == nil {
-			// Same transaction, same locked account row: schoolClaimsPayloadInTx
-			// deliberately re-runs no liveness gate — the checks above just did,
-			// atomically with the write they authorize.
-			payload, payloadErr := s.schoolClaimsPayloadInTx(ctx, account, tenantID)
-			if payloadErr != nil {
-				return payloadErr
-			}
-			*metadata = payload
 			return nil
 		}
 		if errors.Is(err, ErrAccountNoSchoolPortalRole) {
