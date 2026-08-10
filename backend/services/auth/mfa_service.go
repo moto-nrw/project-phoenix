@@ -104,6 +104,12 @@ type MFAService interface {
 	// transaction middleware, so the caller is responsible for plumbing
 	// the tenant explicitly instead of relying on tenant.FromContext.
 	IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error)
+	// ResolvePolicy is IsRequired with the role predicate left unapplied: it
+	// performs the database reads (admin overrides, security.mfa_mode) and
+	// hands back a pure MFAPolicy. Callers that must re-decide the gate
+	// against a role set they hold a lock on — the school mint guard —
+	// resolve the policy before the transaction and apply it inside.
+	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
 	// AccountBelongsToTenant reports whether the account has a tenant mapping
 	// for the given school — the operator MFA admin endpoints gate on this
@@ -313,9 +319,69 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 
 // ===== Inquiry =====
 
+// MFAPolicy is the MFA decision for one account at one school with the
+// account's ROLES still factored out: everything that has to be read from the
+// database (admin overrides, the tenant's security.mfa_mode) resolved once,
+// and the role predicate left as a pure function of a role set.
+//
+// The split exists because the roles are the one input that can change while a
+// login is in flight. The school-portal mint guard re-evaluates the gate under
+// the account lock it already holds (see schoolMintGuard): an admin role
+// granted after `required_admins` came back false must not slip a session
+// through without a second factor. Re-running IsRequired in there is not an
+// option — it opens its own transaction, and the guard is already inside one.
+//
+// The zero value requires nothing, which is what a nil MFA service means.
+type MFAPolicy struct {
+	// override, when set, is the admin override's verdict and wins outright.
+	override *bool
+	mode     string
+}
+
+// MFAPolicyForced is the policy an admin override produces: required or not,
+// regardless of roles and tenant mode.
+func MFAPolicyForced(required bool) MFAPolicy { return MFAPolicy{override: &required} }
+
+// MFAPolicyForMode is the policy a tenant's security.mfa_mode produces.
+func MFAPolicyForMode(mode string) MFAPolicy { return MFAPolicy{mode: mode} }
+
+// RequiredFor applies the resolved policy to a concrete role set. Pure — no
+// database access, safe to call from inside a transaction holding locks.
+func (p MFAPolicy) RequiredFor(account *auth.Account) bool {
+	if p.override != nil {
+		return *p.override
+	}
+	switch p.mode {
+	case configModel.MFAModeRequiredAll:
+		return true
+	case configModel.MFAModeRequiredAdmins:
+		return authorize.AccountHasRole(account, "admin")
+	default:
+		// Off, unset, or an unknown value — ResolvePolicy has already warned
+		// about the latter.
+		return false
+	}
+}
+
 // IsRequired evaluates the tenant's security.mfa_mode setting against the
 // account's roles. Operator (platform-scope) sessions are handled by the
 // platform service in a later phase — this implementation rejects them.
+//
+// Thin wrapper over ResolvePolicy + MFAPolicy.RequiredFor; see there for the
+// override resolution order.
+func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error) {
+	if account == nil {
+		return false, errors.New("account is required")
+	}
+	policy, err := s.ResolvePolicy(ctx, account.ID, tenantID)
+	if err != nil {
+		return false, err
+	}
+	return policy.RequiredFor(account), nil
+}
+
+// ResolvePolicy performs every database read the MFA gate needs and returns
+// the verdict with the role predicate left unapplied.
 //
 // Override resolution (#1430 review round 2 — closes cross-tenant
 // override bleed):
@@ -332,10 +398,7 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 // infra error) for the same reason the enrollment-lookup is: if we
 // can't tell whether the override is force_off, we must not silently
 // honor it.
-func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error) {
-	if account == nil {
-		return false, errors.New("account is required")
-	}
+func (s *mfaService) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
 	// Both override lookups must run as phoenix_admin (BYPASSRLS).
 	// The login flow has no tenant transaction yet, so app.current_tenant_id
 	// is unset and the RLS policy on auth.mfa_overrides hides every
@@ -350,12 +413,12 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 	)
 	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		global, err = s.Repos.MFAOverride.FindGlobal(txCtx, account.ID)
+		global, err = s.Repos.MFAOverride.FindGlobal(txCtx, accountID)
 		if err != nil {
 			return err
 		}
 		if tenantID > 0 {
-			tenantOverride, err = s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, account.ID, tenantID)
+			tenantOverride, err = s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, accountID, tenantID)
 			if err != nil {
 				return err
 			}
@@ -364,27 +427,27 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 	})
 	if txErr != nil {
 		s.Logger.Warn("mfa override lookup failed; refusing login",
-			slog.Int64("account_id", account.ID),
+			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", txErr.Error()))
-		return false, ErrMFAStatusUnavailable
+		return MFAPolicy{}, ErrMFAStatusUnavailable
 	}
 	// Step 1: platform-wide override (operator emergency switch) wins.
 	if global != nil {
 		switch global.Override {
 		case MFAAdminOverrideForceOff:
-			return false, nil
+			return MFAPolicyForced(false), nil
 		case MFAAdminOverrideForceOn:
-			return true, nil
+			return MFAPolicyForced(true), nil
 		}
 	}
 	// Step 2: tenant-scoped override (tenant admin per-school).
 	if tenantOverride != nil {
 		switch tenantOverride.Override {
 		case MFAAdminOverrideForceOff:
-			return false, nil
+			return MFAPolicyForced(false), nil
 		case MFAAdminOverrideForceOn:
-			return true, nil
+			return MFAPolicyForced(true), nil
 		}
 	}
 	mode := configModel.MFAModeOff
@@ -411,22 +474,17 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 			s.Logger.Warn("mfa_mode resolve failed; refusing login",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()))
-			return false, ErrMFAStatusUnavailable
+			return MFAPolicy{}, ErrMFAStatusUnavailable
 		} else if val != "" {
 			mode = val
 		}
 	}
 	switch mode {
-	case configModel.MFAModeOff:
-		return false, nil
-	case configModel.MFAModeRequiredAll:
-		return true, nil
-	case configModel.MFAModeRequiredAdmins:
-		return authorize.AccountHasRole(account, "admin"), nil
+	case configModel.MFAModeOff, configModel.MFAModeRequiredAll, configModel.MFAModeRequiredAdmins:
 	default:
 		s.Logger.Warn("unknown mfa_mode value; treating as off", slog.String("value", mode))
-		return false, nil
 	}
+	return MFAPolicyForMode(mode), nil
 }
 
 func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {

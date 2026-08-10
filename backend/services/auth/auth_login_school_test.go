@@ -13,6 +13,7 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -796,4 +797,64 @@ func TestLogout_SchoolSession_AuditedAtTheSessionsSchool(t *testing.T) {
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Zero(t, count, "the logout must not be filed under a school the session never belonged to")
+}
+
+func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(t *testing.T) {
+	// The MFA gate runs before the token transaction, so its verdict is a
+	// snapshot. Under `required_admins` an admin role granted in that window
+	// used to produce a full school session that never saw a second factor:
+	// the mint guard re-checked membership and portal role, but not the gate.
+	//
+	// The race is reproduced deterministically by granting the role from
+	// inside the policy lookup — the last thing that happens before the gate
+	// decides, using the roles loaded a moment earlier.
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+
+	tenantID, _ := newSchoolTenant(t, db)
+	email, accountID := createLehrkraftAccount(t, db, service, "school-mfa-race", tenantID)
+
+	// The seeded admin system role, not a fixture one: `required_admins`
+	// matches the literal role name, and CreateTestRoleForTenant uniquifies it.
+	var adminRoleID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", "admin").
+		Where("is_system = TRUE").
+		Scan(context.Background(), &adminRoleID))
+
+	var startedScope string
+	service.SetMFAService(&authtest.MFAServiceMock{
+		ResolvePolicyFn: func(_ context.Context, policyAccountID, _ int64) (auth.MFAPolicy, error) {
+			assignment := &authModels.AccountRole{AccountID: policyAccountID, RoleID: adminRoleID}
+			assignment.SetTenantID(tenantID)
+			_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
+			require.NoError(t, err)
+			return auth.MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil
+		},
+		HasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
+		StartChallengeFn: func(_ context.Context, _, _ int64, scope string, _ net.IP) (string, error) {
+			startedScope = scope
+			return "school-race-challenge", nil
+		},
+	})
+	defer service.SetMFAService(nil)
+
+	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, switchIP, switchUserAgent, "")
+
+	require.NoError(t, err)
+	require.Equal(t, auth.LoginStatusMFARequired, result.Status,
+		"the guard must send the login back to the second factor instead of minting")
+	assert.Equal(t, "school-race-challenge", result.ChallengeToken)
+	assert.Equal(t, authjwt.MFAChallengeScopeSchool, startedScope)
+	assert.Empty(t, result.RefreshToken, "no session may be issued for a login that owes a second factor")
+
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", accountID).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, count, "the aborted mint must leave no refresh token behind")
 }

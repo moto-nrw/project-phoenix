@@ -28,6 +28,7 @@ import (
 // MFAServiceMock is a func-field test double for auth.MFAService.
 type MFAServiceMock struct {
 	IsRequiredFn                   func(ctx context.Context, account *authModels.Account, tenantID int64) (bool, error)
+	ResolvePolicyFn                func(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error)
 	HasEnrollmentFn                func(ctx context.Context, accountID int64) (bool, error)
 	AccountBelongsToTenantFn       func(ctx context.Context, accountID, tenantID int64) (bool, error)
 	StartChallengeFn               func(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
@@ -62,6 +63,25 @@ func (m *MFAServiceMock) IsRequired(ctx context.Context, account *authModels.Acc
 		return m.IsRequiredFn(ctx, account, tenantID)
 	}
 	return false, nil
+}
+
+// ResolvePolicy defaults to the policy IsRequiredFn describes: a mock that only
+// configures IsRequiredFn keeps working on the paths that resolve the policy
+// first (the school login gate), instead of silently answering "MFA off".
+func (m *MFAServiceMock) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error) {
+	if m.ResolvePolicyFn != nil {
+		return m.ResolvePolicyFn(ctx, accountID, tenantID)
+	}
+	if m.IsRequiredFn != nil {
+		account := &authModels.Account{}
+		account.ID = accountID
+		required, err := m.IsRequiredFn(ctx, account, tenantID)
+		if err != nil {
+			return svcauth.MFAPolicy{}, err
+		}
+		return svcauth.MFAPolicyForced(required), nil
+	}
+	return svcauth.MFAPolicy{}, nil
 }
 
 func (m *MFAServiceMock) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {

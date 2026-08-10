@@ -15,6 +15,7 @@ import (
 	"time"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -643,4 +644,162 @@ func TestLoadAccountMetadataForTenant_FallbackIgnoresUnmappedSchools(t *testing.
 	require.NotNil(t, metadata)
 	assert.Equal(t, "Eigene", metadata.firstName,
 		"only the mapped school's person row may fill the name")
+}
+
+// schoolTestIP / schoolTestUserAgent stand in for request metadata on the
+// non-password mint paths; both must be non-empty or the audit write is
+// skipped and the assertions below would pass vacuously.
+const (
+	schoolTestIP        = "203.0.113.11"
+	schoolTestUserAgent = "school-portal-internal-test"
+)
+
+// --- schoolMintGuard: MFA re-check ---------------------------------------------------
+
+// runMintGuardWithOptions is runMintGuard for the guard variants that carry
+// extra in-transaction checks.
+func runMintGuardWithOptions(t *testing.T, service *Service, db *bun.DB, accountID, tenantID int64, opts ...schoolMintOption) (*accountMetadata, error) {
+	t.Helper()
+	var claims *accountMetadata
+	guard := service.schoolMintGuard(accountID, tenantID, &claims, opts...)
+	var guardErr error
+	txErr := tenant.WithAdminTx(context.Background(), db, func(ctx context.Context, _ bun.Tx) error {
+		guardErr = guard(ctx, nil)
+		return nil
+	})
+	require.NoError(t, txErr)
+	return claims, guardErr
+}
+
+// assignAdminRoleAtTenant grants the seeded admin system role at the tenant.
+// It has to be that role and not a fixture one: MFAPolicy's `required_admins`
+// predicate matches on the literal name "admin", and CreateTestRoleForTenant
+// uniquifies every name it is given.
+func assignAdminRoleAtTenant(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	assignment := &authModels.AccountRole{AccountID: accountID, RoleID: adminSystemRoleID(t, db)}
+	assignment.SetTenantID(tenantID)
+	_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
+	require.NoError(t, err)
+	// CleanupAuthFixtures removes auth.account_roles by account_id; the system
+	// role row itself is seeded and must survive.
+}
+
+// adminSystemRoleID resolves the seeded admin system role.
+func adminSystemRoleID(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+	var roleID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", "admin").
+		Where("is_system = TRUE").
+		Scan(context.Background(), &roleID), "seeded admin system role must exist")
+	return roleID
+}
+
+func TestSchoolMintGuard_MFARequirementAppearingMidLogin_AbortsMint(t *testing.T) {
+	// The finding this pins: the MFA gate ran BEFORE the mint transaction and
+	// was never revisited. Under `required_admins` an admin role granted after
+	// the gate said "not required" — and before the token was written — handed
+	// out an admin session that never saw a second factor.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	assignAdminRoleAtTenant(t, db, account.ID, tenantID)
+
+	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
+		withMFAGateRecheck(MFAPolicyForMode(configModels.MFAModeRequiredAdmins)))
+
+	require.ErrorIs(t, guardErr, errSchoolMFARequiredAtMint)
+	assert.Nil(t, claims, "an aborted mint must not publish claims")
+}
+
+func TestSchoolMintGuard_MFARecheckPassesForNonAdmin(t *testing.T) {
+	// The same policy against a plain Lehrkraft: nothing changed under the
+	// lock, so the mint proceeds. Without this the re-check would refuse every
+	// login at a `required_admins` school.
+	service, db, account, tenantID := newMintGuardFixture(t)
+
+	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
+		withMFAGateRecheck(MFAPolicyForMode(configModels.MFAModeRequiredAdmins)))
+
+	require.NoError(t, guardErr)
+	require.NotNil(t, claims)
+	assert.Equal(t, tenant.ScopeSchool, claims.scope)
+}
+
+func TestSchoolMintGuard_WithoutRecheckAdminRoleStillMints(t *testing.T) {
+	// The MFA exchange and the school switch pass no policy: their second
+	// factor is settled (or, for the switch, was never gated here). An admin
+	// role must not turn those mints into a refusal.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	assignAdminRoleAtTenant(t, db, account.ID, tenantID)
+
+	claims, guardErr := runMintGuard(t, service, db, account.ID, tenantID)
+
+	require.NoError(t, guardErr)
+	require.NotNil(t, claims)
+}
+
+// --- account lookup on the non-password mint paths -----------------------------------
+
+// failingAccountRepo fails FindByID and delegates everything else — including
+// FindByIDForUpdate, which the mint guard uses — to the real repository.
+type failingAccountRepo struct {
+	authModels.AccountRepository
+	err error
+}
+
+func (r failingAccountRepo) FindByID(context.Context, any) (*authModels.Account, error) {
+	return nil, r.err
+}
+
+func TestIssueSchoolTokens_AccountLookupError_IsNotACredentialFailure(t *testing.T) {
+	// A dropped connection while loading the account is not "wrong
+	// credentials". Collapsing the two told a Lehrkraft who had just entered a
+	// correct email code that their login was invalid (401) and hid a database
+	// outage from every alert that watches 5xx.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	dbErr := errors.New("connection reset")
+	service.repos.Account = failingAccountRepo{AccountRepository: service.repos.Account, err: dbErr}
+
+	_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		context.Background(), account.ID, tenantID, schoolTestIP, schoolTestUserAgent)
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, dbErr)
+	assert.NotErrorIs(t, authErr.Err, ErrAccountNotFound,
+		"a transient DB failure must not be reported as an unknown account")
+	_ = db
+}
+
+func TestIssueSchoolTokens_AccountMissing_ReportsNotFound(t *testing.T) {
+	// The genuine no-such-row case keeps its sentinel — that is the one the
+	// handler is right to answer 401 to.
+	service, _, account, tenantID := newMintGuardFixture(t)
+	service.repos.Account = failingAccountRepo{AccountRepository: service.repos.Account, err: sql.ErrNoRows}
+
+	_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
+		context.Background(), account.ID, tenantID, schoolTestIP, schoolTestUserAgent)
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrAccountNotFound)
+}
+
+func TestSwitchSchool_AccountLookupError_IsNotACredentialFailure(t *testing.T) {
+	service, _, account, tenantID := newMintGuardFixture(t)
+	dbErr := errors.New("connection reset")
+	service.repos.Account = failingAccountRepo{AccountRepository: service.repos.Account, err: dbErr}
+
+	_, _, err := service.SwitchSchool(
+		context.Background(), account.ID, fmt.Sprintf("tenant-%d", tenantID), schoolTestIP, schoolTestUserAgent)
+
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, dbErr)
+	assert.NotErrorIs(t, authErr.Err, ErrAccountNotFound)
 }

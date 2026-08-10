@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -71,12 +72,17 @@ func (s *Service) LoginSchoolWithMFAGate(
 	// MFA gate — same fail-closed semantics as LoginWithMFAGate: on infra
 	// errors we refuse THIS login with 503 instead of silently dropping to
 	// "not required".
+	//
+	// The policy is resolved separately from its role predicate so the mint
+	// guard can re-apply it under the account lock — see MFAPolicy.
+	var mfaPolicy MFAPolicy
 	mfaRequired := false
 	if s.mfaService != nil {
-		mfaRequired, err = s.mfaService.IsRequired(ctx, account, portalTenantID)
+		mfaPolicy, err = s.mfaService.ResolvePolicy(ctx, account.ID, portalTenantID)
 		if err != nil {
 			return nil, &AuthError{Op: "check mfa required", Err: ErrMFAStatusUnavailable}
 		}
+		mfaRequired = mfaPolicy.RequiredFor(account)
 	}
 
 	enrolled := false
@@ -88,20 +94,7 @@ func (s *Service) LoginSchoolWithMFAGate(
 	}
 
 	if mfaRequired && !enrolled {
-		enrollmentToken, tokenErr := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
-			AccountID: account.ID,
-			Scope:     jwt.MFAEnrollmentScopeSchool,
-			TenantID:  portalTenantID,
-		}, MFAEnrollmentTokenTTL)
-		if tokenErr != nil {
-			return nil, &AuthError{Op: "issue mfa enrollment token", Err: tokenErr}
-		}
-		return &LoginResult{
-			Status:                LoginStatusMFAEnrollmentRequired,
-			AccessToken:           enrollmentToken,
-			MaskedEmail:           MaskEmailForUX(account.Email),
-			MFAEnrollmentRequired: true,
-		}, nil
+		return s.schoolMFAEnrollmentResult(account, portalTenantID)
 	}
 
 	trustedDeviceVerified := false
@@ -111,17 +104,7 @@ func (s *Service) LoginSchoolWithMFAGate(
 	}
 
 	if mfaRequired && enrolled && !trustedDeviceVerified {
-		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, portalTenantID, jwt.MFAChallengeScopeSchool, ParseClientIP(ipAddress))
-		if chErr != nil {
-			return nil, &AuthError{Op: "start mfa challenge", Err: chErr}
-		}
-		return &LoginResult{
-			Status:               LoginStatusMFARequired,
-			ChallengeToken:       challenge,
-			MaskedEmail:          MaskEmailForUX(account.Email),
-			TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, portalTenantID),
-			TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, portalTenantID),
-		}, nil
+		return s.schoolMFAChallengeResult(ctx, account, portalTenantID, ipAddress)
 	}
 
 	// The portal-role lookup above ran minutes ago in wall-clock terms once MFA
@@ -130,8 +113,27 @@ func (s *Service) LoginSchoolWithMFAGate(
 	// membership and portal role INSIDE the transaction that writes the token,
 	// so a revocation can no longer land in the gap, and it assembles the
 	// claims there too — see schoolMintGuard.
+	//
+	// It also re-applies the MFA gate, but only where the gate concluded "no
+	// second factor needed": a role granted between that conclusion and the
+	// mint (`required_admins` flipping to true) would otherwise hand out an
+	// admin session that never saw a challenge. When a trusted device satisfied
+	// an MFA requirement, the factor IS proven and nothing is re-decided.
+	guardOpts := []schoolMintOption{}
+	if !mfaRequired && s.mfaService != nil {
+		guardOpts = append(guardOpts, withMFAGateRecheck(mfaPolicy))
+	}
 	var metadata *accountMetadata
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, s.schoolMintGuard(account.ID, portalTenantID, &metadata))
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, s.schoolMintGuard(account.ID, portalTenantID, &metadata, guardOpts...))
+	if errors.Is(err, errSchoolMFARequiredAtMint) {
+		// Nothing was written — the guard aborted its own transaction. Send
+		// the login down the branch it would have taken had the role been
+		// there from the start.
+		if !enrolled {
+			return s.schoolMFAEnrollmentResult(account, portalTenantID)
+		}
+		return s.schoolMFAChallengeResult(ctx, account, portalTenantID, ipAddress)
+	}
 	if err != nil {
 		return nil, wrapSchoolMintError("school login", err)
 	}
@@ -170,12 +172,9 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 	accountID, tenantID int64,
 	ipAddress, userAgent string,
 ) (string, string, error) {
-	account, err := s.repos.Account.FindByID(ctx, accountID)
+	account, err := s.loadActiveAccountForSchoolMint(ctx, "issue school tokens", accountID)
 	if err != nil {
-		return "", "", &AuthError{Op: "issue school tokens", Err: ErrAccountNotFound}
-	}
-	if !account.Active {
-		return "", "", &AuthError{Op: "issue school tokens", Err: ErrAccountInactive}
+		return "", "", err
 	}
 
 	// Liveness gates first — they decide which sentinel (and hence which
@@ -221,13 +220,16 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 // generateAndLogTokens skips the audit write entirely when the IP is empty —
 // passing "" here silently means "no tenant_switch event was ever recorded",
 // which is the one thing this event exists for.
+//
+// No MFA gate, and therefore no MFA re-check in the guard: the caller already
+// holds a school session whose second factor was settled at login, exactly as
+// SwitchTenant treats a tenant session. Making the target school's mfa_mode
+// re-challenge on every switch is a policy decision for the portal, not
+// something to smuggle in through the mint guard.
 func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (string, string, error) {
-	account, err := s.repos.Account.FindByID(ctx, accountID)
+	account, err := s.loadActiveAccountForSchoolMint(ctx, "switch school", accountID)
 	if err != nil {
-		return "", "", &AuthError{Op: "switch school", Err: ErrAccountNotFound}
-	}
-	if !account.Active {
-		return "", "", &AuthError{Op: "switch school", Err: ErrAccountInactive}
+		return "", "", err
 	}
 
 	// Slug → school resolution incl. active-mapping check, inside an admin
@@ -275,10 +277,103 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 	)
 }
 
+// loadActiveAccountForSchoolMint fetches the account a non-password school
+// mint path (MFA exchange, school switch) is about to issue a token for.
+//
+// Only a genuine "no such row" becomes ErrAccountNotFound — the handlers map
+// that sentinel to 401 invalid_credentials. A dropped connection or a query
+// timeout is NOT an authentication failure: collapsing the two told a Lehrkraft
+// who had just entered a correct email code that their credentials were wrong,
+// and hid a database outage behind a 401 nobody investigates. Everything else
+// propagates and surfaces as a retryable 500.
+func (s *Service) loadActiveAccountForSchoolMint(ctx context.Context, op string, accountID int64) (*authModels.Account, error) {
+	account, err := s.repos.Account.FindByID(ctx, accountID)
+	if err != nil {
+		if isNotFoundError(err) {
+			return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
+		}
+		return nil, &AuthError{Op: op, Err: fmt.Errorf("look up account %d: %w", accountID, err)}
+	}
+	if account == nil {
+		return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
+	}
+	if !account.Active {
+		return nil, &AuthError{Op: op, Err: ErrAccountInactive}
+	}
+	return account, nil
+}
+
+// schoolMFAEnrollmentResult is the "MFA required but no factor enrolled"
+// response: a school-scope enrollment token for /school/auth/mfa/enroll/*.
+// Confirming there mints school tokens, so the enrollment detour can never
+// turn a school login into a tenant session.
+func (s *Service) schoolMFAEnrollmentResult(account *authModels.Account, tenantID int64) (*LoginResult, error) {
+	enrollmentToken, err := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+		AccountID: account.ID,
+		Scope:     jwt.MFAEnrollmentScopeSchool,
+		TenantID:  tenantID,
+	}, MFAEnrollmentTokenTTL)
+	if err != nil {
+		return nil, &AuthError{Op: "issue mfa enrollment token", Err: err}
+	}
+	return &LoginResult{
+		Status:                LoginStatusMFAEnrollmentRequired,
+		AccessToken:           enrollmentToken,
+		MaskedEmail:           MaskEmailForUX(account.Email),
+		MFAEnrollmentRequired: true,
+	}, nil
+}
+
+// schoolMFAChallengeResult is the "MFA required, factor enrolled" response: an
+// email code plus a school-scope challenge token, redeemable only at the school
+// verify endpoint.
+func (s *Service) schoolMFAChallengeResult(ctx context.Context, account *authModels.Account, tenantID int64, ipAddress string) (*LoginResult, error) {
+	challenge, err := s.mfaService.StartChallenge(ctx, account.ID, tenantID, jwt.MFAChallengeScopeSchool, ParseClientIP(ipAddress))
+	if err != nil {
+		return nil, &AuthError{Op: "start mfa challenge", Err: err}
+	}
+	return &LoginResult{
+		Status:               LoginStatusMFARequired,
+		ChallengeToken:       challenge,
+		MaskedEmail:          MaskEmailForUX(account.Email),
+		TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, tenantID),
+		TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, tenantID),
+	}, nil
+}
+
 // errMissingSchoolClaimsPayload guards against a guard returning nil without
 // filling its payload — impossible today, and an internal error rather than a
 // token minted from an empty claims struct.
 var errMissingSchoolClaimsPayload = errors.New("school claims payload missing after mint")
+
+// errSchoolMFARequiredAtMint aborts a mint whose MFA gate has gone stale: the
+// login concluded that no second factor was needed, and by the time the guard
+// held the account lock the policy said otherwise. Never leaves the service —
+// LoginSchoolWithMFAGate catches it and answers with the challenge (or the
+// enrollment token) the login would have returned had the role been there from
+// the start.
+var errSchoolMFARequiredAtMint = errors.New("mfa became required before the school token was minted")
+
+// schoolMintOption configures the extra checks a school mint guard settles
+// inside the token transaction, on top of the four liveness facts every school
+// mint shares.
+type schoolMintOption func(*schoolMintChecks)
+
+type schoolMintChecks struct {
+	// mfaPolicy, when set, is re-applied to the role set the guard reads under
+	// its lock. nil means the second factor is already settled for this mint —
+	// proven by an email code or a trusted device, or (on refresh and school
+	// switch) never gated here in the first place.
+	mfaPolicy *MFAPolicy
+}
+
+// withMFAGateRecheck re-decides the MFA requirement inside the mint
+// transaction. Pass it exactly where the pre-transaction gate concluded "no
+// second factor needed" — that verdict is the one a concurrent role grant can
+// invalidate.
+func withMFAGateRecheck(policy MFAPolicy) schoolMintOption {
+	return func(c *schoolMintChecks) { c.mfaPolicy = &policy }
+}
 
 // schoolMintGuard re-verifies the four facts a school session rests on and
 // assembles the claims the JWT is built from, inside the transaction that
@@ -322,24 +417,59 @@ var errMissingSchoolClaimsPayload = errors.New("school claims payload missing af
 // can touch has to be read on the authorized side of the lock, not just the
 // two facts the guard originally checked.
 //
+// PERMISSIONS — reading them under the account lock is not by itself enough.
+// The lock serializes the paths that revoke a whole school access
+// (RevokeAccountTenantAccess, staff offboarding), because those take the
+// account row first; a bare permission revocation
+// (RemovePermissionFromAccount, RemovePermissionFromRole) touches neither the
+// account nor the role rows and would happily commit between this read and the
+// token write, leaving the revoked permission in a JWT valid for the next
+// AUTH_JWT_EXPIRY. LockAccountPermissionSourcesForTenant therefore takes FOR
+// SHARE locks on the rows the permission set is derived from, in the same
+// account → roles → permissions order every revocation path walks.
+//
+// MFA — with checks.mfaPolicy set, the gate itself is re-decided here against
+// the role set read under the lock. The pre-transaction gate answers "no second
+// factor needed" from roles that a concurrent grant can still change; under
+// `required_admins` that is the difference between an admin session that saw a
+// challenge and one that did not.
+//
 // Errors are returned as bare sentinels; createRefreshTokenWithRetryGuarded
 // hands them back untouched and the caller wraps them with its own op.
 // The account the guard is handed is deliberately ignored: the checks below
 // need the row as it is NOW and under this transaction's lock, which is what
 // checkSchoolMintPreconditions re-reads FOR UPDATE — and it is that locked row
 // the claims are then loaded for.
-func (s *Service) schoolMintGuard(accountID, tenantID int64, claims **accountMetadata) mintGuard {
+func (s *Service) schoolMintGuard(accountID, tenantID int64, claims **accountMetadata, opts ...schoolMintOption) mintGuard {
+	var checks schoolMintChecks
+	for _, opt := range opts {
+		opt(&checks)
+	}
 	return func(ctx context.Context, _ *authModels.Account) error {
 		account, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
 		if err != nil {
 			return err
 		}
+		// Pin the permission sources before they are read into the claims —
+		// see PERMISSIONS above.
+		if err := s.repos.Permission.LockAccountPermissionSourcesForTenant(ctx, accountID, tenantID); err != nil {
+			return fmt.Errorf("lock permission sources of account %d at school %d: %w", accountID, tenantID, err)
+		}
 		// Same transaction, same locked account row: schoolClaimsPayloadInTx
 		// deliberately re-runs no liveness gate — the checks above just did,
-		// atomically with the write they authorize.
+		// atomically with the write they authorize. It also hydrates
+		// account.Roles from inside the lock, which is what the MFA re-check
+		// below evaluates.
 		payload, payloadErr := s.schoolClaimsPayloadInTx(ctx, account, tenantID)
 		if payloadErr != nil {
 			return payloadErr
+		}
+		if checks.mfaPolicy != nil && checks.mfaPolicy.RequiredFor(account) {
+			s.getLogger().Info("mfa requirement appeared during school login; refusing to mint",
+				slog.Int64("account_id", accountID),
+				slog.Int64("tenant_id", tenantID),
+			)
+			return errSchoolMFARequiredAtMint
 		}
 		*claims = payload
 		return nil

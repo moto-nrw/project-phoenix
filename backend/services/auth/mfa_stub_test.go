@@ -55,6 +55,16 @@ func (s *MFAStub) IsRequired(context.Context, *authModel.Account, int64) (bool, 
 	return s.IsRequiredResult, s.IsRequiredErr
 }
 
+// ResolvePolicy answers with the same verdict as IsRequired, as a forced
+// policy: the stub's Result/Err fields stay the single knob regardless of which
+// of the two a flow under test calls.
+func (s *MFAStub) ResolvePolicy(context.Context, int64, int64) (MFAPolicy, error) {
+	if s.IsRequiredErr != nil {
+		return MFAPolicy{}, s.IsRequiredErr
+	}
+	return MFAPolicyForced(s.IsRequiredResult), nil
+}
+
 func (s *MFAStub) HasEnrollment(context.Context, int64) (bool, error) {
 	return s.HasEnrollmentRes, s.HasEnrollmentErr
 }

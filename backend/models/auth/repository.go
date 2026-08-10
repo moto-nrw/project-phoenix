@@ -94,6 +94,12 @@ type PermissionRepository interface {
 	FindByName(ctx context.Context, name string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*Permission, error)
+	// LockAccountPermissionSourcesForTenant takes FOR SHARE locks on the
+	// direct grants and role-permission rows that make up the account's
+	// effective permissions at a tenant. Transaction-only: it lets a caller
+	// read the permission set and write a token derived from it without a
+	// concurrent revocation committing in between.
+	LockAccountPermissionSourcesForTenant(ctx context.Context, accountID int64, tenantID int64) error
 	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
 	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
