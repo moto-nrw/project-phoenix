@@ -324,6 +324,25 @@ func (s TenantScope) Context() context.Context {
 
 var uniqueTestTenantCounter int64
 
+const (
+	// Tenant IDs handed out by CreateTestTenant live in
+	// [testTenantIDBase, testTenantIDCeiling). The band is high enough not to
+	// collide with the literal IDs older fixtures hardcode (1, 42, …) and low
+	// enough that the ID survives a JWT round-trip — JSON numbers decode as
+	// float64, which is exact only below 2^53.
+	testTenantIDBase    int64 = 1_000_000_000
+	testTenantIDCeiling int64 = 2_000_000_000
+)
+
+// uniqueJWTSafeTenantID hands out a distinct tenant ID inside the band above.
+// The PID slice keeps concurrent `go test` processes sharing one database out
+// of each other's way; the counter separates tests inside one process.
+func uniqueJWTSafeTenantID() int64 {
+	return testTenantIDBase +
+		int64(os.Getpid()%10_000)*100_000 +
+		atomic.AddInt64(&uniqueTestTenantCounter, 1)%100_000
+}
+
 // UniqueTestTenantID returns a high, process-local tenant ID for tests that
 // assert aggregate counts and therefore must not share tenant_id=1.
 func UniqueTestTenantID(tb testing.TB) int64 {

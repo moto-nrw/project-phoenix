@@ -38,17 +38,37 @@ func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64
 	return scope, tenantID
 }
 
+// newSchoolTenant creates a school nobody else in the suite shares and tears
+// it down again. These tests flip `active` and stamp `deleted_at` on the
+// school row itself, so a literal tenant id (EnsureTestTenant's ON CONFLICT
+// DO NOTHING) would have them mutating rows a parallel package is reading.
+func newSchoolTenant(t *testing.T, db *bun.DB) (tenantID int64, subdomain string) {
+	t.Helper()
+	tenantID, subdomain = testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
+	return tenantID, subdomain
+}
+
+// newSchoolAccount registers an account and maps it to the tenant, without a
+// school-portal role — the starting point for the "mapped but no portal role"
+// gates.
+func newSchoolAccount(t *testing.T, db *bun.DB, service auth.AuthService, prefix string, tenantID int64) (email string, accountID int64) {
+	t.Helper()
+	email, username := uniqueTestCredentials(prefix)
+	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+	return email, account.ID
+}
+
 // createLehrkraftAccount registers an account, maps it to the tenant, and
 // assigns the lehrkraft system role there.
 func createLehrkraftAccount(t *testing.T, db *bun.DB, service auth.AuthService, prefix string, tenantID int64) (email string, accountID int64) {
 	t.Helper()
-	testpkg.EnsureTestTenant(t, db, tenantID)
-	email, username := uniqueTestCredentials(prefix)
-	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
-	require.NoError(t, err)
-	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
-	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
-	return email, account.ID
+	email, accountID = newSchoolAccount(t, db, service, prefix, tenantID)
+	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
+	return email, accountID
 }
 
 // missingAccountID is an id no fixture ever produces — used for the
@@ -59,6 +79,17 @@ const missingAccountID int64 = 999999999
 func setAccountActive(t *testing.T, db *bun.DB, accountID int64, active bool) {
 	t.Helper()
 	_, err := db.Exec("UPDATE auth.accounts SET active = ? WHERE id = ?", active, accountID)
+	require.NoError(t, err)
+}
+
+// setAccountTenantStatus flips auth.account_tenants.status — how membership
+// in a school is actually revoked (the mapping row survives, its status does
+// not).
+func setAccountTenantStatus(t *testing.T, db *bun.DB, accountID, tenantID int64, status string) {
+	t.Helper()
+	_, err := db.Exec(
+		"UPDATE auth.account_tenants SET status = ? WHERE account_id = ? AND tenant_id = ?",
+		status, accountID, tenantID)
 	require.NoError(t, err)
 }
 
@@ -78,13 +109,8 @@ func TestLoginSchool_NoPortalRole_Refused(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
-	testpkg.EnsureTestTenant(t, db, tenantID)
-	email, username := uniqueTestCredentials("school-no-role")
-	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
-	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := newSchoolAccount(t, db, service, "school-no-role", tenantID)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 
@@ -103,9 +129,8 @@ func TestLoginSchool_Lehrkraft_IssuesSchoolScopedTokens(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
-	email, accountID := createLehrkraftAccount(t, db, service, "school-happy", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-happy", tenantID)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 
@@ -128,9 +153,8 @@ func TestLoginSchool_WrongPassword_Refused(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
-	email, accountID := createLehrkraftAccount(t, db, service, "school-wrong-pw", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-wrong-pw", tenantID)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, "Definitely-Wrong-1%", "", "", "")
 
@@ -146,9 +170,8 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
-	email, accountID := createLehrkraftAccount(t, db, service, "school-refresh", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-refresh", tenantID)
 
 	login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 	require.NoError(t, err)
@@ -170,9 +193,8 @@ func TestRefreshToken_SchoolScope_RoleRevoked_Rejected(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
+	tenantID, _ := newSchoolTenant(t, db)
 	email, accountID := createLehrkraftAccount(t, db, service, "school-revoked", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
 
 	login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 	require.NoError(t, err)
@@ -198,17 +220,14 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantA int64 = 42
-	const tenantB int64 = 43
-	email, accountID := createLehrkraftAccount(t, db, service, "school-switch", tenantA)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
-	_ = email
+	tenantA, _ := newSchoolTenant(t, db)
+	tenantB, slugB := newSchoolTenant(t, db)
+	_, accountID := createLehrkraftAccount(t, db, service, "school-switch", tenantA)
 
-	testpkg.EnsureTestTenant(t, db, tenantB)
 	testpkg.MapAccountToTenant(t, db, accountID, tenantB)
 
 	t.Run("mapping without portal role at target is refused", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), accountID, "t43")
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slugB)
 		require.Error(t, err)
 		var authErr *auth.AuthError
 		require.ErrorAs(t, err, &authErr)
@@ -218,7 +237,7 @@ func TestSwitchSchool_PortalRoleRequiredAtTarget(t *testing.T) {
 	t.Run("portal role at target switches the pinned school", func(t *testing.T) {
 		testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantB)
 
-		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, "t43")
+		accessToken, refreshToken, err := service.SwitchSchool(context.Background(), accountID, slugB)
 		require.NoError(t, err)
 		require.NotEmpty(t, refreshToken)
 
@@ -236,9 +255,8 @@ func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
-	email, accountID := createLehrkraftAccount(t, db, service, "school-mfa", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-mfa", tenantID)
 
 	var startedScope string
 	var startedTenantID int64
@@ -270,15 +288,10 @@ func TestIssueSchoolTokens_NoPortalRole_Refused(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
-	testpkg.EnsureTestTenant(t, db, tenantID)
-	email, username := uniqueTestCredentials("school-issue-no-role")
-	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
-	require.NoError(t, err)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+	tenantID, _ := newSchoolTenant(t, db)
+	_, accountID := newSchoolAccount(t, db, service, "school-issue-no-role", tenantID)
 
-	_, _, err = service.IssueSchoolTokensForAuthenticatedAccount(context.Background(), account.ID, tenantID, "", "")
+	_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(context.Background(), accountID, tenantID, "", "")
 
 	require.Error(t, err)
 	var authErr *auth.AuthError
@@ -294,15 +307,10 @@ func TestLoginSchool_InactiveSchool_Refused(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 44
-	email, accountID := createLehrkraftAccount(t, db, service, "school-inactive", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-inactive", tenantID)
 
-	_, err := db.Exec("UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.Exec("UPDATE platform.schools SET active = true WHERE id = ?", tenantID)
-	})
+	setSchoolActive(t, db, tenantID, false)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 
@@ -321,20 +329,15 @@ func TestLoginSchool_DeadOldestSchool_PicksNextValidSchool(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const deadTenantID int64 = 44
-	const liveTenantID int64 = 45
 	// Oldest mapping first: the dead school.
+	deadTenantID, _ := newSchoolTenant(t, db)
+	liveTenantID, _ := newSchoolTenant(t, db)
 	email, accountID := createLehrkraftAccount(t, db, service, "school-dead-first", deadTenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
-	testpkg.EnsureTestTenant(t, db, liveTenantID)
 	testpkg.MapAccountToTenant(t, db, accountID, liveTenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, accountID, liveTenantID)
 
 	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?", deadTenantID)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, _ = db.Exec("UPDATE platform.schools SET deleted_at = NULL WHERE id = ?", deadTenantID)
-	})
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 
@@ -353,9 +356,8 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 46
-	email, accountID := createLehrkraftAccount(t, db, service, "school-trusted", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-trusted", tenantID)
 
 	var verifiedCookie string
 	var verifiedTenantID int64
@@ -395,9 +397,8 @@ func TestLoginSchool_MFAStatusUnavailable_FailsClosed(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 50
-	email, accountID := createLehrkraftAccount(t, db, service, "school-mfa-infra", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-mfa-infra", tenantID)
 	defer service.SetMFAService(nil)
 
 	mfaErr := errors.New("mfa backend unreachable")
@@ -457,9 +458,8 @@ func TestIssueSchoolTokens_Lehrkraft_MintsSchoolScopedPair(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 47
+	tenantID, _ := newSchoolTenant(t, db)
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
 
 	accessToken, refreshToken, err := service.IssueSchoolTokensForAuthenticatedAccount(
 		context.Background(), accountID, tenantID, "", "")
@@ -481,9 +481,8 @@ func TestIssueSchoolTokens_AccountStateGates(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 48
+	tenantID, _ := newSchoolTenant(t, db)
 	_, accountID := createLehrkraftAccount(t, db, service, "school-issue-gates", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
 
 	t.Run("unknown account", func(t *testing.T) {
 		_, _, err := service.IssueSchoolTokensForAuthenticatedAccount(
@@ -530,12 +529,11 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 49
+	tenantID, slug := newSchoolTenant(t, db)
 	_, accountID := createLehrkraftAccount(t, db, service, "school-switch-gates", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
 
 	t.Run("unknown account", func(t *testing.T) {
-		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, "t1")
+		_, _, err := service.SwitchSchool(context.Background(), missingAccountID, slug)
 
 		require.Error(t, err)
 		var authErr *auth.AuthError
@@ -547,7 +545,7 @@ func TestSwitchSchool_AccountStateAndSlugGates(t *testing.T) {
 		setAccountActive(t, db, accountID, false)
 		defer setAccountActive(t, db, accountID, true)
 
-		_, _, err := service.SwitchSchool(context.Background(), accountID, "t1")
+		_, _, err := service.SwitchSchool(context.Background(), accountID, slug)
 
 		require.Error(t, err)
 		var authErr *auth.AuthError
@@ -573,9 +571,8 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 	defer func() { _ = db.Close() }()
 	service := setupAuthService(t, db)
 
-	const tenantID int64 = 42
-	email, accountID := createLehrkraftAccount(t, db, service, "school-enroll", tenantID)
-	defer testpkg.CleanupAuthFixtures(t, db, accountID)
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-enroll", tenantID)
 
 	service.SetMFAService(&authtest.MFAServiceMock{
 		IsRequiredFn:    func(context.Context, *authModels.Account, int64) (bool, error) { return true, nil },
@@ -594,4 +591,86 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 	assert.Equal(t, authjwt.MFAEnrollmentScopeSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")
 	assert.Equal(t, tenantID, claims.TenantID)
+}
+
+func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
+	// Membership is revoked by flipping auth.account_tenants.status, not by
+	// touching roles. Every path that mints a school token must re-read that
+	// status: an in-flight MFA challenge, a school switch, and a refresh all
+	// used to trust the mapping resolved at password time and kept minting
+	// tokens for an account already removed from the school.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupAuthService(t, db)
+
+	tenantID, slug := newSchoolTenant(t, db)
+	email, accountID := createLehrkraftAccount(t, db, service, "school-revoked-mapping", tenantID)
+
+	login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+	require.NoError(t, err)
+	require.Equal(t, auth.LoginStatusAuthenticated, login.Status)
+
+	setAccountTenantStatus(t, db, accountID, tenantID, "inactive")
+
+	t.Run("password login", func(t *testing.T) {
+		// The portal-tenant finder only walks ACTIVE mappings, so the school
+		// disappears entirely and the portal-role sentinel is the answer.
+		_, loginErr := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
+
+		require.Error(t, loginErr)
+		var authErr *auth.AuthError
+		require.ErrorAs(t, loginErr, &authErr)
+		assert.ErrorIs(t, authErr.Err, auth.ErrAccountNoSchoolPortalRole)
+	})
+
+	t.Run("mfa verify token issue", func(t *testing.T) {
+		_, _, issueErr := service.IssueSchoolTokensForAuthenticatedAccount(
+			context.Background(), accountID, tenantID, "", "")
+
+		require.Error(t, issueErr)
+		var authErr *auth.AuthError
+		require.ErrorAs(t, issueErr, &authErr)
+		assert.ErrorIs(t, authErr.Err, auth.ErrTenantAccessDenied)
+	})
+
+	t.Run("school switch", func(t *testing.T) {
+		_, _, switchErr := service.SwitchSchool(context.Background(), accountID, slug)
+
+		require.Error(t, switchErr)
+		var authErr *auth.AuthError
+		require.ErrorAs(t, switchErr, &authErr)
+		assert.ErrorIs(t, authErr.Err, auth.ErrTenantAccessDenied)
+	})
+
+	t.Run("refresh", func(t *testing.T) {
+		_, _, refreshErr := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+
+		require.Error(t, refreshErr)
+		var authErr *auth.AuthError
+		require.ErrorAs(t, refreshErr, &authErr)
+		assert.ErrorIs(t, authErr.Err, auth.ErrTenantAccessDenied)
+	})
+}
+
+func TestIssueSchoolTokens_SoftDeletedSchool_Refused(t *testing.T) {
+	// A school soft-deleted while `active` stays true must still cut the
+	// token mint — the liveness gate checks deleted_at as well, not only the
+	// active flag.
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	service := setupAuthService(t, db)
+
+	tenantID, _ := newSchoolTenant(t, db)
+	_, accountID := createLehrkraftAccount(t, db, service, "school-soft-deleted", tenantID)
+
+	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW(), active = true WHERE id = ?", tenantID)
+	require.NoError(t, err)
+
+	_, _, err = service.IssueSchoolTokensForAuthenticatedAccount(
+		context.Background(), accountID, tenantID, "", "")
+
+	require.Error(t, err)
+	var authErr *auth.AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, auth.ErrTenantNotFound)
 }

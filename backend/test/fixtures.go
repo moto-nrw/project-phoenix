@@ -36,6 +36,7 @@ const (
 	whereIDIn                     = "id IN (?)"
 	whereIDOrAccountID            = "id = ? OR account_id = ?"
 	whereAccountIDIn              = "account_id IN (?)"
+	whereTenantIDIn               = "tenant_id IN (?)"
 	tableUsersTeachers            = "users.teachers"
 	tableUsersStaff               = "users.staff"
 	tableUsersPersons             = "users.persons"
@@ -2186,6 +2187,104 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 			GREATEST((SELECT last_value FROM platform.schools_id_seq), ?))`,
 		tenantID)
 	require.NoError(tb, err, "Failed to advance school sequence past explicit tenant ID")
+}
+
+// CreateTestTenant creates an organization + school pair that nobody else
+// shares and returns the school id (= tenant id) plus its subdomain. Pair it
+// with CleanupTestTenant.
+//
+// Prefer this over EnsureTestTenant(db, 42) whenever a test mutates the school
+// row itself — flipping `active`, stamping `deleted_at` — or asserts on
+// tenant-wide state. EnsureTestTenant's ON CONFLICT DO NOTHING means a literal
+// ID silently joins whatever rows a parallel package left behind.
+//
+// The ID deliberately does NOT come from UniqueTestTenantID: those are
+// nanosecond-scale and do not survive a JWT round-trip (JSON numbers decode as
+// float64, exact only below 2^53), so anything asserting on the tenant_id
+// claim — or any refresh, which compares the claim against the stored tenant —
+// would work off a rounded value. Nor can the ID be left to the sequence:
+// EnsureTestTenant setvals it up to whatever nanosecond ID it was handed, so a
+// nextval-assigned school inherits the same problem.
+func CreateTestTenant(tb testing.TB, db *bun.DB) (tenantID int64, subdomain string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tenantID = uniqueJWTSafeTenantID()
+	token := fmt.Sprintf("%d-%d", tenantID, time.Now().UnixNano())
+	subdomain = fmt.Sprintf("t%d", tenantID)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (?, ?, ?, true)`,
+		tenantID, "Test Org "+token, "test-org-"+token)
+	require.NoError(tb, err, "Failed to create test organization")
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (?, ?, ?, ?, ?, true)`,
+		tenantID, tenantID, "Test School "+token, "test-school-"+token, subdomain)
+	require.NoError(tb, err, "Failed to create test school")
+
+	// Push both sequences clear of the WHOLE band, not just past this ID:
+	// setting them to the ID itself would make the next nextval collide with
+	// the next ID this helper hands out.
+	for _, seq := range []string{"platform.organizations", "platform.schools"} {
+		_, err = db.ExecContext(ctx, fmt.Sprintf(`
+			SELECT setval(pg_get_serial_sequence('%s', 'id'),
+				GREATEST((SELECT last_value FROM %s_id_seq), ?))`, seq, seq),
+			testTenantIDCeiling)
+		require.NoError(tb, err, "Failed to advance sequence past the test tenant band")
+	}
+
+	return tenantID, subdomain
+}
+
+// CleanupTestTenant removes the school + owning organization rows created by
+// CreateTestTenant, plus the audit rows that reference the school. Call it
+// AFTER the account cleanup that owns the account_tenants and account_roles
+// rows, otherwise the school delete trips their FKs.
+func CleanupTestTenant(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
+	tb.Helper()
+
+	if len(tenantIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// The organization id is not the school id, so resolve it before the
+	// school rows disappear.
+	var orgIDs []int64
+	if err := db.NewSelect().
+		ColumnExpr("DISTINCT organization_id").
+		TableExpr("platform.schools").
+		Where(whereIDIn, bun.List(tenantIDs)).
+		Scan(ctx, &orgIDs); err != nil {
+		tb.Logf("cleanup lookup platform.schools organization_id: %v", err)
+	}
+
+	// Auth events are written from a detached goroutine, so a row can still
+	// land between the test body and this cleanup; deleting them first keeps
+	// the school delete from failing on the FK.
+	cleanupDelete(tb, db.NewDelete().
+		Table("audit.auth_events").
+		Where(whereTenantIDIn, bun.List(tenantIDs)),
+		"audit.auth_events")
+
+	cleanupDelete(tb, db.NewDelete().
+		Table("platform.schools").
+		Where(whereIDIn, bun.List(tenantIDs)),
+		"platform.schools")
+
+	if len(orgIDs) > 0 {
+		cleanupDelete(tb, db.NewDelete().
+			Table("platform.organizations").
+			Where(whereIDIn, bun.List(orgIDs)),
+			"platform.organizations")
+	}
 }
 
 // MapAccountToTenant creates an active account_tenants mapping without

@@ -92,9 +92,12 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 		_, _ = db.NewDelete().Table("auth.mfa_email_challenges").Where("account_id = ?", acc.ID).Exec(context.Background())
 	})
 
+	// ChallengeID mirrors what StartChallenge stamps: the verify path resolves
+	// the exact row the token names, so a hand-built token must name it too.
 	challengeJWT, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
-		AccountID: acc.ID,
-		Scope:     authjwt.MFAChallengeScopeTenant,
+		AccountID:   acc.ID,
+		Scope:       authjwt.MFAChallengeScopeTenant,
+		ChallengeID: challenge.ID,
 	}, auth.MFAChallengeTTL)
 	require.NoError(t, err)
 

@@ -91,9 +91,15 @@ func (m *MFAServiceMock) VerifyChallenge(ctx context.Context, challengeToken, co
 	return nil, nil
 }
 
+// VerifyChallengeForScope falls back to VerifyChallengeFn when no scope-aware
+// override is set — in the real service the two differ only by the scope
+// check, so a test that stubs the unscoped behavior means it for both.
 func (m *MFAServiceMock) VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*svcauth.VerifiedChallenge, error) {
 	if m.VerifyChallengeForScopeFn != nil {
 		return m.VerifyChallengeForScopeFn(ctx, challengeToken, code, expectedScope)
+	}
+	if m.VerifyChallengeFn != nil {
+		return m.VerifyChallengeFn(ctx, challengeToken, code)
 	}
 	return nil, nil
 }
@@ -105,9 +111,14 @@ func (m *MFAServiceMock) ResendChallenge(ctx context.Context, challengeToken str
 	return "", nil
 }
 
+// ResendChallengeForScope mirrors VerifyChallengeForScope: without a
+// scope-aware override it runs whatever ResendChallengeFn the test set.
 func (m *MFAServiceMock) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
 	if m.ResendChallengeForScopeFn != nil {
 		return m.ResendChallengeForScopeFn(ctx, challengeToken, ip, expectedScope)
+	}
+	if m.ResendChallengeFn != nil {
+		return m.ResendChallengeFn(ctx, challengeToken, ip)
 	}
 	return "", nil
 }

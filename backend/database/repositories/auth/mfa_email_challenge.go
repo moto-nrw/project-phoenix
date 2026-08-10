@@ -66,6 +66,30 @@ func (r *MFAEmailChallengeRepository) FindActiveByAccountID(ctx context.Context,
 	return challenge, nil
 }
 
+// FindActiveByIDForAccount returns one specific unconsumed, unexpired
+// challenge, scoped to its owning account. This is the lookup the verify path
+// uses: the challenge JWT names the row it was minted for, so a code emailed
+// for one portal can never be redeemed against another in-flight challenge of
+// the same account. The account_id predicate makes a guessed or forged id
+// useless even though the id also travels inside a signed token.
+// Returns a DatabaseError wrapping sql.ErrNoRows when no such row exists.
+func (r *MFAEmailChallengeRepository) FindActiveByIDForAccount(ctx context.Context, id, accountID int64) (*auth.MFAEmailChallenge, error) {
+	challenge := new(auth.MFAEmailChallenge)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(challenge).
+		ModelTableExpr(mfaEmailChallengeTableAlias).
+		Where("id = ?", id).
+		Where("account_id = ?", accountID).
+		Where("consumed_at IS NULL").
+		Where("expires_at > ?", time.Now()).
+		Limit(1).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find active mfa email challenge by id", Err: err}
+	}
+	return challenge, nil
+}
+
 // MarkConsumed marks a challenge as redeemed. The unique partial index on
 // (account_id, expires_at) WHERE consumed_at IS NULL means the challenge
 // becomes immediately invisible to FindActiveByAccountID after this update.

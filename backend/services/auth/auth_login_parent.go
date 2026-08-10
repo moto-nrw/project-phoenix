@@ -181,8 +181,7 @@ func (s *Service) isGuardianOnlyAccount(ctx context.Context, account *authModels
 		return false
 	}
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
-		return nil
+		return s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
 	})
 	if err != nil {
 		return false

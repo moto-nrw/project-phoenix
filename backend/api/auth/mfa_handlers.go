@@ -41,6 +41,10 @@ func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 	case errors.Is(err, authService.ErrMFACodeInvalid):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
+	case errors.Is(err, authService.ErrMFAUnsupportedScope):
+		// A challenge token from another portal presented here — same
+		// treatment as an invalid token, never a 500.
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
 	case errors.Is(err, authService.ErrMFALocked):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
 	case errors.Is(err, authService.ErrMFARateLimited):
@@ -98,6 +102,11 @@ type MFAResendResponse = common.MFAResendResponse
 // mfaResend re-issues an email code against the existing challenge token.
 // Rate-limited inside the service. Returns the renewed challenge JWT —
 // see MFAResendResponse for why the previous 204-shape was unsafe.
+//
+// Scope-enforcing on purpose (mirrors the school endpoint): the unscoped
+// ResendChallenge accepts ANY challenge token, so this tenant surface would
+// otherwise happily send another code for a school-scope challenge and burn
+// that account's 3-codes-per-15-minutes budget from outside its own portal.
 func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -107,7 +116,7 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendChallenge(r.Context(), req.ChallengeToken, parseClientIP(r))
+	renewed, err := rs.MFAService.ResendChallengeForScope(r.Context(), req.ChallengeToken, parseClientIP(r), jwt.MFAChallengeScopeTenant)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return

@@ -470,10 +470,15 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		}
 
 		// Step 2: Load roles scoped to the resolved tenant (D13 §6.1 step 6).
-		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		if err := s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID); err != nil {
+			return err
+		}
 
 		// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
-		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		permissions, err := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		if err != nil {
+			return err
+		}
 		roleNames := s.extractRoleNames(account.Roles)
 		permissionStrs := s.extractPermissionNames(permissions)
 
@@ -526,8 +531,13 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 		}
 
 		// Load roles and permissions scoped to the preserved tenant.
-		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
-		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		if err := s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID); err != nil {
+			return err
+		}
+		permissions, err := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		if err != nil {
+			return err
+		}
 		roleNames := s.extractRoleNames(account.Roles)
 		permissionStrs := s.extractPermissionNames(permissions)
 
@@ -555,18 +565,28 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 
 // ensureAccountRolesLoadedForTenant loads account roles scoped to a specific tenant.
 // Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 6).
-func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account *auth.Account, tenantID int64) {
+//
+// Query failures are PROPAGATED, never swallowed. An empty role set is not a
+// harmless degradation: MFAService.IsRequired evaluates security.mfa_mode =
+// required_admins against exactly these roles, so a transient DB error used to
+// turn an admin into a role-less account and waved the login through without a
+// second factor. A genuine "no roles" result arrives as an empty slice, so only
+// real infra errors reach the caller — which maps them to a retryable 500.
+func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account *auth.Account, tenantID int64) error {
 	// Clear any previously loaded roles to ensure fresh tenant-scoped loading
 	account.Roles = nil
 
 	accountRoles, err := s.repos.AccountRole.FindByAccountIDForTenant(ctx, account.ID, tenantID)
 	if err != nil {
-		s.getLogger().Warn("failed to load tenant-scoped roles",
+		if isNotFoundError(err) {
+			return nil
+		}
+		s.getLogger().Warn("failed to load tenant-scoped roles; refusing login",
 			slog.Int64("account_id", account.ID),
 			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err),
 		)
-		return
+		return fmt.Errorf("load tenant-scoped roles for account %d at tenant %d: %w", account.ID, tenantID, err)
 	}
 
 	for _, ar := range accountRoles {
@@ -574,21 +594,29 @@ func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account
 			account.Roles = append(account.Roles, ar.Role)
 		}
 	}
+	return nil
 }
 
 // loadAccountPermissionsForTenant retrieves permissions scoped to a specific tenant.
 // Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 7).
-func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID int64, tenantID int64) []*auth.Permission {
+//
+// Same fail-closed contract as ensureAccountRolesLoadedForTenant: a DB error
+// must not silently mint a token with an empty permission set, which reads to
+// every downstream authorize check as a legitimately unprivileged session.
+func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*auth.Permission, error) {
 	permissions, err := s.repos.Permission.FindByAccountIDForTenant(ctx, accountID, tenantID)
 	if err != nil {
-		s.getLogger().Warn("failed to load tenant-scoped permissions",
+		if isNotFoundError(err) {
+			return []*auth.Permission{}, nil
+		}
+		s.getLogger().Warn("failed to load tenant-scoped permissions; refusing login",
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err),
 		)
-		return []*auth.Permission{}
+		return nil, fmt.Errorf("load tenant-scoped permissions for account %d at tenant %d: %w", accountID, tenantID, err)
 	}
-	return permissions
+	return permissions, nil
 }
 
 // extractRoleNames converts roles to string slice

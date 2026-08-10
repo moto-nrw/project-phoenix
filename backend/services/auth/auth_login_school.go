@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -125,7 +126,15 @@ func (s *Service) LoginSchoolWithMFAGate(
 		return nil, err
 	}
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, email)
-	accessToken, refreshToken, err := s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
+	// Attribute the audit event to the school the portal-role lookup actually
+	// resolved. Without the explicit tenant, logAuthEvent falls back to the
+	// account's FIRST active mapping — for a Lehrkraft mapped to several
+	// schools that is routinely a different school than the one just logged
+	// into, which silently files the login under the wrong tenant.
+	accessToken, refreshToken, err := s.generateAndLogTokens(
+		tenant.WithTenantID(ctx, portalTenantID),
+		account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +174,7 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 		return "", "", err
 	}
 	if !hasRole {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at school token issue")
+		s.logFailedLogin(tenant.WithTenantID(ctx, tenantID), account.ID, ipAddress, userAgent, "No school portal role at school token issue")
 		return "", "", &AuthError{Op: "issue school tokens", Err: ErrAccountNoSchoolPortalRole}
 	}
 
@@ -175,7 +184,12 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 	}
 
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
-	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin)
+	// Same explicit attribution as the password login — the challenge carries
+	// the school, so the audit event must not fall back to the first mapping.
+	return s.generateAndLogTokens(
+		tenant.WithTenantID(ctx, metadata.tenantID),
+		account.ID, appClaims, refreshClaims, ipAddress, userAgent, audit.EventTypeLogin,
+	)
 }
 
 // SwitchSchool re-authenticates a school-portal session to a different
@@ -226,7 +240,12 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug 
 	}
 
 	appClaims, refreshClaims := s.buildJWTClaims(account, token, metadata, account.Email)
-	return s.generateAndLogTokens(ctx, account.ID, appClaims, refreshClaims, "", "", audit.EventTypeTenantSwitch)
+	// The switch event belongs to the TARGET school, not to whatever mapping
+	// happens to be oldest.
+	return s.generateAndLogTokens(
+		tenant.WithTenantID(ctx, metadata.tenantID),
+		account.ID, appClaims, refreshClaims, "", "", audit.EventTypeTenantSwitch,
+	)
 }
 
 // loadSchoolMetadataForTenant loads the tenant-scoped metadata (roles,
@@ -235,30 +254,60 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug 
 // what lets authorize.RequiresPermission(class_day:read) work unchanged
 // behind /school/*.
 //
-// On top of the shared metadata load (which already rejects soft-deleted
-// schools) this refuses INACTIVE schools: an operator deactivating a school
-// must cut every school-portal token mint — login, switch, MFA verify, and
-// refresh all funnel through here.
+// This is the ONE choke point every school token mint runs through — login,
+// switch, MFA verify, MFA enrollment confirm, and refresh — so the liveness
+// gates live here rather than being repeated per entry point:
+//
+//   - The school must still be alive AND active. The shared metadata load
+//     already rejects soft-deleted schools, but it reads a snapshot taken
+//     before this call; re-checking BOTH deleted_at and active on the row we
+//     fetch here closes the window where a soft-delete lands between the two
+//     lookups and leaves active=true behind.
+//   - The account's auth.account_tenants mapping must still be `active`.
+//     Membership is revoked by flipping that status, and every path except the
+//     password login used to trust the mapping resolved minutes earlier: an
+//     in-flight MFA challenge, a school switch, or a refresh would keep minting
+//     school tokens for an account that was already removed from the school.
 func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
 	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	school, err := s.repos.School.FindByID(ctx, tenantID)
-	if err != nil {
-		return nil, fmt.Errorf("lookup school %d for school metadata: %w", tenantID, err)
+
+	// Both lookups run as phoenix_admin: auth.account_tenants is RLS-guarded
+	// and the school auth flows have no tenant transaction yet.
+	var (
+		school        *platformModels.School
+		activeMapping bool
+	)
+	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		school, err = s.repos.School.FindByID(adminCtx, tenantID)
+		if err != nil {
+			return fmt.Errorf("lookup school %d for school metadata: %w", tenantID, err)
+		}
+		activeMapping, err = s.repos.AccountTenant.ExistsByAccountAndTenant(adminCtx, account.ID, tenantID)
+		if err != nil {
+			return fmt.Errorf("verify account %d membership at school %d: %w", account.ID, tenantID, err)
+		}
+		return nil
+	}); txErr != nil {
+		return nil, txErr
 	}
-	if school == nil || !school.Active {
+
+	if school == nil || school.IsDeleted() || !school.Active {
 		return nil, &AuthError{Op: "load school metadata", Err: ErrTenantNotFound}
 	}
+	if !activeMapping {
+		return nil, &AuthError{Op: "load school metadata", Err: ErrTenantAccessDenied}
+	}
+
 	metadata.scope = tenant.ScopeSchool
 	return metadata, nil
 }
 
 // hasSchoolPortalRoleAtTenant reports whether the account holds a
 // school-portal role at the tenant. Runs in an admin tx (auth.account_roles
-// is RLS-guarded and the auth flows have no tenant transaction) and — unlike
-// the swallow-and-warn role hydration in ensureAccountRolesLoadedForTenant —
+// is RLS-guarded and the auth flows have no tenant transaction) and
 // PROPAGATES query errors: a transient DB blip must surface as a retryable
 // error, never masquerade as "role revoked" (which on the refresh path would
 // log the user out for good).

@@ -125,12 +125,15 @@ type MFAService interface {
 	// replace the in-flight token because the next verify must travel
 	// with the renewed JWT (otherwise the user sees a fresh emailed
 	// code that cannot be verified once the old JWT expires).
+	//
+	// NOT for HTTP surfaces: it accepts a challenge of ANY scope. Every
+	// portal endpoint uses ResendChallengeForScope with its own scope.
 	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	// ResendChallengeForScope is the scope-enforcing sibling of
-	// ResendChallenge (#2207): the school resend endpoint must not let a
-	// foreign-portal challenge be re-driven (and its 3-codes/15-min budget
-	// burned) through the school surface. Scope mismatch is refused before
-	// any code is sent.
+	// ResendChallenge (#2207) and the variant every portal resend endpoint
+	// must call: no surface may re-drive a foreign-portal challenge (and
+	// burn its 3-codes/15-min budget). Scope mismatch is refused before any
+	// code is sent.
 	ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 
 	// VerifyCodeForAccount is the JWT-less sibling of VerifyChallenge used by
@@ -481,10 +484,13 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		"challenge_id": challenge.ID,
 	})
 
+	// The token names the row it belongs to — see MFAChallengeClaims.ChallengeID
+	// for why "newest active code for this account" is not a safe lookup key.
 	tokenString, err := s.TokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
-		AccountID: accountID,
-		Scope:     scope,
-		TenantID:  tenantID,
+		AccountID:   accountID,
+		Scope:       scope,
+		TenantID:    tenantID,
+		ChallengeID: challenge.ID,
 	}, MFAChallengeTTL)
 	if err != nil {
 		return "", fmt.Errorf("mint challenge jwt: %w", err)
@@ -517,7 +523,18 @@ func (s *mfaService) VerifyChallengeForScope(ctx context.Context, challengeToken
 		return nil, ErrMFALocked
 	}
 
-	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountID(ctx, claims.AccountID)
+	// Resolve the EXACT challenge this token was minted for. Falling back to
+	// "newest active code for the account" would let two concurrent challenges
+	// — a tenant login and a school login of the same person, say — redeem
+	// each other's code: the scope check above passes because it only inspects
+	// the JWT, and the code check would then run against the wrong row.
+	// A token without the claim predates it and is refused rather than
+	// downgraded to the ambiguous lookup; the challenge TTL is 5 minutes, so
+	// the only cost is one re-login inside the deploy window.
+	if claims.ChallengeID == 0 {
+		return nil, ErrMFAChallengeTokenInvalid
+	}
+	active, err := s.Repos.MFAEmailChallenge.FindActiveByIDForAccount(ctx, claims.ChallengeID, claims.AccountID)
 	if err != nil || active == nil {
 		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return nil, ErrMFACodeInvalid

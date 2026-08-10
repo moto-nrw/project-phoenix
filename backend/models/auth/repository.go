@@ -220,6 +220,10 @@ type MFAEmailChallengeRepository interface {
 	FindByID(ctx context.Context, id interface{}) (*MFAEmailChallenge, error)
 	// FindActiveByAccountID returns the most recent unconsumed, unexpired challenge for an account.
 	FindActiveByAccountID(ctx context.Context, accountID int64) (*MFAEmailChallenge, error)
+	// FindActiveByIDForAccount returns one specific unconsumed, unexpired challenge
+	// owned by the account — the lookup the challenge-token verify path uses so a
+	// code is only ever redeemed against the challenge it was minted for.
+	FindActiveByIDForAccount(ctx context.Context, id, accountID int64) (*MFAEmailChallenge, error)
 	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
 	// CountRecentByAccountID counts challenges issued at or after `since` (used for rate-limit checks).
 	CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error)
