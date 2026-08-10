@@ -277,8 +277,8 @@ github.com/valyala/fastjson v1.6.10 h1:/yjJg8jaVQdYR3arGxPE2X5z89xrlhS0eGXdv+ADT
 github.com/valyala/fastjson v1.6.10/go.mod h1:e6FubmQouUNP73jtMLmcbxS6ydWIpOfhz34TSfO3JaE=
 github.com/vanng822/css v1.0.1 h1:10yiXc4e8NI8ldU6mSrWmSWMuyWgPr9DZ63RSlsgDw8=
 github.com/vanng822/css v1.0.1/go.mod h1:tcnB1voG49QhCrwq1W0w5hhGasvOg+VQp9i9H1rCM1w=
-github.com/vanng822/go-premailer v1.34.0 h1:CW7RUnjCfXrkuCbgC2wi/Cub7IwKslJWD/OkIBlcQUk=
-github.com/vanng822/go-premailer v1.34.0/go.mod h1:LGYI7ym6FQ7KcHN16LiQRF+tlan7qwhP1KEhpTINFpo=
+github.com/vanng822/go-premailer v1.35.0 h1:MKjrmNV501RC7sIojfOSMT8o3f0eajzuwT7PZ5MUKZg=
+github.com/vanng822/go-premailer v1.35.0/go.mod h1:Tprut5ol8TYvztOrIk92fo8cklEKXglZ6VFU32hoZy4=
 github.com/vmihailenco/msgpack/v5 v5.4.1 h1:cQriyiUvjTwOHg8QZaPihLWeRAAVoCpE00IUPn0Bjt8=
 github.com/vmihailenco/msgpack/v5 v5.4.1/go.mod h1:GaZTsDaehaPpQVyxrf5mtQlH+pc21PIudVV/E3rRQok=
 github.com/vmihailenco/tagparser/v2 v2.0.0 h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAhO7/IwNM9g=
