@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { FormEvent } from "react";
+import { flushSync } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 import { CustomSelect } from "./custom-select";
 
@@ -497,5 +498,182 @@ describe("CustomSelect", () => {
       rectSpy.mockRestore();
       widthSpy.mockRestore();
     }
+  });
+
+  describe("scroll behaviour in long lists", () => {
+    const longOptions = Array.from({ length: 40 }, (_, index) => ({
+      value: `opt-${index}`,
+      label: `Option ${index + 1}`,
+    }));
+
+    it("scrolls the selected option into view once when the menu opens", () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        render(
+          <CustomSelect
+            value="opt-30"
+            options={longOptions}
+            onChange={vi.fn()}
+            ariaLabel="Lange Liste"
+          />,
+        );
+
+        fireEvent.click(screen.getByRole("combobox", { name: "Lange Liste" }));
+
+        expect(screen.getByRole("listbox")).toBeInTheDocument();
+        expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
+        expect(screen.getByRole("option", { name: "Option 31" })).toHaveFocus();
+      } finally {
+        Element.prototype.scrollIntoView = vi.fn();
+      }
+    });
+
+    it("does not scroll when the pointer enters an already-visible option", () => {
+      // Hover used to set focusIndex and scrollIntoView({ block: "center" }),
+      // which re-centred the list under the cursor and made options jump (#2212).
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        render(
+          <CustomSelect
+            value="opt-0"
+            options={longOptions}
+            onChange={vi.fn()}
+            ariaLabel="Lange Liste"
+          />,
+        );
+
+        fireEvent.click(screen.getByRole("combobox", { name: "Lange Liste" }));
+        expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+        // Opening may scroll the selected value into view once; that is fine.
+        scrollIntoViewMock.mockClear();
+
+        fireEvent.mouseEnter(screen.getByRole("option", { name: "Option 8" }));
+
+        expect(scrollIntoViewMock).not.toHaveBeenCalled();
+        expect(screen.getByRole("option", { name: "Option 8" })).toHaveFocus();
+      } finally {
+        Element.prototype.scrollIntoView = vi.fn();
+      }
+    });
+
+    it("scrolls the focused option into view on keyboard navigation", () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        render(
+          <CustomSelect
+            value="opt-0"
+            options={longOptions}
+            onChange={vi.fn()}
+            ariaLabel="Lange Liste"
+          />,
+        );
+
+        const trigger = screen.getByRole("combobox", { name: "Lange Liste" });
+        fireEvent.click(trigger);
+        scrollIntoViewMock.mockClear();
+
+        fireEvent.keyDown(trigger, { key: "ArrowDown" });
+
+        expect(scrollIntoViewMock).toHaveBeenCalled();
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          block: "nearest",
+        });
+        expect(screen.getByRole("option", { name: "Option 2" })).toHaveFocus();
+      } finally {
+        Element.prototype.scrollIntoView = vi.fn();
+      }
+    });
+
+    it("scrolls the selected option on open even when hover moves focus first", () => {
+      // Open scroll must use the index captured at open time. If mouseEnter
+      // changes focusIndex before the open effect runs, scrolling focusIndex
+      // would reveal the hovered row and leave the selection off-screen.
+      const scrolledLabels: string[] = [];
+      const scrollIntoViewMock = vi.fn(function scrollIntoView(this: Element) {
+        scrolledLabels.push(this.textContent ?? "");
+        // scrollIntoView on a long list scrolls the listbox; that fires a
+        // capture-phase window scroll listener. Without ignoring menu-local
+        // scrolls, a new menuStyle re-scrolls the hovered focusIndex.
+        const menu = this.closest('[role="listbox"]');
+        menu?.dispatchEvent(new Event("scroll", { bubbles: true }));
+      });
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        render(
+          <CustomSelect
+            value="opt-30"
+            options={longOptions}
+            onChange={vi.fn()}
+            ariaLabel="Lange Liste"
+          />,
+        );
+
+        const trigger = screen.getByRole("combobox", { name: "Lange Liste" });
+        // flushSync opens the menu (layout) without running passive effects;
+        // hover then moves focusIndex before the open-scroll effect. Native
+        // dispatch (not RTL fireEvent) avoids a per-event act flush that would
+        // run effects between the two steps.
+        act(() => {
+          flushSync(() => {
+            trigger.dispatchEvent(
+              new MouseEvent("click", { bubbles: true, cancelable: true }),
+            );
+          });
+          const hovered = screen.getByRole("option", { name: "Option 1" });
+          // React wires onMouseEnter from mouseover; fire both.
+          hovered.dispatchEvent(
+            new MouseEvent("mouseover", { bubbles: true, cancelable: true }),
+          );
+          hovered.dispatchEvent(
+            new MouseEvent("mouseenter", { bubbles: true, cancelable: true }),
+          );
+        });
+
+        expect(scrolledLabels).toContain("Option 31");
+        // Hover must not get a follow-up layout re-scroll after open reveal.
+        expect(scrolledLabels).not.toContain("Option 1");
+        expect(screen.getByRole("option", { name: "Option 1" })).toHaveFocus();
+      } finally {
+        Element.prototype.scrollIntoView = vi.fn();
+      }
+    });
+
+    it("scrolls the focused option after layout updates even when hover suppressed scroll", () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        render(
+          <CustomSelect
+            value="opt-0"
+            options={longOptions}
+            onChange={vi.fn()}
+            ariaLabel="Lange Liste"
+          />,
+        );
+
+        fireEvent.click(screen.getByRole("combobox", { name: "Lange Liste" }));
+        fireEvent.mouseEnter(screen.getByRole("option", { name: "Option 8" }));
+        scrollIntoViewMock.mockClear();
+
+        // Resize repositions the menu (new menuStyle). Hover suppress must not
+        // leave the focused option off-screen after the layout change.
+        fireEvent(window, new Event("resize"));
+
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
+        expect(screen.getByRole("option", { name: "Option 8" })).toHaveFocus();
+      } finally {
+        Element.prototype.scrollIntoView = vi.fn();
+      }
+    });
   });
 });
