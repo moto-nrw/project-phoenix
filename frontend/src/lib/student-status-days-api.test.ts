@@ -173,6 +173,36 @@ describe("student-status-days-api", () => {
     ).rejects.toThrow("Klassenfahrt konnte nicht gespeichert werden");
   });
 
+  it("returns typed conflicts from an atomic bulk rejection", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        {
+          status: "error",
+          error: "existing student status days were not overwritten",
+          conflicts: [backendDay],
+        },
+        { status: 409 },
+      ),
+    );
+
+    const error = await bulkCreateStudentStatusDays(
+      ["42", "43"],
+      "class_trip",
+      "2026-05-26",
+      "2026-05-28",
+    ).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(StudentStatusDayConflictError);
+    expect((error as StudentStatusDayConflictError).conflicts).toEqual([
+      expect.objectContaining({
+        id: "7",
+        student_id: "42",
+        date: "2026-05-26",
+        status: "excused",
+      }),
+    ]);
+  });
+
   it("throws backend errors from successful HTTP responses", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       Response.json({ status: "error", error: "Bereits geplant" }),

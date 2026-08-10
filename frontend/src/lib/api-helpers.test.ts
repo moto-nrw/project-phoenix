@@ -163,6 +163,34 @@ describe("handleApiError", () => {
     // consoleError not called for 4xx
   });
 
+  it("redacts free-text notes from 409 conflict bodies before logging", () => {
+    const backendJson = JSON.stringify({
+      status: "error",
+      error: "existing student status days were not overwritten",
+      conflicts: [
+        {
+          id: 7,
+          student_id: 42,
+          date: "2026-05-26",
+          status: "sick",
+          note: "Fieber und Halsschmerzen",
+        },
+      ],
+    });
+    const error = new Error(`API error (409): ${backendJson}`);
+
+    const response = handleApiError(error);
+
+    expect(response.status).toBe(409);
+    expect(consoleSpies.warn).toHaveBeenCalledWith("api route error", {
+      status: 409,
+      error: expect.stringContaining('"note":"[REDACTED]"'),
+    });
+    expect(consoleSpies.warn.mock.calls[0]?.[1]?.error).not.toContain(
+      "Fieber und Halsschmerzen",
+    );
+  });
+
   it("logs rate-limit responses with rate_limited context", () => {
     const error = new Error("API error (429): Rate limit exceeded");
 

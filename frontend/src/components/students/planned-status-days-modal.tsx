@@ -187,6 +187,33 @@ export function PlannedStatusDaysModal({
         .filter((day): day is StudentStatusDay => day !== undefined),
     [candidateDateKeys, candidateExistingDayByDate],
   );
+  // Rows the user can clear: same-status days from the parent list plus any
+  // conflicts discovered for the current selection (including out-of-window
+  // dates) so Entfernen is available without changing the selection.
+  const removableExistingDays = useMemo(() => {
+    const byId = new Map<string, StudentStatusDay>();
+    for (const day of activeExistingDays) {
+      byId.set(day.id, day);
+    }
+    if (checkedCurrentSelection) {
+      for (const day of checkedExistingDays) {
+        if (day.cleared_at || byId.has(day.id)) continue;
+        byId.set(day.id, day);
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+  }, [activeExistingDays, checkedCurrentSelection, checkedExistingDays]);
+  const removableListTitle = useMemo(() => {
+    if (
+      removableExistingDays.length > 0 &&
+      removableExistingDays.every((day) => day.status === status)
+    ) {
+      return getExistingListTitle(status);
+    }
+    return "Bereits vorhanden";
+  }, [removableExistingDays, status]);
   const selectableDateKeys = useMemo(
     () =>
       candidateDateKeys.filter((date) => !candidateExistingDayByDate.has(date)),
@@ -608,13 +635,13 @@ export function PlannedStatusDaysModal({
           </div>
         )}
 
-        {activeExistingDays.length > 0 ? (
+        {removableExistingDays.length > 0 ? (
           <div>
             <p className="mb-2 text-sm font-medium text-gray-900">
-              {getExistingListTitle(status)}
+              {removableListTitle}
             </p>
             <div className="space-y-2">
-              {activeExistingDays.map((day) => (
+              {removableExistingDays.map((day) => (
                 <div
                   key={day.id}
                   className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"

@@ -133,6 +133,14 @@ export async function bulkCreateStudentStatusDays(
         : { student_ids: studentIds.map(Number), status, from, to },
     ),
   });
+  if (response.status === 409) {
+    const result = (await response.json()) as ApiResponse<
+      BackendStudentStatusDay[]
+    >;
+    throw new StudentStatusDayConflictError(
+      (result.conflicts ?? result.data ?? []).map(mapStatusDay),
+    );
+  }
   if (!response.ok) {
     throw new Error("Klassenfahrt konnte nicht gespeichert werden");
   }

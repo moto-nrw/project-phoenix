@@ -87,7 +87,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 				map[string]any{
 					"status":    "error",
 					"error":     "existing student status days were not overwritten",
-					"conflicts": newStudentStatusDayResponses(conflictErr.Conflicts),
+					"conflicts": newStudentStatusDayConflictResponses(conflictErr.Conflicts),
 				},
 			)
 			return
@@ -154,7 +154,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 				map[string]any{
 					"status":    "error",
 					"error":     "existing student status days were not overwritten",
-					"conflicts": newStudentStatusDayResponses(conflictErr.Conflicts),
+					"conflicts": newStudentStatusDayConflictResponses(conflictErr.Conflicts),
 				},
 			)
 			return

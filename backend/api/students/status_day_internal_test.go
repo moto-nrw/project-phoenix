@@ -198,11 +198,20 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 		Source:     active.StudentStatusSourceManual,
 	}
 
+	note := "Fieber"
+	sick.Note = &note
 	responses := newStudentStatusDayResponses([]*active.StudentStatusDay{sick, excused})
 	require.Len(t, responses, 2)
 	assert.Equal(t, "Krank", responses[0].Label)
 	assert.Equal(t, "2026-05-25", responses[0].Date)
 	assert.Equal(t, "Entschuldigt", responses[1].Label)
+	require.NotNil(t, responses[0].Note)
+	assert.Equal(t, "Fieber", *responses[0].Note)
+
+	conflictResponses := newStudentStatusDayConflictResponses([]*active.StudentStatusDay{sick})
+	require.Len(t, conflictResponses, 1)
+	assert.Equal(t, sick.ID, conflictResponses[0].ID)
+	assert.Nil(t, conflictResponses[0].Note, "409 conflict payloads must omit free-text notes")
 
 	studentResponses := []StudentResponse{{ID: 90}, {ID: 91}}
 	applyEffectiveStatusDaysToResponses(studentResponses, []*active.StudentStatusDay{excused, sick})

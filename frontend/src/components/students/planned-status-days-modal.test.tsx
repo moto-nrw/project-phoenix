@@ -608,6 +608,7 @@ describe("PlannedStatusDaysModal", () => {
       status: "sick",
     };
     const loadExistingDays = vi.fn().mockResolvedValue([unseenConflict]);
+    const onDeleteStatusDay = vi.fn().mockResolvedValue(undefined);
 
     render(
       <PlannedStatusDaysModal
@@ -619,6 +620,7 @@ describe("PlannedStatusDaysModal", () => {
         onClose={vi.fn()}
         loadExistingDays={loadExistingDays}
         onSubmit={onSubmit}
+        onDeleteStatusDay={onDeleteStatusDay}
       />,
     );
 
@@ -638,6 +640,12 @@ describe("PlannedStatusDaysModal", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(
         "02.01.2027 (krank): 1 von 3 Tagen hat bereits einen Status",
       );
+    });
+
+    expect(screen.getByText("Bereits vorhanden")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    await waitFor(() => {
+      expect(onDeleteStatusDay).toHaveBeenCalledWith("3");
     });
 
     await clickEnabledButton("Entschuldigen");

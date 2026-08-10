@@ -9,7 +9,10 @@ import {
   vi,
 } from "vitest";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
-import { bulkCreateStudentStatusDays } from "~/lib/student-status-days-api";
+import {
+  bulkCreateStudentStatusDays,
+  StudentStatusDayConflictError,
+} from "~/lib/student-status-days-api";
 import type { Student } from "~/lib/api";
 
 // The factory is hoisted above the imports, so the mock helper has to be
@@ -45,16 +48,23 @@ vi.mock("~/components/ui/form-modal", () => ({
     ) : null,
 }));
 
+const toastError = vi.fn();
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: vi.fn(),
-    error: vi.fn(),
+    error: toastError,
   }),
 }));
 
-vi.mock("~/lib/student-status-days-api", () => ({
-  bulkCreateStudentStatusDays: vi.fn(),
-}));
+vi.mock("~/lib/student-status-days-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/student-status-days-api")>();
+  return {
+    ...actual,
+    bulkCreateStudentStatusDays: vi.fn(),
+  };
+});
 
 const students = [
   {
@@ -118,5 +128,46 @@ describe("ClassTripBulkStatusModal", () => {
         undefined,
       );
     });
+  });
+
+  it("lists each conflicting student, date, and status from a bulk 409", async () => {
+    vi.mocked(bulkCreateStudentStatusDays).mockRejectedValueOnce(
+      new StudentStatusDayConflictError([
+        {
+          id: "7",
+          student_id: "42",
+          date: "2026-05-26",
+          status: "sick",
+          label: "Krank",
+          reported_at: "2026-05-25T08:00:00Z",
+          cleared_at: null,
+          source: "planned",
+          created_at: "2026-05-25T08:00:00Z",
+          updated_at: "2026-05-25T08:00:00Z",
+        },
+      ]),
+    );
+
+    render(
+      <ClassTripBulkStatusModal
+        isOpen
+        onClose={vi.fn()}
+        targetLabel="Klasse 3a"
+        students={students}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 1 Schüler speichern" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Kevin Anders: 26.05.2026 (krank)",
+      );
+    });
+    expect(toastError).toHaveBeenCalledWith(
+      "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
+    );
   });
 });
