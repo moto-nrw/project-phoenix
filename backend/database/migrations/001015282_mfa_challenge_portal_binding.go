@@ -63,6 +63,54 @@ func mfaChallengePortalBindingUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed adding portal binding columns to auth.mfa_email_challenges: %w", err)
 	}
 
+	// The DEFAULT answers the scope half for existing rows; tenant_id lands
+	// NULL on every one of them. That matters for the codes that are in flight
+	// while this migration runs: the enrollment-confirm and passkey-
+	// registration paths have no challenge id to look a row up by, so they ask
+	// for (account, scope, school) — and a production caller always knows its
+	// school. A NULL there stops matching, and the code the user was just
+	// emailed reads back as invalid with nothing explaining why.
+	//
+	// Fill the school in wherever it is unambiguous: an account with exactly
+	// one active mapping has exactly one school its tenant-portal code can
+	// have been issued for. Only unconsumed, unexpired rows are touched —
+	// history stays as it was recorded.
+	_, err = db.NewRaw(`
+		UPDATE auth.mfa_email_challenges AS c
+		SET tenant_id = m.tenant_id
+		FROM (
+			SELECT account_id, MIN(tenant_id) AS tenant_id
+			FROM auth.account_tenants
+			WHERE status = 'active'
+			GROUP BY account_id
+			HAVING COUNT(*) = 1
+		) AS m
+		WHERE m.account_id = c.account_id
+		  AND c.tenant_id IS NULL
+		  AND c.consumed_at IS NULL
+		  AND c.expires_at > NOW();
+	`).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed backfilling tenant_id on in-flight auth.mfa_email_challenges rows: %w", err)
+	}
+
+	// What is left is genuinely ambiguous — an account mapped to several
+	// active schools, where nothing on the row says which one asked. Guessing
+	// would make the code redeemable at the wrong school, so retire those rows
+	// instead of leaving them active-but-unmatchable. The user requests a new
+	// code; the alternative is a row that looks alive in the table and answers
+	// no lookup.
+	_, err = db.NewRaw(`
+		UPDATE auth.mfa_email_challenges
+		SET expires_at = NOW()
+		WHERE tenant_id IS NULL
+		  AND consumed_at IS NULL
+		  AND expires_at > NOW();
+	`).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retiring ambiguous in-flight auth.mfa_email_challenges rows: %w", err)
+	}
+
 	return nil
 }
 

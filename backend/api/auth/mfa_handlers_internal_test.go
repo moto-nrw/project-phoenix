@@ -104,6 +104,11 @@ func TestMapMFAError_StatusCodes(t *testing.T) {
 		{authService.ErrMFAAlreadyEnrolled, http.StatusConflict},
 		{authService.ErrMFAPermissionDenied, http.StatusForbidden},
 		{authService.ErrMFAInvalidOverride, http.StatusBadRequest},
+		{authService.ErrMFAUnsupportedScope, http.StatusUnauthorized},
+		// Transient: the service could not read the MFA status or the
+		// rate-limit counter and failed closed. A 500 here would tell the
+		// frontend the resend endpoint is broken instead of "retry".
+		{authService.ErrMFAStatusUnavailable, http.StatusServiceUnavailable},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

@@ -455,6 +455,11 @@ func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, authService.ErrMFALocked),
 		errors.Is(err, authService.ErrMFARateLimited):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+		// Fail-closed status/rate-limit lookup — the same 503 the school
+		// login returns for it, so resend and enroll/start don't answer a
+		// transient database problem with a 500 the client won't retry.
+		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}

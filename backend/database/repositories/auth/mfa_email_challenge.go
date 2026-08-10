@@ -63,8 +63,11 @@ func (r *MFAEmailChallengeRepository) Create(ctx context.Context, challenge *aut
 // passkey registration), and without it the newest code of ANY portal would
 // answer — a school-portal login code redeemed at the tenant enrollment
 // endpoint mints a tenant session from a second factor that was never meant
-// for it. tenantID = 0 means "not recorded", which matches rows written
-// before the portal binding existed.
+// for it. tenantID = 0 drops the school predicate and is for callers that
+// genuinely have no school (there are none on the portal surfaces today);
+// rows predating the binding were resolved by migration 1.15.282, which
+// backfilled the school where it was unambiguous and retired the rest, so a
+// production lookup with a real school id no longer misses in-flight codes.
 func (r *MFAEmailChallengeRepository) FindActiveByAccountIDInScope(ctx context.Context, accountID, tenantID int64, scope string) (*auth.MFAEmailChallenge, error) {
 	challenge := new(auth.MFAEmailChallenge)
 	query := base.GetDB(ctx, r.db).NewSelect().

@@ -49,6 +49,13 @@ func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
 	case errors.Is(err, authService.ErrMFARateLimited):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+		// The service fails closed when it cannot read the MFA status or the
+		// rate-limit counter — a transient database problem, not a client
+		// error. 503 tells the frontend to retry; the 500 this used to
+		// produce reads as "resend is broken, stop trying". Same mapping the
+		// login path already uses (session_handlers.go).
+		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	case errors.Is(err, authService.ErrMFANotEnrolled):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, authService.ErrMFAAlreadyEnrolled):

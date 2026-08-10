@@ -340,6 +340,47 @@ func TestSchoolMFAResend_ForwardsSchoolScope(t *testing.T) {
 	assert.Equal(t, "renewed-school-challenge", renewed.ChallengeToken)
 }
 
+// TestSchoolMFAStatusUnavailable_Returns503 pins the transient-failure
+// mapping on the school MFA surface. The service fails closed when it cannot
+// read the MFA status or the code rate-limit counter; answering that with a
+// 500 tells the client the endpoint is broken and stops the retry that would
+// have worked a second later.
+func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
+	db, factory, tenantID, _ := setupSchoolTest(t)
+
+	_, accountID := registerLehrkraft(t, db, factory, tenantID, "school-mfa-unavailable")
+
+	enrollmentToken, err := jwt.MustNewTokenAuth().CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+		AccountID: accountID,
+		Scope:     jwt.MFAEnrollmentScopeSchool,
+		TenantID:  tenantID,
+	}, 5*time.Minute)
+	require.NoError(t, err)
+
+	mfa := &authtest.MFAServiceMock{
+		ResendChallengeForScopeFn: func(_ context.Context, _ string, _ net.IP, _ string) (string, error) {
+			return "", authService.ErrMFAStatusUnavailable
+		},
+		StartChallengeFn: func(_ context.Context, _, _ int64, _ string, _ net.IP) (string, error) {
+			return "", authService.ErrMFAStatusUnavailable
+		},
+	}
+	schoolRouter := newSchoolRouter(db, factory, mfa)
+
+	resend := httptest.NewRequest(http.MethodPost, "/auth/mfa/resend",
+		strings.NewReader(`{"challenge_token":"school-challenge"}`))
+	resend.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	schoolRouter.ServeHTTP(rec, resend)
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+
+	enrollStart := httptest.NewRequest(http.MethodPost, "/auth/mfa/enroll/start", nil)
+	enrollStart.Header.Set("Authorization", "Bearer "+enrollmentToken)
+	rec = httptest.NewRecorder()
+	schoolRouter.ServeHTTP(rec, enrollStart)
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+}
+
 // TestSchoolMFAEnroll_BoundToItsOwnChallenge pins the enrollment leg of the
 // MFA flow to the exact challenge it started, not to "the account's newest
 // active code". The account-wide lookup is redeemable by any concurrent
