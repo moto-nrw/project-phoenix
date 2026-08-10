@@ -524,11 +524,10 @@ export function ListboxDropdown<K extends string>({
         onClick={(event) => {
           event.preventDefault();
           suppressFocusScrollRef.current = false;
-          setOpen((prev) => {
-            const next = !prev;
-            if (next) forceOpenScrollRef.current = true;
-            return next;
-          });
+          // Ref write stays outside setOpen — React may re-run functional
+          // updaters, so side effects inside them are invalid (react-doctor).
+          if (!open) forceOpenScrollRef.current = true;
+          setOpen((prev) => !prev);
           setFocusIndex(selectedIndex);
         }}
         onKeyDown={handleTriggerKeyDown}
