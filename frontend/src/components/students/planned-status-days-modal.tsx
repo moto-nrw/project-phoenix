@@ -115,6 +115,19 @@ export function PlannedStatusDaysModal({
     }
     return days;
   }, [existingDays]);
+  // Fingerprint active rows so a delete (or external refresh) re-runs the
+  // selection conflict check instead of leaving checkedExistingDays stale.
+  const existingDaysFingerprint = useMemo(
+    () =>
+      existingDays
+        .map(
+          (day) =>
+            `${day.id}:${day.date}:${day.status}:${day.cleared_at ?? ""}`,
+        )
+        .sort((a, b) => a.localeCompare(b))
+        .join("|"),
+    [existingDays],
+  );
   const disabledDates = useMemo(
     () =>
       Array.from(activeExistingDayByDate.keys()).map((date) =>
@@ -250,6 +263,7 @@ export function PlannedStatusDaysModal({
   }, [
     candidateDateKeys,
     conflictCheckRevision,
+    existingDaysFingerprint,
     hasInvalidRangeOrder,
     hasSelectionTooWide,
     isOpen,

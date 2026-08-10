@@ -532,6 +532,73 @@ describe("PlannedStatusDaysModal", () => {
     });
   });
 
+  it("clears a stale conflict after an existing status day is deleted", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    let knownDays = [...existingDays];
+    const loadExistingDays = vi.fn((from: string, to: string) =>
+      Promise.resolve(
+        knownDays.filter((day) => day.date >= from && day.date <= to),
+      ),
+    );
+
+    const { rerender } = render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={knownDays}
+        onClose={vi.fn()}
+        loadExistingDays={loadExistingDays}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeitraum" }));
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2026-05-25" },
+    });
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-05-27" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "26.05.2026 (entschuldigt): 1 von 3 Tagen hat bereits einen Status",
+      );
+    });
+    expect(loadExistingDays).toHaveBeenCalled();
+
+    knownDays = knownDays.filter((day) => day.id !== "1");
+    loadExistingDays.mockClear();
+    rerender(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={knownDays}
+        onClose={vi.fn()}
+        loadExistingDays={loadExistingDays}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(loadExistingDays).toHaveBeenCalled();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    await clickEnabledButton("Entschuldigen");
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith([
+        "2026-05-25",
+        "2026-05-26",
+        "2026-05-27",
+      ]);
+    });
+  });
+
   it("checks the exact range and identifies an unseen cross-status conflict", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const unseenConflict: StudentStatusDay = {

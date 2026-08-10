@@ -142,6 +142,23 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	if err := rs.StudentStatusDayService.BulkCreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), req.StudentIDs, req.Status, req.Reason, dates); err != nil {
+		var conflictErr *activeService.StudentStatusDayConflictError
+		if errors.As(err, &conflictErr) {
+			// Fail closed under the outer TenantTxMiddleware tx: 409 is non-5xx
+			// and must not commit any partial nested write.
+			tenant.MarkRollback(r.Context())
+			common.RespondWithJSON(
+				w,
+				r,
+				http.StatusConflict,
+				map[string]any{
+					"status":    "error",
+					"error":     "existing student status days were not overwritten",
+					"conflicts": newStudentStatusDayResponses(conflictErr.Conflicts),
+				},
+			)
+			return
+		}
 		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			// Fail closed under the outer TenantTxMiddleware tx: 403 is non-5xx
 			// and would otherwise commit any partial write from a nested reuse.

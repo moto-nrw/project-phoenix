@@ -57,6 +57,60 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status)
 }
 
+// Bulk writes must preflight existing status rows the same way single-student
+// CreateForDates does: any active conflict rejects the whole selection and
+// leaves every student's rows unchanged.
+func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
+	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
+
+	withConflict := testpkg.CreateTestStudent(t, db, "BulkStatusConflict", "Student", "BSC1")
+	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
+	defer testpkg.CleanupActivityFixtures(t, db, withConflict.ID, clear.ID)
+
+	ctx := testpkg.TenantContext(1)
+	conflictDate := timezone.TodayDate().AddDays(50)
+	freshDate := conflictDate.AddDays(1)
+	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
+		StudentID:  withConflict.ID,
+		Date:       conflictDate,
+		Status:     activeModels.StudentStatusDaySick,
+		ReportedAt: time.Now(),
+		Source:     activeModels.StudentStatusSourceParent,
+	}))
+
+	err := service.BulkCreateForDates(ctx, StatusDayWriteContext{
+		DB:             db,
+		TenantID:       1,
+		StudentService: studentService,
+		Authorize:      func(context.Context, *userModels.Student) bool { return true },
+		AfterCommit:    func(int64) {},
+	}, []int64{withConflict.ID, clear.ID}, activeModels.StudentStatusDayClassTrip, "Klassenfahrt", []timezone.Date{conflictDate, freshDate})
+
+	var conflictErr *StudentStatusDayConflictError
+	require.ErrorAs(t, err, &conflictErr)
+	require.Len(t, conflictErr.Conflicts, 1)
+	assert.Equal(t, withConflict.ID, conflictErr.Conflicts[0].StudentID)
+	assert.Equal(t, conflictDate, conflictErr.Conflicts[0].Date)
+	assert.Equal(t, activeModels.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
+
+	for _, studentID := range []int64{withConflict.ID, clear.ID} {
+		rows, findErr := service.GetActiveByStudentAndDateRange(ctx, studentID, conflictDate, freshDate)
+		require.NoError(t, findErr)
+		if studentID == withConflict.ID {
+			require.Len(t, rows, 1, "conflict student must keep the original row only")
+			assert.Equal(t, conflictDate, rows[0].Date)
+			assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status)
+			continue
+		}
+		assert.Empty(t, rows, "clear student must not receive any rows on conflict")
+	}
+}
+
 // Mixed-scope bulk status writes must fail closed before any row lands.
 // Regression for the class-trip bulk partial-commit path under outer withTx.
 func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T) {

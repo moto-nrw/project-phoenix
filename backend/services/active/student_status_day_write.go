@@ -71,24 +71,9 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 			return ErrStudentStatusDayReassigned
 		}
 
-		requestedDates := make(map[timezone.Date]struct{}, len(dates))
-		for _, date := range dates {
-			requestedDates[date] = struct{}{}
-		}
-		activeRows, err := s.repo.FindActiveByStudentAndDateRange(
-			ctx,
-			studentID,
-			slices.MinFunc(dates, timezone.Date.Compare),
-			slices.MaxFunc(dates, timezone.Date.Compare),
-		)
+		conflicts, err := s.findRequestedActiveConflicts(ctx, studentID, dates)
 		if err != nil {
 			return err
-		}
-		conflicts := make([]*activeModels.StudentStatusDay, 0, len(activeRows))
-		for _, row := range activeRows {
-			if _, requested := requestedDates[row.Date]; requested {
-				conflicts = append(conflicts, row)
-			}
 		}
 		if len(conflicts) > 0 {
 			return &StudentStatusDayConflictError{Conflicts: conflicts}
@@ -107,9 +92,13 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 }
 
 // BulkCreateForDates applies CreateForDates' orchestration to several students
-// within a single tenant transaction. Authorization runs for the full set
-// before any writes so a mixed-scope selection cannot partially commit.
+// within a single tenant transaction. Authorization and conflict preflight run
+// for the full set before any writes so a mixed-scope or conflicting selection
+// cannot partially commit or overwrite existing status rows.
 func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc StatusDayWriteContext, studentIDs []int64, status, reason string, dates []timezone.Date) error {
+	if len(dates) == 0 {
+		return errors.New("student status day dates are required")
+	}
 	studentIDs = dedupeStudentIDs(studentIDs)
 	now := time.Now()
 	today := timezone.TodayDate()
@@ -131,7 +120,21 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 			lockedStudents[studentID] = fresh
 		}
 
-		// Phase 2: write only after the full selection is in scope.
+		// Phase 2: preflight every student/date pair so no existing sick,
+		// excused, or class-trip row is cleared or overwritten.
+		conflicts := make([]*activeModels.StudentStatusDay, 0)
+		for _, studentID := range sortedIDs {
+			studentConflicts, err := s.findRequestedActiveConflicts(ctx, studentID, dates)
+			if err != nil {
+				return err
+			}
+			conflicts = append(conflicts, studentConflicts...)
+		}
+		if len(conflicts) > 0 {
+			return &StudentStatusDayConflictError{Conflicts: conflicts}
+		}
+
+		// Phase 3: write only after the full selection is in scope and clear.
 		absenceStudentIDs := make([]int64, 0, len(studentIDs))
 		for _, studentID := range studentIDs {
 			notifyAbsence, err := s.writeStatusForStudent(ctx, wc, lockedStudents[studentID], status, dates, notePtr, now, today)
@@ -149,6 +152,35 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 		}
 		return nil
 	})
+}
+
+// findRequestedActiveConflicts returns active status-day rows that already
+// cover any of the requested dates for one student. Callers must reject the
+// whole write when this list is non-empty.
+func (s *StudentStatusDayService) findRequestedActiveConflicts(ctx context.Context, studentID int64, dates []timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+	if len(dates) == 0 {
+		return nil, nil
+	}
+	requestedDates := make(map[timezone.Date]struct{}, len(dates))
+	for _, date := range dates {
+		requestedDates[date] = struct{}{}
+	}
+	activeRows, err := s.repo.FindActiveByStudentAndDateRange(
+		ctx,
+		studentID,
+		slices.MinFunc(dates, timezone.Date.Compare),
+		slices.MaxFunc(dates, timezone.Date.Compare),
+	)
+	if err != nil {
+		return nil, err
+	}
+	conflicts := make([]*activeModels.StudentStatusDay, 0, len(activeRows))
+	for _, row := range activeRows {
+		if _, requested := requestedDates[row.Date]; requested {
+			conflicts = append(conflicts, row)
+		}
+	}
+	return conflicts, nil
 }
 
 func dedupeStudentIDs(studentIDs []int64) []int64 {
