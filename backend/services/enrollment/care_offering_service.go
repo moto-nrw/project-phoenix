@@ -61,6 +61,32 @@ type CareOfferingService interface {
 	// the new phase. Use case: cloning last year's catalog into this year's
 	// phase, then editing what changed.
 	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
+
+	// ListBookingStats reports, per offering of the phase, how full it
+	// currently is and how its bookings distribute across grade levels.
+	// Admin-only: it is what lets the manual-enrollment and offering-
+	// adjustment dialogs show occupancy up front instead of failing at save,
+	// and what lets the availability-rule editor say how many existing
+	// bookings a rule would contradict. Read-only, no child data leaves the
+	// backend.
+	ListBookingStats(ctx context.Context, phaseID int64) ([]CareOfferingBookingStat, error)
+}
+
+// CareOfferingBookingStat is one offering's admin-facing booking summary.
+type CareOfferingBookingStat struct {
+	OfferingID int64
+	// Capacity is nil for an unlimited offering.
+	Capacity *int
+	// Booked is the peak number of children holding a slot simultaneously
+	// inside the phase's remaining capacity window — the exact number the
+	// capacity gate compares against Capacity when a new booking is saved.
+	Booked int
+	// GradeLevels maps a child's target grade level to how many booked
+	// children carry it. Bookings whose grade is unknown are counted in
+	// UnknownGradeCount instead; an availability rule never matches a missing
+	// grade, so they contradict every rule.
+	GradeLevels       map[int]int
+	UnknownGradeCount int
 }
 
 // CareOfferingSeriesValidator is the narrow cross-domain contract used by the
@@ -1126,4 +1152,100 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 		slog.Int64("clone_id", clone.ID),
 		slog.Int64("target_phase_id", targetPhaseID))
 	return &clone, nil
+}
+
+// bookingStatsWindow is the half-open date range ListBookingStats counts in.
+// It reproduces applyCapacityOverflowCore's window so the displayed occupancy
+// is the same number the capacity gate will apply at save time: from today
+// (or the phase start, if the phase has not begun) through the last service
+// day inclusive.
+//
+// A phase whose service window has already ended would otherwise yield an
+// empty range. Rather than reporting a meaningless zero, the window collapses
+// onto the final service day so the dialog shows the phase's end state.
+func bookingStatsWindow(phase *enrollmentModels.Phase) (from, until timezone.Date) {
+	today := timezone.TodayDate()
+	if phase == nil || phase.ServiceEndDate.IsZero() {
+		return today, today.AddDays(1)
+	}
+	from = today
+	if phase.ServiceStartDate.After(from) {
+		from = phase.ServiceStartDate
+	}
+	until = phase.ServiceEndDate.AddDays(1)
+	if !from.Before(until) {
+		return phase.ServiceEndDate, phase.ServiceEndDate.AddDays(1)
+	}
+	return from, until
+}
+
+func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int64) ([]CareOfferingBookingStat, error) {
+	if phaseID <= 0 {
+		return nil, careOfferingInvalidf("phase_id must be positive")
+	}
+	if s.RequestChildOfferingRepo == nil {
+		return nil, errors.New("request child offering repository is not configured")
+	}
+	if s.PhaseRepo == nil {
+		return nil, errors.New("phase repository is not configured")
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, careOfferingInvalidf("phase does not exist")
+		}
+		return nil, fmt.Errorf("booking stats: phase lookup: %w", err)
+	}
+	offerings, err := s.Repo.ListByPhase(ctx, phaseID)
+	if err != nil {
+		return nil, fmt.Errorf("booking stats: list offerings: %w", err)
+	}
+	stats := make([]CareOfferingBookingStat, 0, len(offerings))
+	if len(offerings) == 0 {
+		return stats, nil
+	}
+
+	from, until := bookingStatsWindow(phase)
+	ids := make([]int64, 0, len(offerings))
+	for _, offering := range offerings {
+		ids = append(ids, offering.ID)
+	}
+	gradeCounts, err := s.RequestChildOfferingRepo.CountActiveGradeLevelsByCareOfferingIDs(ctx, ids, from, until)
+	if err != nil {
+		return nil, fmt.Errorf("booking stats: count grade levels: %w", err)
+	}
+	grades := make(map[int64]map[int]int, len(offerings))
+	unknown := make(map[int64]int, len(offerings))
+	for _, row := range gradeCounts {
+		if row == nil {
+			continue
+		}
+		if row.GradeLevel == nil {
+			unknown[row.CareOfferingID] += row.Count
+			continue
+		}
+		if grades[row.CareOfferingID] == nil {
+			grades[row.CareOfferingID] = make(map[int]int)
+		}
+		grades[row.CareOfferingID][int(*row.GradeLevel)] += row.Count
+	}
+
+	for _, offering := range offerings {
+		booked, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(ctx, offering.ID, from, until)
+		if err != nil {
+			return nil, fmt.Errorf("booking stats: count peak occupancy for offering %d: %w", offering.ID, err)
+		}
+		byGrade := grades[offering.ID]
+		if byGrade == nil {
+			byGrade = map[int]int{}
+		}
+		stats = append(stats, CareOfferingBookingStat{
+			OfferingID:        offering.ID,
+			Capacity:          offering.Capacity,
+			Booked:            booked,
+			GradeLevels:       byGrade,
+			UnknownGradeCount: unknown[offering.ID],
+		})
+	}
+	return stats, nil
 }

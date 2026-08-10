@@ -464,6 +464,27 @@ type RequestChildOfferingRepository interface {
 	// (approval not yet materialized) and alumni are excluded. Empty input
 	// returns an empty slice without a query.
 	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
+
+	// CountActiveGradeLevelsByCareOfferingIDs groups the non-terminal
+	// bookings whose validity interval overlaps [from, until) by offering and
+	// by the child's target grade level. A child is counted once per
+	// (offering, grade) pair no matter how many intervals it holds there.
+	// Children without a target grade level are reported with a nil
+	// GradeLevel — availability rules never match a missing grade, so those
+	// bookings conflict with every rule (see
+	// CareOfferingAvailabilityRule.MatchesGradeLevel). Empty input returns an
+	// empty slice without a query.
+	CountActiveGradeLevelsByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) ([]*CareOfferingGradeLevelCount, error)
+}
+
+// CareOfferingGradeLevelCount is one (offering, grade level) bucket of the
+// current bookings. It answers "how many booked children would a grade-level
+// availability rule exclude" without shipping any child data to the client.
+type CareOfferingGradeLevelCount struct {
+	CareOfferingID int64
+	// GradeLevel is nil for booked children whose target grade is unknown.
+	GradeLevel *int16
+	Count      int
 }
 
 // ApprovedOfferingChild is one approved, still-relevant offering selection

@@ -35,10 +35,20 @@ import {
   updateAdminChildOfferings,
 } from "~/lib/enrollment-admin-api";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
-import { availableCareOfferings } from "~/lib/care-offering-availability";
+import {
+  availableCareOfferings,
+  careOfferingAvailabilityReason,
+} from "~/lib/care-offering-availability";
+import {
+  type CareOfferingBookingStats,
+  fetchCareOfferingBookingStats,
+  formatOfferingOccupancy,
+  offeringIsFull,
+} from "~/lib/care-offering-booking-stats";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -1098,6 +1108,83 @@ function OfferingAttributePills({
   );
 }
 
+/**
+ * One-line occupancy hint under an offering in the admin pickers. Renders
+ * nothing when there is no stats entry, so a failed stats load degrades to
+ * the previous UI instead of an empty placeholder (#2216).
+ */
+function OfferingOccupancyLine({
+  stats,
+}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
+  const label = formatOfferingOccupancy(stats);
+  if (!label) return null;
+  return (
+    <span
+      className={`mt-1 block text-xs ${
+        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * An offering the child's grade level rules out. Parents never see these;
+ * admins must, or a configured restriction reads as a missing feature
+ * (#2216). A booking the child already holds stays removable — Bestandsschutz
+ * means the rule does not revoke it, not that it can never be corrected — but
+ * a blocked offering can never be newly added here. The documented workaround
+ * is to relax the rule in the Angebots-Katalog first.
+ */
+function BlockedOfferingRow({
+  offering,
+  gradeLevel,
+  booked,
+  stats,
+  onRemove,
+}: Readonly<{
+  offering: CareOffering;
+  gradeLevel: number | null | undefined;
+  booked: boolean;
+  stats: CareOfferingBookingStats | undefined;
+  onRemove: () => void;
+}>) {
+  const reason = careOfferingAvailabilityReason(offering, gradeLevel);
+  return (
+    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex shrink-0 items-center">
+          <Checkbox
+            checked={booked}
+            disabled={!booked}
+            onChange={onRemove}
+            aria-label={`${offering.name} entfernen`}
+          />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-500">
+              {offering.name}
+            </span>
+            {booked ? (
+              <StatusBadge
+                tone="orange"
+                label="bereits gebucht"
+                title="Diese Buchung bleibt bestehen. Sie kann hier entfernt, aber nicht erneut hinzugefügt werden."
+              />
+            ) : null}
+          </div>
+          {reason ? (
+            <span className="mt-1 block text-xs text-gray-500">{reason}</span>
+          ) : null}
+          <OfferingOccupancyLine stats={stats} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ChildOfferingAdjustment({
   child,
   onSaved,
@@ -1112,7 +1199,15 @@ export function ChildOfferingAdjustment({
   const careOfferingsEnabled = useCareOfferingsEnabled();
   const [open, setOpen] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
+  // Offerings the child's grade level rules out. Kept separate from `catalog`
+  // so payload building and the auto-add preview keep operating on exactly
+  // the selectable set, while the UI can still SHOW the blocked ones with a
+  // reason instead of leaving a silent gap in the list (#2216).
+  const [blockedCatalog, setBlockedCatalog] = useState<CareOffering[]>([]);
   const [rawCatalog, setRawCatalog] = useState<CareOffering[]>([]);
+  const [bookingStats, setBookingStats] = useState<
+    Record<string, CareOfferingBookingStats>
+  >({});
   const [history, setHistory] = useState<AdminOfferingAdjustment[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() =>
     initialManualOfferingIDs(child.offerings),
@@ -1156,19 +1251,22 @@ export function ChildOfferingAdjustment({
       offerings,
       child.target_grade_level,
     );
-    const fetchedIDs = new Set(offerings.map((offering) => offering.id));
     const availableIDs = new Set(available.map((offering) => offering.id));
-    const nextSelected = new Set(
-      [...initialManualOfferingIDs(child.offerings)].filter(
-        (id) => !fetchedIDs.has(id) || availableIDs.has(id),
-      ),
-    );
+    // Bestandsschutz: a booking the child already holds survives a rule that
+    // was tightened after the fact. Dropping it here would silently delete
+    // the booking on the next save — the exact failure mode #2216 reports,
+    // in the flow meant to fix it. adjustmentPayloadOfferings carries such
+    // ids through via the child's existing offerings.
+    const nextSelected = new Set(initialManualOfferingIDs(child.offerings));
     for (const offering of available) {
       if (offering.is_active && offering.is_required) {
         nextSelected.add(offering.id);
       }
     }
     setCatalog(available);
+    setBlockedCatalog(
+      offerings.filter((offering) => !availableIDs.has(offering.id)),
+    );
     setSelected(nextSelected);
   };
 
@@ -1177,6 +1275,19 @@ export function ChildOfferingAdjustment({
     setOpen(true);
     setError(null);
     setDays(initialManualOfferingDays(child.offerings));
+    // Occupancy is advisory: without it a full offering only announces itself
+    // as an error after the whole correction is submitted (#2216). Loaded
+    // beside the catalog rather than awaited with it — a slow or failing
+    // stats call must never keep the editor in its loading state.
+    void fetchCareOfferingBookingStats(phaseId)
+      .then(setBookingStats)
+      .catch((statsErr: unknown) => {
+        setBookingStats({});
+        logger.warn("offering_adjustment_booking_stats_failed", {
+          error:
+            statsErr instanceof Error ? statsErr.message : String(statsErr),
+        });
+      });
     if (catalogLoaded) {
       resetEditorSelection(rawCatalog);
       return;
@@ -1194,6 +1305,7 @@ export function ChildOfferingAdjustment({
           : "Betreuungsangebote konnten nicht geladen werden";
       setError(message);
       setCatalog([]);
+      setBlockedCatalog([]);
       setRawCatalog([]);
       setCatalogLoaded(false);
     } finally {
@@ -1405,6 +1517,9 @@ export function ChildOfferingAdjustment({
                                     {offering.description}
                                   </span>
                                 ) : null}
+                                <OfferingOccupancyLine
+                                  stats={bookingStats[offering.id]}
+                                />
                               </span>
                             </label>
 
@@ -1432,6 +1547,29 @@ export function ChildOfferingAdjustment({
                           </div>
                         );
                       })}
+                      {blockedCatalog.length > 0 ? (
+                        <div className="space-y-2 pt-1">
+                          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                            Für dieses Kind nicht wählbar
+                          </p>
+                          {blockedCatalog.map((offering) => (
+                            <BlockedOfferingRow
+                              key={offering.id}
+                              offering={offering}
+                              gradeLevel={child.target_grade_level}
+                              booked={selected.has(offering.id)}
+                              stats={bookingStats[offering.id]}
+                              onRemove={() =>
+                                setSelected((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(offering.id);
+                                  return next;
+                                })
+                              }
+                            />
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   )}
 

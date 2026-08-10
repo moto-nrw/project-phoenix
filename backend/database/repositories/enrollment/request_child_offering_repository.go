@@ -489,6 +489,64 @@ func (r *RequestChildOfferingRepository) CountMaterializableByCareOffering(ctx c
 	return count, nil
 }
 
+// CountActiveGradeLevelsByCareOfferingIDs groups the bookings overlapping
+// [from, until) by offering and by the child's target grade level, counting
+// each child once per bucket. It backs the admin-side "how many existing
+// bookings would this availability rule exclude" hint, so it deliberately
+// mirrors the capacity gate's population: non-terminal request children
+// (rejected/withdrawn excluded) whose validity interval overlaps the window.
+//
+// Children whose target_grade_level is NULL land in a bucket with a nil
+// GradeLevel rather than being dropped: an availability rule never matches a
+// missing grade, so those bookings conflict with any rule and hiding them
+// would understate the hint.
+func (r *RequestChildOfferingRepository) CountActiveGradeLevelsByCareOfferingIDs(
+	ctx context.Context,
+	careOfferingIDs []int64,
+	from, until timezone.Date,
+) ([]*enrollment.CareOfferingGradeLevelCount, error) {
+	result := make([]*enrollment.CareOfferingGradeLevelCount, 0)
+	if len(careOfferingIDs) == 0 {
+		return result, nil
+	}
+	if !from.Before(until) {
+		return nil, fmt.Errorf("grade level range must not be empty")
+	}
+	var rows []struct {
+		CareOfferingID int64  `bun:"care_offering_id"`
+		GradeLevel     *int16 `bun:"grade_level"`
+		Count          int    `bun:"child_count"`
+	}
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT
+			"request_child_offering".care_offering_id AS care_offering_id,
+			"child".target_grade_level AS grade_level,
+			COUNT(DISTINCT "request_child_offering".request_child_id) AS child_count
+		FROM enrollment.request_child_offerings AS "request_child_offering"
+		INNER JOIN enrollment.request_children AS "child"
+			ON "child".id = "request_child_offering".request_child_id
+		WHERE "request_child_offering".care_offering_id IN (?)
+			AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
+			AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
+			AND "child".status NOT IN (?)
+		GROUP BY 1, 2
+		ORDER BY 1, 2
+	`, bun.List(careOfferingIDs), until, from,
+		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
+	).Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count grade levels for care offerings: %w", err)
+	}
+	for _, row := range rows {
+		result = append(result, &enrollment.CareOfferingGradeLevelCount{
+			CareOfferingID: row.CareOfferingID,
+			GradeLevel:     row.GradeLevel,
+			Count:          row.Count,
+		})
+	}
+	return result, nil
+}
+
 // ListApprovedChildrenByCareOfferingIDs returns the approved, still-relevant
 // offering links for the given offerings with each child's resolved student
 // and school class (#2137). Rows whose interval already ended before

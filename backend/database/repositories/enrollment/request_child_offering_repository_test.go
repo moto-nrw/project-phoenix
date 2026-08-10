@@ -70,6 +70,57 @@ func setupChildOfferingTest(t *testing.T) (
 	return db, enrollmentRepo.NewRequestChildOfferingRepository(db), tenantID, child.ID, offering.ID
 }
 
+// addGradedChild creates a sibling child under the same request with an
+// explicit grade level and status, and registers its cleanup. Building a new
+// row beats mutating the shared fixture: RequestChildRepository has no plain
+// Update, and the graded/terminal variants each need their own row anyway.
+func addGradedChild(
+	t *testing.T,
+	db *bun.DB,
+	tenantID, requestID int64,
+	firstName string,
+	grade *int16,
+	status string,
+) int64 {
+	t.Helper()
+	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	child := makeChild(requestID, firstName, "Beispiel")
+	child.TargetGradeLevel = grade
+	child.Status = status
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return childRepo.Create(ctx, child)
+	}))
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.request_child_offerings").
+			Where("tenant_id = ? AND request_child_id = ?", tenantID, child.ID).
+			Exec(bg)
+		_, _ = db.NewDelete().
+			TableExpr("enrollment.request_children").
+			Where("tenant_id = ? AND id = ?", tenantID, child.ID).
+			Exec(bg)
+	})
+	return child.ID
+}
+
+// requestIDOf resolves the request the shared fixture's child belongs to, so
+// siblings land under the same request (and the same cleanup).
+func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
+	t.Helper()
+	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	var requestID int64
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		child, err := childRepo.FindByID(ctx, childID)
+		if err != nil {
+			return err
+		}
+		requestID = child.RequestID
+		return nil
+	}))
+	return requestID
+}
+
 // --- Create + ListByRequestChildID ----------------------------------------
 
 func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {

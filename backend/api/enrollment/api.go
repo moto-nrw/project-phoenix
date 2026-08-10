@@ -141,6 +141,9 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/care-offerings", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)
+			// Static segment, registered before the {id} sub-router so chi
+			// matches it as a literal path rather than an offering id.
+			r.With(authorize.RequiresPermission("config:read")).Get("/booking-stats", rs.listCareOfferingBookingStats)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.createCareOffering)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getCareOffering)
