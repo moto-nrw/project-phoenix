@@ -19,6 +19,11 @@ import (
 
 const portalBindingJWTSecret = "portal-binding-test-secret-please-ignore"
 
+// The pool is closed via t.Cleanup rather than defer throughout this file:
+// deferred closes run BEFORE the fixture cleanups registered later, so every
+// teardown query hit an already-closed pool and left its rows behind in the
+// shared test database.
+
 // TestRefreshToken_SchoolScope_RoleRevoked_LeavesRefreshTokenUsable pins the
 // ordering half of the role re-check. Rejecting a revoked Lehrkraft is not
 // enough on its own: while the check ran AFTER the rotation transaction, the
@@ -29,7 +34,7 @@ const portalBindingJWTSecret = "portal-binding-test-secret-please-ignore"
 // holds keeps working the moment access is restored.
 func TestRefreshToken_SchoolScope_RoleRevoked_LeavesRefreshTokenUsable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	ctx := context.Background()
 
@@ -69,7 +74,7 @@ func TestRefreshToken_SchoolScope_RoleRevoked_LeavesRefreshTokenUsable(t *testin
 // every session dead anyway.
 func TestRefreshToken_SchoolScope_InactiveSchool_LeavesRefreshTokenUsable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
 	service := setupAuthService(t, db)
 	ctx := context.Background()
 
@@ -108,7 +113,7 @@ func TestRefreshToken_SchoolScope_InactiveSchool_LeavesRefreshTokenUsable(t *tes
 // school portal.
 func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	repos := repositories.NewFactory(db)

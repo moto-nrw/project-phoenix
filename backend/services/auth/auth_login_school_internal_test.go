@@ -16,6 +16,7 @@ import (
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -402,4 +403,100 @@ func countAccountTokens(t *testing.T, db *bun.DB, accountID int64) int {
 		Count(context.Background())
 	require.NoError(t, err)
 	return count
+}
+
+// --- schoolClaimsPayload -----------------------------------------------------------
+
+// insertPersonForAccountAtTenant links a person row at ONE school to an
+// account. Accounts that work at two schools have one row per school, which is
+// what makes the tenant the lookup runs under decide which name a token gets.
+func insertPersonForAccountAtTenant(t *testing.T, db *bun.DB, tenantID, accountID int64, firstName, lastName string) {
+	t.Helper()
+	person := &userModels.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &accountID,
+	}
+	person.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(context.Background()))
+	t.Cleanup(func() {
+		_, _ = db.Exec(`DELETE FROM users.persons WHERE id = ?`, person.ID)
+	})
+}
+
+func TestSchoolClaimsPayload_RunsNoLivenessGate(t *testing.T) {
+	// The refresh path assembles its claims AFTER the rotation has committed,
+	// so a gate here could only fail a request whose refresh token is already
+	// spent — a permanent logout instead of a session that ends at the next
+	// refresh. loadSchoolMetadataForTenant (every pre-mint caller) must still
+	// refuse the same school.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	_, err := db.Exec("UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
+	require.NoError(t, err)
+
+	gated, err := service.loadSchoolMetadataForTenant(context.Background(), account, tenantID)
+	require.Error(t, err, "the pre-mint path must refuse a deactivated school")
+	assert.Nil(t, gated)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantNotFound)
+
+	payload, err := service.schoolClaimsPayload(context.Background(), account, tenantID)
+	require.NoError(t, err,
+		"the post-rotation claims load must not re-gate: the refresh token is already spent")
+	require.NotNil(t, payload)
+	assert.Equal(t, tenant.ScopeSchool, payload.scope)
+	assert.Equal(t, tenantID, payload.tenantID)
+}
+
+// --- loadAccountMetadataForTenant: person names ------------------------------------
+
+func TestLoadAccountMetadataForTenant_PersonNameComesFromTargetSchool(t *testing.T) {
+	// A school switch runs inside the request of the school being LEFT, so
+	// the ambient context names the source school. The person lookup is
+	// tenant-filtered, so without pinning the target the new token carried
+	// the name from the old school.
+	service, db, account, sourceTenantID := newMintGuardFixture(t)
+
+	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
+
+	insertPersonForAccountAtTenant(t, db, sourceTenantID, account.ID, "Quelle", "Schule")
+	insertPersonForAccountAtTenant(t, db, targetTenantID, account.ID, "Ziel", "Schule")
+
+	// Ambient context = the school being left, exactly as during a switch.
+	ctx := tenant.WithTenantID(context.Background(), sourceTenantID)
+
+	metadata, err := service.loadAccountMetadataForTenant(ctx, account, targetTenantID)
+
+	require.NoError(t, err)
+	require.NotNil(t, metadata)
+	assert.Equal(t, "Ziel", metadata.firstName,
+		"the token minted for the target school must carry that school's person name")
+	assert.Equal(t, targetTenantID, metadata.tenantID)
+}
+
+func TestLoadAccountMetadataForTenant_NoPersonAtTargetFallsBack(t *testing.T) {
+	// Not every account has a person row at the school it is being minted
+	// for — an org-scope Träger user reaches a school through organization
+	// membership while their person row stays at their home school. Those
+	// tokens must keep their name rather than losing it to the new filter.
+	service, db, account, homeTenantID := newMintGuardFixture(t)
+
+	targetTenantID, _ := testpkg.CreateTestTenant(t, db)
+	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, targetTenantID) })
+	testpkg.MapAccountToTenant(t, db, account.ID, targetTenantID)
+
+	insertPersonForAccountAtTenant(t, db, homeTenantID, account.ID, "Traeger", "Buero")
+
+	metadata, err := service.loadAccountMetadataForTenant(context.Background(), account, targetTenantID)
+
+	require.NoError(t, err)
+	require.NotNil(t, metadata)
+	assert.Equal(t, "Traeger", metadata.firstName,
+		"with no person row at the target school the lookup must fall back, not blank the name")
 }

@@ -12,6 +12,7 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authmodel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // A challenge token names the exact auth.mfa_email_challenges row it was
@@ -139,4 +140,57 @@ func TestResendChallengeForScope_ForeignScope_Refused(t *testing.T) {
 	assert.Empty(t, renewed)
 	assert.ErrorIs(t, err, auth.ErrMFAUnsupportedScope,
 		"the tenant resend surface must refuse a school-scope challenge")
+}
+
+func TestVerifyChallengeForOwner_ForeignChallengeRefusedAndLeftRedeemable(t *testing.T) {
+	// The school enrollment confirm arrives with TWO credentials: an
+	// enrollment token naming account + school, and a challenge token. When
+	// they disagree the request is refused either way — but the refusal must
+	// happen BEFORE the code comparison, because verification consumes the
+	// challenge. Comparing afterwards (what the handler used to do with the
+	// returned VerifiedChallenge) burned a stranger's challenge on the way to
+	// the 401, killing their in-flight login with a code that had just gone
+	// "invalid".
+	svc, repos, victimID := newExtraMFAService(t)
+	ctx := context.Background()
+
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	caller := testpkg.CreateTestAccount(t, db, "mfa-owner-mismatch")
+	t.Cleanup(func() { testpkg.CleanupAccount(t, db, caller.ID) })
+	require.NotEqual(t, victimID, caller.ID)
+
+	victimChallenge := seedChallenge(t, repos.MFAEmailChallenge, victimID, "424242", auth.MFAChallengeTTL)
+	t.Cleanup(func() {
+		_, _ = repos.MFAEmailChallenge.DeleteExpired(context.Background())
+	})
+
+	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
+	require.NoError(t, err)
+	victimToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+		AccountID:   victimID,
+		Scope:       authjwt.MFAChallengeScopeTenant,
+		ChallengeID: victimChallenge.ID,
+	}, auth.MFAChallengeTTL)
+	require.NoError(t, err)
+
+	// Right token, right code, wrong owner.
+	verified, err := svc.VerifyChallengeForOwner(
+		ctx, victimToken, "424242", authjwt.MFAChallengeScopeTenant, caller.ID, 0)
+
+	assert.Nil(t, verified)
+	assert.ErrorIs(t, err, auth.ErrMFAChallengeTokenInvalid,
+		"a challenge belonging to another account must be refused")
+
+	stillActive, err := repos.MFAEmailChallenge.FindActiveByIDForAccount(ctx, victimChallenge.ID, victimID)
+	require.NoError(t, err)
+	require.NotNil(t, stillActive,
+		"the refused challenge must not have been consumed — it belongs to someone else's login")
+
+	// And its owner can still redeem it.
+	verified, err = svc.VerifyChallengeForOwner(
+		ctx, victimToken, "424242", authjwt.MFAChallengeScopeTenant, victimID, 0)
+	require.NoError(t, err)
+	require.NotNil(t, verified)
+	assert.Equal(t, victimID, verified.AccountID)
 }

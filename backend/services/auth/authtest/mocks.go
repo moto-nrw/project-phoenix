@@ -33,6 +33,7 @@ type MFAServiceMock struct {
 	StartChallengeFn               func(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
 	VerifyChallengeFn              func(ctx context.Context, challengeToken, code string) (*svcauth.VerifiedChallenge, error)
 	VerifyChallengeForScopeFn      func(ctx context.Context, challengeToken, code, expectedScope string) (*svcauth.VerifiedChallenge, error)
+	VerifyChallengeForOwnerFn      func(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*svcauth.VerifiedChallenge, error)
 	ResendChallengeFn              func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	ResendChallengeForScopeFn      func(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 	VerifyCodeForAccountFn         func(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
@@ -102,6 +103,18 @@ func (m *MFAServiceMock) VerifyChallengeForScope(ctx context.Context, challengeT
 		return m.VerifyChallengeFn(ctx, challengeToken, code)
 	}
 	return nil, nil
+}
+
+// VerifyChallengeForOwner falls back through the scope-aware override to the
+// unscoped one, same ladder as VerifyChallengeForScope: the real service adds
+// only the owner comparison on top, so a test that stubs the looser behavior
+// means it here too. Set VerifyChallengeForOwnerFn to assert on the pinned
+// account/school.
+func (m *MFAServiceMock) VerifyChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*svcauth.VerifiedChallenge, error) {
+	if m.VerifyChallengeForOwnerFn != nil {
+		return m.VerifyChallengeForOwnerFn(ctx, challengeToken, code, expectedScope, accountID, tenantID)
+	}
+	return m.VerifyChallengeForScope(ctx, challengeToken, code, expectedScope)
 }
 
 func (m *MFAServiceMock) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {

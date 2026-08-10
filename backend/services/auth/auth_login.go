@@ -531,7 +531,7 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		permissionStrs := s.extractPermissionNames(permissions)
 
 		username := s.extractUsername(account)
-		firstName, lastName := s.loadPersonNames(ctx, account.ID)
+		firstName, lastName := s.loadPersonNamesForTenant(ctx, account.ID, tenantID)
 		isAdmin := s.checkRoleFlags(roleNames)
 
 		result = &accountMetadata{
@@ -590,7 +590,10 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 		permissionStrs := s.extractPermissionNames(permissions)
 
 		username := s.extractUsername(account)
-		firstName, lastName := s.loadPersonNames(ctx, account.ID)
+		// Pin the person lookup to the tenant this token is being minted for —
+		// the refresh/switch paths carry the previous school in the ambient
+		// context (see loadPersonNamesForTenant).
+		firstName, lastName := s.loadPersonNamesForTenant(ctx, account.ID, tenantID)
 		isAdmin := s.checkRoleFlags(roleNames)
 
 		result = &accountMetadata{
@@ -700,6 +703,32 @@ func (s *Service) loadPersonNames(ctx context.Context, accountID int64) (string,
 		return "", ""
 	}
 	return person.FirstName, person.LastName
+}
+
+// loadPersonNamesForTenant resolves the person names that belong in a token
+// minted FOR tenantID, instead of whichever tenant happens to sit in the
+// ambient context.
+//
+// users.persons is tenant-scoped and PersonRepository.FindByAccountID applies
+// the tenant from the CONTEXT. Every mint path that switches schools — the
+// tenant portal's SwitchTenant, the school portal's SwitchSchool — runs inside
+// the request of the SOURCE school, so the ambient context named the school
+// the user is leaving: an account with person rows at two schools got the old
+// school's name stamped into the new JWT, and one with a person row only at
+// the target got no name at all.
+//
+// The fallback keeps accounts whose person row lives at neither the target nor
+// any school reachable here working exactly as before: an org-scope Träger user
+// reaches a school through organization membership, and their person row stays
+// at their home school. Explicitly zeroing the tenant drops the filter rather
+// than re-applying the source school's.
+func (s *Service) loadPersonNamesForTenant(ctx context.Context, accountID, tenantID int64) (string, string) {
+	if tenantID > 0 {
+		if firstName, lastName := s.loadPersonNames(tenant.WithTenantID(ctx, tenantID), accountID); firstName != "" || lastName != "" {
+			return firstName, lastName
+		}
+	}
+	return s.loadPersonNames(tenant.WithTenantID(ctx, 0), accountID)
 }
 
 // checkRoleFlags determines if account has admin role
@@ -1559,13 +1588,16 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	//     (old in-flight refresh tokens issued before Scope was added).
 	// School-scope refresh tokens must round-trip as school tokens for the
 	// same reason (#2207). The authorization behind that scope was already
-	// settled by schoolRefreshMintGuard inside the rotation transaction —
-	// this call only loads the claims payload (roles, permissions, person,
-	// org) the new JWT is built from.
+	// settled by schoolRefreshMintGuard inside the rotation transaction, so
+	// this deliberately loads ONLY the claims payload (roles, permissions,
+	// person, org) and re-runs no liveness gate: the rotation has committed
+	// at this point, and a gate failing here would burn the caller's refresh
+	// token on its way to an error instead of letting the next refresh end
+	// the session cleanly. See schoolClaimsPayload.
 	var metadata *accountMetadata
 	switch {
 	case refreshClaims.Scope == tenant.ScopeSchool:
-		metadata, err = s.loadSchoolMetadataForTenant(ctx, account, refreshClaims.TenantID)
+		metadata, err = s.schoolClaimsPayload(ctx, account, refreshClaims.TenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -1712,9 +1744,24 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			}
 		}
 
+		// Log successful logout against the school the session actually
+		// belonged to. /auth/logout is a pre-deauthentication route with no
+		// tenant in context, and logAuthEvent then falls back to the account's
+		// FIRST active mapping — for a Lehrkraft or a caregiver mapped to
+		// several schools that files the logout under a school they were never
+		// logged into. The token row carries the tenant the session was minted
+		// for; the claims are the fallback for pre-tenant-claim legacy rows.
+		auditCtx := ctx
+		switch {
+		case dbToken.TenantID > 0:
+			auditCtx = tenant.WithTenantID(ctx, dbToken.TenantID)
+		case refreshClaims.TenantID > 0:
+			auditCtx = tenant.WithTenantID(ctx, refreshClaims.TenantID)
+		}
+
 		// Log successful logout
 		if ipAddress != "" {
-			s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
 		}
 
 		return nil

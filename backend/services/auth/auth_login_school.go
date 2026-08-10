@@ -391,9 +391,13 @@ func wrapSchoolMintError(op string, err error) error {
 // what lets authorize.RequiresPermission(class_day:read) work unchanged
 // behind /school/*.
 //
-// This is the ONE choke point every school token mint runs through — login,
-// switch, MFA verify, MFA enrollment confirm, and refresh — so the liveness
-// gates live here rather than being repeated per entry point:
+// This is the ONE choke point every school token mint runs through BEFORE it
+// writes anything — login, switch, MFA verify, MFA enrollment confirm — so the
+// liveness gates live here rather than being repeated per entry point. (The
+// refresh path assembles its claims through schoolClaimsPayload instead; see
+// there for why gating after a committed rotation is worse than not gating.)
+//
+// The gates themselves:
 //
 //   - The school must still be alive AND active. The shared metadata load
 //     already rejects soft-deleted schools, but it reads a snapshot taken
@@ -412,7 +416,7 @@ func wrapSchoolMintError(op string, err error) error {
 // plus the portal-role check — inside the transaction that actually writes
 // the token. Fixing one of the two without the other is not enough.
 func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
-	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
+	metadata, err := s.schoolClaimsPayload(ctx, account, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -444,6 +448,37 @@ func (s *Service) loadSchoolMetadataForTenant(ctx context.Context, account *auth
 		return nil, &AuthError{Op: "load school metadata", Err: ErrTenantAccessDenied}
 	}
 
+	return metadata, nil
+}
+
+// schoolClaimsPayload loads the claims payload of a school token — roles,
+// permissions, person, org — and stamps the school scope. No authorization,
+// no liveness: just what the JWT is built from.
+//
+// This is what the REFRESH path uses, and the split exists for that one
+// caller. Refresh settles authorization inside the rotation transaction
+// (schoolRefreshMintGuard, under the account lock), so by the time the claims
+// are assembled the refresh token has already been consumed and its successor
+// persisted. Running the entry-point gates again at that point could only
+// produce the worst outcome available: a school deactivated in the microseconds
+// between the guard and this load would fail the request AFTER burning the
+// caller's refresh token — a permanent logout in place of a session that ends
+// cleanly at the next refresh, where validateTenantAccess rejects it before any
+// rotation happens.
+//
+// The remaining post-rotation error is a school that disappears entirely
+// (loadAccountMetadataForTenant needs its organization_id for the org claim).
+// That state is terminal rather than racy, and it stays recoverable: the
+// rotation records a handoff, so a client retry inside the recovery grace
+// replays the same successor instead of losing the session to the race.
+//
+// Every OTHER caller wants loadSchoolMetadataForTenant, which wraps this with
+// the liveness gates that decide the response BEFORE any token work.
+func (s *Service) schoolClaimsPayload(ctx context.Context, account *authModels.Account, tenantID int64) (*accountMetadata, error) {
+	metadata, err := s.loadAccountMetadataForTenant(ctx, account, tenantID)
+	if err != nil {
+		return nil, err
+	}
 	metadata.scope = tenant.ScopeSchool
 	return metadata, nil
 }

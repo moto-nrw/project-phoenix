@@ -323,18 +323,21 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 // enroll-confirm, so the enrollment detour never converts a school login
 // into a tenant session.
 //
-// The confirm is bound to the CHALLENGE, not to the account: it redeems the
-// challenge token from enroll/start through VerifyChallengeForScope, which
-// resolves the exact challenge row named in the token and refuses any scope
-// but school. Verifying "the account's newest active code" instead — what
-// VerifyCodeForAccount does — would let a concurrent challenge from another
-// portal, or from another school, be consumed here: the same person logging
-// into the tenant portal in a second tab is enough to produce one.
+// The confirm is bound to the exact CHALLENGE the enroll/start step minted:
+// VerifyChallengeForOwner resolves the challenge row named in the token and
+// refuses any scope but school. Verifying "the account's newest active code"
+// instead — what VerifyCodeForAccount does — would let a concurrent challenge
+// from another portal, or from another school, be consumed here: the same
+// person logging into the tenant portal in a second tab is enough to produce
+// one.
 //
-// Belt and braces on top of the scope check: the redeemed challenge must
-// name the same account AND the same school as the enrollment token, so two
-// school challenges for one account at different schools cannot cross over
-// either.
+// It is bound to the enrollment token's IDENTITY as well, and that check runs
+// inside the service, before the code is compared and thus before the
+// single-use consume. The account/school comparison used to happen out here on
+// the returned VerifiedChallenge, which was one step too late: a valid foreign
+// challenge was already marked consumed by the time this handler rejected it,
+// so an attacker holding someone else's school challenge token could kill that
+// person's login without ever getting a session out of it.
 func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -362,11 +365,16 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// the tenant enroll-confirm).
 	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
 
-	verified, err := rs.MFAService.VerifyChallengeForScope(ctx, req.ChallengeToken, req.Code, jwt.MFAChallengeScopeSchool)
+	verified, err := rs.MFAService.VerifyChallengeForOwner(
+		ctx, req.ChallengeToken, req.Code, jwt.MFAChallengeScopeSchool, claims.AccountID, claims.TenantID,
+	)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
+	// The service already refused any challenge that is not this account's at
+	// this school; re-asserting it here costs nothing and keeps the handler
+	// honest if the binding ever moves.
 	if verified == nil || verified.AccountID != claims.AccountID || verified.TenantID != claims.TenantID {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return

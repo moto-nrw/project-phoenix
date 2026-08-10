@@ -119,6 +119,14 @@ type MFAService interface {
 	// passes the tenant scope, the school portal endpoint the school
 	// scope. VerifyChallenge is a thin wrapper pinning the tenant scope.
 	VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*VerifiedChallenge, error)
+	// VerifyChallengeForOwner additionally pins the challenge to an account
+	// and a school the caller has already authenticated by other means (the
+	// school enrollment token, #2207). Mismatches are refused before the
+	// code is compared, so a foreign challenge is never consumed on its way
+	// to a 401 — checking the returned VerifiedChallenge afterwards burns
+	// it. Use it on every surface where the challenge token is not the sole
+	// credential in the request.
+	VerifyChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*VerifiedChallenge, error)
 	// ResendChallenge re-issues an email code for the still-active
 	// challenge and returns the *new* JWT token. The previous token
 	// remains valid until its own expiry, but the frontend must
@@ -517,12 +525,43 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 // refused before any code comparison so a school challenge can never be
 // burned (or redeemed) at the tenant endpoint and vice versa.
 func (s *mfaService) VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*VerifiedChallenge, error) {
+	return s.verifyChallengeBound(ctx, challengeToken, code, expectedScope, nil)
+}
+
+// challengeOwner pins a challenge to the identity the CALLER already
+// authenticated out-of-band, for surfaces where the challenge token is not
+// the only credential in the request.
+type challengeOwner struct {
+	accountID int64
+	tenantID  int64
+}
+
+// VerifyChallengeForOwner is VerifyChallengeForScope for surfaces that already
+// know whose challenge this must be — today the school enrollment confirm,
+// which arrives with an enrollment token naming account and school.
+//
+// The ownership check runs BEFORE the code comparison and therefore before the
+// single-use consume. Comparing afterwards (what the enrollment handler used to
+// do with the returned VerifiedChallenge) is too late: a valid challenge
+// belonging to a different account or a different school is burned on its way
+// to the 401, so the rightful owner's in-flight login dies with a code that is
+// suddenly "invalid" and no explanation anywhere.
+func (s *mfaService) VerifyChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*VerifiedChallenge, error) {
+	return s.verifyChallengeBound(ctx, challengeToken, code, expectedScope, &challengeOwner{accountID: accountID, tenantID: tenantID})
+}
+
+func (s *mfaService) verifyChallengeBound(ctx context.Context, challengeToken, code, expectedScope string, owner *challengeOwner) (*VerifiedChallenge, error) {
 	claims, err := s.parseChallengeToken(challengeToken)
 	if err != nil {
 		return nil, ErrMFAChallengeTokenInvalid
 	}
 	if claims.Scope != expectedScope {
 		return nil, ErrMFAUnsupportedScope
+	}
+	// Foreign challenge — refuse it while it is still redeemable by whoever
+	// it was minted for.
+	if owner != nil && (claims.AccountID != owner.accountID || claims.TenantID != owner.tenantID) {
+		return nil, ErrMFAChallengeTokenInvalid
 	}
 
 	account, err := s.Repos.Account.FindByID(ctx, claims.AccountID)
