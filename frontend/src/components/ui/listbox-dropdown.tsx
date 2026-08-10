@@ -300,17 +300,31 @@ export function ListboxDropdown<K extends string>({
   // Layout effect so the first visible frame is already positioned (the menu
   // renders hidden until menuStyle is set). Scroll listens in capture phase to
   // catch ancestor scroll containers (modal bodies), not just the window.
+  // Scrolls *inside* the option list are ignored: scrollIntoView on open/keyboard
+  // would otherwise re-fire updateMenuPosition → new menuStyle → a layout
+  // re-scroll of the (possibly hover-moved) focusIndex, undoing the open reveal.
   useLayoutEffect(() => {
     if (!open) {
       setMenuStyle(null);
       return;
     }
+    const handleScroll = (event: Event) => {
+      const target = event.target;
+      if (
+        menuRef.current &&
+        target instanceof Node &&
+        (target === menuRef.current || menuRef.current.contains(target))
+      ) {
+        return;
+      }
+      updateMenuPosition();
+    };
     updateMenuPosition();
     window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
+    window.addEventListener("scroll", handleScroll, true);
     return () => {
       window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
+      window.removeEventListener("scroll", handleScroll, true);
     };
   }, [open, options, updateMenuPosition]);
 

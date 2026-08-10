@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { FormEvent } from "react";
+import { flushSync } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 import { CustomSelect } from "./custom-select";
 
@@ -522,6 +523,7 @@ describe("CustomSelect", () => {
         fireEvent.click(screen.getByRole("combobox", { name: "Lange Liste" }));
 
         expect(screen.getByRole("listbox")).toBeInTheDocument();
+        expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
         expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
         expect(screen.getByRole("option", { name: "Option 31" })).toHaveFocus();
       } finally {
@@ -597,6 +599,11 @@ describe("CustomSelect", () => {
       const scrolledLabels: string[] = [];
       const scrollIntoViewMock = vi.fn(function scrollIntoView(this: Element) {
         scrolledLabels.push(this.textContent ?? "");
+        // scrollIntoView on a long list scrolls the listbox; that fires a
+        // capture-phase window scroll listener. Without ignoring menu-local
+        // scrolls, a new menuStyle re-scrolls the hovered focusIndex.
+        const menu = this.closest('[role="listbox"]');
+        menu?.dispatchEvent(new Event("scroll", { bubbles: true }));
       });
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
@@ -611,11 +618,29 @@ describe("CustomSelect", () => {
         );
 
         const trigger = screen.getByRole("combobox", { name: "Lange Liste" });
-        // Batch open + hover in one act so focus can move before open scroll.
-        fireEvent.click(trigger);
-        fireEvent.mouseEnter(screen.getByRole("option", { name: "Option 1" }));
+        // flushSync opens the menu (layout) without running passive effects;
+        // hover then moves focusIndex before the open-scroll effect. Native
+        // dispatch (not RTL fireEvent) avoids a per-event act flush that would
+        // run effects between the two steps.
+        act(() => {
+          flushSync(() => {
+            trigger.dispatchEvent(
+              new MouseEvent("click", { bubbles: true, cancelable: true }),
+            );
+          });
+          const hovered = screen.getByRole("option", { name: "Option 1" });
+          // React wires onMouseEnter from mouseover; fire both.
+          hovered.dispatchEvent(
+            new MouseEvent("mouseover", { bubbles: true, cancelable: true }),
+          );
+          hovered.dispatchEvent(
+            new MouseEvent("mouseenter", { bubbles: true, cancelable: true }),
+          );
+        });
 
         expect(scrolledLabels).toContain("Option 31");
+        // Hover must not get a follow-up layout re-scroll after open reveal.
+        expect(scrolledLabels).not.toContain("Option 1");
         expect(screen.getByRole("option", { name: "Option 1" })).toHaveFocus();
       } finally {
         Element.prototype.scrollIntoView = vi.fn();
