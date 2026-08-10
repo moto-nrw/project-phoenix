@@ -18,6 +18,9 @@ export interface StudentStatusDay {
 interface ApiResponse<T> {
   status: string;
   data?: T;
+  conflicts?: T;
+  /** Full conflict count when `conflicts` is a capped sample. */
+  conflict_count?: number;
   message?: string;
   error?: string;
 }
@@ -42,6 +45,31 @@ function mapStatusDay(row: BackendStudentStatusDay): StudentStatusDay {
     id: row.id.toString(),
     student_id: row.student_id.toString(),
   };
+}
+
+export class StudentStatusDayConflictError extends Error {
+  readonly conflicts: StudentStatusDay[];
+  /** Full conflict count; may exceed `conflicts.length` when the API capped samples. */
+  readonly totalCount: number;
+
+  constructor(conflicts: StudentStatusDay[], totalCount?: number) {
+    super("Vorhandene Status-Tage wurden nicht überschrieben");
+    this.name = "StudentStatusDayConflictError";
+    this.conflicts = conflicts;
+    this.totalCount = totalCount ?? conflicts.length;
+  }
+}
+
+function parseConflictError(
+  result: ApiResponse<BackendStudentStatusDay[]>,
+): StudentStatusDayConflictError {
+  const conflicts = (result.conflicts ?? result.data ?? []).map(mapStatusDay);
+  const totalCount =
+    typeof result.conflict_count === "number" &&
+    Number.isFinite(result.conflict_count)
+      ? result.conflict_count
+      : conflicts.length;
+  return new StudentStatusDayConflictError(conflicts, totalCount);
 }
 
 async function parseApiResult<T>(
@@ -88,6 +116,12 @@ export async function createStudentStatusDays(
       reason ? { status, dates, reason } : { status, dates },
     ),
   });
+  if (response.status === 409) {
+    const result = (await response.json()) as ApiResponse<
+      BackendStudentStatusDay[]
+    >;
+    throw parseConflictError(result);
+  }
   if (!response.ok) {
     throw new Error("Geplante Einträge konnten nicht gespeichert werden");
   }
@@ -114,6 +148,12 @@ export async function bulkCreateStudentStatusDays(
         : { student_ids: studentIds.map(Number), status, from, to },
     ),
   });
+  if (response.status === 409) {
+    const result = (await response.json()) as ApiResponse<
+      BackendStudentStatusDay[]
+    >;
+    throw parseConflictError(result);
+  }
   if (!response.ok) {
     throw new Error("Klassenfahrt konnte nicht gespeichert werden");
   }

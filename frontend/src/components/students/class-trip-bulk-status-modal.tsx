@@ -2,14 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
+import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { bulkCreateStudentStatusDays } from "~/lib/student-status-days-api";
+import {
+  bulkCreateStudentStatusDays,
+  type StudentStatusDay,
+  type StudentStatusKind,
+  StudentStatusDayConflictError,
+} from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "ClassTripBulkStatusModal" });
 
@@ -37,6 +44,8 @@ export function ClassTripBulkStatusModal({
   const [to, setTo] = useState(todayKey);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [conflicts, setConflicts] = useState<StudentStatusDay[]>([]);
+  const [conflictTotal, setConflictTotal] = useState(0);
 
   useEffect(() => {
     if (!isOpen) {
@@ -47,6 +56,8 @@ export function ClassTripBulkStatusModal({
     setFrom(today);
     setTo(today);
     setReason("");
+    setConflicts([]);
+    setConflictTotal(0);
   }, [isOpen]);
 
   const handleSubmit = async () => {
@@ -56,6 +67,8 @@ export function ClassTripBulkStatusModal({
     }
 
     setSaving(true);
+    setConflicts([]);
+    setConflictTotal(0);
     try {
       await bulkCreateStudentStatusDays(
         students.map((student) => student.id),
@@ -68,6 +81,14 @@ export function ClassTripBulkStatusModal({
       onSuccess?.();
       onClose();
     } catch (err) {
+      if (err instanceof StudentStatusDayConflictError) {
+        setConflicts(err.conflicts);
+        setConflictTotal(err.totalCount);
+        toastError(
+          "Bestehende Status-Tage verhindern die Speicherung. Es wurde nichts überschrieben.",
+        );
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
       logger.error("failed to bulk create class trip", {
         targetLabel,
@@ -158,7 +179,61 @@ export function ClassTripBulkStatusModal({
             className="mt-1 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
           />
         </label>
+        {conflicts.length > 0 ? (
+          <Alert
+            type="warning"
+            message={formatBulkConflictMessage(
+              conflicts,
+              students,
+              conflictTotal,
+            )}
+          />
+        ) : null}
       </div>
     </FormModal>
   );
+}
+
+const MAX_BULK_CONFLICT_DETAILS = 8;
+
+function formatBulkConflictMessage(
+  conflicts: StudentStatusDay[],
+  students: Student[],
+  totalCount: number,
+): string {
+  const studentNameById = new Map(
+    students.map((student) => [student.id, studentDisplayName(student)]),
+  );
+  const total = Math.max(totalCount, conflicts.length);
+  const shown = conflicts.slice(0, MAX_BULK_CONFLICT_DETAILS);
+  const details = shown
+    .map((day) => {
+      const studentName =
+        studentNameById.get(day.student_id) ?? `Schüler ${day.student_id}`;
+      return `${studentName}: ${formatCalendarDate(day.date)} (${statusKindLabel(day.status).toLowerCase()})`;
+    })
+    .join("; ");
+  const remaining = total - shown.length;
+  const more = remaining > 0 ? ` und ${remaining} weitere` : "";
+  const countLabel = total === 1 ? "1 Konflikt" : `${total} Konflikte`;
+  return `${countLabel} — ${details}${more}. Diese Status-Tage wurden nicht überschrieben.`;
+}
+
+function studentDisplayName(student: Student): string {
+  const parts = [student.first_name, student.second_name].filter(
+    (part): part is string => Boolean(part?.trim()),
+  );
+  if (parts.length > 0) {
+    return parts.join(" ");
+  }
+  if (student.name?.trim()) {
+    return student.name.trim();
+  }
+  return `Schüler ${student.id}`;
+}
+
+function statusKindLabel(status: StudentStatusKind): string {
+  if (status === "sick") return "Krank";
+  if (status === "class_trip") return "Klassenfahrt";
+  return "Entschuldigt";
 }

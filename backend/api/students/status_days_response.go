@@ -44,6 +44,17 @@ func newStudentStatusDayResponses(entries []*active.StudentStatusDay) []StudentS
 	return responses
 }
 
+// newStudentStatusDayConflictResponses maps active rows for a 409 conflict
+// payload. Free-text notes are omitted so proxy/server logs of the error body
+// cannot capture sick-note content (GDPR).
+func newStudentStatusDayConflictResponses(entries []*active.StudentStatusDay) []StudentStatusDayResponse {
+	responses := newStudentStatusDayResponses(entries)
+	for i := range responses {
+		responses[i].Note = nil
+	}
+	return responses
+}
+
 func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows []*active.StudentStatusDay) {
 	if len(responses) == 0 || len(statusRows) == 0 {
 		return

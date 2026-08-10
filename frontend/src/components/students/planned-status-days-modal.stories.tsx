@@ -32,6 +32,7 @@ const meta = {
     onClose: () => {
       // no-op for story
     },
+    loadExistingDays: async () => [],
     onSubmit: async () => {
       // no-op for story
     },

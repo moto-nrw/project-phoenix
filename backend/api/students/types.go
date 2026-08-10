@@ -10,6 +10,7 @@ import (
 
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -217,6 +218,8 @@ type CreateStudentStatusDaysRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason,omitempty"` // optional free-text reason stamped on each day
 }
+
+const maxStudentStatusDayCreateDays = 366
 
 type BulkCreateStudentStatusDaysRequest struct {
 	StudentIDs []int64 `json:"student_ids"`
@@ -606,26 +609,52 @@ func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
 	if !isValidStudentStatusDayStatus(req.Status) {
 		return errors.New("status must be sick, excused, or class_trip")
 	}
-	if len(req.Dates) == 0 {
+	return validateStudentStatusDayDates(req.Dates)
+}
+
+func validateStudentStatusDayDates(dates []string) error {
+	if len(dates) == 0 {
 		return errors.New("dates are required")
 	}
+	if len(dates) > maxStudentStatusDayCreateDays {
+		return errors.New("dates cannot exceed 366 items")
+	}
 
-	seen := make(map[string]struct{}, len(req.Dates))
-	for i, rawDate := range req.Dates {
-		date := strings.TrimSpace(rawDate)
-		if date == "" {
-			return errors.New("date cannot be empty")
+	seen := make(map[string]struct{}, len(dates))
+	var earliest, latest timezone.Date
+	for i, rawDate := range dates {
+		date, parsed, err := normalizeStudentStatusDayDate(rawDate)
+		if err != nil {
+			return err
 		}
-		if _, err := time.Parse(dateFormatYYYYMMDD, date); err != nil {
-			return errors.New("invalid date format, expected YYYY-MM-DD")
+		if earliest.IsZero() || parsed.Before(earliest) {
+			earliest = parsed
+		}
+		if latest.IsZero() || parsed.After(latest) {
+			latest = parsed
 		}
 		if _, ok := seen[date]; ok {
 			return errors.New("duplicate dates are not allowed")
 		}
 		seen[date] = struct{}{}
-		req.Dates[i] = date
+		dates[i] = date
+	}
+	if earliest.DaysUntil(latest) >= maxStudentStatusDayCreateDays {
+		return errors.New("dates cannot span more than 366 days")
 	}
 	return nil
+}
+
+func normalizeStudentStatusDayDate(rawDate string) (string, timezone.Date, error) {
+	date := strings.TrimSpace(rawDate)
+	if date == "" {
+		return "", timezone.Date{}, errors.New("date cannot be empty")
+	}
+	parsed, err := timezone.ParseDate(date)
+	if err != nil {
+		return "", timezone.Date{}, errors.New("invalid date format, expected YYYY-MM-DD")
+	}
+	return date, parsed, nil
 }
 
 func (req *BulkCreateStudentStatusDaysRequest) Bind(_ *http.Request) error {

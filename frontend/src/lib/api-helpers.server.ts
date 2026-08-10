@@ -393,11 +393,15 @@ function getApiErrorStatus(error: unknown): number | null {
 }
 
 function logApiRouteError(status: number, errorMessage: string): void {
+  // Free-text fields like sick-note content must not land in server logs even
+  // when a 4xx body still carries them. Redact before any level logs the body.
+  const safeErrorMessage = redactSensitiveApiErrorFields(errorMessage);
+
   // Only log server errors (5xx) to avoid Next.js error overlay for expected 4xx
   if (status >= 500) {
     logger.error("api route error", {
       status,
-      error: errorMessage,
+      error: safeErrorMessage,
     });
     return;
   }
@@ -405,7 +409,7 @@ function logApiRouteError(status: number, errorMessage: string): void {
   if (status === 429) {
     logger.warn("api route rate limited", {
       status,
-      error: errorMessage,
+      error: safeErrorMessage,
       rate_limited: true,
     });
     return;
@@ -413,8 +417,47 @@ function logApiRouteError(status: number, errorMessage: string): void {
 
   logger.warn("api route error", {
     status,
-    error: errorMessage,
+    error: safeErrorMessage,
   });
+}
+
+/** JSON keys whose free-text values must not appear in server logs. */
+const SENSITIVE_API_ERROR_KEYS = new Set(["note"]);
+
+function redactSensitiveApiErrorFields(errorMessage: string): string {
+  const jsonStart = errorMessage.indexOf("{");
+  if (jsonStart === -1) {
+    return errorMessage;
+  }
+
+  try {
+    const payload = JSON.parse(errorMessage.substring(jsonStart)) as unknown;
+    return (
+      errorMessage.substring(0, jsonStart) +
+      JSON.stringify(redactSensitiveApiErrorValue(payload))
+    );
+  } catch {
+    return errorMessage;
+  }
+}
+
+function redactSensitiveApiErrorValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactSensitiveApiErrorValue(entry));
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_API_ERROR_KEYS.has(key) && entry != null && entry !== "") {
+      redacted[key] = "[REDACTED]";
+      continue;
+    }
+    redacted[key] = redactSensitiveApiErrorValue(entry);
+  }
+  return redacted;
 }
 
 function buildApiErrorResponse(errorMessage: string): ApiErrorResponse {

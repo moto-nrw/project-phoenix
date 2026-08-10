@@ -1,12 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { addDays, format, isSameDay, startOfWeek } from "date-fns";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  addDays,
+  differenceInCalendarDays,
+  format,
+  isSameDay,
+  startOfWeek,
+} from "date-fns";
 import { de } from "date-fns/locale";
 import { X } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import {
+  SegmentedControl,
+  type SegmentedControlItem,
+} from "~/components/ui/segmented-control";
+import {
+  formatDate as formatCalendarDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import type {
   StudentStatusDay,
   StudentStatusKind,
@@ -20,12 +37,22 @@ interface PlannedStatusDaysModalProps {
   readonly existingDays?: StudentStatusDay[];
   readonly deletingStatusDayId?: string | null;
   readonly onClose: () => void;
+  readonly loadExistingDays: (
+    from: string,
+    to: string,
+  ) => Promise<StudentStatusDay[]>;
   readonly onSubmit: (dates: string[], reason?: string) => Promise<void>;
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
 }
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"];
 const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
+const MAX_SELECTION_SPAN_DAYS = 366;
+type SelectionMode = "individual" | "range";
+const SELECTION_MODE_ITEMS: readonly SegmentedControlItem<SelectionMode>[] = [
+  { value: "individual", label: "Einzelne Tage" },
+  { value: "range", label: "Zeitraum" },
+];
 
 export function PlannedStatusDaysModal({
   isOpen,
@@ -35,16 +62,29 @@ export function PlannedStatusDaysModal({
   existingDays = EMPTY_STATUS_DAYS,
   deletingStatusDayId = null,
   onClose,
+  loadExistingDays,
   onSubmit,
   onDeleteStatusDay,
 }: PlannedStatusDaysModalProps) {
+  const [selectionMode, setSelectionMode] =
+    useState<SelectionMode>("individual");
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [selectionHint, setSelectionHint] = useState<string | null>(null);
+  const [checkedExistingDays, setCheckedExistingDays] = useState<
+    StudentStatusDay[]
+  >([]);
+  const [checkedSelectionKey, setCheckedSelectionKey] = useState("");
+  const [conflictCheckRevision, setConflictCheckRevision] = useState(0);
+  const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
+  const [conflictCheckError, setConflictCheckError] = useState<string | null>(
+    null,
+  );
   const [reason, setReason] = useState("");
   const isSick = status === "sick";
   const isClassTrip = status === "class_trip";
+  const usesRangeSelection = isClassTrip || selectionMode === "range";
   const title = isSick
     ? "Krankmeldung planen"
     : isClassTrip
@@ -75,34 +115,213 @@ export function PlannedStatusDaysModal({
     }
     return days;
   }, [existingDays]);
+  // Fingerprint active rows so a delete (or external refresh) re-runs the
+  // selection conflict check instead of leaving checkedExistingDays stale.
+  const existingDaysFingerprint = useMemo(
+    () =>
+      existingDays
+        .map(
+          (day) =>
+            `${day.id}:${day.date}:${day.status}:${day.cleared_at ?? ""}`,
+        )
+        .sort((a, b) => a.localeCompare(b))
+        .join("|"),
+    [existingDays],
+  );
   const disabledDates = useMemo(
     () =>
-      Array.from(activeExistingDayByDate.keys()).map(
-        (date) => new Date(`${date}T00:00:00`),
+      Array.from(activeExistingDayByDate.keys()).map((date) =>
+        parseISODate(date),
       ),
     [activeExistingDayByDate],
   );
 
   const selectedKeys = useMemo(
-    () => new Set(selectedDates.map(formatDateKey)),
+    () => new Set(selectedDates.map(toISODate)),
     [selectedDates],
+  );
+  const rangeDateKeys = useMemo(
+    () => buildDateRangeKeys(rangeStart, rangeEnd),
+    [rangeEnd, rangeStart],
+  );
+  const hasRangeTooLong = isDateSpanTooLong(rangeStart, rangeEnd);
+  const candidateDateKeys = useMemo(
+    () =>
+      usesRangeSelection
+        ? rangeDateKeys
+        : selectedDates.map(toISODate).sort((a, b) => a.localeCompare(b)),
+    [rangeDateKeys, selectedDates, usesRangeSelection],
+  );
+  const selectionKey = candidateDateKeys.join(",");
+  const candidateDateKeySet = useMemo(
+    () => new Set(candidateDateKeys),
+    [candidateDateKeys],
+  );
+  const hasIndividualSelectionTooWide =
+    !usesRangeSelection &&
+    candidateDateKeys.length > 1 &&
+    isDateSpanTooLong(
+      candidateDateKeys[0] ?? "",
+      candidateDateKeys[candidateDateKeys.length - 1] ?? "",
+    );
+  const hasSelectionTooWide = hasRangeTooLong || hasIndividualSelectionTooWide;
+  const checkedCurrentSelection =
+    selectionKey !== "" && checkedSelectionKey === selectionKey;
+  const candidateExistingDayByDate = useMemo(() => {
+    const days = new Map(activeExistingDayByDate);
+    if (checkedCurrentSelection) {
+      for (const date of candidateDateKeys) {
+        days.delete(date);
+      }
+      // Only re-apply rows that sit on the actual selection. The range lookup
+      // may return intervening days for non-contiguous individual picks.
+      for (const day of checkedExistingDays) {
+        if (!day.cleared_at && candidateDateKeySet.has(day.date)) {
+          days.set(day.date, day);
+        }
+      }
+    }
+    return days;
+  }, [
+    activeExistingDayByDate,
+    candidateDateKeySet,
+    candidateDateKeys,
+    checkedCurrentSelection,
+    checkedExistingDays,
+  ]);
+  const conflictingDays = useMemo(
+    () =>
+      candidateDateKeys
+        .map((date) => candidateExistingDayByDate.get(date))
+        .filter((day): day is StudentStatusDay => day !== undefined),
+    [candidateDateKeys, candidateExistingDayByDate],
+  );
+  // Rows the user can clear: same-status days from the parent list plus
+  // selection conflicts (including out-of-window dates). Fetched rows that
+  // only fall between non-contiguous picks are excluded.
+  const removableExistingDays = useMemo(() => {
+    const byId = new Map<string, StudentStatusDay>();
+    for (const day of activeExistingDays) {
+      byId.set(day.id, day);
+    }
+    if (checkedCurrentSelection) {
+      for (const day of checkedExistingDays) {
+        if (
+          day.cleared_at ||
+          byId.has(day.id) ||
+          !candidateDateKeySet.has(day.date)
+        ) {
+          continue;
+        }
+        byId.set(day.id, day);
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+  }, [
+    activeExistingDays,
+    candidateDateKeySet,
+    checkedCurrentSelection,
+    checkedExistingDays,
+  ]);
+  const removableListTitle = useMemo(() => {
+    if (
+      removableExistingDays.length > 0 &&
+      removableExistingDays.every((day) => day.status === status)
+    ) {
+      return getExistingListTitle(status);
+    }
+    return "Bereits vorhanden";
+  }, [removableExistingDays, status]);
+  const selectableDateKeys = useMemo(
+    () =>
+      candidateDateKeys.filter((date) => !candidateExistingDayByDate.has(date)),
+    [candidateDateKeys, candidateExistingDayByDate],
+  );
+  const hasInvalidRangeOrder =
+    rangeStart !== "" && rangeEnd !== "" && rangeEnd < rangeStart;
+
+  const resetForm = useCallback(
+    (prefillClassTrip: boolean) => {
+      const today = new Date();
+      const todayKey = toISODate(today);
+      setSelectionMode("individual");
+      setSelectionHint(null);
+      setRangeStart(prefillClassTrip && isClassTrip ? todayKey : "");
+      setRangeEnd(prefillClassTrip && isClassTrip ? todayKey : "");
+      setSelectedDates([]);
+      setCheckedExistingDays([]);
+      setCheckedSelectionKey("");
+      setConflictCheckError(null);
+      setReason("");
+    },
+    [isClassTrip],
   );
 
   useEffect(() => {
     if (isOpen) {
-      const today = new Date();
-      const todayKey = formatDateKey(today);
-      setSelectionHint(null);
-      setRangeStart(todayKey);
-      setRangeEnd(todayKey);
-      setSelectedDates(activeExistingDayByDate.has(todayKey) ? [] : [today]);
+      resetForm(true);
     }
-  }, [activeExistingDayByDate, isOpen]);
+  }, [isOpen, resetForm]);
+
+  useEffect(() => {
+    const firstCandidate = candidateDateKeys[0];
+    const lastCandidate = candidateDateKeys[candidateDateKeys.length - 1];
+    if (
+      !isOpen ||
+      !firstCandidate ||
+      !lastCandidate ||
+      hasInvalidRangeOrder ||
+      hasSelectionTooWide
+    ) {
+      setCheckedExistingDays([]);
+      setCheckedSelectionKey("");
+      setConflictCheckError(null);
+      setIsCheckingConflicts(false);
+      return;
+    }
+
+    let isCurrent = true;
+    setCheckedSelectionKey("");
+    setConflictCheckError(null);
+    setIsCheckingConflicts(true);
+
+    void loadExistingDays(firstCandidate, lastCandidate)
+      .then((days) => {
+        if (!isCurrent) return;
+        setCheckedExistingDays(days);
+        setCheckedSelectionKey(selectionKey);
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        setCheckedExistingDays([]);
+        setConflictCheckError(
+          "Vorhandene Status-Tage konnten nicht geprüft werden. Speichern ist derzeit nicht möglich.",
+        );
+      })
+      .finally(() => {
+        if (isCurrent) setIsCheckingConflicts(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [
+    candidateDateKeys,
+    conflictCheckRevision,
+    existingDaysFingerprint,
+    hasInvalidRangeOrder,
+    hasSelectionTooWide,
+    isOpen,
+    loadExistingDays,
+    selectionKey,
+  ]);
 
   const setSortedDates = (dates: Date[]) => {
     const unique = new Map<string, Date>();
     for (const date of dates) {
-      const key = formatDateKey(date);
+      const key = toISODate(date);
       const existingDay = activeExistingDayByDate.get(key);
       if (existingDay) {
         setSelectionHint(
@@ -131,28 +350,49 @@ export function PlannedStatusDaysModal({
     );
   };
 
-  const handleClose = () => {
-    if (!isSubmitting) {
+  const handleSelectionModeChange = (next: SelectionMode) => {
+    setSelectionMode(next);
+    setSelectionHint(null);
+    setCheckedExistingDays([]);
+    setCheckedSelectionKey("");
+    setConflictCheckError(null);
+    if (next === "range") {
       setSelectedDates([]);
+    } else {
       setRangeStart("");
       setRangeEnd("");
-      setSelectionHint(null);
-      setReason("");
+    }
+  };
+
+  const handleClose = () => {
+    if (!isSubmitting) {
+      resetForm(false);
       onClose();
     }
   };
 
+  // Drop the row from the local conflict check only after the caller confirms
+  // deletion. Out-of-window deletes never touch the parent SWR range, so a
+  // local clear is required on success; a failed delete must keep the row.
+  // The caller owns the user-facing error toast, so failures are swallowed here.
+  const handleDeleteStatusDay = async (statusDayId: string) => {
+    if (!onDeleteStatusDay) return;
+    try {
+      await onDeleteStatusDay(statusDayId);
+    } catch {
+      return;
+    }
+    setCheckedExistingDays((current) =>
+      current.filter((day) => day.id !== statusDayId),
+    );
+  };
+
   const handleSubmit = async () => {
-    const dateKeys = isClassTrip
-      ? buildDateRangeKeys(rangeStart, rangeEnd).filter(
-          (date) => !activeExistingDayByDate.has(date),
-        )
-      : selectedDates
-          .map(formatDateKey)
-          .filter((date) => !activeExistingDayByDate.has(date));
+    if (!checkedCurrentSelection || conflictCheckError) return;
+    const dateKeys = selectableDateKeys;
     if (dateKeys.length === 0) {
       setSelectionHint(
-        isClassTrip
+        usesRangeSelection
           ? "Wähle einen Zeitraum ohne bestehenden Status aus."
           : "Wähle mindestens einen Tag ohne Krankmeldung oder Entschuldigung aus.",
       );
@@ -161,16 +401,19 @@ export function PlannedStatusDaysModal({
     const trimmedReason = reason.trim();
     // Pass the reason as a second arg only when present, so callers/tests
     // that expect the single-arg shape keep matching.
-    if (trimmedReason) {
-      await onSubmit(dateKeys, trimmedReason);
-    } else {
-      await onSubmit(dateKeys);
+    try {
+      if (trimmedReason) {
+        await onSubmit(dateKeys, trimmedReason);
+      } else {
+        await onSubmit(dateKeys);
+      }
+    } catch {
+      // The caller owns the user-facing error toast. Keep every input intact
+      // and refresh conflicts in case the write lost a concurrent race.
+      setConflictCheckRevision((current) => current + 1);
+      return;
     }
-    setSelectedDates([]);
-    setRangeStart("");
-    setRangeEnd("");
-    setSelectionHint(null);
-    setReason("");
+    resetForm(false);
   };
 
   return (
@@ -181,27 +424,33 @@ export function PlannedStatusDaysModal({
       size="md"
       footer={
         <>
-          <button
+          <Button
             type="button"
             onClick={handleClose}
             disabled={isSubmitting}
-            className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+            variant="outline"
+            size="md"
+            className="w-full sm:w-auto"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleSubmit}
             disabled={
               isSubmitting ||
-              (isClassTrip
-                ? !rangeStart || !rangeEnd || rangeEnd < rangeStart
-                : selectedDates.length === 0)
+              isCheckingConflicts ||
+              !checkedCurrentSelection ||
+              conflictCheckError !== null ||
+              selectableDateKeys.length === 0 ||
+              hasInvalidRangeOrder ||
+              hasSelectionTooWide
             }
-            className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            size="md"
+            className="w-full disabled:cursor-not-allowed sm:w-auto"
           >
-            {isSubmitting ? "Speichert..." : submitLabel}
-          </button>
+            {isSubmitting ? "Speichert…" : submitLabel}
+          </Button>
         </>
       }
     >
@@ -218,24 +467,36 @@ export function PlannedStatusDaysModal({
             <p className="mt-1 text-sm text-gray-500">
               {isClassTrip
                 ? "Wähle den Zeitraum der Klassenfahrt aus."
-                : "Heute ist vorausgewählt. Wähle bei Bedarf weitere konkrete Tage aus."}
+                : selectionMode === "range"
+                  ? "Wähle den ersten und letzten Tag des Zeitraums aus."
+                  : "Wähle einen oder mehrere konkrete Tage aus."}
             </p>
           </div>
         </div>
 
-        {isClassTrip ? (
+        {!isClassTrip ? (
+          <SegmentedControl
+            items={SELECTION_MODE_ITEMS}
+            value={selectionMode}
+            onChange={handleSelectionModeChange}
+            fullWidth
+            ariaLabel="Art der Datumsauswahl"
+          />
+        ) : null}
+
+        {usesRangeSelection ? (
           <div>
             <p className="mb-2 text-sm font-medium text-gray-900">Zeitraum</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label
-                  htmlFor="class-trip-range-start"
+                  htmlFor="planned-status-range-start"
                   className="text-sm font-medium text-gray-700"
                 >
                   Von
                 </label>
                 <ISODatePicker
-                  id="class-trip-range-start"
+                  id="planned-status-range-start"
                   value={rangeStart}
                   onChange={setRangeStart}
                   calendarLayout="popover"
@@ -244,21 +505,35 @@ export function PlannedStatusDaysModal({
               </div>
               <div>
                 <label
-                  htmlFor="class-trip-range-end"
+                  htmlFor="planned-status-range-end"
                   className="text-sm font-medium text-gray-700"
                 >
                   Bis
                 </label>
                 <ISODatePicker
-                  id="class-trip-range-end"
+                  id="planned-status-range-end"
                   value={rangeEnd}
                   min={rangeStart || undefined}
                   onChange={setRangeEnd}
                   calendarLayout="popover"
                   className="mt-1"
+                  error={
+                    hasInvalidRangeOrder
+                      ? "Das Bis-Datum darf nicht vor dem Von-Datum liegen."
+                      : hasRangeTooLong
+                        ? "Ein Zeitraum darf höchstens 366 Tage umfassen."
+                        : undefined
+                  }
                 />
               </div>
             </div>
+            {rangeDateKeys.length > 0 ? (
+              <p className="mt-2 text-sm text-gray-500">
+                {rangeDateKeys.length === 1
+                  ? `${formatCalendarDate(rangeStart)} · 1 Tag`
+                  : `${formatCalendarDate(rangeStart)} bis ${formatCalendarDate(rangeEnd)} · ${rangeDateKeys.length} Tage`}
+              </p>
+            ) : null}
             {selectionHint ? (
               <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
                 {selectionHint}
@@ -293,7 +568,7 @@ export function PlannedStatusDaysModal({
               </p>
               <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
                 {currentWeekDates.map((date, index) => {
-                  const key = formatDateKey(date);
+                  const key = toISODate(date);
                   const isSelected = selectedKeys.has(key);
                   const existingDay = activeExistingDayByDate.get(key);
                   return (
@@ -339,14 +614,41 @@ export function PlannedStatusDaysModal({
           </>
         )}
 
+        {isCheckingConflicts && candidateDateKeys.length > 0 ? (
+          <Alert type="info" message="Vorhandene Status-Tage werden geprüft…" />
+        ) : null}
+        {conflictCheckError ? (
+          <Alert type="error" message={conflictCheckError} />
+        ) : null}
+        {hasIndividualSelectionTooWide ? (
+          <Alert
+            type="error"
+            message="Die ausgewählten Einzeltage dürfen höchstens 366 Tage auseinanderliegen."
+          />
+        ) : null}
+        {conflictingDays.length > 0 ? (
+          <Alert
+            type="warning"
+            message={getConflictMessage(
+              conflictingDays,
+              candidateDateKeys.length,
+              selectableDateKeys.length,
+            )}
+          />
+        ) : null}
+
         {!isClassTrip && selectedDates.length > 0 && (
           <div>
             <p className="mb-2 text-sm font-medium text-gray-900">
-              Ausgewählte Tage
+              {conflictingDays.length > 0
+                ? `${selectableDateKeys.length} von ${candidateDateKeys.length} Tagen werden gespeichert`
+                : selectedDates.length === 1
+                  ? "1 Tag ausgewählt"
+                  : `${selectedDates.length} Tage ausgewählt`}
             </p>
             <div className="flex flex-wrap gap-2">
               {selectedDates.map((date) => {
-                const key = formatDateKey(date);
+                const key = toISODate(date);
                 return (
                   <button
                     key={key}
@@ -369,13 +671,13 @@ export function PlannedStatusDaysModal({
           </div>
         )}
 
-        {activeExistingDays.length > 0 ? (
+        {removableExistingDays.length > 0 ? (
           <div>
             <p className="mb-2 text-sm font-medium text-gray-900">
-              {getExistingListTitle(status)}
+              {removableListTitle}
             </p>
             <div className="space-y-2">
-              {activeExistingDays.map((day) => (
+              {removableExistingDays.map((day) => (
                 <div
                   key={day.id}
                   className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"
@@ -394,7 +696,9 @@ export function PlannedStatusDaysModal({
                   {onDeleteStatusDay ? (
                     <button
                       type="button"
-                      onClick={() => onDeleteStatusDay(day.id)}
+                      onClick={() => {
+                        void handleDeleteStatusDay(day.id);
+                      }}
                       disabled={isSubmitting || deletingStatusDayId === day.id}
                       className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-8 items-center justify-center rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-50"
                     >
@@ -437,14 +741,8 @@ export function PlannedStatusDaysModal({
   );
 }
 
-function formatDateKey(date: Date): string {
-  return format(date, "yyyy-MM-dd");
-}
-
 function formatDateLabel(date: string): string {
-  return format(new Date(`${date}T00:00:00`), "EEEE, dd.MM.yyyy", {
-    locale: de,
-  });
+  return formatCalendarDate(date, true);
 }
 
 function getStatusLabel(status: StudentStatusKind): string {
@@ -470,17 +768,44 @@ function getExistingListTitle(status: StudentStatusKind): string {
 }
 
 function buildDateRangeKeys(start: string, end: string): string[] {
-  if (!start || !end || end < start) {
+  if (!start || !end || end < start || isDateSpanTooLong(start, end)) {
     return [];
   }
   const result: string[] = [];
-  const endDate = new Date(`${end}T00:00:00`);
+  const endDate = parseISODate(end);
   for (
-    let cursor = new Date(`${start}T00:00:00`);
+    let cursor = parseISODate(start);
     cursor <= endDate;
     cursor = addDays(cursor, 1)
   ) {
-    result.push(formatDateKey(cursor));
+    result.push(toISODate(cursor));
   }
   return result;
+}
+
+function isDateSpanTooLong(start: string, end: string): boolean {
+  if (!start || !end || end < start) return false;
+  return (
+    differenceInCalendarDays(parseISODate(end), parseISODate(start)) >=
+    MAX_SELECTION_SPAN_DAYS
+  );
+}
+
+function getConflictMessage(
+  conflicts: StudentStatusDay[],
+  totalCount: number,
+  selectableCount: number,
+): string {
+  const conflictCount = conflicts.length;
+  const details = conflicts
+    .map(
+      (day) =>
+        `${formatCalendarDate(day.date)} (${getStatusLabel(day.status).toLowerCase()})`,
+    )
+    .join(", ");
+  if (conflictCount === totalCount) {
+    return `${details}: ${totalCount === 1 ? "Dieser Tag hat" : "Diese Tage haben"} bereits einen Status und ${totalCount === 1 ? "wird" : "werden"} nicht überschrieben. Es wird nichts gespeichert.`;
+  }
+
+  return `${details}: ${conflictCount} von ${totalCount} Tagen ${conflictCount === 1 ? "hat" : "haben"} bereits einen Status und ${conflictCount === 1 ? "wird" : "werden"} nicht überschrieben. ${selectableCount} ${selectableCount === 1 ? "Tag wird" : "Tage werden"} gespeichert.`;
 }

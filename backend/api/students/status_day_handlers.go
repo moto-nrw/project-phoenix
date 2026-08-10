@@ -78,6 +78,16 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), student.ID, req.Status, req.Reason, dates); err != nil {
+		var conflictErr *activeService.StudentStatusDayConflictError
+		if errors.As(err, &conflictErr) {
+			common.RespondWithJSON(
+				w,
+				r,
+				http.StatusConflict,
+				statusDayConflictResponse(conflictErr),
+			)
+			return
+		}
 		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
@@ -128,6 +138,19 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	if err := rs.StudentStatusDayService.BulkCreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), req.StudentIDs, req.Status, req.Reason, dates); err != nil {
+		var conflictErr *activeService.StudentStatusDayConflictError
+		if errors.As(err, &conflictErr) {
+			// Fail closed under the outer TenantTxMiddleware tx: 409 is non-5xx
+			// and must not commit any partial nested write.
+			tenant.MarkRollback(r.Context())
+			common.RespondWithJSON(
+				w,
+				r,
+				http.StatusConflict,
+				statusDayConflictResponse(conflictErr),
+			)
+			return
+		}
 		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			// Fail closed under the outer TenantTxMiddleware tx: 403 is non-5xx
 			// and would otherwise commit any partial write from a nested reuse.
@@ -260,6 +283,17 @@ func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
 		dates = append(dates, date)
 	}
 	return dates
+}
+
+// statusDayConflictResponse builds the shared 409 body for single and bulk
+// planned-status writes: a capped conflict sample plus the full total.
+func statusDayConflictResponse(conflictErr *activeService.StudentStatusDayConflictError) map[string]any {
+	return map[string]any{
+		"status":         "error",
+		"error":          "existing student status days were not overwritten",
+		"conflicts":      newStudentStatusDayConflictResponses(conflictErr.SampleConflicts()),
+		"conflict_count": conflictErr.ConflictTotal(),
+	}
 }
 
 func applyLiveStatusForToday(student *users.Student, status string, now time.Time) {

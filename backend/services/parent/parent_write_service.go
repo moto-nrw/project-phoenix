@@ -246,16 +246,15 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	var result []*activeModels.StudentStatusDay
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		var fresh *usersModels.Student
-		notifyAbsence := false
-		if slices.Contains(dates, today) {
-			var err error
-			fresh, err = s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
-			if err != nil {
-				return err
-			}
-			notifyAbsence = isNewParentReportableAbsence(fresh, status)
+		// Serialize every parent status write with staff writes on the same
+		// student, including future-only ranges. Staff conflict detection relies
+		// on this lock to make its read and write one atomic decision.
+		fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
 		}
+		notifyAbsence := slices.Contains(dates, today) &&
+			isNewParentReportableAbsence(fresh, status)
 
 		for _, other := range activeModels.StudentStatusDayStatusesExcept(status) {
 			if err := s.StatusDayRepo.MarkClearedForDates(txCtx, studentID, other, dates, now, activeModels.StudentStatusSourceParent); err != nil {
@@ -275,7 +274,7 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			}
 		}
 
-		if fresh != nil {
+		if slices.Contains(dates, today) {
 			applyLiveStatusForParentToday(fresh, status, now)
 			if err := s.StudentRepo.Update(txCtx, fresh); err != nil {
 				return err
