@@ -589,5 +589,66 @@ describe("CustomSelect", () => {
         Element.prototype.scrollIntoView = vi.fn();
       }
     });
+
+    it("scrolls the selected option on open even when hover moves focus first", () => {
+      // Open scroll must use the index captured at open time. If mouseEnter
+      // changes focusIndex before the open effect runs, scrolling focusIndex
+      // would reveal the hovered row and leave the selection off-screen.
+      const scrolledLabels: string[] = [];
+      const scrollIntoViewMock = vi.fn(function scrollIntoView(this: Element) {
+        scrolledLabels.push(this.textContent ?? "");
+      });
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        render(
+          <CustomSelect
+            value="opt-30"
+            options={longOptions}
+            onChange={vi.fn()}
+            ariaLabel="Lange Liste"
+          />,
+        );
+
+        const trigger = screen.getByRole("combobox", { name: "Lange Liste" });
+        // Batch open + hover in one act so focus can move before open scroll.
+        fireEvent.click(trigger);
+        fireEvent.mouseEnter(screen.getByRole("option", { name: "Option 1" }));
+
+        expect(scrolledLabels).toContain("Option 31");
+        expect(screen.getByRole("option", { name: "Option 1" })).toHaveFocus();
+      } finally {
+        Element.prototype.scrollIntoView = vi.fn();
+      }
+    });
+
+    it("scrolls the focused option after layout updates even when hover suppressed scroll", () => {
+      const scrollIntoViewMock = vi.fn();
+      Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+      try {
+        render(
+          <CustomSelect
+            value="opt-0"
+            options={longOptions}
+            onChange={vi.fn()}
+            ariaLabel="Lange Liste"
+          />,
+        );
+
+        fireEvent.click(screen.getByRole("combobox", { name: "Lange Liste" }));
+        fireEvent.mouseEnter(screen.getByRole("option", { name: "Option 8" }));
+        scrollIntoViewMock.mockClear();
+
+        // Resize repositions the menu (new menuStyle). Hover suppress must not
+        // leave the focused option off-screen after the layout change.
+        fireEvent(window, new Event("resize"));
+
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "nearest" });
+        expect(screen.getByRole("option", { name: "Option 8" })).toHaveFocus();
+      } finally {
+        Element.prototype.scrollIntoView = vi.fn();
+      }
+    });
   });
 });

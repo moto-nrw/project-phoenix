@@ -184,13 +184,22 @@ export function ListboxDropdown<K extends string>({
   const typeaheadBufferRef = useRef("");
   const typeaheadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Pointer-driven focus (hover) must not scroll the menu — re-centering under
-  // the cursor makes long lists jump and options unclickable (#2212). Stays
-  // true until the next keyboard/open focus move; do not clear in the effect
-  // (React Strict Mode re-runs effects and would re-enable scroll).
+  // the cursor makes long lists jump and options unclickable (#2212). Applies
+  // only to hover-driven focusIndex changes; layout (menuStyle) updates still
+  // keep the focused option in view. Do not clear in the effect on its own
+  // (React Strict Mode re-runs effects and would re-enable hover scroll).
   const suppressFocusScrollRef = useRef(false);
   // One-shot scroll when the menu opens so an early mouseEnter (pointer over
   // the portaled list as it appears) cannot suppress revealing the selection.
   const forceOpenScrollRef = useRef(false);
+  // Index captured at open time — open scroll must target this, not whatever
+  // hover may have moved focusIndex to before the effect runs.
+  const openScrollIndexRef = useRef<number | null>(null);
+  // Track last effect inputs so hover-suppression does not also block
+  // layout-only re-runs (resize/scroll reposition), and Strict Mode re-runs
+  // do not re-scroll after a suppressed hover focus move.
+  const lastScrollFocusIndexRef = useRef<number | null>(null);
+  const lastScrollMenuStyleRef = useRef<CSSProperties | null>(null);
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const selectedIndex = selectedIndexForValue(options, value);
@@ -306,7 +315,11 @@ export function ListboxDropdown<K extends string>({
   }, [open, options, updateMenuPosition]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      lastScrollFocusIndexRef.current = null;
+      lastScrollMenuStyleRef.current = null;
+      return;
+    }
     const option = optionRefs.current[focusIndex];
     // preventScroll: native focus scrolling would still jump the list on hover
     // even when we skip the explicit scrollIntoView below.
@@ -317,18 +330,35 @@ export function ListboxDropdown<K extends string>({
     // scrolling before that would move the page instead of the list.
     //
     // "nearest" only moves when the option is outside the visible range — never
-    // re-centres an already-visible row under the pointer. Skip pointer hover
-    // so mouseEnter never changes scroll position (#2212), except the one-shot
-    // open scroll which still reveals the selection.
+    // re-centres an already-visible row under the pointer. Hover-driven focus
+    // changes skip scroll (#2212); layout-driven menuStyle updates still reveal
+    // the focused option after resize/reposition. Open uses a captured index so
+    // an early mouseEnter cannot steal the one-shot reveal of the selection.
     if (!menuStyle) return;
+
     if (forceOpenScrollRef.current) {
       forceOpenScrollRef.current = false;
-      option?.scrollIntoView({ block: "nearest" });
+      const openIndex = openScrollIndexRef.current ?? focusIndex;
+      openScrollIndexRef.current = null;
+      optionRefs.current[openIndex]?.scrollIntoView({ block: "nearest" });
+      lastScrollFocusIndexRef.current = focusIndex;
+      lastScrollMenuStyleRef.current = menuStyle;
       return;
     }
-    if (!suppressFocusScrollRef.current) {
-      option?.scrollIntoView({ block: "nearest" });
+
+    const focusChanged = lastScrollFocusIndexRef.current !== focusIndex;
+    const layoutChanged = lastScrollMenuStyleRef.current !== menuStyle;
+    lastScrollFocusIndexRef.current = focusIndex;
+    lastScrollMenuStyleRef.current = menuStyle;
+
+    // No real input change (e.g. Strict Mode re-run after a suppressed hover).
+    if (!focusChanged && !layoutChanged) return;
+    // Pure hover focus move: leave scroll position alone.
+    if (focusChanged && suppressFocusScrollRef.current && !layoutChanged) {
+      return;
     }
+
+    option?.scrollIntoView({ block: "nearest" });
   }, [open, focusIndex, menuStyle]);
 
   const resetTypeahead = useCallback(() => {
@@ -360,9 +390,14 @@ export function ListboxDropdown<K extends string>({
     [closeAndReturnFocus, onChange, options],
   );
 
+  const markOpenScrollTo = (index: number) => {
+    forceOpenScrollRef.current = true;
+    openScrollIndexRef.current = index;
+  };
+
   const openAtSelected = () => {
     suppressFocusScrollRef.current = false;
-    forceOpenScrollRef.current = true;
+    markOpenScrollTo(selectedIndex);
     setFocusIndex(selectedIndex);
     setOpen(true);
   };
@@ -406,7 +441,7 @@ export function ListboxDropdown<K extends string>({
       setFocusIndex(selectedIndex);
     }
     if (!open) {
-      forceOpenScrollRef.current = true;
+      markOpenScrollTo(matchIndex >= 0 ? matchIndex : selectedIndex);
       setOpen(true);
     }
     return true;
@@ -526,7 +561,7 @@ export function ListboxDropdown<K extends string>({
           suppressFocusScrollRef.current = false;
           // Ref write stays outside setOpen — React may re-run functional
           // updaters, so side effects inside them are invalid (react-doctor).
-          if (!open) forceOpenScrollRef.current = true;
+          if (!open) markOpenScrollTo(selectedIndex);
           setOpen((prev) => !prev);
           setFocusIndex(selectedIndex);
         }}
