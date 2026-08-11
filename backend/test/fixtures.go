@@ -968,10 +968,74 @@ func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 }
 
 // CleanupAccount removes an account and related auth records from the database.
+//
+// Stops at the auth schema. An account created through a flow that provisions
+// its school identity (registration, link-to-tenant, invitation acceptance)
+// also owns rows in users.*; pair this with CleanupSchoolIdentity.
 func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
 	tb.Helper()
 
 	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupAccountWithIdentity removes an account together with the school
+// identity provisioned for it — the pairing tests need after registration,
+// link-to-tenant, or invitation acceptance. Exists so the ordering constraint
+// documented on CleanupSchoolIdentity is not every caller's problem.
+func CleanupAccountWithIdentity(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+
+	CleanupSchoolIdentity(tb, db, accountID)
+	CleanupAccount(tb, db, accountID)
+}
+
+// CleanupSchoolIdentity removes the person → staff → teacher chain that gets
+// provisioned for an account at a school (#2222).
+//
+// Call it BEFORE CleanupAccount: the persons are found through their
+// account_id, which the account row's deletion takes with it.
+func CleanupSchoolIdentity(tb testing.TB, db *bun.DB, accountIDs ...int64) {
+	tb.Helper()
+
+	if len(accountIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var personIDs []int64
+	if err := db.NewSelect().
+		TableExpr(tableUsersPersons).
+		ColumnExpr("id").
+		Where(whereAccountIDIn, bun.List(accountIDs)).
+		Scan(ctx, &personIDs); err != nil || len(personIDs) == 0 {
+		return
+	}
+
+	var staffIDs []int64
+	_ = db.NewSelect().
+		TableExpr(tableUsersStaff).
+		ColumnExpr("id").
+		Where("person_id IN (?)", bun.List(personIDs)).
+		Scan(ctx, &staffIDs)
+
+	if len(staffIDs) > 0 {
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr(tableUsersTeachers).
+			Where("staff_id IN (?)", bun.List(staffIDs)),
+			tableUsersTeachers)
+
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr(tableUsersStaff).
+			Where("id IN (?)", bun.List(staffIDs)),
+			tableUsersStaff)
+	}
+
+	cleanupDelete(tb, db.NewDelete().
+		TableExpr(tableUsersPersons).
+		Where("id IN (?)", bun.List(personIDs)),
+		tableUsersPersons)
 }
 
 // CleanupRoleRecords removes roles and their role-permission/account-role associations.

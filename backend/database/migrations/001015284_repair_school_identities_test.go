@@ -415,3 +415,121 @@ func cleanupAccountIdentities(t *testing.T, db *bun.DB, accountIDs ...int64) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, accountID)
 	}
 }
+
+// Lehrkraft never earns a caregiver profile on its own (#1772) — but that is a
+// property of the ROLE, not of the account. An account that also holds a real
+// caregiver-tier role has always needed the profile that role reads through,
+// and RoleNeedsCaregiverProfile decides per role. Skipping every account with a
+// Lehrkraft role would leave those in the half-written state this migration
+// exists to end, and unreported too, since their staff record does get created.
+func TestRepairSchoolIdentitiesCaregiverProfileIsDecidedPerRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	lehrkraftRole := ensureLehrkraftSystemRole(t, db)
+	caregiverRole := createIdentityRepairRole(t, db, tenantID, "doppel-kraft", strPtrValue("user"))
+	defer cleanupIdentityRepairRoles(t, db, caregiverRole)
+
+	lehrkraftOnly := createBrokenSchoolIdentity(t, db, tenantID, "Doppel", "Nur", lehrkraftRole)
+	dualRole := createBrokenSchoolIdentity(t, db, tenantID, "Doppel", "Beides", lehrkraftRole)
+	addRoleAt(t, db, dualRole.accountID, caregiverRole, tenantID)
+	defer cleanupBrokenSchoolIdentities(t, db, lehrkraftOnly, dualRole)
+
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
+
+	assert.Equal(t, 1, liveStaffCount(t, db, lehrkraftOnly.personID), "Lehrkraft is personnel")
+	assert.Equal(t, 0, liveTeacherCount(t, db, lehrkraftOnly.personID),
+		"a Lehrkraft with no other caregiver-tier role must stay without a profile")
+
+	assert.Equal(t, 1, liveStaffCount(t, db, dualRole.personID))
+	assert.Equal(t, 1, liveTeacherCount(t, db, dualRole.personID),
+		"the caregiver-tier role the account also holds needs its profile")
+}
+
+// A person that is a child's record is never turned into staff. The account is
+// then still broken, so it has to reach the report — otherwise the run looks
+// clean while the account stays unusable.
+func TestRepairSchoolIdentitiesReportsStudentLinkedIdentity(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	role := createIdentityRepairRole(t, db, tenantID, "kind-verknuepft", strPtrValue("admin"))
+	defer cleanupIdentityRepairRoles(t, db, role)
+
+	linked := createBrokenSchoolIdentity(t, db, tenantID, "Kind", "Verknuepft", role)
+	defer cleanupBrokenSchoolIdentities(t, db, linked)
+	markPersonAsStudent(t, db, tenantID, linked.personID)
+
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
+
+	assert.Equal(t, 0, liveStaffCount(t, db, linked.personID),
+		"a child's person record must never be filed as personnel")
+
+	rows, err := listUnrepairableSchoolIdentities(ctx, db)
+	require.NoError(t, err)
+
+	reason, listed := reasonForAccount(rows, linked.accountID, tenantID)
+	require.True(t, listed, "the account the repair could not complete must be reported")
+	assert.Contains(t, reason, "child")
+}
+
+func reasonForAccount(rows []unrepairableSchoolIdentity, accountID, tenantID int64) (string, bool) {
+	for _, row := range rows {
+		if row.AccountID == accountID && row.TenantID == tenantID {
+			return row.Reason, true
+		}
+	}
+	return "", false
+}
+
+// ensureLehrkraftSystemRole returns the id of the platform Lehrkraft role
+// (migration 1.15.278), creating it if this database predates it.
+func ensureLehrkraftSystemRole(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+	ctx := context.Background()
+
+	var ids []int64
+	require.NoError(t, db.NewRaw(
+		`SELECT id FROM auth.roles WHERE is_system AND LOWER(TRIM(name)) = 'lehrkraft'`,
+	).Scan(ctx, &ids))
+	if len(ids) > 0 {
+		return ids[0]
+	}
+
+	var id int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO auth.roles (name, description, is_system, tenant_id, base_role, created_at, updated_at)
+		VALUES ('lehrkraft', 'Lehrkraft', TRUE, NULL, 'user', NOW(), NOW())
+		RETURNING id`).Scan(ctx, &id))
+	t.Cleanup(func() { cleanupIdentityRepairRoles(t, db, id) })
+	return id
+}
+
+func addRoleAt(t *testing.T, db *bun.DB, accountID, roleID, tenantID int64) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+		VALUES (?, ?, ?, NOW(), NOW())`, accountID, roleID, tenantID)
+	require.NoError(t, err)
+}
+
+func markPersonAsStudent(t *testing.T, db *bun.DB, tenantID, personID int64) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO users.students (tenant_id, person_id, school_class, created_at, updated_at)
+		VALUES (?, ?, '1a', NOW(), NOW())`, tenantID, personID)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM users.students WHERE person_id = ?`, personID)
+	})
+}

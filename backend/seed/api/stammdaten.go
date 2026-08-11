@@ -1092,13 +1092,20 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			roleID = userRoleID
 		}
 
-		// 1. Create account via /register with role_id
+		// Create the account and its person in ONE request. All three roles
+		// above are staff tier, and since #2222 /auth/register provisions the
+		// person and staff record with the account: it refuses a staff-tier
+		// role without a name, and a follow-up POST /api/users carrying the
+		// same account_id would hit the partial unique index on
+		// (tenant_id, account_id) against the person it just created.
 		registerBody := map[string]any{
 			"email":            email,
 			"username":         fmt.Sprintf("demo%d", accountNum),
 			"password":         password,
 			"confirm_password": password,
 			"role_id":          roleID,
+			"first_name":       staff.FirstName,
+			"last_name":        staff.LastName,
 		}
 
 		registerResp, err := s.client.Post("/auth/register", registerBody)
@@ -1110,35 +1117,22 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			Status string `json:"status"`
 			Data   struct {
 				ID int64 `json:"id"`
+				// int64 ids travel as JSON strings on this field.
+				SchoolIdentity *struct {
+					PersonID int64 `json:"person_id,string"`
+				} `json:"school_identity"`
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(registerResp, &account); err != nil {
 			return fmt.Errorf("failed to parse account response: %w", err)
 		}
-
-		// 2. Create person with account_id pre-populated.
-		personBody := map[string]any{
-			"first_name": staff.FirstName,
-			"last_name":  staff.LastName,
-			"account_id": account.Data.ID,
+		if account.Data.SchoolIdentity == nil || account.Data.SchoolIdentity.PersonID <= 0 {
+			return fmt.Errorf("account for %s was created without a person record", personKey)
 		}
 
-		personResp, err := s.client.Post("/api/users", personBody)
-		if err != nil {
-			return fmt.Errorf("failed to create person %s: %w", personKey, err)
-		}
-
-		var person struct {
-			Status string `json:"status"`
-			Data   struct {
-				ID int64 `json:"id"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(personResp, &person); err != nil {
-			return fmt.Errorf("failed to parse person response: %w", err)
-		}
-
-		s.personIDs[personKey] = person.Data.ID
+		// seedStaff later posts this id to /api/staff, which adopts the staff
+		// record created here instead of adding a second one.
+		s.personIDs[personKey] = account.Data.SchoolIdentity.PersonID
 		result.PersonCount++
 
 		// Store credentials for summary

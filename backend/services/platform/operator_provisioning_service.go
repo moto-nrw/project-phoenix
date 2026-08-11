@@ -188,6 +188,7 @@ type OperatorProvisioningServiceConfig struct {
 	StaffRepo             userModels.StaffRepository
 	AccountRepo           authModels.AccountRepository
 	TeacherRepo           userModels.TeacherRepository
+	StudentRepo           userModels.StudentRepository
 	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
 	ActiveGroupRepo       ActiveDeviceSessionFinder
 	Settings              TenantSettingsResolver
@@ -593,6 +594,7 @@ func (s *operatorProvisioningService) ensureSchoolIdentityForCaregiverRequest(
 		Persons:  s.PersonRepo,
 		Staff:    s.StaffRepo,
 		Teachers: s.TeacherRepo,
+		Students: s.StudentRepo,
 	}, authSvc.SchoolIdentityInput{
 		AccountID:        accountID,
 		TenantID:         schoolID,
@@ -603,7 +605,8 @@ func (s *operatorProvisioningService) ensureSchoolIdentityForCaregiverRequest(
 		CaregiverUpgrade: req.CaregiverEnabled,
 		CreatePerson:     true,
 	})
-	if errors.Is(err, authSvc.ErrSchoolIdentityNamesRequired) {
+	if errors.Is(err, authSvc.ErrSchoolIdentityNamesRequired) ||
+		errors.Is(err, authSvc.ErrSchoolIdentityPersonIsStudent) {
 		return &InvalidDataError{Err: err}
 	}
 	return err

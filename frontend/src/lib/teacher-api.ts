@@ -74,6 +74,34 @@ function extractSchoolIdentity(
 }
 
 /**
+ * Builds the POST /api/staff body with person_id as an exact JSON number.
+ *
+ * person_id is a PostgreSQL bigint and reaches us as the decimal string the
+ * backend sent. `Number(...)` would silently round it once it exceeds
+ * Number.MAX_SAFE_INTEGER, and the rounded value is a valid id for a different
+ * person — a wrong staff record rather than a failed request. So the digits are
+ * spliced into the body verbatim instead of making the trip through a JS
+ * number, which the wire format allows: JSON numbers have no precision limit,
+ * only JavaScript's parser does.
+ *
+ * The id is validated first — everything else here is ours, but this value
+ * comes off the network and lands unescaped in the body.
+ */
+function buildStaffRequestBody(
+  personId: string,
+  fields: Record<string, unknown>,
+): string {
+  if (!/^\d+$/.test(personId)) {
+    throw new Error(
+      "Der Mitarbeiter-Datensatz konnte nicht angelegt werden: ungültige Personen-ID.",
+    );
+  }
+  // `fields` is never empty, so the serialized object always starts with `{"`
+  // and slice(1) leaves a well-formed tail.
+  return `{"person_id":${personId},${JSON.stringify(fields).slice(1)}`;
+}
+
+/**
  * Extracts Teacher data from potentially double-wrapped response
  */
 function extractTeacherData(responseData: unknown): Teacher {
@@ -395,10 +423,7 @@ class TeacherService {
     const response = await sessionFetch("/api/staff", {
       method: "POST",
       credentials: "include",
-      body: JSON.stringify({
-        // The only place the id becomes a number: /api/staff takes person_id
-        // as one. Everywhere before this it stays the string the backend sent.
-        person_id: Number(personId),
+      body: buildStaffRequestBody(personId, {
         // Lehrkraft (#1772) bekommt kein Betreuungsprofil (users.teachers):
         // das Formular setzt is_teacher=false, alle anderen Rollen behalten
         // den bisherigen Default.

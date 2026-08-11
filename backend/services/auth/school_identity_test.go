@@ -18,10 +18,23 @@ import (
 const identityTenantID int64 = 77
 
 func identityRepos() (SchoolIdentityRepos, *stubPersonRepository, func() []*userModel.Staff, *stubTeacherRepository) {
+	repos, persons, staffAll, teachers, _ := identityReposWithStudents()
+	return repos, persons, staffAll, teachers
+}
+
+// identityReposWithStudents additionally exposes the student repository, for
+// the cases that care whether the person is a child's record.
+func identityReposWithStudents() (SchoolIdentityRepos, *stubPersonRepository, func() []*userModel.Staff, *stubTeacherRepository, *stubStudentRepository) {
 	persons := newStubPersonRepository()
 	staff, staffAll := newStubStaffRepository()
 	teachers := newStubTeacherRepository()
-	return SchoolIdentityRepos{Persons: persons, Staff: staff, Teachers: teachers}, persons, staffAll, teachers
+	students := newStubStudentRepository()
+	return SchoolIdentityRepos{
+		Persons:  persons,
+		Staff:    staff,
+		Teachers: teachers,
+		Students: students,
+	}, persons, staffAll, teachers, students
 }
 
 func customRole(name, base string) *authModel.Role {
@@ -261,4 +274,43 @@ func TestAcceptInvitation_CustomSchoolRoleCreatesStaff(t *testing.T) {
 	require.Len(t, createdStaff, 1, "a school's own role must produce a staff record")
 	require.Equal(t, tenantID, createdStaff[0].TenantID)
 	require.Empty(t, teachers.All(), "an admin-tier role runs without a caregiver profile")
+}
+
+// The chain can only be built on the person that carries the account_id, and
+// when that person is a child's record, building it would file the child as
+// personnel. Refusing is the one case where leaving the account incomplete is
+// the better outcome: the resulting rows are indistinguishable from legitimate
+// ones, so nothing could repair it afterwards.
+func TestEnsureSchoolIdentity_RefusesPersonThatIsAStudent(t *testing.T) {
+	repos, persons, staffAll, teachers, students := identityReposWithStudents()
+
+	accountID := int64(9001)
+	child := &userModel.Person{FirstName: "Kind", LastName: "Datensatz", AccountID: &accountID}
+	child.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), child))
+	students.markStudent(child.ID)
+
+	_, err := EnsureSchoolIdentity(context.Background(), repos, identityInput(customRole("OGS-Leitung", authModel.BaseRoleAdmin)))
+	require.ErrorIs(t, err, ErrSchoolIdentityPersonIsStudent)
+
+	require.Empty(t, staffAll(), "no staff record may be built on a child's person")
+	require.Empty(t, teachers.All())
+	require.Len(t, persons.people, 1, "the child's record itself stays untouched")
+}
+
+// A person that is not a student is the ordinary case and must pass the same
+// check unharmed — the repository reports the miss as sql.ErrNoRows, which is
+// not an error here.
+func TestEnsureSchoolIdentity_ExistingNonStudentPersonPasses(t *testing.T) {
+	repos, persons, staffAll, _, _ := identityReposWithStudents()
+
+	accountID := int64(9001)
+	existing := &userModel.Person{FirstName: "Bestehend", LastName: "Person", AccountID: &accountID}
+	existing.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), existing))
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos, identityInput(customRole("OGS-Leitung", authModel.BaseRoleAdmin)))
+	require.NoError(t, err)
+	require.Equal(t, existing.ID, identity.Person.ID)
+	require.Len(t, staffAll(), 1)
 }

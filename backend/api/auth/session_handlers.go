@@ -240,7 +240,8 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 				errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
 				errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
 				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
-				errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired):
+				errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired),
+				errors.Is(authErr.Err, authService.ErrSchoolIdentityPersonIsStudent):
 				common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -350,7 +351,10 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 		// schoolIdentityFor already refuses a nameless staff-tier request, so
 		// this is defense in depth: if provisioning ever raises it anyway, it is
 		// a bad request, not a server fault.
-		errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired):
+		errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired),
+		// The account is linked to a child's person record, so it cannot become
+		// staff on it. Nothing the request can carry would change that.
+		errors.Is(authErr.Err, authService.ErrSchoolIdentityPersonIsStudent):
 		common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

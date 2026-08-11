@@ -1246,6 +1246,7 @@ func (s *Service) provisionSchoolIdentity(
 		Persons:  s.repos.Person,
 		Staff:    s.repos.Staff,
 		Teachers: s.repos.Teacher,
+		Students: s.repos.Student,
 	}, SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     tenantID,

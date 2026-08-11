@@ -52,6 +52,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	personRepo := newStubPersonRepository()
 	staffRepo, _ := newStubStaffRepository()
 	teacherRepo := newStubTeacherRepository()
+	studentRepo := newStubStudentRepository()
 
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
@@ -65,6 +66,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		PersonRepo:        personRepo,
 		StaffRepo:         staffRepo,
 		TeacherRepo:       teacherRepo,
+		StudentRepo:       studentRepo,
 		SchoolRepo:        newStubSchoolRepository(nil),
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,

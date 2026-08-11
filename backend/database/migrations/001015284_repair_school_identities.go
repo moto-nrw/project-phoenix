@@ -116,10 +116,12 @@ const unambiguousNameFromMappedSchools = `
 //   - never a person that is a student, neither as target nor as name source
 //
 // Caregiver profiles (users.teachers) are created under the same rule the
-// provisioning now applies: caregiver tier gets one, as does the retired
-// platform 'teacher' role that predates the tier column, and the class-scoped
-// Lehrkraft role never does (#1772). Without it the repaired account would show
-// up in the staff list and still find its groups and supervisions empty.
+// provisioning now applies, and like it the rule is decided PER ROLE: caregiver
+// tier gets one, as does the retired platform 'teacher' role that predates the
+// tier column, and the class-scoped Lehrkraft role never does (#1772) — so an
+// account that holds Lehrkraft alongside a real caregiver role still gets the
+// profile that role requires. Without it the repaired account would show up in
+// the staff list and still find its groups and supervisions empty.
 //
 // Idempotent — every insert is guarded by NOT EXISTS.
 func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
@@ -212,16 +214,19 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 					-- of the bug this migration exists to repair.
 					OR (r.is_system AND LOWER(TRIM(r.name)) = 'teacher')
 				  )
+				  -- Lehrkraft carries caregiver tier for grant classification
+				  -- but is class_day-read-only by design (#1772), so it never
+				  -- earns a profile on its own. Excluding it HERE and not for
+				  -- the account as a whole is the point: an account whose only
+				  -- caregiver-tier role is Lehrkraft matches nothing and keeps
+				  -- no profile, while one that also holds a real caregiver role
+				  -- gets the profile that role has always required. Blanket-
+				  -- skipping every account with a Lehrkraft role would leave
+				  -- those dual-role accounts in exactly the half-written state
+				  -- this migration exists to end — and unreported, since the
+				  -- staff record does get created. RoleNeedsCaregiverProfile
+				  -- decides per role too.
 				  AND NOT (r.is_system AND LOWER(TRIM(r.name)) = 'lehrkraft')
-			  )
-			  AND NOT EXISTS (
-				SELECT 1
-				FROM auth.account_roles ar
-				JOIN auth.roles r ON r.id = ar.role_id
-				WHERE ar.account_id = p.account_id
-				  AND ar.tenant_id = p.tenant_id
-				  AND r.is_system
-				  AND LOWER(TRIM(r.name)) = 'lehrkraft'
 			  )
 		`)
 		if err != nil {
@@ -235,27 +240,74 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 	})
 }
 
-// reportUnrepairableSchoolIdentities lists the accounts the repair cannot
-// reach: they have school access and a staff-tier role, no person at this
-// school, and no name at another of their schools that the first step could
-// have used — either because they have no other school or because those
-// schools disagree on the name. Inventing one would mean making up personal
-// data. They are printed so a human can complete them through the staff UI,
-// which links the new person to the account.
+// reportUnrepairableSchoolIdentities lists every account the repair could not
+// complete: school access, a staff-tier role, and still no staff record.
+//
+// It asks that question directly rather than re-listing one known cause, so a
+// row cannot be skipped above and stay silent here. Two causes reach it:
+//
+//   - No person at this school and no name at another of their schools the
+//     first step could have used — either there is no other school, or those
+//     schools disagree on the name. Inventing one would mean making up personal
+//     data.
+//   - The person carrying the account at this school is a child's record. The
+//     staff step refuses it on purpose: filing a child as personnel is worse
+//     than leaving the account incomplete, and it cannot be undone afterwards
+//     because nothing tells the resulting rows apart from legitimate ones. Such
+//     an account needs its own person, which means unlinking it from the child.
+//
+// Printed with the reason so a human can finish the job in the staff UI, which
+// links the new person to the account.
 func reportUnrepairableSchoolIdentities(ctx context.Context, tx bun.Tx) error {
-	var rows []struct {
-		AccountID int64  `bun:"account_id"`
-		TenantID  int64  `bun:"tenant_id"`
-		Email     string `bun:"email"`
+	rows, err := listUnrepairableSchoolIdentities(ctx, tx)
+	if err != nil {
+		return err
 	}
 
-	if err := tx.NewRaw(`
-		SELECT at.account_id, at.tenant_id, a.email
+	if len(rows) == 0 {
+		return nil
+	}
+
+	fmt.Printf("  %d account(s) hold school access as personnel without a staff record and need a human:\n", len(rows))
+	for _, row := range rows {
+		fmt.Printf("    school %d: account %d (%s) — %s\n", row.TenantID, row.AccountID, row.Email, row.Reason)
+	}
+
+	return nil
+}
+
+// unrepairableSchoolIdentity is one account the repair left incomplete.
+type unrepairableSchoolIdentity struct {
+	AccountID int64  `bun:"account_id"`
+	TenantID  int64  `bun:"tenant_id"`
+	Email     string `bun:"email"`
+	Reason    string `bun:"reason"`
+}
+
+// listUnrepairableSchoolIdentities is the query behind the report, split out so
+// it can be asserted on directly.
+func listUnrepairableSchoolIdentities(ctx context.Context, db bun.IDB) ([]unrepairableSchoolIdentity, error) {
+	var rows []unrepairableSchoolIdentity
+
+	if err := db.NewRaw(`
+		SELECT at.account_id, at.tenant_id, a.email,
+		       CASE WHEN EXISTS (
+				SELECT 1
+				FROM users.persons p
+				JOIN users.students st ON st.person_id = p.id
+				WHERE p.account_id = at.account_id
+				  AND p.tenant_id = at.tenant_id
+				  AND p.deleted_at IS NULL
+		       ) THEN 'linked to a child''s person record'
+		            ELSE 'no person record and no name at another school'
+		       END AS reason
 		FROM auth.account_tenants at
 		JOIN auth.accounts a ON a.id = at.account_id
 		WHERE at.status = 'active'
 		  AND NOT EXISTS (
-			SELECT 1 FROM users.persons p
+			SELECT 1
+			FROM users.persons p
+			JOIN users.staff s ON s.person_id = p.id AND s.deleted_at IS NULL
 			WHERE p.account_id = at.account_id
 			  AND p.tenant_id = at.tenant_id
 			  AND p.deleted_at IS NULL
@@ -263,19 +315,10 @@ func reportUnrepairableSchoolIdentities(ctx context.Context, tx bun.Tx) error {
 		  AND `+staffTierRoleExists("at.account_id", "at.tenant_id")+`
 		ORDER BY at.tenant_id, at.account_id
 	`).Scan(ctx, &rows); err != nil {
-		return fmt.Errorf("error listing unrepairable accounts: %w", err)
+		return nil, fmt.Errorf("error listing unrepairable accounts: %w", err)
 	}
 
-	if len(rows) == 0 {
-		return nil
-	}
-
-	fmt.Printf("  %d account(s) hold school access without any person record and need a name:\n", len(rows))
-	for _, row := range rows {
-		fmt.Printf("    school %d: account %d (%s)\n", row.TenantID, row.AccountID, row.Email)
-	}
-
-	return nil
+	return rows, nil
 }
 
 // repairSchoolIdentitiesDown is a no-op on purpose. The rows this migration

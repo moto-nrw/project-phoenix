@@ -33,11 +33,33 @@ import (
 // name.
 var ErrSchoolIdentityNamesRequired = errors.New("Vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen") //nolint:staticcheck // ST1005: user-facing German message
 
+// ErrSchoolIdentityPersonIsStudent is returned when the person the account is
+// linked to at this school is a child's record.
+//
+// The chain is built on whatever person carries the account_id, because that is
+// the only person the partial unique index on (tenant_id, account_id) allows.
+// When that person is a student, completing the chain would file the child's
+// record as personnel: the child appears in the staff list, and everything
+// hanging off users.staff — supervisions, work sessions, activities — attaches
+// to it. Refusing is the conservative half of the trade the rest of this file
+// makes; unlike a missing staff row this cannot be repaired afterwards, because
+// nothing distinguishes the resulting rows from legitimate ones. Such an
+// account needs its own person, which means unlinking it from the child first.
+var ErrSchoolIdentityPersonIsStudent = errors.New("Dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden") //nolint:staticcheck // ST1005: user-facing German message
+
+// errSchoolIdentityStudentsRepoMissing marks a wiring mistake, never a bad
+// request: reusing an existing person is only safe once we can tell it is not a
+// child's. Every production caller passes the repository.
+var errSchoolIdentityStudentsRepoMissing = errors.New("school identity: students repository is required to reuse an existing person")
+
 // SchoolIdentityRepos bundles the repositories the identity chain lives in.
 type SchoolIdentityRepos struct {
 	Persons  userModels.PersonRepository
 	Staff    userModels.StaffRepository
 	Teachers userModels.TeacherRepository
+	// Students is read only to refuse building staff on a child's person
+	// record. Required whenever an existing person may be reused.
+	Students userModels.StudentRepository
 }
 
 // SchoolIdentityInput describes the identity to provision.
@@ -201,6 +223,9 @@ func resolveIdentityPerson(
 		return nil, err
 	}
 	if person != nil && person.DeletedAt == nil {
+		if err := refuseStudentPerson(ctx, repos, person.ID); err != nil {
+			return nil, err
+		}
 		return person, nil
 	}
 	if !in.CreatePerson {
@@ -228,6 +253,33 @@ func resolveIdentityPerson(
 	person.AccountID = &in.AccountID
 
 	return person, nil
+}
+
+// refuseStudentPerson rejects an existing person that is a child's record.
+//
+// Only the reuse path needs it: a person this function just created cannot be a
+// student. The repair migration applies the same rule in SQL and reports the
+// accounts it therefore leaves alone, so both halves of #2222 agree on what a
+// staff identity may be built on.
+func refuseStudentPerson(ctx context.Context, repos SchoolIdentityRepos, personID int64) error {
+	if repos.Students == nil {
+		return errSchoolIdentityStudentsRepoMissing
+	}
+
+	student, err := repos.Students.FindByPersonID(ctx, personID)
+	if err != nil {
+		// "not a student" is the expected outcome, and the repository reports
+		// it as sql.ErrNoRows wrapped in a DatabaseError.
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if student == nil {
+		return nil
+	}
+
+	return ErrSchoolIdentityPersonIsStudent
 }
 
 func ensureIdentityStaff(

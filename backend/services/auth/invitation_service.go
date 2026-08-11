@@ -60,6 +60,7 @@ type InvitationServiceConfig struct {
 	PersonRepo        userModels.PersonRepository
 	StaffRepo         userModels.StaffRepository
 	TeacherRepo       userModels.TeacherRepository
+	StudentRepo       userModels.StudentRepository
 	SchoolRepo        platformModels.SchoolRepository
 	Mailer            email.Mailer
 	Dispatcher        *email.Dispatcher
@@ -80,6 +81,7 @@ type invitationService struct {
 	personRepo        userModels.PersonRepository
 	staffRepo         userModels.StaffRepository
 	teacherRepo       userModels.TeacherRepository
+	studentRepo       userModels.StudentRepository
 	schoolRepo        platformModels.SchoolRepository
 	dispatcher        *email.Dispatcher
 	frontendURL       string
@@ -116,6 +118,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		personRepo:        config.PersonRepo,
 		staffRepo:         config.StaffRepo,
 		teacherRepo:       config.TeacherRepo,
+		studentRepo:       config.StudentRepo,
 		schoolRepo:        config.SchoolRepo,
 		dispatcher:        dispatcher,
 		frontendURL:       trimmedFrontend,
@@ -671,6 +674,7 @@ func (s *invitationService) provisionSchoolIdentity(
 		Persons:  s.personRepo,
 		Staff:    s.staffRepo,
 		Teachers: s.teacherRepo,
+		Students: s.studentRepo,
 	}, SchoolIdentityInput{
 		AccountID: accountID,
 		TenantID:  invitation.TenantID,

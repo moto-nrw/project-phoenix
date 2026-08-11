@@ -487,6 +487,43 @@ describe("teacher-api", () => {
       const staffBody = JSON.parse(staffInit.body) as Record<string, unknown>;
       expect(staffBody.person_id).toBe(Number(personId));
     });
+
+    // The assertion above cannot see the bug it guards against: JSON.parse
+    // rounds a bigint back to the same value Number() would have produced, so
+    // both a correct and a rounded body compare equal after parsing. What
+    // actually reaches the backend is the raw text.
+    it("sends the exact person id digits on the wire", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const personId = "9007199254740993"; // 2^53 + 1
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            school_identity: { person_id: personId, staff_id: "7" },
+          }),
+      } as Response);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(sampleTeacher),
+      } as Response);
+
+      await teacherService.createTeacher({
+        first_name: "Test",
+        last_name: "Teacher",
+        password: "SecurePass123!",
+        role_id: 1,
+      });
+
+      const staffCall = mockFetch.mock.calls.find(
+        (call) => call[0] === "/api/staff",
+      );
+      const staffInit = staffCall![1] as { body: string };
+
+      expect(staffInit.body).toContain(`"person_id":${personId}`);
+      expect(staffInit.body).not.toContain("9007199254740992");
+    });
   });
 
   describe("teacherService.updateTeacher", () => {

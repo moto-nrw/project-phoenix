@@ -302,9 +302,11 @@ func TestRegister(t *testing.T) {
 		assert.Equal(t, email, data["email"])
 		assert.Equal(t, username, data["username"])
 
-		// Cleanup: delete the created account
+		// Cleanup: the staff-tier role provisioned a person and staff record
+		// alongside the account (#2222), so the account alone is not the whole
+		// footprint.
 		accountID := int64(data["id"].(float64))
-		testpkg.CleanupAccount(t, db, accountID)
+		testpkg.CleanupAccountWithIdentity(t, db, accountID)
 	})
 
 	t.Run("bad request with duplicate email", func(t *testing.T) {
@@ -329,7 +331,7 @@ func TestRegister(t *testing.T) {
 
 		// Extract account ID for cleanup
 		accountID := extractAccountID(t, rr)
-		defer testpkg.CleanupAccount(t, db, accountID)
+		defer testpkg.CleanupAccountWithIdentity(t, db, accountID)
 
 		// Second registration with same email, different username
 		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano())
@@ -641,11 +643,11 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-		// Cleanup created account
+		// Cleanup created account and the identity provisioned with it
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data := response["data"].(map[string]interface{})
 		accountID := int64(data["id"].(float64))
-		testpkg.CleanupAccount(t, db, accountID)
+		testpkg.CleanupAccountWithIdentity(t, db, accountID)
 	})
 }
 
@@ -2176,7 +2178,8 @@ func TestLinkToTenant(t *testing.T) {
 		email := fmt.Sprintf("link-success-%d@example.com", time.Now().UnixNano())
 		password := "SecurePass123!"
 		account := testpkg.CreateTestAccountWithPassword(t, db, email, password)
-		defer testpkg.CleanupAccount(t, db, account.ID)
+		// Linking provisions the person and staff record too (#2222).
+		defer testpkg.CleanupAccountWithIdentity(t, db, account.ID)
 
 		// The identity fields are required for a staff-tier role (#2222).
 		body := map[string]interface{}{

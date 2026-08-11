@@ -1380,6 +1380,41 @@ func staffRepoOnly() *testpkg.StaffRepoMock {
 	return mock
 }
 
+// stubStudentRepository answers the one question the identity provisioning
+// asks of users.students: is this person a child's record (#2222)? The
+// embedded interface leaves everything else unimplemented on purpose — a new
+// read would panic here rather than pass silently against a stub that invented
+// an answer.
+type stubStudentRepository struct {
+	userModel.StudentRepository
+	mu               sync.Mutex
+	studentPersonIDs map[int64]bool
+}
+
+func newStubStudentRepository() *stubStudentRepository {
+	return &stubStudentRepository{studentPersonIDs: make(map[int64]bool)}
+}
+
+// markStudent makes the given person read as a child's record.
+func (r *stubStudentRepository) markStudent(personID int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.studentPersonIDs[personID] = true
+}
+
+// FindByPersonID mirrors the real repository, including how it reports a miss:
+// sql.ErrNoRows wrapped in a DatabaseError, never a nil result.
+func (r *stubStudentRepository) FindByPersonID(_ context.Context, personID int64) (*userModel.Student, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.studentPersonIDs[personID] {
+		student := &userModel.Student{}
+		student.PersonID = personID
+		return student, nil
+	}
+	return nil, &base.DatabaseError{Op: "find by person ID", Err: sql.ErrNoRows}
+}
+
 // stubTeacherRepository provides a minimal test implementation.
 type stubTeacherRepository struct {
 	mu       sync.Mutex
