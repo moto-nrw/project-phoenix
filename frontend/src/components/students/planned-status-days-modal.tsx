@@ -12,6 +12,7 @@ import { de } from "date-fns/locale";
 import { X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
@@ -115,6 +116,10 @@ export function PlannedStatusDaysModal({
   const [editingPartialAbsenceId, setEditingPartialAbsenceId] = useState<
     string | null
   >(null);
+  const [partialAbsencePendingDeletion, setPartialAbsencePendingDeletion] =
+    useState<StudentPartialAbsence | null>(null);
+  const [partialAbsenceDeleteError, setPartialAbsenceDeleteError] =
+    useState("");
   const [carePlanDay, setCarePlanDay] = useState<CarePlanDay | null>(null);
   const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
   const [carePlanError, setCarePlanError] = useState<string | null>(null);
@@ -331,6 +336,8 @@ export function PlannedStatusDaysModal({
       setExcusalScope("full_day");
       setFromTime("");
       setEditingPartialAbsenceId(null);
+      setPartialAbsencePendingDeletion(null);
+      setPartialAbsenceDeleteError("");
       setCarePlanDay(null);
       setCarePlanError(null);
     },
@@ -488,6 +495,8 @@ export function PlannedStatusDaysModal({
     setFromTime("");
     setReason("");
     setEditingPartialAbsenceId(null);
+    setPartialAbsencePendingDeletion(null);
+    setPartialAbsenceDeleteError("");
     setCarePlanDay(null);
     setCarePlanError(null);
   };
@@ -547,13 +556,19 @@ export function PlannedStatusDaysModal({
     );
   };
 
-  const handleDeletePartialAbsence = async (partialAbsenceId: string) => {
-    if (!onDeletePartialAbsence) return;
+  const handleDeletePartialAbsence = async () => {
+    if (!onDeletePartialAbsence || !partialAbsencePendingDeletion) return;
+    const partialAbsenceId = partialAbsencePendingDeletion.id;
+    setPartialAbsenceDeleteError("");
     try {
       await onDeletePartialAbsence(partialAbsenceId);
     } catch {
+      setPartialAbsenceDeleteError(
+        "Die Teilentschuldigung konnte nicht entfernt werden. Bitte erneut versuchen.",
+      );
       return;
     }
+    setPartialAbsencePendingDeletion(null);
     if (editingPartialAbsenceId === partialAbsenceId) {
       setSelectedDates([]);
       setEditingPartialAbsenceId(null);
@@ -765,15 +780,29 @@ export function PlannedStatusDaysModal({
               <p className="mb-2 text-sm font-medium text-gray-900">
                 Kalenderauswahl
               </p>
-              <DatePicker
-                mode="multiple"
-                values={selectedDates}
-                onChangeDates={setSortedDates}
-                disabledDates={disabledDates}
-                placeholder="Tage auswählen"
-                dropdownPlacement="down"
-                calendarLayout="inline"
-              />
+              {isPartialExcusal ? (
+                <DatePicker
+                  value={selectedDates[0] ?? null}
+                  onChange={(date) => setSortedDates(date ? [date] : [])}
+                  disabledDay={(date) =>
+                    activeExistingDayByDate.has(toISODate(date))
+                  }
+                  placeholder="Tag auswählen"
+                  calendarLayout="inline"
+                  required
+                  hideClearButton
+                />
+              ) : (
+                <DatePicker
+                  mode="multiple"
+                  values={selectedDates}
+                  onChangeDates={setSortedDates}
+                  disabledDates={disabledDates}
+                  placeholder="Tage auswählen"
+                  dropdownPlacement="down"
+                  calendarLayout="inline"
+                />
+              )}
               {selectionHint ? (
                 <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
                   {selectionHint}
@@ -977,9 +1006,9 @@ export function PlannedStatusDaysModal({
               {existingPartialAbsences.map((absence) => (
                 <div
                   key={absence.id}
-                  className="moto-content-surface flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm"
+                  className="moto-content-surface flex flex-col gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <span>
+                  <span className="min-w-0 flex-1 break-words">
                     <span className="block">
                       {formatDateLabel(absence.date)}
                     </span>
@@ -996,13 +1025,14 @@ export function PlannedStatusDaysModal({
                       </span>
                     ) : null}
                   </span>
-                  <span className="flex gap-2">
+                  <span className="flex flex-wrap gap-2 sm:shrink-0">
                     <Button
                       type="button"
                       size="compact"
                       variant="outline"
                       onClick={() => handleEditPartialAbsence(absence)}
                       disabled={isSubmitting}
+                      aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} bearbeiten`}
                     >
                       Bearbeiten
                     </Button>
@@ -1012,9 +1042,11 @@ export function PlannedStatusDaysModal({
                         size="compact"
                         variant="outline_danger"
                         onClick={() => {
-                          void handleDeletePartialAbsence(absence.id);
+                          setPartialAbsenceDeleteError("");
+                          setPartialAbsencePendingDeletion(absence);
                         }}
                         disabled={isSubmitting}
+                        aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} entfernen`}
                       >
                         Entfernen
                       </Button>
@@ -1050,6 +1082,33 @@ export function PlannedStatusDaysModal({
           </div>
         )}
       </div>
+      <ConfirmDeleteModal
+        isOpen={partialAbsencePendingDeletion !== null}
+        title="Teilentschuldigung entfernen?"
+        description={
+          partialAbsencePendingDeletion ? (
+            <p>
+              Die Teilentschuldigung vom{" "}
+              {formatDateLabel(partialAbsencePendingDeletion.date)} wird
+              entfernt. Nur die von ihr geänderten Betreuungsblöcke und die
+              zugehörige Abholzeit werden wiederhergestellt.
+            </p>
+          ) : null
+        }
+        gate={{
+          mode: "twoStep",
+          firstStepLabel: "Entfernen bestätigen",
+        }}
+        onConfirm={handleDeletePartialAbsence}
+        onClose={() => {
+          setPartialAbsencePendingDeletion(null);
+          setPartialAbsenceDeleteError("");
+        }}
+        loading={isSubmitting}
+        error={partialAbsenceDeleteError}
+        confirmLabel="Teilentschuldigung entfernen"
+        loadingLabel="Wird entfernt…"
+      />
     </FormModal>
   );
 }
