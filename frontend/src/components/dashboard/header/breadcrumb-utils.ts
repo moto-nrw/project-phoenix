@@ -236,7 +236,7 @@ export function getBreadcrumbLabel(referrer: string): string {
   // the active sidebar entry agree with how the user actually got here.
   if (referrer.startsWith("/rooms/") || referrer.startsWith("/rooms?"))
     return "Räume";
-  return "Kindersuche";
+  return "Alle Kinder";
 }
 
 /**

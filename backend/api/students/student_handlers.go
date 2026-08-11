@@ -1697,7 +1697,7 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 	// where the visible-student authorization and UX live.
 	if !student.IsAlumnus() {
 		renderError(w, r, common.ErrorConflictMessage(
-			"Nur Abgänger können endgültig gelöscht werden. Aktive Kinder werden in der Kindersuche gelöscht."))
+			"Nur Abgänger können endgültig gelöscht werden. Aktive Kinder werden unter „Alle Kinder“ gelöscht."))
 		return
 	}
 

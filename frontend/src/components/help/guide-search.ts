@@ -24,6 +24,8 @@ export interface HelpSearchRecord {
   readonly title: string;
   /** Short supporting line (step summary or chapter description). */
   readonly summary: string;
+  /** Hidden aliases used for renamed areas and common search phrases. */
+  readonly searchTerms: readonly string[];
   /** Concatenated detail text for fuzzy matching (steps, checklist, callout). */
   readonly body: string;
 }
@@ -123,6 +125,7 @@ export function buildHelpSearchIndex(): HelpSearchRecord[] {
           chapterTitle: nfc(chapter.title),
           title: nfc(step.title),
           summary: nfc(step.summary),
+          searchTerms: step.searchTerms?.map(nfc) ?? [],
           body: nfc([chapter.description, stepBody(step)].join(" ")),
         });
       }
@@ -148,6 +151,7 @@ export interface IndexedHelpRecord {
   readonly titleFold: string;
   readonly chapterFold: string;
   readonly summaryFold: string;
+  readonly searchTermFolds: readonly string[];
   readonly bodyFold: string;
 }
 
@@ -158,5 +162,6 @@ export const indexedHelpSearchIndex: readonly IndexedHelpRecord[] =
     titleFold: foldForMatch(record.title),
     chapterFold: foldForMatch(record.chapterTitle),
     summaryFold: foldForMatch(record.summary),
+    searchTermFolds: record.searchTerms.map(foldForMatch),
     bodyFold: foldForMatch(record.body),
   }));

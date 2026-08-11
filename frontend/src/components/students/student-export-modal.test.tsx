@@ -47,7 +47,7 @@ async function openModal(
   props: Partial<React.ComponentProps<typeof StudentExportModal>> = {},
 ) {
   const result = renderModal(props);
-  await screen.findByRole("dialog", { name: "Kindersuche exportieren" });
+  await screen.findByRole("dialog", { name: "Alle Kinder exportieren" });
   return result;
 }
 
@@ -446,7 +446,7 @@ describe("StudentExportModal", () => {
     it("describes the scope instead of a count when no count is given", async () => {
       renderModal({ filters: {}, resultCount: undefined });
 
-      await screen.findByRole("dialog", { name: "Kindersuche exportieren" });
+      await screen.findByRole("dialog", { name: "Alle Kinder exportieren" });
       expect(screen.getByText("Alle Kinder der Schule.")).toBeInTheDocument();
     });
   });
