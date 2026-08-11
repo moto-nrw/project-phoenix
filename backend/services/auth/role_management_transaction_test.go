@@ -231,3 +231,55 @@ func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) 
 		assert.Empty(t, roles)
 	})
 }
+
+// POST /auth/link-to-tenant is the fourth path that can put the Lehrkraft role
+// on an account, and the one that was still open (#1772/#2222). Unlike
+// /auth/register the account already exists and may already carry an identity at
+// this school — a revoke deliberately leaves person → staff → teacher behind —
+// so linking it as Lehrkraft would revive a live caregiver profile and its group
+// supervisions under a JWT that only holds class_day permissions.
+func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupInternalAuthService(t, db)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Link", "Betreuung")
+	t.Cleanup(func() {
+		testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	})
+
+	roleID := lehrkraftSystemRoleID(t, db)
+	_, _, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, 1,
+		&SchoolAccountIdentity{FirstName: "Link", LastName: "Betreuung"})
+	require.ErrorIs(t, err, ErrRoleLehrkraftCaregiverProfile)
+
+	// The guard runs inside the link transaction, so the role is not assigned.
+	roles, err := service.GetAccountRoles(testpkg.TenantContext(1), int(account.ID))
+	require.NoError(t, err)
+	assert.Empty(t, roles, "a refused link must not assign the role")
+}
+
+// The same path with no caregiver profile in the way is the ordinary case and
+// must keep working — the guard is about the profile, not about the role.
+func TestLinkSchoolAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupInternalAuthService(t, db)
+
+	account := testpkg.CreateTestAccount(t, db, "link-lehrkraft-plain")
+	t.Cleanup(func() { testpkg.CleanupAccountWithIdentity(t, db, account.ID) })
+
+	roleID := lehrkraftSystemRoleID(t, db)
+	_, identity, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, 1,
+		&SchoolAccountIdentity{FirstName: "Link", LastName: "Lehrkraft"})
+	require.NoError(t, err)
+
+	// Staff, because Lehrkraft is personnel; no caregiver profile, because it is
+	// class_day-read-only by design.
+	require.NotNil(t, identity)
+	require.NotNil(t, identity.Staff)
+	assert.Nil(t, identity.Teacher, "the Lehrkraft role never earns a caregiver profile")
+}

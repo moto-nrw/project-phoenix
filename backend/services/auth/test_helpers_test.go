@@ -1069,6 +1069,19 @@ func (r *stubPersonRepository) LinkToAccount(_ context.Context, personID, accoun
 	return fmt.Errorf("person %d not found", personID)
 }
 
+// LinkToRFIDCard records the transponder on the person, so the identity
+// provisioning's reuse path can be asserted on (#2222).
+func (r *stubPersonRepository) LinkToRFIDCard(_ context.Context, personID int64, tagID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	person, ok := r.people[personID]
+	if !ok {
+		return fmt.Errorf("person %d not found", personID)
+	}
+	person.TagID = &tagID
+	return nil
+}
+
 // FindByAccountID mirrors the real repository: no match is a clean (nil, nil),
 // not an error. The identity provisioning walks this first to reuse an existing
 // person instead of creating a second one (#2222).
@@ -1573,5 +1586,39 @@ func (r *stubTeacherRepository) ListActiveCaregivers(context.Context) ([]*userMo
 }
 
 func (r *stubTeacherRepository) FindActiveCaregiverByAccountID(context.Context, int64) (*userModel.ActiveCaregiver, error) {
+	return nil, nil
+}
+
+// stubRFIDCardRepository holds the transponders that exist at the school, so the
+// identity provisioning can refuse one that does not (#2222).
+type stubRFIDCardRepository struct {
+	mu    sync.Mutex
+	cards map[string]bool
+}
+
+func newStubRFIDCardRepository(ids ...string) *stubRFIDCardRepository {
+	cards := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		cards[id] = true
+	}
+	return &stubRFIDCardRepository{cards: cards}
+}
+
+// FindByID mirrors the real repository, which reports an unknown card as a clean
+// (nil, nil) rather than an error.
+func (r *stubRFIDCardRepository) FindByID(_ context.Context, id string) (*userModel.RFIDCard, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.cards[id] {
+		return nil, nil
+	}
+	return &userModel.RFIDCard{StringIDModel: base.StringIDModel{ID: id}}, nil
+}
+
+func (r *stubRFIDCardRepository) Create(context.Context, *userModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Update(context.Context, *userModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Delete(context.Context, string) error              { return nil }
+func (r *stubRFIDCardRepository) Deactivate(context.Context, string) error          { return nil }
+func (r *stubRFIDCardRepository) List(context.Context, map[string]interface{}) ([]*userModel.RFIDCard, error) {
 	return nil, nil
 }

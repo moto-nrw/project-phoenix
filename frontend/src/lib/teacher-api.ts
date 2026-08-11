@@ -74,18 +74,19 @@ function extractSchoolIdentity(
 }
 
 /**
- * Builds the POST /api/staff body with person_id as an exact JSON number.
+ * Builds the POST /api/staff body, carrying person_id as a decimal string.
  *
- * person_id is a PostgreSQL bigint and reaches us as the decimal string the
- * backend sent. `Number(...)` would silently round it once it exceeds
+ * person_id is a PostgreSQL bigint and reaches us as the string the backend
+ * sent. Sending it as a JSON number would round it once it exceeds
  * Number.MAX_SAFE_INTEGER, and the rounded value is a valid id for a different
- * person — a wrong staff record rather than a failed request. So the digits are
- * spliced into the body verbatim instead of making the trip through a JS
- * number, which the wire format allows: JSON numbers have no precision limit,
- * only JavaScript's parser does.
+ * person — a wrong staff record rather than a failed request. A string has no
+ * such limit, and it survives the one hop that used to undo the precaution: our
+ * own /api/staff route parses the body and re-serializes it before forwarding,
+ * so exact digits spliced in here were rounded there anyway. That route now
+ * takes the string and puts the digits back on the wire to the backend.
  *
- * The id is validated first — everything else here is ours, but this value
- * comes off the network and lands unescaped in the body.
+ * Validated here as well, so a malformed id fails with a German message from
+ * the screen that submitted it rather than as a route error.
  */
 function buildStaffRequestBody(
   personId: string,
@@ -96,9 +97,7 @@ function buildStaffRequestBody(
       "Der Mitarbeiter-Datensatz konnte nicht angelegt werden: ungültige Personen-ID.",
     );
   }
-  // `fields` is never empty, so the serialized object always starts with `{"`
-  // and slice(1) leaves a well-formed tail.
-  return `{"person_id":${personId},${JSON.stringify(fields).slice(1)}`;
+  return JSON.stringify({ person_id: personId, ...fields });
 }
 
 /**

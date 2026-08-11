@@ -314,3 +314,112 @@ func TestEnsureSchoolIdentity_ExistingNonStudentPersonPasses(t *testing.T) {
 	require.Equal(t, existing.ID, identity.Person.ID)
 	require.Len(t, staffAll(), 1)
 }
+
+// identityReposWithTag wires the transponder repository with the cards that
+// exist at this school.
+func identityReposWithTag(cardIDs ...string) (SchoolIdentityRepos, *stubPersonRepository, func() []*userModel.Staff) {
+	repos, persons, staffAll, _, _ := identityReposWithStudents()
+	repos.RFIDCards = newStubRFIDCardRepository(cardIDs...)
+	return repos, persons, staffAll
+}
+
+func identityInputWithTag(role *authModel.Role, tagID string) SchoolIdentityInput {
+	in := identityInput(role)
+	in.TagID = &tagID
+	return in
+}
+
+// users.persons.tag_id is a foreign key onto users.rfid_cards, so an unknown tag
+// used to reach the database and return a constraint violation — rendered as a
+// 500. An operator typo is a bad request.
+func TestEnsureSchoolIdentity_RefusesUnknownTag(t *testing.T) {
+	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
+
+	_, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "FOREIGNCARD"))
+	require.ErrorIs(t, err, ErrSchoolIdentityTagUnknown)
+	require.True(t, IsSchoolIdentityRequestError(err), "an unknown tag is the caller's error, not the server's")
+
+	require.Empty(t, persons.people, "nothing is written when the tag is refused")
+	require.Empty(t, staffAll())
+}
+
+func TestEnsureSchoolIdentity_AssignsKnownTagToNewPerson(t *testing.T) {
+	repos, persons, _ := identityReposWithTag("KNOWNCARD1")
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "KNOWNCARD1"))
+	require.NoError(t, err)
+	require.NotNil(t, identity.Person.TagID)
+	require.Equal(t, "KNOWNCARD1", *identity.Person.TagID)
+	require.Len(t, persons.people, 1)
+}
+
+// The reuse path used to drop the submitted transponder on the floor: the
+// request was accepted and the bracelet the operator typed was nowhere.
+func TestEnsureSchoolIdentity_AssignsTagToExistingPersonWithoutOne(t *testing.T) {
+	repos, persons, _ := identityReposWithTag("KNOWNCARD1")
+
+	accountID := int64(9001)
+	existing := &userModel.Person{FirstName: "Bestehend", LastName: "Person", AccountID: &accountID}
+	existing.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), existing))
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "KNOWNCARD1"))
+	require.NoError(t, err)
+	require.Equal(t, existing.ID, identity.Person.ID)
+	require.NotNil(t, identity.Person.TagID)
+	require.Equal(t, "KNOWNCARD1", *identity.Person.TagID)
+}
+
+// A transponder already in daily use is not silently swapped out by a request
+// that is about school access.
+func TestEnsureSchoolIdentity_RefusesConflictingTagOnExistingPerson(t *testing.T) {
+	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1", "OTHERCARD1")
+
+	accountID := int64(9001)
+	worn := "OTHERCARD1"
+	existing := &userModel.Person{FirstName: "Bestehend", LastName: "Person", AccountID: &accountID, TagID: &worn}
+	existing.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), existing))
+
+	_, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "KNOWNCARD1"))
+	require.ErrorIs(t, err, ErrSchoolIdentityTagConflict)
+
+	require.Equal(t, "OTHERCARD1", *existing.TagID, "the transponder in use is left alone")
+	require.Empty(t, staffAll(), "the request is refused as a whole")
+}
+
+// Re-sending the transponder the person already wears is not a conflict — the
+// provisioning is idempotent, and a re-grant repeats the same request.
+func TestEnsureSchoolIdentity_SameTagOnExistingPersonIsIdempotent(t *testing.T) {
+	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
+
+	accountID := int64(9001)
+	worn := "KNOWNCARD1"
+	existing := &userModel.Person{FirstName: "Bestehend", LastName: "Person", AccountID: &accountID, TagID: &worn}
+	existing.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), existing))
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "KNOWNCARD1"))
+	require.NoError(t, err)
+	require.Equal(t, existing.ID, identity.Person.ID)
+	require.Len(t, staffAll(), 1)
+}
+
+// An empty tag_id is what the HTTP layer sends for every request that did not
+// ask for a bracelet, so it must not be treated as an unknown card.
+func TestEnsureSchoolIdentity_EmptyTagIsNotALookup(t *testing.T) {
+	repos, persons, staffAll, _, _ := identityReposWithStudents()
+	// Deliberately no RFID repository: an empty tag must not reach it.
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "   "))
+	require.NoError(t, err)
+	require.Nil(t, identity.Person.TagID)
+	require.Len(t, persons.people, 1)
+	require.Len(t, staffAll(), 1)
+}

@@ -47,10 +47,44 @@ var ErrSchoolIdentityNamesRequired = errors.New("Vor- und Nachname sind erforder
 // account needs its own person, which means unlinking it from the child first.
 var ErrSchoolIdentityPersonIsStudent = errors.New("Dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden") //nolint:staticcheck // ST1005: user-facing German message
 
+// ErrSchoolIdentityTagUnknown is returned when the supplied transponder does
+// not exist at this school.
+//
+// users.persons.tag_id is a foreign key onto users.rfid_cards, so an unknown
+// tag used to reach the database and come back as a constraint violation, which
+// the endpoints render as a 500 — an operator typo reported as a server fault.
+// The lookup is tenant-filtered, so another school's card is unknown here too.
+var ErrSchoolIdentityTagUnknown = errors.New("Der angegebene Transponder ist an dieser Schule nicht bekannt") //nolint:staticcheck // ST1005: user-facing German message
+
+// ErrSchoolIdentityTagConflict is returned when the person the account already
+// carries at this school wears a different transponder.
+//
+// Silently dropping the submitted one is what this replaces: the request was
+// accepted, and the bracelet the operator typed was nowhere. Overwriting
+// instead would unassign a transponder that is in daily use at a door, from a
+// request that is about school access. Swapping one belongs to the staff
+// screens, which say whose it was.
+var ErrSchoolIdentityTagConflict = errors.New("Diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert") //nolint:staticcheck // ST1005: user-facing German message
+
 // errSchoolIdentityStudentsRepoMissing marks a wiring mistake, never a bad
 // request: reusing an existing person is only safe once we can tell it is not a
 // child's. Every production caller passes the repository.
 var errSchoolIdentityStudentsRepoMissing = errors.New("school identity: students repository is required to reuse an existing person")
+
+// errSchoolIdentityRFIDRepoMissing is the same kind of wiring mistake for the
+// transponder: a tag id can only be accepted once it can be checked.
+var errSchoolIdentityRFIDRepoMissing = errors.New("school identity: rfid card repository is required to accept a tag id")
+
+// IsSchoolIdentityRequestError reports whether the error is the caller's fault
+// rather than the server's — a missing name, a child's record, an unknown or
+// conflicting transponder. Handlers render these as 400; everything else out of
+// this file is a genuine failure.
+func IsSchoolIdentityRequestError(err error) bool {
+	return errors.Is(err, ErrSchoolIdentityNamesRequired) ||
+		errors.Is(err, ErrSchoolIdentityPersonIsStudent) ||
+		errors.Is(err, ErrSchoolIdentityTagUnknown) ||
+		errors.Is(err, ErrSchoolIdentityTagConflict)
+}
 
 // SchoolIdentityRepos bundles the repositories the identity chain lives in.
 type SchoolIdentityRepos struct {
@@ -60,6 +94,9 @@ type SchoolIdentityRepos struct {
 	// Students is read only to refuse building staff on a child's person
 	// record. Required whenever an existing person may be reused.
 	Students userModels.StudentRepository
+	// RFIDCards resolves a submitted tag id to a card of this school. Required
+	// only when the input carries one.
+	RFIDCards userModels.RFIDCardRepository
 }
 
 // SchoolIdentityInput describes the identity to provision.
@@ -222,8 +259,20 @@ func resolveIdentityPerson(
 	if err != nil {
 		return nil, err
 	}
+
+	// Checked before either branch uses it, so an unknown tag is refused whether
+	// the person is about to be created or already exists — the request is wrong
+	// either way, and only one of the two paths would otherwise notice.
+	tagID, err := resolveIdentityTag(ctx, repos, in.TagID)
+	if err != nil {
+		return nil, err
+	}
+
 	if person != nil && person.DeletedAt == nil {
 		if err := refuseStudentPerson(ctx, repos, person.ID); err != nil {
+			return nil, err
+		}
+		if err := applyIdentityTag(ctx, repos, person, tagID); err != nil {
 			return nil, err
 		}
 		return person, nil
@@ -241,7 +290,7 @@ func resolveIdentityPerson(
 	person = &userModels.Person{
 		FirstName: firstName,
 		LastName:  lastName,
-		TagID:     in.TagID,
+		TagID:     tagID,
 	}
 	person.SetTenantID(in.TenantID)
 	if err := repos.Persons.Create(ctx, person); err != nil {
@@ -280,6 +329,68 @@ func refuseStudentPerson(ctx context.Context, repos SchoolIdentityRepos, personI
 	}
 
 	return ErrSchoolIdentityPersonIsStudent
+}
+
+// resolveIdentityTag turns a submitted tag id into the card id as stored, or
+// refuses it.
+//
+// Returns nil for "none submitted", which an empty string counts as: the HTTP
+// layer sends tag_id for every request whether the form asked for a bracelet or
+// not.
+func resolveIdentityTag(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	submitted *string,
+) (*string, error) {
+	if submitted == nil || strings.TrimSpace(*submitted) == "" {
+		return nil, nil
+	}
+	if repos.RFIDCards == nil {
+		return nil, errSchoolIdentityRFIDRepoMissing
+	}
+
+	// Tenant-filtered, so a card belonging to another school reads as unknown —
+	// which is the answer we want, and the one that keeps a school from probing
+	// for another's tag ids.
+	card, err := repos.RFIDCards.FindByID(ctx, strings.TrimSpace(*submitted))
+	if err != nil {
+		return nil, err
+	}
+	if card == nil {
+		return nil, ErrSchoolIdentityTagUnknown
+	}
+
+	// The card's own id, not the submitted spelling: the repository normalizes
+	// the lookup, and persons.tag_id has to match the stored value exactly for
+	// the foreign key to hold.
+	return &card.ID, nil
+}
+
+// applyIdentityTag assigns a validated transponder to the person the account
+// already carries at this school. A person just created gets it as a column
+// instead; this is only the reuse path.
+func applyIdentityTag(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	person *userModels.Person,
+	tagID *string,
+) error {
+	if tagID == nil {
+		return nil
+	}
+	if person.HasRFIDCard() {
+		if *person.TagID == *tagID {
+			return nil
+		}
+		return ErrSchoolIdentityTagConflict
+	}
+
+	if err := repos.Persons.LinkToRFIDCard(ctx, person.ID, *tagID); err != nil {
+		return fmt.Errorf("link person to rfid card: %w", err)
+	}
+	person.TagID = tagID
+
+	return nil
 }
 
 func ensureIdentityStaff(

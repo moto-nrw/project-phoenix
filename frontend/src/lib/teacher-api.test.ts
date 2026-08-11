@@ -452,9 +452,10 @@ describe("teacher-api", () => {
       expect(body.tag_id).toBe("TAG-1");
     });
 
-    // The provisioned ids are bigints and travel as strings. Only the /api/staff
-    // request needs a number, and it must be the id the backend actually
-    // reported, not one that a re-parse somewhere in between rounded off.
+    // The provisioned ids are bigints and travel as strings — all the way into
+    // the /api/staff request, which is the only way they survive that route's
+    // parse-and-re-serialize hop intact. It must be the id the backend actually
+    // reported, not one a re-parse in between rounded off.
     it("passes the provisioned person id through to the staff request", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       const personId = "9007199254740993"; // 2^53 + 1
@@ -485,13 +486,15 @@ describe("teacher-api", () => {
       expect(staffCall).toBeDefined();
       const staffInit = staffCall![1] as { body: string };
       const staffBody = JSON.parse(staffInit.body) as Record<string, unknown>;
-      expect(staffBody.person_id).toBe(Number(personId));
+      expect(staffBody.person_id).toBe(personId);
     });
 
-    // The assertion above cannot see the bug it guards against: JSON.parse
-    // rounds a bigint back to the same value Number() would have produced, so
-    // both a correct and a rounded body compare equal after parsing. What
-    // actually reaches the backend is the raw text.
+    // The assertion above survives the parse only because the id is a string. As
+    // a JSON number it would not: JSON.parse rounds a bigint to exactly what
+    // Number() produces, so a correct and a rounded body compare equal after
+    // parsing and the bug hides. This one reads the raw text, which is what the
+    // /api/staff route receives — what that route then does with an id too large
+    // to represent is its own test.
     it("sends the exact person id digits on the wire", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       const personId = "9007199254740993"; // 2^53 + 1
@@ -521,7 +524,7 @@ describe("teacher-api", () => {
       );
       const staffInit = staffCall![1] as { body: string };
 
-      expect(staffInit.body).toContain(`"person_id":${personId}`);
+      expect(staffInit.body).toContain(`"person_id":"${personId}"`);
       expect(staffInit.body).not.toContain("9007199254740992");
     });
   });

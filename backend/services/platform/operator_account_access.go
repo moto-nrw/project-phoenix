@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -260,19 +261,13 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		// caregiver-tier roles additionally a teacher profile (#2222) — a role
 		// that puts someone on the payroll screens but not in users.staff is
 		// the half-state this whole path exists to avoid. The role-change
-		// endpoint has no identity fields, so copy the deterministically
-		// selected active identity from another school (or the local one).
-		// Without one, reject the change before assigning the role.
-		firstName, lastName := "", ""
+		// endpoint carries no identity fields, so a school that has no person
+		// for this account yet has to borrow the name.
 		if authSvc.RoleNeedsStaffRecord(role) {
-			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
-			if findErr != nil {
-				return findErr
+			firstName, lastName, nameErr := s.roleChangeIdentityNames(tenantCtx, adminCtx, accountID)
+			if nameErr != nil {
+				return nameErr
 			}
-			if existing == nil {
-				return &InvalidDataError{Err: fmt.Errorf("a person record is required before assigning this role")}
-			}
-			firstName, lastName = existing.FirstName, existing.LastName
 			if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, "", true); err != nil {
 				return err
 			}
@@ -546,23 +541,121 @@ func (s *operatorProvisioningService) ListAssignableSchoolRoles(ctx context.Cont
 	return result, err
 }
 
-// activePersonForAccount chooses a non-deleted source identity deterministically
-// when an account is linked to people at more than one school.
+// activePersonForAccount returns the identity the account already carries
+// elsewhere, but only when there is one answer to return.
+//
+// What comes back becomes a person — and therefore a staff member — at the
+// target school, so this is not a convenience lookup. Two restrictions follow,
+// the same two migration 1.15.284 applies in SQL when it repairs the identities
+// this path used to leave broken:
+//
+//   - A child's record is never the account holder's identity. Copying its name
+//     into a new staff person files a child as personnel at another school, and
+//     afterwards nothing tells that row apart from a legitimate one.
+//   - Only a name every candidate agrees on. Two different names is an ambiguity
+//     this code is no more entitled to resolve than the login is — taking the
+//     lowest-numbered school's version is a coin toss with someone's name.
+//
+// Unlike the migration this does NOT require the school to still be actively
+// mapped. The migration runs unattended and reproduces what the login shows, so
+// it only trusts the schools an account currently belongs to. Here the person
+// carrying this account's id is the same human whether or not the mapping was
+// since revoked — a revoked mapping deliberately keeps the person row — and
+// there is an operator present to correct a name that has gone stale.
+//
+// Returns (nil, nil) when there is no such identity, whether because none exists
+// or because the candidates disagree. Callers ask the operator for names or
+// refuse; neither may guess.
 func (s *operatorProvisioningService) activePersonForAccount(ctx context.Context, accountID int64) (*userModels.Person, error) {
 	persons, err := s.PersonRepo.List(ctx, map[string]interface{}{"account_id": accountID})
 	if err != nil {
 		return nil, err
 	}
+
 	var selected *userModels.Person
 	for _, person := range persons {
 		if person == nil || person.DeletedAt != nil {
 			continue
 		}
-		if selected == nil || person.TenantID < selected.TenantID || (person.TenantID == selected.TenantID && person.ID < selected.ID) {
+		firstName, lastName := strings.TrimSpace(person.FirstName), strings.TrimSpace(person.LastName)
+		if firstName == "" || lastName == "" {
+			continue
+		}
+		isStudent, studentErr := s.personIsStudent(ctx, person.ID)
+		if studentErr != nil {
+			return nil, studentErr
+		}
+		if isStudent {
+			continue
+		}
+
+		if selected == nil {
+			selected = person
+			continue
+		}
+		// selected's name never changes below, so any second spelling anywhere in
+		// the set is caught here regardless of iteration order.
+		if firstName != strings.TrimSpace(selected.FirstName) || lastName != strings.TrimSpace(selected.LastName) {
+			return nil, nil
+		}
+		// Same name — pick a stable representative so the outcome does not depend
+		// on row order.
+		if person.TenantID < selected.TenantID || (person.TenantID == selected.TenantID && person.ID < selected.ID) {
 			selected = person
 		}
 	}
 	return selected, nil
+}
+
+// roleChangeIdentityNames resolves the name a new person at this school would
+// carry, for a role change that brings no identity fields of its own.
+//
+// Empty strings mean "not needed": the account already has a person here, and
+// EnsureSchoolIdentity completes the chain on that one rather than inventing a
+// second, which the partial unique index on (tenant_id, account_id) would refuse
+// anyway. Asking the other schools in that case would let a name disagreement
+// elsewhere block a role change that needs no name at all.
+//
+// Otherwise the name has to come from another of the account's schools, and only
+// an unambiguous non-student identity will do (see activePersonForAccount).
+// Without one the change is refused rather than completed halfway or with a
+// guessed name.
+func (s *operatorProvisioningService) roleChangeIdentityNames(
+	tenantCtx, adminCtx context.Context,
+	accountID int64,
+) (string, string, error) {
+	local, err := s.PersonRepo.FindByAccountID(tenantCtx, accountID)
+	if err != nil {
+		return "", "", err
+	}
+	if local != nil && local.DeletedAt == nil {
+		return "", "", nil
+	}
+
+	existing, err := s.activePersonForAccount(adminCtx, accountID)
+	if err != nil {
+		return "", "", err
+	}
+	if existing == nil {
+		return "", "", &InvalidDataError{Err: fmt.Errorf(
+			"a person record is required before assigning this role: the account has none at this school, and none of its other schools provides an unambiguous name to use")}
+	}
+	return existing.FirstName, existing.LastName, nil
+}
+
+// personIsStudent reports whether the person record belongs to a child.
+//
+// The repository reports "no student" as sql.ErrNoRows wrapped in a
+// DatabaseError, the same shape authSvc.EnsureSchoolIdentity handles.
+func (s *operatorProvisioningService) personIsStudent(ctx context.Context, personID int64) (bool, error) {
+	student, err := s.StudentRepo.FindByPersonID(ctx, personID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return student != nil, nil
 }
 
 // hasSchoolCaregiverProfile reports whether the account's identity at the

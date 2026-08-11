@@ -188,6 +188,15 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 				SELECT 1 FROM users.teachers t
 				WHERE t.staff_id = s.id AND t.deleted_at IS NULL
 			  )
+			  -- Same refusal as the staff step, and needed independently of it:
+			  -- this step starts from users.staff, so a staff row that legacy
+			  -- data already put on a child's person would otherwise collect a
+			  -- caregiver profile here even though the staff step declined to
+			  -- create one. A child is never personnel (see
+			  -- ErrSchoolIdentityPersonIsStudent).
+			  AND NOT EXISTS (
+				SELECT 1 FROM users.students st WHERE st.person_id = p.id
+			  )
 			  AND EXISTS (
 				SELECT 1 FROM auth.account_tenants at
 				WHERE at.account_id = p.account_id

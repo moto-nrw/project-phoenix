@@ -240,8 +240,12 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 				errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
 				errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
 				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
-				errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired),
-				errors.Is(authErr.Err, authService.ErrSchoolIdentityPersonIsStudent):
+				// Linking an existing account can meet an identity it already has
+				// at this school: a caregiver profile the Lehrkraft role must not
+				// be put on top of (#1772), or a transponder that is not this
+				// school's / not free.
+				errors.Is(authErr.Err, authService.ErrRoleLehrkraftCaregiverProfile),
+				authService.IsSchoolIdentityRequestError(authErr.Err):
 				common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -348,13 +352,11 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 		errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
 		errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
 		errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
-		// schoolIdentityFor already refuses a nameless staff-tier request, so
-		// this is defense in depth: if provisioning ever raises it anyway, it is
-		// a bad request, not a server fault.
-		errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired),
-		// The account is linked to a child's person record, so it cannot become
-		// staff on it. Nothing the request can carry would change that.
-		errors.Is(authErr.Err, authService.ErrSchoolIdentityPersonIsStudent):
+		// Everything provisioning refuses on the request's own terms: a nameless
+		// staff-tier request (schoolIdentityFor already catches it, so this is
+		// defense in depth), an account linked to a child's person record, and a
+		// transponder that is unknown here or already taken by this person.
+		authService.IsSchoolIdentityRequestError(authErr.Err):
 		common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

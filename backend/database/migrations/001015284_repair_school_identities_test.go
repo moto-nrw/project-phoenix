@@ -533,3 +533,35 @@ func markPersonAsStudent(t *testing.T, db *bun.DB, tenantID, personID int64) {
 			`DELETE FROM users.students WHERE person_id = ?`, personID)
 	})
 }
+
+// A child is never personnel, and the caregiver step has to refuse it on its own
+// account: it starts from users.staff, so a staff row that legacy data already
+// put on a child's person would collect a caregiver profile here even though the
+// staff step declined to create one for it.
+func TestRepairSchoolIdentitiesSkipsStudentPersonForCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	userRole := createIdentityRepairRole(t, db, tenantID, "reparatur-kind-kraft", strPtrValue("user"))
+	defer cleanupIdentityRepairRoles(t, db, userRole)
+
+	child := createBrokenSchoolIdentity(t, db, tenantID, "Kind", "Kraft", userRole)
+	defer cleanupBrokenSchoolIdentities(t, db, child)
+
+	markPersonAsStudent(t, db, tenantID, child.personID)
+	// Legacy data the staff step would never create: a staff row on the child.
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO users.staff (tenant_id, person_id, staff_notes, created_at, updated_at)
+		VALUES (?, ?, '', NOW(), NOW())`, tenantID, child.personID)
+	require.NoError(t, err)
+
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
+
+	assert.Equal(t, 0, liveTeacherCount(t, db, child.personID),
+		"a child's person must not receive a caregiver profile, even with a staff row on it")
+}

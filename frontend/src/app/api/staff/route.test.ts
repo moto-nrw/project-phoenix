@@ -305,6 +305,48 @@ describe("POST /api/staff", () => {
     expect(response.status).toBe(500);
   });
 
+  // The provisioned person id is a PostgreSQL bigint and arrives as a decimal
+  // string, so it crosses the client → route hop without passing through a JS
+  // number (#2222). The route forwards it as a number, which is exact for every
+  // id this application produces.
+  it("accepts person_id as a decimal string", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      id: 1,
+      person_id: 10,
+      is_teacher: true,
+      created_at: "2024-01-15T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z",
+    });
+
+    const request = createMockRequest("/api/staff", {
+      method: "POST",
+      body: { person_id: "10", is_teacher: true },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/staff",
+      "test-token",
+      expect.objectContaining({ person_id: 10 }),
+    );
+  });
+
+  // Above Number.MAX_SAFE_INTEGER the id cannot survive this route: every field
+  // is re-serialized through a JS number on the way out. Forwarding the rounded
+  // value would create a staff record for a different person and report success,
+  // so the request is refused instead.
+  it("refuses a person_id it cannot represent exactly", async () => {
+    const request = createMockRequest("/api/staff", {
+      method: "POST",
+      body: { person_id: "9007199254740993", is_teacher: true }, // 2^53 + 1
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(500);
+    expect(mockApiPost).not.toHaveBeenCalled();
+  });
+
   it("validates person_id must be positive", async () => {
     const request = createMockRequest("/api/staff", {
       method: "POST",

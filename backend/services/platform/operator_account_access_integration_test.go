@@ -716,6 +716,107 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *test
 	require.ErrorAs(t, err, &invalid)
 }
 
+// The name for a new staff person at the target school is copied from an
+// identity the account already has elsewhere. A child's record is not such an
+// identity: copying it would file a child as personnel at another school, and
+// afterwards nothing tells that staff row apart from a legitimate one.
+func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	// A child's person record that happens to carry an account.
+	student, account := testpkg.CreateTestStudentWithAccount(t, db, "Kind", "Datensatz", "2a")
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+	defer func() {
+		_, err := db.ExecContext(ctx, `DELETE FROM users.students WHERE id = ?`, student.ID)
+		require.NoError(t, err)
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	operator := testpkg.CreateTestOperator(t, db)
+	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+		systemRoleID(t, db, "user"), operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid)
+	assert.Contains(t, err.Error(), "unambiguous name",
+		"the refusal must come from the name resolution, not from an unrelated failure")
+
+	assertNoPersonAt(t, db, account.ID, accessTargetTenantID)
+}
+
+// Two schools carrying two different names is an ambiguity this path is not
+// entitled to resolve — picking the lower-numbered school's version is a coin
+// toss with someone's name. The change is refused instead.
+func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	account := testpkg.CreateTestAccount(t, db, "access-ambiguous-name")
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
+
+	// One identity per school, disagreeing on the name. The partial unique index
+	// on (tenant_id, account_id) is why they have to sit at different tenants.
+	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
+	linkPersonToAccount(t, db, first.ID, account.ID)
+	second := createPersonAtTenant(t, db, ambiguousNameTenantID, "Bea", "Beispiel")
+	linkPersonToAccount(t, db, second.ID, account.ID)
+
+	defer func() {
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	operator := testpkg.CreateTestOperator(t, db)
+	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID,
+		systemRoleID(t, db, "user"), operator.ID, testClientIP)
+
+	var invalid *platformSvc.InvalidDataError
+	require.ErrorAs(t, err, &invalid)
+	assert.Contains(t, err.Error(), "unambiguous name",
+		"the refusal must come from the name resolution, not from an unrelated failure")
+
+	assertNoPersonAt(t, db, account.ID, accessTargetTenantID)
+}
+
+// A second school for the ambiguity case; kept apart from accessTargetTenantID
+// so the disagreement is between two schools that are neither the target.
+const ambiguousNameTenantID int64 = 1021002
+
+func createPersonAtTenant(t *testing.T, db *bun.DB, tenantID int64, firstName, lastName string) *userModels.Person {
+	t.Helper()
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	person := &userModels.Person{FirstName: firstName, LastName: lastName}
+	person.SetTenantID(tenantID)
+	_, err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Exec(context.Background())
+	require.NoError(t, err)
+	return person
+}
+
+func assertNoPersonAt(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	count, err := db.NewSelect().
+		TableExpr(`users.persons`).
+		Where(`account_id = ?`, accountID).
+		Where(`tenant_id = ?`, tenantID).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, count, "a refused role change must not leave a person behind")
+}
+
 func assertAccountActive(t *testing.T, db *bun.DB, accountID int64, want bool) {
 	t.Helper()
 	var active bool

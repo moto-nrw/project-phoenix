@@ -42,14 +42,52 @@ interface BackendStaffResponse {
 
 /**
  * Type definition for staff creation request
+ *
+ * person_id is accepted as a decimal string as well as a number. It is a
+ * PostgreSQL bigint, and this route parses the body and re-serializes it on the
+ * way to the backend, so a number has already been through `JSON.parse` —
+ * exactly the step that rounds a value past 2^53 into a valid id for a
+ * different person (#2222). A string crosses that hop intact.
  */
 interface StaffCreateRequest {
-  person_id: number;
+  person_id: number | string;
   staff_notes?: string | null;
   is_teacher?: boolean;
   specialization?: string | null;
   role?: string | null;
   qualifications?: string | null;
+}
+
+/**
+ * Resolves the submitted person id to a number that provably still equals what
+ * the caller sent, or null.
+ *
+ * Anything above Number.MAX_SAFE_INTEGER is refused rather than forwarded. This
+ * route cannot carry such a value — every field here passes through a JS number
+ * on its way back out — and forwarding the rounded one would write a staff
+ * record for a different person, a wrong result reported as success. Refusing is
+ * the honest failure: a bigserial id reaching 2^53 is not a state this
+ * application arrives at, and if it ever does, this says so instead of guessing.
+ */
+function safePersonId(value: number | string | undefined): number | null {
+  if (typeof value === "string") {
+    const digits = value.trim();
+    if (!/^\d+$/.test(digits)) {
+      return null;
+    }
+    const parsed = Number(digits);
+    // String(parsed) round-trips only while the value is exactly representable,
+    // which also rules out the leading-zero spellings the regex admits.
+    return Number.isSafeInteger(parsed) &&
+      parsed > 0 &&
+      String(parsed) === digits
+      ? parsed
+      : null;
+  }
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
+    return null;
+  }
+  return value;
 }
 
 /**
@@ -200,7 +238,8 @@ interface TeacherResponse {
 export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
   async (_request: NextRequest, body: StaffCreateRequest, token: string) => {
     // Validate required fields
-    if (!body.person_id || body.person_id <= 0) {
+    const personId = safePersonId(body.person_id);
+    if (!personId) {
       throw new Error(
         "Missing required field: person_id must be a positive number",
       );
@@ -212,8 +251,9 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
       const trimmedRole = body.role?.trim();
       const trimmedQualifications = body.qualifications?.trim();
 
-      const normalizedBody: StaffCreateRequest = {
+      const normalizedBody = {
         ...body,
+        person_id: personId,
         staff_notes: normalizeOptionalString(body.staff_notes, trimmedNotes),
         specialization: normalizeOptionalString(
           body.specialization,

@@ -1243,10 +1243,11 @@ func (s *Service) provisionSchoolIdentity(
 		return nil, nil
 	}
 	provisioned, err := EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
-		Persons:  s.repos.Person,
-		Staff:    s.repos.Staff,
-		Teachers: s.repos.Teacher,
-		Students: s.repos.Student,
+		Persons:   s.repos.Person,
+		Staff:     s.repos.Staff,
+		Teachers:  s.repos.Teacher,
+		Students:  s.repos.Student,
+		RFIDCards: s.repos.RFIDCard,
 	}, SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     tenantID,
@@ -1322,7 +1323,9 @@ func (s *Service) LinkSchoolAccount(
 	// Link to tenant (idempotent — handles already-linked case)
 	schoolIdentity, err := s.performAccountTenantLink(ctx, account, role, roleID, tenantID, identity)
 	if err != nil {
-		if errors.Is(err, ErrSchoolIdentityNamesRequired) {
+		// Reported as the caller's own error, unwrapped: prefixing "link failed"
+		// onto a German sentence the operator is meant to read makes it noise.
+		if IsSchoolIdentityRequestError(err) || errors.Is(err, ErrRoleLehrkraftCaregiverProfile) {
 			return nil, nil, &AuthError{Op: op, Err: err}
 		}
 		return nil, nil, &AuthError{Op: op, Err: fmt.Errorf("link failed: %w", err)}
@@ -1350,6 +1353,23 @@ func (s *Service) performAccountTenantLink(
 
 		if err := s.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
 			return err
+		}
+		// Unlike /auth/register this account already exists, and it may already
+		// carry an identity at this school — from an earlier link, or from a
+		// revoke that deliberately left person/staff/teacher behind. Handing it
+		// the Lehrkraft role while that identity holds a live caregiver profile
+		// strands users.teachers and its group supervisions under a JWT that
+		// only carries class_day permissions (#1772). The same rule the tenant
+		// RBAC endpoint and both operator paths apply, so this endpoint cannot
+		// be the way around them.
+		if IsLehrkraftSystemRole(role) {
+			hasProfile, profErr := HasLiveCaregiverProfile(ctx, s.repos.Person, s.repos.Staff, s.repos.Teacher, account.ID)
+			if profErr != nil {
+				return profErr
+			}
+			if hasProfile {
+				return ErrRoleLehrkraftCaregiverProfile
+			}
 		}
 		if err := s.ensureRoleAssignment(ctx, account.ID, roleID, tenantID); err != nil {
 			return err
