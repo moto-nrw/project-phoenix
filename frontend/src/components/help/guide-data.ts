@@ -356,7 +356,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Gruppen und Rechte",
-          body: "Gruppen müssen nur angelegt werden, wenn Ihre OGS mit Gruppen arbeitet. Gruppenleitungen haben Rechte für ihre Kinder, zum Beispiel für Anmeldungen, Krankmeldungen und Stammdatenänderungen. Falls unklar ist, wer diese Rechte bekommen soll, kann das später mit dem moto-Team geklärt oder in den Einstellungen angepasst werden.",
+          body: "Gruppen müssen nur angelegt werden, wenn Ihre OGS mit Gruppen arbeitet. Gruppenleitungen haben Rechte für ihre Kinder, zum Beispiel für Anmeldungen, Krankmeldungen und Stammdatenänderungen. Arbeitet Ihre OGS ohne feste Gruppen (`Einstellungen` -> `Betrieb` -> `Arbeit mit festen Gruppen` auf `Offene Betreuung`), gibt es keine Gruppenleitung, an der diese Rechte hängen: Krank- und Gesundmeldungen sowie geplante Abwesenheiten kann dann jede Person mit der Rolle `Betreuer` für jedes Kind eintragen. Stammdaten wie Adresse, Gesundheitsangaben oder Datenschutz bleiben auch dann den Admins vorbehalten. Falls unklar ist, wer diese Rechte bekommen soll, kann das später mit dem moto-Team geklärt oder in den Einstellungen angepasst werden.",
           tone: "blue",
         },
         screenshot: "Gruppen-Liste in der Datenverwaltung.",

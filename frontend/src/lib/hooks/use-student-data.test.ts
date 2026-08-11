@@ -460,6 +460,38 @@ describe("useStudentData", () => {
       expect(result.current.hasFullAccess).toBe(true);
       // Write access defaults to false (deny-by-default)
       expect(result.current.hasWriteAccess).toBe(false);
+      // Same for the absence-only write flag (#2232)
+      expect(result.current.hasAbsenceWriteAccess).toBe(false);
+    });
+
+    it("should expose absence write access independently of Stammdaten write access", () => {
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+
+      mockUseSWRAuth.mockReturnValue({
+        data: {
+          student: mockStudent,
+          hasFullAccess: true,
+          hasWriteAccess: false,
+          hasAbsenceWriteAccess: true,
+          supervisors: mockSupervisors,
+          myGroups: ["100"],
+          myGroupRooms: ["Room A"],
+          mySupervisedRooms: [],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useStudentData("1"));
+
+      expect(result.current.hasWriteAccess).toBe(false);
+      expect(result.current.hasAbsenceWriteAccess).toBe(true);
     });
 
     it("should expose actual_arrival_time and actual_pickup_time when hasFullAccess is true", () => {

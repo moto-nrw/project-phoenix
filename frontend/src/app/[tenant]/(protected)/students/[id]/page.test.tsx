@@ -454,6 +454,7 @@ interface MockStudentDataResult {
   error: string | null;
   hasFullAccess: boolean;
   hasWriteAccess: boolean;
+  hasAbsenceWriteAccess: boolean;
   supervisors: Array<{ name: string; phone?: string }>;
   myGroups: string[];
   myGroupRooms: string[];
@@ -578,6 +579,7 @@ describe("StudentDetailPage", () => {
       error: null,
       hasFullAccess: true,
       hasWriteAccess: true,
+      hasAbsenceWriteAccess: true,
       supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
       myGroups: ["1"],
       myGroupRooms: ["Raum 101"],
@@ -614,6 +616,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -636,6 +639,7 @@ describe("StudentDetailPage", () => {
         error: "Kind nicht gefunden",
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -656,6 +660,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -675,6 +680,7 @@ describe("StudentDetailPage", () => {
         error: "Error",
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -766,6 +772,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -897,6 +904,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -1044,6 +1052,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1298,6 +1307,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1390,6 +1400,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1439,6 +1450,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1451,6 +1463,53 @@ describe("StudentDetailPage", () => {
       expect(
         screen.queryByTestId("sick-report-section"),
       ).not.toBeInTheDocument();
+    });
+
+    // Offene Betreuung (#2232): without fixed groups the absence gate stands on
+    // its own, so the action is offered even where Stammdaten stay read-only —
+    // in the limited view too, since the child has no supervisor to fall back on.
+    it("shows the absence actions without Stammdaten write access", () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("sick-report-section")).toBeInTheDocument();
+      expect(screen.getByTestId("excused-report-section")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("edit-personal-info"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the absence actions in the limited access view", () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("sick-report-section")).toBeInTheDocument();
     });
   });
 
@@ -1520,6 +1579,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1544,6 +1604,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1577,6 +1638,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1599,6 +1661,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1622,6 +1685,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1655,6 +1719,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1683,6 +1748,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1733,6 +1799,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1754,6 +1821,7 @@ describe("StudentDetailPage", () => {
       error: null,
       hasFullAccess: false,
       hasWriteAccess: false,
+      hasAbsenceWriteAccess: false,
       supervisors: [{ name: "Frau Schmidt" }],
       myGroups: ["1"],
       myGroupRooms: [],
@@ -2023,6 +2091,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -2040,6 +2109,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
