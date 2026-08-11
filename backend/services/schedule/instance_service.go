@@ -1004,6 +1004,9 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
 		return nil, &ScheduleError{Op: "create instance: apply student status days", Err: err}
 	}
+	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
+		return nil, &ScheduleError{Op: "create instance: apply student partial absences", Err: err}
+	}
 
 	s.getLogger().Info("instance created",
 		slog.Int64("tenant_id", tenantID),
@@ -1314,6 +1317,9 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, instanceID, instance.Date); err != nil {
 		return &ScheduleError{Op: "update instance: apply student status days", Err: err}
+	}
+	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, instanceID, instance.Date); err != nil {
+		return &ScheduleError{Op: "update instance: apply student partial absences", Err: err}
 	}
 	return nil
 }

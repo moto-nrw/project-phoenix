@@ -289,6 +289,11 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 			return 0, 0, &ScheduleError{Op: "reconcile roster: apply student status days", Err: err}
 		}
 		statusApplied += n
+		n, err = s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date)
+		if err != nil {
+			return 0, 0, &ScheduleError{Op: "reconcile roster: apply student partial absences", Err: err}
+		}
+		statusApplied += n
 	}
 
 	return restored, statusApplied, nil
@@ -429,6 +434,9 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 	for instanceID, date := range touched {
 		if _, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
 			return created, removed, &ScheduleError{Op: "reconcile sourced roster: apply student status days", Err: err}
+		}
+		if _, err := s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
+			return created, removed, &ScheduleError{Op: "reconcile sourced roster: apply student partial absences", Err: err}
 		}
 	}
 

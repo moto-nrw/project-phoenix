@@ -161,6 +161,8 @@ func (r *InstanceStudentRepository) FindNotScheduledCandidatesByInstanceIDs(ctx 
 			return group.
 				WhereOr(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
 				WhereOr(`("instance_student".status = ? AND "instance_student".student_status_day_id IS NOT NULL)`,
+					schedule.AttendanceStatusAbsent).
+				WhereOr(`("instance_student".status = ? AND "instance_student".pickup_exception_id IS NOT NULL)`,
 					schedule.AttendanceStatusAbsent)
 		}).
 		OrderExpr(`"instance_student".instance_id ASC, "instance_student".student_id ASC`)
@@ -287,8 +289,9 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 		Model((*schedule.InstanceStudent)(nil)).
 		ModelTableExpr(modelTblInstanceStudent).
 		Set(`status = ?`, schedule.AttendanceStatusPresent).
-		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
+		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL OR "instance_student".pickup_exception_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
 		Set(`student_status_day_id = NULL`).
+		Set(`pickup_exception_id = NULL`).
 		Set(`checked_in_at = CASE
 			WHEN "instance_student".checked_out_at IS NOT NULL THEN ?
 			ELSE COALESCE("instance_student".checked_in_at, ?) END`, checkedInAt, checkedInAt).
@@ -297,8 +300,9 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`(
-			"instance_student".status = ?
-			OR "instance_student".student_status_day_id IS NOT NULL
+				"instance_student".status = ?
+				OR "instance_student".student_status_day_id IS NOT NULL
+				OR "instance_student".pickup_exception_id IS NOT NULL
 			OR ("instance_student".status = ? AND "instance_student".checked_out_at IS NOT NULL)
 		)`, schedule.AttendanceStatusExpected, schedule.AttendanceStatusPresent)
 
@@ -325,18 +329,20 @@ func (r *InstanceStudentRepository) CreateUnplannedPresentIfAbsent(
 		ON CONFLICT (instance_id, student_id) DO UPDATE
 		SET status = EXCLUDED.status,
 			substatus = CASE
-				WHEN attendance.student_status_day_id IS NOT NULL THEN NULL
+					WHEN attendance.student_status_day_id IS NOT NULL OR attendance.pickup_exception_id IS NOT NULL THEN NULL
 				ELSE attendance.substatus
 			END,
-			student_status_day_id = NULL,
+				student_status_day_id = NULL,
+				pickup_exception_id = NULL,
 			checked_in_at = CASE
 				WHEN attendance.checked_out_at IS NOT NULL THEN EXCLUDED.checked_in_at
 				ELSE COALESCE(attendance.checked_in_at, EXCLUDED.checked_in_at)
 			END,
 			checked_out_at = NULL,
 			updated_at = EXCLUDED.updated_at
-		WHERE attendance.status = ?
-			OR attendance.student_status_day_id IS NOT NULL
+			WHERE attendance.status = ?
+				OR attendance.student_status_day_id IS NOT NULL
+				OR attendance.pickup_exception_id IS NOT NULL
 			OR (attendance.status = ? AND attendance.checked_out_at IS NOT NULL)
 	`, tenant.FromContext(ctx), instanceID, studentID, schedule.AttendanceStatusPresent, checkedInAt,
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusPresent).Exec(ctx); err != nil {
@@ -564,6 +570,134 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 	return int(n), nil
 }
 
+// ApplyPartialAbsence marks only slots that start at or after the excused-from
+// time. A slot already carrying actual or manual attendance is outside this
+// write's ownership and remains untouched.
+func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH partial_absence AS (
+			SELECT tenant_id, id, student_id, exception_date, excused_from
+			FROM schedule.student_pickup_exceptions
+			WHERE tenant_id = ? AND id = ? AND excused_from IS NOT NULL
+		)
+		UPDATE schedule.instance_students AS attendance
+		SET status = ?,
+			substatus = ?,
+			student_status_day_id = NULL,
+			pickup_exception_id = partial_absence.id,
+			updated_at = ?
+		FROM schedule.activity_instances AS instance, partial_absence
+		WHERE attendance.tenant_id = partial_absence.tenant_id
+			AND attendance.student_id = partial_absence.student_id
+			AND attendance.status = ?
+			AND attendance.manual_status_at IS NULL
+			AND NOT attendance.not_scheduled
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+			AND instance.date = partial_absence.exception_date
+			AND instance.start_time >= partial_absence.excused_from
+			AND instance.status <> ?
+	`, tenant.FromContext(ctx), pickupExceptionID,
+		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
+		schedule.AttendanceStatusExpected, schedule.InstanceStatusCancelled).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "apply partial absence to slots", Err: err}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// ReleasePartialAbsence restores only rows still owned by this pickup
+// exception. A broad active day status takes ownership; otherwise completed
+// blocks remain absent and actionable blocks return to expected.
+func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH released AS (
+			SELECT tenant_id, student_id, exception_date
+			FROM schedule.student_pickup_exceptions
+			WHERE tenant_id = ? AND id = ?
+		), replacement AS (
+			SELECT released.student_id, latest.id, latest.status
+			FROM released
+			LEFT JOIN LATERAL (
+				SELECT candidate.id, candidate.status
+				FROM active.student_status_days AS candidate
+				WHERE candidate.tenant_id = released.tenant_id
+					AND candidate.student_id = released.student_id
+					AND candidate.date = released.exception_date
+					AND candidate.cleared_at IS NULL
+				ORDER BY candidate.reported_at DESC, candidate.id DESC
+				LIMIT 1
+			) AS latest ON TRUE
+		)
+		UPDATE schedule.instance_students AS attendance
+		SET status = CASE
+				WHEN replacement.id IS NOT NULL THEN ?
+				WHEN instance.status = ? THEN ?
+				ELSE ?
+			END,
+			substatus = CASE replacement.status
+				WHEN 'sick' THEN ?
+				WHEN 'excused' THEN ?
+				WHEN 'class_trip' THEN ?
+				ELSE NULL
+			END,
+			student_status_day_id = replacement.id,
+			pickup_exception_id = NULL,
+			updated_at = ?
+		FROM schedule.activity_instances AS instance, replacement
+		WHERE attendance.tenant_id = ?
+			AND attendance.pickup_exception_id = ?
+			AND attendance.student_id = replacement.student_id
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+	`, tenant.FromContext(ctx), pickupExceptionID,
+		schedule.AttendanceStatusAbsent,
+		schedule.InstanceStatusCompleted, schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
+		schedule.AttendanceSubstatusSick, schedule.AttendanceSubstatusExcused,
+		schedule.AttendanceSubstatusFieldTrip,
+		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: err}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// ApplyActivePartialAbsencesForInstance mirrors the active status-day replay
+// for attendance rows created by materialization or re-planning.
+func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
+	ctx context.Context, instanceID int64, date timezone.Date,
+) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewRaw(`
+		UPDATE schedule.instance_students AS attendance
+		SET status = ?,
+			substatus = ?,
+			pickup_exception_id = partial_absence.id,
+			updated_at = ?
+		FROM schedule.activity_instances AS instance
+		JOIN schedule.student_pickup_exceptions AS partial_absence
+			ON partial_absence.tenant_id = instance.tenant_id
+			AND partial_absence.exception_date = instance.date
+			AND partial_absence.excused_from IS NOT NULL
+		WHERE attendance.tenant_id = ?
+			AND attendance.instance_id = ?
+			AND attendance.instance_id = instance.id
+			AND attendance.student_id = partial_absence.student_id
+			AND attendance.status = ?
+			AND attendance.manual_status_at IS NULL
+			AND NOT attendance.not_scheduled
+			AND instance.date = ?
+			AND instance.start_time >= partial_absence.excused_from
+	`, schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
+		tenant.FromContext(ctx), instanceID, schedule.AttendanceStatusExpected, date).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "apply active partial absences to instance", Err: err}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // UpdateAttendanceFields writes only the fields the patch carries. Pointer-nil
 // (and the *Clear bools unset) means "do not touch that column". Substatus and
 // Note support explicit NULL via the *Clear companion bools, since both
@@ -612,6 +746,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 	}
 	if clearStatusDayProvenance {
 		q = q.Set(`student_status_day_id = NULL`)
+		q = q.Set(`pickup_exception_id = NULL`)
 	}
 	switch {
 	case patch.NoteClear:
@@ -706,8 +841,9 @@ func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs [
 		ModelTableExpr(modelTblInstanceStudent).
 		Set(`not_scheduled = TRUE`).
 		Set(`status = ?`, schedule.AttendanceStatusExpected).
-		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
+		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL OR "instance_student".pickup_exception_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
 		Set(`student_status_day_id = NULL`).
+		Set(`pickup_exception_id = NULL`).
 		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".manual_status_at IS NULL`).
 		Where(`NOT EXISTS (
@@ -720,6 +856,8 @@ func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs [
 			return group.
 				WhereOr(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
 				WhereOr(`("instance_student".status = ? AND "instance_student".student_status_day_id IS NOT NULL)`,
+					schedule.AttendanceStatusAbsent).
+				WhereOr(`("instance_student".status = ? AND "instance_student".pickup_exception_id IS NOT NULL)`,
 					schedule.AttendanceStatusAbsent)
 		}).
 		WhereGroup(" AND ", func(group *bun.UpdateQuery) *bun.UpdateQuery {
@@ -957,7 +1095,7 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		)
 		INSERT INTO schedule.instance_students (
 			tenant_id, instance_id, student_id, room_id, status, substatus, note,
-			is_unplanned, not_scheduled, manual_status_at, student_status_day_id,
+			is_unplanned, not_scheduled, manual_status_at, student_status_day_id, pickup_exception_id,
 			created_at, updated_at
 		)
 		SELECT restored.tenant_id, restored.instance_id, restored.student_id,
@@ -966,6 +1104,7 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		           WHEN restored.not_scheduled          THEN restored.status
 		           WHEN hand_set.kept                   THEN restored.status
 		           WHEN active_day.id IS NOT NULL       THEN ?
+		           WHEN partial.id IS NOT NULL          THEN ?
 		           ELSE ?
 		       END,
 		       CASE
@@ -974,11 +1113,13 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		           WHEN active_day.status = 'sick'       THEN ?
 		           WHEN active_day.status = 'excused'    THEN ?
 		           WHEN active_day.status = 'class_trip' THEN ?
+		           WHEN partial.id IS NOT NULL           THEN ?
 		           ELSE NULL
 		       END,
 		       restored.note,
 		       restored.is_unplanned, restored.not_scheduled, restored.manual_status_at,
 		       CASE WHEN restored.not_scheduled OR hand_set.kept THEN NULL ELSE active_day.id END,
+		       CASE WHEN restored.not_scheduled OR hand_set.kept OR active_day.id IS NOT NULL THEN NULL ELSE partial.id END,
 		       NOW(), NOW()
 		FROM restored
 		JOIN schedule.activity_instances AS ai
@@ -1001,6 +1142,16 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		       ORDER BY sd.reported_at DESC, sd.id DESC
 		       LIMIT 1
 		) AS active_day ON TRUE
+		LEFT JOIN LATERAL (
+		       SELECT pe.id
+		       FROM schedule.student_pickup_exceptions AS pe
+		       WHERE pe.student_id = restored.student_id
+		         AND pe.tenant_id = restored.tenant_id
+		         AND pe.exception_date = ai.date
+		         AND pe.excused_from IS NOT NULL
+		         AND ai.start_time >= pe.excused_from
+		       LIMIT 1
+		) AS partial ON TRUE
 		WHERE ai.date >= ?
 		  AND ai.status NOT IN (?, ?)
 		ON CONFLICT (instance_id, student_id) DO NOTHING`
@@ -1010,10 +1161,12 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		bun.List(studentIDs),
 		tenant.FromContext(ctx),
 		schedule.AttendanceStatusAbsent,
+		schedule.AttendanceStatusAbsent,
 		schedule.AttendanceStatusExpected,
 		schedule.AttendanceSubstatusSick,
 		schedule.AttendanceSubstatusExcused,
 		schedule.AttendanceSubstatusFieldTrip,
+		schedule.AttendanceSubstatusExcused,
 		schedule.AttendanceStatusExpected,
 		from,
 		schedule.InstanceStatusCompleted,

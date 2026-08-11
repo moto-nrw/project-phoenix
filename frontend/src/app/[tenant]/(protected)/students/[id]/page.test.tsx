@@ -518,6 +518,12 @@ vi.mock("~/lib/student-status-days-api", () => ({
     mockFetchStudentStatusDays(studentId, from, to),
 }));
 
+vi.mock("~/lib/student-partial-absences-api", () => ({
+  fetchStudentPartialAbsences: vi.fn().mockResolvedValue([]),
+  saveStudentPartialAbsence: vi.fn(),
+  deleteStudentPartialAbsence: vi.fn(),
+}));
+
 // Mock useToast hook
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();

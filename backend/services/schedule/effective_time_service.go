@@ -2,9 +2,11 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,6 +35,7 @@ type effectiveScheduleRepository[S effectiveTimeEntity] interface {
 
 type effectiveExceptionRepository[E effectiveTimeEntity] interface {
 	FindByID(context.Context, any) (E, error)
+	FindByIDForUpdate(context.Context, any) (E, error)
 	FindByStudentID(context.Context, int64) ([]E, error)
 	FindUpcomingByStudentID(context.Context, int64) ([]E, error)
 	FindByStudentIDAndDate(context.Context, int64, timezone.Date) (E, error)
@@ -72,6 +75,11 @@ type effectiveExceptionFields struct {
 	CreatedByGuardian *int64
 	CreatedAt         time.Time
 	TenantID          int64
+	ExcusedFrom       *time.Time
+	ExcusedReason     *string
+	ExcusedCreatedBy  *int64
+	ExcusedOwnsTime   bool
+	TimeChanged       bool
 }
 
 type effectiveNoteFields struct {
@@ -97,6 +105,8 @@ const (
 	exceptionCollisionReject exceptionCollisionPolicy = iota
 	exceptionCollisionUpdate
 )
+
+var ErrCareExceptionContainsPartialAbsence = errors.New("pickup exception contains a partial absence")
 
 type effectiveTimeData[S, E, N any] struct {
 	Schedules  []S
@@ -420,6 +430,12 @@ func (c *effectiveTimeCore[S, E, N, D]) CreateOrReclaimException(
 			if existingFields.Source != scheduleModel.ExceptionSourceGuardian {
 				return ErrCareExceptionDayConflict
 			}
+			// A partial absence may deliberately share a guardian-authored pickup
+			// exception. Reclaiming that row would erase the partial's metadata
+			// while its owned attendance rows remained absent.
+			if existingFields.ExcusedFrom != nil {
+				return ErrCareExceptionContainsPartialAbsence
+			}
 			resolvedStaffID, staffErr := resolveStaffID()
 			if staffErr != nil || resolvedStaffID == 0 {
 				return ErrCareExceptionStaffProfileRequired
@@ -484,6 +500,9 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 		if fields.StudentID != studentID {
 			return ErrCareExceptionWrongStudent
 		}
+		if fields.ExcusedFrom != nil && (date != fields.Date || clearValue) {
+			return ErrCareExceptionContainsPartialAbsence
+		}
 		if fields.Source == scheduleModel.ExceptionSourceGuardian {
 			resolvedStaffID, staffErr := resolveStaffID()
 			if staffErr != nil || resolvedStaffID == 0 {
@@ -511,8 +530,10 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 		}
 		if value != nil {
 			fields.Time = value
+			fields.TimeChanged = true
 		} else if clearValue {
 			fields.Time = nil
+			fields.TimeChanged = true
 		}
 
 		result = c.domain.NewException(fields)
@@ -529,22 +550,107 @@ func (c *effectiveTimeCore[S, E, N, D]) DeleteException(
 	ctx context.Context,
 	exceptionID int64,
 ) error {
-	if err := c.exceptions.Delete(ctx, exceptionID); err != nil {
-		return &ScheduleError{
-			Op:  c.operation("delete student %s exception"),
-			Err: err,
+	initial, err := c.exceptions.FindByID(ctx, exceptionID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrCareExceptionNotFound
 		}
+		return &ScheduleError{Op: c.operation("get student %s exception by id"), Err: err}
 	}
-	return nil
+	if isZeroEntity(initial) {
+		return c.deleteExceptionRow(ctx, exceptionID)
+	}
+
+	fields := c.domain.ExceptionFields(initial)
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareExceptionDay(txCtx, c.db, fields.StudentID, fields.Date); err != nil {
+			return err
+		}
+		// Re-read after taking the same lock used by partial-absence writes.
+		// Otherwise a partial could be attached between the check and delete.
+		fresh, err := c.exceptions.FindByIDForUpdate(txCtx, exceptionID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrCareExceptionNotFound
+			}
+			return &ScheduleError{Op: c.operation("get student %s exception by id"), Err: err}
+		}
+		if !isZeroEntity(fresh) && c.domain.ExceptionFields(fresh).ExcusedFrom != nil {
+			return ErrCareExceptionContainsPartialAbsence
+		}
+		return c.deleteExceptionRow(txCtx, exceptionID)
+	})
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) DeleteAllExceptions(
 	ctx context.Context,
 	studentID int64,
 ) error {
-	if err := c.exceptions.DeleteByStudentID(ctx, studentID); err != nil {
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, c.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		rows, err := c.exceptions.FindByStudentID(txCtx, studentID)
+		if err != nil {
+			return &ScheduleError{Op: c.operation("get student %s exceptions"), Err: err}
+		}
+
+		// Delete the locked snapshot row-by-row. A newly-created exception on a
+		// different date is intentionally left alone; a broad DELETE could race
+		// with partial creation and silently remove its provenance.
+		type candidate struct {
+			id   int64
+			date timezone.Date
+		}
+		candidates := make([]candidate, 0, len(rows))
+		for _, row := range rows {
+			if isZeroEntity(row) {
+				continue
+			}
+			fields := c.domain.ExceptionFields(row)
+			candidates = append(candidates, candidate{id: fields.ID, date: fields.Date})
+		}
+		sort.Slice(candidates, func(i, j int) bool {
+			if candidates[i].date == candidates[j].date {
+				return candidates[i].id < candidates[j].id
+			}
+			return candidates[i].date.Before(candidates[j].date)
+		})
+
+		var lockedDate timezone.Date
+		for index, row := range candidates {
+			if index == 0 || row.date != lockedDate {
+				if err := LockCareExceptionDay(txCtx, c.db, studentID, row.date); err != nil {
+					return err
+				}
+				lockedDate = row.date
+			}
+		}
+		for _, row := range candidates {
+			fresh, err := c.exceptions.FindByIDForUpdate(txCtx, row.id)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					continue
+				}
+				return &ScheduleError{Op: c.operation("get student %s exception by id"), Err: err}
+			}
+			if isZeroEntity(fresh) {
+				continue
+			}
+			if c.domain.ExceptionFields(fresh).ExcusedFrom != nil {
+				return ErrCareExceptionContainsPartialAbsence
+			}
+			if err := c.deleteExceptionRow(txCtx, row.id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (c *effectiveTimeCore[S, E, N, D]) deleteExceptionRow(ctx context.Context, exceptionID int64) error {
+	if err := c.exceptions.Delete(ctx, exceptionID); err != nil {
 		return &ScheduleError{
-			Op:  c.operation("delete all student %s exceptions"),
+			Op:  c.operation("delete student %s exception"),
 			Err: err,
 		}
 	}

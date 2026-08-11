@@ -21,14 +21,17 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // excusedRequestMaxReasonLen bounds the staff reject reason (in runes).
@@ -133,6 +136,7 @@ type AbsenceNotifierSetter interface {
 type excusedAbsenceRequestService struct {
 	requestRepo   activeModels.ExcusedAbsenceRequestRepository
 	statusDayRepo activeModels.StudentStatusDayRepository
+	pickupRepo    scheduleModels.StudentPickupExceptionRepository
 	studentRepo   usersModels.StudentRepository
 	personRepo    usersModels.PersonRepository
 	userContext   userContextService.UserContextService
@@ -140,6 +144,7 @@ type excusedAbsenceRequestService struct {
 	broadcaster   realtime.Broadcaster
 	absenceNotify notificationsService.AbsenceNotifier
 	logger        *slog.Logger
+	db            *bun.DB
 }
 
 // NewExcusedAbsenceRequestService wires the excused-request service.
@@ -153,18 +158,58 @@ func NewExcusedAbsenceRequestService(
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) ExcusedAbsenceRequestService {
+	return newExcusedAbsenceRequestService(
+		requestRepo, statusDayRepo, nil, studentRepo, personRepo,
+		userContext, emitter, broadcaster, logger, nil,
+	)
+}
+
+// NewExcusedAbsenceRequestServiceWithPartialAbsences wires the production
+// variant that also serializes approvals with time-specific excusals.
+func NewExcusedAbsenceRequestServiceWithPartialAbsences(
+	requestRepo activeModels.ExcusedAbsenceRequestRepository,
+	statusDayRepo activeModels.StudentStatusDayRepository,
+	pickupRepo scheduleModels.StudentPickupExceptionRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+	db *bun.DB,
+) ExcusedAbsenceRequestService {
+	return newExcusedAbsenceRequestService(
+		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
+		userContext, emitter, broadcaster, logger, db,
+	)
+}
+
+func newExcusedAbsenceRequestService(
+	requestRepo activeModels.ExcusedAbsenceRequestRepository,
+	statusDayRepo activeModels.StudentStatusDayRepository,
+	pickupRepo scheduleModels.StudentPickupExceptionRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+	db *bun.DB,
+) ExcusedAbsenceRequestService {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &excusedAbsenceRequestService{
 		requestRepo:   requestRepo,
 		statusDayRepo: statusDayRepo,
+		pickupRepo:    pickupRepo,
 		studentRepo:   studentRepo,
 		personRepo:    personRepo,
 		userContext:   userContext,
 		emitter:       emitter,
 		broadcaster:   broadcaster,
 		logger:        logger,
+		db:            db,
 	}
 }
 
@@ -461,6 +506,9 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	if input.Approve {
+		if err := s.ensureNoPartialAbsence(ctx, req); err != nil {
+			return nil, err
+		}
 		// Refuse to APPLY when the submitting guardian has lost access to the
 		// child (unlinked or parent_portal.access revoked) since the request was
 		// filed. Approving writes parent-sourced excused status days and posts a
@@ -572,6 +620,44 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		}
 	}
 	return item, nil
+}
+
+func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
+	ctx context.Context, req *activeModels.ExcusedAbsenceRequest,
+) error {
+	if len(req.Dates) == 0 {
+		return nil
+	}
+	if s.db == nil && s.pickupRepo == nil {
+		return nil
+	}
+	if s.db == nil {
+		return errors.New("active: database is not configured")
+	}
+	if s.pickupRepo == nil {
+		return errors.New("active: pickup exception repository is not configured")
+	}
+	for _, date := range req.Dates {
+		if err := careplanning.LockExceptionDay(ctx, s.db, req.StudentID, date); err != nil {
+			return err
+		}
+	}
+	rows, err := s.pickupRepo.FindByStudentIDAndDateRange(
+		ctx, req.StudentID, req.Dates[0], req.Dates[len(req.Dates)-1],
+	)
+	if err != nil {
+		return err
+	}
+	requested := make(map[timezone.Date]struct{}, len(req.Dates))
+	for _, date := range req.Dates {
+		requested[date] = struct{}{}
+	}
+	for _, row := range rows {
+		if _, ok := requested[row.ExceptionDate]; ok && row.ExcusedFrom != nil {
+			return ErrExcusedRequestStatusConflict
+		}
+	}
+	return nil
 }
 
 // ensureNoNewerStatus refuses the approval when any ACTIVE status day on a

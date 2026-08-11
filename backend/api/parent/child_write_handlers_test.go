@@ -74,22 +74,25 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 	viper.Set("auth_jwt_secret", testJWTSecret)
 	viper.Set("auth_jwt_expiry", time.Hour)
 	repos := repositories.NewFactory(db)
-	excused := absenceSvc.NewExcusedAbsenceRequestService(
+	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
+		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
 		nil, nil, nil,
 		slog.Default(),
+		db,
 	)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:       repos.ParentChild,
-		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     repos.Student,
-		Settings:        settings,
-		ExcusedRequests: excused,
-		DB:              db,
-		Logger:          slog.Default(),
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		PickupExceptionRepo: repos.StudentPickupException,
+		Settings:            settings,
+		ExcusedRequests:     excused,
+		DB:                  db,
+		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
 	return rs.Router()

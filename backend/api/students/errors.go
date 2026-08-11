@@ -43,24 +43,30 @@ var (
 	// reclaimed inline instead; only the staff-on-staff race lands here.) The
 	// client reloads and the retry goes through the update path.
 	ErrExceptionDayConflict = scheduleService.ErrCareExceptionDayConflict
+	// ErrExceptionContainsPartialAbsence requires the dedicated partial-absence
+	// endpoint so slot provenance is restored atomically with the pickup row.
+	ErrExceptionContainsPartialAbsence = scheduleService.ErrCareExceptionContainsPartialAbsence
 )
 
+var exceptionWriteErrorRenderer = common.RulesRenderer([]common.ErrorRule{
+	{Target: ErrStaffProfileRequired, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, "staff_profile_required")
+	}},
+	{Target: ErrExceptionNotFound, Render: common.ErrorNotFound},
+	{Target: ErrExceptionWrongStudent, Render: common.ErrorForbidden},
+	{Target: ErrExceptionDayConflict, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "care_exception_raced")
+	}},
+	{Target: ErrExceptionContainsPartialAbsence, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "partial_absence_requires_dedicated_action")
+	}},
+}, common.ErrorInternalServer)
+
 // renderExceptionWriteError maps the sentinel errors a pickup/arrival exception
-// write transaction can return to precise HTTP statuses. Anything unrecognized
-// stays a 500 so genuine infrastructure failures are not masked as 4xx.
+// write transaction to precise HTTP statuses through the shared declarative
+// rule engine. Anything unrecognized stays a 500.
 func renderExceptionWriteError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, ErrStaffProfileRequired):
-		renderError(w, r, common.ErrorForbiddenWithCode(err, "staff_profile_required"))
-	case errors.Is(err, ErrExceptionNotFound):
-		renderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, ErrExceptionWrongStudent):
-		renderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, ErrExceptionDayConflict):
-		renderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
-	default:
-		renderError(w, r, common.ErrorInternalServer(err))
-	}
+	renderError(w, r, exceptionWriteErrorRenderer(err))
 }
 
 // ErrCodeSickExcusedConflict is returned when a status-flag toggle would

@@ -39,18 +39,26 @@ func (pickupTimeDomain) ExceptionFields(row *schedule.StudentPickupException) ef
 		CreatedByGuardian: row.CreatedByGuardian,
 		CreatedAt:         row.CreatedAt,
 		TenantID:          row.TenantID,
+		ExcusedFrom:       row.ExcusedFrom,
+		ExcusedReason:     row.ExcusedReason,
+		ExcusedCreatedBy:  row.ExcusedCreatedBy,
+		ExcusedOwnsTime:   row.ExcusedOwnsPickupTime,
 	}
 }
 
 func (pickupTimeDomain) NewException(fields effectiveExceptionFields) *schedule.StudentPickupException {
 	row := &schedule.StudentPickupException{
-		StudentID:         fields.StudentID,
-		ExceptionDate:     fields.Date,
-		PickupTime:        fields.Time,
-		Reason:            fields.Reason,
-		Source:            fields.Source,
-		CreatedBy:         fields.CreatedBy,
-		CreatedByGuardian: fields.CreatedByGuardian,
+		StudentID:             fields.StudentID,
+		ExceptionDate:         fields.Date,
+		PickupTime:            fields.Time,
+		Reason:                fields.Reason,
+		Source:                fields.Source,
+		CreatedBy:             fields.CreatedBy,
+		CreatedByGuardian:     fields.CreatedByGuardian,
+		ExcusedFrom:           fields.ExcusedFrom,
+		ExcusedReason:         fields.ExcusedReason,
+		ExcusedCreatedBy:      fields.ExcusedCreatedBy,
+		ExcusedOwnsPickupTime: fields.ExcusedOwnsTime && !fields.TimeChanged,
 	}
 	row.ID = fields.ID
 	row.CreatedAt = fields.CreatedAt

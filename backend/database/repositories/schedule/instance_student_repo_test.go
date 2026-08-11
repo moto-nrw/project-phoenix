@@ -1910,7 +1910,8 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	sickened := testpkg.CreateTestStudent(t, db, "WirdKrank", fmt.Sprintf("D1-%d", suffix), "4a")
 	recovered := testpkg.CreateTestStudent(t, db, "WirdGesund", fmt.Sprintf("D2-%d", suffix), "4a")
 	unbooked := testpkg.CreateTestStudent(t, db, "OhneBuchung", fmt.Sprintf("D3-%d", suffix), "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, sickened.ID, recovered.ID, unbooked.ID)
+	partiallyExcused := testpkg.CreateTestStudent(t, db, "Teilentschuldigt", fmt.Sprintf("D4-%d", suffix), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, sickened.ID, recovered.ID, unbooked.ID, partiallyExcused.ID)
 
 	// The state at apply time: `recovered` was already down for a planned
 	// sickness, the other two were plain plan rows.
@@ -1925,13 +1926,15 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	unbookedRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID,
 		scheduleModels.AttendanceStatusExpected,
 		testpkg.InstanceStudentOpts{NotScheduled: true})
+	partialRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, partiallyExcused.ID,
+		scheduleModels.AttendanceStatusExpected)
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
-		sickenedRow.ID, recoveredRow.ID, unbookedRow.ID)
+		sickenedRow.ID, recoveredRow.ID, unbookedRow.ID, partialRow.ID)
 
-	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID}
+	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID, partiallyExcused.ID}
 	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, graduates, today, time.Now())
 	require.NoError(t, err)
-	require.Equal(t, 3, removed, "all three plan rows are archived on apply")
+	require.Equal(t, 4, removed, "all four plan rows are archived on apply")
 
 	// The alumnus window: one child is reported sick, the other's sickness is
 	// cleared. Neither change could reach the archived snapshot.
@@ -1940,10 +1943,19 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	_, err = db.NewRaw(`UPDATE active.student_status_days SET cleared_at = NOW() WHERE id = ?`,
 		oldStatusDay.ID).Exec(ctx)
 	require.NoError(t, err)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Owner-%d", suffix))
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	partial := testpkg.CreateTestPickupException(t, db, partiallyExcused.ID, soon, staff.ID, "13:00", "Termin")
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	partial.ExcusedFrom = &from
+	partial.ExcusedCreatedBy = &staff.ID
+	partial.ExcusedOwnsPickupTime = true
+	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
 
 	replayed, err := repo.RestoreArchivedByTransition(ctx, transition.ID, graduates, today)
 	require.NoError(t, err)
-	require.Equal(t, 3, replayed)
+	require.Equal(t, 4, replayed)
 
 	get := func(studentID int64) *scheduleModels.InstanceStudent {
 		got, gErr := repo.FindByInstanceAndStudent(ctx, inst.ID, studentID)
@@ -1972,4 +1984,13 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	assert.True(t, gotUnbooked.NotScheduled, "the non-booking marker is structural and replays verbatim")
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotUnbooked.Status)
 	assert.Nil(t, gotUnbooked.StudentStatusDayID)
+
+	gotPartial := get(partiallyExcused.ID)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotPartial.Status,
+		"a partial excusal created while the child was an alumnus must be replayed")
+	require.NotNil(t, gotPartial.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *gotPartial.Substatus)
+	assert.Nil(t, gotPartial.StudentStatusDayID)
+	require.NotNil(t, gotPartial.PickupExceptionID)
+	assert.Equal(t, partial.ID, *gotPartial.PickupExceptionID)
 }

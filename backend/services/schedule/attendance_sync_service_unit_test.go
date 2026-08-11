@@ -180,6 +180,18 @@ func (f *fakeInstanceStudentRepo) ApplyActiveStatusDaysForInstance(context.Conte
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ReleasePartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceStudentRepo) Create(context.Context, *scheduleModel.InstanceStudent) error {
 	panic("unused")
 }
