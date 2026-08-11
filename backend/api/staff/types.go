@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -58,8 +59,12 @@ type GroupResponse struct {
 
 // StaffRequest represents a staff creation/update request
 type StaffRequest struct {
-	PersonID   int64  `json:"person_id"`
-	StaffNotes string `json:"staff_notes,omitempty"`
+	// PersonID takes a JSON number or a decimal string. The staff screens send
+	// the string: person ids are bigints, and the Next.js proxy in front of this
+	// endpoint parses and re-serializes the body, which rounds a JSON number past
+	// 2^53 into a valid id for a different person (#2222).
+	PersonID   common.JSONID `json:"person_id"`
+	StaffNotes string        `json:"staff_notes,omitempty"`
 	// Teacher-specific fields for creating a teacher
 	IsTeacher      bool   `json:"is_teacher,omitempty"`
 	Specialization string `json:"specialization,omitempty"`

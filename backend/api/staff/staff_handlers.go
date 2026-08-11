@@ -331,7 +331,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify person exists
-	person, err := rs.PersonService.Get(r.Context(), req.PersonID)
+	person, err := rs.PersonService.Get(r.Context(), req.PersonID.Int64())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 		return
@@ -339,7 +339,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Create staff record (and optionally teacher) in tenant transaction
 	staff, teacher, teacherCreationFailed, err := rs.PersonService.CreateStaffWithTeacher(r.Context(), usersSvc.CreateStaffInput{
-		PersonID:       req.PersonID,
+		PersonID:       req.PersonID.Int64(),
 		StaffNotes:     req.StaffNotes,
 		IsTeacher:      req.IsTeacher,
 		Specialization: req.Specialization,
@@ -405,8 +405,8 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	staff.StaffNotes = req.StaffNotes
 
 	// Handle person ID change
-	if staff.PersonID != req.PersonID {
-		if rs.updateStaffPerson(r.Context(), staff, req.PersonID) != nil {
+	if staff.PersonID != req.PersonID.Int64() {
+		if rs.updateStaffPerson(r.Context(), staff, req.PersonID.Int64()) != nil {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 			return
 		}

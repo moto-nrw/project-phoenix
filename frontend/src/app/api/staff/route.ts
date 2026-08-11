@@ -43,11 +43,12 @@ interface BackendStaffResponse {
 /**
  * Type definition for staff creation request
  *
- * person_id is accepted as a decimal string as well as a number. It is a
- * PostgreSQL bigint, and this route parses the body and re-serializes it on the
- * way to the backend, so a number has already been through `JSON.parse` —
- * exactly the step that rounds a value past 2^53 into a valid id for a
- * different person (#2222). A string crosses that hop intact.
+ * person_id is accepted as a decimal string as well as a number, and is
+ * forwarded as a string. It is a PostgreSQL bigint, and this route parses the
+ * body and re-serializes it on the way to the backend, so a number has already
+ * been through `JSON.parse` — exactly the step that rounds a value past 2^53
+ * into a valid id for a different person (#2222). A string crosses that hop
+ * intact, and the backend field takes either form.
  */
 interface StaffCreateRequest {
   person_id: number | string;
@@ -59,35 +60,33 @@ interface StaffCreateRequest {
 }
 
 /**
- * Resolves the submitted person id to a number that provably still equals what
- * the caller sent, or null.
+ * Resolves the submitted person id to the decimal string that goes on the wire,
+ * or null when it is not a positive integer id.
  *
- * Anything above Number.MAX_SAFE_INTEGER is refused rather than forwarded. This
- * route cannot carry such a value — every field here passes through a JS number
- * on its way back out — and forwarding the rounded one would write a staff
- * record for a different person, a wrong result reported as success. Refusing is
- * the honest failure: a bigserial id reaching 2^53 is not a state this
- * application arrives at, and if it ever does, this says so instead of guessing.
+ * The value stays a string for the whole hop. Person ids are PostgreSQL
+ * bigints, and this route parses the body and re-serializes it — a number would
+ * pass through JSON.parse, which rounds anything above Number.MAX_SAFE_INTEGER
+ * into a valid id for a *different* person. The backend accepts the string, so
+ * there is no point in the chain where the digits have to fit in a JS number,
+ * and no id this route has to refuse for being too large.
+ *
+ * A number is still accepted for callers that send one, and is only safe to
+ * take when it is exactly representable — past 2^53 it has already been rounded
+ * before this function ever sees it, and nothing here can recover it.
  */
-function safePersonId(value: number | string | undefined): number | null {
+function safePersonId(value: number | string | undefined): string | null {
   if (typeof value === "string") {
     const digits = value.trim();
-    if (!/^\d+$/.test(digits)) {
+    // No leading zeros, so one id has exactly one spelling on the wire.
+    if (!/^[1-9]\d*$/.test(digits)) {
       return null;
     }
-    const parsed = Number(digits);
-    // String(parsed) round-trips only while the value is exactly representable,
-    // which also rules out the leading-zero spellings the regex admits.
-    return Number.isSafeInteger(parsed) &&
-      parsed > 0 &&
-      String(parsed) === digits
-      ? parsed
-      : null;
+    return digits;
   }
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
     return null;
   }
-  return value;
+  return String(value);
 }
 
 /**
@@ -241,7 +240,7 @@ export const POST = createPostHandler<TeacherResponse, StaffCreateRequest>(
     const personId = safePersonId(body.person_id);
     if (!personId) {
       throw new Error(
-        "Missing required field: person_id must be a positive number",
+        "Missing required field: person_id must be a positive integer id",
       );
     }
 

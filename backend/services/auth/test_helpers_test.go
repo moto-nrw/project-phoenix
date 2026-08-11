@@ -1082,6 +1082,21 @@ func (r *stubPersonRepository) LinkToRFIDCard(_ context.Context, personID int64,
 	return nil
 }
 
+// FindByTagID mirrors the real repository: no wearer is a clean (nil, nil).
+// The identity provisioning asks before it assigns a transponder, so a bracelet
+// somebody else is already wearing is refused instead of reaching the per-school
+// unique constraint and coming back as a 500 (#2222).
+func (r *stubPersonRepository) FindByTagID(_ context.Context, tagID string) (*userModel.Person, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, person := range r.people {
+		if person.TagID != nil && *person.TagID == tagID {
+			return person, nil
+		}
+	}
+	return nil, nil
+}
+
 // FindByAccountID mirrors the real repository: no match is a clean (nil, nil),
 // not an error. The identity provisioning walks this first to reuse an existing
 // person instead of creating a second one (#2222).

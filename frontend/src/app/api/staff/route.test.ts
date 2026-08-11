@@ -276,7 +276,7 @@ describe("POST /api/staff", () => {
       "/api/staff",
       "test-token",
       expect.objectContaining({
-        person_id: 10,
+        person_id: "10",
         is_teacher: true,
         specialization: "Science",
       }),
@@ -307,8 +307,8 @@ describe("POST /api/staff", () => {
 
   // The provisioned person id is a PostgreSQL bigint and arrives as a decimal
   // string, so it crosses the client → route hop without passing through a JS
-  // number (#2222). The route forwards it as a number, which is exact for every
-  // id this application produces.
+  // number (#2222). It leaves as a string too — the backend field takes either
+  // form, so the digits never have to fit in a JS number.
   it("accepts person_id as a decimal string", async () => {
     mockApiPost.mockResolvedValueOnce({
       id: 1,
@@ -328,18 +328,41 @@ describe("POST /api/staff", () => {
     expect(mockApiPost).toHaveBeenCalledWith(
       "/api/staff",
       "test-token",
-      expect.objectContaining({ person_id: 10 }),
+      expect.objectContaining({ person_id: "10" }),
     );
   });
 
-  // Above Number.MAX_SAFE_INTEGER the id cannot survive this route: every field
-  // is re-serialized through a JS number on the way out. Forwarding the rounded
-  // value would create a staff record for a different person and report success,
-  // so the request is refused instead.
-  it("refuses a person_id it cannot represent exactly", async () => {
+  // The case the string contract exists for: 2^53 + 1 is a valid bigint that a
+  // JS number rounds to 2^53, an id belonging to a different person. Carried as
+  // a string it reaches the backend exactly as sent, so this is a normal
+  // request rather than one the route has to refuse.
+  it("forwards a person_id beyond 2^53 unchanged", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      id: 1,
+      person_id: 10,
+      is_teacher: true,
+      created_at: "2024-01-15T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z",
+    });
+
     const request = createMockRequest("/api/staff", {
       method: "POST",
       body: { person_id: "9007199254740993", is_teacher: true }, // 2^53 + 1
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/staff",
+      "test-token",
+      expect.objectContaining({ person_id: "9007199254740993" }),
+    );
+  });
+
+  it("refuses a person_id that is not a plain positive integer", async () => {
+    const request = createMockRequest("/api/staff", {
+      method: "POST",
+      body: { person_id: "0012", is_teacher: true },
     });
     const response = await POST(request, createMockContext());
 
@@ -389,7 +412,7 @@ describe("POST /api/staff", () => {
       "/api/staff",
       "test-token",
       expect.objectContaining({
-        person_id: 10,
+        person_id: "10",
         staff_notes: "",
         specialization: "",
       }),

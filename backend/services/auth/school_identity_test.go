@@ -423,3 +423,79 @@ func TestEnsureSchoolIdentity_EmptyTagIsNotALookup(t *testing.T) {
 	require.Len(t, persons.people, 1)
 	require.Len(t, staffAll(), 1)
 }
+
+// A transponder somebody else is already wearing reached the per-school unique
+// index on users.persons.tag_id and came back as a constraint violation — a
+// bracelet handed out twice reported as a server fault. Taking it off its
+// current wearer is not this request's call either: they would silently lose
+// door access.
+func TestEnsureSchoolIdentity_RefusesTagWornBySomebodyElse(t *testing.T) {
+	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
+
+	worn := "KNOWNCARD1"
+	colleague := &userModel.Person{FirstName: "Andere", LastName: "Person", TagID: &worn}
+	colleague.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), colleague))
+
+	_, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "KNOWNCARD1"))
+	require.ErrorIs(t, err, ErrSchoolIdentityTagTaken)
+	require.True(t, IsSchoolIdentityRequestError(err),
+		"a transponder already in use is the caller's error, not the server's")
+
+	require.Len(t, persons.people, 1, "no person is created for a refused request")
+	require.Empty(t, staffAll())
+	require.Equal(t, "KNOWNCARD1", *colleague.TagID, "the wearer keeps their transponder")
+}
+
+// Same refusal on the reuse path: the account already has a person here, and
+// the submitted transponder belongs to a colleague.
+func TestEnsureSchoolIdentity_RefusesTakenTagForExistingPerson(t *testing.T) {
+	repos, persons, staffAll := identityReposWithTag("KNOWNCARD1")
+
+	worn := "KNOWNCARD1"
+	colleague := &userModel.Person{FirstName: "Andere", LastName: "Person", TagID: &worn}
+	colleague.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), colleague))
+
+	accountID := int64(9001)
+	existing := &userModel.Person{FirstName: "Bestehend", LastName: "Person", AccountID: &accountID}
+	existing.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), existing))
+
+	_, err := EnsureSchoolIdentity(context.Background(), repos,
+		identityInputWithTag(customRole("OGS-Leitung", authModel.BaseRoleAdmin), "KNOWNCARD1"))
+	require.ErrorIs(t, err, ErrSchoolIdentityTagTaken)
+
+	require.Nil(t, existing.TagID, "the account's person is left without a transponder")
+	require.Empty(t, staffAll(), "the request is refused as a whole")
+}
+
+// Names are needed to CREATE a person, never to reuse one. The link endpoint
+// exists to complete an account that already has an identity here, and refusing
+// it for a name it does not need is what the handler used to do.
+func TestEnsureSchoolIdentity_ReusesExistingPersonWithoutNames(t *testing.T) {
+	repos, persons, staffAll, _, _ := identityReposWithStudents()
+
+	accountID := int64(9001)
+	existing := &userModel.Person{FirstName: "Bestehend", LastName: "Person", AccountID: &accountID}
+	existing.SetTenantID(identityTenantID)
+	require.NoError(t, persons.Create(context.Background(), existing))
+
+	in := identityInput(customRole("OGS-Leitung", authModel.BaseRoleAdmin))
+	in.FirstName = ""
+	in.LastName = ""
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos, in)
+	require.NoError(t, err)
+	require.Equal(t, existing.ID, identity.Person.ID)
+	require.Equal(t, "Bestehend", identity.Person.FirstName, "the person's own name is untouched")
+	require.Len(t, staffAll(), 1)
+
+	// And the other half of the same rule: with nothing to reuse, the name is
+	// genuinely missing and the request fails on it.
+	repos, _, staffAll, _, _ = identityReposWithStudents()
+	_, err = EnsureSchoolIdentity(context.Background(), repos, in)
+	require.ErrorIs(t, err, ErrSchoolIdentityNamesRequired)
+	require.Empty(t, staffAll())
+}

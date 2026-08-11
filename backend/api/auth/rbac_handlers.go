@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // toRoleResponse maps a domain Role to its API response representation.
@@ -202,12 +203,18 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	requestedRoleID := int64(roleID)
-	approvedRoleID, _, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
+	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
 	if abort {
 		return
 	}
 
 	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, int(*approvedRoleID)); err != nil {
+		// The role row is written before the identity step runs, and the service
+		// reuses the request's tenant transaction, which TenantTxMiddleware
+		// commits for every response below 500. Without this marker a refused
+		// assignment would be committed anyway.
+		tenant.MarkRollback(r.Context())
+
 		// Caller mistake, not a server fault: the caregiver profile and the
 		// Lehrkraft role exclude each other in both directions (#1772) —
 		// surface the German policy message instead of a 500.
@@ -219,6 +226,13 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 				common.RenderError(w, r, common.ErrorConflict(policyErr))
 				return
 			}
+		}
+		// The account is linked to a child's person record, so the staff row
+		// this assignment owes cannot be built (#2222). Also the caller's
+		// problem, and the message says what to do about it.
+		if authService.IsSchoolIdentityRequestError(err) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

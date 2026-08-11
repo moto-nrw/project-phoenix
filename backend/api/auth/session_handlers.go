@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const headerUserAgent = "User-Agent"
@@ -138,19 +139,16 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authorize role assignment (if role_id specified)
-	roleID, role, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
 	if shouldReturn {
 		return
 	}
 
-	identity, ok := rs.schoolIdentityFor(w, r, role, req.FirstName, req.LastName, req.TagID)
-	if !ok {
-		return
-	}
-
 	account, schoolIdentity, err := rs.AuthService.RegisterSchoolAccount(
-		r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID, identity)
+		r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID,
+		schoolIdentityFrom(req.FirstName, req.LastName, req.TagID))
 	if err != nil {
+		markProvisioningRollback(r)
 		rs.handleRegistrationError(w, r, err)
 		return
 	}
@@ -160,51 +158,39 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
 }
 
-// schoolIdentityFor turns the request's identity fields into the provisioning
-// input. The bool reports whether the handler may continue; false means an
-// error response has already been written.
+// schoolIdentityFrom packages the request's identity fields for provisioning.
 //
-// A staff-tier role handed out without a name is refused. Accepting it is what
-// creates the state issue #2222 is about: an account that holds the role, logs
-// in, and is not staff as far as the database is concerned. There is nowhere to
-// take a name from afterwards (an account carries an email and a username,
-// never a person's name), so the request cannot be completed later, only
-// abandoned half-written.
+// Always non-nil, and deliberately without a name check: whether a name is
+// needed is not a question the HTTP layer can answer. An account that already
+// carries a person at this school is completed without one — reusing that
+// person is the whole point of the link endpoint, and it is the only person the
+// partial unique index on (tenant_id, account_id) allows. Only creating a
+// person needs a name, and there the provisioning itself refuses with
+// ErrSchoolIdentityNamesRequired, which both handlers render as 400. Deciding
+// it here refused the reuse case for a name it never needed.
 //
-// Callers that provision the identity themselves are not affected: they go
-// through RegisterSchoolAccount / LinkSchoolAccount with a nil identity
-// directly (operator account creation), not through these HTTP endpoints.
-//
-// Guardian-tier roles need no staff record and are accepted without names.
-func (rs *Resource) schoolIdentityFor(
-	w http.ResponseWriter,
-	r *http.Request,
-	role *authModel.Role,
-	firstName, lastName string,
-	tagID *string,
-) (*authService.SchoolAccountIdentity, bool) {
-	firstName = strings.TrimSpace(firstName)
-	lastName = strings.TrimSpace(lastName)
-
-	if firstName != "" && lastName != "" {
-		return &authService.SchoolAccountIdentity{
-			FirstName: firstName,
-			LastName:  lastName,
-			TagID:     tagID,
-		}, true
+// Guardian-tier roles provision nothing; EnsureSchoolIdentity returns early for
+// them whatever this carries.
+func schoolIdentityFrom(firstName, lastName string, tagID *string) *authService.SchoolAccountIdentity {
+	return &authService.SchoolAccountIdentity{
+		FirstName: strings.TrimSpace(firstName),
+		LastName:  strings.TrimSpace(lastName),
+		TagID:     tagID,
 	}
+}
 
-	if authService.RoleNeedsStaffRecord(role) {
-		claims := jwt.ClaimsFromCtx(r.Context())
-		slog.Default().Warn("school access refused without staff identity",
-			"role_id", role.ID,
-			"tenant_id", claims.TenantID,
-		)
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrSchoolIdentityNamesRequired))
-		return nil, false
-	}
-
-	return nil, true
+// markProvisioningRollback tells the tenant middleware to roll back after a
+// refused account provisioning.
+//
+// The account, its school mapping and its role are written before the identity
+// step runs, all in the request's tenant transaction — which TenantTxMiddleware
+// commits for every response below 500. Without this a 400 leaves behind
+// exactly the half-written account #2222 is about: school access and a role,
+// no person, no staff record. The rollback marker is the established way to
+// refuse a request that has already touched the database (see
+// tenant.MarkRollback).
+func markProvisioningRollback(r *http.Request) {
+	tenant.MarkRollback(r.Context())
 }
 
 // linkToTenant links an existing account to the caller's tenant.
@@ -217,18 +203,17 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Require admin auth and resolve role + tenant from JWT
-	roleID, role, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
 	if shouldReturn {
 		return
 	}
 
-	identity, ok := rs.schoolIdentityFor(w, r, role, req.FirstName, req.LastName, req.TagID)
-	if !ok {
-		return
-	}
-
-	account, schoolIdentity, err := rs.AuthService.LinkSchoolAccount(r.Context(), req.Email, roleID, callerTenantID, identity)
+	account, schoolIdentity, err := rs.AuthService.LinkSchoolAccount(
+		r.Context(), req.Email, roleID, callerTenantID,
+		schoolIdentityFrom(req.FirstName, req.LastName, req.TagID))
 	if err != nil {
+		markProvisioningRollback(r)
+
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
 			switch {
@@ -266,23 +251,23 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 }
 
 // authorizeRoleAssignment validates the role_id from the request and returns it
-// along with the resolved role and the caller's tenant ID. Auth and permission
-// checks are handled by middleware (Authenticator + TenantMiddleware +
-// RequiresPermission). Returns the role ID, the role, the tenant ID, and whether
-// the handler should return early (true = error rendered).
-func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, *authModel.Role, int64, bool) {
+// along with the caller's tenant ID. Auth and permission checks are handled by
+// middleware (Authenticator + TenantMiddleware + RequiresPermission). Returns
+// the role ID, the tenant ID, and whether the handler should return early
+// (true = error rendered).
+func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			errors.New("role_id is required when creating accounts")))
-		return nil, nil, 0, true
+		return nil, 0, true
 	}
 
 	if claims.TenantID <= 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			authService.ErrTenantRequiredForRoleAssignment))
-		return nil, nil, 0, true
+		return nil, 0, true
 	}
 
 	// Exists, belongs to this school, and is not reserved for another flow —
@@ -292,7 +277,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	role, err := rs.AuthService.ResolveAssignableSchoolRole(r.Context(), *requestedRoleID, claims.TenantID)
 	if err != nil {
 		renderRoleAssignmentError(w, r, *requestedRoleID, err)
-		return nil, nil, 0, true
+		return nil, 0, true
 	}
 
 	// Assignable is not the same as assignable *by this caller*: creating an
@@ -304,10 +289,10 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			"tenant_id", claims.TenantID,
 		)
 		common.RenderError(w, r, common.ErrorForbidden(authService.ErrRoleGrantNotPermitted))
-		return nil, nil, 0, true
+		return nil, 0, true
 	}
 
-	return requestedRoleID, role, claims.TenantID, false
+	return requestedRoleID, claims.TenantID, false
 }
 
 // renderRoleAssignmentError maps a role resolution failure to a response. The

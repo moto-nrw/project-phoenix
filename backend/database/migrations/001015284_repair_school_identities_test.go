@@ -564,4 +564,15 @@ func TestRepairSchoolIdentitiesSkipsStudentPersonForCaregiverProfile(t *testing.
 
 	assert.Equal(t, 0, liveTeacherCount(t, db, child.personID),
 		"a child's person must not receive a caregiver profile, even with a staff row on it")
+
+	// And it has to be reported. The staff row means nothing is missing by the
+	// "no staff record" measure, so asking only that question would let the one
+	// genuinely invalid identity in this migration's scope pass unmentioned —
+	// a child filed as personnel, left in place and never named.
+	rows, err := listUnrepairableSchoolIdentities(ctx, db)
+	require.NoError(t, err)
+
+	reason, listed := reasonForAccount(rows, child.accountID, tenantID)
+	require.True(t, listed, "a child's person carrying a staff row must still be reported")
+	assert.Contains(t, reason, "child")
 }

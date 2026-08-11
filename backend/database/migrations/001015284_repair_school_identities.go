@@ -249,21 +249,27 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 	})
 }
 
-// reportUnrepairableSchoolIdentities lists every account the repair could not
-// complete: school access, a staff-tier role, and still no staff record.
-//
-// It asks that question directly rather than re-listing one known cause, so a
-// row cannot be skipped above and stay silent here. Two causes reach it:
+// reportUnrepairableSchoolIdentities lists every account holding school access
+// as personnel that the repair could not put right. Two causes reach it:
 //
 //   - No person at this school and no name at another of their schools the
 //     first step could have used — either there is no other school, or those
 //     schools disagree on the name. Inventing one would mean making up personal
 //     data.
-//   - The person carrying the account at this school is a child's record. The
-//     staff step refuses it on purpose: filing a child as personnel is worse
+//   - The person carrying the account at this school is a child's record. Every
+//     step above refuses it on purpose: filing a child as personnel is worse
 //     than leaving the account incomplete, and it cannot be undone afterwards
 //     because nothing tells the resulting rows apart from legitimate ones. Such
 //     an account needs its own person, which means unlinking it from the child.
+//
+// The child case is reported whether or not a staff row exists, and that is not
+// belt and braces. Legacy data can already carry a staff row on a child's
+// person: the staff step then has nothing to add, the caregiver step still
+// refuses (a child is never personnel), and asking only "is a staff record
+// missing?" would let the whole account pass unmentioned — the one invalid
+// identity in this file's scope, silently. A missing staff row is a gap; a
+// child filed as personnel is a wrong answer, and it stays on the list until a
+// human separates the two records.
 //
 // Printed with the reason so a human can finish the job in the staff UI, which
 // links the new person to the account.
@@ -277,13 +283,27 @@ func reportUnrepairableSchoolIdentities(ctx context.Context, tx bun.Tx) error {
 		return nil
 	}
 
-	fmt.Printf("  %d account(s) hold school access as personnel without a staff record and need a human:\n", len(rows))
+	fmt.Printf("  %d account(s) hold school access as personnel with an incomplete or invalid identity and need a human:\n", len(rows))
 	for _, row := range rows {
 		fmt.Printf("    school %d: account %d (%s) — %s\n", row.TenantID, row.AccountID, row.Email, row.Reason)
 	}
 
 	return nil
 }
+
+// studentLinkedIdentityExists matches an account whose live person at the
+// school named by at.tenant_id is a child's record — the state every insert
+// above refuses, and the one the report must name whether or not a staff row
+// happens to exist. Written against the report's own aliases.
+const studentLinkedIdentityExists = `
+	EXISTS (
+		SELECT 1
+		FROM users.persons p
+		JOIN users.students st ON st.person_id = p.id
+		WHERE p.account_id = at.account_id
+		  AND p.tenant_id = at.tenant_id
+		  AND p.deleted_at IS NULL
+	)`
 
 // unrepairableSchoolIdentity is one account the repair left incomplete.
 type unrepairableSchoolIdentity struct {
@@ -300,28 +320,27 @@ func listUnrepairableSchoolIdentities(ctx context.Context, db bun.IDB) ([]unrepa
 
 	if err := db.NewRaw(`
 		SELECT at.account_id, at.tenant_id, a.email,
-		       CASE WHEN EXISTS (
-				SELECT 1
-				FROM users.persons p
-				JOIN users.students st ON st.person_id = p.id
-				WHERE p.account_id = at.account_id
-				  AND p.tenant_id = at.tenant_id
-				  AND p.deleted_at IS NULL
-		       ) THEN 'linked to a child''s person record'
+		       CASE WHEN `+studentLinkedIdentityExists+` THEN 'linked to a child''s person record'
 		            ELSE 'no person record and no name at another school'
 		       END AS reason
 		FROM auth.account_tenants at
 		JOIN auth.accounts a ON a.id = at.account_id
 		WHERE at.status = 'active'
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM users.persons p
-			JOIN users.staff s ON s.person_id = p.id AND s.deleted_at IS NULL
-			WHERE p.account_id = at.account_id
-			  AND p.tenant_id = at.tenant_id
-			  AND p.deleted_at IS NULL
-		  )
 		  AND `+staffTierRoleExists("at.account_id", "at.tenant_id")+`
+		  AND (
+			NOT EXISTS (
+				SELECT 1
+				FROM users.persons p
+				JOIN users.staff s ON s.person_id = p.id AND s.deleted_at IS NULL
+				WHERE p.account_id = at.account_id
+				  AND p.tenant_id = at.tenant_id
+				  AND p.deleted_at IS NULL
+			)
+			-- A staff row on a child's person is not a repaired account, it is
+			-- an invalid one. Asking only whether a staff record is missing
+			-- would drop it off this list entirely (see the doc comment).
+			OR `+studentLinkedIdentityExists+`
+		  )
 		ORDER BY at.tenant_id, at.account_id
 	`).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("error listing unrepairable accounts: %w", err)

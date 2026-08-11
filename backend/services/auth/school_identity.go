@@ -66,6 +66,17 @@ var ErrSchoolIdentityTagUnknown = errors.New("Der angegebene Transponder ist an 
 // screens, which say whose it was.
 var ErrSchoolIdentityTagConflict = errors.New("Diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert") //nolint:staticcheck // ST1005: user-facing German message
 
+// ErrSchoolIdentityTagTaken is returned when the submitted transponder is worn
+// by somebody else at this school.
+//
+// users.persons.tag_id is unique per school, so assigning it a second time
+// reached the database and came back as a constraint violation the endpoints
+// render as a 500 — a bracelet handed out twice reported as a server fault.
+// Taking it off its current wearer is not this request's call either: they
+// would silently lose door access. Naming the state is what lets the operator
+// fix it, in the staff screens that say whose transponder it is.
+var ErrSchoolIdentityTagTaken = errors.New("Dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet") //nolint:staticcheck // ST1005: user-facing German message
+
 // errSchoolIdentityStudentsRepoMissing marks a wiring mistake, never a bad
 // request: reusing an existing person is only safe once we can tell it is not a
 // child's. Every production caller passes the repository.
@@ -83,7 +94,8 @@ func IsSchoolIdentityRequestError(err error) bool {
 	return errors.Is(err, ErrSchoolIdentityNamesRequired) ||
 		errors.Is(err, ErrSchoolIdentityPersonIsStudent) ||
 		errors.Is(err, ErrSchoolIdentityTagUnknown) ||
-		errors.Is(err, ErrSchoolIdentityTagConflict)
+		errors.Is(err, ErrSchoolIdentityTagConflict) ||
+		errors.Is(err, ErrSchoolIdentityTagTaken)
 }
 
 // SchoolIdentityRepos bundles the repositories the identity chain lives in.
@@ -287,6 +299,11 @@ func resolveIdentityPerson(
 		return nil, ErrSchoolIdentityNamesRequired
 	}
 
+	// personID 0: there is no person yet, so any live wearer is somebody else.
+	if err := refuseTakenTag(ctx, repos, tagID, 0); err != nil {
+		return nil, err
+	}
+
 	person = &userModels.Person{
 		FirstName: firstName,
 		LastName:  lastName,
@@ -385,12 +402,52 @@ func applyIdentityTag(
 		return ErrSchoolIdentityTagConflict
 	}
 
+	if err := refuseTakenTag(ctx, repos, tagID, person.ID); err != nil {
+		return err
+	}
+
 	if err := repos.Persons.LinkToRFIDCard(ctx, person.ID, *tagID); err != nil {
 		return fmt.Errorf("link person to rfid card: %w", err)
 	}
 	person.TagID = tagID
 
 	return nil
+}
+
+// refuseTakenTag rejects a transponder that somebody else at this school is
+// already wearing. personID is the person about to receive it, or 0 when it is
+// about to be created with the tag as a column.
+//
+// users.persons.tag_id is unique per school. Without this check the assignment
+// reaches the database and returns a constraint violation, which the endpoints
+// cannot tell apart from a genuine failure and render as a 500 — so an operator
+// typing a bracelet that is already in use is told the server broke. The lookup
+// is tenant-filtered and skips soft-deleted persons (the model's soft_delete
+// tag), so an offboarded wearer does not block the tag.
+//
+// This is a read before a write inside the caller's transaction, not a lock:
+// two simultaneous requests for the same free tag can still both pass it and
+// let the loser hit the constraint. That race narrows the 500 to a genuinely
+// concurrent collision instead of the everyday case.
+func refuseTakenTag(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	tagID *string,
+	personID int64,
+) error {
+	if tagID == nil {
+		return nil
+	}
+
+	wearer, err := repos.Persons.FindByTagID(ctx, *tagID)
+	if err != nil {
+		return err
+	}
+	if wearer == nil || wearer.ID == personID {
+		return nil
+	}
+
+	return ErrSchoolIdentityTagTaken
 }
 
 func ensureIdentityStaff(
