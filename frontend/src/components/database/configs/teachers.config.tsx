@@ -416,8 +416,9 @@ export const teachersConfig = defineEntityConfig<Teacher>({
 
     // Custom create handler for teacher-specific flow
     create: async (data) => {
-      // Teacher creation requires multiple API calls (account, person, staff)
-      // Use the teacher service which handles this complex flow
+      // Staff creation is account + identity in one request (the backend
+      // provisions person and staff with it, #2222) plus the staff details.
+      // The teacher service owns that sequence.
       const teacherData = data as Partial<Teacher> & {
         password?: string;
         linkExisting?: boolean;
