@@ -425,6 +425,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
+	attendances := map[int64]*activeService.AttendanceStatus{}
 	if hasFullAccess {
 		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 		if err != nil {
@@ -435,16 +436,19 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		} else {
 			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
 		}
-
-		single := []StudentResponse{response.StudentResponse}
-		if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
-			student.ID: attendanceStatus,
-		}); err != nil {
-			renderError(w, r, common.ErrorInternalServer(err))
-			return
-		}
-		response.StudentResponse = single[0]
+		attendances[student.ID] = attendanceStatus
 	}
+
+	// Runs for a restricted entry too: the day-planning fields stay behind
+	// HasFullAccess inside, but the pending excused-absence note belongs to
+	// whoever decides that request — under open care that person supervises no
+	// group and sees every child restricted (#2232).
+	single := []StudentResponse{response.StudentResponse}
+	if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, attendances); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	response.StudentResponse = single[0]
 
 	// Add supervisor contacts for users without full access
 	if !hasFullAccess && group != nil {

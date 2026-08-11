@@ -173,6 +173,16 @@ type dayPlanningTimes struct {
 }
 
 func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) (dayPlanningTimes, error) {
+	// The parent's pending note runs FIRST and outside the full-access branch
+	// below: it is the review queue's signal, not part of the day plan, and its
+	// audience is whoever may decide the request. In a school without fixed
+	// groups that person supervises no group, so every child reaches them as a
+	// restricted entry — tying the note to the read scope would hide from the
+	// deciding staffer exactly the request they own (#2232).
+	if err := rs.applyPendingExcusedNotes(ctx, responses, planningDate); err != nil {
+		return dayPlanningTimes{}, err
+	}
+
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if len(fullAccessIDs) == 0 {
 		return dayPlanningTimes{}, nil
@@ -190,13 +200,38 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	if err != nil {
 		return dayPlanningTimes{}, err
 	}
-	pendingExcused, err := rs.loadPendingExcusedForDayPlanning(ctx, planningDate)
-	if err != nil {
-		return dayPlanningTimes{}, err
-	}
 
-	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, pendingExcused, isToday)
+	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, isToday)
 	return dayPlanningTimes{arrivals: arrivals, pickups: pickups}, nil
+}
+
+// applyPendingExcusedNotes attaches the guardian's note of a pending
+// excused-absence request to the children it was submitted for.
+//
+// Per-child scope comes from the loader: PendingByStudentForDate returns only
+// the children the caller may DECIDE the request for (the queue's own
+// AbsenceWritableStudentFilter), so a group supervisor still sees nothing
+// beyond their own children and no second filter is needed here.
+func (rs *Resource) applyPendingExcusedNotes(ctx context.Context, responses []StudentResponse, date timezone.Date) error {
+	if len(responses) == 0 {
+		return nil
+	}
+	pendingExcused, err := rs.loadPendingExcusedForDayPlanning(ctx, date)
+	if err != nil {
+		return err
+	}
+	if len(pendingExcused) == 0 {
+		return nil
+	}
+	for i := range responses {
+		req, ok := pendingExcused[responses[i].ID]
+		if !ok {
+			continue
+		}
+		note := req.Note
+		responses[i].PendingExcusedNote = &note
+	}
+	return nil
 }
 
 func (rs *Resource) loadDayPlanningArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
@@ -302,7 +337,6 @@ func applyDayPlanning(
 	pickups map[int64]*scheduleService.EffectivePickupTime,
 	attendances map[int64]*activeService.AttendanceStatus,
 	timetableIDs map[int64]struct{},
-	pendingExcused map[int64]*activeModels.ExcusedAbsenceRequest,
 	isToday bool,
 ) {
 	for i := range responses {
@@ -314,10 +348,6 @@ func applyDayPlanning(
 		responses[i].DayPlanningStatus = status
 		responses[i].DayPlanningReason = reason
 		responses[i].DayPlanningLabel = label
-		if req, ok := pendingExcused[id]; ok {
-			note := req.Note
-			responses[i].PendingExcusedNote = &note
-		}
 	}
 }
 

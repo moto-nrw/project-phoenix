@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AdminChangeRequestsPage from "./page";
+import { canReviewChangeRequests } from "~/lib/change-request-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 const { mockUseSession } = vi.hoisted(() => ({ mockUseSession: vi.fn() }));
@@ -84,7 +85,9 @@ describe("AdminChangeRequestsPage", () => {
       isReady: true,
       isLoading: false,
     });
-    mockUseSession.mockReturnValue(sessionWith(["users:absence"]));
+    mockUseSession.mockReturnValue(
+      sessionWith(["users:read", "users:absence"]),
+    );
 
     render(<AdminChangeRequestsPage />);
 
@@ -94,7 +97,10 @@ describe("AdminChangeRequestsPage", () => {
     expect(screen.queryByText("offering-request-review-list")).toBeNull();
   });
 
-  it("öffnet die Seite für users:update ODER users:absence", () => {
+  // Der Zugriff hängt an der geteilten Regel, nicht an einer zweiten
+  // Aufzählung in der Seite: users:update ODER das Paar users:absence +
+  // users:read, genau wie Sidebar, Eltern-Übersicht und Zähler-Badge.
+  it("öffnet die Seite über canReviewChangeRequests", () => {
     mockUseRequirePermission.mockReturnValue({
       isReady: true,
       isLoading: false,
@@ -102,9 +108,8 @@ describe("AdminChangeRequestsPage", () => {
 
     render(<AdminChangeRequestsPage />);
 
-    expect(mockUseRequirePermission).toHaveBeenCalledWith([
-      "users:update",
-      "users:absence",
-    ]);
+    expect(mockUseRequirePermission).toHaveBeenCalledWith(
+      canReviewChangeRequests,
+    );
   });
 });

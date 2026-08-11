@@ -8,14 +8,20 @@ import { MasterDataReviewList } from "~/components/students/master-data-review-l
 import { OfferingRequestReviewList } from "~/components/students/offering-request-review-list";
 import { Loading } from "~/components/ui/loading";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { canReviewStudentDataRequests } from "~/lib/change-request-access";
+import {
+  canReviewChangeRequests,
+  canReviewStudentDataRequests,
+} from "~/lib/change-request-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 export default function AdminChangeRequestsPage() {
-  // Gated on users:update OR users:absence (not admin-only), matching the
-  // backend routes. The backend scopes every queue per child, so a supervisor
-  // sees only their own group's requests.
-  const { isReady } = useRequirePermission(["users:update", "users:absence"]);
+  // Gated on users:update OR das Paar users:absence + users:read (nicht
+  // admin-only), passend zu den Backend-Routen und zur Abwesenheits-Prüfung
+  // dahinter. Der Zugriff steht in canReviewChangeRequests — dieselbe Regel
+  // trägt Sidebar-Eintrag, Eltern-Übersicht und Zähler-Badge. Das Backend
+  // begrenzt jede Warteschlange zusätzlich pro Kind, eine betreuende Person
+  // sieht also nur die Anfragen ihrer Gruppe.
+  const { isReady } = useRequirePermission(canReviewChangeRequests);
   const { data: session } = useSession();
   // Only the excused-absence queue accepts users:absence. Whoever holds just
   // that permission gets a 403 on the three Stammdaten-side queues, so they are

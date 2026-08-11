@@ -33,6 +33,20 @@ var ErrAbsenceStaffRequired = errors.New("only staff members can manage student 
 // unlocks one, so on its own it grants nothing (see CanManageStudentAbsence).
 var ErrAbsenceReadRequired = errors.New("the users:read permission is required alongside users:absence")
 
+// absenceOnlyAuthority reports whether the caller's claim on an absence action
+// rests on users:absence alone: they do not hold users:update, the permission
+// that gated every one of these writes before #2232 (admins satisfy it through
+// their wildcard, HasPermission resolves that).
+//
+// It is what decides where the users:read prerequisite applies. A users:update
+// holder keeps the pre-#2232 behavior untouched — that permission's own read
+// requirements are not this change's business. A caller admitted purely by the
+// new permission gets it on EVERY path, supervision included.
+func absenceOnlyAuthority(userPermissions []string) bool {
+	return !HasPermission(permissions.UsersUpdate, userPermissions) &&
+		HasPermission(permissions.UsersAbsence, userPermissions)
+}
+
 // CanManageStudentAbsence decides whether the caller may write a child's
 // absence statuses — krank, entschuldigt, Klassenfahrt — for today or for
 // planned days, and decide a guardian's excused/sick request.
@@ -44,6 +58,8 @@ var ErrAbsenceReadRequired = errors.New("the users:read permission is required a
 // (#2232). Absence is the one write such a school still needs from ordinary
 // staff, so it gets its own action-scoped decision:
 //
+//  0. A caller whose only claim is users:absence must also hold users:read —
+//     checked BEFORE everything else, supervision included (see below).
 //  1. Admin (admin:* / *:*) → allowed, as everywhere else.
 //  2. The caller supervises the child's education group → allowed. This is the
 //     unchanged fixed-groups behavior; a tenant on fixed_groups never reaches
@@ -67,6 +83,13 @@ var ErrAbsenceReadRequired = errors.New("the users:read permission is required a
 // nothing anywhere, instead of writing absences for a child its holder cannot
 // open. The Betreuer role this permission ships to already holds users:read.
 //
+// That prerequisite is checked FIRST, ahead of the supervisor shortcut, and not
+// only inside the open-care branch. The route gate admits users:absence on its
+// own, so a supervising holder of that permission alone would otherwise pass
+// through step 2 and write absences, decide guardian requests and see queue
+// entries in a school on fixed groups — inheriting from supervision exactly
+// what the pair is meant to deny them.
+//
 // Resolution fails CLOSED: a settings error is an operational fault, never a
 // tenant choice, so it leaves the caller with the supervisor gate's verdict.
 func CanManageStudentAbsence(
@@ -77,6 +100,9 @@ func CanManageStudentAbsence(
 	settings StudentAbsenceSettings,
 	logger *slog.Logger,
 ) (bool, error) {
+	if absenceOnlyAuthority(userPermissions) && !HasPermission(permissions.UsersRead, userPermissions) {
+		return false, ErrAbsenceReadRequired
+	}
 	supervisorOK, supervisorErr := CanModifyStudent(ctx, userPermissions, student, userCtx, "update")
 	if supervisorOK {
 		return true, nil
@@ -106,7 +132,9 @@ func CanManageStudentAbsence(
 //
 // Callers that scope a queue with this MUST gate the corresponding write with
 // CanManageStudentAbsence too: the filter decides visibility, the gate decides
-// the write, and they have to agree.
+// the write, and they have to agree. That includes the read prerequisite: a
+// caller admitted on users:absence alone, without users:read, sees no child
+// here either — otherwise the queue would list entries the gate then refuses.
 func AbsenceWritableStudentFilter(
 	ctx context.Context,
 	userPermissions []string,
@@ -114,10 +142,13 @@ func AbsenceWritableStudentFilter(
 	settings StudentAbsenceSettings,
 	logger *slog.Logger,
 ) func(*users.Student) bool {
-	supervised := WritableStudentFilter(ctx, userPermissions, userCtx)
 	if HasAdminWildcard(userPermissions) {
-		return supervised
+		return WritableStudentFilter(ctx, userPermissions, userCtx)
 	}
+	if absenceOnlyAuthority(userPermissions) && !HasPermission(permissions.UsersRead, userPermissions) {
+		return func(*users.Student) bool { return false }
+	}
+	supervised := WritableStudentFilter(ctx, userPermissions, userCtx)
 	if !openCareMode(ctx, settings, logger) ||
 		!HasPermission(permissions.UsersAbsence, userPermissions) ||
 		!HasPermission(permissions.UsersRead, userPermissions) ||
@@ -129,8 +160,9 @@ func AbsenceWritableStudentFilter(
 
 // CanReviewExcusedAbsenceRequests reports whether the caller may open and
 // decide the parent excused-absence queue: users:update (the queue's original
-// gate, shared with the Stammdaten queues next to it) or users:absence (the
-// same write under open care, #2232).
+// gate, shared with the Stammdaten queues next to it) or the users:absence +
+// users:read pair (the same write under open care, #2232 — users:absence never
+// counts on its own, exactly as in CanManageStudentAbsence).
 //
 // It exists so the read surfaces that merely ANNOUNCE a pending request — the
 // day-planning badge carrying the parent's note in the student list/detail and
@@ -141,8 +173,11 @@ func AbsenceWritableStudentFilter(
 // Per-child scope is decided separately (AbsenceWritableStudentFilter /
 // CanManageStudentAbsence); this is only the coarse permission question.
 func CanReviewExcusedAbsenceRequests(userPermissions []string) bool {
-	return HasPermission(permissions.UsersUpdate, userPermissions) ||
-		HasPermission(permissions.UsersAbsence, userPermissions)
+	if HasPermission(permissions.UsersUpdate, userPermissions) {
+		return true
+	}
+	return HasPermission(permissions.UsersAbsence, userPermissions) &&
+		HasPermission(permissions.UsersRead, userPermissions)
 }
 
 // openCareMode reports whether the tenant runs without fixed groups. Mirrors

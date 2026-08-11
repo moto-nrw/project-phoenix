@@ -21,13 +21,20 @@ export function canReviewStudentDataRequests(session: Session | null): boolean {
 
 /**
  * Darf die Person die Seite überhaupt öffnen? Zusätzlich zu users:update reicht
- * users:absence: Wer Abwesenheiten schreiben darf, entscheidet auch elterliche
- * Entschuldigungsanträge (#2232), sieht dort aber nur diese eine
- * Warteschlange. Backend-Queue und Zähler-Endpunkt tragen dasselbe Paar.
+ * users:absence zusammen mit users:read: Wer Abwesenheiten schreiben darf,
+ * entscheidet auch elterliche Entschuldigungsanträge (#2232), sieht dort aber
+ * nur diese eine Warteschlange.
+ *
+ * users:read gehört zwingend dazu, weil das Backend es genauso verlangt
+ * (authorize.CanManageStudentAbsence): users:absence ist ein Schreibrecht auf
+ * die Kinder, die jemand ohnehin sehen darf, und schaltet allein nichts frei.
+ * Ohne dieses Paar hier landete eine Person auf einer Seite, deren Liste und
+ * Zähler-Endpunkt ihr dauerhaft leer antworten.
  */
 export function canReviewChangeRequests(session: Session | null): boolean {
   return (
     canReviewStudentDataRequests(session) ||
-    hasPermission(session, "users:absence")
+    (hasPermission(session, "users:absence") &&
+      hasPermission(session, "users:read"))
   );
 }

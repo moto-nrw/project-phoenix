@@ -303,6 +303,82 @@ func TestOpenCareAbsence_ParentExcusedRequestDecidable(t *testing.T) {
 	})
 }
 
+// TestOpenCareAbsence_PendingNoteReachesUnsupervisingReviewer covers the read
+// side of the same request: under open care the person who decides it
+// supervises no group, so every child reaches them as a RESTRICTED entry
+// (has_full_access false). The parent's note is the queue's signal, not part of
+// the day plan, so it must survive that — a badge withheld from its decider
+// hides work they own.
+func TestOpenCareAbsence_PendingNoteReachesUnsupervisingReviewer(t *testing.T) {
+	tc := setupTestContext(t)
+	setGroupMode(t, tc, configModel.GroupModeOpenCare)
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Reviewer")
+	student := testpkg.CreateTestStudent(t, tc.db, "Note", "Kind", "1a")
+	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Einreicher")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, student.ID, submitter.ID)
+
+	const note = "Kommt später, Termin beim Kinderarzt"
+	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := tc.services.ExcusedRequests.CreateRequest(
+			txCtx, student.ID, submitterAccount.ID,
+			[]timezone.Date{timezone.TodayDate()}, note,
+		)
+		return err
+	}))
+
+	rr := authExec(t, tc,
+		testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil),
+		testutil.TeacherTestClaims(int(account.ID)),
+		[]string{"users:read", "users:absence"},
+	)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var env struct {
+		Data struct {
+			HasFullAccess      bool    `json:"has_full_access"`
+			PendingExcusedNote *string `json:"pending_excused_note"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	require.False(t, env.Data.HasFullAccess, "without supervision the child is a restricted entry")
+	require.NotNil(t, env.Data.PendingExcusedNote, "the decider of the request must see its note")
+	assert.Equal(t, note, *env.Data.PendingExcusedNote)
+}
+
+// TestAbsenceWithoutReadPermissionRefused pins the read prerequisite on the
+// path that does NOT go through open care: a supervisor holding users:absence
+// alone. The route gate admits that permission on its own, so without this the
+// caller would inherit the absence write — and the guardian requests behind
+// it — from supervision, in a school that never granted the pair.
+func TestAbsenceWithoutReadPermissionRefused(t *testing.T) {
+	tc := setupTestContext(t)
+	setGroupMode(t, tc, configModel.GroupModeFixedGroups)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NoRead", "Supervisor")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoReadGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "NoRead", "Kind", "1a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
+		"status": "sick",
+		"dates":  []string{timezone.TodayDate().String()},
+	})
+	testutil.AssertForbidden(t, authExec(t, tc, req, claims, []string{"users:absence"}))
+
+	// The same supervisor WITH users:read keeps working — the prerequisite is
+	// the missing permission, not the supervision.
+	ok := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
+		"status": "sick",
+		"dates":  []string{timezone.TodayDate().String()},
+	})
+	rr := authExec(t, tc, ok, claims, []string{"users:read", "users:absence"})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+}
+
 // adminTenantCtx builds the wildcard-admin, tenant-scoped context the fixture
 // setup needs to file the guardian's request the way the parents portal does.
 func adminTenantCtx(tenantID int64) context.Context {

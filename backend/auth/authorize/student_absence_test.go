@@ -91,6 +91,48 @@ func TestCanManageStudentAbsence_OpenCareWithoutReadDenied(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAbsenceReadRequired)
 }
 
+func TestCanManageStudentAbsence_SupervisorWithoutReadDenied(t *testing.T) {
+	// The read prerequisite holds on EVERY path, not only under open care: the
+	// route gate admits users:absence alone, so a supervising holder of that
+	// permission would otherwise inherit the write — and with it the guardian
+	// requests and the queue entries — from supervision, in a school on fixed
+	// groups where the pair was never granted.
+	userCtx := &stubUserCtx{
+		staff:  &users.Staff{},
+		groups: []*education.Group{{Model: base.Model{ID: 7}}},
+	}
+	ok, err := CanManageStudentAbsence(
+		t.Context(),
+		[]string{"users:absence"},
+		studentInGroup(7),
+		userCtx,
+		fixedGroupSettings(),
+		nil,
+	)
+	assert.False(t, ok, "supervision must not substitute for the missing users:read")
+	assert.ErrorIs(t, err, ErrAbsenceReadRequired)
+}
+
+func TestCanManageStudentAbsence_SupervisorWithUpdateKeepsWorkingWithoutRead(t *testing.T) {
+	// The mirror image: users:update is the permission that gated these writes
+	// before #2232, and what it requires elsewhere is not this gate's business.
+	// A supervisor holding it stays authorized exactly as before.
+	userCtx := &stubUserCtx{
+		staff:  &users.Staff{},
+		groups: []*education.Group{{Model: base.Model{ID: 7}}},
+	}
+	ok, err := CanManageStudentAbsence(
+		t.Context(),
+		[]string{"users:update", "users:absence"},
+		studentInGroup(7),
+		userCtx,
+		fixedGroupSettings(),
+		nil,
+	)
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
 func TestCanManageStudentAbsence_OpenCareNonStaffDenied(t *testing.T) {
 	// Guest/guardian accounts authenticate against the same portal; holding the
 	// permission is not enough without a staff record in this tenant.
@@ -245,6 +287,25 @@ func TestAbsenceWritableStudentFilter_OpenCareWithoutReadStaysSupervisorScoped(t
 	assert.False(t, filter(groupless()))
 }
 
+func TestAbsenceWritableStudentFilter_FixedGroupsWithoutReadSeesNothing(t *testing.T) {
+	// Same hole as the supervisor path above, in set form: without users:read the
+	// absence-only caller must not see their supervised children in the queue
+	// either, or it would list entries the decision then refuses.
+	userCtx := &stubUserCtx{
+		staff:  &users.Staff{},
+		groups: []*education.Group{{Model: base.Model{ID: 3}}},
+	}
+	filter := AbsenceWritableStudentFilter(
+		t.Context(),
+		[]string{"users:absence"},
+		userCtx,
+		fixedGroupSettings(),
+		nil,
+	)
+	assert.False(t, filter(studentInGroup(3)))
+	assert.False(t, filter(groupless()))
+}
+
 // --- CanReviewExcusedAbsenceRequests -----------------------------------
 
 func TestCanReviewExcusedAbsenceRequests(t *testing.T) {
@@ -257,6 +318,10 @@ func TestCanReviewExcusedAbsenceRequests(t *testing.T) {
 		{"users:absence", []string{"users:read", "users:absence"}, true},
 		{"admin wildcard", []string{"admin:*"}, true},
 		{"users:read only", []string{"users:read"}, false},
+		// The coarse queue gate carries the same pair as the per-child gate: a
+		// reviewer admitted here without users:read would open a queue that
+		// AbsenceWritableStudentFilter answers empty forever.
+		{"users:absence without users:read", []string{"users:absence"}, false},
 		{"nothing", nil, false},
 	}
 	for _, tc := range cases {
