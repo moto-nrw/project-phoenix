@@ -416,10 +416,11 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
 		}),
-		HasFullAccess:        hasFullAccess,
-		HasWriteAccess:       hasWriteAccess,
-		AttendanceLogEnabled: attendanceLogEnabled,
-		FeedbackEnabled:      feedbackEnabled,
+		HasFullAccess:         hasFullAccess,
+		HasWriteAccess:        hasWriteAccess,
+		HasAbsenceWriteAccess: rs.checkStudentAbsenceWriteAccess(r, student),
+		AttendanceLogEnabled:  attendanceLogEnabled,
+		FeedbackEnabled:       feedbackEnabled,
 	}
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
@@ -1129,8 +1130,8 @@ var errSickExcusedConflict = errors.New("sick and excused conflict on locked row
 // concurrent delete.
 var errStudentNotFoundUnderLock = errors.New("student deleted between snapshot and lock")
 
-// In-tx sentinel: the pre-tx canUpdateStudent check ran on student.GroupID from
-// the snapshot. canUpdateStudent decides off group membership, so a concurrent
+// In-tx sentinel: the pre-tx authorizeStudentUpdate check ran on student.GroupID
+// from the snapshot. The gate decides off group membership, so a concurrent
 // admin moving the student into a different group between snapshot and lock can
 // leave the caller without write authority on the locked row. Re-checking
 // against fresh closes that window. Mapped to 403 in the outer switch so the
@@ -1150,8 +1151,10 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 	}
 
 	// Re-check authorisation against the LOCKED row. A concurrent admin
-	// reassignment could otherwise let a non-supervisor mutate the row.
-	if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
+	// reassignment could otherwise let a non-supervisor mutate the row. Uses the
+	// same payload-aware gate as the pre-tx check so an absence-only write that
+	// was authorized by the open-care absence gate is not rejected here (#2232).
+	if _, ok, _ := rs.authorizeStudentUpdate(ctx, userPermissions, fresh, req); !ok {
 		return nil, errStudentReassigned
 	}
 
@@ -1452,17 +1455,16 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Centralized permission check for updating student data
+	// Centralized permission check for updating student data. An absence-only
+	// payload may additionally pass through the action-scoped absence gate
+	// (open care, #2232) — hasFullWriteAccess stays false in that case, so the
+	// response is built for a caller who may NOT read the child's full record.
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	hasFullWriteAccess, authorized, authErr := rs.authorizeStudentUpdate(r.Context(), userPermissions, student, req)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
-
-	// Track whether the user is admin or group supervisor
-	isAdmin := authorize.HasAdminWildcard(userPermissions)
-	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
 
 	// Update person fields using helper function
 	personResult := applyPersonUpdates(req, person)
@@ -1504,9 +1506,36 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Admin users and group supervisors can see full data including detailed location
-	hasFullAccess := isAdmin || isGroupSupervisor
-	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess, companionsChanged)
+	// Admin users and group supervisors can see full data including detailed
+	// location; an absence-only writer under open care cannot.
+	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullWriteAccess, companionsChanged)
+}
+
+// authorizeStudentUpdate is the PUT /students/{id} gate. It reports the full
+// write verdict separately from the effective one because the two diverge for
+// an absence-only payload: the caller may then be authorized by the
+// action-scoped absence gate (canManageStudentAbsence) without holding write
+// authority on the child's record at all, and the response must not be built as
+// if they did.
+//
+// The absence fallback is only ever consulted for a payload that carries
+// NOTHING but sick/excused (see UpdateStudentRequest.isAbsenceOnly), so it can
+// never let a Stammdaten field through.
+func (rs *Resource) authorizeStudentUpdate(
+	ctx context.Context,
+	userPermissions []string,
+	student *users.Student,
+	req *UpdateStudentRequest,
+) (hasFullWriteAccess, authorized bool, authErr error) {
+	fullOK, fullErr := canUpdateStudent(ctx, userPermissions, student, rs.UserContextService)
+	if fullOK || !req.isAbsenceOnly() {
+		return fullOK, fullOK, fullErr
+	}
+	// On denial the absence gate reports the supervisor gate's own reason
+	// wherever the tenant is not running open care, so the familiar 403 text
+	// survives unchanged.
+	absenceOK, absenceErr := rs.canManageStudentAbsence(ctx, userPermissions, student)
+	return false, absenceOK, absenceErr
 }
 
 // deleteStudent handles deleting a student and their associated person record

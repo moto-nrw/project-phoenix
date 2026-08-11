@@ -139,7 +139,11 @@ type excusedAbsenceRequestService struct {
 	emitter       *parentmessaging.Emitter
 	broadcaster   realtime.Broadcaster
 	absenceNotify notificationsService.AbsenceNotifier
-	logger        *slog.Logger
+	// settings resolves operations.group_mode for the absence write gate. nil
+	// (tests, partial wiring) makes the gate fall back to supervisor-only,
+	// never to the permissive open-care branch.
+	settings authorize.StudentAbsenceSettings
+	logger   *slog.Logger
 }
 
 // NewExcusedAbsenceRequestService wires the excused-request service.
@@ -151,6 +155,7 @@ func NewExcusedAbsenceRequestService(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
+	settings authorize.StudentAbsenceSettings,
 	logger *slog.Logger,
 ) ExcusedAbsenceRequestService {
 	if logger == nil {
@@ -164,8 +169,17 @@ func NewExcusedAbsenceRequestService(
 		userContext:   userContext,
 		emitter:       emitter,
 		broadcaster:   broadcaster,
+		settings:      settings,
 		logger:        logger,
 	}
+}
+
+// absenceWritable is the per-child visibility predicate shared by the review
+// queue and the pending badge: the caller may see a request exactly when they
+// could decide it (admin, the child's group supervisor, or — in a school
+// without fixed groups — a staff member holding users:absence, #2232).
+func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) func(*usersModels.Student) bool {
+	return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext, s.settings, s.logger)
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.
@@ -342,10 +356,10 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*Excu
 		return nil, fmt.Errorf("active: load persons for excused requests: %w", err)
 	}
 
-	// Scope the queue to children the caller may WRITE (admin, or the child's
-	// group supervisor) — the same gate as Decide, so a staffer only ever sees
-	// requests they can act on. This also scopes the sidebar badge.
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	// Scope the queue to children whose absences the caller may WRITE — the
+	// same gate as Decide, so a staffer only ever sees requests they can act
+	// on. This also scopes the sidebar badge.
+	writable := s.absenceWritable(ctx)
 
 	items := make([]*ExcusedRequestReviewItem, 0, len(rows))
 	for _, r := range rows {
@@ -400,7 +414,7 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("active: load students for pending excused badges: %w", err)
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	writable := s.absenceWritable(ctx)
 	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(candidates))
 	for studentID, req := range candidates {
 		// Alumni are excluded for the same reason as in the review queue: a
@@ -435,7 +449,8 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	// Per-child write authorization: the caller may decide only if they could
-	// edit the child directly — admin, or the child's group supervisor.
+	// report the same absence directly — admin, the child's group supervisor,
+	// or a users:absence holder in a school without fixed groups (#2232).
 	//
 	// Taken FOR UPDATE so the alumnus gate below decides on a state a concurrent
 	// grade transition cannot change underneath it: the transition apply locks
@@ -456,7 +471,7 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	if student.IsAlumnus() {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+	if ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext, s.settings, s.logger); !ok {
 		return nil, ErrExcusedRequestForbidden
 	}
 

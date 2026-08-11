@@ -90,6 +90,7 @@ func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService,
 		nil, // userContext: admin:* perms in the ctx short-circuit the write gate
 		emitter,
 		bc,
+		nil, // settings: nil resolves group mode to fixed_groups (supervisor gate)
 		nil, // logger: nil-safe, falls back to slog.Default()
 	)
 	return svc, bc, db

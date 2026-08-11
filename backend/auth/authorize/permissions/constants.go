@@ -46,6 +46,18 @@ const (
 	// as a device). Admins match via AdminWildcard; other roles must be
 	// granted explicitly.
 	UsersCheckin = ResourceUsers + ":checkin"
+
+	// UsersAbsence allows maintaining a child's absence statuses (krank,
+	// entschuldigt, Klassenfahrt) — today's quick report, planned status days,
+	// and deciding a guardian's excused/sick request. Deliberately its own
+	// permission instead of users:update: in a school running
+	// operations.group_mode = open_care there are no groups to supervise, so
+	// the absence gate falls back to this permission (see
+	// authorize.CanManageStudentAbsence) — and that fallback must not carry
+	// write access to addresses, health info, or any other Stammdaten with it.
+	// Admins match via AdminWildcard; other roles are granted explicitly
+	// (migration 1.15.290 grants it to the default `user`/Betreuer role).
+	UsersAbsence = ResourceUsers + ":absence"
 )
 
 // Activity permissions

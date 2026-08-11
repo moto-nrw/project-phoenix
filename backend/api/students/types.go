@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -191,11 +192,17 @@ type SupervisorContact struct {
 // StudentDetailResponse represents a detailed student response with access control
 type StudentDetailResponse struct {
 	StudentResponse
-	HasFullAccess        bool                `json:"has_full_access"`
-	HasWriteAccess       bool                `json:"has_write_access"`
-	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
-	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
-	FeedbackEnabled      bool                `json:"feedback_enabled"`
+	HasFullAccess  bool `json:"has_full_access"`
+	HasWriteAccess bool `json:"has_write_access"`
+	// HasAbsenceWriteAccess gates the Krankmeldung / Entschuldigung /
+	// Klassenfahrt actions specifically. It is a superset of HasWriteAccess: in
+	// a school running operations.group_mode = open_care, staff holding
+	// users:absence may report absences for children they cannot otherwise edit
+	// (#2232). Never use it to show Stammdaten edit affordances.
+	HasAbsenceWriteAccess bool                `json:"has_absence_write_access"`
+	GroupSupervisors      []SupervisorContact `json:"group_supervisors,omitempty"`
+	AttendanceLogEnabled  bool                `json:"attendance_log_enabled"`
+	FeedbackEnabled       bool                `json:"feedback_enabled"`
 }
 
 type StudentStatusDayResponse struct {
@@ -567,6 +574,43 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler
 	return nil
+}
+
+// absenceOnlyUpdateFields lists the UpdateStudentRequest fields that carry
+// nothing but an absence report for today. Everything else on the struct is
+// Stammdaten, Betreuungsplanung, or photo consent.
+var absenceOnlyUpdateFields = map[string]bool{
+	"Sick":       true,
+	"SickReason": true,
+	"Excused":    true,
+}
+
+// isAbsenceOnly reports whether this payload does nothing but report or clear
+// today's absence. It is what lets PUT /students/{id} fall back to the
+// action-scoped absence gate in a school without fixed groups (#2232) — so it
+// has to be exact: one Stammdaten field riding along must make it false.
+//
+// Deliberately reflection-based rather than a hand-written field list. A new
+// field added to UpdateStudentRequest is then automatically treated as "not an
+// absence field", instead of silently slipping through the weaker gate until
+// somebody remembers to extend a negative list here.
+func (req *UpdateStudentRequest) isAbsenceOnly() bool {
+	if req == nil {
+		return false
+	}
+	value := reflect.ValueOf(*req)
+	structType := value.Type()
+	carriesAbsence := false
+	for i := range structType.NumField() {
+		if value.Field(i).IsZero() {
+			continue
+		}
+		if !absenceOnlyUpdateFields[structType.Field(i).Name] {
+			return false
+		}
+		carriesAbsence = true
+	}
+	return carriesAbsence
 }
 
 // hasCompanionUpdate reports whether the request carries a "läuft mit" list.

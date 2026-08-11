@@ -65,7 +65,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	authorized, authErr := rs.canManageStudentAbsence(r.Context(), userPermissions, student)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
@@ -184,7 +184,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	authorized, authErr := rs.canManageStudentAbsence(r.Context(), userPermissions, student)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
@@ -207,8 +207,8 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 }
 
 // newStatusDayWriteContext bundles the collaborators the status-day write
-// service needs, keeping the JWT-permission decision (canUpdateStudent) and the
-// SSE fan-out at the HTTP boundary.
+// service needs, keeping the JWT-permission decision (canManageStudentAbsence)
+// and the SSE fan-out at the HTTP boundary.
 func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) activeService.StatusDayWriteContext {
 	tenantID := tenant.FromContext(r.Context())
 	return activeService.StatusDayWriteContext{
@@ -216,7 +216,7 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 		TenantID:       tenantID,
 		StudentService: rs.StudentService,
 		Authorize: func(ctx context.Context, student *users.Student) bool {
-			ok, _ := canUpdateStudent(ctx, userPermissions, student, rs.UserContextService)
+			ok, _ := rs.canManageStudentAbsence(ctx, userPermissions, student)
 			return ok
 		},
 		AfterCommit: func(studentID int64) {

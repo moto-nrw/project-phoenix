@@ -79,7 +79,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 		repos.StudentStatusDay,
 		repos.Student,
 		repos.Person,
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		slog.Default(),
 	)
 	svc := parentService.NewService(parentService.ServiceConfig{
