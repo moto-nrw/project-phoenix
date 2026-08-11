@@ -151,7 +151,12 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 	assert.NotNil(t, entryFor(entries, testSchoolID), "existing access must survive")
 }
 
-func TestIntegration_GrantAccountTenantAccess_CustomUserBaseDoesNotCreateCaregiverProfile(t *testing.T) {
+// A school's own caregiver-tier role gets the caregiver profile the platform
+// user role gets (#2222). It used to be withheld because the provisioning
+// keyed on auth.roles.is_system, which left such an account in the staff list
+// with empty groups and empty supervisions — the same bug one level down from
+// the missing staff record. The tier decides now, not the origin of the role.
+func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProfile(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -177,7 +182,7 @@ func TestIntegration_GrantAccountTenantAccess_CustomUserBaseDoesNotCreateCaregiv
 		Where(`"p".tenant_id = ?`, accessTargetTenantID).
 		Count(ctx)
 	require.NoError(t, err)
-	assert.Zero(t, teacherCount, "custom user-base roles must not create a caregiver profile")
+	assert.Equal(t, 1, teacherCount, "custom user-base roles need the caregiver profile their tier reads through")
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {

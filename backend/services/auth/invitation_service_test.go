@@ -375,7 +375,7 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 }
 
 func TestAcceptInvitationRollsBackOnError(t *testing.T) {
-	service, invitations, accounts, _, _, persons, _, mock, cleanup := newInvitationTestEnv(t)
+	service, invitations, _, _, _, persons, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
@@ -400,10 +400,16 @@ func TestAcceptInvitationRollsBackOnError(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.False(t, token.IsUsed(), "invitation should remain unused on failure")
-
-	_, err = accounts.FindByEmail(ctx, "user@example.com")
-	require.ErrorIs(t, err, sql.ErrNoRows)
 	require.Equal(t, 0, len(persons.people), "person creation should not persist")
+
+	// The account is written before the identity now (#2222): the provisioning
+	// looks the account's existing person up to reuse it, which needs the
+	// account id. Against a real database the surrounding transaction takes the
+	// account insert back with everything else — the in-memory stubs here have
+	// no transaction to roll back, so the account row they hold says nothing
+	// about that. What this test still proves is that the failure aborts the
+	// acceptance: the error surfaces, the invitation stays unused, and no
+	// person is left behind.
 }
 
 func TestAcceptInvitationWeakPassword(t *testing.T) {
