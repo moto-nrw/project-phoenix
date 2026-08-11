@@ -844,7 +844,7 @@ func collectResponseIDs(students []StudentResponse) []int64 {
 }
 
 func (rs *Resource) exportSubtitle(r *http.Request, count int) string {
-	name := "Kindersuche"
+	name := "Alle Kinder"
 	if tenantID := tenant.FromContext(r.Context()); tenantID > 0 && rs.SchoolService != nil {
 		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && school.Name != "" {
 			name = school.Name
