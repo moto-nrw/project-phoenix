@@ -158,11 +158,11 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           },
           {
             name: "max_participant",
-            label: "Maximale Teilnehmer",
+            label: "Maximale Teilnehmer (optional)",
             type: "number",
-            required: true,
+            required: false,
             min: 1,
-            placeholder: "20",
+            placeholder: "Keine Begrenzung",
           },
         ],
       },
@@ -204,7 +204,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       badges: [
         {
           label: (activity) =>
-            `${activity.participant_count ?? 0}/${activity.max_participant}`,
+            activity.max_participant == null
+              ? `${activity.participant_count ?? 0} Teilnehmende`
+              : `${activity.participant_count ?? 0}/${activity.max_participant}`,
           color: "bg-moto-blue-soft text-moto-blue-strong",
           showWhen: () => true,
         },
@@ -212,6 +214,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           label: "Voll",
           color: "bg-moto-red-soft text-moto-red-strong",
           showWhen: (activity: Activity) =>
+            activity.max_participant != null &&
             (activity.participant_count ?? 0) >= activity.max_participant,
         },
       ],
@@ -236,7 +239,8 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           },
           {
             label: "Maximale Teilnehmer",
-            value: (activity: Activity) => activity.max_participant.toString(),
+            value: (activity: Activity) =>
+              activity.max_participant?.toString() ?? "Unbegrenzt",
           },
           {
             label: "Aktuelle Teilnehmer",
@@ -382,7 +386,9 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         },
         {
           label: (activity: Activity) =>
-            `${activity.participant_count ?? 0}/${activity.max_participant}`,
+            activity.max_participant == null
+              ? `${activity.participant_count ?? 0} Teilnehmende`
+              : `${activity.participant_count ?? 0}/${activity.max_participant}`,
           color: "bg-moto-blue-soft text-moto-blue-strong",
           showWhen: () => true,
         },
@@ -390,6 +396,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
           label: "Voll",
           color: "bg-moto-red-soft text-moto-red-strong",
           showWhen: (activity: Activity) =>
+            activity.max_participant != null &&
             (activity.participant_count ?? 0) >= activity.max_participant,
         },
       ],
@@ -401,7 +408,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       // Convert frontend Activity to backend format
       const request: Record<string, unknown> = {
         name: data.name,
-        max_participants: data.max_participant,
+        max_participants: data.max_participant ?? null,
         category_id: data.ag_category_id
           ? Number.parseInt(data.ag_category_id, 10)
           : undefined,

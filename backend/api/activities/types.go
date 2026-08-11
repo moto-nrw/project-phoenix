@@ -50,7 +50,7 @@ type SupervisorResponse struct {
 type ActivityResponse struct {
 	ID              int64                `json:"id"`
 	Name            string               `json:"name"`
-	MaxParticipants int                  `json:"max_participants"`
+	MaxParticipants *int                 `json:"max_participants"`
 	IsOpen          bool                 `json:"is_open"`
 	CategoryID      int64                `json:"category_id"`
 	PlannedRoomID   *int64               `json:"planned_room_id,omitempty"`
@@ -134,8 +134,8 @@ func (req *ActivityRequest) Bind(_ *http.Request) error {
 	if req.Name == "" {
 		return errors.New("activity name is required")
 	}
-	if req.MaxParticipants <= 0 {
-		return errors.New("max participants must be greater than zero")
+	if req.MaxParticipants < 0 {
+		return errors.New("max participants cannot be negative")
 	}
 	if req.CategoryID <= 0 {
 		return errors.New("category ID is required")
@@ -161,8 +161,8 @@ func (req *QuickActivityRequest) Bind(_ *http.Request) error {
 	if req.CategoryID <= 0 {
 		return errors.New("category ID is required")
 	}
-	if req.MaxParticipants <= 0 {
-		return errors.New("max participants must be greater than zero")
+	if req.MaxParticipants < 0 {
+		return errors.New("max participants cannot be negative")
 	}
 	return nil
 }

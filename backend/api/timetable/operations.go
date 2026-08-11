@@ -299,7 +299,7 @@ func (rs *Resource) resolveSpontaneousActivityGroupID(ctx context.Context, title
 	group := &activityModel.Group{
 		Name:            title,
 		CategoryID:      category.ID,
-		MaxParticipants: 999,
+		MaxParticipants: 0,
 		IsOpen:          true,
 		CreatedBy:       &createdBy,
 		Type:            activityModel.GroupTypeActivity,

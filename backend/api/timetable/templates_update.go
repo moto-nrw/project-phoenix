@@ -24,7 +24,7 @@ type updateTemplateRequest struct {
 	RoomID          int64         `json:"room_id"`
 	CategoryID      int64         `json:"category_id"`
 	PlanningTrackID nullableInt64 `json:"planning_track_id"`
-	MaxParticipants *int          `json:"max_participants,omitempty"`
+	MaxParticipants nullableInt   `json:"max_participants"`
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// omitted/null clears the override (derive from the Betreuungsschlüssel).
 	RequiredStaff    *int   `json:"required_staff,omitempty"`
@@ -94,6 +94,9 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if req.CategoryID <= 0 {
 		return errors.New("category_id is required")
 	}
+	if req.MaxParticipants.Set && req.MaxParticipants.Value != nil && *req.MaxParticipants.Value <= 0 {
+		return errors.New("max_participants must be greater than zero when set")
+	}
 	if req.StartTime == "" || req.EndTime == "" {
 		return errors.New("start_time and end_time are required")
 	}
@@ -141,12 +144,13 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 // parsedUpdateTemplate holds the request plus values derived from cheap format
 // validation (clock window, defaulted week pattern and cap).
 type parsedUpdateTemplate struct {
-	req              *updateTemplateRequest
-	startTime        time.Time
-	endTime          time.Time
-	weekPattern      int
-	maxParticipants  int
-	seriesRosterFrom *timezone.Date
+	req                     *updateTemplateRequest
+	startTime               time.Time
+	endTime                 time.Time
+	weekPattern             int
+	maxParticipants         int
+	maxParticipantsProvided bool
+	seriesRosterFrom        *timezone.Date
 }
 
 // parseUpdateTemplateRequest binds and format-validates the request. Format
@@ -162,7 +166,7 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
 		return nil, false
 	}
-	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants)
+	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants.Value)
 	if !ok {
 		return nil, false
 	}
@@ -176,12 +180,13 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 		seriesRosterFrom = &parsedDate
 	}
 	return &parsedUpdateTemplate{
-		req:              req,
-		startTime:        timing.startTime,
-		endTime:          timing.endTime,
-		weekPattern:      timing.weekPattern,
-		maxParticipants:  timing.maxParticipants,
-		seriesRosterFrom: seriesRosterFrom,
+		req:                     req,
+		startTime:               timing.startTime,
+		endTime:                 timing.endTime,
+		weekPattern:             timing.weekPattern,
+		maxParticipants:         timing.maxParticipants,
+		maxParticipantsProvided: req.MaxParticipants.Set,
+		seriesRosterFrom:        seriesRosterFrom,
 	}, true
 }
 
@@ -416,6 +421,7 @@ func buildUpdateTemplateInput(
 			RoomID:                  req.RoomID,
 			EducationGroupID:        req.EducationGroupID,
 			MaxParticipants:         parsed.maxParticipants,
+			MaxParticipantsProvided: parsed.maxParticipantsProvided,
 			RequiredStaff:           normalizeRequiredStaff(req.RequiredStaff),
 			CalendarPeriodID:        req.CalendarPeriodID,
 			TargetGroupType:         req.TargetGroupType,

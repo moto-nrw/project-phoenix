@@ -90,7 +90,7 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 	response := ActivityResponse{
 		ID:              group.ID,
 		Name:            group.Name,
-		MaxParticipants: group.MaxParticipants,
+		MaxParticipants: group.ParticipantLimit(),
 		IsOpen:          group.IsOpen,
 		CategoryID:      group.CategoryID,
 		CreatedBy:       group.CreatedBy,

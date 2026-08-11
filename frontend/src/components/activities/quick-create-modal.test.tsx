@@ -16,6 +16,8 @@ vi.mock("~/lib/use-notification", () => ({
 }));
 
 vi.mock("~/hooks/useActivityForm", () => ({
+  parseParticipantLimit: (value: string) =>
+    value ? Number.parseInt(value, 10) : null,
   useActivityForm: vi.fn(() => ({
     form: {
       name: "",
@@ -142,6 +144,22 @@ describe("QuickCreateActivityModal", () => {
         screen.getByLabelText(/Maximale Teilnehmerzahl/),
       ).toBeInTheDocument();
     });
+  });
+
+  it("does not cap the participant limit at 50", () => {
+    render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+    expect(
+      screen.getByLabelText(/Maximale Teilnehmerzahl/),
+    ).not.toHaveAttribute("max");
+  });
+
+  it("offers an explicit unlimited option", () => {
+    render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+    expect(
+      screen.getByRole("checkbox", { name: "Keine Begrenzung" }),
+    ).toBeInTheDocument();
   });
 
   it("renders category options", async () => {
