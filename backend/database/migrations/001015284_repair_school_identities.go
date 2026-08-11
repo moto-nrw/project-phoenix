@@ -30,25 +30,62 @@ func init() {
 }
 
 // staffTierRoleExists matches an account that holds at least one role of staff
-// tier at the school. Mirrors RoleNeedsStaffRecord: everything that is not a
-// guardian is personnel, and an unknown tier counts as personnel because a
-// staff row grants nothing — withholding it is what breaks the account.
-const staffTierRoleExists = `
+// tier at the school named by the given columns. Mirrors RoleNeedsStaffRecord:
+// everything that is not a guardian is personnel, and an unknown tier counts as
+// personnel because a staff row grants nothing — withholding it is what breaks
+// the account.
+//
+// The column names are the caller's own aliases, never input.
+func staffTierRoleExists(accountColumn, tenantColumn string) string {
+	return `
 	EXISTS (
 		SELECT 1
 		FROM auth.account_roles ar
 		JOIN auth.roles r ON r.id = ar.role_id
-		WHERE ar.account_id = p.account_id
-		  AND ar.tenant_id = p.tenant_id
+		WHERE ar.account_id = ` + accountColumn + `
+		  AND ar.tenant_id = ` + tenantColumn + `
 		  AND COALESCE(
 				NULLIF(LOWER(TRIM(r.base_role)), ''),
 				CASE WHEN r.is_system THEN LOWER(TRIM(r.name)) END,
 				''
 		      ) <> 'guardian'
 	)`
+}
 
-// repairSchoolIdentitiesUp adds the users.staff rows that the invitation flow
-// failed to create.
+// unambiguousNameFromMappedSchools yields, per account, the one name it carries
+// at the schools it is ACTIVELY mapped to.
+//
+// This is the SQL twin of loadPersonNamesForTenant's fallback: the name shown
+// to such an account today already comes from another of its schools, which is
+// why the broken state looks healthy in the header. Only schools the account
+// genuinely belongs to are consulted, and only a name they all agree on is
+// used — two different names is an ambiguity this migration is no more
+// entitled to resolve than the login is, so those accounts fall through to the
+// report instead.
+//
+// Student rows are never a name source: a person that is a student is a child,
+// not the account holder's identity.
+const unambiguousNameFromMappedSchools = `
+	SELECT p.account_id,
+	       MIN(TRIM(p.first_name)) AS first_name,
+	       MIN(TRIM(p.last_name))  AS last_name
+	FROM users.persons p
+	JOIN auth.account_tenants at2
+	  ON at2.account_id = p.account_id
+	 AND at2.tenant_id = p.tenant_id
+	 AND at2.status = 'active'
+	WHERE p.account_id IS NOT NULL
+	  AND p.deleted_at IS NULL
+	  AND TRIM(p.first_name) <> ''
+	  AND TRIM(p.last_name) <> ''
+	  AND NOT EXISTS (
+		SELECT 1 FROM users.students st WHERE st.person_id = p.id
+	  )
+	GROUP BY p.account_id
+	HAVING COUNT(DISTINCT (TRIM(p.first_name), TRIM(p.last_name))) = 1`
+
+// repairSchoolIdentitiesUp completes the identity chain for accounts that hold
+// school access as personnel without carrying it.
 //
 // Until #2222 the staff record was created only for platform roles. An account
 // invited with a school's own role got a person and nothing else: it holds the
@@ -62,11 +99,21 @@ const staffTierRoleExists = `
 // instead would need a second person for the same account at the same school,
 // which the partial unique index on (tenant_id, account_id) refuses outright.
 //
+// An account can also be missing the person itself. That is the second source
+// of the same state: /auth/register and /auth/link-to-tenant created account,
+// mapping and role, and left the identity to two follow-up requests from the
+// browser. Where such an account is mapped to more than one school, the name is
+// not lost — it sits on its person at another of its schools, and the login
+// already serves it from there, which is why the header shows a name while the
+// school's own staff list does not. The first step below writes that name into
+// a person at this school, under the same unambiguity rule the login applies,
+// so the staff step can then do its work.
+//
 // Scope, deliberately narrow:
 //   - only persons linked to an account, not soft-deleted
 //   - only where that account still has ACTIVE access to that school
 //   - only where the account holds a staff-tier role there
-//   - never a person that is a student
+//   - never a person that is a student, neither as target nor as name source
 //
 // Caregiver profiles (users.teachers) are created under the same rule the
 // provisioning now applies: caregiver tier gets one, as does the retired
@@ -80,6 +127,27 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		res, err := tx.ExecContext(ctx, `
+			INSERT INTO users.persons (tenant_id, account_id, first_name, last_name, created_at, updated_at)
+			SELECT at.tenant_id, at.account_id, n.first_name, n.last_name, NOW(), NOW()
+			FROM auth.account_tenants at
+			JOIN (`+unambiguousNameFromMappedSchools+`) n ON n.account_id = at.account_id
+			WHERE at.status = 'active'
+			  AND NOT EXISTS (
+				SELECT 1 FROM users.persons p
+				WHERE p.account_id = at.account_id
+				  AND p.tenant_id = at.tenant_id
+				  AND p.deleted_at IS NULL
+			  )
+			  AND `+staffTierRoleExists("at.account_id", "at.tenant_id")+`
+		`)
+		if err != nil {
+			return fmt.Errorf("error repairing person records: %w", err)
+		}
+		if affected, affErr := res.RowsAffected(); affErr == nil {
+			fmt.Printf("  Created %d missing person record(s) from a name the account carries at another school\n", affected)
+		}
+
+		res, err = tx.ExecContext(ctx, `
 			INSERT INTO users.staff (tenant_id, person_id, staff_notes, created_at, updated_at)
 			SELECT p.tenant_id, p.id, '', NOW(), NOW()
 			FROM users.persons p
@@ -98,7 +166,7 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 			  AND NOT EXISTS (
 				SELECT 1 FROM users.students st WHERE st.person_id = p.id
 			  )
-			  AND `+staffTierRoleExists+`
+			  AND `+staffTierRoleExists("p.account_id", "p.tenant_id")+`
 		`)
 		if err != nil {
 			return fmt.Errorf("error repairing staff records: %w", err)
@@ -168,10 +236,12 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 }
 
 // reportUnrepairableSchoolIdentities lists the accounts the repair cannot
-// reach: they have school access and a staff-tier role but no person at all, so
-// there is no name to build an identity from. Creating one would mean inventing
-// personal data. They are printed so a human can complete them through the
-// staff UI, which links the new person to the account.
+// reach: they have school access and a staff-tier role, no person at this
+// school, and no name at another of their schools that the first step could
+// have used — either because they have no other school or because those
+// schools disagree on the name. Inventing one would mean making up personal
+// data. They are printed so a human can complete them through the staff UI,
+// which links the new person to the account.
 func reportUnrepairableSchoolIdentities(ctx context.Context, tx bun.Tx) error {
 	var rows []struct {
 		AccountID int64  `bun:"account_id"`
@@ -190,18 +260,7 @@ func reportUnrepairableSchoolIdentities(ctx context.Context, tx bun.Tx) error {
 			  AND p.tenant_id = at.tenant_id
 			  AND p.deleted_at IS NULL
 		  )
-		  AND EXISTS (
-			SELECT 1
-			FROM auth.account_roles ar
-			JOIN auth.roles r ON r.id = ar.role_id
-			WHERE ar.account_id = at.account_id
-			  AND ar.tenant_id = at.tenant_id
-			  AND COALESCE(
-					NULLIF(LOWER(TRIM(r.base_role)), ''),
-					CASE WHEN r.is_system THEN LOWER(TRIM(r.name)) END,
-					''
-			      ) <> 'guardian'
-		  )
+		  AND `+staffTierRoleExists("at.account_id", "at.tenant_id")+`
 		ORDER BY at.tenant_id, at.account_id
 	`).Scan(ctx, &rows); err != nil {
 		return fmt.Errorf("error listing unrepairable accounts: %w", err)

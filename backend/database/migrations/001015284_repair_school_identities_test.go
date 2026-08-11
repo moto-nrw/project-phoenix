@@ -225,3 +225,193 @@ func liveTeacherCount(t *testing.T, db *bun.DB, personID int64) int {
 	require.NoError(t, err)
 	return count
 }
+
+// The second source of the same broken state: an account that reached the
+// school through /auth/link-to-tenant never got a person here, so there is
+// nothing for the staff step to attach to. Where the account holds a person at
+// another of its schools the name is not lost — the login already serves it
+// from there, which is why such an account shows a name in the header and is
+// absent from the school's own staff list. The repair writes that name into a
+// person at this school and staffs it, by tier, exactly as the provisioning
+// would have.
+func TestRepairSchoolIdentitiesCreatesPersonFromMappedSchool(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	homeTenantID := testpkg.UniqueTestTenantID(t)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, db, homeTenantID)
+	testpkg.EnsureTestTenant(t, db, targetTenantID)
+	defer testpkg.CleanupTenantTestData(t, db, homeTenantID, targetTenantID)
+
+	adminRole := createIdentityRepairRole(t, db, targetTenantID, "quer-leitung", strPtrValue("admin"))
+	userRole := createIdentityRepairRole(t, db, targetTenantID, "quer-kraft", strPtrValue("user"))
+	guardianRole := createIdentityRepairRole(t, db, targetTenantID, "quer-sorge", strPtrValue("guardian"))
+	defer cleanupIdentityRepairRoles(t, db, adminRole, userRole, guardianRole)
+
+	admin := createSchoolAccessWithoutPerson(t, db, homeTenantID, targetTenantID, "Quer", "Leitung", adminRole)
+	caregiver := createSchoolAccessWithoutPerson(t, db, homeTenantID, targetTenantID, "Quer", "Kraft", userRole)
+	guardian := createSchoolAccessWithoutPerson(t, db, homeTenantID, targetTenantID, "Quer", "Sorge", guardianRole)
+	defer cleanupAccountIdentities(t, db, admin, caregiver, guardian)
+
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
+
+	adminPerson := requireSinglePersonAt(t, db, targetTenantID, admin)
+	assert.Equal(t, "Quer", personFirstName(t, db, adminPerson))
+	assert.Equal(t, "Leitung", personLastName(t, db, adminPerson))
+	assert.Equal(t, 1, liveStaffCount(t, db, adminPerson), "a staff-tier role needs its staff record here")
+	assert.Equal(t, 0, liveTeacherCount(t, db, adminPerson), "an admin-tier role runs without a caregiver profile")
+
+	caregiverPerson := requireSinglePersonAt(t, db, targetTenantID, caregiver)
+	assert.Equal(t, 1, liveStaffCount(t, db, caregiverPerson))
+	assert.Equal(t, 1, liveTeacherCount(t, db, caregiverPerson), "a caregiver-tier role needs its profile")
+
+	assert.Equal(t, 0, livePersonCount(t, db, targetTenantID, guardian),
+		"guardians are not personnel and must not receive a person record here")
+}
+
+// Two schools that disagree on the name is an ambiguity the login refuses to
+// resolve (it mints a token without a name). The migration is no more
+// entitled to pick one, so the account falls through to the report instead of
+// getting a guessed identity.
+func TestRepairSchoolIdentitiesSkipsAmbiguousNameAcrossSchools(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	firstTenantID := testpkg.UniqueTestTenantID(t)
+	secondTenantID := testpkg.UniqueTestTenantID(t)
+	targetTenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, db, firstTenantID)
+	testpkg.EnsureTestTenant(t, db, secondTenantID)
+	testpkg.EnsureTestTenant(t, db, targetTenantID)
+	defer testpkg.CleanupTenantTestData(t, db, firstTenantID, secondTenantID, targetTenantID)
+
+	role := createIdentityRepairRole(t, db, targetTenantID, "quer-uneindeutig", strPtrValue("admin"))
+	defer cleanupIdentityRepairRoles(t, db, role)
+
+	account := createSchoolAccessWithoutPerson(t, db, firstTenantID, targetTenantID, "Alex", "Wechsel", role)
+	defer cleanupAccountIdentities(t, db, account)
+
+	addActiveSchoolAccess(t, db, account, secondTenantID)
+	addPersonAt(t, db, secondTenantID, account, "Alexandra", "Wechsel")
+
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
+
+	assert.Equal(t, 0, livePersonCount(t, db, targetTenantID, account),
+		"a name the account's schools disagree on must not be copied")
+}
+
+// createSchoolAccessWithoutPerson reproduces the state /auth/link-to-tenant
+// left behind: an account with a person at its home school, actively mapped to
+// a second school where it holds a role and has no person at all.
+func createSchoolAccessWithoutPerson(
+	t *testing.T,
+	db *bun.DB,
+	homeTenantID, targetTenantID int64,
+	firstName, lastName string,
+	targetRoleID int64,
+) int64 {
+	t.Helper()
+	ctx := context.Background()
+
+	var accountID int64
+	err := db.NewRaw(`
+		INSERT INTO auth.accounts (email, username, password_hash, active, created_at, updated_at)
+		VALUES (?, ?, 'x', TRUE, NOW(), NOW())
+		RETURNING id`,
+		fmt.Sprintf("quer-%s-%d@example.com", lastName, targetTenantID),
+		fmt.Sprintf("quer_%s_%d", lastName, targetTenantID),
+	).Scan(ctx, &accountID)
+	require.NoError(t, err)
+
+	addActiveSchoolAccess(t, db, accountID, homeTenantID)
+	addActiveSchoolAccess(t, db, accountID, targetTenantID)
+	addPersonAt(t, db, homeTenantID, accountID, firstName, lastName)
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO auth.account_roles (account_id, role_id, tenant_id, created_at, updated_at)
+		VALUES (?, ?, ?, NOW(), NOW())`, accountID, targetRoleID, targetTenantID)
+	require.NoError(t, err)
+
+	return accountID
+}
+
+func addActiveSchoolAccess(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
+		VALUES (?, ?, 'active', NOW(), NOW(), NOW())`, accountID, tenantID)
+	require.NoError(t, err)
+}
+
+func addPersonAt(t *testing.T, db *bun.DB, tenantID, accountID int64, firstName, lastName string) int64 {
+	t.Helper()
+	var personID int64
+	err := db.NewRaw(`
+		INSERT INTO users.persons (tenant_id, first_name, last_name, account_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, NOW(), NOW())
+		RETURNING id`, tenantID, firstName, lastName, accountID).Scan(context.Background(), &personID)
+	require.NoError(t, err)
+	return personID
+}
+
+func livePersonCount(t *testing.T, db *bun.DB, tenantID, accountID int64) int {
+	t.Helper()
+	count, err := db.NewSelect().
+		TableExpr(`users.persons AS "p"`).
+		Where(`"p".tenant_id = ?`, tenantID).
+		Where(`"p".account_id = ?`, accountID).
+		Where(`"p".deleted_at IS NULL`).
+		Count(context.Background())
+	require.NoError(t, err)
+	return count
+}
+
+func requireSinglePersonAt(t *testing.T, db *bun.DB, tenantID, accountID int64) int64 {
+	t.Helper()
+	var ids []int64
+	require.NoError(t, db.NewRaw(`
+		SELECT id FROM users.persons
+		WHERE tenant_id = ? AND account_id = ? AND deleted_at IS NULL`,
+		tenantID, accountID).Scan(context.Background(), &ids))
+	require.Len(t, ids, 1, "exactly one person record must exist for this account at this school")
+	return ids[0]
+}
+
+func personFirstName(t *testing.T, db *bun.DB, personID int64) string {
+	t.Helper()
+	var name string
+	require.NoError(t, db.NewRaw(`SELECT first_name FROM users.persons WHERE id = ?`, personID).
+		Scan(context.Background(), &name))
+	return name
+}
+
+func personLastName(t *testing.T, db *bun.DB, personID int64) string {
+	t.Helper()
+	var name string
+	require.NoError(t, db.NewRaw(`SELECT last_name FROM users.persons WHERE id = ?`, personID).
+		Scan(context.Background(), &name))
+	return name
+}
+
+func cleanupAccountIdentities(t *testing.T, db *bun.DB, accountIDs ...int64) {
+	t.Helper()
+	ctx := context.Background()
+	for _, accountID := range accountIDs {
+		_, _ = db.ExecContext(ctx, `
+			DELETE FROM users.teachers WHERE staff_id IN (
+				SELECT s.id FROM users.staff s
+				JOIN users.persons p ON p.id = s.person_id
+				WHERE p.account_id = ?
+			)`, accountID)
+		_, _ = db.ExecContext(ctx, `
+			DELETE FROM users.staff WHERE person_id IN (
+				SELECT id FROM users.persons WHERE account_id = ?
+			)`, accountID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM users.persons WHERE account_id = ?`, accountID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_roles WHERE account_id = ?`, accountID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, accountID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, accountID)
+	}
+}
