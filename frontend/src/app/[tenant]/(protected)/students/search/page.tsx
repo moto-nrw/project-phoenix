@@ -209,7 +209,29 @@ const FILTER_QUERY_PARAMS = [
 
 type FilterQueryParam = (typeof FILTER_QUERY_PARAMS)[number];
 type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
-type SearchParamReader = Pick<URLSearchParams, "get" | "has">;
+type SearchParamReader = Pick<URLSearchParams, "get" | "getAll" | "has">;
+
+// The multi-value filters (#2218). We write them comma-separated, but a URL may
+// just as well repeat the parameter (`?school_class=3a&school_class=4b`) — the
+// shape a hand-written link or a form submit produces, and the one the backend
+// accepts too. `URLSearchParams.get` returns only the FIRST occurrence, so
+// reading these keys that way silently drops every selection but one.
+const MULTI_VALUE_FILTER_PARAMS = new Set<FilterQueryParam>([
+  "year",
+  "school_class",
+  "group_id",
+]);
+
+// Reads one filter param in the shape the parsers expect: a single string for
+// single-valued filters, every occurrence joined for multi-valued ones.
+function readFilterParam(
+  searchParams: SearchParamReader,
+  key: FilterQueryParam,
+): string | null {
+  if (!MULTI_VALUE_FILTER_PARAMS.has(key)) return searchParams.get(key);
+  const values = searchParams.getAll(key).filter((value) => value !== "");
+  return values.length > 0 ? values.join(",") : null;
+}
 
 const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
 const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
@@ -363,7 +385,7 @@ function filtersFromSearchParams(
 ): PersistedSearchFilters {
   const filters: PersistedSearchFilters = {};
   for (const key of FILTER_QUERY_PARAMS) {
-    const value = searchParams.get(key);
+    const value = readFilterParam(searchParams, key);
     if (value) filters[key] = value;
   }
   return filters;
@@ -923,7 +945,9 @@ function SearchPageContent() {
     DAY_STATUS_FILTER_OPTIONS.map((option) => option.value),
     "all",
   );
-  const initialYears = parseYearParam(initialFilterParams.get("year"));
+  const initialYears = parseYearParam(
+    readFilterParam(initialFilterParams, "year"),
+  );
   const initialTrackingParam = initialFilterParams.get("tracking") ?? "all";
   const initialTrackingFilter =
     parseTrackingFilter(initialTrackingParam).kind === "invalid"
@@ -952,10 +976,13 @@ function SearchPageContent() {
   // Class, group and school year are multi-selects (#2218): two groups working
   // together need both their cohorts in one list. An empty array means "alle".
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(() =>
-    parseGroupIdsParam(initialFilterParams.get("group_id")),
+    parseGroupIdsParam(readFilterParam(initialFilterParams, "group_id")),
   );
   const [selectedSchoolClasses, setSelectedSchoolClasses] = useState<string[]>(
-    () => parseMultiValueParam(initialFilterParams.get("school_class")),
+    () =>
+      parseMultiValueParam(
+        readFilterParam(initialFilterParams, "school_class"),
+      ),
   );
   const [selectedYears, setSelectedYears] = useState<string[]>(initialYears);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(

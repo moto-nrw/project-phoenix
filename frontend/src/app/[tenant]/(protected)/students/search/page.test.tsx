@@ -768,12 +768,56 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-schoolClass")).toHaveValue([
-          "1a",
-          "2b",
-        ]);
-        expect(screen.getByTestId("filter-group")).toHaveValue(["1", "2"]);
-        expect(screen.getByTestId("filter-year")).toHaveValue(["3", "4"]);
+        expect(screen.getByTestId("filter-schoolClass")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({
+        school_class: "1a,2b",
+        group_id: "1,2",
+        year: "3,4",
+      });
+    });
+
+    it("restores every occurrence of a repeated filter parameter (#2218)", async () => {
+      // We write the selection comma-separated, but a hand-written link (and a
+      // plain form submit) repeats the parameter instead — a shape the backend
+      // accepts too. Reading only the first occurrence would drop the second
+      // class, group and year without a trace.
+      mockSearchParams.append("school_class", "1a");
+      mockSearchParams.append("school_class", "2b");
+      mockSearchParams.append("group_id", "1");
+      mockSearchParams.append("group_id", "2");
+      mockSearchParams.append("year", "3");
+      mockSearchParams.append("year", "4");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-schoolClass")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({
+        school_class: "1a,2b",
+        group_id: "1,2",
+        year: "3,4",
       });
     });
 
