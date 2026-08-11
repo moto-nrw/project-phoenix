@@ -533,8 +533,15 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 			}
 		}
 		if value != nil {
-			fields.Time = value
-			fields.TimeChanged = true
+			// Normalize before comparing so driver-specific date anchors do not
+			// look like a real time edit. An identical wall-clock must leave
+			// ExcusedOwnsPickupTime intact: otherwise deleting the partial
+			// clears only excusal metadata and leaves a stale pickup override.
+			normalized := timezone.WallClock(*value)
+			if fields.Time == nil || !timezone.SameClockTime(*fields.Time, normalized) {
+				fields.TimeChanged = true
+			}
+			fields.Time = &normalized
 		} else if clearValue {
 			fields.Time = nil
 			fields.TimeChanged = true

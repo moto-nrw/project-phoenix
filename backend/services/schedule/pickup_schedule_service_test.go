@@ -635,6 +635,51 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 	assert.Nil(t, updated.Reason)
 }
 
+func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnership(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupPickupScheduleService(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Test", "PartialOwns", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	ctx := testpkg.TenantContext(student.TenantID)
+	staffID := createPickupServiceTestStaffID(t, db)
+	exceptionDate := timezone.NewDate(2024, 4, 3)
+	pickupTime := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	exception := &scheduleModels.StudentPickupException{
+		StudentID:             student.ID,
+		ExceptionDate:         exceptionDate,
+		PickupTime:            &pickupTime,
+		ExcusedFrom:           &pickupTime,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staffID,
+	}
+	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
+
+	// Same wall-clock with a different date anchor must not look like a time edit.
+	sameClockDifferentAnchor := time.Date(2024, 4, 3, 13, 30, 0, 0, time.UTC)
+	updatedReason := "Arzttermin"
+	updated, err := service.UpdateException(
+		ctx,
+		exception.ID,
+		student.ID,
+		exceptionDate,
+		&updatedReason,
+		&sameClockDifferentAnchor,
+		false,
+		func() (int64, error) { return staffID, nil },
+	)
+	require.NoError(t, err)
+	require.NotNil(t, updated.ExcusedFrom)
+	assert.True(t, updated.ExcusedOwnsPickupTime,
+		"identical wall-clock must keep partial ownership so delete can reclaim the pickup row")
+	require.NotNil(t, updated.PickupTime)
+	assert.Equal(t, "13:30", timezone.WallClock(*updated.PickupTime).Format("15:04"))
+}
+
 func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

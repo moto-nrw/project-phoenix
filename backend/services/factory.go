@@ -891,7 +891,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupException,
 		repos.StudentStatusDay,
 		repos.InstanceStudent,
-		repos.Student,
 		db,
 	)
 

@@ -218,6 +218,40 @@ describe("PlannedStatusDaysModal", () => {
     );
   });
 
+  it("still submits a partial excusal when the care-plan load fails", async () => {
+    const onSubmitPartialAbsence = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        existingPartialAbsences={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadCarePlanDay={vi.fn().mockRejectedValue(new Error("forbidden"))}
+        onSubmit={vi.fn()}
+        onSubmitPartialAbsence={onSubmitPartialAbsence}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
+    fireEvent.click(screen.getByText("Einzeltag auswählen"));
+    fireEvent.change(screen.getByLabelText("Entschuldigt ab"), {
+      target: { value: "13:30" },
+    });
+
+    await clickEnabledButton("Entschuldigen");
+    expect(onSubmitPartialAbsence).toHaveBeenCalledWith(
+      null,
+      "2026-05-27",
+      "13:30",
+      undefined,
+    );
+  });
+
   it("edits and deletes an existing partial excusal", async () => {
     const onSubmitPartialAbsence = vi.fn().mockResolvedValue(undefined);
     const onDeletePartialAbsence = vi.fn().mockResolvedValue(undefined);

@@ -122,7 +122,6 @@ export function PlannedStatusDaysModal({
     useState("");
   const [carePlanDay, setCarePlanDay] = useState<CarePlanDay | null>(null);
   const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
-  const [carePlanError, setCarePlanError] = useState<string | null>(null);
   const isSick = status === "sick";
   const isClassTrip = status === "class_trip";
   const isPartialExcusal = status === "excused" && excusalScope === "from_time";
@@ -339,7 +338,6 @@ export function PlannedStatusDaysModal({
       setPartialAbsencePendingDeletion(null);
       setPartialAbsenceDeleteError("");
       setCarePlanDay(null);
-      setCarePlanError(null);
     },
     [isClassTrip],
   );
@@ -354,24 +352,21 @@ export function PlannedStatusDaysModal({
     const date = isPartialExcusal ? candidateDateKeys[0] : undefined;
     if (!date || candidateDateKeys.length !== 1 || !loadCarePlanDay) {
       setCarePlanDay(null);
-      setCarePlanError(null);
       setIsLoadingCarePlan(false);
       return;
     }
     let current = true;
     setIsLoadingCarePlan(true);
-    setCarePlanError(null);
     void loadCarePlanDay(date)
       .then((day) => {
         if (current) setCarePlanDay(day);
       })
       .catch(() => {
-        if (current) {
-          setCarePlanDay(null);
-          setCarePlanError(
-            "Der Betreuungsplan konnte nicht geprüft werden. Speichern ist derzeit nicht möglich.",
-          );
-        }
+        // Best-effort only: the timetable care-plan endpoint needs
+        // schedules:read. Staff who may edit the student but lack that
+        // permission must still save a partial excusal; overlapping-block
+        // warnings are skipped when the plan cannot be loaded.
+        if (current) setCarePlanDay(null);
       })
       .finally(() => {
         if (current) setIsLoadingCarePlan(false);
@@ -498,7 +493,6 @@ export function PlannedStatusDaysModal({
     setPartialAbsencePendingDeletion(null);
     setPartialAbsenceDeleteError("");
     setCarePlanDay(null);
-    setCarePlanError(null);
   };
 
   const handleEditPartialAbsence = (absence: StudentPartialAbsence) => {
@@ -594,8 +588,6 @@ export function PlannedStatusDaysModal({
         dateKeys.length !== 1 ||
         !fromTime ||
         isLoadingCarePlan ||
-        carePlanError ||
-        !carePlanDay ||
         !onSubmitPartialAbsence
       ) {
         return;
@@ -664,8 +656,6 @@ export function PlannedStatusDaysModal({
                 (selectableDateKeys.length !== 1 ||
                   !fromTime ||
                   isLoadingCarePlan ||
-                  carePlanError !== null ||
-                  carePlanDay === null ||
                   !onSubmitPartialAbsence))
             }
             size="md"
@@ -884,9 +874,6 @@ export function PlannedStatusDaysModal({
             />
             {isLoadingCarePlan ? (
               <Alert type="info" message="Betreuungsplan wird geprüft…" />
-            ) : null}
-            {carePlanError ? (
-              <Alert type="error" message={carePlanError} />
             ) : null}
             {overlappingInstances.map((instance) => (
               <Alert

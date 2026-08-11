@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -45,7 +44,6 @@ type partialAbsenceService struct {
 	pickups    scheduleModel.StudentPickupExceptionRepository
 	statusDays activeModel.StudentStatusDayRepository
 	slots      scheduleModel.InstanceStudentRepository
-	students   usersModel.StudentRepository
 	db         *bun.DB
 }
 
@@ -53,32 +51,14 @@ func NewPartialAbsenceService(
 	pickups scheduleModel.StudentPickupExceptionRepository,
 	statusDays activeModel.StudentStatusDayRepository,
 	slots scheduleModel.InstanceStudentRepository,
-	students usersModel.StudentRepository,
 	db *bun.DB,
 ) PartialAbsenceService {
 	return &partialAbsenceService{
 		pickups:    pickups,
 		statusDays: statusDays,
 		slots:      slots,
-		students:   students,
 		db:         db,
 	}
-}
-
-// lockStudentAndCareDay takes the student row first, then the shared care-day
-// advisory lock. Full-day status writers use the same order (student FOR UPDATE
-// → LockExceptionDay); taking care-day before the student row deadlocks when a
-// pickup-exception INSERT's foreign-key check locks the parent student.
-func (s *partialAbsenceService) lockStudentAndCareDay(
-	ctx context.Context, studentID int64, date timezone.Date,
-) error {
-	if s.students == nil {
-		return errors.New("student repository is not configured")
-	}
-	if _, err := s.students.FindByIDForUpdate(ctx, studentID); err != nil {
-		return err
-	}
-	return LockCareExceptionDay(ctx, s.db, studentID, date)
 }
 
 func (s *partialAbsenceService) List(
@@ -106,7 +86,9 @@ func (s *partialAbsenceService) Create(
 
 	var result *scheduleModel.StudentPickupException
 	err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.lockStudentAndCareDay(txCtx, input.StudentID, input.Date); err != nil {
+		// Student row then care-day — same order as full-day status and
+		// pickup/arrival exception writers (LockCareExceptionDay).
+		if err := LockCareExceptionDay(txCtx, s.db, input.StudentID, input.Date); err != nil {
 			return err
 		}
 		if err := s.ensureNoFullDayStatus(txCtx, input.StudentID, input.Date); err != nil {
@@ -173,7 +155,7 @@ func (s *partialAbsenceService) Update(
 
 	var result *scheduleModel.StudentPickupException
 	err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.lockStudentAndCareDay(txCtx, input.StudentID, input.Date); err != nil {
+		if err := LockCareExceptionDay(txCtx, s.db, input.StudentID, input.Date); err != nil {
 			return err
 		}
 		if err := s.ensureNoFullDayStatus(txCtx, input.StudentID, input.Date); err != nil {
@@ -235,7 +217,7 @@ func (s *partialAbsenceService) Delete(ctx context.Context, exceptionID, student
 		if row.StudentID != studentID {
 			return ErrPartialAbsenceWrongStudent
 		}
-		if err := s.lockStudentAndCareDay(txCtx, studentID, row.ExceptionDate); err != nil {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, row.ExceptionDate); err != nil {
 			return err
 		}
 		row, err = s.pickups.FindByID(txCtx, exceptionID)
