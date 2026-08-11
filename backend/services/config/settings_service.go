@@ -439,6 +439,12 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
 
+	// Serialize a security.mfa_mode change against session mints that are
+	// re-deciding their MFA gate right now — see lockMFAPolicy.
+	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "set_value", Err: err}
+	}
+
 	// Cross-field invariants the per-field validation above cannot express.
 	// Rejecting the pair here is what keeps an unusable configuration from ever
 	// being persisted (#1565 review: an inverted Ganztag cutoff pair passed
@@ -518,6 +524,12 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
+	}
+
+	// A reset restores the registry default, which changes the effective mode
+	// exactly like a write does — same lock, same reason (see lockMFAPolicy).
+	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
 	// Resetting restores the registry default, which can invert a cross-field
@@ -948,6 +960,78 @@ func (s *settingsService) LockClassCollectionPair(ctx context.Context) error {
 // eligibility guard so the two conflict.
 func classCollectionLockKey(ctx context.Context) string {
 	return fmt.Sprintf("enrollment-class-collection:%d", tenant.FromContext(ctx))
+}
+
+// LockMFAPolicy takes the exclusive per-tenant advisory lock on
+// security.mfa_mode for the WRITE side — see the interface doc and
+// lockMFAPolicy.
+func (s *settingsService) LockMFAPolicy(ctx context.Context) error {
+	return s.lockMFAPolicy(ctx, tenant.FromContext(ctx), false)
+}
+
+// LockMFAPolicySharedForTenant takes the shared variant for the token-mint READ
+// side, with the tenant passed explicitly because the login flows have no
+// tenant context.
+func (s *settingsService) LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error {
+	return s.lockMFAPolicy(ctx, tenantID, true)
+}
+
+// lockMFAPolicy is the shared body of the two MFA-policy lock helpers.
+//
+// Without it, "is MFA required for this session?" is a read that commits
+// nothing: a school login resolves security.mfa_mode as off, an admin switches
+// it to required and commits, and the login — which has not written its refresh
+// token yet — still mints a session that never saw a second factor (#2207
+// review). Re-reading the mode inside the mint transaction narrows that window
+// but cannot close it: under READ COMMITTED the re-read simply happens a few
+// statements earlier than the concurrent write. Only a lock the two sides share
+// orders them, so either the writer waits for the mint to commit (and the next
+// login sees the new mode) or the mint's re-read observes the committed value
+// and refuses.
+//
+// Best-effort like the sibling helpers: without an ambient transaction an xact
+// lock is meaningless — both sides always run in one — so it is skipped rather
+// than failing. A tenant-less caller (registry default, no per-school mode to
+// guard) is skipped for the same reason.
+func (s *settingsService) lockMFAPolicy(ctx context.Context, tenantID int64, shared bool) error {
+	// Same freshness barrier as the other Lock* helpers: post-lock reads must
+	// hit the database instead of replaying a memoized pre-lock value.
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictTenant(tenantID)
+	}
+	if tenantID <= 0 {
+		return nil
+	}
+	if _, hasTx := modelBase.TxFromContext(ctx); !hasTx {
+		return nil
+	}
+	acquire := base.AcquireXactLock
+	if shared {
+		acquire = base.AcquireXactLockShared
+	}
+	if err := acquire(ctx, s.db, mfaPolicyLockKey(tenantID)); err != nil {
+		return fmt.Errorf("lock mfa policy: %w", err)
+	}
+	return nil
+}
+
+// mfaPolicyLockKey is the per-tenant advisory-lock key shared by the
+// security.mfa_mode writer and the token mints that re-decide the MFA gate, so
+// the two conflict. Per tenant: one school's admin must not serialize another
+// school's logins.
+func mfaPolicyLockKey(tenantID int64) string {
+	return fmt.Sprintf("mfa-policy:%d", tenantID)
+}
+
+// lockMFAPolicyForWrite takes the exclusive policy lock when the key being
+// written is one a session mint reads. Called by SetValue and ResetValue
+// BEFORE they read the current value, so the whole read-modify-write is
+// ordered against an in-flight mint rather than just the final upsert.
+func (s *settingsService) lockMFAPolicyForWrite(ctx context.Context, key string) error {
+	if key != config.KeyMFAMode {
+		return nil
+	}
+	return s.LockMFAPolicy(ctx)
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

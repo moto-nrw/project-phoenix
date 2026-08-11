@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/models/config"
@@ -174,6 +175,80 @@ func TestLockClassCollectionPairFlushesGradeLevelMax(t *testing.T) {
 		require.NoError(t, resolveErr)
 		assert.Equal(t, int32(2), counter.count.Load(),
 			"LockClassCollectionPair must flush grade_level_max from the request cache")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestMFAModeWriteAndMintLockAreMutuallyExclusive is the #2207 review
+// regression. Re-reading security.mfa_mode inside the mint transaction is only
+// a read: an admin enabling MFA can commit right after it, and the login —
+// which has not written its refresh token yet — still mints a session that
+// never saw a second factor. The write and the mint therefore share a lock:
+// while the write is uncommitted the mint cannot take its side of it, and once
+// the write commits the mint proceeds and re-reads the new mode.
+func TestMFAModeWriteAndMintLockAreMutuallyExclusive(t *testing.T) {
+	db, tenantID, service := setupRequestCacheDBTest(t)
+	registerTestSetting(config.KeyMFAMode, config.FieldText, config.MFAModeOff)
+
+	mintLock := make(chan error, 1)
+	writerCtx := tenant.WithTenantID(context.Background(), tenantID)
+
+	err := tenant.WithTenantTx(writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, service.SetValue(txCtx, config.KeyMFAMode, config.MFAModeRequiredAll, nil, nil))
+
+		// A school login reaching its mint takes the shared side of the same
+		// lock on its own transaction.
+		go func() {
+			mintLock <- tenant.WithAdminTx(context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
+				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
+			})
+		}()
+
+		select {
+		case lockErr := <-mintLock:
+			t.Fatalf("a mint took the policy lock while the mfa_mode write was still uncommitted: %v", lockErr)
+		case <-time.After(300 * time.Millisecond):
+			// Blocked, which is the point.
+		}
+		return nil
+	})
+	require.NoError(t, err)
+
+	select {
+	case lockErr := <-mintLock:
+		require.NoError(t, lockErr, "the mint must proceed once the write committed")
+	case <-time.After(10 * time.Second):
+		t.Fatal("the mint never acquired the policy lock after the write committed")
+	}
+}
+
+// TestNonMFASettingWriteDoesNotBlockTheMintLock pins the other half: only the
+// key a mint actually reads is serialized against it. Taking the policy lock
+// for every setting write would stall every login in the school behind an
+// unrelated admin edit.
+func TestNonMFASettingWriteDoesNotBlockTheMintLock(t *testing.T) {
+	db, tenantID, service := setupRequestCacheDBTest(t)
+	registerTestSetting("test.unrelated", config.FieldNumber, 30)
+
+	mintLock := make(chan error, 1)
+	writerCtx := tenant.WithTenantID(context.Background(), tenantID)
+
+	err := tenant.WithTenantTx(writerCtx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, service.SetValue(txCtx, "test.unrelated", 45, nil, nil))
+
+		go func() {
+			mintLock <- tenant.WithAdminTx(context.Background(), db, func(mintCtx context.Context, _ bun.Tx) error {
+				return service.LockMFAPolicySharedForTenant(mintCtx, tenantID)
+			})
+		}()
+
+		select {
+		case lockErr := <-mintLock:
+			require.NoError(t, lockErr)
+		case <-time.After(5 * time.Second):
+			t.Fatal("an unrelated setting write must not block a mint")
+		}
 		return nil
 	})
 	require.NoError(t, err)

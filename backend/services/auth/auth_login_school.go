@@ -455,6 +455,18 @@ func (s *Service) freshSchoolMFAPolicy(accountID, tenantID int64) mfaPolicyResol
 // to required while the login is in flight would still have produced a session
 // that never saw a challenge. An unreadable policy fails the mint closed.
 //
+// MFA LOCK ORDER — the re-read alone is still only a read: it orders nothing
+// against a concurrent policy write, which can commit right after it. So the
+// mode is pinned for the rest of the transaction (lockMFAPolicyForMint,
+// shared), and the settings writer takes the exclusive side of that lock. That
+// lock is taken as the FIRST statement of the mint, BEFORE auth.accounts:
+// writing config.setting_values takes a foreign-key lock on the writing admin's
+// own auth.accounts row, so a guard that grabbed the account first and the
+// policy lock afterwards could deadlock against an admin flipping mfa_mode
+// during their own school login. Whoever needs both takes the policy lock
+// first. The account-scoped half of the policy (auth.mfa_overrides) rides on
+// the account row lock instead — see lockMFAPolicyForMint.
+//
 // Errors are returned as bare sentinels; createRefreshTokenWithRetryGuarded
 // hands them back untouched and the caller wraps them with its own op.
 // The account the guard is handed is deliberately ignored: the checks below
@@ -467,6 +479,13 @@ func (s *Service) schoolMintGuard(accountID, tenantID int64, claims **accountMet
 		opt(&checks)
 	}
 	return func(ctx context.Context, _ *authModels.Account) error {
+		// FIRST statement of the mint transaction, before any row lock — see
+		// MFA LOCK ORDER above.
+		if checks.resolveMFAPolicy != nil {
+			if err := s.lockMFAPolicyForMint(ctx, accountID, tenantID); err != nil {
+				return err
+			}
+		}
 		account, err := s.checkSchoolMintPreconditions(ctx, accountID, tenantID)
 		if err != nil {
 			return err
@@ -509,6 +528,41 @@ func (s *Service) schoolMintGuard(accountID, tenantID int64, claims **accountMet
 		*claims = payload
 		return nil
 	}
+}
+
+// lockMFAPolicyForMint pins the tenant-wide half of the MFA policy —
+// security.mfa_mode — for the rest of the mint transaction, in SHARED mode so
+// concurrent logins never block one another.
+//
+// Re-READING the policy inside the mint transaction (round 10) narrowed the
+// window but could not close it: under READ COMMITTED the re-read is just an
+// earlier statement, and an admin enabling MFA can still commit between it and
+// the token insert. The setting's writer takes the exclusive side of this same
+// lock around its whole read-modify-write, so the two orders instead: either
+// the admin waits for this mint to commit — and the NEXT login is challenged —
+// or the write lands first and the re-read below observes it and refuses.
+//
+// The per-account half of the policy (auth.mfa_overrides) needs no lock of its
+// own: the override write paths take auth.accounts FOR UPDATE before touching
+// the rows, and this transaction holds exactly that row from
+// checkSchoolMintPreconditions until commit.
+//
+// An unavailable lock fails the mint closed with the same sentinel an
+// unreadable policy produces (503) — proceeding would mean deciding the gate on
+// an unordered read, which is the defect this closes.
+func (s *Service) lockMFAPolicyForMint(ctx context.Context, accountID, tenantID int64) error {
+	if s.settings == nil {
+		return nil
+	}
+	if err := s.settings.LockMFAPolicySharedForTenant(ctx, tenantID); err != nil {
+		s.getLogger().Warn("mfa policy lock unavailable at school token mint; refusing to mint",
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return ErrMFAStatusUnavailable
+	}
+	return nil
 }
 
 // checkSchoolMintPreconditions runs the four checks described above and hands

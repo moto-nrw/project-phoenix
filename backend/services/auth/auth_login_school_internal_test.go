@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -851,4 +853,111 @@ func TestSwitchSchool_AccountLookupError_IsNotACredentialFailure(t *testing.T) {
 	require.ErrorAs(t, err, &authErr)
 	assert.ErrorIs(t, authErr.Err, dbErr)
 	assert.NotErrorIs(t, authErr.Err, ErrAccountNotFound)
+}
+
+// --- the MFA policy lock -------------------------------------------------------
+
+// lockOrderRecorder collects the order in which a mint takes its locks, so a
+// test can assert WHICH lock came first rather than only that both were taken.
+type lockOrderRecorder struct {
+	mu     sync.Mutex
+	events []string
+}
+
+func (r *lockOrderRecorder) record(event string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = append(r.events, event)
+}
+
+func (r *lockOrderRecorder) taken() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.events...)
+}
+
+// recordingAccountLockRepo notes the account row lock and delegates.
+type recordingAccountLockRepo struct {
+	authModels.AccountRepository
+	recorder *lockOrderRecorder
+}
+
+func (r recordingAccountLockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Account, error) {
+	r.recorder.record("account")
+	return r.AccountRepository.FindByIDForUpdate(ctx, id)
+}
+
+// withRecordedPolicyLock wires a settings double that records (or fails) the
+// shared MFA-policy lock the mint takes.
+func withRecordedPolicyLock(t *testing.T, service *Service, recorder *lockOrderRecorder, lockErr error) {
+	t.Helper()
+	service.settings = &configtest.Mock{
+		LockMFAPolicySharedForTenantFn: func(ctx context.Context, _ int64) error {
+			recorder.record("policy")
+			// The real helper skips silently without an ambient transaction, so
+			// a mint that took the lock on the wrong context would look locked
+			// and be unprotected. Pin that it is the mint's own transaction.
+			tx, ok := modelBase.TxFromContext(ctx)
+			assert.True(t, ok && tx != nil,
+				"the policy lock must be taken on the mint transaction")
+			return lockErr
+		},
+	}
+	service.repos.Account = recordingAccountLockRepo{
+		AccountRepository: service.repos.Account,
+		recorder:          recorder,
+	}
+}
+
+func TestSchoolMintGuard_TakesMFAPolicyLockBeforeTheAccountRow(t *testing.T) {
+	// Re-reading the policy inside the mint transaction orders nothing: an
+	// admin enabling MFA can commit right after that read and the token still
+	// goes out unchallenged. The mint therefore pins security.mfa_mode for the
+	// whole transaction — and it has to do so BEFORE it locks auth.accounts.
+	// Writing config.setting_values takes a foreign-key lock on the writing
+	// admin's own account row, so the reverse order deadlocks an admin who
+	// flips mfa_mode while their own school login is in flight.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	recorder := &lockOrderRecorder{}
+	withRecordedPolicyLock(t, service, recorder, nil)
+
+	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
+		withMFAGateRecheck(staticPolicyResolver(MFAPolicyForMode(configModels.MFAModeOff), nil)))
+
+	require.NoError(t, guardErr)
+	require.NotNil(t, claims)
+	assert.Equal(t, []string{"policy", "account"}, recorder.taken(),
+		"the policy lock must be the first lock of the mint transaction")
+}
+
+func TestSchoolMintGuard_UnavailableMFAPolicyLockFailsClosed(t *testing.T) {
+	// A lock we could not take means the policy read that follows it is
+	// unordered against a concurrent write — exactly the state this closes.
+	// Refuse the mint (503) instead of deciding the gate on it.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	recorder := &lockOrderRecorder{}
+	withRecordedPolicyLock(t, service, recorder, errors.New("lock unavailable"))
+
+	claims, guardErr := runMintGuardWithOptions(t, service, db, account.ID, tenantID,
+		withMFAGateRecheck(staticPolicyResolver(MFAPolicyForMode(configModels.MFAModeOff), nil)))
+
+	require.ErrorIs(t, guardErr, ErrMFAStatusUnavailable)
+	assert.Nil(t, claims, "an aborted mint must not publish claims")
+	assert.Equal(t, []string{"policy"}, recorder.taken(),
+		"a failed policy lock must abort before the mint touches any row")
+}
+
+func TestSchoolMintGuard_WithoutRecheckTakesNoPolicyLock(t *testing.T) {
+	// The MFA exchange and the school switch have their second factor settled
+	// (or never gated it here). Taking the policy lock there would serialize
+	// those mints against every mfa_mode write for nothing.
+	service, db, account, tenantID := newMintGuardFixture(t)
+	recorder := &lockOrderRecorder{}
+	withRecordedPolicyLock(t, service, recorder, nil)
+
+	claims, guardErr := runMintGuard(t, service, db, account.ID, tenantID)
+
+	require.NoError(t, guardErr)
+	require.NotNil(t, claims)
+	assert.Equal(t, []string{"account"}, recorder.taken())
 }

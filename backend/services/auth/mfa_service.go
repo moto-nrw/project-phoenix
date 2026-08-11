@@ -1364,6 +1364,9 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 
 	previous := MFAAdminOverrideNone
 	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
+			return err
+		}
 		existing, err := s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, targetAccountID, targetTenantID)
 		if err != nil {
 			return fmt.Errorf("load existing tenant override: %w", err)
@@ -1425,6 +1428,38 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 	return nil
 }
 
+// lockAccountForOverrideWrite takes auth.accounts FOR UPDATE before an MFA
+// admin override is read and written.
+//
+// An override is the per-account half of the MFA policy, and a session mint
+// resolves it (ResolvePolicyInTx) while holding exactly this row FOR UPDATE
+// from its precondition check until commit. Without this lock the two are
+// unordered: a login can resolve "no override, MFA off", an admin can commit
+// force_on, and the login still mints a session that never saw a second factor
+// (#2207 review). Taking the row here makes the writer wait for that mint to
+// finish — the next login then sees the override — or, when the write wins the
+// row, the mint's own re-read observes it.
+//
+// The row is taken FIRST in this transaction, matching the account-first order
+// every revocation path walks (RevokeAccountTenantAccess, staff offboarding,
+// schoolMintGuard). The rows written afterwards (auth.mfa_overrides,
+// auth.mfa_trusted_devices) both carry a foreign key to auth.accounts and would
+// otherwise take that same row late, from the opposite direction.
+//
+// A missing account is not rejected here: the caller's audit pipeline and the
+// foreign keys on the rows below already produce the error, and turning a
+// lookup failure into a different one would change the surfaced error for a
+// case that cannot happen through the admin endpoints.
+func (s *mfaService) lockAccountForOverrideWrite(ctx context.Context, accountID int64) error {
+	if _, err := s.Repos.Account.FindByIDForUpdate(ctx, accountID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("lock account %d for mfa override write: %w", accountID, err)
+	}
+	return nil
+}
+
 // OperatorSetGlobalMFAOverride writes (or clears) the platform-wide
 // override row. This is the explicit "account-wide emergency switch"
 // surface — set force_off when the user has lost mailbox access in a
@@ -1464,6 +1499,9 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 
 	previous := MFAAdminOverrideNone
 	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
+			return err
+		}
 		existing, err := s.Repos.MFAOverride.FindGlobal(txCtx, targetAccountID)
 		if err != nil {
 			return fmt.Errorf("load existing global override: %w", err)

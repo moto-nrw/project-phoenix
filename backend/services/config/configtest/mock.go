@@ -42,6 +42,8 @@ type Mock struct {
 	LockSlotListCutoffPairFn       func(ctx context.Context) error
 	LockSlotListCutoffPairSharedFn func(ctx context.Context) error
 	LockClassCollectionPairFn      func(ctx context.Context) error
+	LockMFAPolicyFn                func(ctx context.Context) error
+	LockMFAPolicySharedForTenantFn func(ctx context.Context, tenantID int64) error
 }
 
 var _ config.SettingsService = (*Mock)(nil)
@@ -225,6 +227,20 @@ func (m *Mock) LockSlotListCutoffPairShared(ctx context.Context) error {
 func (m *Mock) LockClassCollectionPair(ctx context.Context) error {
 	if m.LockClassCollectionPairFn != nil {
 		return m.LockClassCollectionPairFn(ctx)
+	}
+	return nil
+}
+
+func (m *Mock) LockMFAPolicy(ctx context.Context) error {
+	if m.LockMFAPolicyFn != nil {
+		return m.LockMFAPolicyFn(ctx)
+	}
+	return nil
+}
+
+func (m *Mock) LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error {
+	if m.LockMFAPolicySharedForTenantFn != nil {
+		return m.LockMFAPolicySharedForTenantFn(ctx, tenantID)
 	}
 	return nil
 }

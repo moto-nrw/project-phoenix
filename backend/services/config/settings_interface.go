@@ -132,6 +132,26 @@ type SettingsService interface {
 	// class-restricted phase cannot race into a state where every submission
 	// fails class_not_eligible. Best-effort: skipped without an ambient tx.
 	LockClassCollectionPair(ctx context.Context) error
+
+	// LockMFAPolicy takes the per-tenant transaction-scoped EXCLUSIVE advisory
+	// lock guarding security.mfa_mode. SetValue and ResetValue take it before
+	// they touch that key, so the write cannot commit while a session mint that
+	// already read the old mode is still in flight. Held until the writing
+	// transaction commits. Best-effort: skipped without an ambient tx.
+	LockMFAPolicy(ctx context.Context) error
+
+	// LockMFAPolicySharedForTenant is the SHARED counterpart taken by the token
+	// mint paths that re-decide the MFA gate inside their mint transaction
+	// (services/auth schoolMintGuard). Shared holders never block one another,
+	// so concurrent logins do not serialize; it conflicts only with the
+	// exclusive writer lock above, which is what stops "MFA is off" from being
+	// read, an admin enabling MFA, and an MFA-free session being minted
+	// afterwards anyway (#2207).
+	//
+	// The tenant is explicit because the login flows run outside
+	// TenantTxMiddleware and carry the resolved school in an argument, not in
+	// the context. Same best-effort tx semantics.
+	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
 }
 
 // BatchSettingsService extends SettingsService with query-coalescing reads.
