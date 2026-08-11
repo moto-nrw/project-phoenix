@@ -361,7 +361,21 @@ func (c *effectiveTimeCore[S, E, N, D]) CreateException(
 		}
 
 		existingFields := c.domain.ExceptionFields(existing)
-		existingFields.Time = fields.Time
+		// Detect wall-clock changes so partial-absence ownership is dropped when
+		// an upsert overwrites the pickup time. Leaving TimeChanged false keeps
+		// ExcusedOwnsPickupTime and a later partial delete can wipe the explicit
+		// pickup override along with the excusal metadata.
+		switch {
+		case fields.Time != nil:
+			normalized := timezone.WallClock(*fields.Time)
+			if existingFields.Time == nil || !timezone.SameClockTime(*existingFields.Time, normalized) {
+				existingFields.TimeChanged = true
+			}
+			existingFields.Time = &normalized
+		case existingFields.Time != nil:
+			existingFields.Time = nil
+			existingFields.TimeChanged = true
+		}
 		existingFields.Reason = fields.Reason
 		updated := c.domain.NewException(existingFields)
 		if err := c.exceptions.Update(ctx, updated); err != nil {

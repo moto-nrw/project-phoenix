@@ -767,31 +767,40 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
-	clearStatusDayProvenance := false
+	clearPlanProvenance := false
+	recordManualDecision := false
 	if patch.Status != nil {
 		q = q.Set(`status = ?`, *patch.Status)
-		clearStatusDayProvenance = true
-		// A human decided this row's status. Record that, and drop any
-		// non-booking marker the completion had stamped: staff setting an
-		// unbooked slot back to 'expected' is precisely the override the marker
-		// must not survive, and ending the block later must not re-stamp it
-		// (MarkNotScheduled skips rows carrying manual_status_at). Without both
-		// writes the decision vanishes from the completed-instance views, the
-		// child's history and the exports (#1747 review).
-		q = q.Set(`manual_status_at = ?`, time.Now().UTC()).
-			Set(`not_scheduled = FALSE`)
+		clearPlanProvenance = true
+		recordManualDecision = true
+		// A human decided this row's status. Drop any non-booking marker the
+		// completion had stamped: staff setting an unbooked slot back to
+		// 'expected' is precisely the override the marker must not survive,
+		// and ending the block later must not re-stamp it (MarkNotScheduled
+		// skips rows carrying manual_status_at). Without both writes the
+		// decision vanishes from the completed-instance views, the child's
+		// history and the exports (#1747 review).
+		q = q.Set(`not_scheduled = FALSE`)
 	}
 	switch {
 	case patch.SubstatusClear:
 		q = q.Set(`substatus = NULL`)
-		clearStatusDayProvenance = true
+		clearPlanProvenance = true
+		// Substatus-only staff edits also clear plan provenance; without a
+		// manual stamp a later partial projection can reclaim the row and
+		// overwrite the staff decision.
+		recordManualDecision = true
 	case patch.Substatus != nil:
 		q = q.Set(`substatus = ?`, *patch.Substatus)
-		clearStatusDayProvenance = true
+		clearPlanProvenance = true
+		recordManualDecision = true
 	}
-	if clearStatusDayProvenance {
+	if clearPlanProvenance {
 		q = q.Set(`student_status_day_id = NULL`)
 		q = q.Set(`pickup_exception_id = NULL`)
+	}
+	if recordManualDecision {
+		q = q.Set(`manual_status_at = ?`, time.Now().UTC())
 	}
 	switch {
 	case patch.NoteClear:

@@ -635,6 +635,52 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 	assert.Nil(t, updated.Reason)
 }
 
+func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeChange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupPickupScheduleService(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Test", "UpsertOwns", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	ctx := testpkg.TenantContext(student.TenantID)
+	staffID := createPickupServiceTestStaffID(t, db)
+	exceptionDate := timezone.NewDate(2024, 4, 4)
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	exception := &scheduleModels.StudentPickupException{
+		StudentID:             student.ID,
+		ExceptionDate:         exceptionDate,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staffID,
+	}
+	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
+
+	// Collision-update path: a second create for the same date with a different
+	// wall-clock must drop partial ownership so delete cannot wipe the override.
+	newPickup := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	override := &scheduleModels.StudentPickupException{
+		StudentID:     student.ID,
+		ExceptionDate: exceptionDate,
+		PickupTime:    &newPickup,
+		Source:        scheduleModels.ExceptionSourceStaff,
+		CreatedBy:     staffID,
+	}
+	require.NoError(t, service.CreateStudentPickupException(ctx, override))
+
+	fresh, err := service.GetStudentPickupExceptionForDate(ctx, student.ID, exceptionDate)
+	require.NoError(t, err)
+	require.NotNil(t, fresh)
+	require.NotNil(t, fresh.PickupTime)
+	assert.Equal(t, "15:00", timezone.WallClock(*fresh.PickupTime).Format("15:04"))
+	assert.False(t, fresh.ExcusedOwnsPickupTime,
+		"upsert with a new wall-clock must drop partial ownership of the pickup time")
+	require.NotNil(t, fresh.ExcusedFrom, "partial metadata itself is preserved until explicit delete")
+}
+
 func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnership(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

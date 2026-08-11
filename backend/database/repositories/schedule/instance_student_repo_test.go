@@ -1018,6 +1018,34 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, got.Substatus)
 		assert.Nil(t, got.Note)
+		require.NotNil(t, got.ManualStatusAt,
+			"substatus-only staff edits must stamp manual ownership")
+	})
+
+	t.Run("substatus-only edit clears partial provenance and stamps manual", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Substatus-%d", time.Now().UnixNano()))
+		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		partial := testpkg.CreateTestPickupException(t, db, student.ID, inst.Date, staff.ID, "13:00", "Termin")
+		defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
+
+		row.PickupExceptionID = &partial.ID
+		row.Status = scheduleModels.AttendanceStatusAbsent
+		excused := scheduleModels.AttendanceSubstatusExcused
+		row.Substatus = &excused
+		row.ManualStatusAt = nil
+		require.NoError(t, repo.Update(ctx, row))
+
+		late := scheduleModels.AttendanceSubstatusLate
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{
+			Substatus: &late,
+		}))
+
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.PickupExceptionID)
+		require.NotNil(t, got.ManualStatusAt)
+		require.NotNil(t, got.Substatus)
+		assert.Equal(t, scheduleModels.AttendanceSubstatusLate, *got.Substatus)
 	})
 
 	t.Run("empty patch is a no-op (defensive)", func(t *testing.T) {
