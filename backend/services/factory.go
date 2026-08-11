@@ -1988,6 +1988,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AttendanceRepo:      repos.Attendance,
 		StatusDayRepo:       repos.StudentStatusDay,
 		CareDayService:      careDayService,
+		PickupExceptionRepo: repos.StudentPickupException,
 		PickupScheduleRepo:  repos.StudentPickupSchedule,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,

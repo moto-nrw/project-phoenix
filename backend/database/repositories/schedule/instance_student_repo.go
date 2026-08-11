@@ -733,9 +733,11 @@ func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
 			)
 			AND instance.date = ?
 			AND instance.start_time >= partial_absence.excused_from
+			AND instance.status <> ?
 	`, schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
 		tenant.FromContext(ctx), instanceID,
-		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent, date).Exec(ctx)
+		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent, date,
+		schedule.InstanceStatusCancelled).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "apply active partial absences to instance", Err: err}
 	}
