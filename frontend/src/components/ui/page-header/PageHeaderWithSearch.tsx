@@ -517,6 +517,18 @@ function DesktopSearchSection({
 
   const hasActionContent = hasInlineRightAnchor || hasOverflowMenu;
 
+  // With a primaryAction the header splits into two rows. On a page whose
+  // filters live in the popover (quiet variant) and that has no inline right
+  // anchor, the second row would carry nothing but the kebab — a lone icon on
+  // its own line reads as a layout accident. Keep it in row 1 next to the
+  // primary action there, and drop the empty second row entirely.
+  const hasInlineFilters = hasFilters && !showFilterPopover;
+  const kebabJoinsPrimaryRow =
+    hasPrimaryAction &&
+    hasOverflowMenu &&
+    !hasInlineRightAnchor &&
+    !hasInlineFilters;
+
   const showSearchRow =
     search !== undefined || hasFilters || hasActionContent || hasPrimaryAction;
 
@@ -602,12 +614,15 @@ function DesktopSearchSection({
                 )}
             <div className="ml-auto flex flex-shrink-0 items-center gap-2">
               {primaryAction}
+              {kebabJoinsPrimaryRow ? (
+                <OverflowMenu items={overflowMenu} />
+              ) : null}
             </div>
           </div>
         )}
 
         {/* Row 2: filters left, action + kebab right */}
-        {((hasFilters && !showFilterPopover) || hasActionContent) && (
+        {(hasInlineFilters || hasInlineRightAnchor) && (
           <div className="mb-3 flex items-center gap-3">
             {inlineDesktopFilters}
 
@@ -633,7 +648,7 @@ function DesktopSearchSection({
               badge={badge}
             />
 
-            {hasOverflowMenu ? (
+            {hasOverflowMenu && !kebabJoinsPrimaryRow ? (
               <div className={hasInlineRightAnchor ? "" : "ml-auto"}>
                 <OverflowMenu items={overflowMenu} />
               </div>
