@@ -38,11 +38,18 @@ interface PersonIdentityFields {
   tag_id?: string | null;
 }
 
-/** What the backend provisioned alongside the account (#2222). */
+/**
+ * What the backend provisioned alongside the account (#2222).
+ *
+ * The ids arrive as strings and stay strings on the way through: they are
+ * PostgreSQL bigints, and a JSON number past 2^53 is already truncated by the
+ * time it reaches us. They are converted exactly once, at the request boundary
+ * that needs a number.
+ */
 interface SchoolIdentity {
-  person_id: number;
-  staff_id: number;
-  teacher_id?: number;
+  person_id: string;
+  staff_id: string;
+  teacher_id?: string;
 }
 
 interface AccountWithIdentityResponse {
@@ -229,7 +236,7 @@ class TeacherService {
     // so the backend creates the person and staff record in the same
     // transaction (#2222) instead of us stitching the chain together across
     // three requests that can fail in the middle.
-    let personId: number;
+    let personId: string;
     if (teacherData.linkExisting) {
       // Link existing account — password is NOT changed
       personId = await this.linkAccountToTenant(email, roleId, teacherData);
@@ -282,7 +289,7 @@ class TeacherService {
     roleId: number,
     identity: PersonIdentityFields,
   ): Promise<
-    { status: "created"; personId: number } | { status: "account_exists" }
+    { status: "created"; personId: string } | { status: "account_exists" }
   > {
     const response = await sessionFetch("/api/auth/register", {
       method: "POST",
@@ -339,7 +346,7 @@ class TeacherService {
     email: string,
     roleId: number,
     identity: PersonIdentityFields,
-  ): Promise<number> {
+  ): Promise<string> {
     const response = await sessionFetch("/api/auth/link-to-tenant", {
       method: "POST",
       credentials: "include",
@@ -383,13 +390,15 @@ class TeacherService {
       qualifications?: string | null;
       is_teacher?: boolean;
     },
-    personId: number,
+    personId: string,
   ): Promise<Teacher> {
     const response = await sessionFetch("/api/staff", {
       method: "POST",
       credentials: "include",
       body: JSON.stringify({
-        person_id: personId,
+        // The only place the id becomes a number: /api/staff takes person_id
+        // as one. Everywhere before this it stays the string the backend sent.
+        person_id: Number(personId),
         // Lehrkraft (#1772) bekommt kein Betreuungsprofil (users.teachers):
         // das Formular setzt is_teacher=false, alle anderen Rollen behalten
         // den bisherigen Default.

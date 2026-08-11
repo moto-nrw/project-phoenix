@@ -47,6 +47,55 @@ func TestRepairSchoolIdentities(t *testing.T) {
 	assert.Equal(t, 0, liveTeacherCount(t, db, legacy.personID))
 }
 
+// The retired platform 'teacher' role predates base_role and was never
+// backfilled, so its tier reads as unknown. RoleNeedsCaregiverProfile still
+// matches it by name, and the repair has to agree. Otherwise an account holding
+// it gets a staff record and no caregiver profile, which leaves its groups and
+// supervisions empty: the same bug one level down.
+func TestRepairSchoolIdentitiesCoversLegacyTeacherRole(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	legacyTeacher := ensureLegacySystemTeacherRole(t, db)
+
+	holder := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Lehrer", legacyTeacher)
+	defer cleanupBrokenSchoolIdentities(t, db, holder)
+
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
+
+	assert.Equal(t, 1, liveStaffCount(t, db, holder.personID), "the retired teacher role is personnel")
+	assert.Equal(t, 1, liveTeacherCount(t, db, holder.personID), "the retired teacher role needs its caregiver profile")
+}
+
+// ensureLegacySystemTeacherRole returns the id of the retired platform
+// 'teacher' role, creating it when the schema no longer seeds it. The name is
+// what identifies it: base_role stays NULL, which is the whole point.
+func ensureLegacySystemTeacherRole(t *testing.T, db *bun.DB) int64 {
+	t.Helper()
+	ctx := context.Background()
+
+	var ids []int64
+	require.NoError(t, db.NewRaw(
+		`SELECT id FROM auth.roles WHERE is_system AND LOWER(TRIM(name)) = 'teacher'`,
+	).Scan(ctx, &ids))
+	if len(ids) > 0 {
+		return ids[0]
+	}
+
+	var id int64
+	require.NoError(t, db.NewRaw(`
+		INSERT INTO auth.roles (name, description, is_system, tenant_id, base_role, created_at, updated_at)
+		VALUES ('teacher', 'Retired platform caregiver role', TRUE, NULL, NULL, NOW(), NOW())
+		RETURNING id`).Scan(ctx, &id))
+	t.Cleanup(func() { cleanupIdentityRepairRoles(t, db, id) })
+	return id
+}
+
 // An account whose access was revoked keeps its person row on purpose, but must
 // not be silently re-staffed by the repair.
 func TestRepairSchoolIdentitiesSkipsInactiveAccess(t *testing.T) {
@@ -96,6 +145,7 @@ func cleanupIdentityRepairRoles(t *testing.T, db *bun.DB, roleIDs ...int64) {
 	t.Helper()
 	for _, id := range roleIDs {
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.account_roles WHERE role_id = ?`, id)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.role_permissions WHERE role_id = ?`, id)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.roles WHERE id = ?`, id)
 	}
 }

@@ -251,7 +251,7 @@ describe("teacher-api", () => {
         json: () =>
           Promise.resolve({
             id: 50,
-            school_identity: { person_id: 100, staff_id: 7 },
+            school_identity: { person_id: "100", staff_id: "7" },
           }),
       } as Response);
 
@@ -289,7 +289,7 @@ describe("teacher-api", () => {
         json: () =>
           Promise.resolve({
             id: 50,
-            school_identity: { person_id: 100, staff_id: 7 },
+            school_identity: { person_id: "100", staff_id: "7" },
           }),
       } as Response);
 
@@ -370,7 +370,7 @@ describe("teacher-api", () => {
         json: () =>
           Promise.resolve({
             id: 50,
-            school_identity: { person_id: 100, staff_id: 7 },
+            school_identity: { person_id: "100", staff_id: "7" },
           }),
       } as Response);
 
@@ -425,7 +425,7 @@ describe("teacher-api", () => {
         json: () =>
           Promise.resolve({
             id: 50,
-            school_identity: { person_id: 100, staff_id: 7 },
+            school_identity: { person_id: "100", staff_id: "7" },
           }),
       } as Response);
       mockFetch.mockResolvedValueOnce({
@@ -450,6 +450,42 @@ describe("teacher-api", () => {
       expect(body.first_name).toBe("Test");
       expect(body.last_name).toBe("Teacher");
       expect(body.tag_id).toBe("TAG-1");
+    });
+
+    // The provisioned ids are bigints and travel as strings. Only the /api/staff
+    // request needs a number, and it must be the id the backend actually
+    // reported, not one that a re-parse somewhere in between rounded off.
+    it("passes the provisioned person id through to the staff request", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const personId = "9007199254740993"; // 2^53 + 1
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            school_identity: { person_id: personId, staff_id: "7" },
+          }),
+      } as Response);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(sampleTeacher),
+      } as Response);
+
+      await teacherService.createTeacher({
+        first_name: "Test",
+        last_name: "Teacher",
+        password: "SecurePass123!",
+        role_id: 1,
+      });
+
+      const staffCall = mockFetch.mock.calls.find(
+        (call) => call[0] === "/api/staff",
+      );
+      expect(staffCall).toBeDefined();
+      const staffInit = staffCall![1] as { body: string };
+      const staffBody = JSON.parse(staffInit.body) as Record<string, unknown>;
+      expect(staffBody.person_id).toBe(Number(personId));
     });
   });
 
@@ -767,7 +803,7 @@ describe("teacher-api", () => {
         json: () =>
           Promise.resolve({
             id: 99,
-            school_identity: { person_id: 200, staff_id: 8 },
+            school_identity: { person_id: "200", staff_id: "8" },
           }),
       } as Response);
 

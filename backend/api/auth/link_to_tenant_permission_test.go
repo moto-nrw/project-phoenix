@@ -31,7 +31,15 @@ func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
 
 	adminRole := testpkg.GetOrCreateTestRole(t, tc.db, "admin")
 
-	body := map[string]interface{}{"email": email, "role_id": adminRole.ID}
+	// first_name/last_name are required for a staff-tier role (#2222); without
+	// them the request is refused before the permission check is reached, which
+	// would make this test pass for the wrong reason.
+	body := map[string]interface{}{
+		"email":      email,
+		"role_id":    adminRole.ID,
+		"first_name": "Link",
+		"last_name":  "Permission",
+	}
 	claims := jwtPkg.AppClaims{
 		ID:       int(account.ID),
 		TenantID: 1,

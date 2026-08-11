@@ -69,9 +69,10 @@ const staffTierRoleExists = `
 //   - never a person that is a student
 //
 // Caregiver profiles (users.teachers) are created under the same rule the
-// provisioning now applies: caregiver tier gets one, the class-scoped Lehrkraft
-// role never does (#1772). Without it the repaired account would show up in the
-// staff list and still find its groups and supervisions empty.
+// provisioning now applies: caregiver tier gets one, as does the retired
+// platform 'teacher' role that predates the tier column, and the class-scoped
+// Lehrkraft role never does (#1772). Without it the repaired account would show
+// up in the staff list and still find its groups and supervisions empty.
 //
 // Idempotent — every insert is guarded by NOT EXISTS.
 func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
@@ -129,11 +130,20 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 				JOIN auth.roles r ON r.id = ar.role_id
 				WHERE ar.account_id = p.account_id
 				  AND ar.tenant_id = p.tenant_id
-				  AND COALESCE(
+				  AND (
+					COALESCE(
 						NULLIF(LOWER(TRIM(r.base_role)), ''),
 						CASE WHEN r.is_system THEN LOWER(TRIM(r.name)) END,
 						''
-				      ) = 'user'
+					) = 'user'
+					-- The retired platform 'teacher' role predates base_role and
+					-- was never backfilled, so its tier reads as unknown.
+					-- RoleNeedsCaregiverProfile matches it by name; without the
+					-- same name match here the accounts still holding it get a
+					-- staff record and no caregiver profile, which is the half
+					-- of the bug this migration exists to repair.
+					OR (r.is_system AND LOWER(TRIM(r.name)) = 'teacher')
+				  )
 				  AND NOT (r.is_system AND LOWER(TRIM(r.name)) = 'lehrkraft')
 			  )
 			  AND NOT EXISTS (

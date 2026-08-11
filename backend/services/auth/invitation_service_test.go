@@ -407,8 +407,12 @@ func TestAcceptInvitationRollsBackOnError(t *testing.T) {
 	// account id. Against a real database the surrounding transaction takes the
 	// account insert back with everything else — the in-memory stubs here have
 	// no transaction to roll back, so the account row they hold says nothing
-	// about that. What this test still proves is that the failure aborts the
-	// acceptance: the error surfaces, the invitation stays unused, and no
+	// about that. That half is covered by
+	// TestAcceptInvitationRollsBackAccountMappingAndRole, which asserts against
+	// a real database that the account, the school mapping and the role
+	// assignment are all gone. What this test still proves is that the failure
+	// aborts the acceptance: the error surfaces, the invitation stays unused,
+	// and no
 	// person is left behind.
 }
 

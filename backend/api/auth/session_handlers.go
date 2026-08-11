@@ -1,11 +1,11 @@
 package auth
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 
@@ -143,7 +143,10 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity := rs.schoolIdentityFor(r.Context(), role, req.FirstName, req.LastName, req.TagID)
+	identity, ok := rs.schoolIdentityFor(w, r, role, req.FirstName, req.LastName, req.TagID)
+	if !ok {
+		return
+	}
 
 	account, schoolIdentity, err := rs.AuthService.RegisterSchoolAccount(
 		r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID, identity)
@@ -158,33 +161,50 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 }
 
 // schoolIdentityFor turns the request's identity fields into the provisioning
-// input, or nil when there are none.
+// input. The bool reports whether the handler may continue; false means an
+// error response has already been written.
 //
-// A staff-tier role handed out without them creates an account that holds the
-// role and is not staff — exactly the state issue #2222 is about. The
-// endpoint still accepts it (the operator flow provisions the identity itself,
-// after registering the account), so it is logged rather than refused.
+// A staff-tier role handed out without a name is refused. Accepting it is what
+// creates the state issue #2222 is about: an account that holds the role, logs
+// in, and is not staff as far as the database is concerned. There is nowhere to
+// take a name from afterwards (an account carries an email and a username,
+// never a person's name), so the request cannot be completed later, only
+// abandoned half-written.
+//
+// Callers that provision the identity themselves are not affected: they go
+// through RegisterSchoolAccount / LinkSchoolAccount with a nil identity
+// directly (operator account creation), not through these HTTP endpoints.
+//
+// Guardian-tier roles need no staff record and are accepted without names.
 func (rs *Resource) schoolIdentityFor(
-	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
 	role *authModel.Role,
 	firstName, lastName string,
 	tagID *string,
-) *authService.SchoolAccountIdentity {
+) (*authService.SchoolAccountIdentity, bool) {
+	firstName = strings.TrimSpace(firstName)
+	lastName = strings.TrimSpace(lastName)
+
 	if firstName != "" && lastName != "" {
 		return &authService.SchoolAccountIdentity{
 			FirstName: firstName,
 			LastName:  lastName,
 			TagID:     tagID,
-		}
+		}, true
 	}
+
 	if authService.RoleNeedsStaffRecord(role) {
-		claims := jwt.ClaimsFromCtx(ctx)
-		slog.Default().Warn("school access granted without staff identity",
+		claims := jwt.ClaimsFromCtx(r.Context())
+		slog.Default().Warn("school access refused without staff identity",
 			"role_id", role.ID,
 			"tenant_id", claims.TenantID,
 		)
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrSchoolIdentityNamesRequired))
+		return nil, false
 	}
-	return nil
+
+	return nil, true
 }
 
 // linkToTenant links an existing account to the caller's tenant.
@@ -202,7 +222,10 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identity := rs.schoolIdentityFor(r.Context(), role, req.FirstName, req.LastName, req.TagID)
+	identity, ok := rs.schoolIdentityFor(w, r, role, req.FirstName, req.LastName, req.TagID)
+	if !ok {
+		return
+	}
 
 	account, schoolIdentity, err := rs.AuthService.LinkSchoolAccount(r.Context(), req.Email, roleID, callerTenantID, identity)
 	if err != nil {
@@ -216,7 +239,8 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
 				errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
 				errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
-				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable):
+				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
+				errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired):
 				common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -322,7 +346,11 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 	case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
 		errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
 		errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
-		errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable):
+		errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
+		// schoolIdentityFor already refuses a nameless staff-tier request, so
+		// this is defense in depth: if provisioning ever raises it anyway, it is
+		// a bad request, not a server fault.
+		errors.Is(authErr.Err, authService.ErrSchoolIdentityNamesRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

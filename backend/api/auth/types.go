@@ -245,10 +245,16 @@ type AccountResponse struct {
 
 // SchoolIdentityResponse carries the ids of the person/staff chain provisioned
 // for an account at the caller's school.
+//
+// The ids go out as JSON strings. They are PostgreSQL bigints, and a JSON
+// number above 2^53 is already truncated by the time JavaScript has parsed it;
+// no amount of care on the client side can recover it afterwards. Sending them
+// as strings is the project convention for int64 ids (backend int64 to frontend
+// string) and keeps the value intact end to end.
 type SchoolIdentityResponse struct {
-	PersonID  int64 `json:"person_id"`
-	StaffID   int64 `json:"staff_id"`
-	TeacherID int64 `json:"teacher_id,omitempty"`
+	PersonID  int64 `json:"person_id,string"`
+	StaffID   int64 `json:"staff_id,string"`
+	TeacherID int64 `json:"teacher_id,string,omitempty"`
 }
 
 // LinkToTenantRequest represents a request to link an existing account to the current tenant.

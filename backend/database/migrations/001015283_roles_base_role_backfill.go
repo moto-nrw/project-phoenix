@@ -29,6 +29,33 @@ func init() {
 	)
 }
 
+// grantsUsersManage is the SQL form of
+// authorize.HasPermission("users:manage", rolePermissions) for a single
+// auth.permissions row aliased as p.
+//
+// It has to mirror that function exactly, wildcards included, or the backfill
+// classifies a role differently than the running code does. HasPermission
+// short-circuits on the system-wide admin scope (admin:* / *:*), then matches
+// resource and action separately, where a pattern matches when it is equal, is
+// "*", or ends in "*" and prefixes the required value. So users:*, *:manage and
+// user*:manage all grant users:manage, and all three would be classified as
+// staff roles by a plain equality check.
+const grantsUsersManage = `(
+		p.name IN ('admin:*', '*:*')
+		OR (p.resource = 'admin' AND p.action = '*')
+		OR (p.resource = '*' AND p.action = '*')
+		OR (
+			(
+				p.resource IN ('users', '*')
+				OR (p.resource LIKE '%*' AND starts_with('users', left(p.resource, -1)))
+			)
+			AND (
+				p.action IN ('manage', '*')
+				OR (p.action LIKE '%*' AND starts_with('manage', left(p.action, -1)))
+			)
+		)
+	)`
+
 // rolesBaseRoleBackfillUp gives every school role a privilege tier.
 //
 // base_role arrived with migration 1.15.31 and was never backfilled. CreateRole
@@ -62,12 +89,7 @@ func rolesBaseRoleBackfillUp(ctx context.Context, db *bun.DB) error {
 				FROM auth.role_permissions rp
 				JOIN auth.permissions p ON p.id = rp.permission_id
 				WHERE rp.role_id = r.id
-				  AND (
-					p.name = 'users:manage'
-					OR (p.resource = 'users' AND p.action = 'manage')
-					OR (p.resource = 'admin' AND p.action = '*')
-					OR (p.resource = '*' AND p.action = '*')
-				  )
+				  AND `+grantsUsersManage+`
 			) THEN 'admin'
 			ELSE 'user'
 		END,
