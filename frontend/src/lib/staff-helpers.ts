@@ -93,10 +93,13 @@ const ROLE_DISPLAY_NAMES: Record<string, string> = {
   user: "Betreuer",
   guest: "Gast",
   guardian: "Erziehungsberechtigte/r",
+  lehrkraft: "Lehrkraft",
 };
 
+// Role names are stored lowercase in auth.roles; lowercase before the lookup so
+// a raw system role name never reaches the UI in its stored spelling.
 function formatAccountRole(role: string): string {
-  return ROLE_DISPLAY_NAMES[role] ?? role;
+  return ROLE_DISPLAY_NAMES[role.toLowerCase()] ?? role;
 }
 
 // Get a display-friendly role/type for staff
