@@ -5,6 +5,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
+import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
@@ -25,7 +26,7 @@ interface ShellProfile {
 
 type ShellStatus = "loading" | "authenticated" | "unauthenticated";
 
-type ShellMode = "teacher" | "operator" | "parent";
+type ShellMode = "teacher" | "operator" | "parent" | "school";
 
 interface ShellAuthContextType {
   user: ShellUser | null;
@@ -177,6 +178,86 @@ export function OperatorShellProvider({
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/suggestions"),
       profileUrl: operatorPath("/operator/settings"),
+    };
+  }, [session, sessionStatus]);
+
+  return (
+    <ShellAuthContext.Provider value={value}>
+      {children}
+    </ShellAuthContext.Provider>
+  );
+}
+
+// SchoolShellProvider — the school-portal ("moto schule", #2207) sibling of
+// ParentShellProvider. Feeds the AppShell user/profile/logout machinery from
+// the school-scope NextAuth session (school.session-token cookie).
+export function SchoolShellProvider({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}) {
+  const { data: session, status: sessionStatus } = useSession();
+
+  const value = useMemo<ShellAuthContextType>(() => {
+    const user: ShellUser | null = session?.user
+      ? {
+          name: session.user.name?.trim() || "Lehrkraft",
+          email: session.user.email ?? "",
+          roles: session.user.roles ?? ["lehrkraft"],
+        }
+      : null;
+
+    const displayName = session?.user?.name ?? "";
+    const nameParts = displayName.split(" ");
+    const shellProfile: ShellProfile | null = session?.user
+      ? {
+          firstName: nameParts[0],
+          lastName: nameParts.slice(1).join(" ") || undefined,
+        }
+      : null;
+
+    const status: ShellStatus =
+      sessionStatus === "loading"
+        ? "loading"
+        : sessionStatus === "authenticated"
+          ? "authenticated"
+          : "unauthenticated";
+
+    return {
+      user,
+      profile: shellProfile,
+      status,
+      isSessionExpired: session?.error === "RefreshTokenExpired",
+      logout: async () => {
+        // Suppress the "session expired" banner the login page would
+        // otherwise show after the NextAuth redirect race.
+        try {
+          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+        } catch {
+          // sessionStorage unavailable (e.g. private browsing quota)
+        }
+        // School sessions revoke through the shared scope-preserving
+        // /auth/logout (tenant-style), proxied with the school session's
+        // refresh token. Best-effort: logout must never block on it.
+        try {
+          await fetch("/api/school/auth/logout", {
+            method: "POST",
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch (err: unknown) {
+          logger.warn("school_backend_logout_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        clearSessionCache();
+        await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
+      },
+      mode: "school" as const,
+      homeUrl: schoolPath("/school"),
+      // Kein eigener Profil-/Einstellungsbereich im Schul-Portal (v1) —
+      // das Avatar-Menü bietet nur "Abmelden" (wie das Elternportal vor
+      // #1671).
+      profileUrl: null,
     };
   }, [session, sessionStatus]);
 

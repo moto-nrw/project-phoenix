@@ -700,6 +700,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
+    // Schul-Portal (#2207): auf dem Schul-Host ist die Klassenansicht die
+    // Root-Seite — usePathname zeigt "/" (extern) bzw. "/school" (intern).
+    if (href === "/school") return pathname === "/school" || pathname === "/";
     // /staff/dienstplan has its own sidebar entry — don't also light up "Mitarbeiter"
     if (href === "/staff") {
       return (
@@ -1224,6 +1227,41 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 className="ml-auto"
               />
             </Link>
+          </nav>
+        </div>
+      </aside>
+    );
+  }
+
+  // Schul-Portal ("moto schule", #2207): gleiche Portal-Chrome wie OGS und
+  // Eltern, aber nur zwei erreichbare Bereiche — die Klassenansicht (Root des
+  // Schul-Hosts) und die Hilfe. Spiegelt die Lehrkraft-only-Navigation des
+  // Tenant-Portals, die der Cutover (PR 3) ablöst.
+  if (mode === "school") {
+    const schoolKlassenItem: NavItem = {
+      href: "/school",
+      label: "Klassenansicht",
+      icon: navigationIcons.academicCap,
+      activeColor: "text-[#5080D8]",
+    };
+    const schoolHelpItem: NavItem = {
+      href: "/help",
+      label: "Hilfe",
+      icon: navigationIcons.book,
+      concept: "help",
+      activeColor: "text-moto-green",
+      newTab: true,
+    };
+    return (
+      <aside
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
+      >
+        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+            {renderNavItem(schoolKlassenItem)}
+          </nav>
+          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
+            {renderNavItem(schoolHelpItem)}
           </nav>
         </div>
       </aside>

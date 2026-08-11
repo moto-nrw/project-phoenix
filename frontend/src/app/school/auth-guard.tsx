@@ -3,8 +3,11 @@
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
+import { SchoolShellProvider } from "~/lib/shell-auth-context";
+import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
+import { AppShell } from "~/components/dashboard/app-shell";
+import { ShellNavIntlProvider } from "~/components/dashboard/shell-nav-intl-provider";
 import { schoolPath } from "~/lib/school-url";
-import { SchoolShell } from "./school-shell";
 
 function FullPageLoading() {
   return (
@@ -16,7 +19,9 @@ function FullPageLoading() {
 
 /**
  * Client-side auth guard for school routes ("moto schule", #2207).
- * Mirrors ParentAuthGuard.
+ * Mirrors ParentAuthGuard — same AppShell chrome as the tenant and parents
+ * portals (sidebar, header with profile menu, mobile bottom nav), fed by
+ * SchoolShellProvider.
  *
  * Reads the school session (via SchoolProviders SessionProvider) and
  * redirects non-school or unauthenticated users. Tenant, operator, and
@@ -59,5 +64,16 @@ export function SchoolAuthGuard({
     return <FullPageLoading />;
   }
 
-  return <SchoolShell>{children}</SchoolShell>;
+  // ShellNavIntlProvider: Sidebar + MobileBottomNav call
+  // useTranslations("parentNav") for the parent-portal preview nav; the
+  // German-only school shell gets the same minimal catalog as staff/operator.
+  return (
+    <SchoolShellProvider>
+      <BreadcrumbProvider>
+        <ShellNavIntlProvider>
+          <AppShell>{children}</AppShell>
+        </ShellNavIntlProvider>
+      </BreadcrumbProvider>
+    </SchoolShellProvider>
+  );
 }

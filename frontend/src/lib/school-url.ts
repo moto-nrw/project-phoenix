@@ -38,3 +38,17 @@ export function schoolPath(path: string): string {
   }
   return path.startsWith("/school") ? path : `/school${path}`;
 }
+
+/**
+ * Returns an absolute URL for school paths.
+ * Use for NextAuth callbackUrl where relative paths resolve against
+ * NEXTAUTH_URL. Client-side only — throws on server.
+ */
+export function schoolAbsoluteUrl(path: string): string {
+  if (typeof window === "undefined") {
+    throw new Error(
+      "schoolAbsoluteUrl() is client-only. Use schoolPath() on the server.",
+    );
+  }
+  return `${window.location.origin}${schoolPath(path)}`;
+}

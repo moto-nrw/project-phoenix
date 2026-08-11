@@ -207,6 +207,17 @@ const LEHRKRAFT_MAIN_ITEMS: NavItem[] = [
   },
 ];
 
+// Schul-Portal ("moto schule", #2207): die Klassenansicht ist die Root-Seite
+// des Schul-Hosts; Hilfe kommt über das Overflow-Menü (wie Lehrkraft-only).
+const SCHOOL_MAIN_ITEMS: NavItem[] = [
+  {
+    href: "/school",
+    label: "Klassen",
+    iconKey: "academicCap",
+    alwaysShow: true,
+  },
+];
+
 // Order mirrors the desktop sidebar sections: VERWALTUNG → KOMMUNIKATION → TEAM.
 const OPERATOR_MAIN_ITEMS: NavItem[] = [
   {
@@ -615,6 +626,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       if (href === "/parents") {
         return pathname === "/parents" || pathname === "/";
       }
+      if (href === "/school") {
+        return pathname === "/school" || pathname === "/";
+      }
       if (href === "/dashboard") {
         return pathname === "/dashboard" || pathname === "/";
       }
@@ -699,13 +713,15 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       ? parentMainItems
       : mode === "operator"
         ? resolvedOperatorMainItems
-        : lehrkraftOnly
-          ? LEHRKRAFT_MAIN_ITEMS
-          : isCaregiver(session)
-            ? STAFF_MAIN_ITEMS
-            : hasRole(session, "admin")
-              ? ADMIN_MAIN_ITEMS
-              : STAFF_MAIN_ITEMS;
+        : mode === "school"
+          ? SCHOOL_MAIN_ITEMS
+          : lehrkraftOnly
+            ? LEHRKRAFT_MAIN_ITEMS
+            : isCaregiver(session)
+              ? STAFF_MAIN_ITEMS
+              : hasRole(session, "admin")
+                ? ADMIN_MAIN_ITEMS
+                : STAFF_MAIN_ITEMS;
   // Admins with supervision overview: inject "Aufsicht" tab dynamically.
   // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
   // than just isSupervising so a synthetic Schulhof entry does not surface
@@ -778,6 +794,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
+    // Schul-Portal (#2207): im Overflow bleibt nur die Hilfe — alles andere
+    // sind Tenant-Seiten, die es auf dem Schul-Host nicht gibt.
+    if (mode === "school") return item.href === "/help";
     // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
     // jede andere Seite würde 403 antworten. (/klassen sitzt dort schon
     // als Haupt-Tab.)
