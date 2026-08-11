@@ -549,8 +549,19 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kindersuche mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
-        image: "/help/screens/kindersuche.webp",
+          "Kindersuche mit Suchfeld, Status-Badges und Aktivitäts-Indikatoren sowie das Filterfenster mit der Mehrfachauswahl bei Klasse.",
+        gallery: [
+          {
+            image: "/help/screens/kindersuche.webp",
+            caption:
+              "Kindersuche mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
+          },
+          {
+            image: "/help/screens/kindersuche-mehrfachauswahl.webp",
+            caption:
+              "Filterfenster: „Klasse“ ist aufgeklappt, „Klasse 3a“ und „Klasse 4b“ sind angehakt, das Feld zeigt „2 Klassen“. „Stufe“ und „Gruppe“ funktionieren genauso.",
+          },
+        ],
       },
       {
         id: "kinderdetailansicht",

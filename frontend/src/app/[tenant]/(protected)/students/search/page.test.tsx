@@ -1394,6 +1394,39 @@ describe("StudentSearchPage", () => {
         );
       });
     });
+
+    it("keeps the multi-value class, group and year filters in the back-link", async () => {
+      mockSearchParams.set("school_class", "3a,4b");
+      mockSearchParams.set("group_id", "1,2");
+      mockSearchParams.set("year", "3,4");
+
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+      });
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Max").closest("button")!);
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith(
+          `/test-tenant/students/1?from=${encodeURIComponent(
+            "/students/search?group_id=1%2C2&school_class=3a%2C4b&year=3%2C4",
+          )}`,
+        );
+      });
+    });
   });
 
   describe("SWR Fetcher Execution", () => {

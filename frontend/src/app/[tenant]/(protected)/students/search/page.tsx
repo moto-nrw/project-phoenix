@@ -1401,8 +1401,12 @@ function SearchPageContent() {
         // 200 cards and shows a truncation notice; this page must show
         // every occupant so the overflow link actually delivers.
         // 1000 covers any realistic combined-group / assembly-room
-        // session well above what backend ParsePagination would return
-        // by default (50). General search keeps the default.
+        // session. General search sends nothing on purpose: the proxy route
+        // (app/api/students/route.ts) already defaults an absent page_size to
+        // its 1000 maximum, so this page gets every matching row in one trip
+        // — the backend's own ParsePagination default of 50 is never reached
+        // from here, and multi-value class/group/year selections (#2218) fit
+        // in the same single page as an unfiltered list.
         pageSize: effectiveRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
@@ -2633,6 +2637,8 @@ function SearchPageContent() {
             }
             if (selectedGroupIds.length > 0)
               qs.set("group_id", selectedGroupIds.join(","));
+            if (selectedSchoolClasses.length > 0)
+              qs.set("school_class", selectedSchoolClasses.join(","));
             if (selectedYears.length > 0)
               qs.set("year", selectedYears.join(","));
             if (effectiveAttendanceFilter !== "all")

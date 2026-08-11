@@ -40,13 +40,16 @@ vi.mock("./FilterButton", () => ({
   FilterButton: ({
     onClick,
     testId,
+    hasActiveFilters,
   }: {
     onClick: () => void;
     testId?: string;
+    hasActiveFilters?: boolean;
   }) => (
     <button
       type="button"
       data-testid={testId ?? "mobile-filter-button"}
+      data-has-active-filters={String(Boolean(hasActiveFilters))}
       onClick={onClick}
     >
       Filter
@@ -307,6 +310,48 @@ describe("PageHeaderWithSearch", () => {
     render(<PageHeaderWithSearch {...propsWithActiveFilter} />);
     // When filter has non-default value, button should indicate active state
     expect(screen.getByTestId("mobile-filter-button")).toBeInTheDocument();
+    expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
+      "data-has-active-filters",
+      "true",
+    );
+  });
+
+  it("treats an empty multi-select selection as inactive", () => {
+    const multiSelectFilters: PageHeaderWithSearchProps["filters"] = [
+      {
+        id: "schoolClass",
+        label: "Klasse",
+        type: "dropdown",
+        multiSelect: true,
+        value: [],
+        onChange: vi.fn(),
+        options: [
+          { value: "3a", label: "3a" },
+          { value: "4b", label: "4b" },
+        ],
+      },
+    ];
+
+    const { rerender } = render(
+      <PageHeaderWithSearch {...baseProps} filters={multiSelectFilters} />,
+    );
+    // An empty selection means "alle" — the filter button must stay neutral
+    // even though [] never equals the first option's value.
+    expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
+      "data-has-active-filters",
+      "false",
+    );
+
+    rerender(
+      <PageHeaderWithSearch
+        {...baseProps}
+        filters={[{ ...multiSelectFilters[0]!, value: ["3a", "4b"] }]}
+      />,
+    );
+    expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
+      "data-has-active-filters",
+      "true",
+    );
   });
 
   it("handles empty filters array", () => {
