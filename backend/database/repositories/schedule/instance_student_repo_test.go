@@ -1994,3 +1994,69 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	require.NotNil(t, gotPartial.PickupExceptionID)
 	assert.Equal(t, partial.ID, *gotPartial.PickupExceptionID)
 }
+
+// The session-end bridge flips expected → absent without care-day locks.
+// ApplyPartialAbsence must still claim those bare absences so release can
+// reconcile them by pickup_exception_id.
+func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	date := timezone.NewDate(2026, 11, 4)
+
+	// createInstanceFixture starts at 14:00 — after a 13:00 cutoff.
+	inst, cleanupInst := createInstanceFixture(t, db, "partial-bridge", date)
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Bridge", fmt.Sprintf("Bare-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Bridge-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+
+	// Session-end bridge already stamped a bare absence (no provenance).
+	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID,
+		scheduleModels.AttendanceStatusAbsent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	partial.ExcusedFrom = &from
+	partial.ExcusedCreatedBy = &staff.ID
+	partial.ExcusedOwnsPickupTime = true
+	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
+
+	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "bridge bare absence after the cutoff must be claimed")
+
+	got, err := repo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+	require.NotNil(t, got.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+	require.NotNil(t, got.PickupExceptionID)
+	assert.Equal(t, partial.ID, *got.PickupExceptionID)
+
+	// Hand the row to a broad day status; partial must not steal it back.
+	released, err := repo.ReleasePartialAbsence(ctx, partial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, released)
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, date, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
+	applied, err := repo.ApplyStatusDay(ctx, student.ID, date, statusDay.ID, scheduleModels.AttendanceSubstatusSick)
+	require.NoError(t, err)
+	assert.Equal(t, 1, applied)
+
+	n, err = repo.ApplyPartialAbsence(ctx, partial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "status-day owned absences must not be claimed by a partial")
+
+	got, err = repo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.StudentStatusDayID)
+	assert.Equal(t, statusDay.ID, *got.StudentStatusDayID)
+	assert.Nil(t, got.PickupExceptionID)
+}

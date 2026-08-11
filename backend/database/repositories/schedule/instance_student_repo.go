@@ -574,6 +574,11 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 // ApplyPartialAbsence marks only slots that start at or after the excused-from
 // time. A slot already carrying actual or manual attendance is outside this
 // write's ownership and remains untouched.
+//
+// The predicate also claims bare absences (status=absent, no provenance): the
+// session-end bridge flips expected → absent without the shared care-day lock,
+// so a concurrent partial write can otherwise persist the exception with no
+// owned rows and leave ReleasePartialAbsence unable to reconcile them.
 func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH partial_absence AS (
@@ -590,9 +595,16 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 		FROM schedule.activity_instances AS instance, partial_absence
 		WHERE attendance.tenant_id = partial_absence.tenant_id
 			AND attendance.student_id = partial_absence.student_id
-			AND attendance.status = ?
 			AND attendance.manual_status_at IS NULL
 			AND NOT attendance.not_scheduled
+			AND (
+				attendance.status = ?
+				OR (
+					attendance.status = ?
+					AND attendance.pickup_exception_id IS NULL
+					AND attendance.student_status_day_id IS NULL
+				)
+			)
 			AND instance.id = attendance.instance_id
 			AND instance.tenant_id = attendance.tenant_id
 			AND instance.date = partial_absence.exception_date
@@ -600,7 +612,8 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 			AND instance.status <> ?
 	`, tenant.FromContext(ctx), pickupExceptionID,
 		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
-		schedule.AttendanceStatusExpected, schedule.InstanceStatusCancelled).Exec(ctx)
+		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
+		schedule.InstanceStatusCancelled).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "apply partial absence to slots", Err: err}
 	}
@@ -696,6 +709,7 @@ func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
 		UPDATE schedule.instance_students AS attendance
 		SET status = ?,
 			substatus = ?,
+			student_status_day_id = NULL,
 			pickup_exception_id = partial_absence.id,
 			updated_at = ?
 		FROM schedule.activity_instances AS instance
@@ -707,13 +721,21 @@ func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
 			AND attendance.instance_id = ?
 			AND attendance.instance_id = instance.id
 			AND attendance.student_id = partial_absence.student_id
-			AND attendance.status = ?
 			AND attendance.manual_status_at IS NULL
 			AND NOT attendance.not_scheduled
+			AND (
+				attendance.status = ?
+				OR (
+					attendance.status = ?
+					AND attendance.pickup_exception_id IS NULL
+					AND attendance.student_status_day_id IS NULL
+				)
+			)
 			AND instance.date = ?
 			AND instance.start_time >= partial_absence.excused_from
 	`, schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
-		tenant.FromContext(ctx), instanceID, schedule.AttendanceStatusExpected, date).Exec(ctx)
+		tenant.FromContext(ctx), instanceID,
+		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent, date).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "apply active partial absences to instance", Err: err}
 	}
