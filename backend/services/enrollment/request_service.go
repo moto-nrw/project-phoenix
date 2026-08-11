@@ -1276,8 +1276,17 @@ func materializeAndValidateChildrenOfferingSelections(
 // dropped by materializeOfferingSelections, which only ever emits offerings
 // present in the available set.
 //
-// The exemption is deliberately narrow: callers pass ONLY the offerings the
-// child already holds, so a newly ADDED blocked offering is still rejected.
+// The exemption is deliberately narrow in two ways. Callers pass ONLY the
+// offerings the child already holds, so a newly ADDED blocked offering is
+// still rejected. And an id is exempt only while it is STILL SELECTED in the
+// submitted payload — the moment an admin removes it, it leaves the available
+// set again. Without that second restriction a removed offering would keep
+// its old privileges: a removed required one would still be demanded by
+// validateRequiredOfferings, a removed non-required one would still make
+// hasChoosableCareOffering true, and a removed auto-add target whose trigger
+// is still selected would be silently RE-CREATED by
+// materializeOfferingSelections (#2186 review).
+//
 // Submit and parent-edit paths pass nil and keep rejecting every blocked
 // offering.
 func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
@@ -1292,7 +1301,7 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		if err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
-		for id := range grandfathered {
+		for id := range grandfatheredStillSelected(children[i], grandfathered) {
 			if offering, ok := openByID[id]; ok {
 				availableByID[id] = offering
 			}
@@ -1320,6 +1329,28 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		out[i] = selections
 	}
 	return out, nil
+}
+
+// grandfatheredStillSelected narrows a grandfathering set to the ids the
+// submitted payload still carries for this child. Both the id list and the
+// per-offering day rows count as "selected": either one means the admin kept
+// the booking.
+func grandfatheredStillSelected(child SubmitChild, grandfathered map[int64]bool) map[int64]bool {
+	if len(grandfathered) == 0 {
+		return nil
+	}
+	kept := make(map[int64]bool, len(grandfathered))
+	for _, id := range child.OfferingIDs {
+		if grandfathered[id] {
+			kept[id] = true
+		}
+	}
+	for _, row := range child.OfferingDays {
+		if grandfathered[row.OfferingID] {
+			kept[row.OfferingID] = true
+		}
+	}
+	return kept
 }
 
 func availableCareOfferingsForGrade(catalog map[int64]*enrollmentModels.CareOffering, grade *int16) (map[int64]*enrollmentModels.CareOffering, error) {

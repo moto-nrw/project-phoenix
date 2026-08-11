@@ -47,6 +47,10 @@ import {
 } from "~/lib/care-offering-booking-stats";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
+import {
+  BLOCKED_OFFERING_ROW_TONE,
+  OfferingRowShell,
+} from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
@@ -1153,7 +1157,7 @@ function BlockedOfferingRow({
   const reason = careOfferingAvailabilityReason(offering, gradeLevel);
   const inputId = `blocked-offering-${offering.id}`;
   return (
-    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3">
+    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
       {/* A real <label> is load-bearing, not decoration: the kit Checkbox
           renders an sr-only input behind a pointer-events-none visual, so
           without the label wrapping it a mouse click on the box does nothing
@@ -1189,7 +1193,7 @@ function BlockedOfferingRow({
           <OfferingOccupancyLine stats={stats} />
         </div>
       </label>
-    </div>
+    </OfferingRowShell>
   );
 }
 

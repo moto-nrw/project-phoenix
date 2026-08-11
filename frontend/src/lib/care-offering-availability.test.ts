@@ -119,9 +119,10 @@ describe("describeCareOfferingAvailabilityRule", () => {
     ).toBe("Nicht für Klassen 3–4");
   });
 
-  it("joins several conditions with the rule's own connective", () => {
-    // "all": grade 1 only. "any" of the same pair would admit every grade,
-    // so it is covered by the tautology test below instead.
+  // Describes what the rule EVALUATES to, not what its conditions say. The
+  // old phrase-joining ("Klassen 1–2 und nicht Klasse 2") named grades the
+  // rule rejects (#2186 review).
+  it("names the grades a multi-condition rule actually admits", () => {
     expect(
       describeCareOfferingAvailabilityRule({
         match: "all",
@@ -130,8 +131,7 @@ describe("describeCareOfferingAvailabilityRule", () => {
           { source: "grade_level", operator: "not_in", value: [2] },
         ],
       }),
-    ).toBe("Nur für Klassen 1–2 und nicht Klasse 2");
-    // "any": grades 1 and 3 only — genuinely restrictive.
+    ).toBe("Nur für Klasse 1");
     expect(
       describeCareOfferingAvailabilityRule({
         match: "any",
@@ -140,7 +140,32 @@ describe("describeCareOfferingAvailabilityRule", () => {
           { source: "grade_level", operator: "in", value: [3] },
         ],
       }),
-    ).toBe("Nur für Klasse 1 oder Klasse 3");
+    ).toBe("Nur für Klassen 1 und 3");
+  });
+
+  // A rule no grade satisfies is a misconfiguration; it must not read like an
+  // ordinary restriction.
+  it("says so when a rule admits nobody", () => {
+    expect(
+      describeCareOfferingAvailabilityRule({
+        match: "all",
+        conditions: [
+          { source: "grade_level", operator: "in", value: [1] },
+          { source: "grade_level", operator: "in", value: [2] },
+        ],
+      }),
+    ).toBe("Für keine Klassenstufe verfügbar");
+  });
+
+  it("prefers whichever side names fewer grades", () => {
+    // Excluding one grade beats listing the other twelve.
+    expect(
+      describeCareOfferingAvailabilityRule(rule("all", "not_in", [4])),
+    ).toBe("Nicht für Klasse 4");
+    // With a tenant maximum of 6, "nur 1–4" is shorter stated negatively.
+    expect(
+      describeCareOfferingAvailabilityRule(rule("all", "in", [1, 2, 3, 4]), 6),
+    ).toBe("Nicht für Klassen 5–6");
   });
 
   it("stays silent for a rule that turns nobody away", () => {
@@ -158,13 +183,7 @@ describe("describeCareOfferingAvailabilityRule", () => {
     ).toBeNull();
   });
 
-  it("still describes the same rule when the school has more grades", () => {
-    expect(
-      describeCareOfferingAvailabilityRule(rule("all", "in", [1, 2, 3, 4]), 6),
-    ).toBe("Nur für Klassen 1–4");
-  });
-
-  it("ignores conditions that describe nothing", () => {
+  it("stays silent for a rule it cannot read", () => {
     expect(
       describeCareOfferingAvailabilityRule(rule("all", "in", [])),
     ).toBeNull();

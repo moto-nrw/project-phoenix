@@ -265,3 +265,111 @@ func TestGrandfatheringIgnoresIDsOutsideTheCatalog(t *testing.T) {
 	)
 	require.ErrorIs(t, err, ErrCareOfferingClosed)
 }
+
+// #2186 review: the exemption must lapse the moment an admin removes the
+// booking, or a removed offering keeps privileges it no longer has.
+func TestGrandfatheringLapsesWhenTheOfferingIsRemoved(t *testing.T) {
+	grade := func(value int16) *int16 { return &value }
+
+	t.Run("a removed required offering is not demanded back", func(t *testing.T) {
+		required := &enrollmentModels.CareOffering{
+			Name:             "Randstunde",
+			DaysOfWeekMode:   enrollmentModels.DaysOfWeekModeFixed,
+			AvailableDays:    []string{"mon"},
+			IsRequired:       true,
+			AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+		}
+		required.ID = 10
+		open := &enrollmentModels.CareOffering{
+			Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+		}
+		open.ID = 20
+		catalog := map[int64]*enrollmentModels.CareOffering{10: required, 20: open}
+
+		// Held but dropped from the payload: the admin removed it.
+		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{20}}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
+			map[int64]bool{10: true},
+		)
+		require.NoError(t, err, "removal must not trip required-offering validation")
+		require.Len(t, selections[0], 1)
+		require.Equal(t, int64(20), selections[0][0].OfferingID)
+	})
+
+	t.Run("a removed auto-add target is not re-created", func(t *testing.T) {
+		trigger := &enrollmentModels.CareOffering{
+			Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+		}
+		trigger.ID = 10
+		autoTarget := &enrollmentModels.CareOffering{
+			Name:                      "Randstunde",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon"},
+			AutoAddTriggerOfferingIDs: []int64{10},
+			AvailabilityRule:          testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+		}
+		autoTarget.ID = 20
+		catalog := map[int64]*enrollmentModels.CareOffering{10: trigger, 20: autoTarget}
+
+		// Trigger kept, grandfathered auto-target removed.
+		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10}}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
+			map[int64]bool{20: true},
+		)
+		require.NoError(t, err)
+		for _, selection := range selections[0] {
+			require.NotEqual(t, int64(20), selection.OfferingID,
+				"a removed grandfathered offering must not be auto-added back")
+		}
+	})
+
+	t.Run("a kept auto-add target still materializes its automatic days", func(t *testing.T) {
+		trigger := &enrollmentModels.CareOffering{
+			Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+		}
+		trigger.ID = 10
+		autoTarget := &enrollmentModels.CareOffering{
+			Name:                      "Randstunde",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon"},
+			AutoAddTriggerOfferingIDs: []int64{10},
+			AvailabilityRule:          testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+		}
+		autoTarget.ID = 20
+		catalog := map[int64]*enrollmentModels.CareOffering{10: trigger, 20: autoTarget}
+
+		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10, 20}}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
+			map[int64]bool{20: true},
+		)
+		require.NoError(t, err)
+		kept := make([]int64, 0, len(selections[0]))
+		for _, selection := range selections[0] {
+			kept = append(kept, selection.OfferingID)
+		}
+		require.ElementsMatch(t, []int64{10, 20}, kept)
+	})
+
+	t.Run("a removed offering no longer forces a selection-mode pick", func(t *testing.T) {
+		onlyBlocked := &enrollmentModels.CareOffering{
+			Name:             "Randstunde",
+			DaysOfWeekMode:   enrollmentModels.DaysOfWeekModeFixed,
+			AvailableDays:    []string{"mon"},
+			AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+		}
+		onlyBlocked.ID = 10
+		catalog := map[int64]*enrollmentModels.CareOffering{10: onlyBlocked}
+
+		// Nothing selectable remains for a grade-3 child once the held
+		// booking is removed, so at_least_one must not be enforced.
+		children := []SubmitChild{{TargetGradeLevel: grade(3)}}
+		_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, catalog, enrollmentModels.PhaseCareOfferingSelectionAtLeastOne,
+			map[int64]bool{10: true},
+		)
+		require.NoError(t, err)
+	})
+}

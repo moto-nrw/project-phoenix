@@ -66,20 +66,40 @@ function gradeNoun(values: readonly number[]): string {
 }
 
 /**
- * Turns an availability rule into the short German phrase the catalog shows
- * as a pill and the admin pickers show as a reason. Returns null when the
- * rule imposes no restriction, so callers render nothing.
- *
- * The wording deliberately mirrors the rule editor's own vocabulary ("ist
- * eine von" / "ist keine von") so an admin can connect the pill back to the
- * setting that produced it.
- */
-/**
  * Highest grade the backend's rule validation accepts
  * (`CareOfferingAvailabilityRule.NormalizeAndValidate`). Used as the default
  * ceiling when a caller has no tenant-specific maximum to hand.
  */
 const MAX_SUPPORTED_GRADE_LEVEL = 13;
+
+function normalizedGradeLevelMax(gradeLevelMax?: number): number {
+  return Number.isInteger(gradeLevelMax) && (gradeLevelMax ?? 0) >= 1
+    ? gradeLevelMax!
+    : MAX_SUPPORTED_GRADE_LEVEL;
+}
+
+/**
+ * The grades a rule actually admits, in ascending order.
+ *
+ * Everything user-facing is derived from this set rather than from the
+ * rule's condition list. Describing conditions one by one and joining them
+ * with "und"/"oder" does NOT describe what the rule evaluates to: an `all`
+ * rule of "Klasse 1" AND "Klasse 2" matches no grade at all, yet reads as if
+ * it allowed two of them (#2186 review).
+ */
+export function careOfferingRuleGradeLevels(
+  rule: CareOfferingAvailabilityRule | null | undefined,
+  gradeLevelMax?: number,
+): number[] {
+  const max = normalizedGradeLevelMax(gradeLevelMax);
+  const grades: number[] = [];
+  for (let grade = 1; grade <= max; grade++) {
+    if (careOfferingIsAvailable({ availability_rule: rule }, grade)) {
+      grades.push(grade);
+    }
+  }
+  return grades;
+}
 
 /**
  * True when the rule admits every grade in 1..gradeLevelMax, i.e. it excludes
@@ -87,57 +107,62 @@ const MAX_SUPPORTED_GRADE_LEVEL = 13;
  *
  * `match: "any"` makes this easy to hit by accident: two disjoint `not_in`
  * conditions ("nicht Klasse 1" OR "nicht Klasse 2") are satisfied by every
- * grade, because a grade failing one always satisfies the other. Describing
- * that as a restriction tells an admin the offering is limited when it is
- * not (#2186 review).
+ * grade, because a grade failing one always satisfies the other.
  */
 export function careOfferingRuleExcludesNobody(
   rule: CareOfferingAvailabilityRule | null | undefined,
-  gradeLevelMax: number = MAX_SUPPORTED_GRADE_LEVEL,
+  gradeLevelMax?: number,
 ): boolean {
   if (!rule || rule.conditions.length === 0) return true;
-  const max =
-    Number.isInteger(gradeLevelMax) && gradeLevelMax >= 1
-      ? gradeLevelMax
-      : MAX_SUPPORTED_GRADE_LEVEL;
-  for (let grade = 1; grade <= max; grade++) {
-    if (!careOfferingIsAvailable({ availability_rule: rule }, grade)) {
-      return false;
-    }
-  }
-  return true;
+  return (
+    careOfferingRuleGradeLevels(rule, gradeLevelMax).length ===
+    normalizedGradeLevelMax(gradeLevelMax)
+  );
 }
 
+/**
+ * Turns an availability rule into the short German phrase the catalog shows
+ * as a pill and the admin pickers show as a reason. Returns null when the
+ * rule imposes no restriction, so callers render nothing.
+ *
+ * Phrased from the grades the rule ADMITS, so the text can never disagree
+ * with the evaluator. Whichever side is shorter is named — "Nicht für
+ * Klasse 4" beats spelling out the other twelve — and a rule that admits
+ * nobody says so outright instead of looking like a normal restriction.
+ */
 export function describeCareOfferingAvailabilityRule(
   rule: CareOfferingAvailabilityRule | null | undefined,
   gradeLevelMax?: number,
 ): string | null {
   if (!rule || rule.conditions.length === 0) return null;
-  // A rule that turns nobody away is not a restriction worth showing.
-  if (careOfferingRuleExcludesNobody(rule, gradeLevelMax)) return null;
+  // An unknown source or an empty grade list is a rule we cannot read — a
+  // half-finished draft in the editor, or a shape from a newer backend.
+  // careOfferingIsAvailable treats such a condition as unmatched, which would
+  // make the text announce "available to nobody"; saying nothing is the
+  // honest answer.
+  const readable = rule.conditions.every(
+    (condition) =>
+      condition.source === "grade_level" && condition.value.length > 0,
+  );
+  if (!readable) return null;
 
-  const phrases: string[] = [];
-  for (const condition of rule.conditions) {
-    if (condition.source !== "grade_level") continue;
-    const list = formatGradeLevelList(condition.value);
-    if (!list) continue;
-    const noun = gradeNoun(condition.value);
-    phrases.push(
-      condition.operator === "not_in"
-        ? `nicht ${noun} ${list}`
-        : `${noun} ${list}`,
-    );
-  }
-  if (phrases.length === 0) return null;
+  const max = normalizedGradeLevelMax(gradeLevelMax);
+  const allowed = careOfferingRuleGradeLevels(rule, gradeLevelMax);
+  // Turns nobody away — not a restriction worth showing.
+  if (allowed.length === max) return null;
+  if (allowed.length === 0) return "Für keine Klassenstufe verfügbar";
 
-  if (phrases.length === 1) {
-    const only = phrases[0]!;
-    return only.startsWith("nicht ")
-      ? `Nicht für ${only.slice("nicht ".length)}`
-      : `Nur für ${only}`;
+  const allowedSet = new Set(allowed);
+  const excluded: number[] = [];
+  for (let grade = 1; grade <= max; grade++) {
+    if (!allowedSet.has(grade)) excluded.push(grade);
   }
-  const joiner = rule.match === "any" ? " oder " : " und ";
-  return `Nur für ${phrases.join(joiner)}`;
+  // Positive phrasing by default; the negative form only when it names
+  // strictly fewer grades ("Nicht für Klasse 4" beats listing twelve others).
+  if (excluded.length < allowed.length) {
+    return `Nicht für ${gradeNoun(excluded)} ${formatGradeLevelList(excluded)}`;
+  }
+  return `Nur für ${gradeNoun(allowed)} ${formatGradeLevelList(allowed)}`;
 }
 
 /**
