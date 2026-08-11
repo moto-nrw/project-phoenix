@@ -10,14 +10,29 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
 import { useSession } from "next-auth/react";
 
-const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
+const {
+  mockSWRMutate,
+  MockStudentStatusDayConflictError,
+  MockStudentStatusDayPartialAbsenceConflictError,
+} = vi.hoisted(() => ({
   mockSWRMutate: vi.fn(),
   MockStudentStatusDayConflictError: class extends Error {
     conflicts: unknown[];
+    totalCount: number;
 
-    constructor(conflicts: unknown[]) {
+    constructor(conflicts: unknown[], totalCount?: number) {
       super("conflict");
+      this.name = "StudentStatusDayConflictError";
       this.conflicts = conflicts;
+      this.totalCount = totalCount ?? conflicts.length;
+    }
+  },
+  MockStudentStatusDayPartialAbsenceConflictError: class extends Error {
+    constructor() {
+      super(
+        "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+      );
+      this.name = "StudentStatusDayPartialAbsenceConflictError";
     }
   },
 }));
@@ -509,6 +524,8 @@ const mockCreateStudentStatusDays = vi.fn();
 const mockFetchStudentStatusDays = vi.fn();
 vi.mock("~/lib/student-status-days-api", () => ({
   StudentStatusDayConflictError: MockStudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError:
+    MockStudentStatusDayPartialAbsenceConflictError,
   createStudentStatusDays: (
     studentId: string,
     status: "sick" | "excused" | "class_trip",
@@ -516,6 +533,7 @@ vi.mock("~/lib/student-status-days-api", () => ({
   ) => mockCreateStudentStatusDays(studentId, status, dates),
   fetchStudentStatusDays: (studentId: string, from: string, to: string) =>
     mockFetchStudentStatusDays(studentId, from, to),
+  deleteStudentStatusDay: vi.fn(),
 }));
 
 vi.mock("~/lib/student-partial-absences-api", () => ({

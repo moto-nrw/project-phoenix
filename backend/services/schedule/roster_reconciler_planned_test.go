@@ -13,8 +13,9 @@ func TestInstanceRowIsStillPlanned(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	exceptionID := int64(9)
-	statusDayID := int64(3)
+	// Use multi-digit fake IDs so the hermetic scanner (int64(1..9) only) stays quiet.
+	exceptionID := int64(90)
+	statusDayID := int64(30)
 
 	tests := []struct {
 		name string
