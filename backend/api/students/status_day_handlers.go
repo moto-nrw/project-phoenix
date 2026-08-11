@@ -24,7 +24,12 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !rs.checkStudentReadAccess(r, student) {
+	// Whoever may WRITE this child's absences may also read them: the planning
+	// dialog refuses to save until it has checked the existing status days, so
+	// a caller authorized only by the open-care absence gate (#2232) would see
+	// the actions and then be unable to use them. The payload is exactly the
+	// absence data that gate covers — no Stammdaten ride along.
+	if !rs.checkStudentReadAccess(r, student) && !rs.checkStudentAbsenceWriteAccess(r, student) {
 		renderError(w, r, common.ErrorForbidden(errors.New("full access required")))
 		return
 	}

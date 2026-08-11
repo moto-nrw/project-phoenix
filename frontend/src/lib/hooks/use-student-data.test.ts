@@ -494,6 +494,55 @@ describe("useStudentData", () => {
       expect(result.current.hasAbsenceWriteAccess).toBe(true);
     });
 
+    it("keeps the absence statuses readable for an absence writer without read scope", async () => {
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      mockStudentService.getStudent.mockResolvedValue({
+        data: {
+          ...mockStudent,
+          sick: true,
+          sick_since: "2026-08-11T08:00:00Z",
+          extra_info: "Sensitive info",
+          has_full_access: false,
+          has_write_access: false,
+          has_absence_write_access: true,
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof mockStudentService.getStudent>
+      >);
+      mockUserContextService.getMyEducationalGroups.mockResolvedValue([]);
+      mockUserContextService.getMySupervisedGroups.mockResolvedValue([]);
+
+      let fetcher: (() => Promise<unknown>) | undefined;
+      mockUseSWRAuth.mockImplementation((_key, fn) => {
+        fetcher = fn as () => Promise<unknown>;
+        return {
+          data: undefined,
+          error: undefined,
+          isLoading: false,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as ReturnType<typeof useSWRAuth>;
+      });
+
+      renderHook(() => useStudentData("1"));
+      const fetched = (await fetcher!()) as {
+        student: ExtendedStudent;
+        hasAbsenceWriteAccess: boolean;
+      };
+
+      // Without this the toggle would render "Krank melden" for a child who is
+      // already reported sick, turning a clearing click into a fresh report.
+      expect(fetched.hasAbsenceWriteAccess).toBe(true);
+      expect(fetched.student.sick).toBe(true);
+      expect(fetched.student.sick_since).toBe("2026-08-11T08:00:00Z");
+      // Everything the read scope covers stays redacted.
+      expect(fetched.student.extra_info).toBeUndefined();
+    });
+
     it("should expose actual_arrival_time and actual_pickup_time when hasFullAccess is true", () => {
       mockUseSession.mockReturnValue({
         data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },

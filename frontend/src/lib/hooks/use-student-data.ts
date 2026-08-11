@@ -83,6 +83,7 @@ interface UseStudentDataResult extends StudentDataState {
 function mapStudentResponse(
   response: unknown,
   hasAccess: boolean,
+  canManageAbsence: boolean,
 ): ExtendedStudent {
   interface WrappedResponse {
     data?: unknown;
@@ -96,6 +97,8 @@ function mapStudentResponse(
     has_full_access?: boolean;
     group_supervisors?: SupervisorContact[];
   };
+
+  const canSeeAbsenceStatus = hasAccess || canManageAbsence;
 
   // Spread upstream-mapped student so future Student fields propagate without
   // touching this whitelist. Explicit lines below either coerce nullish to a
@@ -126,14 +129,23 @@ function mapStudentResponse(
     supervisor_notes: hasAccess
       ? (mappedStudent.supervisor_notes ?? undefined)
       : undefined,
-    sick: hasAccess ? (mappedStudent.sick ?? false) : false,
-    sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
-    excused: hasAccess ? (mappedStudent.excused ?? false) : false,
-    excused_since: hasAccess
+    // The absence statuses follow read access OR the absence-write gate: they
+    // are the state the Krank-/Entschuldigt-Aktionen toggle, so blanking them
+    // for a caller who may write them would always render "melden" and turn a
+    // clearing click into a fresh report (#2232). The backend hands these
+    // fields to every authenticated staff member anyway.
+    sick: canSeeAbsenceStatus ? (mappedStudent.sick ?? false) : false,
+    sick_since: canSeeAbsenceStatus
+      ? (mappedStudent.sick_since ?? undefined)
+      : undefined,
+    excused: canSeeAbsenceStatus ? (mappedStudent.excused ?? false) : false,
+    excused_since: canSeeAbsenceStatus
       ? (mappedStudent.excused_since ?? undefined)
       : undefined,
-    class_trip: hasAccess ? (mappedStudent.class_trip ?? false) : false,
-    class_trip_since: hasAccess
+    class_trip: canSeeAbsenceStatus
+      ? (mappedStudent.class_trip ?? false)
+      : false,
+    class_trip_since: canSeeAbsenceStatus
       ? (mappedStudent.class_trip_since ?? undefined)
       : undefined,
     actual_arrival_time: hasAccess
@@ -238,7 +250,11 @@ export function useStudentData(studentId: string): UseStudentDataResult {
         mappedStudent.attendance_log_enabled ?? false;
       const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
       const groupSupervisors = mappedStudent.group_supervisors ?? [];
-      const extendedStudent = mapStudentResponse(studentResponse, hasAccess);
+      const extendedStudent = mapStudentResponse(
+        studentResponse,
+        hasAccess,
+        hasAbsenceWriteAccess,
+      );
 
       const ogsGroupRoomNames = extractRoomNames(groups);
       const groupIds = groups.map((group) => group.id);

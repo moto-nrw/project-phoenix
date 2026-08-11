@@ -76,6 +76,22 @@ func TestOpenCareAbsence_GrouplessStudent(t *testing.T) {
 		createdStatusDayID = env.Data[0].ID
 	})
 
+	t.Run("can_read_the_planned_status_days", func(t *testing.T) {
+		// The planning dialog refuses to save until it has loaded the existing
+		// status days, so read access to them has to follow the write gate.
+		rr := authExec(t, tc, testutil.NewRequest("GET",
+			fmt.Sprintf("/%d/status-days?from=%s&to=%s", student.ID, today, today), nil), claims, absencePerms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		var env struct {
+			Data []struct {
+				Status string `json:"status"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		require.NotEmpty(t, env.Data, "the day reported above must be visible to its author")
+	})
+
 	t.Run("can_clear_the_sick_day_again", func(t *testing.T) {
 		require.NotZero(t, createdStatusDayID, "depends on the create sub-test")
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, createdStatusDayID), nil)
