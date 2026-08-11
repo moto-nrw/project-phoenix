@@ -523,6 +523,22 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 		assert.Equal(t, scheduleModel.AttendanceStatusPresent, snapshot.Status)
 		assert.Nil(t, snapshot.Substatus)
 	})
+
+	t.Run("partial absence", func(t *testing.T) {
+		exceptionID := int64(91)
+		excused := scheduleModel.AttendanceSubstatusExcused
+		row := expectedRow(17)
+		row.Status = scheduleModel.AttendanceStatusAbsent
+		row.Substatus = &excused
+		row.PickupExceptionID = &exceptionID
+		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
+		snapshot := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+
+		require.NotNil(t, snapshot)
+		assert.Equal(t, scheduleModel.AttendanceStatusPresent, snapshot.Status)
+		assert.Nil(t, snapshot.Substatus)
+		assert.Equal(t, 1, isRepo.updateCalls)
+	})
 }
 
 func TestMirrorCheckIn_B6_Absent_NoClobber(t *testing.T) {

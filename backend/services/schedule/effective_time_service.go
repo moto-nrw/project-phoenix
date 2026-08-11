@@ -519,6 +519,10 @@ func (c *effectiveTimeCore[S, E, N, D]) UpdateException(
 			normalized := timezone.WallClock(*fields.Time)
 			fields.Time = &normalized
 		}
+		if fields.ExcusedFrom != nil {
+			normalized := timezone.WallClock(*fields.ExcusedFrom)
+			fields.ExcusedFrom = &normalized
+		}
 		if reason != nil {
 			// A supplied empty string explicitly clears the reason. Keep nil as
 			// the patch sentinel for clients that did not intend to touch it.

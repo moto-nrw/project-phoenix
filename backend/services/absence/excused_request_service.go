@@ -64,12 +64,11 @@ var (
 	// can't cover the same day with contradictory outcomes. Disjoint date sets are
 	// allowed. Maps to a 409 on the parent write path.
 	ErrExcusedRequestOverlap = errors.New("active: excused request overlaps an existing pending request")
-	// ErrExcusedRequestStatusConflict means the child's absence for one of the
-	// requested dates was created or changed AFTER this request was filed — a
-	// newer sick / class-trip / excused record staff (or another flow) set in the
-	// meantime. Approving would silently overwrite that newer decision, so the
-	// approval is refused; staff resolve it by rejecting the stale request (or
-	// clearing the newer status first). Maps to a 409 on the staff decide path.
+	// ErrExcusedRequestStatusConflict means a full-day excused request cannot
+	// proceed for one of the requested dates because a competing absence already
+	// owns that day: either a newer sick / class-trip / excused status (approval
+	// would overwrite it), or a planned partial-day excusal (create and approve
+	// both refuse so a pending request cannot sit unusable). Maps to a 409.
 	ErrExcusedRequestStatusConflict = errors.New("active: excused request superseded by a newer status")
 	// ErrExcusedRequestNoDates means the request carried no dates.
 	ErrExcusedRequestNoDates = errors.New("active: excused request requires at least one date")
@@ -236,6 +235,15 @@ func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studen
 	// and overlap checks below (read pending, then insert) can't race two rows
 	// through. The advisory lock releases at the end of the ambient transaction.
 	if err := s.requestRepo.LockStudentRequests(ctx, studentID); err != nil {
+		return nil, err
+	}
+	// Refuse dates that already carry a planned partial absence. Approval later
+	// would reject them via ensureNoPartialAbsence, leaving a pending request
+	// that can never succeed while the partial absence remains.
+	if err := s.ensureNoPartialAbsence(ctx, &activeModels.ExcusedAbsenceRequest{
+		StudentID: studentID,
+		Dates:     sorted,
+	}); err != nil {
 		return nil, err
 	}
 	existing, err := s.requestRepo.ListPendingForStudent(ctx, studentID)

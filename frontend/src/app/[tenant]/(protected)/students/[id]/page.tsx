@@ -73,6 +73,7 @@ import {
   deleteStudentStatusDay,
   fetchStudentStatusDays,
   StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
@@ -940,7 +941,9 @@ function StudentDetailPageContent() {
         status: plannedStatusModal,
         error: err instanceof Error ? err.message : String(err),
       });
-      if (err instanceof StudentStatusDayConflictError) {
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        toast.warning(err.message);
+      } else if (err instanceof StudentStatusDayConflictError) {
         const conflicts = err.conflicts
           .map(
             (day) =>

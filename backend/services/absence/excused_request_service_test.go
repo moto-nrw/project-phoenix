@@ -637,6 +637,45 @@ func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
 	assert.Empty(t, rows)
 }
 
+func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
+	svc, _, db := buildAbsenceService(t)
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Create", "Partial")
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, chain)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	})
+
+	day := timezone.TodayDate().AddDays(4)
+	from := timezone.WallClock(time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC))
+	staffID := staff.ID
+	pickup := &scheduleModels.StudentPickupException{
+		StudentID:             chain.StudentID,
+		ExceptionDate:         day,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	pickup.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, createErr := svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Arzttermin")
+		return createErr
+	})
+	require.ErrorIs(t, err, absenceSvc.ErrExcusedRequestStatusConflict)
+
+	pending, listErr := repos.ExcusedAbsenceRequest.ListPendingForStudent(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID,
+	)
+	require.NoError(t, listErr)
+	assert.Empty(t, pending, "partial absence must block pending request creation")
+}
+
 // TestDecide_ApproveOverwritesOlderStatus is the complement: an OLDER status (set
 // BEFORE the request) is exactly what the parent's request supersedes, so
 // approval proceeds and writes the excused day.

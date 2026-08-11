@@ -93,7 +93,9 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		if errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict) {
-			renderError(w, r, common.ErrorConflict(err))
+			// Stable code so the frontend can show a clear message instead of
+			// parsing this as an empty StudentStatusDayConflictError sample.
+			renderError(w, r, common.ErrorConflictWithCode(err, "partial_absence_conflict"))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to create student status days", err))
@@ -163,8 +165,10 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			return
 		}
 		if errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict) {
+			// Stable code so the frontend can show a clear message instead of
+			// parsing this as an empty StudentStatusDayConflictError sample.
 			tenant.MarkRollback(r.Context())
-			renderError(w, r, common.ErrorConflict(err))
+			renderError(w, r, common.ErrorConflictWithCode(err, "partial_absence_conflict"))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to bulk create student status days", err))

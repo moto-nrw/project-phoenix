@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -666,9 +667,31 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 
 // ApplyActivePartialAbsencesForInstance mirrors the active status-day replay
 // for attendance rows created by materialization or re-planning.
+//
+// Before projecting, every child with a time-specific excusal on this date is
+// serialized with LockExceptionDay so concurrent create/update/delete of a
+// partial absence cannot leave a freshly materialised row with stale
+// provenance.
 func (r *InstanceStudentRepository) ApplyActivePartialAbsencesForInstance(
 	ctx context.Context, instanceID int64, date timezone.Date,
 ) (int, error) {
+	var studentIDs []int64
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT DISTINCT partial_absence.student_id
+		FROM schedule.student_pickup_exceptions AS partial_absence
+		WHERE partial_absence.tenant_id = ?
+			AND partial_absence.exception_date = ?
+			AND partial_absence.excused_from IS NOT NULL
+		ORDER BY partial_absence.student_id
+	`, tenant.FromContext(ctx), date).Scan(ctx, &studentIDs); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "list active partial absences for lock", Err: err}
+	}
+	for _, studentID := range studentIDs {
+		if err := careplanning.LockExceptionDay(ctx, r.db, studentID, date); err != nil {
+			return 0, err
+		}
+	}
+
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		UPDATE schedule.instance_students AS attendance
 		SET status = ?,
