@@ -27,9 +27,35 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 import {
+  checkoutConfirmationRoom,
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "./use-school-checkin-mode";
+
+describe("checkoutConfirmationRoom", () => {
+  it("returns the room of a detailed-mode student sitting in one", () => {
+    expect(checkoutConfirmationRoom("Anwesend - Raum 101")).toBe("Raum 101");
+    expect(checkoutConfirmationRoom("Anwesend - Mensa")).toBe("Mensa");
+  });
+
+  it("returns null for present-but-roomless states", () => {
+    // Roomless presence ends no visit, so a checkout needs no warning.
+    expect(checkoutConfirmationRoom("Anwesend")).toBeNull();
+    expect(checkoutConfirmationRoom("Unterwegs")).toBeNull();
+  });
+
+  it("returns null for every binary-mode label", () => {
+    expect(checkoutConfirmationRoom("Schulhof")).toBeNull();
+    expect(checkoutConfirmationRoom("Zuhause")).toBeNull();
+    expect(checkoutConfirmationRoom("Abwesend")).toBeNull();
+  });
+
+  it("returns null for absent or unknown students", () => {
+    expect(checkoutConfirmationRoom("")).toBeNull();
+    expect(checkoutConfirmationRoom(null)).toBeNull();
+    expect(checkoutConfirmationRoom(undefined)).toBeNull();
+  });
+});
 
 describe("deriveCheckinState", () => {
   it("maps Anwesend variants to anwesend", () => {
@@ -212,6 +238,45 @@ describe("useSchoolCheckinMode", () => {
       expect.stringContaining("Anmelden fehlgeschlagen"),
     );
     expect(result.current.pendingIds.has("5")).toBe(false);
+  });
+
+  it("names the permission problem instead of asking for a retry on 403", async () => {
+    // The default attendance.web_checkin_access setting ("Nur Gruppenbetreuer
+    // des Kindes") makes cross-group taps fail permanently — "bitte erneut
+    // versuchen" would be misleading advice there (#2220).
+    mockSchoolCheckinStudent.mockRejectedValueOnce(
+      new Error("API error (403): Forbidden"),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    await act(async () => {
+      await result.current.toggle("7", "anwesend");
+    });
+
+    expect(mockToastError).toHaveBeenCalledWith(
+      expect.stringContaining("Keine Berechtigung"),
+    );
+    expect(mockToastError).toHaveBeenCalledWith(
+      expect.stringContaining("Gruppenbetreuung"),
+    );
+    expect(mockToastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("erneut versuchen"),
+    );
+  });
+
+  it("keeps the retry wording for non-permission failures", async () => {
+    mockSchoolCheckinStudent.mockRejectedValueOnce(
+      new Error("API error (500): Internal Server Error"),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    await act(async () => {
+      await result.current.toggle("8", "anwesend");
+    });
+
+    expect(mockToastError).toHaveBeenCalledWith(
+      expect.stringContaining("Abmelden fehlgeschlagen"),
+    );
   });
 
   it("toast copy matches the attempted direction (out on present)", async () => {
