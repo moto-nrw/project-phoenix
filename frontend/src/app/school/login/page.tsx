@@ -220,7 +220,7 @@ function LoginForm() {
       <AuthShell
         eyebrow="moto schule"
         eyebrowClassName="text-[#5080D8]"
-        title="Klassenansicht"
+        title="Willkommen im Schulportal"
         subtitle="Melden Sie sich mit Ihrem Lehrkraft-Konto an."
         variant="tenant"
         brand={<MotoBrand />}
@@ -373,7 +373,7 @@ export default function SchoolLoginPage() {
         <AuthShell
           eyebrow="moto schule"
           eyebrowClassName="text-[#5080D8]"
-          title="Klassenansicht"
+          title="Willkommen im Schulportal"
           subtitle="Melden Sie sich mit Ihrem Lehrkraft-Konto an."
           variant="tenant"
           brand={<MotoBrand />}
