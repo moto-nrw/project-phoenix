@@ -74,10 +74,47 @@ function gradeNoun(values: readonly number[]): string {
  * eine von" / "ist keine von") so an admin can connect the pill back to the
  * setting that produced it.
  */
+/**
+ * Highest grade the backend's rule validation accepts
+ * (`CareOfferingAvailabilityRule.NormalizeAndValidate`). Used as the default
+ * ceiling when a caller has no tenant-specific maximum to hand.
+ */
+const MAX_SUPPORTED_GRADE_LEVEL = 13;
+
+/**
+ * True when the rule admits every grade in 1..gradeLevelMax, i.e. it excludes
+ * nobody and is not a restriction at all.
+ *
+ * `match: "any"` makes this easy to hit by accident: two disjoint `not_in`
+ * conditions ("nicht Klasse 1" OR "nicht Klasse 2") are satisfied by every
+ * grade, because a grade failing one always satisfies the other. Describing
+ * that as a restriction tells an admin the offering is limited when it is
+ * not (#2186 review).
+ */
+export function careOfferingRuleExcludesNobody(
+  rule: CareOfferingAvailabilityRule | null | undefined,
+  gradeLevelMax: number = MAX_SUPPORTED_GRADE_LEVEL,
+): boolean {
+  if (!rule || rule.conditions.length === 0) return true;
+  const max =
+    Number.isInteger(gradeLevelMax) && gradeLevelMax >= 1
+      ? gradeLevelMax
+      : MAX_SUPPORTED_GRADE_LEVEL;
+  for (let grade = 1; grade <= max; grade++) {
+    if (!careOfferingIsAvailable({ availability_rule: rule }, grade)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function describeCareOfferingAvailabilityRule(
   rule: CareOfferingAvailabilityRule | null | undefined,
+  gradeLevelMax?: number,
 ): string | null {
   if (!rule || rule.conditions.length === 0) return null;
+  // A rule that turns nobody away is not a restriction worth showing.
+  if (careOfferingRuleExcludesNobody(rule, gradeLevelMax)) return null;
 
   const phrases: string[] = [];
   for (const condition of rule.conditions) {

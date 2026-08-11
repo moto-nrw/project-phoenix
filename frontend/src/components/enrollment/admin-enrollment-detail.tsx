@@ -1151,17 +1151,25 @@ function BlockedOfferingRow({
   onRemove: () => void;
 }>) {
   const reason = careOfferingAvailabilityReason(offering, gradeLevel);
+  const inputId = `blocked-offering-${offering.id}`;
   return (
     <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3">
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex shrink-0 items-center">
-          <Checkbox
-            checked={booked}
-            disabled={!booked}
-            onChange={onRemove}
-            aria-label={`${offering.name} entfernen`}
-          />
-        </span>
+      {/* A real <label> is load-bearing, not decoration: the kit Checkbox
+          renders an sr-only input behind a pointer-events-none visual, so
+          without the label wrapping it a mouse click on the box does nothing
+          (#2186 review). */}
+      <label
+        htmlFor={inputId}
+        className={`flex items-start gap-3 ${booked ? "cursor-pointer" : "cursor-not-allowed"}`}
+      >
+        <Checkbox
+          id={inputId}
+          className="mt-0.5"
+          checked={booked}
+          disabled={!booked}
+          onChange={onRemove}
+          aria-label={`${offering.name} entfernen`}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-gray-500">
@@ -1180,7 +1188,7 @@ function BlockedOfferingRow({
           ) : null}
           <OfferingOccupancyLine stats={stats} />
         </div>
-      </div>
+      </label>
     </div>
   );
 }

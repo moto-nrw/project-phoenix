@@ -2569,6 +2569,34 @@ function OfferingOccupancyLine({
 }
 
 /**
+ * The chrome every offering row in the picker shares: radius, border, padding
+ * and text size. Both the selectable card and the blocked card render through
+ * it so the two can never drift apart (#2186 review).
+ *
+ * Deliberately NOT the kit's InfoCard/SectionCard: those are rounded-2xl
+ * `moto-content-surface` page-level surfaces with an icon + heading, whereas
+ * this is a dense row inside a form section.
+ */
+function OfferingRowShell({
+  tone,
+  invalid,
+  children,
+}: Readonly<{
+  tone: string;
+  invalid?: boolean;
+  children: React.ReactNode;
+}>) {
+  return (
+    <div
+      aria-invalid={invalid ? true : undefined}
+      className={`rounded-lg border p-3 text-sm transition-colors ${tone}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
  * An offering an availability rule rules out for this child, shown greyed
  * with the reason. Admin flows only — for parents, silently omitting an
  * unavailable offering is the correct behaviour (#2186).
@@ -2584,7 +2612,7 @@ function BlockedOfferingCard({
 }>) {
   const reason = careOfferingAvailabilityReason(offering, gradeLevel);
   return (
-    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 text-sm">
+    <OfferingRowShell tone="border-dashed border-gray-300 bg-gray-50">
       <div className="flex items-start gap-3">
         <span
           aria-hidden
@@ -2602,7 +2630,7 @@ function BlockedOfferingCard({
           <OfferingOccupancyLine stats={stats} />
         </div>
       </div>
-    </div>
+    </OfferingRowShell>
   );
 }
 
@@ -2651,10 +2679,7 @@ function OfferingCard({
   const inputId = `children-${childIndex}-offering-${offering.id}`;
 
   return (
-    <div
-      aria-invalid={dayError ? true : undefined}
-      className={`rounded-lg border p-3 text-sm transition-colors ${stateClass}`}
-    >
+    <OfferingRowShell tone={stateClass} invalid={dayError}>
       <label
         htmlFor={inputId}
         className={`flex items-start gap-3 ${
@@ -2759,7 +2784,7 @@ function OfferingCard({
           {tr("errors.dayInline")}
         </p>
       )}
-    </div>
+    </OfferingRowShell>
   );
 }
 

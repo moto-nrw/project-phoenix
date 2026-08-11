@@ -475,6 +475,13 @@ type RequestChildOfferingRepository interface {
 	// CareOfferingAvailabilityRule.MatchesGradeLevel). Empty input returns an
 	// empty slice without a query.
 	CountActiveGradeLevelsByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) ([]*CareOfferingGradeLevelCount, error)
+
+	// CountMaxActiveByCareOfferingIDsInRange is the batched form of
+	// CountMaxActiveByCareOfferingInRange — peak simultaneous occupancy per
+	// offering in one query. Offerings with no overlapping booking are absent
+	// from the map; read a missing key as zero. Empty input returns an empty
+	// map without a query.
+	CountMaxActiveByCareOfferingIDsInRange(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) (map[int64]int, error)
 }
 
 // CareOfferingGradeLevelCount is one (offering, grade level) bucket of the

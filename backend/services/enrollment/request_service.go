@@ -1261,11 +1261,41 @@ func materializeAndValidateChildrenOfferingSelections(
 	openByID map[int64]*enrollmentModels.CareOffering,
 	selectionMode string,
 ) ([][]materializedOfferingSelection, error) {
+	return materializeAndValidateChildrenOfferingSelectionsGrandfathering(children, openByID, selectionMode, nil)
+}
+
+// materializeAndValidateChildrenOfferingSelectionsGrandfathering is the
+// variant used by the admin offering-adjustment path (#2186). Offerings whose
+// ids are in grandfathered are treated as available for the child REGARDLESS
+// of the grade-level availability rule.
+//
+// Why: an availability rule tightened after a child was already booked must
+// not revoke that booking (Bestandsschutz). Without this exemption an admin
+// correcting anything else about such a child would have the whole save
+// rejected with ErrCareOfferingUnavailable — and the offering would also be
+// dropped by materializeOfferingSelections, which only ever emits offerings
+// present in the available set.
+//
+// The exemption is deliberately narrow: callers pass ONLY the offerings the
+// child already holds, so a newly ADDED blocked offering is still rejected.
+// Submit and parent-edit paths pass nil and keep rejecting every blocked
+// offering.
+func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+	grandfathered map[int64]bool,
+) ([][]materializedOfferingSelection, error) {
 	out := make([][]materializedOfferingSelection, len(children))
 	for i := range children {
 		availableByID, err := availableCareOfferingsForGrade(openByID, children[i].TargetGradeLevel)
 		if err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		for id := range grandfathered {
+			if offering, ok := openByID[id]; ok {
+				availableByID[id] = offering
+			}
 		}
 		if err := validateOfferingSelectionsForChild(children[i], openByID, availableByID); err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)

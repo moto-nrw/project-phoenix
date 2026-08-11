@@ -1230,11 +1230,14 @@ func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int6
 		grades[row.CareOfferingID][int(*row.GradeLevel)] += row.Count
 	}
 
+	peaks, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingIDsInRange(ctx, ids, from, until)
+	if err != nil {
+		return nil, fmt.Errorf("booking stats: count peak occupancy: %w", err)
+	}
+
 	for _, offering := range offerings {
-		booked, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingInRange(ctx, offering.ID, from, until)
-		if err != nil {
-			return nil, fmt.Errorf("booking stats: count peak occupancy for offering %d: %w", offering.ID, err)
-		}
+		// Absent key = no booking overlaps the window = zero occupancy.
+		booked := peaks[offering.ID]
 		byGrade := grades[offering.ID]
 		if byGrade == nil {
 			byGrade = map[int]int{}

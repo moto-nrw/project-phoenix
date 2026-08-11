@@ -197,7 +197,18 @@ func (s *decisionService) updateChildOfferings(
 		allowedOfferingByID[id] = offering
 	}
 	children := []SubmitChild{submitChild}
-	materialized, err := materializeAndValidateChildrenOfferingSelections(children, allowedOfferingByID, phase.CareOfferingSelectionMode)
+	// Bestandsschutz (#2186): an availability rule tightened after the fact
+	// does not revoke a booking the child already holds, so the offerings in
+	// beforeOfferingByID stay valid for THIS child even when the grade rule
+	// now excludes them. Newly added blocked offerings are not in that set
+	// and are still rejected with ErrCareOfferingUnavailable.
+	grandfathered := make(map[int64]bool, len(beforeOfferingByID))
+	for id := range beforeOfferingByID {
+		grandfathered[id] = true
+	}
+	materialized, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		children, allowedOfferingByID, phase.CareOfferingSelectionMode, grandfathered,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
 	}

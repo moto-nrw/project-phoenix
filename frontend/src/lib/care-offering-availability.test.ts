@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   careOfferingAvailabilityReason,
   careOfferingAvailabilityRuleError,
+  careOfferingRuleExcludesNobody,
   careOfferingIsAvailable,
   countCareOfferingRuleConflicts,
   describeCareOfferingAvailabilityRule,
@@ -119,16 +120,48 @@ describe("describeCareOfferingAvailabilityRule", () => {
   });
 
   it("joins several conditions with the rule's own connective", () => {
-    const conditions: CareOfferingAvailabilityRule["conditions"] = [
-      { source: "grade_level", operator: "in", value: [1, 2] },
-      { source: "grade_level", operator: "not_in", value: [2] },
-    ];
+    // "all": grade 1 only. "any" of the same pair would admit every grade,
+    // so it is covered by the tautology test below instead.
     expect(
-      describeCareOfferingAvailabilityRule({ match: "all", conditions }),
+      describeCareOfferingAvailabilityRule({
+        match: "all",
+        conditions: [
+          { source: "grade_level", operator: "in", value: [1, 2] },
+          { source: "grade_level", operator: "not_in", value: [2] },
+        ],
+      }),
     ).toBe("Nur für Klassen 1–2 und nicht Klasse 2");
+    // "any": grades 1 and 3 only — genuinely restrictive.
     expect(
-      describeCareOfferingAvailabilityRule({ match: "any", conditions }),
-    ).toBe("Nur für Klassen 1–2 oder nicht Klasse 2");
+      describeCareOfferingAvailabilityRule({
+        match: "any",
+        conditions: [
+          { source: "grade_level", operator: "in", value: [1] },
+          { source: "grade_level", operator: "in", value: [3] },
+        ],
+      }),
+    ).toBe("Nur für Klasse 1 oder Klasse 3");
+  });
+
+  it("stays silent for a rule that turns nobody away", () => {
+    expect(
+      describeCareOfferingAvailabilityRule({
+        match: "any",
+        conditions: [
+          { source: "grade_level", operator: "not_in", value: [1] },
+          { source: "grade_level", operator: "not_in", value: [2] },
+        ],
+      }),
+    ).toBeNull();
+    expect(
+      describeCareOfferingAvailabilityRule(rule("all", "in", [1, 2, 3, 4]), 4),
+    ).toBeNull();
+  });
+
+  it("still describes the same rule when the school has more grades", () => {
+    expect(
+      describeCareOfferingAvailabilityRule(rule("all", "in", [1, 2, 3, 4]), 6),
+    ).toBe("Nur für Klassen 1–4");
   });
 
   it("ignores conditions that describe nothing", () => {
@@ -147,6 +180,51 @@ describe("describeCareOfferingAvailabilityRule", () => {
         ],
       }),
     ).toBeNull();
+  });
+});
+
+describe("careOfferingRuleExcludesNobody", () => {
+  it("treats an absent or empty rule as no restriction", () => {
+    expect(careOfferingRuleExcludesNobody(null)).toBe(true);
+    expect(
+      careOfferingRuleExcludesNobody({ match: "all", conditions: [] }),
+    ).toBe(true);
+  });
+
+  it("detects a real restriction", () => {
+    expect(careOfferingRuleExcludesNobody(rule("all", "in", [1, 2]))).toBe(
+      false,
+    );
+    expect(careOfferingRuleExcludesNobody(rule("all", "not_in", [4]))).toBe(
+      false,
+    );
+  });
+
+  // The reviewer's case: two disjoint not_in conditions under match "any" are
+  // satisfied by every grade, because a grade failing one satisfies the other.
+  it("detects a tautological any-rule", () => {
+    expect(
+      careOfferingRuleExcludesNobody({
+        match: "any",
+        conditions: [
+          { source: "grade_level", operator: "not_in", value: [1] },
+          { source: "grade_level", operator: "not_in", value: [2] },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("detects a rule that simply lists every grade the school has", () => {
+    const allFour = rule("all", "in", [1, 2, 3, 4]);
+    expect(careOfferingRuleExcludesNobody(allFour, 4)).toBe(true);
+    // Without the tenant maximum it still restricts grades 5..13.
+    expect(careOfferingRuleExcludesNobody(allFour)).toBe(false);
+  });
+
+  it("falls back to the supported range for a nonsensical maximum", () => {
+    expect(careOfferingRuleExcludesNobody(rule("all", "in", [1, 2]), 0)).toBe(
+      false,
+    );
   });
 });
 

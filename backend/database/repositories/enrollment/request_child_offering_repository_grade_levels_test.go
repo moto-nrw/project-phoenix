@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
@@ -201,4 +202,96 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTh
 	}))
 
 	assert.Empty(t, rows)
+}
+
+// The batched peak query must agree with the single-offering variant the
+// capacity gate uses — a display that disagrees with the gate is worse than
+// no display (#2186 review).
+func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVariant(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	from := timezone.TodayDate()
+	until := from.AddDays(90)
+	requestID := requestIDOf(t, db, tenantID, childID)
+	second := addGradedChild(t, db, tenantID, requestID, "Mira", int16Ptr(2), enrollmentModels.ChildStatusApproved)
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		if err := repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID, CareOfferingID: offeringID,
+		}); err != nil {
+			return err
+		}
+		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: second, CareOfferingID: offeringID,
+		})
+	}))
+
+	var single int
+	var batched map[int64]int
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		single, err = repo.CountMaxActiveByCareOfferingInRange(ctx, offeringID, from, until)
+		if err != nil {
+			return err
+		}
+		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID}, from, until)
+		return err
+	}))
+
+	assert.Equal(t, 2, single)
+	assert.Equal(t, single, batched[offeringID])
+}
+
+func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	from := timezone.TodayDate()
+	until := from.AddDays(90)
+
+	// A second offering in the same phase, deliberately left unbooked.
+	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	var emptyOfferingID int64
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		booked, err := offeringRepo.FindByID(ctx, offeringID)
+		if err != nil {
+			return err
+		}
+		other := makeOffering(booked.PhaseID, uniqueOfferingName("batchpeak"))
+		if err := offeringRepo.Create(ctx, other); err != nil {
+			return err
+		}
+		emptyOfferingID = other.ID
+		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID, CareOfferingID: offeringID,
+		})
+	}))
+
+	var batched map[int64]int
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID, emptyOfferingID}, from, until)
+		return err
+	}))
+
+	assert.Equal(t, 1, batched[offeringID])
+	_, present := batched[emptyOfferingID]
+	assert.False(t, present, "an offering with no bookings is absent, callers read that as zero")
+}
+
+func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
+	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+	today := timezone.TodayDate()
+
+	var empty map[int64]int
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		empty, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, nil, today, today)
+		return err
+	}))
+	assert.Empty(t, empty, "empty input short-circuits before the empty-range guard")
+
+	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		_, rangeErr := repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID}, today, today)
+		return rangeErr
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must not be empty")
 }

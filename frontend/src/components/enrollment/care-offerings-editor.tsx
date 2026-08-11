@@ -701,7 +701,10 @@ export function CareOfferingsEditor() {
             {(offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ? (
               <FeaturePill label="Wird mitgebucht" />
             ) : null}
-            <AvailabilityRulePill rule={offering.availability_rule} />
+            <AvailabilityRulePill
+              rule={offering.availability_rule}
+              gradeLevelMax={gradeLevelMax}
+            />
           </div>
         ),
       },
@@ -756,7 +759,7 @@ export function CareOfferingsEditor() {
         ),
       },
     ],
-    [deletingId, handleDelete, saving],
+    [deletingId, gradeLevelMax, handleDelete, saving],
   );
 
   if (loading) {
@@ -1075,8 +1078,17 @@ function EmptyCareOfferingState({
 // itself (#2186).
 function AvailabilityRulePill({
   rule,
-}: Readonly<{ rule: CareOfferingAvailabilityRule | null | undefined }>) {
-  const label = describeCareOfferingAvailabilityRule(rule);
+  gradeLevelMax,
+}: Readonly<{
+  rule: CareOfferingAvailabilityRule | null | undefined;
+  // Passed so a rule covering every grade this school HAS reads as
+  // unrestricted rather than as a restriction (#2186 review).
+  gradeLevelMax: number | null;
+}>) {
+  const label = describeCareOfferingAvailabilityRule(
+    rule,
+    gradeLevelMax ?? undefined,
+  );
   if (!label) return null;
   return <FeaturePill label={label} />;
 }

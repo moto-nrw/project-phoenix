@@ -928,6 +928,52 @@ describe("ChildOfferingAdjustment", () => {
     expect(screen.queryByText(/Plätzen belegt/)).not.toBeInTheDocument();
   });
 
+  // #2186 review: the kit Checkbox renders an sr-only input behind a
+  // pointer-events-none visual, so without a real <label> a mouse click on
+  // the box did nothing. Driving the visible control, not the input, is the
+  // point of this test.
+  it("removes a grandfathered booking when the visible checkbox is clicked", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "grade-1-only",
+        name: "Randstunde",
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+    renderAdjustment(
+      adjustmentChild({
+        target_grade_level: 3,
+        offerings: [
+          {
+            offering_id: "grade-1-only",
+            offering_name: "Randstunde",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Randstunde entfernen",
+    });
+    // The label must be wired to the input, or a mouse user cannot toggle it.
+    const label = checkbox.closest("label");
+    expect(label).not.toBeNull();
+    expect(label).toHaveAttribute("for", checkbox.id);
+    expect(checkbox.id).not.toBe("");
+
+    fireEvent.click(label!);
+    expect(checkbox).not.toBeChecked();
+  });
+
   it("never lets an unbooked blocked offering be added", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       catalogOffering({

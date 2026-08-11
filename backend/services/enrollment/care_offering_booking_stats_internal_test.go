@@ -45,6 +45,7 @@ type bookingStatsLinkRepo struct {
 	peakErr   error
 
 	gotIDs        []int64
+	gotPeakIDs    []int64
 	gotFrom       timezone.Date
 	gotUntil      timezone.Date
 	peakCallCount int
@@ -59,14 +60,15 @@ func (r *bookingStatsLinkRepo) CountActiveGradeLevelsByCareOfferingIDs(
 	return r.grades, r.gradesErr
 }
 
-func (r *bookingStatsLinkRepo) CountMaxActiveByCareOfferingInRange(
-	_ context.Context, offeringID int64, _, _ timezone.Date,
-) (int, error) {
+func (r *bookingStatsLinkRepo) CountMaxActiveByCareOfferingIDsInRange(
+	_ context.Context, ids []int64, _, _ timezone.Date,
+) (map[int64]int, error) {
 	r.peakCallCount++
+	r.gotPeakIDs = ids
 	if r.peakErr != nil {
-		return 0, r.peakErr
+		return nil, r.peakErr
 	}
-	return r.peaks[offeringID], nil
+	return r.peaks, nil
 }
 
 func intPtr(v int) *int { return &v }
@@ -207,6 +209,26 @@ func TestListBookingStats_ReturnsEmptyWithoutOfferings(t *testing.T) {
 	assert.Empty(t, stats)
 	assert.Zero(t, links.peakCallCount, "no offerings means no occupancy queries")
 	assert.Nil(t, links.gotIDs)
+}
+
+// #2186 review: occupancy used to be one query per offering on top of the
+// already-batched grade counts.
+func TestListBookingStats_BatchesTheOccupancyQuery(t *testing.T) {
+	offerings := []*enrollmentModels.CareOffering{{Name: "A"}, {Name: "B"}, {Name: "C"}}
+	for i, offering := range offerings {
+		offering.ID = int64(i + 1)
+	}
+	links := &bookingStatsLinkRepo{peaks: map[int64]int{1: 4, 3: 9}}
+
+	stats, err := bookingStatsService(runningPhase(), offerings, links).
+		ListBookingStats(context.Background(), 5)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, links.peakCallCount, "one query for every offering, not one each")
+	assert.Equal(t, []int64{1, 2, 3}, links.gotPeakIDs)
+	assert.Equal(t, 4, stats[0].Booked)
+	assert.Zero(t, stats[1].Booked, "an offering with no bookings reads as zero")
+	assert.Equal(t, 9, stats[2].Booked)
 }
 
 func TestListBookingStats_RejectsAnInvalidPhaseID(t *testing.T) {

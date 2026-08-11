@@ -489,6 +489,72 @@ func (r *RequestChildOfferingRepository) CountMaterializableByCareOffering(ctx c
 	return count, nil
 }
 
+// CountMaxActiveByCareOfferingIDsInRange is the batched form of
+// CountMaxActiveByCareOfferingInRange: one sweep-line pass over all the given
+// offerings instead of a query each (#2186). Returns peak simultaneous
+// occupancy per offering; offerings with no overlapping booking are absent
+// from the map, so callers read a missing key as zero.
+func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
+	ctx context.Context,
+	careOfferingIDs []int64,
+	from, until timezone.Date,
+) (map[int64]int, error) {
+	result := make(map[int64]int)
+	if len(careOfferingIDs) == 0 {
+		return result, nil
+	}
+	if !from.Before(until) {
+		return nil, fmt.Errorf("capacity range must not be empty")
+	}
+	var rows []struct {
+		CareOfferingID int64 `bun:"care_offering_id"`
+		Peak           int   `bun:"peak"`
+	}
+	// Same sweep-line as the single-offering variant, partitioned by
+	// offering: count distinct children whose clamped interval covers each
+	// interval boundary, then take the per-offering maximum.
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH intervals AS (
+			SELECT
+				"request_child_offering".care_offering_id AS care_offering_id,
+				"request_child_offering".request_child_id AS request_child_id,
+				GREATEST(COALESCE("request_child_offering".valid_from, ?), ?) AS starts_at,
+				LEAST(COALESCE("request_child_offering".valid_until, ?), ?) AS ends_at
+			FROM enrollment.request_child_offerings AS "request_child_offering"
+			INNER JOIN enrollment.request_children AS "child"
+				ON "child".id = "request_child_offering".request_child_id
+			WHERE "request_child_offering".care_offering_id IN (?)
+				AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
+				AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
+				AND "child".status NOT IN (?)
+		), boundaries AS (
+			SELECT care_offering_id, starts_at AS boundary FROM intervals
+			UNION
+			SELECT care_offering_id, ends_at AS boundary FROM intervals
+		)
+		SELECT
+			boundaries.care_offering_id AS care_offering_id,
+			COALESCE(MAX((
+				SELECT COUNT(DISTINCT interval_row.request_child_id)
+				FROM intervals AS interval_row
+				WHERE interval_row.care_offering_id = boundaries.care_offering_id
+					AND interval_row.starts_at <= boundaries.boundary
+					AND interval_row.ends_at > boundaries.boundary
+			)), 0) AS peak
+		FROM boundaries
+		GROUP BY boundaries.care_offering_id
+	`, from, from, until, until, bun.List(careOfferingIDs), until, from,
+		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
+	).Scan(ctx, &rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count peak active children for care offerings: %w", err)
+	}
+	for _, row := range rows {
+		result[row.CareOfferingID] = row.Peak
+	}
+	return result, nil
+}
+
 // CountActiveGradeLevelsByCareOfferingIDs groups the bookings overlapping
 // [from, until) by offering and by the child's target grade level, counting
 // each child once per bucket. It backs the admin-side "how many existing

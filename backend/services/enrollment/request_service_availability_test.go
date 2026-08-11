@@ -177,3 +177,91 @@ func testGradeAvailabilityRule(operator string, values ...int) *enrollmentModels
 		}},
 	}
 }
+
+// Bestandsschutz for the admin offering-adjustment path (#2186). A rule
+// tightened after a child was booked must not revoke the booking, and must
+// not make every later correction for that child unsaveable.
+func TestGrandfatheredOfferingsSurviveATightenedAvailabilityRule(t *testing.T) {
+	grade := func(value int16) *int16 { return &value }
+	restricted := &enrollmentModels.CareOffering{
+		Name:             "Randstunde",
+		DaysOfWeekMode:   enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:    []string{"mon"},
+		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	}
+	restricted.ID = 10
+	open := &enrollmentModels.CareOffering{
+		Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+	}
+	open.ID = 20
+	catalog := map[int64]*enrollmentModels.CareOffering{10: restricted, 20: open}
+
+	// Without the exemption this is the production bug: a grade-3 child who
+	// already holds the grade-1-2 offering cannot be saved at all.
+	children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10, 20}}}
+	_, err := materializeAndValidateChildrenOfferingSelections(children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional)
+	require.ErrorIs(t, err, ErrCareOfferingUnavailable)
+
+	children = []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10, 20}}}
+	selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
+		map[int64]bool{10: true},
+	)
+	require.NoError(t, err)
+
+	// The booking must SURVIVE, not merely pass validation: materialization
+	// only emits offerings present in the available set, so a bypass that
+	// skipped the error alone would still silently drop the booking.
+	kept := make([]int64, 0, len(selections[0]))
+	for _, selection := range selections[0] {
+		kept = append(kept, selection.OfferingID)
+	}
+	require.ElementsMatch(t, []int64{10, 20}, kept)
+}
+
+func TestGrandfatheringDoesNotLetANewBlockedOfferingBeAdded(t *testing.T) {
+	grade := func(value int16) *int16 { return &value }
+	restricted := &enrollmentModels.CareOffering{
+		Name:             "Randstunde",
+		DaysOfWeekMode:   enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:    []string{"mon"},
+		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	}
+	restricted.ID = 10
+	alsoRestricted := &enrollmentModels.CareOffering{
+		Name:             "Frühbetreuung",
+		DaysOfWeekMode:   enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:    []string{"mon"},
+		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	}
+	alsoRestricted.ID = 30
+	catalog := map[int64]*enrollmentModels.CareOffering{10: restricted, 30: alsoRestricted}
+
+	// Offering 10 is held (grandfathered); 30 is a NEW blocked pick.
+	children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10, 30}}}
+	_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
+		map[int64]bool{10: true},
+	)
+	require.ErrorIs(t, err, ErrCareOfferingUnavailable)
+}
+
+func TestGrandfatheringIgnoresIDsOutsideTheCatalog(t *testing.T) {
+	grade := func(value int16) *int16 { return &value }
+	restricted := &enrollmentModels.CareOffering{
+		Name:             "Randstunde",
+		DaysOfWeekMode:   enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:    []string{"mon"},
+		AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+	}
+	restricted.ID = 10
+	catalog := map[int64]*enrollmentModels.CareOffering{10: restricted}
+
+	// A stale id must not be smuggled past the closed-catalog check.
+	children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{999}}}
+	_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
+		map[int64]bool{999: true},
+	)
+	require.ErrorIs(t, err, ErrCareOfferingClosed)
+}

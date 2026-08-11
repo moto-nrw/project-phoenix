@@ -814,6 +814,31 @@ describe("CareOfferingsEditor", () => {
     expect(screen.getByText("Nur für Klassen 1–2")).toBeInTheDocument();
   });
 
+  // #2186 review: a "mindestens eine Bedingung" rule built from two disjoint
+  // not_in conditions admits every grade, so calling it a restriction in the
+  // catalog misinforms the admin.
+  it("shows no pill for a rule that turns nobody away", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({
+        name: "Randstunde",
+        availability_rule: {
+          match: "any",
+          conditions: [
+            { source: "grade_level", operator: "not_in", value: [1] },
+            { source: "grade_level", operator: "not_in", value: [2] },
+          ],
+        },
+      }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(screen.queryByText(/^Nur für/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Nicht für/)).not.toBeInTheDocument();
+  });
+
   it("shows no availability pill for an unrestricted offering", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([offering()]);
