@@ -1,6 +1,7 @@
 package students
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"net/http"
@@ -216,6 +217,33 @@ func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
 		!p.hasInMemoryFilters()
+}
+
+// pageOfGroupStudents cuts the requested page out of the already materialized
+// group-only result. That fast path never reaches the SQL LIMIT/OFFSET, so
+// without this a `?group_id=7,9&page_size=1` request would answer with every
+// child of both groups while the pagination metadata claimed a one-row page
+// (#2218 review) — and a selection larger than a caller's page size could never
+// be walked page by page. Exports (fetchAll) keep every row: their in-memory
+// filters run after the fetch, so a page here would silently shorten the list.
+//
+// The group query carries no ORDER BY, so the slice is sorted by id before it is
+// cut: without a stable order two requests for neighbouring pages could hand
+// back overlapping or disjoint rows.
+func (p *studentListParams) pageOfGroupStudents(students []*users.Student) []*users.Student {
+	if p.fetchAll || p.page <= 0 || p.pageSize <= 0 {
+		return students
+	}
+
+	slices.SortFunc(students, func(a, b *users.Student) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
+
+	start := (p.page - 1) * p.pageSize
+	if start >= len(students) {
+		return []*users.Student{}
+	}
+	return students[start:min(start+p.pageSize, len(students))]
 }
 
 // isActiveFilterValue treats both empty and the neutral "all" sentinel as "off".

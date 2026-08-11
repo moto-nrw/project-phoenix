@@ -120,6 +120,31 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 		assert.ElementsMatch(t, []int64{third.ID, fourth.ID}, ids)
 	})
 
+	t.Run("a group selection is paginated instead of returned whole", func(t *testing.T) {
+		// The group-only fast path materializes both rosters in memory, so it has
+		// to cut the requested page itself — otherwise a caller asking for one row
+		// receives every child while the metadata promises a one-row page, and a
+		// selection larger than the page size can never be walked (#2218 review).
+		firstPage, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"group_id=%d,%d&page=1&page_size=1", groupA.ID, groupB.ID,
+		))
+		require.Len(t, firstPage, 1, "page_size=1 must yield exactly one child")
+		assert.Equal(t, 2, total, "the total still counts the whole selection")
+
+		secondPage, _ := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"group_id=%d,%d&page=2&page_size=1", groupA.ID, groupB.ID,
+		))
+		require.Len(t, secondPage, 1)
+
+		assert.ElementsMatch(t, []int64{third.ID, fourth.ID}, append(firstPage, secondPage...),
+			"the pages together must cover the selection without repeating a child")
+
+		beyond, _ := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"group_id=%d,%d&page=3&page_size=1", groupA.ID, groupB.ID,
+		))
+		assert.Empty(t, beyond, "a page past the end is empty, not a repeat of the last one")
+	})
+
 	t.Run("two grades cover both years", func(t *testing.T) {
 		// The grade filter is not class-unique, so other children of the shared
 		// test database legitimately share these years: assert membership, not

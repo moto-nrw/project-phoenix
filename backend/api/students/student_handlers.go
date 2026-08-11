@@ -333,9 +333,12 @@ func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListP
 		return nil, 0, false, err
 	}
 
-	// Fast path for true group-only requests keeps existing behavior.
+	// Fast path for true group-only requests: no SQL round trip for the page,
+	// but the requested window still has to be honored, because this path never
+	// reaches the query's LIMIT/OFFSET (#2218 review). The total stays the whole
+	// selection, so the reported count keeps naming every child of the groups.
 	if params.canUseGroupOnlyShortcut() {
-		return students, len(students), true, nil
+		return params.pageOfGroupStudents(students), len(students), true, nil
 	}
 
 	if len(students) == 0 {
