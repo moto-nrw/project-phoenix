@@ -468,6 +468,23 @@ export function PlannedStatusDaysModal({
       setSelectionHint(null);
     }
     if (isPartialExcusal) {
+      // While editing an existing partial excusal the date is fixed: clearing
+      // editingPartialAbsenceId on another day would create a new record and
+      // leave the original unchanged.
+      if (editingPartialAbsenceId) {
+        const editing =
+          existingPartialAbsences.find(
+            (absence) => absence.id === editingPartialAbsenceId,
+          ) ?? null;
+        if (editing) {
+          const editDate = parseISODate(editing.date);
+          setSelectedDates([editDate]);
+          setSelectionHint(
+            "Beim Bearbeiten bleibt das Datum fest. Abbrechen, um einen anderen Tag zu wählen.",
+          );
+          return;
+        }
+      }
       const selectedDate = Array.from(unique.keys())[0];
       const existing = selectedDate
         ? partialAbsenceByDate.get(selectedDate)
@@ -773,8 +790,12 @@ export function PlannedStatusDaysModal({
               {isPartialExcusal ? (
                 <DatePicker
                   value={selectedDates[0] ?? null}
-                  onChange={(date) => setSortedDates(date ? [date] : [])}
+                  onChange={(date) => {
+                    if (editingPartialAbsenceId) return;
+                    setSortedDates(date ? [date] : []);
+                  }}
                   disabledDay={(date) =>
+                    Boolean(editingPartialAbsenceId) ||
                     activeExistingDayByDate.has(toISODate(date))
                   }
                   placeholder="Tag auswählen"

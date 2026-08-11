@@ -187,6 +187,7 @@ func (rs *Resource) bindPartialAbsenceInput(w http.ResponseWriter, r *http.Reque
 var partialAbsenceErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: scheduleService.ErrPartialAbsenceAlreadyExists, Render: common.ErrorConflict},
 	{Target: scheduleService.ErrPartialAbsenceFullDayConflict, Render: common.ErrorConflict},
+	{Target: scheduleService.ErrPartialAbsencePendingRequestConflict, Render: common.ErrorConflict},
 	{Target: scheduleService.ErrPartialAbsencePickupConflict, Render: common.ErrorConflict},
 	{Target: scheduleService.ErrPartialAbsenceNotFound, Render: partialAbsenceNotFound},
 	{Target: scheduleService.ErrPartialAbsenceWrongStudent, Render: partialAbsenceNotFound},

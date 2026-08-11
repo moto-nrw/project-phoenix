@@ -648,12 +648,16 @@ func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
 	}
 	// Sort before locking so multi-day writers always take care-day keys in
 	// the same order (avoids AB-BA deadlocks across concurrent requests).
+	// Student row first, then care-day — same order as partial-absence writes
+	// (LockStudentAndExceptionDay). Care-day-only here deadlocks when the
+	// request INSERT's student FK waits on a partial writer that holds the
+	// student row and is waiting for care-day.
 	sortedDates := append([]timezone.Date(nil), req.Dates...)
 	sort.Slice(sortedDates, func(i, j int) bool {
 		return sortedDates[i].Before(sortedDates[j])
 	})
 	for _, date := range sortedDates {
-		if err := careplanning.LockExceptionDay(ctx, s.db, req.StudentID, date); err != nil {
+		if err := careplanning.LockStudentAndExceptionDay(ctx, s.db, req.StudentID, date); err != nil {
 			return err
 		}
 	}

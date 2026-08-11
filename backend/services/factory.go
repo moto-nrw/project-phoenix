@@ -890,6 +890,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	partialAbsenceService := schedule.NewPartialAbsenceService(
 		repos.StudentPickupException,
 		repos.StudentStatusDay,
+		repos.ExcusedAbsenceRequest,
 		repos.InstanceStudent,
 		db,
 	)

@@ -1248,8 +1248,11 @@ func (r *InstanceStudentRepository) lockRestoreCareExceptionDays(
 	).Scan(ctx, &days); err != nil {
 		return &modelBase.DatabaseError{Op: "list restore care-exception days for lock", Err: err}
 	}
+	// Student row then care-day for every pair (student FOR UPDATE is
+	// re-entrant within the same transaction when the same child appears on
+	// multiple dates). Matches partial-absence and excused-request writers.
 	for _, day := range days {
-		if err := careplanning.LockExceptionDay(ctx, r.db, day.StudentID, day.Date); err != nil {
+		if err := careplanning.LockStudentAndExceptionDay(ctx, r.db, day.StudentID, day.Date); err != nil {
 			return err
 		}
 	}

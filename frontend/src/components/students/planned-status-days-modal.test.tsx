@@ -314,6 +314,54 @@ describe("PlannedStatusDaysModal", () => {
     );
   });
 
+  it("keeps the edited date when another day is selected during edit", async () => {
+    const onSubmitPartialAbsence = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        existingPartialAbsences={[existingPartialAbsence]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadCarePlanDay={vi.fn().mockResolvedValue({
+          studentId: "42",
+          date: "2026-05-27",
+          weekday: 3,
+          arrival: { expectedTime: null, source: "none" },
+          pickup: { expectedTime: "13:30", source: "exception" },
+          instances: [],
+        })}
+        onSubmit={vi.fn()}
+        onSubmitPartialAbsence={onSubmitPartialAbsence}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ab Uhrzeit" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Teilentschuldigung vom Mittwoch, 27. Mai 2026 bearbeiten",
+      }),
+    );
+    expect(screen.getByLabelText("Entschuldigt ab")).toHaveValue("13:30");
+
+    // Selecting another day must not drop edit mode into a create-on-new-date.
+    fireEvent.click(screen.getByText("Einzeltag auswählen"));
+    fireEvent.change(screen.getByLabelText("Entschuldigt ab"), {
+      target: { value: "15:00" },
+    });
+    await clickEnabledButton("Entschuldigung aktualisieren");
+    expect(onSubmitPartialAbsence).toHaveBeenCalledWith(
+      "9",
+      "2026-05-27",
+      "15:00",
+      "Arzttermin",
+    );
+  });
+
   it("keeps the delete confirmation open when partial excusal deletion fails", async () => {
     const onDeletePartialAbsence = vi
       .fn()

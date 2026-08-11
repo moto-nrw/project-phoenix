@@ -16,9 +16,13 @@ import (
 var (
 	ErrPartialAbsenceAlreadyExists   = errors.New("partial absence already exists for this date")
 	ErrPartialAbsenceFullDayConflict = errors.New("partial absence conflicts with a full-day status")
-	ErrPartialAbsencePickupConflict  = errors.New("partial absence conflicts with a full-day pickup cancellation")
-	ErrPartialAbsenceNotFound        = errors.New("partial absence not found")
-	ErrPartialAbsenceWrongStudent    = errors.New("partial absence belongs to another student")
+	// ErrPartialAbsencePendingRequestConflict refuses a partial-day excusal when
+	// a parent full-day excused request is still pending for that date. Approval
+	// would later hit ensureNoPartialAbsence and leave the request unapprovable.
+	ErrPartialAbsencePendingRequestConflict = errors.New("partial absence conflicts with a pending full-day excused request")
+	ErrPartialAbsencePickupConflict         = errors.New("partial absence conflicts with a full-day pickup cancellation")
+	ErrPartialAbsenceNotFound               = errors.New("partial absence not found")
+	ErrPartialAbsenceWrongStudent           = errors.New("partial absence belongs to another student")
 )
 
 // PartialAbsenceInput is the one-day command accepted by the partial-absence
@@ -43,19 +47,24 @@ type PartialAbsenceService interface {
 type partialAbsenceService struct {
 	pickups    scheduleModel.StudentPickupExceptionRepository
 	statusDays activeModel.StudentStatusDayRepository
+	requests   activeModel.ExcusedAbsenceRequestRepository
 	slots      scheduleModel.InstanceStudentRepository
 	db         *bun.DB
 }
 
+// NewPartialAbsenceService wires partial-day excusal writes. requests may be
+// nil in tests that do not exercise the pending full-day request guard.
 func NewPartialAbsenceService(
 	pickups scheduleModel.StudentPickupExceptionRepository,
 	statusDays activeModel.StudentStatusDayRepository,
+	requests activeModel.ExcusedAbsenceRequestRepository,
 	slots scheduleModel.InstanceStudentRepository,
 	db *bun.DB,
 ) PartialAbsenceService {
 	return &partialAbsenceService{
 		pickups:    pickups,
 		statusDays: statusDays,
+		requests:   requests,
 		slots:      slots,
 		db:         db,
 	}
@@ -92,6 +101,9 @@ func (s *partialAbsenceService) Create(
 			return err
 		}
 		if err := s.ensureNoFullDayStatus(txCtx, input.StudentID, input.Date); err != nil {
+			return err
+		}
+		if err := s.ensureNoPendingExcusedRequest(txCtx, input.StudentID, input.Date); err != nil {
 			return err
 		}
 
@@ -159,6 +171,9 @@ func (s *partialAbsenceService) Update(
 			return err
 		}
 		if err := s.ensureNoFullDayStatus(txCtx, input.StudentID, input.Date); err != nil {
+			return err
+		}
+		if err := s.ensureNoPendingExcusedRequest(txCtx, input.StudentID, input.Date); err != nil {
 			return err
 		}
 
@@ -268,6 +283,31 @@ func (s *partialAbsenceService) ensureNoFullDayStatus(
 	}
 	if len(rows) > 0 {
 		return ErrPartialAbsenceFullDayConflict
+	}
+	return nil
+}
+
+// ensureNoPendingExcusedRequest keeps partial-day writes mutually exclusive
+// with open full-day parent requests for the same child and date.
+func (s *partialAbsenceService) ensureNoPendingExcusedRequest(
+	ctx context.Context, studentID int64, date timezone.Date,
+) error {
+	if s.requests == nil {
+		return nil
+	}
+	pending, err := s.requests.ListPendingForStudent(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	for _, req := range pending {
+		if req == nil {
+			continue
+		}
+		for _, requested := range req.Dates {
+			if requested == date {
+				return ErrPartialAbsencePendingRequestConflict
+			}
+		}
 	}
 	return nil
 }
