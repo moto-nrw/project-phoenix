@@ -231,19 +231,20 @@ func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studen
 
 	sorted := dedupeSortedDates(dates)
 
-	// Serialize concurrent submissions for the same child so the idempotent-retry
-	// and overlap checks below (read pending, then insert) can't race two rows
-	// through. The advisory lock releases at the end of the ambient transaction.
-	if err := s.requestRepo.LockStudentRequests(ctx, studentID); err != nil {
-		return nil, err
-	}
-	// Refuse dates that already carry a planned partial absence. Approval later
-	// would reject them via ensureNoPartialAbsence, leaving a pending request
-	// that can never succeed while the partial absence remains.
+	// Care-day locks first (shared with partial-absence / full-day writers), then
+	// the per-student pending-request key. Holding care-day across the check and
+	// insert prevents a concurrent partial absence from landing between them and
+	// leaving a pending request that approval must refuse.
 	if err := s.ensureNoPartialAbsence(ctx, &activeModels.ExcusedAbsenceRequest{
 		StudentID: studentID,
 		Dates:     sorted,
 	}); err != nil {
+		return nil, err
+	}
+	// Serialize concurrent submissions for the same child so the idempotent-retry
+	// and overlap checks below (read pending, then insert) can't race two rows
+	// through. The advisory lock releases at the end of the ambient transaction.
+	if err := s.requestRepo.LockStudentRequests(ctx, studentID); err != nil {
 		return nil, err
 	}
 	existing, err := s.requestRepo.ListPendingForStudent(ctx, studentID)
@@ -645,13 +646,19 @@ func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
 	if s.pickupRepo == nil {
 		return errors.New("active: pickup exception repository is not configured")
 	}
-	for _, date := range req.Dates {
+	// Sort before locking so multi-day writers always take care-day keys in
+	// the same order (avoids AB-BA deadlocks across concurrent requests).
+	sortedDates := append([]timezone.Date(nil), req.Dates...)
+	sort.Slice(sortedDates, func(i, j int) bool {
+		return sortedDates[i].Before(sortedDates[j])
+	})
+	for _, date := range sortedDates {
 		if err := careplanning.LockExceptionDay(ctx, s.db, req.StudentID, date); err != nil {
 			return err
 		}
 	}
 	rows, err := s.pickupRepo.FindByStudentIDAndDateRange(
-		ctx, req.StudentID, req.Dates[0], req.Dates[len(req.Dates)-1],
+		ctx, req.StudentID, sortedDates[0], sortedDates[len(sortedDates)-1],
 	)
 	if err != nil {
 		return err

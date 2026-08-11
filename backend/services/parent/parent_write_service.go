@@ -429,6 +429,12 @@ func (s *service) submitExcusedRequest(ctx context.Context, child *parentChild, 
 			return nil, ErrNoteTooLong
 		case errors.Is(txErr, absenceSvc.ErrExcusedRequestOverlap):
 			return nil, ErrExcusedRequestOverlap
+		// A planned partial-day excusal already owns one of the requested dates
+		// (same refusal as a direct parent status write that hits
+		// ensureNoPartialAbsenceForStatusWrite). Surface as the existing care
+		// conflict so the handler returns HTTP 409, not 500.
+		case errors.Is(txErr, absenceSvc.ErrExcusedRequestStatusConflict):
+			return nil, ErrCareExceptionConflict
 		default:
 			return nil, fmt.Errorf("parent: submit excused request: %w", txErr)
 		}

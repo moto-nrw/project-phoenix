@@ -1108,6 +1108,14 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		return 0, nil
 	}
 
+	// Serialize with partial-absence create/update/delete on the same
+	// child/day before reading pe.excused_from. Without the care-day lock a
+	// concurrent delete can drop the exception after this query stamps
+	// pickup_exception_id, leaving an absent row with cleared provenance.
+	if err := r.lockRestoreCareExceptionDays(ctx, transitionID, studentIDs, from); err != nil {
+		return 0, err
+	}
+
 	const rawSQL = `
 		WITH restored AS (
 			DELETE FROM schedule.grade_transition_roster_removals AS rm
@@ -1210,6 +1218,42 @@ func (r *InstanceStudentRepository) RestoreArchivedByTransition(
 		}
 	}
 	return int(affected), nil
+}
+
+// lockRestoreCareExceptionDays takes the shared care-day lock for every
+// (student, date) pair the restore INSERT will touch, ordered by student then
+// date so concurrent multi-day writers do not deadlock each other.
+func (r *InstanceStudentRepository) lockRestoreCareExceptionDays(
+	ctx context.Context, transitionID int64, studentIDs []int64, from timezone.Date,
+) error {
+	type careDay struct {
+		StudentID int64         `bun:"student_id"`
+		Date      timezone.Date `bun:"date"`
+	}
+	var days []careDay
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT DISTINCT rm.student_id, ai.date
+		FROM schedule.grade_transition_roster_removals AS rm
+		JOIN schedule.activity_instances AS ai
+			ON ai.id = rm.instance_id
+			AND ai.tenant_id = rm.tenant_id
+		WHERE rm.transition_id = ?
+			AND rm.student_id IN (?)
+			AND rm.tenant_id = ?
+			AND ai.date >= ?
+			AND ai.status NOT IN (?, ?)
+		ORDER BY rm.student_id, ai.date
+	`, transitionID, bun.List(studentIDs), tenant.FromContext(ctx), from,
+		schedule.InstanceStatusCompleted, schedule.InstanceStatusCancelled,
+	).Scan(ctx, &days); err != nil {
+		return &modelBase.DatabaseError{Op: "list restore care-exception days for lock", Err: err}
+	}
+	for _, day := range days {
+		if err := careplanning.LockExceptionDay(ctx, r.db, day.StudentID, day.Date); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MarkExpectedAbsentByActiveGroupIDs flips status 'expected' → 'absent' for
