@@ -274,6 +274,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("PARENTS_URL must use https:// in production (received %q)", rawParentsURL)
 	}
 
+	// School-portal URL (#2207) - used for Lehrkraft invitation links, which
+	// must land on the school portal where the accept flow lives.
+	rawSchoolURL := viper.GetString("school_url")
+	schoolURL := strings.TrimRight(rawSchoolURL, "/")
+	if schoolURL == "" {
+		return nil, fmt.Errorf("SCHOOL_URL is required")
+	}
+	if appEnv == "production" && !strings.HasPrefix(schoolURL, "https://") {
+		return nil, fmt.Errorf("SCHOOL_URL must use https:// in production (received %q)", rawSchoolURL)
+	}
+
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
 	if invitationExpiryHours <= 0 {
 		invitationExpiryHours = 48
@@ -1152,6 +1163,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       frontendURL,
+		SchoolURL:         schoolURL,
 		DefaultFrom:       defaultFrom,
 		InvitationExpiry:  invitationTokenExpiry,
 		DB:                db,

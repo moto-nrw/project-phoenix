@@ -69,6 +69,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       "http://localhost:3000",
+		SchoolURL:         "http://schule.localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
 		DB:                bunDB,
@@ -143,6 +144,69 @@ func TestCreateInvitationSuccess(t *testing.T) {
 	require.Contains(t, msg.Content.(map[string]any), "InvitationURL")
 
 	require.Contains(t, invitations.byToken, invitation.Token)
+}
+
+// TestCreateInvitationSchoolPortalLink pins the #2207 link split: a
+// school-portal role (lehrkraft) invitation links to SCHOOL_URL, every other
+// role keeps linking to FRONTEND_URL.
+func TestCreateInvitationSchoolPortalLink(t *testing.T) {
+	service, _, _, roles, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
+	t.Cleanup(cleanup)
+	mailer, ok := rawMailer.(*testpkg.CapturingMailer)
+	require.True(t, ok)
+
+	roles.roles[7] = &authModel.Role{Model: baseModel.Model{ID: 7}, Name: "lehrkraft", IsSystem: true}
+
+	ctx := context.Background()
+
+	// Sequential creates: each delivery callback persists via its own admin
+	// tx, and sqlmock matches expectations strictly in order — concurrent
+	// callbacks would interleave BEGIN/EXEC/COMMIT.
+	expectAdminTx(mock)
+	lehrkraft, err := service.CreateInvitation(ctx, InvitationRequest{
+		Email:            "lehrkraft@example.com",
+		RoleID:           7,
+		CreatedBy:        42,
+		FirstName:        testpkg.StrPtr("Karla"),
+		LastName:         testpkg.StrPtr("Klassen"),
+		ActorPermissions: []string{permissions.UsersManage},
+	})
+	require.NoError(t, err)
+	require.True(t, mailer.WaitForMessages(1, time.Second))
+	require.Eventually(t, func() bool {
+		return mock.ExpectationsWereMet() == nil
+	}, time.Second, 10*time.Millisecond)
+
+	expectAdminTx(mock)
+	betreuer, err := service.CreateInvitation(ctx, InvitationRequest{
+		Email:            "betreuer@example.com",
+		RoleID:           2,
+		CreatedBy:        42,
+		FirstName:        testpkg.StrPtr("Bernd"),
+		LastName:         testpkg.StrPtr("Betreuung"),
+		ActorPermissions: []string{permissions.UsersManage},
+	})
+	require.NoError(t, err)
+	require.True(t, mailer.WaitForMessages(2, time.Second))
+	require.Eventually(t, func() bool {
+		return mock.ExpectationsWereMet() == nil
+	}, time.Second, 10*time.Millisecond)
+
+	urlsByRecipient := map[string]string{}
+	for _, msg := range mailer.Messages() {
+		content, contentOK := msg.Content.(map[string]any)
+		require.True(t, contentOK)
+		invitationURL, urlOK := content["InvitationURL"].(string)
+		require.True(t, urlOK)
+		urlsByRecipient[msg.To.Address] = invitationURL
+	}
+
+	require.Equal(t,
+		fmt.Sprintf("http://schule.localhost:3000/invite?token=%s", lehrkraft.Token),
+		urlsByRecipient["lehrkraft@example.com"])
+	require.Equal(t,
+		fmt.Sprintf("http://localhost:3000/invite?token=%s", betreuer.Token),
+		urlsByRecipient["betreuer@example.com"])
 }
 
 func TestInvitationEmailFailureRecordsError(t *testing.T) {
@@ -1308,7 +1372,7 @@ func TestInvitationHelpersCoverFallbacks(t *testing.T) {
 		Model: baseModel.Model{ID: 99},
 		Email: "skip-email@example.com",
 		Token: "skip-email-token",
-	}, "admin", "")
+	}, "admin", "", false)
 }
 
 func TestInvitationLookupErrorBranches(t *testing.T) {

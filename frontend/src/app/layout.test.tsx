@@ -39,6 +39,7 @@ describe("RootLayout", () => {
     headerState.host = "moto-app.de";
     vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", "operator.moto-app.de");
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
+    vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.moto-app.de");
     vi.stubEnv("TENANT_DOMAIN", "moto-app.de");
   });
 
@@ -133,6 +134,7 @@ describe("RootLayout", () => {
         "operator.staging.moto-app.de",
       );
       vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.staging.moto-app.de");
+      vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.staging.moto-app.de");
 
       const metadata = await generateMetadata();
 

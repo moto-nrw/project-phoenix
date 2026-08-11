@@ -23,6 +23,13 @@ const logger = createLogger({ component: "InvitationAccept" });
 interface InvitationAcceptFormProps {
   readonly token: string;
   readonly invitation: InvitationValidation;
+  /**
+   * Fixed post-accept redirect path on the CURRENT host. When set, the
+   * tenant-subdomain redirect is skipped entirely — the school portal
+   * (#2207) sends freshly created Lehrkraft accounts to its own login
+   * instead of the tenant portal.
+   */
+  readonly redirectToPath?: string;
 }
 
 // Helper to map API error status to user-friendly message
@@ -52,6 +59,7 @@ const getInvitationErrorMessage = (
 export function InvitationAcceptForm({
   token,
   invitation,
+  redirectToPath,
 }: InvitationAcceptFormProps) {
   const router = useRouter();
   const [firstName, setFirstName] = useState(invitation.firstName ?? "");
@@ -125,7 +133,10 @@ export function InvitationAcceptForm({
       });
       // Build redirect URL before signOut (need window.location)
       let redirectUrl: string | null = null;
-      if (result.tenantSubdomain && globalThis.window !== undefined) {
+      if (redirectToPath) {
+        // Portal-fixed target (school portal): stay on this host.
+        redirectUrl = null;
+      } else if (result.tenantSubdomain && globalThis.window !== undefined) {
         const tenantDomain = process.env.NEXT_PUBLIC_TENANT_DOMAIN;
         if (tenantDomain) {
           const { protocol, port: locationPort } = globalThis.window.location;
@@ -161,7 +172,7 @@ export function InvitationAcceptForm({
           globalThis.window.location.href = redirectUrl;
           return;
         }
-        router.push("/");
+        router.push(redirectToPath ?? "/");
       }, 1500);
     } catch (err) {
       // Distinguish network/offline from HTTP errors
@@ -200,7 +211,7 @@ export function InvitationAcceptForm({
     if (tenantRedirectUrl) {
       globalThis.window.location.href = tenantRedirectUrl;
     } else {
-      router.push("/");
+      router.push(redirectToPath ?? "/");
     }
   };
 

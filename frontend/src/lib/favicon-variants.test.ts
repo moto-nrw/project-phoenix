@@ -8,6 +8,7 @@ import {
 const config = {
   operatorHostname: "operator.moto-app.de",
   parentsHostname: "eltern.moto-app.de",
+  schoolHostname: "schule.moto-app.de",
   tenantDomain: "moto-app.de",
 };
 
@@ -18,11 +19,13 @@ describe("resolveFaviconVariant", () => {
     ["operator.moto-app.de", "operator"],
     ["eltern.moto-app.de", "normal"],
     ["parents.moto-app.de", "normal"],
+    ["schule.moto-app.de", "schule"],
     ["staging.moto-app.de", "normal-staging"],
     ["school-a.staging.moto-app.de", "normal-staging"],
     ["operator.staging.moto-app.de", "operator-staging"],
     ["eltern.staging.moto-app.de", "eltern-staging"],
     ["parents.staging.moto-app.de", "eltern-staging"],
+    ["schule.staging.moto-app.de", "schule-staging"],
   ] as const)("maps %s to %s", (host, expected) => {
     const hostConfig =
       host.endsWith(".staging.moto-app.de") || host === "staging.moto-app.de"
@@ -30,6 +33,7 @@ describe("resolveFaviconVariant", () => {
             ...config,
             operatorHostname: "operator.staging.moto-app.de",
             parentsHostname: "eltern.staging.moto-app.de",
+            schoolHostname: "schule.staging.moto-app.de",
           }
         : config;
 
@@ -49,6 +53,7 @@ describe("resolveFaviconVariant", () => {
     const stagingConfig = {
       operatorHostname: "operator.staging.moto-app.de",
       parentsHostname: "eltern.staging.moto-app.de",
+      schoolHostname: "schule.staging.moto-app.de",
       tenantDomain: "staging.moto-app.de",
     };
 
@@ -91,6 +96,13 @@ describe("faviconMetadata", () => {
 });
 
 describe("faviconManifest", () => {
+  it("gives the school portal its own PWA identity", () => {
+    expect(faviconManifest("schule").name).toBe("moto schule");
+    expect(faviconManifest("schule-staging").short_name).toBe("moto schule");
+    expect(faviconManifest("normal").name).toBe("MOTO");
+    expect(faviconManifest("eltern").name).toBe("MOTO");
+  });
+
   it("points install icons at the resolved variant", () => {
     expect(faviconManifest("eltern").icons).toEqual([
       {

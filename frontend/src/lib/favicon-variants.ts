@@ -6,11 +6,14 @@ export type FaviconVariant =
   | "operator"
   | "operator-staging"
   | "eltern"
-  | "eltern-staging";
+  | "eltern-staging"
+  | "schule"
+  | "schule-staging";
 
 export type FaviconConfig = {
   readonly operatorHostname: string;
   readonly parentsHostname: string;
+  readonly schoolHostname: string;
   readonly tenantDomain: string;
 };
 
@@ -48,6 +51,7 @@ export function resolveFaviconVariant(
   const host = normalizeHost(rawHost);
   const operatorHost = normalizeHost(config.operatorHostname);
   const parentsHost = normalizeHost(config.parentsHostname);
+  const schoolHost = normalizeHost(config.schoolHostname);
   const tenantDomain = normalizeHost(config.tenantDomain);
   const legacyParents = legacyParentsHost(parentsHost, tenantDomain);
   const staging = isStagingHost(host, tenantDomain);
@@ -58,6 +62,10 @@ export function resolveFaviconVariant(
 
   if (host === parentsHost || (legacyParents && host === legacyParents)) {
     return staging ? "eltern-staging" : "normal";
+  }
+
+  if (host === schoolHost) {
+    return staging ? "schule-staging" : "schule";
   }
 
   return staging ? "normal-staging" : "normal";
@@ -91,10 +99,14 @@ export function faviconManifest(
   variant: FaviconVariant,
 ): MetadataRoute.Manifest {
   const base = `${ICON_BASE_PATH}/${variant}`;
+  // The school portal installs as its own PWA identity ("moto schule",
+  // #2207); every other surface keeps the shared MOTO identity.
+  const isSchule = variant === "schule" || variant === "schule-staging";
+  const appName = isSchule ? "moto schule" : "MOTO";
 
   return {
-    name: "MOTO",
-    short_name: "MOTO",
+    name: appName,
+    short_name: appName,
     icons: [
       {
         src: `${base}/icon-192.png`,

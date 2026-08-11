@@ -251,6 +251,22 @@ func TestNewFactory_ParentsURL_Required(t *testing.T) {
 	assert.Contains(t, err.Error(), "PARENTS_URL")
 }
 
+func TestNewFactory_SchoolURL_Required(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repos := repositories.NewFactory(db)
+
+	viper.Reset()
+	seedFactoryRequiredConfig()
+	viper.Set("school_url", "")
+
+	factory, err := services.NewFactory(repos, db, slog.Default())
+	require.Error(t, err)
+	require.Nil(t, factory)
+	assert.Contains(t, err.Error(), "SCHOOL_URL")
+}
+
 func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -330,6 +346,7 @@ func seedFactoryRequiredConfig() {
 	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
 	viper.Set("frontend_url", "http://localhost:3000")
 	viper.Set("parents_url", "http://parents.localhost:3000")
+	viper.Set("school_url", "http://schule.localhost:3000")
 	viper.Set("tenant_domain", "localhost")
 	viper.Set("next_public_operator_hostname", "operator.localhost:3000")
 }

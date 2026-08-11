@@ -63,6 +63,9 @@ export function MFAEnrollmentScreen({
   // between confirm success and the success-screen render; the success
   // button passes them through to onComplete.
   const tokensRef = useRef<MFATokenResponse | null>(null);
+  // The school enroll flow binds the confirm to the exact challenge that
+  // enroll/start minted; tenant/operator return no token here (null).
+  const challengeTokenRef = useRef<string | null>(null);
   const otpRef = useRef<OTPInputGridHandle | null>(null);
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export function MFAEnrollmentScreen({
     setIsStarting(true);
     setError("");
     try {
-      await enrollStart(scope, bearerToken);
+      challengeTokenRef.current = await enrollStart(scope, bearerToken);
       setStep("code");
     } catch (err) {
       setError(germanMFAErrorMessage(err));
@@ -103,7 +106,13 @@ export function MFAEnrollmentScreen({
       setIsConfirming(true);
       setError("");
       try {
-        const tokens = await enrollConfirm(scope, bearerToken, submittedCode);
+        const tokens = await enrollConfirm(
+          scope,
+          bearerToken,
+          submittedCode,
+          false,
+          challengeTokenRef.current ?? undefined,
+        );
         tokensRef.current = tokens;
         setStep("success");
       } catch (err) {
