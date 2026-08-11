@@ -136,6 +136,69 @@ func TestFilter_ILike(t *testing.T) {
 	}
 }
 
+func TestFilter_TrimIn(t *testing.T) {
+	t.Run("several values", func(t *testing.T) {
+		f := NewFilter().TrimIn("school_class", "3a", "4b")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.TrimIn() should add one condition, got %d", len(f.conditions))
+		}
+		cond := f.conditions[0]
+		if cond.Operator != OpTrimIn {
+			t.Errorf("Filter.TrimIn() operator = %v, want %v", cond.Operator, OpTrimIn)
+		}
+		values, ok := cond.Value.([]interface{})
+		if !ok {
+			t.Fatalf("Filter.TrimIn() value should be []interface{}, got %T", cond.Value)
+		}
+		if len(values) != 2 {
+			t.Errorf("Filter.TrimIn() should have 2 values, got %d", len(values))
+		}
+	})
+
+	// One value must produce the exact condition the single-select filter
+	// always produced, so the multi-value form changes no existing query.
+	t.Run("single value collapses to TrimEqual", func(t *testing.T) {
+		f := NewFilter().TrimIn("school_class", "3a")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.TrimIn() should add one condition, got %d", len(f.conditions))
+		}
+		if f.conditions[0].Operator != OpTrimEqual {
+			t.Errorf("Filter.TrimIn() operator = %v, want %v", f.conditions[0].Operator, OpTrimEqual)
+		}
+		if f.conditions[0].Value != "3a" {
+			t.Errorf("Filter.TrimIn() value = %v, want 3a", f.conditions[0].Value)
+		}
+	})
+
+	// No values means "no restriction". An empty IN () would match nothing and
+	// silently return an empty list instead.
+	t.Run("no values adds no condition", func(t *testing.T) {
+		f := NewFilter().TrimIn("school_class")
+
+		if len(f.conditions) != 0 {
+			t.Fatalf("Filter.TrimIn() with no values should add no condition, got %d", len(f.conditions))
+		}
+	})
+}
+
+func TestTrimInPlaceholders(t *testing.T) {
+	tests := []struct {
+		count int
+		want  string
+	}{
+		{0, ""},
+		{1, "LOWER(TRIM(?))"},
+		{3, "LOWER(TRIM(?)), LOWER(TRIM(?)), LOWER(TRIM(?))"},
+	}
+	for _, tt := range tests {
+		if got := trimInPlaceholders(tt.count); got != tt.want {
+			t.Errorf("trimInPlaceholders(%d) = %q, want %q", tt.count, got, tt.want)
+		}
+	}
+}
+
 func TestFilter_NullChecks(t *testing.T) {
 	t.Run("IsNull", func(t *testing.T) {
 		f := NewFilter().IsNull("deleted_at")

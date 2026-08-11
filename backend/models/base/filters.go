@@ -2,6 +2,7 @@ package base
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
@@ -24,6 +25,7 @@ const (
 	OpLike      Operator = "LIKE"
 	OpILike     Operator = "ILIKE"
 	OpTrimEqual Operator = "TRIM_EQUALS"
+	OpTrimIn    Operator = "TRIM_IN"
 
 	// Null checking
 	OpIsNull    Operator = "IS NULL"
@@ -123,6 +125,36 @@ func (f *Filter) ILike(field, value string) *Filter {
 // TrimEqual adds a case-insensitive equality condition after trimming both sides.
 func (f *Filter) TrimEqual(field, value string) *Filter {
 	return f.Where(field, OpTrimEqual, value)
+}
+
+// TrimIn is the multi-value form of TrimEqual: it matches when the column
+// equals ANY of the values, comparing both sides trimmed and lower-cased.
+// Used by filters a school may pick several values for (e.g. Klasse 3a AND
+// 4b in the Kindersuche, #2218). Passing no values adds no condition at all —
+// an empty IN () would match nothing and silently return an empty list where
+// callers mean "no restriction".
+func (f *Filter) TrimIn(field string, values ...string) *Filter {
+	if len(values) == 0 {
+		return f
+	}
+	if len(values) == 1 {
+		return f.TrimEqual(field, values[0])
+	}
+	boxed := make([]interface{}, len(values))
+	for i, value := range values {
+		boxed[i] = value
+	}
+	return f.Where(field, OpTrimIn, boxed)
+}
+
+// trimInPlaceholders renders the `LOWER(TRIM(?)), …` list a TRIM_IN condition
+// binds its values into, so each value is normalized exactly like the column
+// side is (PostgreSQL LOWER, not Go's — collation stays the database's job).
+func trimInPlaceholders(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.Repeat("LOWER(TRIM(?)), ", count), ", ")
 }
 
 // IsNull adds an IS NULL condition
@@ -250,6 +282,10 @@ func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condit
 		return query.Where(columnRef+" ILIKE ?", condition.Value)
 	case OpTrimEqual:
 		return query.Where("LOWER(TRIM("+columnRef+")) = LOWER(TRIM(?))", condition.Value)
+	case OpTrimIn:
+		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
+			return query.Where("LOWER(TRIM("+columnRef+")) IN ("+trimInPlaceholders(len(values))+")", values...)
+		}
 	case OpIsNull:
 		return query.Where(columnRef + " IS NULL")
 	case OpIsNotNull:
@@ -286,6 +322,11 @@ func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition Filt
 		return query.Where("? ILIKE ?", fieldIdent, condition.Value)
 	case OpTrimEqual:
 		return query.Where("LOWER(TRIM(?)) = LOWER(TRIM(?))", fieldIdent, condition.Value)
+	case OpTrimIn:
+		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
+			args := append([]interface{}{fieldIdent}, values...)
+			return query.Where("LOWER(TRIM(?)) IN ("+trimInPlaceholders(len(values))+")", args...)
+		}
 	case OpIsNull:
 		return query.Where("? IS NULL", fieldIdent)
 	case OpIsNotNull:

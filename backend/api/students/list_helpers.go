@@ -17,13 +17,18 @@ import (
 
 // studentListParams holds all query parameters for student listing
 type studentListParams struct {
-	schoolClass         string
-	guardianName        string
-	firstName           string
-	lastName            string
-	location            string
-	locationState       string
-	groupID             int64
+	// schoolClasses filters by exact class names. Several may be selected at
+	// once (#2218: two groups supervised together need "3a AND 4b" in one
+	// list); an empty slice means every class.
+	schoolClasses []string
+	guardianName  string
+	firstName     string
+	lastName      string
+	location      string
+	locationState string
+	// groupIDs filters by educational group. Several may be selected at once
+	// (#2218); an empty slice means every group.
+	groupIDs            []int64
 	roomID              int64
 	search              string
 	page                int
@@ -37,11 +42,11 @@ type studentListParams struct {
 	// Empty means the school-local today. Parsed and validated in the handler
 	// via resolvePlanningDate so an invalid value is a 400, not a silent today.
 	date string
-	// gradeLevel filters by the first numeric run in school_class (issue #1838,
+	// gradeLevels filters by the first numeric run in school_class (issue #1838,
 	// Zielgruppe "Jahrgang"). Resolved in-memory via schoolclass.GradePrefix —
 	// a SQL LIKE 'N%' would incorrectly match e.g. grade 1 against "13a".
-	// 0 = off.
-	gradeLevel int
+	// Several levels may be selected at once (#2218); empty = off.
+	gradeLevels []int
 	// Administrative filters (#1492). Resolved against the enriched response
 	// objects in the same in-memory pass as dayStatus so pagination and counts
 	// stay correct. bus/photoConsent are "yes"/"no"; pickupStatus is one of the
@@ -84,10 +89,63 @@ func parseStudentListView(value string) (bool, error) {
 	}
 }
 
+// parseMultiValueParam splits a filter parameter that may name several values
+// at once (#2218). Values travel comma-separated (`school_class=3a,4b`);
+// repeated parameters (`school_class=3a&school_class=4b`) are accepted too so a
+// hand-built URL behaves the same. Blanks are dropped and duplicates collapsed,
+// preserving the caller's order.
+func parseMultiValueParam(raw []string) []string {
+	values := make([]string, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
+	for _, entry := range raw {
+		for _, value := range strings.Split(entry, ",") {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			if _, duplicate := seen[value]; duplicate {
+				continue
+			}
+			seen[value] = struct{}{}
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+// parseGroupIDList turns a possibly repeated, comma-separated group_id
+// parameter into positive group ids. Non-numeric and non-positive entries are
+// dropped, which keeps the historical single-value contract: an unusable
+// group_id has always meant "no group restriction" rather than a 400.
+func parseGroupIDList(raw []string) []int64 {
+	values := parseMultiValueParam(raw)
+	groupIDs := make([]int64, 0, len(values))
+	for _, value := range values {
+		if groupID, err := strconv.ParseInt(value, 10, 64); err == nil && groupID > 0 {
+			groupIDs = append(groupIDs, groupID)
+		}
+	}
+	return groupIDs
+}
+
+// parseGradeLevelList turns a possibly repeated, comma-separated grade_level
+// parameter into positive grade levels, dropping unusable entries for the same
+// reason as parseGroupIDList.
+func parseGradeLevelList(raw []string) []int {
+	values := parseMultiValueParam(raw)
+	levels := make([]int, 0, len(values))
+	for _, value := range values {
+		if level, err := strconv.Atoi(value); err == nil && level > 0 {
+			levels = append(levels, level)
+		}
+	}
+	return levels
+}
+
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
 	params := &studentListParams{
-		schoolClass:   r.URL.Query().Get("school_class"),
+		schoolClasses: parseMultiValueParam(r.URL.Query()["school_class"]),
 		guardianName:  r.URL.Query().Get("guardian_name"),
 		firstName:     r.URL.Query().Get("first_name"),
 		lastName:      r.URL.Query().Get("last_name"),
@@ -96,12 +154,9 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		search:        r.URL.Query().Get("search"),
 	}
 
-	// Parse group ID if provided
-	if groupIDStr := r.URL.Query().Get("group_id"); groupIDStr != "" {
-		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			params.groupID = groupID
-		}
-	}
+	// Parse group IDs if provided. Unparseable entries are skipped rather than
+	// rejected, matching the historical single-value behavior.
+	params.groupIDs = parseGroupIDList(r.URL.Query()["group_id"])
 
 	// Parse room ID if provided. Filters the list to students currently
 	// checked-in to any active group taking place in this room (joins via
@@ -113,12 +168,8 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		}
 	}
 
-	// Parse grade level if provided (issue #1838, Zielgruppe "Jahrgang").
-	if gradeLevelStr := r.URL.Query().Get("grade_level"); gradeLevelStr != "" {
-		if gradeLevel, err := strconv.Atoi(gradeLevelStr); err == nil && gradeLevel > 0 {
-			params.gradeLevel = gradeLevel
-		}
-	}
+	// Parse grade levels if provided (issue #1838, Zielgruppe "Jahrgang").
+	params.gradeLevels = parseGradeLevelList(r.URL.Query()["grade_level"])
 
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
@@ -147,7 +198,7 @@ func (p *studentListParams) hasPersonFilters() bool {
 func (p *studentListParams) hasInMemoryFilters() bool {
 	return p.hasPersonFilters() ||
 		p.dayStatus != "" && p.dayStatus != DayPlanningStatusAll ||
-		p.gradeLevel > 0 ||
+		len(p.gradeLevels) > 0 ||
 		p.hasAdministrativeFilters()
 }
 
@@ -160,7 +211,7 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 }
 
 func (p *studentListParams) canUseGroupOnlyShortcut() bool {
-	return p.schoolClass == "" &&
+	return len(p.schoolClasses) == 0 &&
 		p.guardianName == "" &&
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
@@ -189,8 +240,10 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	// Alumni (graduated via grade transition, soft-deleted) are invisible to
 	// every staff list and export.
 	filter.NotIn("status", string(users.StudentStatusAlumnus))
-	if schoolClass := strings.TrimSpace(p.schoolClass); schoolClass != "" {
-		filter.TrimEqual("school_class", schoolClass)
+	// Several classes may be selected at once (#2218); TrimIn collapses to the
+	// single-value TrimEqual when exactly one is requested.
+	if len(p.schoolClasses) > 0 {
+		filter.TrimIn("school_class", p.schoolClasses...)
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
@@ -293,15 +346,21 @@ func matchesLocationFilter(location, studentLocation string, hasFullAccess bool)
 	return studentLocation == location
 }
 
-// matchesGradeLevel reports whether schoolClass's first numeric run equals
-// gradeLevel. gradeLevel <= 0 means the filter is off (matches everything).
+// matchesGradeLevel reports whether schoolClass's first numeric run equals any
+// of gradeLevels. An empty slice means the filter is off (matches everything).
 // Uses schoolclass.GradePrefix rather than a naive string-prefix/LIKE check
 // so e.g. grade 1 does not also match "13a".
-func matchesGradeLevel(schoolClass string, gradeLevel int) bool {
-	if gradeLevel <= 0 {
+func matchesGradeLevel(schoolClass string, gradeLevels []int) bool {
+	if len(gradeLevels) == 0 {
 		return true
 	}
-	return schoolclass.GradePrefix(schoolClass) == strconv.Itoa(gradeLevel)
+	prefix := schoolclass.GradePrefix(schoolClass)
+	for _, gradeLevel := range gradeLevels {
+		if gradeLevel > 0 && prefix == strconv.Itoa(gradeLevel) {
+			return true
+		}
+	}
+	return false
 }
 
 // applyInMemoryPagination applies pagination to an already-filtered slice

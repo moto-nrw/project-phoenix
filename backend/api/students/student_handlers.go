@@ -235,7 +235,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		if !nonEmpty {
 			return []*users.Student{}, 0, nil
 		}
-	case params.groupID > 0:
+	case len(params.groupIDs) > 0:
 		students, totalCount, done, err := rs.resolveGroupFilter(ctx, params)
 		if err != nil {
 			return nil, 0, err
@@ -273,8 +273,8 @@ func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *stud
 		return false, nil
 	}
 
-	if params.groupID > 0 {
-		ids, err = rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		ids, err = rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -305,8 +305,8 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 	// group_id so the response stays consistent with the active-group chip in the
 	// search UI. group_id lives on the Student row, so a single bulk lookup is
 	// enough.
-	if params.groupID > 0 {
-		filtered, err := rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		filtered, err := rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -316,7 +316,7 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 		ids = filtered
 	}
 
-	// params.groupID is intentionally NOT cleared even though buildBaseFilter
+	// params.groupIDs is intentionally NOT cleared even though buildBaseFilter
 	// ignores it, because the room and group intersection was already computed
 	// above, so re-applying group_id downstream would be redundant.
 	params.studentIDs = ids
@@ -328,7 +328,7 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 // resolves params.studentIDs for the standard query and returns done=false.
 // done=true with an empty slice signals a short-circuit empty page.
 func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListParams) ([]*users.Student, int, bool, error) {
-	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
+	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, params.groupIDs)
 	if err != nil {
 		return nil, 0, false, err
 	}

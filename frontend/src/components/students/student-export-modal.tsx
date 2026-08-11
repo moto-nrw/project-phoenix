@@ -60,6 +60,18 @@ const FORMAT_OPTIONS: Array<{
   },
 ];
 
+// A class filter may now name several classes (#2218). Only a selection of
+// exactly ONE class makes per-class separation pointless — with two classes in
+// the list the school wants them apart, which is the same situation as an
+// unfiltered export.
+function isSingleClassSelection(schoolClass: string | undefined): boolean {
+  const classes = (schoolClass ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
+  return classes.length === 1;
+}
+
 export function StudentExportModal({
   isOpen,
   filters,
@@ -94,7 +106,10 @@ export function StudentExportModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setGroupByClass(preset === "class_roster" && !filters.school_class);
+    setGroupByClass(
+      preset === "class_roster" &&
+        !isSingleClassSelection(filters.school_class),
+    );
   }, [filters.school_class, isOpen, preset]);
 
   useEffect(() => {
@@ -165,7 +180,7 @@ export function StudentExportModal({
         title,
         filters: {
           ...filters,
-          ...(groupByClass && !filters.school_class
+          ...(groupByClass && !isSingleClassSelection(filters.school_class)
             ? { group_by_class: true }
             : {}),
           // A birthday list is only readable in calendar order, so the preset
@@ -341,7 +356,7 @@ export function StudentExportModal({
           </section>
         )}
 
-        {!lockedPreset && !filters.school_class && (
+        {!lockedPreset && !isSingleClassSelection(filters.school_class) && (
           <section>
             <p className="text-sm font-medium text-gray-900">Gliederung</p>
             <div className="mt-2">

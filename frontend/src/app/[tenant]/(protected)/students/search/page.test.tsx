@@ -59,9 +59,10 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   }: {
     filters: Array<{
       id: string;
-      value: string;
-      onChange: (v: string) => void;
+      value: string | string[];
+      onChange: (v: string | string[]) => void;
       options?: Array<{ value: string; label: string }>;
+      multiSelect?: boolean;
     }>;
     activeFilters: Array<{ id: string; label: string }>;
     onClearAllFilters: () => void;
@@ -78,8 +79,15 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         <select
           key={f.id}
           data-testid={`filter-${f.id}`}
+          multiple={f.multiSelect}
           value={f.value}
-          onChange={(e) => f.onChange(e.target.value)}
+          onChange={(e) =>
+            f.onChange(
+              f.multiSelect
+                ? Array.from(e.target.selectedOptions, (option) => option.value)
+                : e.target.value,
+            )
+          }
         >
           {f.options ? (
             f.options.map((opt) => (
@@ -349,6 +357,17 @@ vi.mock("~/lib/usercontext-api", () => ({
   },
 }));
 
+// Selects several options of a multi-select filter (#2218) and fires the one
+// change event the real control would. fireEvent.change with a plain `value`
+// can only ever select a single option.
+function selectFilterOptions(select: HTMLElement, values: string[]) {
+  const element = select as HTMLSelectElement;
+  for (const option of Array.from(element.options)) {
+    option.selected = values.includes(option.value);
+  }
+  fireEvent.change(element);
+}
+
 function mockUseSWRAuthWithStudents(
   swrModule: typeof import("~/lib/swr"),
   response: ReturnType<typeof swrModule.useSWRAuth>,
@@ -422,6 +441,7 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("status");
     mockSearchParams.delete("year");
     mockSearchParams.delete("group_id");
+    mockSearchParams.delete("school_class");
     mockSearchParams.delete("room_id");
     mockSearchParams.delete("room_name");
     mockSearchParams.delete("bus");
@@ -591,8 +611,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("1");
-        expect(screen.getByTestId("filter-group")).toHaveValue("1");
+        expect(screen.getByTestId("filter-year")).toHaveValue(["1"]);
+        expect(screen.getByTestId("filter-group")).toHaveValue(["1"]);
         expect(screen.getByTestId("filter-room")).toHaveValue("101");
         expect(screen.getByTestId("filter-bus")).toHaveValue("yes");
         expect(screen.getByTestId("filter-photoConsent")).toHaveValue("no");
@@ -738,6 +758,52 @@ describe("StudentSearchPage", () => {
       });
     });
 
+    it("restores a multi-value class and group selection from the URL (#2218)", async () => {
+      // Two groups working together are filtered as one list, so the link the
+      // group leader bookmarks has to carry both values back.
+      mockSearchParams.set("school_class", "1a,2b");
+      mockSearchParams.set("group_id", "1,2");
+      mockSearchParams.set("year", "3,4");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-schoolClass")).toHaveValue([
+          "1a",
+          "2b",
+        ]);
+        expect(screen.getByTestId("filter-group")).toHaveValue(["1", "2"]);
+        expect(screen.getByTestId("filter-year")).toHaveValue(["3", "4"]);
+      });
+    });
+
+    it("writes a multi-group selection back into the URL and the export payload (#2218)", async () => {
+      window.history.replaceState({ preserved: true }, "", "/students/search");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-group")).toBeInTheDocument();
+      });
+
+      selectFilterOptions(screen.getByTestId("filter-group"), ["1", "2"]);
+
+      expect(new URL(window.location.href).searchParams.get("group_id")).toBe(
+        "1,2",
+      );
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({ group_id: "1,2" });
+    });
+
     it("restores filters from localStorage when opening without URL params", async () => {
       localStorage.setItem(
         STUDENT_SEARCH_FILTER_STORAGE_KEY,
@@ -758,8 +824,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("2");
-        expect(screen.getByTestId("filter-group")).toHaveValue("2");
+        expect(screen.getByTestId("filter-year")).toHaveValue(["2"]);
+        expect(screen.getByTestId("filter-group")).toHaveValue(["2"]);
         expect(screen.getByTestId("filter-room")).toHaveValue("101");
         expect(screen.getByTestId("filter-bus")).toHaveValue("no");
         expect(screen.getByTestId("filter-photoConsent")).toHaveValue("yes");
@@ -798,8 +864,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("1");
-        expect(screen.getByTestId("filter-group")).toHaveValue("1");
+        expect(screen.getByTestId("filter-year")).toHaveValue(["1"]);
+        expect(screen.getByTestId("filter-group")).toHaveValue(["1"]);
         expect(screen.getByTestId("filter-attendance")).toHaveValue("anwesend");
       });
 
@@ -820,8 +886,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("all");
-        expect(screen.getByTestId("filter-group")).toHaveValue("");
+        expect(screen.getByTestId("filter-year")).toHaveValue([]);
+        expect(screen.getByTestId("filter-group")).toHaveValue([]);
         expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
       });
 
@@ -856,8 +922,8 @@ describe("StudentSearchPage", () => {
         render(<StudentSearchPage />);
 
         await waitFor(() => {
-          expect(screen.getByTestId("filter-year")).toHaveValue("all");
-          expect(screen.getByTestId("filter-group")).toHaveValue("");
+          expect(screen.getByTestId("filter-year")).toHaveValue([]);
+          expect(screen.getByTestId("filter-group")).toHaveValue([]);
           expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
         });
 
@@ -1100,7 +1166,7 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Year Filtering", () => {
-    it("renders the school year filter as a stage dropdown", async () => {
+    it("renders the school year filter as a stage multi-select", async () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
@@ -1108,36 +1174,62 @@ describe("StudentSearchPage", () => {
       });
 
       expect(
-        screen.getByRole("option", { name: "Alle Stufen" }),
-      ).toBeInTheDocument();
-      expect(
         screen.getByRole("option", { name: "Stufe 1" }),
       ).toBeInTheDocument();
+      // No neutral "Alle Stufen" entry: an empty selection already means that,
+      // and a checkable pseudo-option could be combined with a real stage
+      // (#2218).
+      expect(
+        screen.queryByRole("option", { name: "Alle Stufen" }),
+      ).not.toBeInTheDocument();
     });
 
-    it("filters students by school year when year filter changes", async () => {
+    it("asks the backend for the selected school year", async () => {
+      // The stage filter is applied server-side (#2218) so the reported count
+      // covers the whole selection instead of only the fetched page.
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // All 4 students should be visible initially
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.getByText("Anna")).toBeInTheDocument();
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        expect(screen.getByTestId("filter-year")).toBeInTheDocument();
       });
 
-      // Change year filter to "1" (should show only Max and Tom with class 1a)
-      const yearFilter = screen.getByTestId("filter-year");
-      fireEvent.change(yearFilter, { target: { value: "1" } });
+      fireEvent.change(screen.getByTestId("filter-year"), {
+        target: { value: "1" },
+      });
+
+      await fetcher.current!();
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ gradeLevel: ["1"] }),
+      );
+    });
+
+    it("keeps two school years in one list and in the URL (#2218)", async () => {
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // Max (1a) and Tom (1a) should be visible
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        // Anna (2b) and Lisa (3c) should be filtered out
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+        expect(screen.getByTestId("filter-year")).toBeInTheDocument();
       });
+
+      selectFilterOptions(screen.getByTestId("filter-year"), ["3", "4"]);
+
+      await fetcher.current!();
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ gradeLevel: ["3", "4"] }),
+      );
+      expect(new URL(window.location.href).searchParams.get("year")).toBe(
+        "3,4",
+      );
+      expect(screen.getByTestId("active-filter-year")).toHaveTextContent(
+        "Jahr 3, 4",
+      );
     });
   });
 
@@ -1765,7 +1857,7 @@ describe("StudentSearchPage", () => {
       fireEvent.click(activeFilter);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-group")).toHaveValue("");
+        expect(screen.getByTestId("filter-group")).toHaveValue([]);
         expect(
           screen.queryByTestId("active-filter-group"),
         ).not.toBeInTheDocument();
@@ -1951,16 +2043,16 @@ describe("StudentSearchPage", () => {
     });
 
     it.each([
-      { rawGroupId: "007", expectedGroupId: "7", expectedScope: "g7" },
-      { rawGroupId: "0", expectedGroupId: "", expectedScope: "gall" },
+      { rawGroupId: "007", expectedGroupIds: ["7"], expectedScope: "g7" },
+      { rawGroupId: "0", expectedGroupIds: [], expectedScope: "gall" },
       {
         rawGroupId: "not-a-group",
-        expectedGroupId: "",
+        expectedGroupIds: [],
         expectedScope: "gall",
       },
     ])(
       "normalizes URL group_id '$rawGroupId' to the backend-effective SSE scope",
-      async ({ rawGroupId, expectedGroupId, expectedScope }) => {
+      async ({ rawGroupId, expectedGroupIds, expectedScope }) => {
         mockSearchParams.set("group_id", rawGroupId);
         const { studentService } = await import("~/lib/api");
         const swrModule = await import("~/lib/swr");
@@ -2001,7 +2093,7 @@ describe("StudentSearchPage", () => {
         });
         await fetcher.current!();
         expect(studentService.getStudents).toHaveBeenCalledWith(
-          expect.objectContaining({ groupId: expectedGroupId }),
+          expect.objectContaining({ groupId: expectedGroupIds }),
         );
       },
     );

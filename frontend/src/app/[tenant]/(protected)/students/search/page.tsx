@@ -42,10 +42,7 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
-import {
-  SCHOOL_YEAR_FILTER_OPTIONS,
-  getSchoolYear,
-} from "~/lib/student-helpers";
+import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   StudentCard,
@@ -217,12 +214,15 @@ type SearchParamReader = Pick<URLSearchParams, "get" | "has">;
 const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
 const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
 
-const SCHOOL_YEAR_DROPDOWN_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.map(
-  (option) => ({
-    value: option.value,
-    label: option.value === "all" ? "Alle Stufen" : `Stufe ${option.label}`,
-  }),
-);
+// The "Stufe" filter is a multi-select (#2218): an empty selection already
+// means "alle Stufen", so the neutral pseudo-option would be a second way to
+// say the same thing — and a checkable one at that.
+const SCHOOL_YEAR_MULTI_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.filter(
+  (option) => option.value !== "all",
+).map((option) => ({
+  value: option.value,
+  label: `Stufe ${option.label}`,
+}));
 
 const STATUS_GROUP_ORDER = new Map([
   ["Anwesend", 0],
@@ -300,6 +300,43 @@ const STATUS_FILTER_LABELS: Record<
   entschuldigt: "Entschuldigt",
 };
 
+// Filters a school may pick several values for (#2218) travel as one
+// comma-separated query parameter. Blanks are dropped and duplicates collapsed
+// so `?school_class=3a,,3a` restores as a single selection.
+function parseMultiValueParam(value: string | null | undefined): string[] {
+  if (!value) return [];
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== ""),
+    ),
+  ];
+}
+
+// Keeps only school years the dropdown actually offers, so a hand-edited
+// `?year=7,abc` cannot pin the list to a year that can never be deselected.
+function parseYearParam(value: string | null | undefined): string[] {
+  const offered = new Set<string>(
+    SCHOOL_YEAR_MULTI_OPTIONS.map((option) => option.value),
+  );
+  return parseMultiValueParam(value).filter((year) => offered.has(year));
+}
+
+// Mirrors the backend's effective group filter for every selected id.
+function parseGroupIdsParam(value: string | null | undefined): string[] {
+  return parseMultiValueParam(value)
+    .map(normalizeSearchStudentsGroupId)
+    .filter((groupId) => groupId !== "");
+}
+
+// The shared filter kit hands a multi-select its values as an array and a
+// single-select as a string; normalize before it reaches the state setters.
+function asFilterValues(value: string | string[]): string[] {
+  return Array.isArray(value) ? value : parseMultiValueParam(value);
+}
+
 function validQueryValue<T extends string>(
   value: string | null,
   validValues: readonly T[],
@@ -343,16 +380,9 @@ function normalizeStoredFilters(
       : "";
 
   return {
-    year:
-      validQueryValue(
-        params.get("year"),
-        SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
-        "all",
-      ) === "all"
-        ? ""
-        : (params.get("year") ?? ""),
-    school_class: params.get("school_class") ?? "",
-    group_id: normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
+    year: parseYearParam(params.get("year")).join(","),
+    school_class: parseMultiValueParam(params.get("school_class")).join(","),
+    group_id: parseGroupIdsParam(params.get("group_id")).join(","),
     room_id: params.get("room_id") ?? "",
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
     bus:
@@ -893,11 +923,7 @@ function SearchPageContent() {
     DAY_STATUS_FILTER_OPTIONS.map((option) => option.value),
     "all",
   );
-  const initialYear = validQueryValue(
-    initialFilterParams.get("year"),
-    SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
-    "all",
-  );
+  const initialYears = parseYearParam(initialFilterParams.get("year"));
   const initialTrackingParam = initialFilterParams.get("tracking") ?? "all";
   const initialTrackingFilter =
     parseTrackingFilter(initialTrackingParam).kind === "invalid"
@@ -923,13 +949,15 @@ function SearchPageContent() {
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
-  const [selectedGroup, setSelectedGroup] = useState(
-    normalizeSearchStudentsGroupId(initialFilterParams.get("group_id") ?? ""),
+  // Class, group and school year are multi-selects (#2218): two groups working
+  // together need both their cohorts in one list. An empty array means "alle".
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(() =>
+    parseGroupIdsParam(initialFilterParams.get("group_id")),
   );
-  const [selectedSchoolClass, setSelectedSchoolClass] = useState(
-    initialFilterParams.get("school_class") ?? "",
+  const [selectedSchoolClasses, setSelectedSchoolClasses] = useState<string[]>(
+    () => parseMultiValueParam(initialFilterParams.get("school_class")),
   );
-  const [selectedYear, setSelectedYear] = useState<string>(initialYear);
+  const [selectedYears, setSelectedYears] = useState<string[]>(initialYears);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
   );
@@ -1023,17 +1051,11 @@ function SearchPageContent() {
         compactStoredFilters(normalizeStoredFilters(filters)),
       );
 
-      setSelectedGroup(
-        normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
+      setSelectedGroupIds(parseGroupIdsParam(params.get("group_id")));
+      setSelectedSchoolClasses(
+        parseMultiValueParam(params.get("school_class")),
       );
-      setSelectedSchoolClass(params.get("school_class") ?? "");
-      setSelectedYear(
-        validQueryValue(
-          params.get("year"),
-          SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
-          "all",
-        ),
-      );
+      setSelectedYears(parseYearParam(params.get("year")));
       setAttendanceFilter(
         validQueryValue(
           params.get("status"),
@@ -1337,7 +1359,7 @@ function SearchPageContent() {
   // check-in event names a group this view does not show. It has to sit BEFORE
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
-  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroup)}-${debouncedSearchTerm}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${pickupStatusFilter}`;
+  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${debouncedSearchTerm}-${selectedSchoolClasses.join(",")}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${selectedYears.join(",")}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -1353,8 +1375,12 @@ function SearchPageContent() {
     async () => {
       const filters = {
         search: debouncedSearchTerm,
-        groupId: selectedGroup,
-        schoolClass: selectedSchoolClass || undefined,
+        groupId: selectedGroupIds,
+        schoolClass: selectedSchoolClasses,
+        // The school year is filtered server-side (#2218) so the reported
+        // count and any future pagination cover the whole selection instead of
+        // only the rows this page happened to hold.
+        gradeLevel: selectedYears,
         roomId: effectiveRoomId || undefined,
         dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
         // Planning date (#1939): omitted for today so today's requests stay
@@ -1432,27 +1458,31 @@ function SearchPageContent() {
     updateRoomFilter("", "");
   }, [updateRoomFilter]);
 
-  const updateSelectedYear = useCallback(
-    (value: string) => {
-      setSelectedYear(value);
-      updateUrlParams({ year: value === "all" ? "" : value });
+  // The three multi-selects share one shape: an empty selection clears the
+  // query parameter, which is what "alle" means on each of them.
+  const updateSelectedYears = useCallback(
+    (values: string[]) => {
+      const years = parseYearParam(values.join(","));
+      setSelectedYears(years);
+      updateUrlParams({ year: years.join(",") });
     },
     [updateUrlParams],
   );
 
-  const updateSelectedSchoolClass = useCallback(
-    (value: string) => {
-      setSelectedSchoolClass(value);
-      updateUrlParams({ school_class: value });
+  const updateSelectedSchoolClasses = useCallback(
+    (values: string[]) => {
+      const classes = parseMultiValueParam(values.join(","));
+      setSelectedSchoolClasses(classes);
+      updateUrlParams({ school_class: classes.join(",") });
     },
     [updateUrlParams],
   );
 
-  const updateSelectedGroup = useCallback(
-    (value: string) => {
-      const normalizedGroupId = normalizeSearchStudentsGroupId(value);
-      setSelectedGroup(normalizedGroupId);
-      updateUrlParams({ group_id: normalizedGroupId });
+  const updateSelectedGroupIds = useCallback(
+    (values: string[]) => {
+      const groupIds = parseGroupIdsParam(values.join(","));
+      setSelectedGroupIds(groupIds);
+      updateUrlParams({ group_id: groupIds.join(",") });
     },
     [updateUrlParams],
   );
@@ -1539,9 +1569,9 @@ function SearchPageContent() {
 
   const clearAllFilters = useCallback(() => {
     setSearchTerm("");
-    setSelectedGroup("");
-    setSelectedSchoolClass("");
-    setSelectedYear("all");
+    setSelectedGroupIds([]);
+    setSelectedSchoolClasses([]);
+    setSelectedYears([]);
     setAttendanceFilter("all");
     setBusFilter("all");
     setPhotoConsentFilter("all");
@@ -1721,44 +1751,53 @@ function SearchPageContent() {
 
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
+      // Stufe / Klasse / Gruppe are multi-selects (#2218). None of them carries
+      // an "Alle …" option any more: an empty selection already means that, and
+      // a checkable neutral entry would let a user select "Alle Klassen" AND
+      // "3a" at the same time.
       {
         id: "year",
         label: "Stufe",
         type: "dropdown",
-        value: selectedYear,
-        onChange: (value) => updateSelectedYear(value as string),
-        options: SCHOOL_YEAR_DROPDOWN_OPTIONS,
+        multiSelect: true,
+        value: selectedYears,
+        onChange: (value) => updateSelectedYears(asFilterValues(value)),
+        options: SCHOOL_YEAR_MULTI_OPTIONS,
       },
       {
         id: "schoolClass",
         label: "Klasse",
         type: "dropdown",
-        value: selectedSchoolClass,
-        onChange: (value) => updateSelectedSchoolClass(value as string),
+        multiSelect: true,
+        value: selectedSchoolClasses,
+        onChange: (value) => updateSelectedSchoolClasses(asFilterValues(value)),
         options: [
-          { value: "", label: "Alle Klassen" },
           ...schoolClassOptions.map((schoolClass) => ({
             value: schoolClass,
             label: schoolClass,
           })),
-          ...(selectedSchoolClass &&
-          !schoolClassOptions.some(
-            (schoolClass) => schoolClass === selectedSchoolClass,
-          )
-            ? [{ value: selectedSchoolClass, label: selectedSchoolClass }]
-            : []),
+          // A class restored from a link may not be among today's options (it
+          // has no children right now). Keep it selectable so the restriction
+          // stays visible and can be lifted.
+          ...selectedSchoolClasses
+            .filter((schoolClass) => !schoolClassOptions.includes(schoolClass))
+            .map((schoolClass) => ({
+              value: schoolClass,
+              label: schoolClass,
+            })),
         ],
       },
       {
         id: "group",
         label: "Gruppe",
         type: "dropdown",
-        value: selectedGroup,
-        onChange: (value) => updateSelectedGroup(value as string),
-        options: [
-          { value: "", label: "Alle Gruppen" },
-          ...groups.map((group) => ({ value: group.id, label: group.name })),
-        ],
+        multiSelect: true,
+        value: selectedGroupIds,
+        onChange: (value) => updateSelectedGroupIds(asFilterValues(value)),
+        options: groups.map((group) => ({
+          value: group.id,
+          label: group.name,
+        })),
       },
       // The room filter reads current visits — today-only by nature (#1939).
       ...(isToday
@@ -1994,9 +2033,9 @@ function SearchPageContent() {
         : []),
     ],
     [
-      selectedYear,
-      selectedSchoolClass,
-      selectedGroup,
+      selectedYears,
+      selectedSchoolClasses,
+      selectedGroupIds,
       pickupTimeFilter,
       arrivalTimeFilter,
       busFilter,
@@ -2016,9 +2055,9 @@ function SearchPageContent() {
       clearRoomFilter,
       updateRoomFilter,
       sortMode,
-      updateSelectedYear,
-      updateSelectedSchoolClass,
-      updateSelectedGroup,
+      updateSelectedYears,
+      updateSelectedSchoolClasses,
+      updateSelectedGroupIds,
       updateAttendanceFilter,
       updateBusFilter,
       updatePhotoConsentFilter,
@@ -2065,29 +2104,32 @@ function SearchPageContent() {
       });
     }
 
-    if (selectedYear !== "all") {
+    // One chip per filter names every selected value, so a two-class selection
+    // stays readable without turning the chip row into a list of ten pills.
+    if (selectedYears.length > 0) {
       filters.push({
         id: "year",
-        label: `Jahr ${selectedYear}`,
-        onRemove: () => updateSelectedYear("all"),
+        label: `Jahr ${selectedYears.join(", ")}`,
+        onRemove: () => updateSelectedYears([]),
       });
     }
 
-    if (selectedSchoolClass) {
+    if (selectedSchoolClasses.length > 0) {
       filters.push({
         id: "schoolClass",
-        label: `Klasse ${selectedSchoolClass}`,
-        onRemove: () => updateSelectedSchoolClass(""),
+        label: `Klasse ${selectedSchoolClasses.join(", ")}`,
+        onRemove: () => updateSelectedSchoolClasses([]),
       });
     }
 
-    if (selectedGroup) {
-      const groupName =
-        groups.find((g) => g.id === selectedGroup)?.name ?? "Gruppe";
+    if (selectedGroupIds.length > 0) {
+      const groupNames = selectedGroupIds.map(
+        (groupId) => groups.find((g) => g.id === groupId)?.name ?? "Gruppe",
+      );
       filters.push({
         id: "group",
-        label: groupName,
-        onRemove: () => updateSelectedGroup(""),
+        label: groupNames.join(", "),
+        onRemove: () => updateSelectedGroupIds([]),
       });
     }
 
@@ -2220,9 +2262,9 @@ function SearchPageContent() {
     return filters;
   }, [
     searchTerm,
-    selectedYear,
-    selectedSchoolClass,
-    selectedGroup,
+    selectedYears,
+    selectedSchoolClasses,
+    selectedGroupIds,
     busFilter,
     effectivePhotoConsentFilter,
     pickupStatusFilter,
@@ -2235,9 +2277,9 @@ function SearchPageContent() {
     selectedRoomName,
     sortMode,
     clearRoomFilter,
-    updateSelectedYear,
-    updateSelectedSchoolClass,
-    updateSelectedGroup,
+    updateSelectedYears,
+    updateSelectedSchoolClasses,
+    updateSelectedGroupIds,
     updateAttendanceFilter,
     updateBusFilter,
     updatePhotoConsentFilter,
@@ -2261,9 +2303,11 @@ function SearchPageContent() {
   const exportFilters = useMemo(
     () => ({
       search: searchTerm,
-      group_id: selectedGroup,
-      year: selectedYear,
-      school_class: selectedSchoolClass,
+      // Comma-separated so an export mirrors a multi-selection (#2218); the
+      // backend accepts the same shape as the list endpoint.
+      group_id: selectedGroupIds.join(","),
+      year: selectedYears.length > 0 ? selectedYears.join(",") : "all",
+      school_class: selectedSchoolClasses.join(","),
       // The realtime snapshot/room filters are neutral for non-today dates —
       // the export must mirror what the page shows (#1939).
       status: effectiveAttendanceFilter,
@@ -2279,9 +2323,9 @@ function SearchPageContent() {
     }),
     [
       searchTerm,
-      selectedGroup,
-      selectedYear,
-      selectedSchoolClass,
+      selectedGroupIds,
+      selectedYears,
+      selectedSchoolClasses,
       effectiveAttendanceFilter,
       busFilter,
       effectivePhotoConsentFilter,
@@ -2325,13 +2369,9 @@ function SearchPageContent() {
       return false;
     }
 
-    // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
-    if (selectedYear !== "all") {
-      const studentYear = getSchoolYear(student.school_class);
-      if (studentYear !== selectedYear) {
-        return false;
-      }
-    }
+    // The school year (#2218), like bus / photo_consent / pickup_status below,
+    // is filtered server-side now, so the fetched page is already the filtered
+    // set and re-filtering here would only risk the two grammars drifting.
 
     // bus / photo_consent / pickup_status (#1492) are filtered server-side now
     // (see api/students applyAdministrativeFilters), so the page no longer
@@ -2585,8 +2625,10 @@ function SearchPageContent() {
               qs.set("room_id", effectiveRoomId);
               if (selectedRoomName) qs.set("room_name", selectedRoomName);
             }
-            if (selectedGroup) qs.set("group_id", selectedGroup);
-            if (selectedYear !== "all") qs.set("year", selectedYear);
+            if (selectedGroupIds.length > 0)
+              qs.set("group_id", selectedGroupIds.join(","));
+            if (selectedYears.length > 0)
+              qs.set("year", selectedYears.join(","));
             if (effectiveAttendanceFilter !== "all")
               qs.set("status", effectiveAttendanceFilter);
             if (busFilter !== "all") qs.set("bus", busFilter);
