@@ -2482,7 +2482,7 @@ function SearchPageContent() {
           header on desktop via primaryAction. */}
       <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
         <PageHeaderWithSearch
-          title="Kindersuche"
+          title="Alle Kinder"
           badge={{
             icon: (
               <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />

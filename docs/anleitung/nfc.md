@@ -9,7 +9,7 @@ Bevor ein NFC-Armband zugewiesen werden kann, muss das Kind in moto vorhanden se
 1. Legen Sie das Kind manuell an oder importieren Sie die Kinder per Excel oder CSV.
 2. Prüfen Sie Vorname, Nachname und Klasse.
 3. Prüfen Sie die OGS Gruppe.
-4. Prüfen Sie, ob das Kind in der Kindersuche gefunden wird.
+4. Prüfen Sie, ob das Kind unter `Alle Kinder` gefunden wird.
 
 ## 2. Räume klar benennen
 
@@ -67,7 +67,7 @@ Prüfen Sie in moto:
 - Alle wichtigen Räume sind angelegt.
 - Die benötigten Aktivitäten sind angelegt.
 - Mitarbeitende können sich anmelden.
-- Die Kindersuche findet die Kinder.
+- Unter `Alle Kinder` sind die Kinder auffindbar.
 
 ## 6. Hinweise aus der Tablet-Anleitung
 

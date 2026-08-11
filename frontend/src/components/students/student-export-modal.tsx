@@ -76,7 +76,7 @@ export function StudentExportModal({
   isOpen,
   filters,
   resultCount,
-  heading = "Kindersuche exportieren",
+  heading = "Alle Kinder exportieren",
   lockedPreset,
   onClose,
 }: StudentExportModalProps) {

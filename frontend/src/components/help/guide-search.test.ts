@@ -76,6 +76,13 @@ describe("buildHelpSearchIndex", () => {
     throw new Error("expected at least one setup step with a callout");
   });
 
+  it("indexes hidden aliases for renamed areas", () => {
+    const record = index.find(
+      (entry) => entry.href === "/help/features#kindersuche",
+    );
+    expect(record?.searchTerms).toContain("Kindersuche");
+  });
+
   it("produces unique record ids", () => {
     const ids = index.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -144,6 +151,9 @@ describe("indexedHelpSearchIndex", () => {
     expect(indexedHelpSearchIndex).toHaveLength(helpSearchIndex.length);
     for (const entry of indexedHelpSearchIndex) {
       expect(entry.titleFold).toBe(foldForMatch(entry.record.title));
+      expect(entry.searchTermFolds).toEqual(
+        entry.record.searchTerms.map(foldForMatch),
+      );
       expect(entry.bodyFold).toBe(foldForMatch(entry.record.body));
     }
   });

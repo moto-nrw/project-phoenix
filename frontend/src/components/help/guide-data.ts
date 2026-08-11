@@ -50,6 +50,8 @@ export interface GuideStep {
   readonly id: string;
   readonly title: string;
   readonly summary: string;
+  /** Hidden aliases for renamed areas and common search phrases. */
+  readonly searchTerms?: readonly string[];
   /** Ordered actions. Optional: a card may be checklist-only instead. */
   readonly steps?: readonly string[];
   /** Verification items rendered as a checklist block. */
@@ -112,7 +114,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     body: "Jeder Bereich der App verständlich erklärt: was er macht und wie man ihn nutzt.",
     icon: LayoutDashboard,
     points: [
-      "Kindersuche, Aufsicht, Räume, Mitarbeiter",
+      "Alle Kinder, Aufsicht, Räume, Mitarbeiter",
       "Planung: Betreuungsplan, Dienstplan und Vertretung",
       "Datenverwaltung, Anmeldungen, Feedback, Einstellungen",
     ],
@@ -405,7 +407,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Datei hochladen und die `Datenvorschau` Zeile für Zeile prüfen.",
           "Fehler in der Datei beheben und erneut hochladen.",
           "Erst wenn die Vorschau stimmt, auf `Kinder importieren` klicken.",
-          "Eine Stichprobe in der `Kindersuche` prüfen.",
+          "Eine Stichprobe unter `Alle Kinder` prüfen.",
         ],
         callout: {
           title: "Geburtstage im Import",
@@ -430,7 +432,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Optional im Abschnitt `Betreuungszeiten` auf `Wochenplan hinzufügen` klicken und die regelmäßigen `Ankunft`- und `Abholung`-Zeiten je Wochentag eintragen.",
           "`Datenschutzeinwilligung erteilt` nur aktivieren, wenn die Einwilligung vorliegt.",
           "Auf `Erstellen` klicken. Erziehungsberechtigte und Betreuungszeiten werden zusammen mit dem Kind gespeichert.",
-          "Das Kind anschließend in der `Kindersuche` prüfen; weitere Angaben ergänzen Sie jederzeit auf der Kinddetailseite.",
+          "Das Kind anschließend unter `Alle Kinder` prüfen; weitere Angaben ergänzen Sie jederzeit auf der Kinddetailseite.",
         ],
         screenshot:
           "Kinderformular mit Stammdaten sowie den Abschnitten Erziehungsberechtigte und Betreuungszeiten.",
@@ -474,14 +476,14 @@ export const setupChapters: readonly GuideChapter[] = [
           "Arbeiten Sie diese Punkte mit einem Admin-Konto ab. Erst wenn alles stimmt, ist die Einrichtung startklar.",
         checklist: [
           "Mit einem Admin-Konto anmelden.",
-          "Drei Kinder aus verschiedenen Gruppen in der `Kindersuche` prüfen.",
+          "Drei Kinder aus verschiedenen Gruppen unter `Alle Kinder` prüfen.",
           "Eine Gruppe öffnen und die Kinderzuordnung prüfen.",
           "Eine spontane Aktivität starten und wieder beenden.",
           "Ein Kind als `Entschuldigt` markieren und mit `Zurück auf erwartet` korrigieren.",
           "Das Team kurz einweisen: Suche, Aufsicht, Räume, Zeiterfassung, Feedback.",
         ],
         screenshot:
-          "Go-live-Übersicht mit Kindersuche, aktueller Aufsicht und Räumen.",
+          "Go-live-Übersicht mit den Bereichen Alle Kinder, Aktuelle Aufsicht und Räume.",
         image: "/help/screens/go-live-check.webp",
       },
     ],
@@ -511,7 +513,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "In der Seitenleiste ganz oben `Home` öffnen. Admin-Konten ohne Betreuungsrolle landen nach dem Login automatisch hier; Admins mit Betreuungsrolle starten in ihrem Betreuungsbereich.",
           "Die sichtbaren Kacheln ablesen: `Kinder anwesend`, `Schulhof`, `Krank`, `Entschuldigt`, `Zuhause` und `Aktive Aktivitäten`. Bei detaillierter Anwesenheit kommen `In Räumen`, `Unterwegs` und `Auslastung` hinzu.",
-          "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in die bereits gefilterte `Kindersuche`. `Auslastung` zeigt nur den aktuellen Wert.",
+          "Ein Klick auf fast jede Kachel springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`. `Auslastung` zeigt nur den aktuellen Wert.",
           "Bei detaillierter Anwesenheit zeigt `Letzte Bewegungen` bis zu fünf laufende Gruppen, die in den vergangenen 30 Minuten gestartet wurden, mit Raum und Kinderzahl. Einzelne Check-ins, Check-outs oder Raumwechsel von Kindern sind dort nicht sichtbar.",
           "`Laufende Aktivitäten` daneben listet die Angebote, die gerade laufen. Gibt es keine, steht dort `Keine laufenden Aktivitäten`.",
           "Die Karte `Geburtstage` nennt die Kinder, die heute Geburtstag haben, mit Gruppe, Klasse und dem Alter, das sie erreichen. Rechts steht bei jedem Eintrag, wann der Geburtstag war: `Heute` oder der Tag mit Datum, zum Beispiel `Sa, 01.08.`. Montags stehen so auch die Geburtstage vom Wochenende mit dabei. Geburtstage von Mitarbeitenden erscheinen, sofern eingeschaltet, in einem eigenen Abschnitt `Team`. Hat niemand Geburtstag, steht dort `Heute keine Geburtstage`. Die Karte lässt sich unter `Einstellungen` -> `Betrieb` -> `Geburtstage` ausschalten; dort wird auch entschieden, ob die Geburtstage der Mitarbeitenden mit erscheinen.",
@@ -527,12 +529,13 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "kindersuche",
-        title: "Kindersuche",
+        title: "Alle Kinder",
+        searchTerms: ["Kind finden", "Kindersuche"],
         icon: Search,
         summary:
-          "Findet jedes Kind und zeigt seinen aktuellen Status und Aufenthaltsort. Über den Tagesfilter beantwortet sie auch die Frage, welche Kinder morgen oder an einem anderen Tag kommen.",
+          "Hier finden Sie jedes Kind und sehen seinen aktuellen Status und Aufenthaltsort. Über den Tagesfilter lässt sich auch prüfen, welche Kinder morgen oder an einem anderen Tag kommen.",
         steps: [
-          "`Kindersuche` öffnen.",
+          "`Alle Kinder` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
           "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern. `Klasse`, `Gruppe` und `Stufe` erlauben mehrere Werte gleichzeitig: einfach mehrere Einträge antippen, etwa `3a` und `4b`, wenn zwei Gruppen zusammen betreut werden. Ohne Auswahl gilt weiterhin `alle`; ein erneuter Klick auf einen Eintrag nimmt ihn wieder heraus, `Zurücksetzen` im Filterfenster leert alle Filter.",
           "Über `Filter` im Abschnitt `Anwesenheit` beim Punkt `Tag` (`Heute`, `Morgen` oder ein frei gewähltes Datum bis zum Sonntag der laufenden Woche) festlegen, für welchen Tag die geplante Anwesenheit gilt. Direkt darunter grenzt der Filter `Kommt` beziehungsweise `Kommt nicht` die Liste auf den gewählten Tag ein; Krankmeldungen, Entschuldigungen und Tagesausnahmen werden für diesen Tag ausgewertet. Bei einem anderen Tag als heute bleiben aktuelle Aufenthaltsorte und Live-Filter ausgeblendet, denn wer gerade im Haus ist, sagt nichts über einen anderen Tag aus. Auch Ergebniszahl und `Exportieren` nutzen den gewählten Tag.",
@@ -549,12 +552,12 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Kindersuche mit Suchfeld, Status-Badges und Aktivitäts-Indikatoren sowie das Filterfenster mit der Mehrfachauswahl bei Klasse.",
+          "Alle Kinder mit Suchfeld, Status-Badges und Aktivitäts-Indikatoren sowie das Filterfenster mit der Mehrfachauswahl bei Klasse.",
         gallery: [
           {
             image: "/help/screens/kindersuche.webp",
             caption:
-              "Kindersuche mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
+              "Alle Kinder mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
           },
           {
             image: "/help/screens/kindersuche-mehrfachauswahl.webp",
@@ -568,9 +571,9 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Kinderdetailansicht",
         icon: FileText,
         summary:
-          "In der `Kindersuche` auf die Karte eines Kindes klicken öffnet seine Detailansicht. Der Kopfbereich zeigt Name, Gruppe und den aktuellen Aufenthalt mit Uhrzeit sowie die heutige Ankunft und Abholung; darunter liegen die Tabs zur Kartei.",
+          "Unter `Alle Kinder` auf die Karte eines Kindes klicken öffnet seine Detailansicht. Der Kopfbereich zeigt Name, Gruppe und den aktuellen Aufenthalt mit Uhrzeit sowie die heutige Ankunft und Abholung; darunter liegen die Tabs zur Kartei.",
         steps: [
-          "In der `Kindersuche` auf die Karte des Kindes klicken.",
+          "Unter `Alle Kinder` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
           "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Im Dialog zwischen `Einzelne Tage` (auch mehrere nicht zusammenhängende Tage) und `Zeitraum` mit Von- und Bis-Datum wählen; vor dem Speichern werden Zeitraum und Anzahl der Tage angezeigt. Ein Zeitraum darf höchstens 366 Tage umfassen. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
@@ -927,7 +930,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
           "Die Lehrkraft meldet sich mit ihrem eigenen Konto an und landet direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist.",
-          "Mehr sieht die Lehrkraft nicht: keine Kindersuche, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
+          "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
         ],
         callout: {
           title: "Klassen wandern beim Jahrgangswechsel mit",
@@ -1332,7 +1335,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Der zentrale Einstieg für alle Listen der Schule: Kinderlisten, die Geburtstagsliste, die Notfallliste und die Raumbelegung - an einer Stelle statt verstreut über die einzelnen Seiten.",
         steps: [
           "`Datenverwaltung` -> `Exporte` öffnen.",
-          "Unter `Kinderlisten` hat jede Liste eine eigene Karte (`OGS Wochenliste`, `Klassenliste`, `Tagesplanung`, `Abholliste`, `Checkliste`, `Geburtstagsliste` und weitere). `Liste erstellen` öffnet den Export direkt mit der passenden Vorlage; dort legst du nur noch das Format fest. Die freie Kombination aus beliebiger Vorlage und einzeln zu- oder abgewählten Spalten findest du weiterhin in der `Kindersuche` unter `Exportieren`.",
+          "Unter `Kinderlisten` hat jede Liste eine eigene Karte (`OGS Wochenliste`, `Klassenliste`, `Tagesplanung`, `Abholliste`, `Checkliste`, `Geburtstagsliste` und weitere). `Liste erstellen` öffnet den Export direkt mit der passenden Vorlage; dort legst du nur noch das Format fest. Die freie Kombination aus beliebiger Vorlage und einzeln zu- oder abgewählten Spalten findest du weiterhin unter `Alle Kinder` bei `Exportieren`.",
           "Die Karte `Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
           "Unter `Personallisten` gibt die Karte `Geburtstagsliste` die Geburtstage der Mitarbeitenden nach Kalender sortiert aus, mit derselben Monatsauswahl wie bei den Kindern. Die Liste enthält Name und Geburtsdatum, kein Alter. Sie erscheint nur für Konten, die auch die Stammdaten des Personals öffnen dürfen.",
           "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
@@ -1340,7 +1343,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Kinder ohne Geburtsdatum fehlen in der Geburtstagsliste",
-          body: "Die Liste zeigt nur Kinder, bei denen ein Geburtsdatum hinterlegt ist. Fehlt jemand, ergänze das Geburtsdatum in der Kinddetailansicht unter `Stammdaten`. Die Geburtstagsliste findest du auch in der `Kindersuche` unter `Exportieren` als Vorlage `Geburtstagsliste`, dann bezogen auf die gerade gefilterten Kinder, zum Beispiel nur die eigene Gruppe.",
+          body: "Die Liste zeigt nur Kinder, bei denen ein Geburtsdatum hinterlegt ist. Fehlt jemand, ergänze das Geburtsdatum in der Kinddetailansicht unter `Stammdaten`. Die Geburtstagsliste findest du auch unter `Alle Kinder` bei `Exportieren` als Vorlage `Geburtstagsliste`, dann bezogen auf die gerade gefilterten Kinder, zum Beispiel nur die eigene Gruppe.",
           tone: "blue",
         },
         screenshot:
@@ -1837,7 +1840,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Aktivitäts-Indikatoren einrichten",
         icon: ClipboardCheck,
         summary:
-          "Aktivitäts-Indikatoren zeigen in der `Kindersuche` und in den Gruppenansichten mit einem Haken, ob ein Kind heute bereits in einem bestimmten Bereich war, zum Beispiel in der Mensa oder bei den Hausaufgaben. Standardmäßig ist die Funktion aus.",
+          "Aktivitäts-Indikatoren zeigen unter `Alle Kinder` und in den Gruppenansichten mit einem Haken, ob ein Kind heute bereits in einem bestimmten Bereich war, zum Beispiel in der Mensa oder bei den Hausaufgaben. Standardmäßig ist die Funktion aus.",
         steps: [
           "`Einstellungen` -> `Betrieb` öffnen und zur Sektion `Indikatoren` scrollen.",
           "`Aktivitäts-Indikatoren` einschalten.",
@@ -1973,7 +1976,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         summary:
           "NFC funktioniert erst sauber, wenn jedes Kind in moto eindeutig vorhanden ist. Die Kinder müssen vor der Zuweisung in der moto-App angelegt sein.",
         steps: [
-          "`Kindersuche` öffnen.",
+          "`Alle Kinder` öffnen.",
           "Kind über den Nachnamen suchen.",
           "Vorname, Nachname, Klasse und OGS-Gruppe prüfen.",
           "Dubletten ausschließen.",
@@ -1981,7 +1984,7 @@ export const nfcChapters: readonly GuideChapter[] = [
           "Erst danach die Armband-Zuweisung vorbereiten.",
         ],
         screenshot:
-          "Kindersuche mit eindeutig gefundenem Kind vor NFC-Zuweisung.",
+          "Alle Kinder mit eindeutig gefundenem Kind vor NFC-Zuweisung.",
         image: "/help/screens/kindersuche.webp",
       },
       {
@@ -2143,7 +2146,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Kind nicht in der Liste?",
-          body: "Prüfen Sie in der Web-`Kindersuche`, ob das Kind angelegt ist und nicht doppelt existiert. Neue Kinder zuerst in der `Datenverwaltung` anlegen, dann am Tablet zuweisen.",
+          body: "Prüfen Sie im Webbereich `Alle Kinder`, ob das Kind angelegt ist und nicht doppelt existiert. Neue Kinder zuerst in der `Datenverwaltung` anlegen, dann am Tablet zuweisen.",
           tone: "blue",
         },
         screenshot:
