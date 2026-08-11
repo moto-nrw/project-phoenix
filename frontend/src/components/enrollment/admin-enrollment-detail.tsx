@@ -47,6 +47,7 @@ import {
 } from "~/lib/care-offering-booking-stats";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   BLOCKED_OFFERING_ROW_TONE,
   OfferingRowShell,
@@ -65,6 +66,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
 import {
+  useTenant,
   useCareOfferingsEnabled,
   useWaitlistEnabled,
 } from "~/lib/tenant-context";
@@ -1144,17 +1146,23 @@ function OfferingOccupancyLine({
 function BlockedOfferingRow({
   offering,
   gradeLevel,
+  gradeLevelMax,
   booked,
   stats,
   onRemove,
 }: Readonly<{
   offering: CareOffering;
   gradeLevel: number | null | undefined;
+  gradeLevelMax: number | null;
   booked: boolean;
   stats: CareOfferingBookingStats | undefined;
   onRemove: () => void;
 }>) {
-  const reason = careOfferingAvailabilityReason(offering, gradeLevel);
+  const reason = careOfferingAvailabilityReason(
+    offering,
+    gradeLevel,
+    gradeLevelMax ?? undefined,
+  );
   const inputId = `blocked-offering-${offering.id}`;
   return (
     <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
@@ -1209,6 +1217,12 @@ export function ChildOfferingAdjustment({
   onSaved: () => void;
 }>) {
   const careOfferingsEnabled = useCareOfferingsEnabled();
+  // The tenant's configured ceiling, so a blocked-offering reason names only
+  // grades this school actually has (#2186 review).
+  const { tenant } = useTenant();
+  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
+    ? tenant.gradeLevelMax
+    : null;
   const [open, setOpen] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
   // Offerings the child's grade level rules out. Kept separate from `catalog`
@@ -1569,6 +1583,7 @@ export function ChildOfferingAdjustment({
                               key={offering.id}
                               offering={offering}
                               gradeLevel={child.target_grade_level}
+                              gradeLevelMax={gradeLevelMax}
                               booked={selected.has(offering.id)}
                               stats={bookingStats[offering.id]}
                               onRemove={() =>

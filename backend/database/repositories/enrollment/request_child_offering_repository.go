@@ -496,6 +496,7 @@ func (r *RequestChildOfferingRepository) CountMaterializableByCareOffering(ctx c
 // from the map, so callers read a missing key as zero.
 func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 	ctx context.Context,
+	phaseID int64,
 	careOfferingIDs []int64,
 	from, until timezone.Date,
 ) (map[int64]int, error) {
@@ -523,7 +524,10 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 			FROM enrollment.request_child_offerings AS "request_child_offering"
 			INNER JOIN enrollment.request_children AS "child"
 				ON "child".id = "request_child_offering".request_child_id
-			WHERE "request_child_offering".care_offering_id IN (?)
+			INNER JOIN enrollment.requests AS "request"
+				ON "request".id = "child".request_id
+			WHERE "request".phase_id = ?
+				AND "request_child_offering".care_offering_id IN (?)
 				AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
 				AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
 				AND "child".status NOT IN (?)
@@ -543,7 +547,7 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 			)), 0) AS peak
 		FROM boundaries
 		GROUP BY boundaries.care_offering_id
-	`, from, from, until, until, bun.List(careOfferingIDs), until, from,
+	`, from, from, until, until, phaseID, bun.List(careOfferingIDs), until, from,
 		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
 	).Scan(ctx, &rows)
 	if err != nil {
@@ -568,6 +572,7 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 // would understate the hint.
 func (r *RequestChildOfferingRepository) CountActiveGradeLevelsByCareOfferingIDs(
 	ctx context.Context,
+	phaseID int64,
 	careOfferingIDs []int64,
 	from, until timezone.Date,
 ) ([]*enrollment.CareOfferingGradeLevelCount, error) {
@@ -591,13 +596,16 @@ func (r *RequestChildOfferingRepository) CountActiveGradeLevelsByCareOfferingIDs
 		FROM enrollment.request_child_offerings AS "request_child_offering"
 		INNER JOIN enrollment.request_children AS "child"
 			ON "child".id = "request_child_offering".request_child_id
-		WHERE "request_child_offering".care_offering_id IN (?)
+		INNER JOIN enrollment.requests AS "request"
+			ON "request".id = "child".request_id
+		WHERE "request".phase_id = ?
+			AND "request_child_offering".care_offering_id IN (?)
 			AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
 			AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
 			AND "child".status NOT IN (?)
 		GROUP BY 1, 2
 		ORDER BY 1, 2
-	`, bun.List(careOfferingIDs), until, from,
+	`, phaseID, bun.List(careOfferingIDs), until, from,
 		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
 	).Scan(ctx, &rows)
 	if err != nil {

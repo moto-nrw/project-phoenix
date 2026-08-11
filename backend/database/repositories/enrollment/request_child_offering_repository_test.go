@@ -121,6 +121,87 @@ func requestIDOf(t *testing.T, db *bun.DB, tenantID, childID int64) int64 {
 	return requestID
 }
 
+// addSiblingOffering creates another care offering in the same phase, so a
+// batched query has more than one id to separate.
+func addSiblingOffering(t *testing.T, db *bun.DB, tenantID, phaseID int64, prefix string) int64 {
+	t.Helper()
+	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	offering := makeOffering(phaseID, uniqueOfferingName(prefix))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return offeringRepo.Create(ctx, offering)
+	}))
+	return offering.ID
+}
+
+// phaseIDOfOffering resolves the phase an offering belongs to. Both aggregates
+// are phase-scoped, and the shared fixture does not hand the phase back.
+func phaseIDOfOffering(t *testing.T, db *bun.DB, tenantID, offeringID int64) int64 {
+	t.Helper()
+	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
+	var phaseID int64
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		offering, err := offeringRepo.FindByID(ctx, offeringID)
+		if err != nil {
+			return err
+		}
+		phaseID = offering.PhaseID
+		return nil
+	}))
+	return phaseID
+}
+
+// addRolloverSuccessorHolding reproduces what rollover leaves behind: a
+// successor phase whose request child holds the SAME care offering as the
+// source phase, because copyRolloverOfferings copies the id without cloning
+// or re-pointing it. Returns the successor phase and child ids and registers
+// the teardown.
+func addRolloverSuccessorHolding(
+	t *testing.T,
+	db *bun.DB,
+	tenantID, careOfferingID int64,
+	grade *int16,
+) (int64, int64) {
+	t.Helper()
+	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
+	requestRepo := enrollmentRepo.NewRequestRepository(db)
+	childRepo := enrollmentRepo.NewRequestChildRepository(db)
+	offeringRepo := enrollmentRepo.NewRequestChildOfferingRepository(db)
+	phaseName := uniquePhaseName("rolloverleak")
+	token := uniqueToken("rolloverleak")
+
+	var phaseID, childID int64
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		successor := makeValidPhase(phaseName)
+		if err := phaseRepo.Create(ctx, successor); err != nil {
+			return err
+		}
+		phaseID = successor.ID
+		req := makeRequest(successor.ID, token, "rolled@example.test")
+		if err := requestRepo.Create(ctx, req); err != nil {
+			return err
+		}
+		rolled := makeChild(req.ID, "Rolled", "Kind")
+		rolled.TargetGradeLevel = grade
+		if err := childRepo.Create(ctx, rolled); err != nil {
+			return err
+		}
+		childID = rolled.ID
+		return offeringRepo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: rolled.ID, CareOfferingID: careOfferingID,
+		})
+	}))
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = db.NewDelete().TableExpr("enrollment.request_child_offerings").
+			Where("tenant_id = ? AND request_child_id = ?", tenantID, childID).Exec(bg)
+		_, _ = db.NewDelete().TableExpr("enrollment.request_children").
+			Where("tenant_id = ? AND id = ?", tenantID, childID).Exec(bg)
+		wipeRequests(db, tenantID, token)
+		wipePhases(db, tenantID, phaseName)
+	})
+	return phaseID, childID
+}
+
 // --- Create + ListByRequestChildID ----------------------------------------
 
 func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {

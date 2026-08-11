@@ -267,6 +267,21 @@ describe("careOfferingAvailabilityReason", () => {
     ).toBe("Nicht wählbar: nur für Klassen 1–2 (Kind: Klasse 3)");
   });
 
+  // #2186 review: without the tenant ceiling the helper reasons over grades
+  // 1..13, so it can phrase the restriction around grades the school has no
+  // idea about. A two-grade school is told which grade MAY attend.
+  it("honours the tenant grade ceiling", () => {
+    const offering = { availability_rule: rule("all", "not_in", [1]) };
+    expect(careOfferingAvailabilityReason(offering, "1", 2)).toBe(
+      "Nicht wählbar: nur für Klasse 2 (Kind: Klasse 1)",
+    );
+    // Without it grades 2..13 all count as allowed, so the phrasing flips to
+    // the exclusion instead.
+    expect(careOfferingAvailabilityReason(offering, "1")).toBe(
+      "Nicht wählbar: nicht für Klasse 1 (Kind: Klasse 1)",
+    );
+  });
+
   it("says so when the child has no grade level yet", () => {
     expect(
       careOfferingAvailabilityReason(

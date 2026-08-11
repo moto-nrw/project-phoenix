@@ -198,13 +198,24 @@ func (s *decisionService) updateChildOfferings(
 	}
 	children := []SubmitChild{submitChild}
 	// Bestandsschutz (#2186): an availability rule tightened after the fact
-	// does not revoke a booking the child already holds, so the offerings in
-	// beforeOfferingByID stay valid for THIS child even when the grade rule
-	// now excludes them. Newly added blocked offerings are not in that set
-	// and are still rejected with ErrCareOfferingUnavailable.
-	grandfathered := make(map[int64]bool, len(beforeOfferingByID))
-	for id := range beforeOfferingByID {
-		grandfathered[id] = true
+	// does not revoke a booking the child already holds, so what is already
+	// on file stays valid for THIS child even when the grade rule now
+	// excludes it. Newly added blocked offerings are not on file and are
+	// still rejected with ErrCareOfferingUnavailable.
+	//
+	// The split follows the links themselves: a booking carrying manual days
+	// is one the admin ticked and can untick, while an automatic-only booking
+	// is derived from its trigger and never appears in a payload at all.
+	grandfathered := GrandfatheredOfferings{
+		Manual:        make(map[int64]bool, len(beforeLinks)),
+		AutomaticOnly: make(map[int64]bool, len(beforeLinks)),
+	}
+	for _, link := range beforeLinks {
+		if len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0 {
+			grandfathered.AutomaticOnly[link.CareOfferingID] = true
+			continue
+		}
+		grandfathered.Manual[link.CareOfferingID] = true
 	}
 	materialized, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		children, allowedOfferingByID, phase.CareOfferingSelectionMode, grandfathered,

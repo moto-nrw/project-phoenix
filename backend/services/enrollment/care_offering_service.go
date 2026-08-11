@@ -1210,7 +1210,7 @@ func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int6
 	for _, offering := range offerings {
 		ids = append(ids, offering.ID)
 	}
-	gradeCounts, err := s.RequestChildOfferingRepo.CountActiveGradeLevelsByCareOfferingIDs(ctx, ids, from, until)
+	gradeCounts, err := s.RequestChildOfferingRepo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, ids, from, until)
 	if err != nil {
 		return nil, fmt.Errorf("booking stats: count grade levels: %w", err)
 	}
@@ -1230,7 +1230,7 @@ func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int6
 		grades[row.CareOfferingID][int(*row.GradeLevel)] += row.Count
 	}
 
-	peaks, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingIDsInRange(ctx, ids, from, until)
+	peaks, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingIDsInRange(ctx, phaseID, ids, from, until)
 	if err != nil {
 		return nil, fmt.Errorf("booking stats: count peak occupancy: %w", err)
 	}

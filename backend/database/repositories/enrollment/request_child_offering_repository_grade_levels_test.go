@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
@@ -36,6 +35,7 @@ func int16Ptr(v int16) *int16 { return &v }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_GroupsByGrade(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
 
@@ -61,7 +61,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_GroupsByGrade(t *
 	var rows []*enrollmentModels.CareOfferingGradeLevelCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, []int64{offeringID}, from, until)
 		return err
 	}))
 
@@ -70,6 +70,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_GroupsByGrade(t *
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGradeSeparately(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
 
@@ -85,7 +86,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGra
 	var rows []*enrollmentModels.CareOfferingGradeLevelCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, []int64{offeringID}, from, until)
 		return err
 	}))
 
@@ -96,6 +97,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGra
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOncePerOffering(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
 	laterFrom := from.AddDays(30)
@@ -119,7 +121,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOnceP
 	var rows []*enrollmentModels.CareOfferingGradeLevelCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, []int64{offeringID}, from, until)
 		return err
 	}))
 
@@ -129,6 +131,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOnceP
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesTerminalChildren(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
 
@@ -144,7 +147,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesTerminalC
 	var rows []*enrollmentModels.CareOfferingGradeLevelCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, until)
+		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, []int64{offeringID}, from, until)
 		return err
 	}))
 
@@ -153,6 +156,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesTerminalC
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesIntervalsOutsideTheWindow(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
 	endedAt := from.AddDays(-10)
 	startedAt := from.AddDays(-40)
@@ -169,7 +173,7 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesIntervals
 	var rows []*enrollmentModels.CareOfferingGradeLevelCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, from, from.AddDays(90))
+		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, []int64{offeringID}, from, from.AddDays(90))
 		return err
 	}))
 
@@ -178,10 +182,11 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesIntervals
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_RejectsAnEmptyWindow(t *testing.T) {
 	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	today := timezone.TodayDate()
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, listErr := repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, []int64{offeringID}, today, today)
+		_, listErr := repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, []int64{offeringID}, today, today)
 		return listErr
 	})
 
@@ -190,14 +195,15 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_RejectsAnEmptyWin
 }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTheQuery(t *testing.T) {
-	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
+	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	today := timezone.TodayDate()
 
 	var rows []*enrollmentModels.CareOfferingGradeLevelCount
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
 		// An empty window would error if the query ran; it must not.
-		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, nil, today, today)
+		rows, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, nil, today, today)
 		return err
 	}))
 
@@ -206,9 +212,12 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTh
 
 // The batched peak query must agree with the single-offering variant the
 // capacity gate uses — a display that disagrees with the gate is worse than
-// no display (#2186 review).
+// no display. They agree WITHIN a phase; the batched form is additionally
+// phase-scoped, so for an offering shared with a rollover successor the gate
+// still counts more (see Aggregates_DoNotLeakAcrossPhases).
 func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVariant(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
 	requestID := requestIDOf(t, db, tenantID, childID)
@@ -233,7 +242,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSin
 		if err != nil {
 			return err
 		}
-		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID}, from, until)
+		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, phaseID, []int64{offeringID}, from, until)
 		return err
 	}))
 
@@ -243,22 +252,13 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSin
 
 func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.T) {
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
 
 	// A second offering in the same phase, deliberately left unbooked.
-	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
-	var emptyOfferingID int64
+	emptyOfferingID := addSiblingOffering(t, db, tenantID, phaseID, "batchpeak")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		booked, err := offeringRepo.FindByID(ctx, offeringID)
-		if err != nil {
-			return err
-		}
-		other := makeOffering(booked.PhaseID, uniqueOfferingName("batchpeak"))
-		if err := offeringRepo.Create(ctx, other); err != nil {
-			return err
-		}
-		emptyOfferingID = other.ID
 		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
 			RequestChildID: childID, CareOfferingID: offeringID,
 		})
@@ -267,7 +267,7 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOffe
 	var batched map[int64]int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID, emptyOfferingID}, from, until)
+		batched, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, phaseID, []int64{offeringID, emptyOfferingID}, from, until)
 		return err
 	}))
 
@@ -278,20 +278,70 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOffe
 
 func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
 	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	today := timezone.TodayDate()
 
 	var empty map[int64]int
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		var err error
-		empty, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, nil, today, today)
+		empty, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, phaseID, nil, today, today)
 		return err
 	}))
 	assert.Empty(t, empty, "empty input short-circuits before the empty-range guard")
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, rangeErr := repo.CountMaxActiveByCareOfferingIDsInRange(ctx, []int64{offeringID}, today, today)
+		_, rangeErr := repo.CountMaxActiveByCareOfferingIDsInRange(ctx, phaseID, []int64{offeringID}, today, today)
 		return rangeErr
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must not be empty")
+}
+
+// #2186 review: rollover copies a child's offering links onto the successor
+// phase's request WITHOUT re-pointing them at a cloned offering
+// (copyRolloverOfferings), so one care_offering row is reachable from two
+// phases. Both aggregates must report the phase they were asked about.
+func TestRequestChildOfferingRepository_Aggregates_DoNotLeakAcrossPhases(t *testing.T) {
+	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
+	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
+	from := timezone.TodayDate()
+	until := from.AddDays(90)
+
+	// A successor phase whose child holds the SAME offering, exactly as
+	// rollover leaves it.
+	successorPhaseID, successorChildID := addRolloverSuccessorHolding(
+		t, db, tenantID, offeringID, int16Ptr(4),
+	)
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		// Source-phase child on the same offering.
+		return repo.Create(ctx, &enrollmentModels.RequestChildOffering{
+			RequestChildID: childID, CareOfferingID: offeringID,
+		})
+	}))
+	_ = successorChildID
+
+	var sourcePeak, successorPeak map[int64]int
+	var sourceGrades []*enrollmentModels.CareOfferingGradeLevelCount
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		sourcePeak, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, phaseID, []int64{offeringID}, from, until)
+		if err != nil {
+			return err
+		}
+		successorPeak, err = repo.CountMaxActiveByCareOfferingIDsInRange(ctx, successorPhaseID, []int64{offeringID}, from, until)
+		if err != nil {
+			return err
+		}
+		sourceGrades, err = repo.CountActiveGradeLevelsByCareOfferingIDs(ctx, phaseID, []int64{offeringID}, from, until)
+		return err
+	}))
+
+	assert.Equal(t, 1, sourcePeak[offeringID], "the successor phase's booking must not inflate this phase")
+	assert.Equal(t, 1, successorPeak[offeringID])
+	for _, row := range sourceGrades {
+		if row.GradeLevel != nil {
+			assert.NotEqual(t, int16(4), *row.GradeLevel,
+				"the rolled child's grade belongs to the successor phase")
+		}
+	}
 }

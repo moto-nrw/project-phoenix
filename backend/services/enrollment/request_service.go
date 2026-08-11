@@ -1261,7 +1261,7 @@ func materializeAndValidateChildrenOfferingSelections(
 	openByID map[int64]*enrollmentModels.CareOffering,
 	selectionMode string,
 ) ([][]materializedOfferingSelection, error) {
-	return materializeAndValidateChildrenOfferingSelectionsGrandfathering(children, openByID, selectionMode, nil)
+	return materializeAndValidateChildrenOfferingSelectionsGrandfathering(children, openByID, selectionMode, GrandfatheredOfferings{})
 }
 
 // materializeAndValidateChildrenOfferingSelectionsGrandfathering is the
@@ -1276,24 +1276,33 @@ func materializeAndValidateChildrenOfferingSelections(
 // dropped by materializeOfferingSelections, which only ever emits offerings
 // present in the available set.
 //
-// The exemption is deliberately narrow in two ways. Callers pass ONLY the
-// offerings the child already holds, so a newly ADDED blocked offering is
-// still rejected. And an id is exempt only while it is STILL SELECTED in the
-// submitted payload — the moment an admin removes it, it leaves the available
-// set again. Without that second restriction a removed offering would keep
-// its old privileges: a removed required one would still be demanded by
-// validateRequiredOfferings, a removed non-required one would still make
-// hasChoosableCareOffering true, and a removed auto-add target whose trigger
-// is still selected would be silently RE-CREATED by
-// materializeOfferingSelections (#2186 review).
+// Callers pass ONLY the offerings the child already holds, so a newly ADDED
+// blocked offering is still rejected. Submit and parent-edit paths pass a
+// zero GrandfatheredOfferings and keep rejecting every blocked offering.
 //
-// Submit and parent-edit paths pass nil and keep rejecting every blocked
-// offering.
+// The two buckets exist because the two kinds of holding have different
+// lifecycles (#2186 review):
+//
+//   - Manual holdings have a checkbox. An admin can remove one, so the
+//     exemption lasts only while the id is STILL SELECTED in the submitted
+//     payload. Otherwise a removed offering keeps privileges it no longer
+//     has: a removed required one is demanded back by
+//     validateRequiredOfferings, a removed non-required one keeps
+//     hasChoosableCareOffering true, and a removed auto-add target whose
+//     trigger is still selected gets silently re-created.
+//
+//   - Automatic-only holdings have NO checkbox and never appear in a payload
+//     at all — they are derived from their trigger on every save. Requiring
+//     them to be "still selected" would delete them the first time an admin
+//     saved an unrelated correction. They therefore stay eligible for
+//     materialization unconditionally, but are deliberately kept OUT of the
+//     validation catalog: a blocked required one must not be demanded in a
+//     payload it can never appear in.
 func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 	selectionMode string,
-	grandfathered map[int64]bool,
+	grandfathered GrandfatheredOfferings,
 ) ([][]materializedOfferingSelection, error) {
 	out := make([][]materializedOfferingSelection, len(children))
 	for i := range children {
@@ -1301,7 +1310,7 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		if err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
-		for id := range grandfatheredStillSelected(children[i], grandfathered) {
+		for id := range grandfatheredStillSelected(children[i], grandfathered.Manual) {
 			if offering, ok := openByID[id]; ok {
 				availableByID[id] = offering
 			}
@@ -1309,12 +1318,27 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		if err := validateOfferingSelectionsForChild(children[i], openByID, availableByID); err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
+		// Auto-add works off a wider catalog than validation does, so an
+		// automatic-only holding can be re-derived without becoming
+		// selectable, required, or choosable.
+		materializeByID := availableByID
+		if len(grandfathered.AutomaticOnly) > 0 {
+			materializeByID = make(map[int64]*enrollmentModels.CareOffering, len(availableByID)+len(grandfathered.AutomaticOnly))
+			for id, offering := range availableByID {
+				materializeByID[id] = offering
+			}
+			for id := range grandfathered.AutomaticOnly {
+				if offering, ok := openByID[id]; ok {
+					materializeByID[id] = offering
+				}
+			}
+		}
 		manualChild := cloneSubmitChildrenOfferingSelections([]SubmitChild{children[i]})[0]
-		selections, err := materializeOfferingSelections(children[i], availableByID)
+		selections, err := materializeOfferingSelections(children[i], materializeByID)
 		if err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
-		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, availableByID)
+		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, materializeByID)
 		if err := validateOfferingGroupRules([]SubmitChild{children[i]}, availableByID); err != nil {
 			return nil, err
 		}
@@ -1329,6 +1353,17 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		out[i] = selections
 	}
 	return out, nil
+}
+
+// GrandfatheredOfferings splits the bookings a child already holds by how an
+// admin can act on them. See
+// materializeAndValidateChildrenOfferingSelectionsGrandfathering for why the
+// two behave differently.
+type GrandfatheredOfferings struct {
+	// Manual holdings: removable, so exempt only while still submitted.
+	Manual map[int64]bool
+	// Automatic-only holdings: derived from a trigger, never submitted.
+	AutomaticOnly map[int64]bool
 }
 
 // grandfatheredStillSelected narrows a grandfathering set to the ids the

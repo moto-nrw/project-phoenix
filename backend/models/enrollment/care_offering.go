@@ -474,14 +474,25 @@ type RequestChildOfferingRepository interface {
 	// bookings conflict with every rule (see
 	// CareOfferingAvailabilityRule.MatchesGradeLevel). Empty input returns an
 	// empty slice without a query.
-	CountActiveGradeLevelsByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) ([]*CareOfferingGradeLevelCount, error)
+	//
+	// Scoped to phaseID: rollover copies a child's offering links onto the
+	// successor phase's request WITHOUT re-pointing them at a cloned
+	// offering, so one care_offering row is reachable from two phases. Without
+	// the constraint a phase's statistics would include the next phase's
+	// children (#2186 review).
+	CountActiveGradeLevelsByCareOfferingIDs(ctx context.Context, phaseID int64, careOfferingIDs []int64, from, until timezone.Date) ([]*CareOfferingGradeLevelCount, error)
 
-	// CountMaxActiveByCareOfferingIDsInRange is the batched form of
-	// CountMaxActiveByCareOfferingInRange — peak simultaneous occupancy per
-	// offering in one query. Offerings with no overlapping booking are absent
-	// from the map; read a missing key as zero. Empty input returns an empty
-	// map without a query.
-	CountMaxActiveByCareOfferingIDsInRange(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) (map[int64]int, error)
+	// CountMaxActiveByCareOfferingIDsInRange is the batched, phase-scoped
+	// form of CountMaxActiveByCareOfferingInRange — peak simultaneous
+	// occupancy per offering in one query. Offerings with no overlapping
+	// booking are absent from the map; read a missing key as zero. Empty
+	// input returns an empty map without a query.
+	//
+	// The phase constraint is the difference from the capacity gate's own
+	// query, which counts a care_offering's links across every phase that
+	// references it. See the note on
+	// CountActiveGradeLevelsByCareOfferingIDs.
+	CountMaxActiveByCareOfferingIDsInRange(ctx context.Context, phaseID int64, careOfferingIDs []int64, from, until timezone.Date) (map[int64]int, error)
 }
 
 // CareOfferingGradeLevelCount is one (offering, grade level) bucket of the

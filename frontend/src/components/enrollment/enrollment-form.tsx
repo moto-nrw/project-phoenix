@@ -2580,13 +2580,19 @@ function OfferingOccupancyLine({
 function BlockedOfferingCard({
   offering,
   gradeLevel,
+  gradeLevelMax,
   stats,
 }: Readonly<{
   offering: PublicCareOffering;
   gradeLevel: string;
+  gradeLevelMax: number;
   stats: CareOfferingBookingStats | undefined;
 }>) {
-  const reason = careOfferingAvailabilityReason(offering, gradeLevel);
+  const reason = careOfferingAvailabilityReason(
+    offering,
+    gradeLevel,
+    gradeLevelMax,
+  );
   return (
     <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
       <div className="flex items-start gap-3">

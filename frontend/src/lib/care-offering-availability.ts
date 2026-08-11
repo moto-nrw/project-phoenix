@@ -174,11 +174,15 @@ export function describeCareOfferingAvailabilityRule(
 export function careOfferingAvailabilityReason(
   offering: AvailabilityAwareOffering & { name?: string },
   gradeLevel: string | number | null | undefined,
+  // Without the tenant's ceiling the description falls back to grades 1..13
+  // and can name grades the school does not have (#2186 review).
+  gradeLevelMax?: number,
 ): string | null {
   if (careOfferingIsAvailable(offering, gradeLevel)) return null;
 
   const description = describeCareOfferingAvailabilityRule(
     offering.availability_rule,
+    gradeLevelMax,
   );
   const grade =
     typeof gradeLevel === "number" ? gradeLevel : Number(gradeLevel || 0);

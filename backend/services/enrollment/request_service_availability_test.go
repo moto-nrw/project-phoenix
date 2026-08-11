@@ -205,7 +205,7 @@ func TestGrandfatheredOfferingsSurviveATightenedAvailabilityRule(t *testing.T) {
 	children = []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10, 20}}}
 	selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
-		map[int64]bool{10: true},
+		GrandfatheredOfferings{Manual: map[int64]bool{10: true}},
 	)
 	require.NoError(t, err)
 
@@ -241,7 +241,7 @@ func TestGrandfatheringDoesNotLetANewBlockedOfferingBeAdded(t *testing.T) {
 	children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10, 30}}}
 	_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
-		map[int64]bool{10: true},
+		GrandfatheredOfferings{Manual: map[int64]bool{10: true}},
 	)
 	require.ErrorIs(t, err, ErrCareOfferingUnavailable)
 }
@@ -261,7 +261,7 @@ func TestGrandfatheringIgnoresIDsOutsideTheCatalog(t *testing.T) {
 	children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{999}}}
 	_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
-		map[int64]bool{999: true},
+		GrandfatheredOfferings{Manual: map[int64]bool{999: true}},
 	)
 	require.ErrorIs(t, err, ErrCareOfferingClosed)
 }
@@ -290,7 +290,7 @@ func TestGrandfatheringLapsesWhenTheOfferingIsRemoved(t *testing.T) {
 		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{20}}}
 		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
-			map[int64]bool{10: true},
+			GrandfatheredOfferings{Manual: map[int64]bool{10: true}},
 		)
 		require.NoError(t, err, "removal must not trip required-offering validation")
 		require.Len(t, selections[0], 1)
@@ -316,7 +316,7 @@ func TestGrandfatheringLapsesWhenTheOfferingIsRemoved(t *testing.T) {
 		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10}}}
 		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
-			map[int64]bool{20: true},
+			GrandfatheredOfferings{Manual: map[int64]bool{20: true}},
 		)
 		require.NoError(t, err)
 		for _, selection := range selections[0] {
@@ -343,7 +343,7 @@ func TestGrandfatheringLapsesWhenTheOfferingIsRemoved(t *testing.T) {
 		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10, 20}}}
 		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
-			map[int64]bool{20: true},
+			GrandfatheredOfferings{Manual: map[int64]bool{20: true}},
 		)
 		require.NoError(t, err)
 		kept := make([]int64, 0, len(selections[0]))
@@ -368,8 +368,75 @@ func TestGrandfatheringLapsesWhenTheOfferingIsRemoved(t *testing.T) {
 		children := []SubmitChild{{TargetGradeLevel: grade(3)}}
 		_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			children, catalog, enrollmentModels.PhaseCareOfferingSelectionAtLeastOne,
-			map[int64]bool{10: true},
+			GrandfatheredOfferings{Manual: map[int64]bool{10: true}},
 		)
 		require.NoError(t, err)
+	})
+}
+
+// #2186 review blocker: an automatic-only booking never appears in a payload
+// — it is derived from its trigger on every save. Requiring it to be "still
+// selected" deleted it the first time an admin saved an unrelated correction.
+func TestAutomaticOnlyGrandfatheredBookingsSurviveAnUnrelatedSave(t *testing.T) {
+	grade := func(value int16) *int16 { return &value }
+	newCatalog := func() map[int64]*enrollmentModels.CareOffering {
+		trigger := &enrollmentModels.CareOffering{
+			Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+		}
+		trigger.ID = 10
+		autoTarget := &enrollmentModels.CareOffering{
+			Name:                      "Randstunde",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon"},
+			AutoAddTriggerOfferingIDs: []int64{10},
+			AvailabilityRule:          testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+		}
+		autoTarget.ID = 20
+		return map[int64]*enrollmentModels.CareOffering{10: trigger, 20: autoTarget}
+	}
+
+	t.Run("the derived booking is re-materialized", func(t *testing.T) {
+		// The payload carries only the trigger, exactly as the admin dialog
+		// sends it: automatic-only bookings have no checkbox to submit.
+		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10}}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, newCatalog(), enrollmentModels.PhaseCareOfferingSelectionOptional,
+			GrandfatheredOfferings{AutomaticOnly: map[int64]bool{20: true}},
+		)
+		require.NoError(t, err)
+
+		kept := make([]int64, 0, len(selections[0]))
+		for _, selection := range selections[0] {
+			kept = append(kept, selection.OfferingID)
+			if selection.OfferingID == 20 {
+				require.NotEmpty(t, selection.AutomaticSelectedDays,
+					"the booking must come back as automatic, not as a manual pick")
+				require.Empty(t, selection.ManualSelectedDays)
+			}
+		}
+		require.ElementsMatch(t, []int64{10, 20}, kept)
+	})
+
+	t.Run("it disappears with its trigger, like any automatic booking", func(t *testing.T) {
+		children := []SubmitChild{{TargetGradeLevel: grade(3)}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, newCatalog(), enrollmentModels.PhaseCareOfferingSelectionOptional,
+			GrandfatheredOfferings{AutomaticOnly: map[int64]bool{20: true}},
+		)
+		require.NoError(t, err)
+		require.Empty(t, selections[0])
+	})
+
+	t.Run("a blocked required automatic-only holding is never demanded back", func(t *testing.T) {
+		catalog := newCatalog()
+		catalog[20].IsRequired = true
+
+		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10}}}
+		_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
+			GrandfatheredOfferings{AutomaticOnly: map[int64]bool{20: true}},
+		)
+		require.NoError(t, err,
+			"an automatic-only holding must stay out of required-offering validation")
 	})
 }
