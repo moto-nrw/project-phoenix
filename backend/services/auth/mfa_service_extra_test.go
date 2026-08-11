@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -46,7 +48,7 @@ func newExtraMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, i
 func TestMFAService_VerifyCodeForAccount_NoActiveChallenge_ReturnsInvalid(t *testing.T) {
 	svc, _, accID := newExtraMFAService(t)
 
-	err := svc.VerifyCodeForAccount(context.Background(), accID, "123456")
+	err := svc.VerifyCodeForAccount(context.Background(), accID, 0, "123456", authjwt.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrMFACodeInvalid,
@@ -58,7 +60,7 @@ func TestMFAService_VerifyCodeForAccount_WrongAccount_ReturnsInvalid(t *testing.
 
 	// Account id 99999999 doesn't exist — FindByID returns sql.ErrNoRows
 	// and the helper must map it to "invalid", not 500.
-	err := svc.VerifyCodeForAccount(context.Background(), 99999999, "123456")
+	err := svc.VerifyCodeForAccount(context.Background(), 99999999, 0, "123456", authjwt.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrMFACodeInvalid)
@@ -73,7 +75,7 @@ func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInval
 	_, err := svc.StartChallenge(context.Background(), accID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 
-	err = svc.VerifyCodeForAccount(context.Background(), accID, "000000")
+	err = svc.VerifyCodeForAccount(context.Background(), accID, 0, "000000", authjwt.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrMFACodeInvalid)
@@ -184,4 +186,62 @@ func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.
 	require.NoError(t, err)
 	assert.NotEmpty(t, cookie, "trusted-device default-enabled tenant must mint a cookie value")
 	assert.True(t, expiresAt.After(time.Now()), "expires_at must be in the future")
+}
+
+// countFailingChallengeRepo makes only the rate-limit count fail; everything
+// else behaves normally, which is the situation the fail-open bug needed to
+// show itself: challenge creation and email dispatch succeed regardless of
+// whether that count could be read.
+type countFailingChallengeRepo struct {
+	authModels.MFAEmailChallengeRepository
+	err error
+}
+
+func (r countFailingChallengeRepo) CountRecentByAccountID(context.Context, int64, time.Time) (int, error) {
+	return 0, r.err
+}
+
+// TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode pins the
+// hard cap (3 codes / 15 min) as fail-CLOSED. Ignoring the count error meant
+// the cap silently stopped existing under a struggling database — every repeat
+// request kept minting codes and sending mail, which is exactly the abuse the
+// cap is there to bound.
+func TestMFAService_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repos := repositories.NewFactory(db)
+	realChallengeRepo := repos.MFAEmailChallenge
+	repos.MFAEmailChallenge = countFailingChallengeRepo{
+		MFAEmailChallengeRepository: realChallengeRepo,
+		err:                         errors.New("rate-limit count unavailable"),
+	}
+
+	tokenAuth, err := authjwt.NewTokenAuthWithSecret(extraJWTSecret)
+	require.NoError(t, err)
+	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
+		Repos:     repos,
+		TokenAuth: tokenAuth,
+		JWTSecret: extraJWTSecret,
+		DB:        db,
+	})
+	require.NoError(t, err)
+
+	acc := testpkg.CreateTestAccount(t, db, "mfa-ratelimit-blind")
+	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
+
+	challengeToken, err := svc.StartChallenge(
+		context.Background(), acc.ID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"),
+	)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, auth.ErrMFAStatusUnavailable,
+		"an unreadable rate-limit count must refuse the code, not wave it through")
+	assert.Empty(t, challengeToken)
+
+	issued, err := realChallengeRepo.CountRecentByAccountID(
+		context.Background(), acc.ID, time.Now().Add(-time.Hour),
+	)
+	require.NoError(t, err)
+	assert.Zero(t, issued, "a refused challenge must leave no code behind")
 }

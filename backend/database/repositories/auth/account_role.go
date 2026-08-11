@@ -87,6 +87,45 @@ func (r *AccountRoleRepository) FindByAccountIDForTenant(ctx context.Context, ac
 	return accountRoles, nil
 }
 
+// FindByAccountIDForTenantForShare is FindByAccountIDForTenant with a FOR
+// SHARE row lock on the account_roles rows. Must be called inside a
+// transaction.
+//
+// Role revocation DELETEs those rows. Without the lock a role check and a
+// token write in the same transaction still straddle a concurrent revocation
+// that commits between them; the share lock makes the DELETE wait for this
+// transaction, so a session minted after the check is provably backed by a
+// role that still existed.
+//
+// `SHARE OF "account_role"` names the table explicitly — Postgres refuses a
+// bare FOR SHARE on the nullable side of the LEFT JOIN.
+func (r *AccountRoleRepository) FindByAccountIDForTenantForShare(ctx context.Context, accountID int64, tenantID int64) ([]*auth.AccountRole, error) {
+	var accountRoles []*auth.AccountRole
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&accountRoles).
+		ModelTableExpr(accountRoleTableAlias).
+		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
+		ColumnExpr(`"account_role".*`).
+		ColumnExpr(`"role".id AS "role__id", "role".created_at AS "role__created_at", "role".updated_at AS "role__updated_at", "role".name AS "role__name", "role".description AS "role__description", "role".is_system AS "role__is_system", "role".base_role AS "role__base_role"`).
+		Where(`"account_role".account_id = ?`, accountID).
+		For(`SHARE OF "account_role"`)
+
+	if tenantID > 0 {
+		query = query.Where(`"account_role".tenant_id = ?`, tenantID)
+	} else {
+		query = base.WithTenantFilter(ctx, query, "account_role")
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by account ID for tenant for share",
+			Err: err,
+		}
+	}
+
+	return accountRoles, nil
+}
+
 // FindByRoleID retrieves all account-role mappings for a role
 func (r *AccountRoleRepository) FindByRoleID(ctx context.Context, roleID int64) ([]*auth.AccountRole, error) {
 	return r.List(ctx, map[string]any{"role_id": roleID})

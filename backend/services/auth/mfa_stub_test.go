@@ -55,6 +55,22 @@ func (s *MFAStub) IsRequired(context.Context, *authModel.Account, int64) (bool, 
 	return s.IsRequiredResult, s.IsRequiredErr
 }
 
+// ResolvePolicy answers with the same verdict as IsRequired, as a forced
+// policy: the stub's Result/Err fields stay the single knob regardless of which
+// of the two a flow under test calls.
+func (s *MFAStub) ResolvePolicy(context.Context, int64, int64) (MFAPolicy, error) {
+	if s.IsRequiredErr != nil {
+		return MFAPolicy{}, s.IsRequiredErr
+	}
+	return MFAPolicyForced(s.IsRequiredResult), nil
+}
+
+// ResolvePolicyInTx answers exactly like ResolvePolicy: the stub's single knob
+// must describe the same MFA state on both sides of the mint transaction.
+func (s *MFAStub) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
+	return s.ResolvePolicy(ctx, accountID, tenantID)
+}
+
 func (s *MFAStub) HasEnrollment(context.Context, int64) (bool, error) {
 	return s.HasEnrollmentRes, s.HasEnrollmentErr
 }
@@ -82,12 +98,27 @@ func (s *MFAStub) VerifyChallenge(context.Context, string, string) (*VerifiedCha
 	return nil, nil
 }
 
+func (s *MFAStub) VerifyChallengeForScope(context.Context, string, string, string) (*VerifiedChallenge, error) {
+	s.panicIfStrict("VerifyChallengeForScope")
+	return nil, nil
+}
+
+func (s *MFAStub) VerifyChallengeForOwner(context.Context, string, string, string, int64, int64) (*VerifiedChallenge, error) {
+	s.panicIfStrict("VerifyChallengeForOwner")
+	return nil, nil
+}
+
 func (s *MFAStub) ResendChallenge(context.Context, string, net.IP) (string, error) {
 	s.panicIfStrict("ResendChallenge")
 	return "challenge-token", nil
 }
 
-func (s *MFAStub) VerifyCodeForAccount(_ context.Context, accountID int64, code string) error {
+func (s *MFAStub) ResendChallengeForScope(context.Context, string, net.IP, string) (string, error) {
+	s.panicIfStrict("ResendChallengeForScope")
+	return "challenge-token", nil
+}
+
+func (s *MFAStub) VerifyCodeForAccount(_ context.Context, accountID, _ int64, code, _ string) error {
 	s.panicIfStrict("VerifyCodeForAccount")
 	s.VerifiedAccountID = accountID
 	s.VerifiedCode = code

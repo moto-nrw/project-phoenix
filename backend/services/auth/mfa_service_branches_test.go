@@ -8,9 +8,11 @@ package auth_test
 
 import (
 	"context"
+	"database/sql"
 	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -269,4 +271,59 @@ func TestShortenUserAgent_DoesNotMisidentifyChromeAsSafari(t *testing.T) {
 	ua := "Mozilla/5.0 Chrome/120 Safari/537.36"
 	got := auth.ShortenUserAgent(ua)
 	require.True(t, strings.HasPrefix(got, "Chrome"), "expected Chrome prefix, got %q", got)
+}
+
+// --- override writes vs. an in-flight token mint -----------------------------
+
+// TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock is the
+// #2207 review regression for the per-account half of the MFA policy. A session
+// mint resolves the override and then holds auth.accounts FOR UPDATE until it
+// commits; an override write that ignored that row could commit force_on in
+// between, and the login would still hand out a session that never saw a second
+// factor. The write therefore takes the same row first — account-first, the
+// order every revocation path walks — and waits.
+func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *testing.T) {
+	ctx := context.Background()
+	svc, _, db := newTestMFAService(t)
+	acc := testpkg.CreateTestAccount(t, db, "global-override-lock-order")
+	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
+
+	// An override row must already exist: the row is what makes this a real
+	// test. Creating one INSERTs and therefore takes the foreign key's own lock
+	// on auth.accounts, which would make the write wait no matter what this
+	// code does. Flipping an EXISTING row skips the foreign-key re-check
+	// (account_id does not change), so nothing but the explicit account lock
+	// orders the flip against a mint that already read the old value.
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(
+		ctx, 99, acc.ID, authModel.MFAAdminOverrideForceOff, "seed"))
+
+	// Stand in for the mint transaction, which owns the account row from its
+	// precondition check until commit.
+	mintTx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = mintTx.Rollback() }()
+	_, err = mintTx.ExecContext(ctx, `SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, acc.ID)
+	require.NoError(t, err)
+
+	written := make(chan error, 1)
+	go func() {
+		written <- svc.OperatorSetGlobalMFAOverride(
+			context.Background(), 99, acc.ID, authModel.MFAAdminOverrideForceOn, "lock order")
+	}()
+
+	select {
+	case writeErr := <-written:
+		t.Fatalf("the override write did not wait for the mint's account row lock: %v", writeErr)
+	case <-time.After(300 * time.Millisecond):
+		// Blocked, which is the point.
+	}
+
+	require.NoError(t, mintTx.Rollback())
+
+	select {
+	case writeErr := <-written:
+		require.NoError(t, writeErr, "the write must proceed once the mint released the row")
+	case <-time.After(10 * time.Second):
+		t.Fatal("the override write never completed after the account row was released")
+	}
 }

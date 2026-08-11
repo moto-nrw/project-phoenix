@@ -32,6 +32,15 @@ func TenantMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Hard reject school-scope tokens on tenant endpoints (#2207).
+		// School tokens carry a real tenant_id and would otherwise pass
+		// RLS silently — this is the symmetric guard to SchoolMiddleware
+		// rejecting tenant tokens on /school/*.
+		if claims.Scope == tenant.ScopeSchool {
+			renderUnauthorized(w, r, ErrTokenUnauthorized)
+			return
+		}
+
 		ctx := r.Context()
 		ctx = tenant.WithTenantID(ctx, claims.TenantID)
 		ctx = tenant.WithOrgID(ctx, claims.OrgID)

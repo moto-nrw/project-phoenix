@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -139,6 +141,37 @@ func (r *AccountTenantRepository) ExistsByAccountAndTenant(ctx context.Context, 
 		Where("status = ?", auth.AccountTenantStatusActive).
 		Exists(ctx)
 	return exists, err
+}
+
+// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
+// FOR SHARE row lock. Must be called inside a transaction.
+//
+// Membership is revoked by Deactivate, which UPDATEs exactly this row. Under
+// READ COMMITTED a plain existence check only proves the mapping was active at
+// statement time — a revocation committing right afterwards still leaves the
+// caller free to write. The share lock makes that impossible: the revoking
+// UPDATE blocks until the calling transaction commits, so any token persisted
+// in the same transaction is provably backed by a live membership.
+//
+// No join here on purpose — FOR SHARE on a single table locks unambiguously.
+func (r *AccountTenantRepository) ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	var one int
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr("1").
+		TableExpr(accountTenantTable).
+		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
+		Where("status = ?", auth.AccountTenantStatusActive).
+		For("SHARE").
+		Limit(1).
+		Scan(ctx, &one)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // ListTenantAccessByAccountID returns every school mapping of one account,

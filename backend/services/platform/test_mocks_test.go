@@ -247,6 +247,9 @@ func (m *mockAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, ac
 	}
 	return false, nil
 }
+func (m *mockAccountTenantRepo) ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	return m.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+}
 
 func (m *mockAccountTenantRepo) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error) {
 	if m.listAccountsByTenantIDFn != nil {

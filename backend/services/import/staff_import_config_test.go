@@ -165,6 +165,9 @@ func (r stubStaffAccountTenantRepo) FindActiveGuardianByAccountID(context.Contex
 func (r stubStaffAccountTenantRepo) ExistsByAccountAndTenant(context.Context, int64, int64) (bool, error) {
 	return r.exists, r.err
 }
+func (r stubStaffAccountTenantRepo) ExistsActiveByAccountAndTenantForShare(context.Context, int64, int64) (bool, error) {
+	return r.exists, r.err
+}
 func (r stubStaffAccountTenantRepo) ListAccountsByTenantID(context.Context, int64) ([]authModels.TenantAccountInfo, error) {
 	panic("not implemented")
 }

@@ -15,6 +15,10 @@ type mfaPendingClaimsSpec struct {
 	foreignFlagErr string
 	scopeTenant    string
 	scopePlatform  string
+	// scopeSchool is the optional third accepted scope (#2207). Empty means
+	// the token type has no school variant — enrollment tokens today — and
+	// a "school" scope claim is rejected like any other unknown value.
+	scopeSchool    string
 	pendingFlagKey string
 	notPendingErr  string
 }
@@ -37,7 +41,8 @@ func parseMFAPendingClaims(claims map[string]any, spec mfaPendingClaimsSpec, com
 	}
 
 	scope = getOptionalString(claims, "scope")
-	if scope != spec.scopeTenant && scope != spec.scopePlatform {
+	if scope != spec.scopeTenant && scope != spec.scopePlatform &&
+		(spec.scopeSchool == "" || scope != spec.scopeSchool) {
 		return 0, 0, "", fmt.Errorf("invalid scope claim: %q", scope)
 	}
 

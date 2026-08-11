@@ -512,6 +512,8 @@ GET /public/calendar/{token}
 GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
+GET /school/class-day/
+GET /school/class-day/classes
 HEAD /internal/metrics
 OPTIONS /internal/metrics
 PATCH /api/display/{id}/
@@ -812,6 +814,12 @@ POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
 POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
+POST /school/auth/login
+POST /school/auth/mfa/enroll/confirm
+POST /school/auth/mfa/enroll/start
+POST /school/auth/mfa/resend
+POST /school/auth/mfa/verify
+POST /school/auth/switch-school
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}

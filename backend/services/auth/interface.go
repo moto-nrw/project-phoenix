@@ -39,6 +39,16 @@ type AuthService interface {
 	SetMFAService(svc MFAService)
 	LoginParent(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
 	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	// LoginSchoolWithMFAGate authenticates a school-portal user (#2207) and
+	// issues a school-scope token pair bound to the first school where the
+	// account holds a school-portal role (today: lehrkraft). MFA-aware like
+	// LoginWithMFAGate; school challenges carry the school challenge scope
+	// and are redeemable only at the school verify endpoint.
+	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
+	// IssueSchoolTokensForAuthenticatedAccount is the school-scope sibling of
+	// IssueTokensForAuthenticatedAccount, used by the school MFA verify
+	// endpoint. Re-validates the school-portal role at the tenant.
+	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
 	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
@@ -109,6 +119,12 @@ type AuthService interface {
 
 	// Tenant Switching
 	SwitchTenant(ctx context.Context, accountID int64, tenantSlug string) (accessToken, refreshToken string, err error)
+	// SwitchSchool is the school-portal sibling of SwitchTenant (#2207):
+	// re-authenticates a school-scope session to another school where the
+	// account holds a school-portal role. ipAddress/userAgent are required for
+	// the tenant_switch audit event — the audit write is skipped when the IP
+	// is empty.
+	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 
 	// Multi-Tenant Account Linking
 	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error)
