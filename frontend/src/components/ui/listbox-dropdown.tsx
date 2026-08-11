@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import {
   useCallback,
   type CSSProperties,
@@ -24,7 +24,19 @@ export interface ListboxDropdownOption<K extends string> {
 interface ListboxDropdownProps<K extends string> {
   readonly value: K;
   readonly options: readonly ListboxDropdownOption<K>[];
+  /**
+   * Called with the option the user activated. In multi mode (see
+   * {@link ListboxDropdownProps.selectedValues}) this is a TOGGLE — the caller
+   * adds or removes the value from its own selection.
+   */
   readonly onChange: (next: K) => void;
+  /**
+   * Turns the listbox into a multi-select: options render as checkable rows,
+   * activating one toggles it and keeps the menu open, and the list announces
+   * itself as multi-selectable. `value` still anchors keyboard focus (pass the
+   * first selected value, or "" for none). Undefined = single select.
+   */
+  readonly selectedValues?: readonly K[];
   readonly id?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
@@ -152,6 +164,7 @@ export function ListboxDropdown<K extends string>({
   value,
   options,
   onChange,
+  selectedValues,
   id,
   ariaLabel,
   ariaLabelledBy,
@@ -206,6 +219,8 @@ export function ListboxDropdown<K extends string>({
   const [focusIndex, setFocusIndex] = useState(selectedIndex);
   const selectedOption = options.find((option) => option.value === value);
   const selectedLabel = selectedOption?.label ?? placeholder;
+  const isMulti = selectedValues !== undefined;
+  const selectedValueSet = new Set<string>(selectedValues ?? []);
   const portalContainer =
     typeof document === "undefined"
       ? null
@@ -399,9 +414,12 @@ export function ListboxDropdown<K extends string>({
       const option = options[index];
       if (!option || option.disabled) return;
       onChange(option.value);
+      // A multi-select stays open: picking a second class without reopening
+      // the menu is the whole point of the mode.
+      if (isMulti) return;
       closeAndReturnFocus();
     },
-    [closeAndReturnFocus, onChange, options],
+    [closeAndReturnFocus, isMulti, onChange, options],
   );
 
   const markOpenScrollTo = (index: number) => {
@@ -622,6 +640,7 @@ export function ListboxDropdown<K extends string>({
               ref={menuRef}
               id={listboxId}
               role="listbox"
+              aria-multiselectable={isMulti || undefined}
               style={menuStyle ?? { position: "fixed", visibility: "hidden" }}
               className={menuClassName}
               // The menu is portaled to document.body, so it sits OUTSIDE the
@@ -650,7 +669,11 @@ export function ListboxDropdown<K extends string>({
               aria-labelledby={ariaLabelledBy}
             >
               {options.map((option, index) => {
-                const isActive = option.value === value;
+                // In multi mode "active" means "checked"; the single-select
+                // notion of one current value does not apply.
+                const isActive = isMulti
+                  ? selectedValueSet.has(option.value)
+                  : option.value === value;
                 const isFocused = index === focusIndex;
                 return (
                   // The option role lives on the inner button; the list item
@@ -682,7 +705,25 @@ export function ListboxDropdown<K extends string>({
                             : optionClassName
                       }
                     >
-                      {option.label}
+                      {isMulti ? (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                              isActive
+                                ? "border-gray-900 bg-gray-900 text-white"
+                                : "border-gray-300 bg-white"
+                            }`}
+                          >
+                            {isActive ? <Check className="h-3 w-3" /> : null}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {option.label}
+                          </span>
+                        </>
+                      ) : (
+                        option.label
+                      )}
                     </button>
                   </li>
                 );

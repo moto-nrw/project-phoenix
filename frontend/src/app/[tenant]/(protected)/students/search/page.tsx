@@ -1760,6 +1760,8 @@ function SearchPageContent() {
         label: "Stufe",
         type: "dropdown",
         multiSelect: true,
+        emptyLabel: "Alle Stufen",
+        summaryLabel: (count) => `${count} Stufen`,
         value: selectedYears,
         onChange: (value) => updateSelectedYears(asFilterValues(value)),
         options: SCHOOL_YEAR_MULTI_OPTIONS,
@@ -1769,6 +1771,8 @@ function SearchPageContent() {
         label: "Klasse",
         type: "dropdown",
         multiSelect: true,
+        emptyLabel: "Alle Klassen",
+        summaryLabel: (count) => `${count} Klassen`,
         value: selectedSchoolClasses,
         onChange: (value) => updateSelectedSchoolClasses(asFilterValues(value)),
         options: [
@@ -1792,6 +1796,8 @@ function SearchPageContent() {
         label: "Gruppe",
         type: "dropdown",
         multiSelect: true,
+        emptyLabel: "Alle Gruppen",
+        summaryLabel: (count) => `${count} Gruppen`,
         value: selectedGroupIds,
         onChange: (value) => updateSelectedGroupIds(asFilterValues(value)),
         options: groups.map((group) => ({
