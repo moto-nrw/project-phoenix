@@ -27,6 +27,12 @@ var ErrAbsencePermissionRequired = errors.New("the users:absence permission is r
 // permission but has no staff record in this tenant (guest/guardian accounts).
 var ErrAbsenceStaffRequired = errors.New("only staff members can manage student absences")
 
+// ErrAbsenceReadRequired is the denial for a caller holding users:absence
+// without users:read. users:absence is a write scope layered on top of the
+// child data a caller may already see — it is not a read permission and never
+// unlocks one, so on its own it grants nothing (see CanManageStudentAbsence).
+var ErrAbsenceReadRequired = errors.New("the users:read permission is required alongside users:absence")
+
 // CanManageStudentAbsence decides whether the caller may write a child's
 // absence statuses — krank, entschuldigt, Klassenfahrt — for today or for
 // planned days, and decide a guardian's excused/sick request.
@@ -42,15 +48,24 @@ var ErrAbsenceStaffRequired = errors.New("only staff members can manage student 
 //  2. The caller supervises the child's education group → allowed. This is the
 //     unchanged fixed-groups behavior; a tenant on fixed_groups never reaches
 //     any branch below.
-//  3. group_mode == open_care AND the caller holds users:absence AND is a
-//     verified staff member of this tenant → allowed, regardless of whether
-//     the child has a group at all.
+//  3. group_mode == open_care AND the caller holds users:absence AND users:read
+//     AND is a verified staff member of this tenant → allowed, regardless of
+//     whether the child has a group at all.
 //  4. Otherwise → denied, carrying the supervisor gate's own message so the
 //     403 reason stays the familiar one wherever the mode is not open_care.
 //
 // The relaxation is scoped to this action on purpose. It grants nothing on the
 // child's Stammdaten (address, health info, photo consent, Datenschutz): those
 // keep running through CanModifyStudent, which open care does not touch.
+//
+// users:absence is a WRITE scope layered on top of the children a caller may
+// already see; it is not a read permission and deliberately unlocks none. The
+// absence flow needs the child's list entry and detail page to be usable at
+// all, and those stay gated on users:read — widening them through a write
+// permission would silently extend who may read student data. Requiring the
+// pair here is what keeps the two ends consistent: users:absence alone opens
+// nothing anywhere, instead of writing absences for a child its holder cannot
+// open. The Betreuer role this permission ships to already holds users:read.
 //
 // Resolution fails CLOSED: a settings error is an operational fault, never a
 // tenant choice, so it leaves the caller with the supervisor gate's verdict.
@@ -74,6 +89,9 @@ func CanManageStudentAbsence(
 	}
 	if !HasPermission(permissions.UsersAbsence, userPermissions) {
 		return false, ErrAbsencePermissionRequired
+	}
+	if !HasPermission(permissions.UsersRead, userPermissions) {
+		return false, ErrAbsenceReadRequired
 	}
 	if !isVerifiedStaff(ctx, userCtx) {
 		return false, ErrAbsenceStaffRequired
@@ -102,10 +120,29 @@ func AbsenceWritableStudentFilter(
 	}
 	if !openCareMode(ctx, settings, logger) ||
 		!HasPermission(permissions.UsersAbsence, userPermissions) ||
+		!HasPermission(permissions.UsersRead, userPermissions) ||
 		!isVerifiedStaff(ctx, userCtx) {
 		return supervised
 	}
 	return func(student *users.Student) bool { return student != nil }
+}
+
+// CanReviewExcusedAbsenceRequests reports whether the caller may open and
+// decide the parent excused-absence queue: users:update (the queue's original
+// gate, shared with the Stammdaten queues next to it) or users:absence (the
+// same write under open care, #2232).
+//
+// It exists so the read surfaces that merely ANNOUNCE a pending request — the
+// day-planning badge carrying the parent's note in the student list/detail and
+// in the OGS group live projection — cannot drift away from who may act on it.
+// A badge shown to someone the queue then refuses is a note leaked to a reader
+// with no say over it; a badge withheld from a decider hides work they own.
+//
+// Per-child scope is decided separately (AbsenceWritableStudentFilter /
+// CanManageStudentAbsence); this is only the coarse permission question.
+func CanReviewExcusedAbsenceRequests(userPermissions []string) bool {
+	return HasPermission(permissions.UsersUpdate, userPermissions) ||
+		HasPermission(permissions.UsersAbsence, userPermissions)
 }
 
 // openCareMode reports whether the tenant runs without fixed groups. Mirrors

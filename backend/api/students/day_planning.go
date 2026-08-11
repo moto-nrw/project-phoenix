@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -282,15 +281,16 @@ func (rs *Resource) filterTimetableIDsByCareDay(
 // parent's note without changing the planning status — the child stays
 // "expected" until staff decide the request.
 //
-// The badge exposes the parent's note and belongs to the users:update-gated
-// review queue (Änderungsanfragen). This enrichment also runs inside the
-// users:read list/detail/export handlers, so a read-only group supervisor
-// would otherwise see the note and approval marker without any right to the
-// queue or to decide the request. Only enrich when the caller actually holds
-// the review permission that gates the queue itself.
+// The badge exposes the parent's note and belongs to the review queue
+// (Änderungsanfragen). This enrichment also runs inside the users:read
+// list/detail/export handlers, so a read-only group supervisor would otherwise
+// see the note and approval marker without any right to the queue or to decide
+// the request. Only enrich when the caller actually holds a permission that
+// gates the queue itself — users:update, or users:absence for the staff who
+// decide exactly these requests in a school without fixed groups (#2232).
 func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
 	if rs.ExcusedRequestService == nil ||
-		!authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(ctx)) {
+		!authorize.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
 		return map[int64]*activeModels.ExcusedAbsenceRequest{}, nil
 	}
 	return rs.ExcusedRequestService.PendingByStudentForDate(ctx, date)

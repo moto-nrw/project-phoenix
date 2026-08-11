@@ -55,8 +55,15 @@ const (
 	// the absence gate falls back to this permission (see
 	// authorize.CanManageStudentAbsence) — and that fallback must not carry
 	// write access to addresses, health info, or any other Stammdaten with it.
+	//
+	// It is a WRITE scope layered on top of the children a caller may already
+	// see, never a read permission: the gate requires UsersRead alongside it,
+	// so it unlocks nothing on its own and the child's list entry and detail
+	// page stay gated on UsersRead alone.
+	//
 	// Admins match via AdminWildcard; other roles are granted explicitly
-	// (migration 1.15.290 grants it to the default `user`/Betreuer role).
+	// (migration 1.15.290 grants it to the default `user`/Betreuer role, which
+	// already holds users:read).
 	UsersAbsence = ResourceUsers + ":absence"
 )
 

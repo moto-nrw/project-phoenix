@@ -136,6 +136,75 @@ func TestOpenCareAbsence_GrouplessStudent(t *testing.T) {
 		})
 		testutil.AssertForbidden(t, authExec(t, tc, req, claims, []string{"users:read", "users:update"}))
 	})
+
+	// users:absence is a write scope on top of what a caller may already see.
+	// Without users:read it grants nothing — not the write, and not the read
+	// the planning dialog needs — instead of half a feature for a child whose
+	// list entry and detail page stay closed.
+	t.Run("the_absence_permission_alone_grants_nothing", func(t *testing.T) {
+		absenceOnly := []string{"users:absence"}
+
+		write := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
+			"status": "sick",
+			"dates":  []string{today},
+		})
+		testutil.AssertForbidden(t, authExec(t, tc, write, claims, absenceOnly))
+
+		read := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days", student.ID), nil)
+		testutil.AssertForbidden(t, authExec(t, tc, read, claims, absenceOnly))
+	})
+}
+
+// TestAbsenceWriterCannotEditSupervisedStudent pins the separation the
+// dedicated permission exists for: PUT /students/{id} carries the Krankmeldung
+// AND every Stammdaten field, and its route gate admits users:absence. The
+// per-child write check decides supervision only, so without an explicit
+// users:update check a group supervisor holding users:absence would inherit the
+// full record write — address, class, notes — from that supervision.
+func TestAbsenceWriterCannotEditSupervisedStudent(t *testing.T) {
+	tc := setupTestContext(t)
+	setGroupMode(t, tc, configModel.GroupModeFixedGroups)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absence", "Supervisor")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceWriterGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Supervised", "Kind", "AW1")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	absencePerms := []string{"users:read", "users:absence"}
+
+	t.Run("stammdaten_stay_forbidden", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), map[string]any{
+			"school_class": "3c",
+		})
+		testutil.AssertForbidden(t, authExec(t, tc, req, claims, absencePerms))
+	})
+
+	t.Run("stammdaten_alongside_the_absence_stay_forbidden", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), map[string]any{
+			"sick":             true,
+			"supervisor_notes": "smuggled",
+		})
+		testutil.AssertForbidden(t, authExec(t, tc, req, claims, absencePerms))
+	})
+
+	t.Run("the_absence_itself_is_allowed", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), map[string]any{
+			"sick": true,
+		})
+		rr := authExec(t, tc, req, claims, absencePerms)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	})
+
+	t.Run("users_update_still_edits_stammdaten", func(t *testing.T) {
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), map[string]any{
+			"school_class": "3c",
+		})
+		rr := authExec(t, tc, req, claims, []string{"users:read", "users:update"})
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	})
 }
 
 // TestFixedGroupsAbsence_GrouplessStudentStaysAdminOnly pins acceptance

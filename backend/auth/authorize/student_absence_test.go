@@ -51,7 +51,7 @@ func TestCanManageStudentAbsence_OpenCareStudentInForeignGroup(t *testing.T) {
 	// the mode, not the group, decides.
 	ok, err := CanManageStudentAbsence(
 		t.Context(),
-		[]string{"users:absence"},
+		[]string{"users:read", "users:absence"},
 		studentInGroup(42),
 		staffCtx(),
 		openCareSettings(),
@@ -74,12 +74,29 @@ func TestCanManageStudentAbsence_OpenCareWithoutPermissionDenied(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAbsencePermissionRequired)
 }
 
+func TestCanManageStudentAbsence_OpenCareWithoutReadDenied(t *testing.T) {
+	// users:absence is a write scope on top of the children a caller may see.
+	// It unlocks no read surface — neither the child's list entry nor the
+	// detail page — so on its own it must grant nothing at all rather than a
+	// write for a child its holder cannot open.
+	ok, err := CanManageStudentAbsence(
+		t.Context(),
+		[]string{"users:absence"},
+		groupless(),
+		staffCtx(),
+		openCareSettings(),
+		nil,
+	)
+	assert.False(t, ok)
+	assert.ErrorIs(t, err, ErrAbsenceReadRequired)
+}
+
 func TestCanManageStudentAbsence_OpenCareNonStaffDenied(t *testing.T) {
 	// Guest/guardian accounts authenticate against the same portal; holding the
 	// permission is not enough without a staff record in this tenant.
 	ok, err := CanManageStudentAbsence(
 		t.Context(),
-		[]string{"users:absence"},
+		[]string{"users:read", "users:absence"},
 		groupless(),
 		&stubUserCtx{}, // no staff record
 		openCareSettings(),
@@ -176,7 +193,7 @@ func TestCanManageStudentAbsence_NilStudentDenied(t *testing.T) {
 func TestAbsenceWritableStudentFilter_OpenCareCoversEveryStudent(t *testing.T) {
 	filter := AbsenceWritableStudentFilter(
 		t.Context(),
-		[]string{"users:absence"},
+		[]string{"users:read", "users:absence"},
 		staffCtx(),
 		openCareSettings(),
 		nil,
@@ -212,4 +229,39 @@ func TestAbsenceWritableStudentFilter_OpenCareWithoutPermissionStaysSupervisorSc
 		nil,
 	)
 	assert.False(t, filter(groupless()))
+}
+
+func TestAbsenceWritableStudentFilter_OpenCareWithoutReadStaysSupervisorScoped(t *testing.T) {
+	// The set form has to agree with CanManageStudentAbsence, including its
+	// read requirement — otherwise the queue would list children the decision
+	// then refuses.
+	filter := AbsenceWritableStudentFilter(
+		t.Context(),
+		[]string{"users:absence"},
+		staffCtx(),
+		openCareSettings(),
+		nil,
+	)
+	assert.False(t, filter(groupless()))
+}
+
+// --- CanReviewExcusedAbsenceRequests -----------------------------------
+
+func TestCanReviewExcusedAbsenceRequests(t *testing.T) {
+	cases := []struct {
+		name        string
+		permissions []string
+		want        bool
+	}{
+		{"users:update", []string{"users:read", "users:update"}, true},
+		{"users:absence", []string{"users:read", "users:absence"}, true},
+		{"admin wildcard", []string{"admin:*"}, true},
+		{"users:read only", []string{"users:read"}, false},
+		{"nothing", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, CanReviewExcusedAbsenceRequests(tc.permissions))
+		})
+	}
 }

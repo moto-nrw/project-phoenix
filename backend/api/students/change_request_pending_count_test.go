@@ -77,23 +77,22 @@ func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testi
 		fmt.Sprintf("the absence-only badge must ignore the users:update-gated queues (request %d)", request.ID))
 }
 
-// The planning dialog reads the existing status days before it saves, so the
-// read must clear the route gate for a caller authorized only by the absence
-// gate — users:read is not guaranteed to travel with users:absence.
-func TestStatusDaysReadable_WithAbsencePermissionOnly(t *testing.T) {
+// The badge counts only what its holder may open, and the queue behind it must
+// stay open to them: an absence reviewer sees the excused queue itself.
+func TestExcusedQueueReachable_WithAbsencePermission(t *testing.T) {
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absence", "Reader")
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceReadGroup")
-	student := testpkg.CreateTestStudent(t, tc.db, "Absence", "Kind", "AR1")
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Queue", "Reviewer")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "QueueReviewGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "Queue", "Kind", "QR1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	rr := authExec(t, tc,
-		testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days", student.ID), nil),
+		testutil.NewRequest("GET", "/excused-absence-requests", nil),
 		testutil.TeacherTestClaims(int(account.ID)),
-		[]string{"users:absence"},
+		[]string{"users:read", "users:absence"},
 	)
 	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }

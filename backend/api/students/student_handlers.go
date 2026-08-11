@@ -1511,6 +1511,11 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullWriteAccess, companionsChanged)
 }
 
+// errStudentUpdatePermissionRequired is the 403 for a caller who reached
+// PUT /students/{id} through the users:absence branch of the route gate and
+// then sent something other than a pure absence payload.
+var errStudentUpdatePermissionRequired = errors.New("the users:update permission is required to edit this student's data")
+
 // authorizeStudentUpdate is the PUT /students/{id} gate. It reports the full
 // write verdict separately from the effective one because the two diverge for
 // an absence-only payload: the caller may then be authorized by the
@@ -1521,12 +1526,28 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 // The absence fallback is only ever consulted for a payload that carries
 // NOTHING but sick/excused (see UpdateStudentRequest.isAbsenceOnly), so it can
 // never let a Stammdaten field through.
+//
+// The full path additionally requires users:update. The route gate admits
+// users:update OR users:absence, but canUpdateStudent decides supervision only
+// and never re-checks the permission — it was written when users:update was
+// the route's sole gate. Without this check a users:absence holder who happens
+// to supervise the child's group would inherit the entire Stammdaten write
+// (address, class, notes) from that supervision, which is exactly the
+// separation the dedicated permission exists to keep.
 func (rs *Resource) authorizeStudentUpdate(
 	ctx context.Context,
 	userPermissions []string,
 	student *users.Student,
 	req *UpdateStudentRequest,
 ) (hasFullWriteAccess, authorized bool, authErr error) {
+	if !authorize.HasPermission(permissions.UsersUpdate, userPermissions) {
+		if !req.isAbsenceOnly() {
+			return false, false, errStudentUpdatePermissionRequired
+		}
+		absenceOK, absenceErr := rs.canManageStudentAbsence(ctx, userPermissions, student)
+		return false, absenceOK, absenceErr
+	}
+
 	fullOK, fullErr := canUpdateStudent(ctx, userPermissions, student, rs.UserContextService)
 	if fullOK || !req.isAbsenceOnly() {
 		return fullOK, fullOK, fullErr

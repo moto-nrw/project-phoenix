@@ -559,7 +559,10 @@ func (s *service) loadTimetable(ctx context.Context, studentIDs []int64, date ti
 }
 
 func (s *service) loadPendingExcused(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
-	if s.deps.ExcusedRequests == nil || !authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(ctx)) {
+	// Same gate as the student list/detail badge: whoever may decide the
+	// request may see its note — users:update, or users:absence under open
+	// care (#2232). See authorize.CanReviewExcusedAbsenceRequests.
+	if s.deps.ExcusedRequests == nil || !authorize.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
 		return map[int64]*activeModels.ExcusedAbsenceRequest{}, nil
 	}
 	return s.deps.ExcusedRequests.PendingByStudentForDate(ctx, date)

@@ -143,12 +143,17 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log/export", rs.exportStudentsDayLog)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history/export", rs.exportStudentAttendanceHistory)
-		// Planned absence days. users:read OR users:absence at the route, with
-		// the per-child check in the handler accepting either read access or the
-		// absence write gate (#2232): the planning dialog refuses to save until
-		// it has read the existing status days, so an absence-only caller must
-		// get past the route gate too.
-		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.UsersAbsence), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
+		// Planned absence days. users:read like every other read here — an
+		// absence writer always holds it, because users:absence is a write scope
+		// on top of the children a caller may see and grants nothing on its own
+		// (authorize.CanManageStudentAbsence). Widening this route instead would
+		// have let a caller without any read permission pull absence data out of
+		// a tenant running gdpr.student_data_scope = all_staff, while the child's
+		// list entry and detail page stayed closed to them either way. What the
+		// absence gate does relax is the PER-CHILD check inside the handler: a
+		// caller with no group supervision still reads the status days they are
+		// allowed to write, which the planning dialog loads before it saves.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 		// Per-child change history (issue #1455). Full access (admin / group
 		// supervisor) is enforced inside the handler.
@@ -199,9 +204,12 @@ func (rs *Resource) Router() chi.Router {
 		// users:absence as well — it is the permission a school without fixed
 		// groups grants for exactly these writes (#2232). The coarse route gate
 		// only decides who may knock; per-child authority is decided in the
-		// handlers (authorizeStudentUpdate / canManageStudentAbsence), and a
-		// users:absence holder without users:update can therefore only get an
-		// absence-only payload past PUT /{id}.
+		// handlers (authorizeStudentUpdate / canManageStudentAbsence).
+		//
+		// PUT /{id} carries both the Krankmeldung and every Stammdaten field, so
+		// it re-checks the permission itself: the full write needs users:update,
+		// and a users:absence holder gets nothing but a payload of sick/excused
+		// past it, no matter which groups they supervise.
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Put("/{id}", rs.updateStudent)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
