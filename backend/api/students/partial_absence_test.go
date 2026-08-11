@@ -221,7 +221,7 @@ func loadAttendanceRows(t *testing.T, tc *testContext, ids ...int64) map[int64]*
 	require.NoError(t, tc.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
-		Where(`"instance_student".id IN (?)`, bun.In(ids)).
+		Where(`"instance_student".id IN (?)`, bun.List(ids)).
 		Scan(context.Background()))
 
 	byID := make(map[int64]*scheduleModel.InstanceStudent, len(rows))
