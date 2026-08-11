@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -230,6 +231,10 @@ func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 // The group query carries no ORDER BY, so the slice is sorted by id before it is
 // cut: without a stable order two requests for neighbouring pages could hand
 // back overlapping or disjoint rows.
+//
+// common.ParsePagination already clamps both values, but the offset is checked
+// for overflow before it is multiplied out anyway: this path must not depend on
+// its caller to stay off a negative slice index.
 func (p *studentListParams) pageOfGroupStudents(students []*users.Student) []*users.Student {
 	if p.fetchAll || p.page <= 0 || p.pageSize <= 0 {
 		return students
@@ -238,6 +243,12 @@ func (p *studentListParams) pageOfGroupStudents(students []*users.Student) []*us
 	slices.SortFunc(students, func(a, b *users.Student) int {
 		return cmp.Compare(a.ID, b.ID)
 	})
+
+	// A window that far out holds nothing anyway, so bail before the
+	// multiplication rather than after it has wrapped into a negative index.
+	if p.page-1 > (math.MaxInt-p.pageSize)/p.pageSize {
+		return []*users.Student{}
+	}
 
 	start := (p.page - 1) * p.pageSize
 	if start >= len(students) {
@@ -394,6 +405,13 @@ func matchesGradeLevel(schoolClass string, gradeLevels []int) bool {
 // applyInMemoryPagination applies pagination to an already-filtered slice
 func applyInMemoryPagination(responses []StudentResponse, page, pageSize int) ([]StudentResponse, int) {
 	totalCount := len(responses)
+
+	// A window this far out holds nothing, and computing its offset would wrap
+	// into a negative slice index (#2218 review). common.ParsePagination clamps
+	// both values, but this helper takes them as plain ints from any caller.
+	if page <= 0 || pageSize <= 0 || page-1 > (math.MaxInt-pageSize)/pageSize {
+		return []StudentResponse{}, totalCount
+	}
 
 	startIndex := (page - 1) * pageSize
 	endIndex := startIndex + pageSize

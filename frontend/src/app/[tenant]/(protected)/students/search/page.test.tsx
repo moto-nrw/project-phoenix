@@ -2257,6 +2257,61 @@ describe("StudentSearchPage", () => {
       );
     });
 
+    it("walks every page when the selection is larger than one response (#2218)", async () => {
+      // This view has no pagination control, so a selection the proxy route
+      // cannot fit into its 1000-row page has to be walked here — otherwise
+      // every child past the first page is unreachable.
+      const studentService = await import("~/lib/api");
+      const mockGetStudents = vi.fn();
+      mockGetStudents.mockImplementation((filters: { page?: number }) => {
+        const page = filters.page ?? 1;
+        return Promise.resolve({
+          students: [
+            {
+              ...mockStudents[0]!,
+              id: `seite-${page}`,
+              first_name: `Seite${page}`,
+            },
+          ],
+          pagination: {
+            current_page: page,
+            page_size: 1000,
+            total_pages: 3,
+            total_records: 3,
+          },
+        });
+      });
+      vi.mocked(studentService.studentService.getStudents).mockImplementation(
+        mockGetStudents,
+      );
+
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      const result = (await fetcher.current!()) as {
+        students: { id: string }[];
+      };
+
+      expect(mockGetStudents).toHaveBeenCalledTimes(3);
+      // The first request stays free of a page parameter, so the common
+      // single-page case is unchanged on the wire.
+      expect(mockGetStudents.mock.calls[0]?.[0]).not.toHaveProperty("page");
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 3 }),
+      );
+      expect(result.students.map((student) => student.id)).toEqual([
+        "seite-1",
+        "seite-2",
+        "seite-3",
+      ]);
+    });
+
     it("uses consistent default labels for administrative filters", async () => {
       render(<StudentSearchPage />);
 

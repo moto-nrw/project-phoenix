@@ -145,6 +145,24 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 		assert.Empty(t, beyond, "a page past the end is empty, not a repeat of the last one")
 	})
 
+	t.Run("an extreme page number answers empty instead of failing", func(t *testing.T) {
+		// (page-1)*page_size used to overflow before it was turned into an
+		// offset, which is a negative slice index on the group fast path and a
+		// negative SQL OFFSET on the standard path — both a 500 (#2218 review).
+		beyond, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"group_id=%d,%d&page=9223372036854775807&page_size=2", groupA.ID, groupB.ID,
+		))
+		assert.Empty(t, beyond)
+		assert.Equal(t, 2, total, "the total still counts the whole selection")
+
+		// Same request without the group fast path, so the clamp is exercised
+		// against the SQL OFFSET as well.
+		beyondSQL, _ := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"school_class=%s&page=9223372036854775807&page_size=2", url.QueryEscape(classThird),
+		))
+		assert.Empty(t, beyondSQL)
+	})
+
 	t.Run("two grades cover both years", func(t *testing.T) {
 		// The grade filter is not class-unique, so other children of the shared
 		// test database legitimately share these years: assert membership, not

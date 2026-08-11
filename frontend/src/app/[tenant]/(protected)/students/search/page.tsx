@@ -235,6 +235,15 @@ function readFilterParam(
 
 const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
 const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
+// This view shows every match at once — it has no pagination control, and the
+// grouping modes, the counts and the export selection all read the rendered
+// list. The proxy route caps a response at FULL_STUDENT_SEARCH_PAGE_SIZE rows
+// (app/api/students/route.ts), so a selection larger than one page has to be
+// walked here; otherwise every child past the first page is unreachable
+// (#2218 review). The bound stops a bad total from looping forever: 20 pages
+// are 20.000 Kinder, far beyond any OGS, and hitting it is logged rather than
+// silently truncating.
+const MAX_STUDENT_SEARCH_PAGES = 20;
 
 // The "Stufe" filter is a multi-select (#2218): an empty selection already
 // means "alle Stufen", so the neutral pseudo-option would be a second way to
@@ -1430,10 +1439,10 @@ function SearchPageContent() {
         // 1000 covers any realistic combined-group / assembly-room
         // session. General search sends nothing on purpose: the proxy route
         // (app/api/students/route.ts) already defaults an absent page_size to
-        // its 1000 maximum, so this page gets every matching row in one trip
-        // — the backend's own ParsePagination default of 50 is never reached
-        // from here, and multi-value class/group/year selections (#2218) fit
-        // in the same single page as an unfiltered list.
+        // its 1000 maximum, so the backend's own ParsePagination default of 50
+        // is never reached from here. A school with more matching children than
+        // one page is picked up by the page walk below, not by a larger
+        // page_size — the proxy caps that at 1000 either way.
         pageSize: effectiveRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
@@ -1448,6 +1457,24 @@ function SearchPageContent() {
       };
 
       const result = await studentService.getStudents(filters);
+      const students = [...result.students];
+
+      // Walk the remaining pages when the selection is larger than one page.
+      // The first request stays untouched (no page parameter), so the common
+      // single-page case is byte-identical with before.
+      const totalPages = result.pagination?.total_pages ?? 1;
+      const lastPage = Math.min(totalPages, MAX_STUDENT_SEARCH_PAGES);
+      for (let page = 2; page <= lastPage; page++) {
+        const nextPage = await studentService.getStudents({ ...filters, page });
+        students.push(...nextPage.students);
+      }
+      if (totalPages > lastPage) {
+        logger.warn("student_search_pages_truncated", {
+          total_pages: totalPages,
+          fetched_pages: lastPage,
+        });
+      }
+
       // Tag the response with the date AND today/planning mode it was fetched
       // for so date-sensitive rendering can tell a fresh result apart from
       // keepPreviousData holding the previous request's rows. The mode matters
@@ -1456,7 +1483,7 @@ function SearchPageContent() {
       // to live — the stale planning rows must not be shown under live presence
       // badges and check-in controls (#1939).
       return {
-        students: result.students,
+        students,
         requestDate: selectedDate,
         requestIsToday: isToday,
       };
