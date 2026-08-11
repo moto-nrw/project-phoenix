@@ -529,7 +529,8 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	// Lock and re-check the target immediately before the visit-side writes.
 	// The lock serializes check-ins with session absorption/end paths, which
 	// take the same active.groups row lock before closing the session.
-	if err := s.validateActiveGroupOpenForUpdate(ctx, visit.ActiveGroupID); err != nil {
+	targetGroup, err := s.lockActiveGroupOpenForUpdate(ctx, visit.ActiveGroupID)
+	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
@@ -541,6 +542,9 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 			return activeErr
 		}
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+	if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+		return err
 	}
 
 	// Handle attendance (create new or update on re-entry)
@@ -653,14 +657,19 @@ func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) 
 // or supervisor INSERT. This prevents a row selected before a concurrent
 // absorption from attaching to the group after that absorption ends it.
 func (s *service) validateActiveGroupOpenForUpdate(ctx context.Context, groupID int64) error {
+	_, err := s.lockActiveGroupOpenForUpdate(ctx, groupID)
+	return err
+}
+
+func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if group == nil || group.EndTime != nil {
-		return ErrActiveGroupNotFound
+		return nil, ErrActiveGroupNotFound
 	}
-	return nil
+	return group, nil
 }
 
 // validateStaffExists checks if a staff member exists, returning appropriate errors
@@ -748,7 +757,7 @@ func (s *service) prepareVisitTransfer(
 		return false, time.Time{}, nil
 	}
 
-	targetGroup, err := s.GroupRepo.FindByID(ctx, updated.ActiveGroupID)
+	targetGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, updated.ActiveGroupID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
@@ -757,6 +766,16 @@ func (s *service) prepareVisitTransfer(
 	}
 	if targetGroup == nil || !targetGroup.IsActive() {
 		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+	}
+
+	sourceGroup, err := s.GroupRepo.FindByID(ctx, existing.ActiveGroupID)
+	if err != nil || sourceGroup == nil {
+		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	if sourceGroup.RoomID != targetGroup.RoomID {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return false, time.Time{}, err
+		}
 	}
 
 	transferAt := time.Now()

@@ -2,6 +2,7 @@ package schedules
 
 import (
 	"github.com/moto-nrw/project-phoenix/api/common"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -18,6 +19,7 @@ var errorRules = []common.ErrorRule{
 	{Target: scheduleSvc.ErrInvalidDateRange, Render: common.ErrorInvalidRequest},
 	{Target: scheduleSvc.ErrInvalidTimeRange, Render: common.ErrorInvalidRequest},
 	{Target: scheduleSvc.ErrInvalidDuration, Render: common.ErrorInvalidRequest},
+	{Target: activeSvc.ErrRoomCapacityExceeded, Render: common.ErrorConflict},
 }
 
 // ErrorRenderer renders an error to an HTTP response based on the schedule

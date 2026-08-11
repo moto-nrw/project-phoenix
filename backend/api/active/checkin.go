@@ -214,6 +214,10 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 	}
 
 	if createErr := rs.ActiveService.CreateVisit(ctx, visit); createErr != nil {
+		var capacityErr *activeService.RoomCapacityError
+		if errors.As(createErr, &capacityErr) {
+			return nil, &checkinError{http.StatusConflict, capacityErr.Error()}
+		}
 		// Handle race condition: another request already created a visit for this student
 		if errors.Is(createErr, activeService.ErrStudentAlreadyActive) {
 			return nil, &checkinError{http.StatusConflict, "Student already has an active visit"}

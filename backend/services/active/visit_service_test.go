@@ -198,6 +198,42 @@ func TestActiveService_CreateVisit(t *testing.T) {
 			"expected ErrStudentAlreadyActive, got %v", err)
 		assert.Equal(t, int64(0), duplicate.ID, "duplicate visit must not be persisted")
 	})
+
+	t.Run("rejects a visit when the room capacity is reached", func(t *testing.T) {
+		activityA := testpkg.CreateTestActivityGroup(t, db, "capacity-source")
+		activityB := testpkg.CreateTestActivityGroup(t, db, "capacity-target")
+		room := testpkg.CreateTestRoom(t, db, "Capacity Room")
+		capacity := 1
+		room.Capacity = &capacity
+		_, err := db.NewUpdate().Model(room).Column("capacity").Where("id = ?", room.ID).Exec(ctx)
+		require.NoError(t, err)
+		sourceGroup := testpkg.CreateTestActiveGroup(t, db, activityA.ID, room.ID)
+		targetGroup := testpkg.CreateTestActiveGroup(t, db, activityB.ID, room.ID)
+		existingStudent := testpkg.CreateTestStudent(t, db, "Existing", "Capacity", "1a")
+		incomingStudent := testpkg.CreateTestStudent(t, db, "Incoming", "Capacity", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Capacity", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, "capacity-device")
+		existingVisit := testpkg.CreateTestVisit(t, db, existingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Minute), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, activityA.ID, activityB.ID, room.ID, sourceGroup.ID, targetGroup.ID, existingStudent.ID, incomingStudent.ID, staff.ID, iotDevice.ID, existingVisit.ID)
+
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		visit := &activeModels.Visit{
+			StudentID:     incomingStudent.ID,
+			ActiveGroupID: targetGroup.ID,
+			EntryTime:     time.Now(),
+		}
+
+		err = service.CreateVisit(deviceCtx, visit)
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
+		var capacityErr *active.RoomCapacityError
+		require.True(t, errors.As(err, &capacityErr))
+		assert.Equal(t, 1, capacityErr.CurrentOccupancy)
+		assert.Equal(t, 1, capacityErr.MaxCapacity)
+		assert.Zero(t, visit.ID)
+	})
 }
 
 // =============================================================================

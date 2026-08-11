@@ -26,7 +26,8 @@ export function getDefaultValueForField(field: FormField): unknown {
     case "multiselect":
       return [];
     case "number":
-      return field.name === "data_retention_days" ? 30 : 0;
+      if (field.name === "data_retention_days") return 30;
+      return field.required ? 0 : "";
     default:
       return "";
   }
@@ -130,6 +131,20 @@ export function validateNumberMin(
   return null;
 }
 
+/** Validates a number field against max constraint */
+export function validateNumberMax(
+  value: unknown,
+  max: number,
+  label: string,
+): string | null {
+  const numValue =
+    typeof value === "number" ? value : Number.parseInt(value as string, 10);
+  if (Number.isNaN(numValue) || numValue > max) {
+    return `${label} darf höchstens ${max} sein.`;
+  }
+  return null;
+}
+
 /** Validates a single form field and returns error message or null */
 export function validateField(field: FormField, value: unknown): string | null {
   // Check required fields
@@ -137,10 +152,17 @@ export function validateField(field: FormField, value: unknown): string | null {
     return `${field.label} ist erforderlich.`;
   }
 
-  // Validate number min constraint
-  if (field.required && field.type === "number" && field.min !== undefined) {
-    const minError = validateNumberMin(value, field.min, field.label);
-    if (minError) return minError;
+  // Optional number fields stay valid while empty, but their constraints apply
+  // as soon as the user enters a value.
+  if (field.type === "number" && !isEmptyValue(value)) {
+    if (field.min !== undefined) {
+      const minError = validateNumberMin(value, field.min, field.label);
+      if (minError) return minError;
+    }
+    if (field.max !== undefined) {
+      const maxError = validateNumberMax(value, field.max, field.label);
+      if (maxError) return maxError;
+    }
   }
 
   // Custom validation
@@ -717,10 +739,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
               placeholder={field.placeholder}
               min={field.min}
               max={field.max}
+              aria-invalid={hasError}
+              aria-describedby={
+                field.helperText ? `${field.name}-helper` : undefined
+              }
               className={baseInputClasses}
             />
             {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+              <p
+                id={`${field.name}-helper`}
+                className="mt-1 text-xs text-gray-500"
+              >
+                {field.helperText}
+              </p>
             )}
           </div>
         );

@@ -3,6 +3,8 @@ package checkin
 import (
 	"fmt"
 	"time"
+
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // Typed errors for the RFID check-in workflow (issue #575 B8).
@@ -77,7 +79,6 @@ const (
 	checkinErrEndVisit          = "failed to end visit record"
 	checkinErrCreateVisit       = "failed to create visit record"
 	checkinErrGetRoom           = "failed to get room information"
-	checkinErrCheckRoomCapacity = "failed to check room capacity"
 	checkinErrGetActivity       = "failed to get activity information"
 	checkinErrCheckActivityCap  = "failed to check activity capacity"
 	checkinErrFindActiveGroups  = "error finding active groups in room"
@@ -103,16 +104,7 @@ const (
 // RoomCapacityError carries the room-occupancy context for a 409 room-capacity
 // conflict. The handler converts it 1:1 to the capacity renderer that emits the
 // pinned ROOM_CAPACITY_EXCEEDED wire body.
-type RoomCapacityError struct {
-	RoomID           int64
-	RoomName         string
-	CurrentOccupancy int
-	MaxCapacity      int
-}
-
-func (e *RoomCapacityError) Error() string {
-	return fmt.Sprintf("room capacity exceeded: %s (%d/%d)", e.RoomName, e.CurrentOccupancy, e.MaxCapacity)
-}
+type RoomCapacityError = activeSvc.RoomCapacityError
 
 // ActivityCapacityError carries the activity-occupancy context for a 409
 // activity-capacity conflict. The handler converts it 1:1 to the capacity

@@ -96,7 +96,12 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     building: backendRoom.building,
     // Convert null to undefined for optional fields
     floor: backendRoom.floor ?? undefined,
-    capacity: backendRoom.capacity ?? undefined,
+    capacity:
+      backendRoom.capacity !== null &&
+      backendRoom.capacity !== undefined &&
+      backendRoom.capacity > 0
+        ? backendRoom.capacity
+        : undefined,
     category: backendRoom.category ?? undefined,
     color: backendRoom.color ?? undefined,
     deviceId: backendRoom.device_id,
@@ -159,6 +164,12 @@ export function prepareRoomForBackend(
   }
   if (room.floor !== undefined) {
     backendRoom.floor = room.floor;
+  }
+  const capacity = (room as { capacity?: unknown }).capacity;
+  if (typeof capacity === "number") {
+    backendRoom.capacity = capacity;
+  } else if (capacity === null || capacity === "") {
+    backendRoom.capacity = null;
   }
   if (room.category !== undefined && room.category !== "") {
     backendRoom.category = room.category;

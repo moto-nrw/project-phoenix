@@ -283,6 +283,11 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	if err != nil {
 		return nil, 0, err
 	}
+	if transferredCount > 0 {
+		if err := s.ensureRoomCapacity(ctx, roomID, 0); err != nil {
+			return nil, 0, err
+		}
+	}
 
 	return newGroup, transferredCount, nil
 }
@@ -515,6 +520,28 @@ func (s *service) transferForceStartedActivityState(ctx context.Context, oldGrou
 }
 
 func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
+	if s.GroupRepo == nil {
+		return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+	}
+	oldGroup, err := s.GroupRepo.FindByID(ctx, oldGroupID)
+	if err != nil {
+		return 0, err
+	}
+	newGroup, err := s.GroupRepo.FindByID(ctx, newGroupID)
+	if err != nil {
+		return 0, err
+	}
+	if oldGroup != nil && newGroup != nil && oldGroup.RoomID != newGroup.RoomID {
+		incoming, err := s.VisitRepo.CountActiveByGroupID(ctx, oldGroupID)
+		if err != nil {
+			return 0, err
+		}
+		if incoming > 0 {
+			if err := s.ensureRoomCapacity(ctx, newGroup.RoomID, incoming); err != nil {
+				return 0, err
+			}
+		}
+	}
 	return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
 }
 

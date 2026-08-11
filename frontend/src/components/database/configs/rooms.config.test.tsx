@@ -38,9 +38,23 @@ describe("roomsConfig", () => {
     expect(fieldNames).toContain("category");
     expect(fieldNames).toContain("building");
     expect(fieldNames).toContain("floor");
+    expect(fieldNames).toContain("capacity");
     // Color picker is part of the form (Issue #1324) so admins can override
     // the default OTHER_ROOM blue per room.
     expect(fieldNames).toContain("color");
+  });
+
+  it("configures room capacity as an optional positive number", () => {
+    const fields = roomsConfig.form.sections[0]?.fields ?? [];
+    const capacityField = fields.find((field) => field.name === "capacity");
+
+    expect(capacityField).toMatchObject({
+      type: "number",
+      required: false,
+      min: 1,
+      placeholder: "Keine Begrenzung",
+    });
+    expect(capacityField?.helperText).toContain("gleichzeitig eingecheckt");
   });
 
   it("does not force a default color (Issue #1324)", () => {

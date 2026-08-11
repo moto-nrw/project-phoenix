@@ -306,38 +306,6 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 		return nil, nil, newInternalError(checkinErrGetRoom)
 	}
 
-	if room != nil && room.Capacity != nil {
-		currentOccupancy, countErr := s.active.CountActiveVisitsByRoomID(ctx, roomID)
-		if countErr != nil {
-			s.getLogger().ErrorContext(ctx, "failed to count room occupancy",
-				slog.Int64("room_id", roomID),
-				slog.String("error", countErr.Error()),
-			)
-			return nil, nil, newInternalError(checkinErrCheckRoomCapacity)
-		}
-
-		if currentOccupancy >= *room.Capacity {
-			s.getLogger().WarnContext(ctx, "room is at capacity",
-				slog.String("room_name", room.Name),
-				slog.Int64("room_id", roomID),
-				slog.Int("current_occupancy", currentOccupancy),
-				slog.Int("capacity", *room.Capacity),
-			)
-			return nil, nil, &RoomCapacityError{
-				RoomID:           roomID,
-				RoomName:         room.Name,
-				CurrentOccupancy: currentOccupancy,
-				MaxCapacity:      *room.Capacity,
-			}
-		}
-
-		s.getLogger().DebugContext(ctx, "room capacity check passed",
-			slog.String("room_name", room.Name),
-			slog.Int("current_occupancy", currentOccupancy),
-			slog.Int("capacity", *room.Capacity),
-		)
-	}
-
 	selection, err := s.findOrCreateActiveGroupForRoom(ctx, room, deviceID)
 	if err != nil {
 		return nil, nil, err
@@ -358,6 +326,10 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 		slog.Int64("active_group_id", selection.Group.ID),
 	)
 	if err := s.active.CreateVisit(ctx, newVisit); err != nil {
+		var roomCapacityErr *activeSvc.RoomCapacityError
+		if errors.As(err, &roomCapacityErr) {
+			return nil, nil, roomCapacityErr
+		}
 		// Duplicate active visit — race between two concurrent scans, or a
 		// previous checkout that didn't fully commit. Surface as a 409
 		// conflict carrying the existing visit details.

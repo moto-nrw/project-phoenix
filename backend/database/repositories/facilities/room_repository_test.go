@@ -123,6 +123,22 @@ func TestRoomRepository_Update(t *testing.T) {
 		assert.Equal(t, 35, *found.Capacity)
 	})
 
+	t.Run("clears an existing capacity", func(t *testing.T) {
+		room := &facilities.Room{
+			Name:     fmt.Sprintf("ClearRoomCapacity_%d", time.Now().UnixNano()),
+			Capacity: testpkg.IntPtr(20),
+		}
+		require.NoError(t, repo.Create(ctx, room))
+		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
+
+		room.Capacity = nil
+		require.NoError(t, repo.Update(ctx, room))
+
+		found, err := repo.FindByID(ctx, room.ID)
+		require.NoError(t, err)
+		assert.Nil(t, found.Capacity)
+	})
+
 	t.Run("update with nil room should fail", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
 		assert.Error(t, err)
