@@ -192,10 +192,19 @@ type RegisterRequest struct {
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 	RoleID          *int64 `json:"role_id,omitempty"` // Optional role assignment
+
+	// Identity fields. Supplying them makes the account staff at the school in
+	// the same transaction (#2222) instead of leaving that to follow-up
+	// requests that may never arrive.
+	FirstName string  `json:"first_name,omitempty"`
+	LastName  string  `json:"last_name,omitempty"`
+	TagID     *string `json:"tag_id,omitempty"`
 }
 
 // Bind validates the register request
 func (req *RegisterRequest) Bind(_ *http.Request) error {
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
 	return validateAccountCredentialFields(req, &req.Email, &req.Username, &req.Password, &req.ConfirmPassword)
 }
 
@@ -227,16 +236,36 @@ type AccountResponse struct {
 	Active      bool     `json:"active"`
 	Roles       []string `json:"roles,omitempty"`
 	Permissions []string `json:"permissions,omitempty"`
+
+	// SchoolIdentity reports what was provisioned alongside the account, so the
+	// caller can attach staff details without looking the rows up again. Absent
+	// when the request carried no identity fields.
+	SchoolIdentity *SchoolIdentityResponse `json:"school_identity,omitempty"`
+}
+
+// SchoolIdentityResponse carries the ids of the person/staff chain provisioned
+// for an account at the caller's school.
+type SchoolIdentityResponse struct {
+	PersonID  int64 `json:"person_id"`
+	StaffID   int64 `json:"staff_id"`
+	TeacherID int64 `json:"teacher_id,omitempty"`
 }
 
 // LinkToTenantRequest represents a request to link an existing account to the current tenant.
 type LinkToTenantRequest struct {
 	Email  string `json:"email"`
 	RoleID *int64 `json:"role_id,omitempty"`
+
+	// Identity fields, same meaning as on RegisterRequest (#2222).
+	FirstName string  `json:"first_name,omitempty"`
+	LastName  string  `json:"last_name,omitempty"`
+	TagID     *string `json:"tag_id,omitempty"`
 }
 
 func (req *LinkToTenantRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Email, validation.Required, is.Email),
 	)

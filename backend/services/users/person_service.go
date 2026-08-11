@@ -618,33 +618,41 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 // CreateStaffWithTeacher creates a staff record and, when requested, a teacher
 // record in one tenant transaction. A failed teacher creation is deliberately
 // non-fatal: the staff row still persists (historical api/staff behaviour).
+//
+// A person that already carries a live staff record adopts it instead of
+// getting a second one. Since #2222 the account-creating paths provision the
+// person → staff chain themselves, so the staff creation that follows in the
+// same flow finds its row already there; adopting turns what would be a
+// duplicate row into the detail update the caller meant.
 func (s *personService) CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
-	staff := &userModels.Staff{
-		PersonID:   input.PersonID,
-		StaffNotes: input.StaffNotes,
-	}
-
+	var staff *userModels.Staff
 	var teacher *userModels.Teacher
 	teacherCreationFailed := false
 
 	tenantID := tenant.FromContext(ctx)
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := s.StaffRepo.Create(ctx, staff); err != nil {
+		existing, err := s.StaffRepo.FindByPersonID(ctx, input.PersonID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
+		}
+		if existing != nil && existing.DeletedAt == nil {
+			existing.StaffNotes = input.StaffNotes
+			if err := s.StaffRepo.Update(ctx, existing); err != nil {
+				return err
+			}
+			staff = existing
+		} else {
+			staff = &userModels.Staff{
+				PersonID:   input.PersonID,
+				StaffNotes: input.StaffNotes,
+			}
+			if err := s.StaffRepo.Create(ctx, staff); err != nil {
+				return err
+			}
 		}
 
 		if input.IsTeacher {
-			teacher = &userModels.Teacher{
-				StaffID:        staff.ID,
-				Specialization: strings.TrimSpace(input.Specialization),
-				Role:           input.Role,
-				Qualifications: input.Qualifications,
-			}
-			if s.TeacherRepo.Create(ctx, teacher) != nil {
-				// Still return the staff member even if teacher creation fails
-				teacher = nil
-				teacherCreationFailed = true
-			}
+			teacher, teacherCreationFailed = s.ensureTeacherForStaff(ctx, staff.ID, input)
 		}
 
 		return nil
@@ -653,6 +661,35 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 	}
 
 	return staff, teacher, teacherCreationFailed, nil
+}
+
+// ensureTeacherForStaff creates the caregiver profile or updates the live one.
+// Failures are non-fatal by design (see CreateStaffWithTeacher).
+func (s *personService) ensureTeacherForStaff(ctx context.Context, staffID int64, input CreateStaffInput) (*userModels.Teacher, bool) {
+	existing, err := s.TeacherRepo.FindByStaffID(ctx, staffID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, true
+	}
+	if existing != nil && existing.DeletedAt == nil {
+		existing.Specialization = strings.TrimSpace(input.Specialization)
+		existing.Role = input.Role
+		existing.Qualifications = input.Qualifications
+		if s.TeacherRepo.Update(ctx, existing) != nil {
+			return nil, true
+		}
+		return existing, false
+	}
+
+	teacher := &userModels.Teacher{
+		StaffID:        staffID,
+		Specialization: strings.TrimSpace(input.Specialization),
+		Role:           input.Role,
+		Qualifications: input.Qualifications,
+	}
+	if s.TeacherRepo.Create(ctx, teacher) != nil {
+		return nil, true
+	}
+	return teacher, false
 }
 
 // UpdateStaffWithTeacher applies the mutable directory fields to a freshly

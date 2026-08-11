@@ -537,15 +537,54 @@ func TestTranslateRoleNameToGerman(t *testing.T) {
 	}
 }
 
-func TestShouldCreateTeacherForRole(t *testing.T) {
-	require.True(t, shouldCreateTeacherForRole("teacher"))
-	require.True(t, shouldCreateTeacherForRole("Teacher"))
-	require.True(t, shouldCreateTeacherForRole("user"))
-	require.False(t, shouldCreateTeacherForRole("admin"))
-	// A Lehrkraft (#1772) gets the staff record every system role gets, but
+// Successor of TestShouldCreateTeacherForRole: the name-based helper became the
+// tier-based RoleNeedsCaregiverProfile (#2222). Every assertion of the old test
+// is kept; the new cases are the school's own roles, which the name check could
+// not see at all.
+func TestRoleNeedsCaregiverProfile(t *testing.T) {
+	system := func(name string) *authModel.Role { return &authModel.Role{Name: name, IsSystem: true} }
+	custom := func(name, base string) *authModel.Role {
+		return &authModel.Role{Name: name, BaseRole: &base}
+	}
+
+	require.True(t, RoleNeedsCaregiverProfile(system("teacher")))
+	require.True(t, RoleNeedsCaregiverProfile(system("Teacher")))
+	require.True(t, RoleNeedsCaregiverProfile(system("user")))
+	require.False(t, RoleNeedsCaregiverProfile(system("admin")))
+	// A Lehrkraft (#1772) gets the staff record every staff role gets, but
 	// deliberately no users.teachers caregiver profile: it supervises no OGS
 	// group, its scope comes from education.class_teachers.
-	require.False(t, shouldCreateTeacherForRole("lehrkraft"))
+	require.False(t, RoleNeedsCaregiverProfile(system("lehrkraft")))
+
+	// A school's own role is decided by its tier, not by its label.
+	require.True(t, RoleNeedsCaregiverProfile(custom("OGS-Kraft", authModel.BaseRoleUser)))
+	require.False(t, RoleNeedsCaregiverProfile(custom("OGS-Leitung", authModel.BaseRoleAdmin)))
+	// The label alone means nothing: a custom role named "teacher" with an
+	// admin tier is an admin role.
+	require.False(t, RoleNeedsCaregiverProfile(custom("teacher", authModel.BaseRoleAdmin)))
+	require.False(t, RoleNeedsCaregiverProfile(nil))
+}
+
+// The bug of #2222: a school's own role produced a person and no staff record.
+// Staff membership is decided by tier, and an unknown tier (base_role NULL on a
+// role created before the column existed) counts as personnel — a staff row
+// grants nothing, withholding it is what breaks the account.
+func TestRoleNeedsStaffRecord(t *testing.T) {
+	custom := func(name string, base *string) *authModel.Role {
+		return &authModel.Role{Name: name, BaseRole: base}
+	}
+	ptr := func(s string) *string { return &s }
+
+	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "admin", IsSystem: true}))
+	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "user", IsSystem: true}))
+	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
+	require.True(t, RoleNeedsStaffRecord(custom("OGS-Leitung", ptr(authModel.BaseRoleAdmin))))
+	require.True(t, RoleNeedsStaffRecord(custom("OGS-Kraft", ptr(authModel.BaseRoleUser))))
+	require.True(t, RoleNeedsStaffRecord(custom("Alt-Rolle", nil)))
+
+	require.False(t, RoleNeedsStaffRecord(&authModel.Role{Name: "guardian", IsSystem: true}))
+	require.False(t, RoleNeedsStaffRecord(custom("Sorgeberechtigt", ptr(authModel.BaseRoleGuardian))))
+	require.False(t, RoleNeedsStaffRecord(nil))
 }
 
 // The caregiver upgrade (#1772) is refused for the lehrkraft SYSTEM role in

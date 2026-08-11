@@ -1069,6 +1069,20 @@ func (r *stubPersonRepository) LinkToAccount(_ context.Context, personID, accoun
 	return fmt.Errorf("person %d not found", personID)
 }
 
+// FindByAccountID mirrors the real repository: no match is a clean (nil, nil),
+// not an error. The identity provisioning walks this first to reuse an existing
+// person instead of creating a second one (#2222).
+func (r *stubPersonRepository) FindByAccountID(_ context.Context, accountID int64) (*userModel.Person, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, person := range r.people {
+		if person.AccountID != nil && *person.AccountID == accountID {
+			return person, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *stubPersonRepository) FindByID(_ context.Context, id interface{}) (*userModel.Person, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1314,10 +1328,22 @@ func newStubStaffRepository() (*testpkg.StaffRepoMock, func() []*userModel.Staff
 			staff[s.ID] = s
 			return nil
 		},
-		FindByIDFn:       func(context.Context, any) (*userModel.Staff, error) { panic("FindByID not implemented") },
-		FindByPersonIDFn: func(context.Context, int64) (*userModel.Staff, error) { panic("FindByPersonID not implemented") },
-		UpdateFn:         func(context.Context, *userModel.Staff) error { panic("Update not implemented") },
-		DeleteFn:         func(context.Context, any) error { panic("Delete not implemented") },
+		FindByIDFn: func(context.Context, any) (*userModel.Staff, error) { panic("FindByID not implemented") },
+		// Mirrors the real repository, which reports "no staff" as
+		// sql.ErrNoRows. The identity provisioning looks a live staff row up
+		// before creating one so a re-grant reuses it (#2222).
+		FindByPersonIDFn: func(_ context.Context, personID int64) (*userModel.Staff, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			for _, s := range staff {
+				if s.PersonID == personID {
+					return s, nil
+				}
+			}
+			return nil, sql.ErrNoRows
+		},
+		UpdateFn: func(context.Context, *userModel.Staff) error { panic("Update not implemented") },
+		DeleteFn: func(context.Context, any) error { panic("Delete not implemented") },
 		ListFn: func(context.Context, map[string]any) ([]*userModel.Staff, error) {
 			panic("List not implemented")
 		},
@@ -1392,8 +1418,18 @@ func (r *stubTeacherRepository) FindByID(context.Context, interface{}) (*userMod
 	panic("FindByID not implemented")
 }
 
-func (r *stubTeacherRepository) FindByStaffID(context.Context, int64) (*userModel.Teacher, error) {
-	panic("FindByStaffID not implemented")
+// FindByStaffID mirrors the real repository: no match is a clean (nil, nil).
+// The identity provisioning checks for a live caregiver profile before
+// creating one (#2222).
+func (r *stubTeacherRepository) FindByStaffID(_ context.Context, staffID int64) (*userModel.Teacher, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, teacher := range r.teachers {
+		if teacher.StaffID == staffID {
+			return teacher, nil
+		}
+	}
+	return nil, nil
 }
 
 func (r *stubTeacherRepository) FindByStaffIDs(context.Context, []int64) (map[int64]*userModel.Teacher, error) {

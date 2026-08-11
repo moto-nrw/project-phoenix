@@ -241,22 +241,21 @@ describe("teacher-api", () => {
       ).rejects.toThrow("Role ID is required for creating a teacher");
     });
 
-    it("creates teacher with full flow (account -> person -> staff)", async () => {
+    it("creates teacher with full flow (account+identity -> staff details)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock account creation
+      // Mock account creation — the backend provisions person and staff in the
+      // same transaction and reports their ids (#2222)
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ id: 50 }),
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            school_identity: { person_id: 100, staff_id: 7 },
+          }),
       } as Response);
 
-      // Mock person creation
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: { data: { id: 100 } } }),
-      } as Response);
-
-      // Mock staff creation
+      // Mock staff details
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(sampleTeacher),
@@ -284,19 +283,17 @@ describe("teacher-api", () => {
     it("uses provided email instead of generating one", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock account creation
+      // Mock account creation with provisioned identity
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ id: 50 }),
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            school_identity: { person_id: 100, staff_id: 7 },
+          }),
       } as Response);
 
-      // Mock person creation
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: { id: 100 } }),
-      } as Response);
-
-      // Mock staff creation
+      // Mock staff details
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(sampleTeacher),
@@ -339,20 +336,15 @@ describe("teacher-api", () => {
       );
     });
 
-    it("throws error when person creation fails", async () => {
+    // Successor of "throws error when person creation fails": the person is no
+    // longer created by a second request, so the failure to cover is the
+    // account coming back without a provisioned identity (#2222).
+    it("throws when the account response carries no school identity", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock successful account creation
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ id: 50 }),
-      } as Response);
-
-      // Mock person creation failure
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Bad Request",
-        json: () => Promise.resolve({ message: "Invalid person data" }),
       } as Response);
 
       await expect(
@@ -362,22 +354,24 @@ describe("teacher-api", () => {
           password: "SecurePass123!",
           role_id: 1,
         }),
-      ).rejects.toThrow("Failed to create person: Invalid person data");
+      ).rejects.toThrow("kein Mitarbeiter-Datensatz");
+      expect(consoleSpies.error).toHaveBeenCalledWith(
+        "account created without school identity",
+        undefined,
+      );
     });
 
     it("throws error when staff creation fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock successful account creation
+      // Mock successful account creation with identity
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ id: 50 }),
-      } as Response);
-
-      // Mock successful person creation
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: { id: 100 } }),
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            school_identity: { person_id: 100, staff_id: 7 },
+          }),
       } as Response);
 
       // Mock staff creation failure
@@ -420,29 +414,42 @@ describe("teacher-api", () => {
       );
     });
 
-    it("throws error when person ID is not returned", async () => {
+    // The identity fields are what makes the backend provision the person and
+    // staff record with the account. Sending them is the contract that replaced
+    // the separate person request (#2222).
+    it("sends the identity fields with the account creation", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock successful account creation
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ id: 50 }),
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            school_identity: { person_id: 100, staff_id: 7 },
+          }),
       } as Response);
-
-      // Mock person creation with unexpected format
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({}),
+        json: () => Promise.resolve(sampleTeacher),
       } as Response);
 
-      await expect(
-        teacherService.createTeacher({
-          first_name: "Test",
-          last_name: "Teacher",
-          password: "SecurePass123!",
-          role_id: 1,
-        }),
-      ).rejects.toThrow("Failed to get person ID from response");
+      await teacherService.createTeacher({
+        first_name: "Test",
+        last_name: "Teacher",
+        tag_id: "TAG-1",
+        password: "SecurePass123!",
+        role_id: 1,
+      });
+
+      const registerCall = mockFetch.mock.calls.find(
+        (call) => call[0] === "/api/auth/register",
+      );
+      expect(registerCall).toBeDefined();
+      const registerInit = registerCall![1] as { body: string };
+      const body = JSON.parse(registerInit.body) as Record<string, unknown>;
+      expect(body.first_name).toBe("Test");
+      expect(body.last_name).toBe("Teacher");
+      expect(body.tag_id).toBe("TAG-1");
     });
   });
 
@@ -754,19 +761,17 @@ describe("teacher-api", () => {
     it("links existing account and creates person + staff", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
-      // Mock link-to-tenant
+      // Mock link-to-tenant — person and staff come with the link (#2222)
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ id: 99 }),
+        json: () =>
+          Promise.resolve({
+            id: 99,
+            school_identity: { person_id: 200, staff_id: 8 },
+          }),
       } as Response);
 
-      // Mock person creation
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: { data: { id: 200 } } }),
-      } as Response);
-
-      // Mock staff creation
+      // Mock staff details
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(sampleTeacher),
@@ -819,7 +824,7 @@ describe("teacher-api", () => {
       );
     });
 
-    it("throws error when link response has no account ID", async () => {
+    it("throws error when link response has no school identity", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
       mockFetch.mockResolvedValueOnce({
@@ -836,7 +841,7 @@ describe("teacher-api", () => {
           linkExisting: true,
         }),
       ).rejects.toThrow(
-        "Konto-ID konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
+        "Der Mitarbeiter-Datensatz konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
       );
     });
   });

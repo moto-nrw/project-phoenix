@@ -160,7 +160,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		// identity fields, so the switch belongs to offboarding plus a fresh
 		// account. Roles that legitimately run without a profile (admin) are
 		// unaffected.
-		if RequiresCaregiverProfile(role) {
+		if RoleNeedsCaregiverProfile(role) {
 			isLehrkraft, roleErr := s.accountHoldsLehrkraftRole(txCtx, int64(accountID))
 			if roleErr != nil {
 				return &AuthError{Op: "assign role", Err: roleErr}

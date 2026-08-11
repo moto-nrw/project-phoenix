@@ -1,0 +1,276 @@
+package auth
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+)
+
+// The identity an account needs to be usable as personnel at a school:
+// users.persons -> users.staff -> (for caregiver roles) users.teachers.
+//
+// Every path that grants school access maintains this chain: the staff
+// invitation flow, /auth/register and /auth/link-to-tenant, and the
+// operator-led school access. They used to answer "is this personnel?"
+// three different ways — the invitation flow asked whether the role was a
+// platform role (auth.roles.is_system), which stopped being the same question
+// the moment schools could define their own roles (#2222). An account invited
+// with a school's own role received a person and nothing else: it holds its
+// role, logs in, and is not staff as far as the database is concerned, so
+// every screen behind GetCurrentStaff is dead for it.
+//
+// The question is answered here, once, for all of them.
+
+// ErrSchoolIdentityNamesRequired is returned when an identity has to be
+// created but the caller supplied no name for it. There is nowhere else to
+// take one from: an account carries an email and a username, never a person's
+// name.
+var ErrSchoolIdentityNamesRequired = errors.New("Vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen") //nolint:staticcheck // ST1005: user-facing German message
+
+// SchoolIdentityRepos bundles the repositories the identity chain lives in.
+type SchoolIdentityRepos struct {
+	Persons  userModels.PersonRepository
+	Staff    userModels.StaffRepository
+	Teachers userModels.TeacherRepository
+}
+
+// SchoolIdentityInput describes the identity to provision.
+type SchoolIdentityInput struct {
+	AccountID int64
+	TenantID  int64
+	Role      *authModels.Role
+
+	// FirstName/LastName are consulted only when no person exists yet.
+	FirstName string
+	LastName  string
+	TagID     *string
+
+	// Position fills users.teachers.role when a caregiver profile is created.
+	Position string
+
+	// CaregiverUpgrade provisions the caregiver profile for a role that would
+	// not get one on its own — the invitation flag that additionally hands out
+	// the platform user role.
+	CaregiverUpgrade bool
+
+	// CreatePerson allows the caller to refuse inventing an identity for an
+	// account that has none at this school yet. The operator role change uses
+	// this: changing a role must not conjure a person out of thin air.
+	CreatePerson bool
+}
+
+// SchoolIdentity is what the account carries at the school afterwards. Teacher
+// is nil for roles that run without a caregiver profile.
+type SchoolIdentity struct {
+	Person  *userModels.Person
+	Staff   *userModels.Staff
+	Teacher *userModels.Teacher
+}
+
+// RoleNeedsStaffRecord reports whether an account holding this role at a school
+// must carry a users.staff row.
+//
+// Everything that is not a guardian is personnel. Guardians are the one tier
+// that is deliberately not staff; their portal reads through
+// users.guardian_profiles and their access is granted by the guardian
+// invitation flow.
+//
+// An unknown tier (a school role created before base_role existed, where the
+// column is still NULL) counts as personnel on purpose. This decision must
+// fail OPEN, unlike CanGrantRole next door which fails closed: a staff row
+// grants no permission whatsoever, it is a directory entry. Withholding it is
+// what breaks the account; handing out a spurious one costs a row.
+func RoleNeedsStaffRecord(role *authModels.Role) bool {
+	if role == nil {
+		return false
+	}
+	return !strings.EqualFold(authorize.EffectiveBaseRole(role), authModels.BaseRoleGuardian)
+}
+
+// RoleNeedsCaregiverProfile reports whether a role only works on an account
+// that also carries a caregiver profile (users.teachers). These are the roles
+// whose whole surface — GetMyGroups, group supervision, the caregiver landing
+// page — reads through that profile; without it the account holds the
+// permissions but every caregiver screen is empty.
+//
+// Decided by tier, so a school's own role with base_role 'user' gets the same
+// profile the platform user role gets (#2222). Without that, such a role would
+// appear in the staff list and still show empty groups and supervisions, which
+// is the same bug one level down.
+func RoleNeedsCaregiverProfile(role *authModels.Role) bool {
+	if role == nil {
+		return false
+	}
+	// The Lehrkraft role carries base_role 'user' for grant classification but
+	// is class_day-read-only by design; a caregiver profile would undo exactly
+	// that (#1772).
+	if IsLehrkraftSystemRole(role) {
+		return false
+	}
+	if strings.EqualFold(authorize.EffectiveBaseRole(role), authModels.BaseRoleUser) {
+		return true
+	}
+	// The retired teacher role predates base_role and was never backfilled, so
+	// it stays a name match, narrowed to system roles.
+	return role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), legacyTeacherRoleName)
+}
+
+// IsPlatformCaregiverRole reports whether the role IS the platform caregiver
+// role (or its retired predecessor), as opposed to merely being of that tier.
+// The caregiver upgrade asks this narrower question: it hands out the platform
+// user role for its permissions, which a school's own role of the same tier
+// does not carry — base_role classifies, it does not grant.
+func IsPlatformCaregiverRole(role *authModels.Role) bool {
+	if role == nil || !role.IsSystem {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(role.Name)) {
+	case authModels.BaseRoleUser, legacyTeacherRoleName:
+		return true
+	default:
+		return false
+	}
+}
+
+// EnsureSchoolIdentity creates the person, staff and (for caregiver roles)
+// teacher rows the account needs to be usable at the school in ctx.
+//
+// Every step is idempotent: an account that already carries part of the chain
+// keeps it. That matters for re-granted access and for a re-invitation after
+// offboarding — the person row survives access revocation on purpose (it
+// carries the name on historical attendance rows), and creating a second one
+// would hit the partial unique index on (tenant_id, account_id).
+//
+// Returns (nil, nil) for roles that need no staff record, and for an account
+// without a person when the caller passed CreatePerson=false.
+//
+// Callers must run this inside the school's tenant transaction: the repository
+// walk is tenant-filtered, and the whole chain has to commit or roll back as
+// one — a half-written chain is the exact state this function exists to
+// prevent.
+func EnsureSchoolIdentity(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	in SchoolIdentityInput,
+) (*SchoolIdentity, error) {
+	if !RoleNeedsStaffRecord(in.Role) {
+		return nil, nil
+	}
+
+	person, err := resolveIdentityPerson(ctx, repos, in)
+	if err != nil || person == nil {
+		return nil, err
+	}
+
+	staff, err := ensureIdentityStaff(ctx, repos, in, person.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	identity := &SchoolIdentity{Person: person, Staff: staff}
+
+	if !RoleNeedsCaregiverProfile(in.Role) && !in.CaregiverUpgrade {
+		return identity, nil
+	}
+
+	teacher, err := ensureIdentityTeacher(ctx, repos, in, staff.ID)
+	if err != nil {
+		return nil, err
+	}
+	identity.Teacher = teacher
+
+	return identity, nil
+}
+
+// resolveIdentityPerson returns the account's live person at this school,
+// creating it when the caller allows it. Returns (nil, nil) when there is none
+// and the caller refused to create one.
+func resolveIdentityPerson(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	in SchoolIdentityInput,
+) (*userModels.Person, error) {
+	person, err := repos.Persons.FindByAccountID(ctx, in.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	if person != nil && person.DeletedAt == nil {
+		return person, nil
+	}
+	if !in.CreatePerson {
+		return nil, nil
+	}
+
+	firstName := strings.TrimSpace(in.FirstName)
+	lastName := strings.TrimSpace(in.LastName)
+	if firstName == "" || lastName == "" {
+		return nil, ErrSchoolIdentityNamesRequired
+	}
+
+	person = &userModels.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		TagID:     in.TagID,
+	}
+	person.SetTenantID(in.TenantID)
+	if err := repos.Persons.Create(ctx, person); err != nil {
+		return nil, fmt.Errorf("create person: %w", err)
+	}
+	if err := repos.Persons.LinkToAccount(ctx, person.ID, in.AccountID); err != nil {
+		return nil, fmt.Errorf("link person to account: %w", err)
+	}
+	person.AccountID = &in.AccountID
+
+	return person, nil
+}
+
+func ensureIdentityStaff(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	in SchoolIdentityInput,
+	personID int64,
+) (*userModels.Staff, error) {
+	// StaffRepo reports "no staff" as sql.ErrNoRows, not as a nil result.
+	staff, err := repos.Staff.FindByPersonID(ctx, personID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if staff != nil && staff.DeletedAt == nil {
+		return staff, nil
+	}
+
+	staff = &userModels.Staff{PersonID: personID}
+	staff.SetTenantID(in.TenantID)
+	if err := repos.Staff.Create(ctx, staff); err != nil {
+		return nil, fmt.Errorf("create staff: %w", err)
+	}
+	return staff, nil
+}
+
+func ensureIdentityTeacher(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	in SchoolIdentityInput,
+	staffID int64,
+) (*userModels.Teacher, error) {
+	teacher, err := repos.Teachers.FindByStaffID(ctx, staffID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if teacher != nil && teacher.DeletedAt == nil {
+		return teacher, nil
+	}
+
+	teacher = &userModels.Teacher{StaffID: staffID, Role: strings.TrimSpace(in.Position)}
+	teacher.SetTenantID(in.TenantID)
+	if err := repos.Teachers.Create(ctx, teacher); err != nil {
+		return nil, fmt.Errorf("create teacher: %w", err)
+	}
+	return teacher, nil
+}

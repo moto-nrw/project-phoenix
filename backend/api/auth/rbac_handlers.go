@@ -202,7 +202,7 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	requestedRoleID := int64(roleID)
-	approvedRoleID, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
+	approvedRoleID, _, _, abort := rs.authorizeRoleAssignment(w, r, &requestedRoleID)
 	if abort {
 		return
 	}

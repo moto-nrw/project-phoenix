@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -257,14 +256,15 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 				return &InvalidDataError{Err: fmt.Errorf("cannot assign the lehrkraft role: the account has a caregiver profile at this school; remove it via staff offboarding first")}
 			}
 		}
-		// A caregiver requires a local person, staff and teacher record; a
-		// Lehrkraft (#1772) requires person and staff (no teacher profile) so
-		// the school can assign classes under Mitarbeiter. The role-change
+		// Every staff-tier role requires a local person and staff record, and
+		// caregiver-tier roles additionally a teacher profile (#2222) — a role
+		// that puts someone on the payroll screens but not in users.staff is
+		// the half-state this whole path exists to avoid. The role-change
 		// endpoint has no identity fields, so copy the deterministically
 		// selected active identity from another school (or the local one).
 		// Without one, reject the change before assigning the role.
 		firstName, lastName := "", ""
-		if isSystemCaregiverRole(role) || authSvc.IsLehrkraftSystemRole(role) {
+		if authSvc.RoleNeedsStaffRecord(role) {
 			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
 			if findErr != nil {
 				return findErr
@@ -585,98 +585,23 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 	firstName, lastName, position string,
 	createPerson bool,
 ) error {
-	baseRole := roleBaseName(role)
-	if baseRole == "" {
-		return nil
+	_, err := authSvc.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityRepos{
+		Persons:  s.PersonRepo,
+		Staff:    s.StaffRepo,
+		Teachers: s.TeacherRepo,
+	}, authSvc.SchoolIdentityInput{
+		AccountID:    accountID,
+		TenantID:     schoolID,
+		Role:         role,
+		FirstName:    firstName,
+		LastName:     lastName,
+		Position:     position,
+		CreatePerson: createPerson,
+	})
+	if errors.Is(err, authSvc.ErrSchoolIdentityNamesRequired) {
+		return &InvalidDataError{Err: err}
 	}
-	if strings.EqualFold(baseRole, authModels.BaseRoleGuardian) {
-		return nil
-	}
-
-	person, err := s.PersonRepo.FindByAccountID(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	if person != nil && person.DeletedAt != nil {
-		person = nil
-	}
-	if person == nil {
-		if !createPerson {
-			return nil
-		}
-		if firstName == "" || lastName == "" {
-			return &InvalidDataError{Err: fmt.Errorf("first_name and last_name are required for accounts without a person record")}
-		}
-		person = &userModels.Person{FirstName: firstName, LastName: lastName}
-		person.SetTenantID(schoolID)
-		if err := s.PersonRepo.Create(ctx, person); err != nil {
-			return fmt.Errorf("create person: %w", err)
-		}
-		if err := s.PersonRepo.LinkToAccount(ctx, person.ID, accountID); err != nil {
-			return fmt.Errorf("link person to account: %w", err)
-		}
-	}
-
-	// StaffRepo reports "no staff" as sql.ErrNoRows, not as a nil result.
-	staff, err := s.StaffRepo.FindByPersonID(ctx, person.ID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		staff = nil
-	}
-	if staff != nil && staff.DeletedAt != nil {
-		staff = nil
-	}
-	if staff == nil {
-		staff = &userModels.Staff{PersonID: person.ID}
-		staff.SetTenantID(schoolID)
-		if err := s.StaffRepo.Create(ctx, staff); err != nil {
-			return fmt.Errorf("create staff: %w", err)
-		}
-	}
-
-	if !isSystemCaregiverRole(role) {
-		return nil
-	}
-
-	teacher, err := s.TeacherRepo.FindByStaffID(ctx, staff.ID)
-	if err != nil {
-		return err
-	}
-	if teacher != nil {
-		if teacher.DeletedAt != nil {
-			teacher = nil
-		} else {
-			return nil
-		}
-	}
-	teacher = &userModels.Teacher{StaffID: staff.ID}
-	teacher.SetTenantID(schoolID)
-	if position != "" {
-		teacher.Role = position
-	}
-	if err := s.TeacherRepo.Create(ctx, teacher); err != nil {
-		return fmt.Errorf("create teacher: %w", err)
-	}
-	return nil
-}
-
-func roleBaseName(role *authModels.Role) string {
-	if role == nil {
-		return ""
-	}
-	if !role.IsSystem {
-		if role.BaseRole == nil || strings.EqualFold(*role.BaseRole, authModels.BaseRoleGuardian) {
-			return ""
-		}
-		return *role.BaseRole
-	}
-	return role.Name
-}
-
-func isSystemCaregiverRole(role *authModels.Role) bool {
-	return role != nil && role.IsSystem && shouldCreateTeacher(role.Name)
+	return err
 }
 
 func roleOwnedByOtherFeature(role AccountTenantRole) bool {

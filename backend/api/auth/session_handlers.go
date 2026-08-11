@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"log/slog"
@@ -137,19 +138,53 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authorize role assignment (if role_id specified)
-	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	roleID, role, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
 	if shouldReturn {
 		return
 	}
 
-	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID)
+	identity := rs.schoolIdentityFor(r.Context(), role, req.FirstName, req.LastName, req.TagID)
+
+	account, schoolIdentity, err := rs.AuthService.RegisterSchoolAccount(
+		r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID, identity)
 	if err != nil {
 		rs.handleRegistrationError(w, r, err)
 		return
 	}
 
 	resp := buildAccountResponse(account)
+	resp.SchoolIdentity = buildSchoolIdentityResponse(schoolIdentity)
 	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
+}
+
+// schoolIdentityFor turns the request's identity fields into the provisioning
+// input, or nil when there are none.
+//
+// A staff-tier role handed out without them creates an account that holds the
+// role and is not staff — exactly the state issue #2222 is about. The
+// endpoint still accepts it (the operator flow provisions the identity itself,
+// after registering the account), so it is logged rather than refused.
+func (rs *Resource) schoolIdentityFor(
+	ctx context.Context,
+	role *authModel.Role,
+	firstName, lastName string,
+	tagID *string,
+) *authService.SchoolAccountIdentity {
+	if firstName != "" && lastName != "" {
+		return &authService.SchoolAccountIdentity{
+			FirstName: firstName,
+			LastName:  lastName,
+			TagID:     tagID,
+		}
+	}
+	if authService.RoleNeedsStaffRecord(role) {
+		claims := jwt.ClaimsFromCtx(ctx)
+		slog.Default().Warn("school access granted without staff identity",
+			"role_id", role.ID,
+			"tenant_id", claims.TenantID,
+		)
+	}
+	return nil
 }
 
 // linkToTenant links an existing account to the caller's tenant.
@@ -162,12 +197,14 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Require admin auth and resolve role + tenant from JWT
-	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
+	roleID, role, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
 	if shouldReturn {
 		return
 	}
 
-	account, err := rs.AuthService.LinkAccountToTenant(r.Context(), req.Email, roleID, callerTenantID)
+	identity := rs.schoolIdentityFor(r.Context(), role, req.FirstName, req.LastName, req.TagID)
+
+	account, schoolIdentity, err := rs.AuthService.LinkSchoolAccount(r.Context(), req.Email, roleID, callerTenantID, identity)
 	if err != nil {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
@@ -190,30 +227,33 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return ONLY id and email — never leak roles, username, or active status from other tenants
+	// Return ONLY id, email and what was provisioned at THIS school — never leak
+	// roles, username, or active status from other tenants
 	common.Respond(w, r, http.StatusOK, map[string]any{
-		"id":    account.ID,
-		"email": account.Email,
+		"id":              account.ID,
+		"email":           account.Email,
+		"school_identity": buildSchoolIdentityResponse(schoolIdentity),
 	}, "Account linked to tenant successfully")
 }
 
-// authorizeRoleAssignment validates the role_id from the request and returns it along with the
-// caller's tenant ID. Auth and permission checks are handled by middleware (Authenticator +
-// TenantMiddleware + RequiresPermission). Returns the role ID, tenant ID, and whether the
-// handler should return early (true = error rendered).
-func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {
+// authorizeRoleAssignment validates the role_id from the request and returns it
+// along with the resolved role and the caller's tenant ID. Auth and permission
+// checks are handled by middleware (Authenticator + TenantMiddleware +
+// RequiresPermission). Returns the role ID, the role, the tenant ID, and whether
+// the handler should return early (true = error rendered).
+func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, *authModel.Role, int64, bool) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			errors.New("role_id is required when creating accounts")))
-		return nil, 0, true
+		return nil, nil, 0, true
 	}
 
 	if claims.TenantID <= 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
 			authService.ErrTenantRequiredForRoleAssignment))
-		return nil, 0, true
+		return nil, nil, 0, true
 	}
 
 	// Exists, belongs to this school, and is not reserved for another flow —
@@ -223,7 +263,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	role, err := rs.AuthService.ResolveAssignableSchoolRole(r.Context(), *requestedRoleID, claims.TenantID)
 	if err != nil {
 		renderRoleAssignmentError(w, r, *requestedRoleID, err)
-		return nil, 0, true
+		return nil, nil, 0, true
 	}
 
 	// Assignable is not the same as assignable *by this caller*: creating an
@@ -235,10 +275,10 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			"tenant_id", claims.TenantID,
 		)
 		common.RenderError(w, r, common.ErrorForbidden(authService.ErrRoleGrantNotPermitted))
-		return nil, 0, true
+		return nil, nil, 0, true
 	}
 
-	return requestedRoleID, claims.TenantID, false
+	return requestedRoleID, role, claims.TenantID, false
 }
 
 // renderRoleAssignmentError maps a role resolution failure to a response. The
@@ -307,6 +347,22 @@ func buildAccountResponse(account *authModel.Account) *AccountResponse {
 	}
 	resp.Roles = roleNames
 
+	return resp
+}
+
+// buildSchoolIdentityResponse exposes the provisioned ids, or nil when nothing
+// was provisioned.
+func buildSchoolIdentityResponse(identity *authService.SchoolIdentity) *SchoolIdentityResponse {
+	if identity == nil || identity.Person == nil || identity.Staff == nil {
+		return nil
+	}
+	resp := &SchoolIdentityResponse{
+		PersonID: identity.Person.ID,
+		StaffID:  identity.Staff.ID,
+	}
+	if identity.Teacher != nil {
+		resp.TeacherID = identity.Teacher.ID
+	}
 	return resp
 }
 

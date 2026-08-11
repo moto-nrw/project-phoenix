@@ -31,36 +31,39 @@ function extractIdFromResponse(data: {
   return data.id ?? data.data?.id;
 }
 
+/** The person fields the backend needs to provision a staff identity. */
+interface PersonIdentityFields {
+  first_name: string;
+  last_name: string;
+  tag_id?: string | null;
+}
+
+/** What the backend provisioned alongside the account (#2222). */
+interface SchoolIdentity {
+  person_id: number;
+  staff_id: number;
+  teacher_id?: number;
+}
+
+interface AccountWithIdentityResponse {
+  id?: string | number;
+  school_identity?: SchoolIdentity | null;
+  data?: { id?: string | number; school_identity?: SchoolIdentity | null };
+}
+
 /**
- * Extracts person ID from double-wrapped person response
+ * Extracts the provisioned person/staff ids from an account response.
+ *
+ * Present whenever the request carried first_name and last_name: since #2222
+ * the backend creates the person and staff record in the same transaction as
+ * the account, so the client never has to stitch that chain together across
+ * requests — a failure between them used to leave an account that held a role
+ * and was not staff.
  */
-function extractPersonId(responseData: unknown): number | undefined {
-  if (!responseData || typeof responseData !== "object") {
-    return undefined;
-  }
-
-  const response = responseData as {
-    data?: { data?: { id?: number }; id?: number };
-    id?: number;
-  };
-
-  // Try route wrapper → backend wrapper → id
-  if ("data" in response && response.data) {
-    const backendResponse = response.data;
-    if ("data" in backendResponse && backendResponse.data) {
-      return backendResponse.data.id;
-    }
-    if ("id" in backendResponse) {
-      return backendResponse.id;
-    }
-  }
-
-  // Direct PersonResponse format
-  if ("id" in response) {
-    return response.id;
-  }
-
-  return undefined;
+function extractSchoolIdentity(
+  data: AccountWithIdentityResponse,
+): SchoolIdentity | undefined {
+  return data.school_identity ?? data.data?.school_identity ?? undefined;
 }
 
 /**
@@ -222,11 +225,14 @@ class TeacherService {
     const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}_${suffix}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
-    // Step 1: Create account or link existing
-    let accountId: string | number;
+    // Step 1: Create account or link existing. The identity fields go with it,
+    // so the backend creates the person and staff record in the same
+    // transaction (#2222) instead of us stitching the chain together across
+    // three requests that can fail in the middle.
+    let personId: number;
     if (teacherData.linkExisting) {
       // Link existing account — password is NOT changed
-      accountId = await this.linkAccountToTenant(email, roleId);
+      personId = await this.linkAccountToTenant(email, roleId, teacherData);
     } else {
       const password = teacherData.password;
       if (!password) {
@@ -239,17 +245,16 @@ class TeacherService {
         fullName,
         password,
         roleId,
+        teacherData,
       );
       if (createResult.status === "account_exists") {
         return { status: "account_exists", email };
       }
-      accountId = createResult.accountId;
+      personId = createResult.personId;
     }
 
-    // Step 2: Create person linked to account
-    const personId = await this.createPerson(teacherData, accountId);
-
-    // Step 3: Create staff with is_teacher flag
+    // Step 2: apply the staff details to the record that already exists. The
+    // backend adopts it instead of creating a second one.
     const staffData = await this.createStaff(teacherData, personId);
 
     // Return with credentials and name data
@@ -275,9 +280,9 @@ class TeacherService {
     name: string,
     password: string,
     roleId: number,
+    identity: PersonIdentityFields,
   ): Promise<
-    | { status: "created"; accountId: string | number }
-    | { status: "account_exists" }
+    { status: "created"; personId: number } | { status: "account_exists" }
   > {
     const response = await sessionFetch("/api/auth/register", {
       method: "POST",
@@ -289,6 +294,9 @@ class TeacherService {
         password,
         confirm_password: password,
         role_id: roleId,
+        first_name: identity.first_name,
+        last_name: identity.last_name,
+        tag_id: identity.tag_id ?? null,
       }),
     });
 
@@ -309,29 +317,39 @@ class TeacherService {
       throw new Error(`Konto konnte nicht erstellt werden: ${msg}`);
     }
 
-    const data = (await response.json()) as {
-      id?: string | number;
-      data?: { id?: string | number };
-    };
-    const accountId = extractIdFromResponse(data);
-
-    if (!accountId) {
+    const data = (await response.json()) as AccountWithIdentityResponse;
+    if (!extractIdFromResponse(data)) {
       logger.error("failed to get account ID from response");
       throw new Error("Failed to get account ID from response");
     }
 
-    return { status: "created" as const, accountId };
+    const identityIds = extractSchoolIdentity(data);
+    if (!identityIds) {
+      logger.error("account created without school identity");
+      throw new Error(
+        "Das Konto wurde angelegt, aber kein Mitarbeiter-Datensatz. Bitte erneut versuchen.",
+      );
+    }
+
+    return { status: "created" as const, personId: identityIds.person_id };
   }
 
   /** Links an existing account to the current tenant. */
   private async linkAccountToTenant(
     email: string,
     roleId: number,
-  ): Promise<string | number> {
+    identity: PersonIdentityFields,
+  ): Promise<number> {
     const response = await sessionFetch("/api/auth/link-to-tenant", {
       method: "POST",
       credentials: "include",
-      body: JSON.stringify({ email, role_id: roleId }),
+      body: JSON.stringify({
+        email,
+        role_id: roleId,
+        first_name: identity.first_name,
+        last_name: identity.last_name,
+        tag_id: identity.tag_id ?? null,
+      }),
     });
 
     if (!response.ok) {
@@ -344,60 +362,16 @@ class TeacherService {
       );
     }
 
-    const data = (await response.json()) as {
-      id?: string | number;
-      data?: { id?: string | number };
-    };
-    const accountId = extractIdFromResponse(data);
+    const data = (await response.json()) as AccountWithIdentityResponse;
+    const identityIds = extractSchoolIdentity(data);
 
-    if (!accountId) {
+    if (!identityIds) {
       throw new Error(
-        "Konto-ID konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
+        "Der Mitarbeiter-Datensatz konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
       );
     }
 
-    return accountId;
-  }
-
-  /** Creates person linked to account */
-  private async createPerson(
-    teacherData: {
-      first_name: string;
-      last_name: string;
-      tag_id?: string | null;
-    },
-    accountId: string | number,
-  ): Promise<number> {
-    const response = await sessionFetch("/api/users", {
-      method: "POST",
-      credentials: "include",
-      body: JSON.stringify({
-        first_name: teacherData.first_name,
-        last_name: teacherData.last_name,
-        tag_id: teacherData.tag_id ?? null,
-        account_id: accountId,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      throw new Error(
-        `Failed to create person: ${extractErrorMessage(errorData, response.statusText)}`,
-      );
-    }
-
-    const data: unknown = await response.json();
-    const personId = extractPersonId(data);
-
-    if (!personId) {
-      logger.error("unexpected person response format");
-      throw new Error("Failed to get person ID from response");
-    }
-
-    return personId;
+    return identityIds.person_id;
   }
 
   /** Creates staff record with is_teacher flag */
