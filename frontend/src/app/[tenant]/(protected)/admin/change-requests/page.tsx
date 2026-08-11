@@ -1,18 +1,26 @@
 "use client";
 
+import { useSession } from "next-auth/react";
+
 import { CareRequestReviewList } from "~/components/students/care-request-review-list";
 import { ExcusedRequestReviewList } from "~/components/students/excused-request-review-list";
 import { MasterDataReviewList } from "~/components/students/master-data-review-list";
 import { OfferingRequestReviewList } from "~/components/students/offering-request-review-list";
 import { Loading } from "~/components/ui/loading";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { canReviewStudentDataRequests } from "~/lib/change-request-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 export default function AdminChangeRequestsPage() {
-  // Gated on users:update (not admin-only): the same permission as editing a
-  // child directly. The backend scopes both queues per child, so a supervisor
+  // Gated on users:update OR users:absence (not admin-only), matching the
+  // backend routes. The backend scopes every queue per child, so a supervisor
   // sees only their own group's requests.
-  const { isReady } = useRequirePermission("users:update");
+  const { isReady } = useRequirePermission(["users:update", "users:absence"]);
+  const { data: session } = useSession();
+  // Only the excused-absence queue accepts users:absence. Whoever holds just
+  // that permission gets a 403 on the three Stammdaten-side queues, so they are
+  // not rendered at all instead of showing three error cards (#2232).
+  const showStudentDataQueues = canReviewStudentDataRequests(session);
   if (!isReady) return <Loading fullPage={false} />;
 
   // Stacked sections instead of tabs: both queues are short, and tabs
@@ -31,38 +39,44 @@ export default function AdminChangeRequestsPage() {
         Von Eltern eingereichte Änderungen, die eine Freigabe benötigen.
       </p>
 
-      <section className="mb-8">
-        <h2 className="text-base font-semibold text-gray-900">Stammdaten</h2>
-        <p className="mt-1 mb-3 text-sm text-gray-600">
-          Anfragen zu Name, Geburtsdatum und erlaubten Abholarten des Kindes.
-          Freigeben übernimmt die Änderung direkt in die Stammdaten.
-        </p>
-        <MasterDataReviewList />
-      </section>
+      {showStudentDataQueues && (
+        <>
+          <section className="mb-8">
+            <h2 className="text-base font-semibold text-gray-900">
+              Stammdaten
+            </h2>
+            <p className="mt-1 mb-3 text-sm text-gray-600">
+              Anfragen zu Name, Geburtsdatum und erlaubten Abholarten des
+              Kindes. Freigeben übernimmt die Änderung direkt in die Stammdaten.
+            </p>
+            <MasterDataReviewList />
+          </section>
 
-      <section className="mb-8">
-        <h2 className="text-base font-semibold text-gray-900">
-          Betreuungszeiten
-        </h2>
-        <p className="mt-1 mb-3 text-sm text-gray-600">
-          Anfragen zu dauerhaften Bring- und Abholzeiten sowie zur Abholart.
-          Freigeben übernimmt die Änderungen direkt in den Wochenplan des
-          Kindes.
-        </p>
-        <CareRequestReviewList />
-      </section>
+          <section className="mb-8">
+            <h2 className="text-base font-semibold text-gray-900">
+              Betreuungszeiten
+            </h2>
+            <p className="mt-1 mb-3 text-sm text-gray-600">
+              Anfragen zu dauerhaften Bring- und Abholzeiten sowie zur Abholart.
+              Freigeben übernimmt die Änderungen direkt in den Wochenplan des
+              Kindes.
+            </p>
+            <CareRequestReviewList />
+          </section>
 
-      <section className="mb-8">
-        <h2 className="text-base font-semibold text-gray-900">
-          Betreuungsangebote und AGs
-        </h2>
-        <p className="mt-1 mb-3 text-sm text-gray-600">
-          Anfragen zu den gebuchten Betreuungsangeboten. Freigeben stellt das
-          Kind zum gewünschten Datum um: Bisheriges endet an diesem Tag, Neues
-          beginnt dann. Vergangene Zeiträume bleiben unverändert.
-        </p>
-        <OfferingRequestReviewList />
-      </section>
+          <section className="mb-8">
+            <h2 className="text-base font-semibold text-gray-900">
+              Betreuungsangebote und AGs
+            </h2>
+            <p className="mt-1 mb-3 text-sm text-gray-600">
+              Anfragen zu den gebuchten Betreuungsangeboten. Freigeben stellt
+              das Kind zum gewünschten Datum um: Bisheriges endet an diesem Tag,
+              Neues beginnt dann. Vergangene Zeiträume bleiben unverändert.
+            </p>
+            <OfferingRequestReviewList />
+          </section>
+        </>
+      )}
 
       <section>
         <h2 className="text-base font-semibold text-gray-900">

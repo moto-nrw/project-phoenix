@@ -143,7 +143,12 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log/export", rs.exportStudentsDayLog)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history/export", rs.exportStudentAttendanceHistory)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
+		// Planned absence days. users:read OR users:absence at the route, with
+		// the per-child check in the handler accepting either read access or the
+		// absence write gate (#2232): the planning dialog refuses to save until
+		// it has read the existing status days, so an absence-only caller must
+		// get past the route gate too.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.UsersAbsence), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 		// Per-child change history (issue #1455). Full access (admin / group
 		// supervisor) is enforced inside the handler.

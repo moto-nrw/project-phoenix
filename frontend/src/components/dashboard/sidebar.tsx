@@ -25,6 +25,7 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
+import { canReviewChangeRequests } from "~/lib/change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
@@ -595,7 +596,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
           case "approvals":
             return userIsAdmin;
           case "changeRequests":
-            return userIsAdmin || hasPermission(session, "users:update");
+            // users:absence alone opens the page too — it carries the excused
+            // absence queue, which that permission decides (#2232).
+            return canReviewChangeRequests(session);
           case "announcements":
             return canAnnounce && parentNewsEnabled;
           case "mealPlan":

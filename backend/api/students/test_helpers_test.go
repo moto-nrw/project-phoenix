@@ -78,6 +78,11 @@ func setupTestContext(t *testing.T) *testContext {
 		CareDayService:          svc.CareDay,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
 		ExcusedRequestService:   svc.ExcusedRequests,
+		// The three users:update-gated review queues, wired so the combined
+		// pending-count endpoint can be exercised end to end (#2232).
+		MasterDataReviewService: svc.MasterDataReview,
+		CareRequestService:      svc.CareRequests,
+		OfferingChangeService:   svc.OfferingChanges,
 		Broadcaster:             broadcaster,
 		ParentEventEmitter:      parentEventEmitter,
 		StudentPhotos:           studentPhotos,
