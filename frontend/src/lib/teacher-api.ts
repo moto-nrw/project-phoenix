@@ -145,7 +145,18 @@ export interface Teacher {
   updated_at?: string;
   activities?: Activity[];
   // Optional fields from staff API for consistency
-  person_id?: number;
+  /**
+   * The person behind this staff record, as a decimal string (#2222).
+   *
+   * It is a PostgreSQL bigint and the edit flow sends it straight back — to
+   * `/api/users/{person_id}` for the name and tag, and in the staff update body
+   * — so it must never live as a JS number: a value beyond
+   * `Number.MAX_SAFE_INTEGER` is rounded into a valid id for a DIFFERENT
+   * person, which turns a failed edit into an edit of the wrong record. The
+   * backend serializes it as a string for exactly this reason and takes either
+   * form back.
+   */
+  person_id?: string;
   account_id?: number;
   is_teacher?: boolean;
   person?: unknown; // For nested person object
@@ -477,7 +488,13 @@ class TeacherService {
       throw new Error("Cannot update person fields - person_id not found");
     }
 
+    // The exact digits the staff response carried — addressed as a path
+    // segment, so it is checked to be a plain decimal id before it is spliced
+    // into the URL.
     const personId = currentTeacher.person_id;
+    if (!/^\d+$/.test(personId)) {
+      throw new Error("Cannot update person fields - invalid person_id");
+    }
 
     // Fetch current person to get account_id
     const personResponse = await sessionFetch(`/api/users/${personId}`, {
@@ -549,7 +566,9 @@ class TeacherService {
     currentTeacher: Teacher,
     teacherData: Partial<Teacher>,
   ): {
-    person_id: number | undefined;
+    // Decimal string, exactly as it was loaded — the update route forwards it
+    // verbatim and the backend accepts the string (#2222).
+    person_id: string | undefined;
     is_teacher: boolean;
     staff_notes: string;
     specialization: string;

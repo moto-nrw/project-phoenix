@@ -6,6 +6,8 @@ import {
   createPostHandler,
 } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
+import type { WireID } from "~/lib/wire-id";
+import { toIdString } from "~/lib/wire-id";
 
 const logger = createLogger({ component: "StaffRoute" });
 
@@ -14,7 +16,10 @@ const logger = createLogger({ component: "StaffRoute" });
  */
 interface BackendStaffResponse {
   id: number;
-  person_id: number;
+  // Decimal string since #2222 — person_id is a bigint the staff screens send
+  // back to identify the person they edit, so it must not pass through a JS
+  // number. A number is still accepted (older server, test fixture).
+  person_id: WireID;
   staff_notes?: string;
   is_teacher: boolean;
   teacher_id?: number;
@@ -142,7 +147,10 @@ function mapBackendStaff(staff: BackendStaffResponse) {
     // ob das Position-Feld im Edit-Formular angeboten wird (für Lehrkräfte
     // gibt es keinen Speicherort dafür).
     is_teacher: staff.is_teacher,
-    person_id: staff.person_id,
+    // Decimal string, exactly as it arrived: the edit screens send this id back
+    // to address the person record, and a JS number would round it past 2^53
+    // onto a different person (#2222).
+    person_id: toIdString(staff.person_id),
     was_present_today: staff.was_present_today,
     work_status: staff.work_status,
     absence_type: staff.absence_type,

@@ -29,7 +29,7 @@ const sampleTeacher: Teacher = {
   staff_notes: "Senior teacher",
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-15T00:00:00Z",
-  person_id: 100,
+  person_id: "100",
   account_id: 50,
   is_teacher: true,
   staff_id: "1",
@@ -592,6 +592,51 @@ describe("teacher-api", () => {
       });
 
       expect(result.first_name).toBe("Maximilian");
+    });
+
+    it("edits the person a bigint person_id names, digit for digit", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      // 2^53 + 1 — a JS number would round this to ...992 and edit the person
+      // next door instead of failing (#2222).
+      const personID = "9007199254740993";
+
+      // getTeacher
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ ...sampleTeacher, person_id: personID }),
+      } as Response);
+      // person GET
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ account_id: 50 }),
+      } as Response);
+      // person PUT
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      } as Response);
+      // staff update
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(sampleTeacher),
+      } as Response);
+
+      await teacherService.updateTeacher("1", { first_name: "Maximilian" });
+
+      const personCalls = mockFetch.mock.calls.filter((call) =>
+        String(call[0]).startsWith("/api/users/"),
+      );
+      expect(personCalls).toHaveLength(2);
+      for (const call of personCalls) {
+        expect(call[0]).toBe(`/api/users/${personID}`);
+      }
+
+      const staffCall = mockFetch.mock.calls.find(
+        (call) =>
+          String(call[0]) === "/api/staff/1" &&
+          (call[1] as RequestInit | undefined)?.method === "PUT",
+      );
+      expect(staffCall?.[1]?.body).toContain(`"person_id":"${personID}"`);
     });
 
     it("throws error when person_id is missing for person update", async () => {
