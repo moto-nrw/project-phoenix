@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	normalizeRoomCapacityVersion     = "1.15.285"
+	normalizeRoomCapacityVersion     = "1.15.286"
 	normalizeRoomCapacityDescription = "Normalize legacy room capacities and enforce positive optional limits (#2237)"
 )
 
@@ -16,7 +16,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     normalizeRoomCapacityVersion,
 		Description: normalizeRoomCapacityDescription,
-		DependsOn:   []string{optionalActivityCapacityVersion},
+		DependsOn:   []string{wissingenDepartureModesVersion},
 	})
 
 	Migrations.MustRegister(
@@ -30,7 +30,7 @@ func init() {
 }
 
 func normalizeRoomCapacityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.285: Normalizing optional room capacities...")
+	fmt.Println("Migration 1.15.286: Normalizing optional room capacities...")
 
 	result, err := db.NewRaw(`
 		UPDATE facilities.rooms
@@ -42,7 +42,7 @@ func normalizeRoomCapacityUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	if affected, rowsErr := result.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.285: Converted %d non-positive room capacities to NULL\n", affected)
+		fmt.Printf("Migration 1.15.286: Converted %d non-positive room capacities to NULL\n", affected)
 	}
 
 	if _, err := db.NewRaw(`
@@ -59,7 +59,7 @@ func normalizeRoomCapacityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func normalizeRoomCapacityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.285: Removing the positive room capacity constraint...")
+	fmt.Println("Rolling back migration 1.15.286: Removing the positive room capacity constraint...")
 
 	if _, err := db.NewRaw(`
 		ALTER TABLE facilities.rooms
