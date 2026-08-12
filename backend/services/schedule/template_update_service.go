@@ -609,6 +609,9 @@ func validateTemplateUpdateInput(in TemplateUpdateInput) error {
 	if in.WeekPattern < 0 || in.WeekPattern > 2 {
 		return errors.New("week pattern must be 0, 1, or 2")
 	}
+	if in.Fields.MaxParticipants < 0 {
+		return errors.New("max participants cannot be negative")
+	}
 	if in.CalendarPeriodID != nil && *in.CalendarPeriodID <= 0 {
 		return errors.New("calendar period id must be positive when set")
 	}

@@ -62,7 +62,7 @@ func TestGroupValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Invalid max participants (zero)",
+			name: "Unlimited participants",
 			group: &Group{
 				Name:            "Test Group",
 				MaxParticipants: 0,
@@ -70,7 +70,7 @@ func TestGroupValidate(t *testing.T) {
 				CategoryID:      1,
 				CreatedBy:       int64Ptr(1),
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "Invalid max participants (negative)",
@@ -182,6 +182,14 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 			},
 			currentEnrollmentCount: 12,
 			want:                   false,
+		},
+		{
+			name: "Unlimited group always has available spots",
+			group: &Group{
+				MaxParticipants: 0,
+			},
+			currentEnrollmentCount: 1000,
+			want:                   true,
 		},
 	}
 

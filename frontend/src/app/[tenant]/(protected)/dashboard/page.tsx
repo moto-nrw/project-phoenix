@@ -474,8 +474,10 @@ function DashboardContent() {
                           {activity.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {activity.category} • {activity.participants}/
-                          {activity.maxCapacity} Teilnehmer
+                          {activity.category} • {activity.participants}
+                          {activity.maxCapacity == null
+                            ? " Teilnehmer"
+                            : `/${activity.maxCapacity} Teilnehmer`}
                         </p>
                       </div>
                       <div
