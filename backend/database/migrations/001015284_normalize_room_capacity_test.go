@@ -13,9 +13,8 @@ func TestNormalizeRoomCapacity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	const tenantID int64 = 22370
-	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	defer testpkg.CleanupTestTenant(t, db, tenantID)
 
 	ctx := context.Background()
 	require.NoError(t, normalizeRoomCapacityDown(ctx, db))

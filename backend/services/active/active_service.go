@@ -772,7 +772,7 @@ func (s *service) prepareVisitTransfer(
 	if err != nil || sourceGroup == nil {
 		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
 	}
-	if sourceGroup.RoomID != targetGroup.RoomID {
+	if updated.ExitTime == nil && sourceGroup.RoomID != targetGroup.RoomID {
 		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
 			return false, time.Time{}, err
 		}

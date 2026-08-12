@@ -272,6 +272,36 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		assert.NotNil(t, updated.ExitTime)
 	})
 
+	t.Run("allows transfer with checkout into a full room", func(t *testing.T) {
+		sourceActivity := testpkg.CreateTestActivityGroup(t, db, "transfer-checkout-source")
+		targetActivity := testpkg.CreateTestActivityGroup(t, db, "transfer-checkout-target")
+		sourceRoom := testpkg.CreateTestRoom(t, db, "Transfer Checkout Source")
+		targetRoom := testpkg.CreateTestRoom(t, db, "Transfer Checkout Target")
+		capacity := 1
+		targetRoom.Capacity = &capacity
+		_, err := db.NewUpdate().Model(targetRoom).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+		targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+		movingStudent := testpkg.CreateTestStudent(t, db, "Transfer", "Checkout", "1a")
+		presentStudent := testpkg.CreateTestStudent(t, db, "Target", "Present", "1a")
+		movingVisit := testpkg.CreateTestVisit(t, db, movingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Hour), nil)
+		presentVisit := testpkg.CreateTestVisit(t, db, presentStudent.ID, targetGroup.ID, time.Now().Add(-time.Hour), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID, sourceGroup.ID, targetGroup.ID, movingStudent.ID, presentStudent.ID, movingVisit.ID, presentVisit.ID)
+
+		checkoutAt := time.Now()
+		movingVisit.ActiveGroupID = targetGroup.ID
+		movingVisit.ExitTime = &checkoutAt
+
+		err = service.UpdateVisit(ctx, movingVisit)
+
+		require.NoError(t, err)
+		updated, err := service.GetVisit(ctx, movingVisit.ID)
+		require.NoError(t, err)
+		assert.Equal(t, targetGroup.ID, updated.ActiveGroupID)
+		assert.Equal(t, checkoutAt.Unix(), updated.ExitTime.Unix())
+	})
+
 	t.Run("returns error for nil visit", func(t *testing.T) {
 		// ACT
 		err := service.UpdateVisit(ctx, nil)
