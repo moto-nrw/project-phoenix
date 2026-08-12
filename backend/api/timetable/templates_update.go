@@ -94,9 +94,6 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if req.CategoryID <= 0 {
 		return errors.New("category_id is required")
 	}
-	if req.MaxParticipants.Set && req.MaxParticipants.Value != nil && *req.MaxParticipants.Value <= 0 {
-		return errors.New("max_participants must be greater than zero when set")
-	}
 	if req.StartTime == "" || req.EndTime == "" {
 		return errors.New("start_time and end_time are required")
 	}
