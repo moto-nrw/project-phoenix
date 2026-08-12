@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	optionalActivityCapacityVersion     = "1.15.283"
+	optionalActivityCapacityVersion     = "1.15.284"
 	optionalActivityCapacityDescription = "Allow activities and timetable templates without a participant limit (#2236)"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 func optionalActivityCapacityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.283: Making activity participant limits optional...")
+	fmt.Println("Migration 1.15.284: Making activity participant limits optional...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 			ALTER COLUMN max_participants DROP NOT NULL;
@@ -44,7 +44,7 @@ func optionalActivityCapacityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func optionalActivityCapacityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.283: Restoring required activity participant limits...")
+	fmt.Println("Rolling back migration 1.15.284: Restoring required activity participant limits...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_max_participants;
