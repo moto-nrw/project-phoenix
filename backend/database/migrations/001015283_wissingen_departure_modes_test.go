@@ -102,11 +102,18 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("wissingen-departure-%d@example.test", time.Now().UnixNano()))
 	t.Cleanup(func() { testpkg.CleanupAccount(t, db, account.ID) })
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
+		testpkg.CleanupTenantTestData(t, db, tenantID, otherTenantID)
+		testpkg.CleanupTestTenant(t, db, tenantID, otherTenantID)
 	})
-	_, err := db.NewRaw(`UPDATE platform.schools SET slug = 'ogs-wissingen' WHERE id = ?`, tenantID).Exec(ctx)
+	_, err := db.NewRaw(`
+		UPDATE platform.schools
+		SET slug = 'ogs-wissingen', subdomain = 'ogs-wissingen'
+		WHERE id = ?
+	`, tenantID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`UPDATE platform.schools SET slug = 'ogs-wissingen' WHERE id = ?`, otherTenantID).Exec(ctx)
 	require.NoError(t, err)
 
 	schemaID := insertWissingenDepartureTestSchema(t, db, tenantID, account.ID, 20)
@@ -115,7 +122,10 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	pickup := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Pickup", "Child", "1a")
 	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, pickup.ID, `{
 		"schedule_pickup":{"mon":"15:00","thu":"16:00","fri":""},
-		"darf_ihr_kind_alleine_nach_hause_gehen":false
+		"darf_ihr_kind_alleine_nach_hause_gehen":false,
+		"fahrt_ihr_kind_mit_dem_bus_nach_hause":true,
+		"soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen":true,
+		"mit_welchem_kind_soll_ihr_kind_zusammen_gehen":"Wird wegen Abholung ignoriert"
 	}`)
 
 	alone := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Alone", "Child", "1a")

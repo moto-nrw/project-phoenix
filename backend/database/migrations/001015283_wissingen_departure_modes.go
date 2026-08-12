@@ -54,7 +54,7 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 				AND schema.tenant_id = request.tenant_id
 			JOIN platform.schools AS school
 				ON school.id = child.tenant_id
-			WHERE school.slug = 'ogs-wissingen'
+			WHERE school.subdomain = 'ogs-wissingen'
 			  AND phase.name = 'Schuljahr 2026/2027'
 			  AND schema.name = 'Schuljahr 2026/2027'
 			  AND schema.version = 20
@@ -106,8 +106,14 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 				student_id,
 				custom_data,
 				(custom_data ->> 'darf_ihr_kind_alleine_nach_hause_gehen')::boolean AS goes_alone,
-				COALESCE((custom_data ->> 'fahrt_ihr_kind_mit_dem_bus_nach_hause')::boolean, false) AS goes_by_bus,
-				COALESCE((custom_data ->> 'soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen')::boolean, false) AS goes_accompanied
+				(
+					(custom_data ->> 'darf_ihr_kind_alleine_nach_hause_gehen')::boolean
+					AND COALESCE((custom_data ->> 'fahrt_ihr_kind_mit_dem_bus_nach_hause')::boolean, false)
+				) AS goes_by_bus,
+				(
+					(custom_data ->> 'darf_ihr_kind_alleine_nach_hause_gehen')::boolean
+					AND COALESCE((custom_data ->> 'soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen')::boolean, false)
+				) AS goes_accompanied
 			FROM matching_children
 			WHERE matching_child_count = 1
 		),
@@ -122,9 +128,19 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 			JOIN LATERAL (
 				SELECT
 					jsonb_object_agg(day, modes) AS allowed_departure_modes,
-					COALESCE(jsonb_object_agg(day, departure_mode) FILTER (WHERE departure_mode IS NOT NULL), '{}'::jsonb) AS departure_days,
-					COALESCE(jsonb_object_agg(day, true) FILTER (WHERE answers.goes_by_bus), '{}'::jsonb) AS bus_days,
-					COALESCE(jsonb_object_agg(day, true) FILTER (WHERE NOT answers.goes_alone), '{}'::jsonb) AS pickup_days
+					COALESCE(
+						jsonb_object_agg(
+							day,
+							CASE
+								WHEN modes ? 'pickup' THEN 'pickup'
+								WHEN modes ? 'bus' THEN 'bus'
+								WHEN modes ? 'accompanied' THEN 'accompanied'
+							END
+						) FILTER (WHERE modes ?| ARRAY['pickup', 'bus', 'accompanied']),
+						'{}'::jsonb
+					) AS departure_days,
+					COALESCE(jsonb_object_agg(day, true) FILTER (WHERE modes ? 'bus'), '{}'::jsonb) AS bus_days,
+					COALESCE(jsonb_object_agg(day, true) FILTER (WHERE modes ? 'pickup'), '{}'::jsonb) AS pickup_days
 				FROM (
 					SELECT
 						entry.key AS day,
@@ -133,12 +149,7 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 							ELSE jsonb_build_array('alone')
 								|| CASE WHEN answers.goes_by_bus THEN jsonb_build_array('bus') ELSE '[]'::jsonb END
 								|| CASE WHEN answers.goes_accompanied THEN jsonb_build_array('accompanied') ELSE '[]'::jsonb END
-						END AS modes,
-						CASE
-							WHEN NOT answers.goes_alone THEN 'pickup'
-							WHEN answers.goes_by_bus THEN 'bus'
-							WHEN answers.goes_accompanied THEN 'accompanied'
-						END AS departure_mode
+						END AS modes
 					FROM jsonb_each(answers.custom_data -> 'schedule_pickup') AS entry(key, value)
 					WHERE entry.key IN ('mon', 'tue', 'wed', 'thu', 'fri')
 					  AND jsonb_typeof(entry.value) = 'string'
@@ -170,7 +181,7 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 		FROM plans
 		WHERE student.id = plans.student_id
 		  AND student.tenant_id = (
-			SELECT id FROM platform.schools WHERE slug = 'ogs-wissingen'
+			SELECT id FROM platform.schools WHERE subdomain = 'ogs-wissingen'
 		  )
 		  AND COALESCE(student.allowed_departure_modes, '{}'::jsonb) = '{}'::jsonb
 		  AND COALESCE(student.departure_days, '{}'::jsonb) = '{}'::jsonb
