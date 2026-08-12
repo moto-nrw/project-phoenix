@@ -510,6 +510,9 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 		if lockedGroup == nil || lockedGroup.EndTime != nil {
 			continue
 		}
+		if lockedGroup.RoomID != roomID {
+			continue
+		}
 		if timezone.DateFromTime(lockedGroup.StartTime) != today {
 			continue
 		}

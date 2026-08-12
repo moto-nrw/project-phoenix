@@ -334,6 +334,31 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		assert.Equal(t, checkoutAt.Unix(), updated.ExitTime.Unix())
 	})
 
+	t.Run("rejects reopening a closed visit in a full room", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "reopen-full-room")
+		room := testpkg.CreateTestRoom(t, db, "Reopen Full Room")
+		capacity := 1
+		room.Capacity = &capacity
+		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		presentStudent := testpkg.CreateTestStudent(t, db, "Present", "Reopen", "1a")
+		reopeningStudent := testpkg.CreateTestStudent(t, db, "Closed", "Reopen", "1a")
+		presentVisit := testpkg.CreateTestVisit(t, db, presentStudent.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
+		closedAt := time.Now().Add(-30 * time.Minute)
+		closedVisit := testpkg.CreateTestVisit(t, db, reopeningStudent.ID, activeGroup.ID, time.Now().Add(-2*time.Hour), &closedAt)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, presentStudent.ID, reopeningStudent.ID, presentVisit.ID, closedVisit.ID)
+
+		closedVisit.ExitTime = nil
+		err = service.UpdateVisit(ctx, closedVisit)
+
+		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
+		persisted, findErr := service.GetVisit(ctx, closedVisit.ID)
+		require.NoError(t, findErr)
+		require.NotNil(t, persisted.ExitTime)
+		assert.Equal(t, closedAt.Unix(), persisted.ExitTime.Unix())
+	})
+
 	t.Run("returns error for nil visit", func(t *testing.T) {
 		// ACT
 		err := service.UpdateVisit(ctx, nil)

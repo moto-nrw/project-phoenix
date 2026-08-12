@@ -774,7 +774,9 @@ func (s *service) prepareVisitTransfer(
 	ctx context.Context,
 	existing, updated *active.Visit,
 ) (bool, time.Time, error) {
-	if existing.ExitTime != nil || existing.ActiveGroupID == updated.ActiveGroupID {
+	isReopening := existing.ExitTime != nil && updated.ExitTime == nil
+	isGroupMove := existing.ExitTime == nil && existing.ActiveGroupID != updated.ActiveGroupID
+	if !isReopening && !isGroupMove {
 		return false, time.Time{}, nil
 	}
 
@@ -789,13 +791,19 @@ func (s *service) prepareVisitTransfer(
 		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
 	}
 
-	sourceGroup, err := s.GroupRepo.FindByID(ctx, existing.ActiveGroupID)
-	if err != nil || sourceGroup == nil {
-		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
-	}
-	if updated.ExitTime == nil && sourceGroup.RoomID != targetGroup.RoomID {
+	if isReopening {
 		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
 			return false, time.Time{}, err
+		}
+	} else {
+		sourceGroup, err := s.GroupRepo.FindByID(ctx, existing.ActiveGroupID)
+		if err != nil || sourceGroup == nil {
+			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+		if updated.ExitTime == nil && sourceGroup.RoomID != targetGroup.RoomID {
+			if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+				return false, time.Time{}, err
+			}
 		}
 	}
 
@@ -805,7 +813,7 @@ func (s *service) prepareVisitTransfer(
 		// request. Use checkout as the boundary so target check-in precedes close.
 		transferAt = *updated.ExitTime
 	}
-	return true, transferAt, nil
+	return isGroupMove, transferAt, nil
 }
 
 // syncMovedVisitAttendance mirrors a transfer independently of SSE. The
