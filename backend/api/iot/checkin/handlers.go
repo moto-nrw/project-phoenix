@@ -21,6 +21,7 @@ import (
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const errStudentRFIDRequiredForPickupQuery = "student RFID tag required for pickup query"
@@ -351,6 +352,9 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		CurrentVisit: currentVisit,
 	})
 	if err != nil {
+		if checkedOut {
+			tenant.MarkRollback(ctx)
+		}
 		rs.renderCheckinError(w, r, err)
 		return
 	}

@@ -105,7 +105,7 @@ function applyInitialData<T>(
     // Convert string to number if field type requires it
     const field = allFields.find((f) => f.name === key);
     if (field?.type === "number" && typeof value === "string") {
-      formData[key] = Number.parseInt(value, 10) || 0;
+      formData[key] = Number(value) || 0;
     } else {
       formData[key] = value;
     }
@@ -123,8 +123,7 @@ export function validateNumberMin(
   min: number,
   label: string,
 ): string | null {
-  const numValue =
-    typeof value === "number" ? value : Number.parseInt(value as string, 10);
+  const numValue = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(numValue) || numValue < min) {
     return `${label} muss mindestens ${min} sein.`;
   }
@@ -137,8 +136,7 @@ export function validateNumberMax(
   max: number,
   label: string,
 ): string | null {
-  const numValue =
-    typeof value === "number" ? value : Number.parseInt(value as string, 10);
+  const numValue = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(numValue) || numValue > max) {
     return `${label} darf höchstens ${max} sein.`;
   }
@@ -155,6 +153,10 @@ export function validateField(field: FormField, value: unknown): string | null {
   // Optional number fields stay valid while empty, but their constraints apply
   // as soon as the user enters a value.
   if (field.type === "number" && !isEmptyValue(value)) {
+    const numericValue = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(numericValue)) {
+      return `${field.label} muss eine ganze Zahl sein.`;
+    }
     if (field.min !== undefined) {
       const minError = validateNumberMin(value, field.min, field.label);
       if (minError) return minError;
@@ -412,7 +414,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           [name]: "",
         }));
       } else {
-        const numValue = Number.parseInt(value, 10);
+        const numValue = Number(value);
         setFormData((prev) => ({
           ...prev,
           [name]: Number.isNaN(numValue) ? "" : numValue,

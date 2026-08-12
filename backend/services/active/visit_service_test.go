@@ -234,6 +234,38 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		assert.Equal(t, 1, capacityErr.MaxCapacity)
 		assert.Zero(t, visit.ID)
 	})
+
+	t.Run("allows a closed historical visit when the room is full", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "closed-capacity-visit")
+		room := testpkg.CreateTestRoom(t, db, "Closed Capacity Room")
+		capacity := 1
+		room.Capacity = &capacity
+		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		presentStudent := testpkg.CreateTestStudent(t, db, "Present", "Capacity", "1a")
+		historicalStudent := testpkg.CreateTestStudent(t, db, "Historical", "Capacity", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Historical", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, "historical-capacity-device")
+		presentVisit := testpkg.CreateTestVisit(t, db, presentStudent.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, presentStudent.ID, historicalStudent.ID, staff.ID, iotDevice.ID, presentVisit.ID)
+
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		exitTime := time.Now().Add(-30 * time.Minute)
+		visit := &activeModels.Visit{
+			StudentID:     historicalStudent.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     exitTime.Add(-time.Hour),
+			ExitTime:      &exitTime,
+		}
+
+		err = service.CreateVisit(deviceCtx, visit)
+
+		require.NoError(t, err)
+		assert.Positive(t, visit.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+	})
 }
 
 // =============================================================================

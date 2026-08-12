@@ -454,6 +454,23 @@ describe("validateField", () => {
     expect(validateField(field, 25)).toBeNull();
   });
 
+  it("rejects fractional values for integer number fields", () => {
+    const field: FormField = {
+      name: "capacity",
+      label: "Kapazität",
+      type: "number",
+      min: 1,
+    };
+
+    expect(validateField(field, 1.5)).toBe(
+      "Kapazität muss eine ganze Zahl sein.",
+    );
+    expect(validateField(field, "1.5")).toBe(
+      "Kapazität muss eine ganze Zahl sein.",
+    );
+    expect(validateField(field, 2)).toBeNull();
+  });
+
   it("validates a non-empty optional number field", () => {
     const field: FormField = {
       name: "capacity",

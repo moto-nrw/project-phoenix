@@ -320,6 +320,16 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
 	}
+	existing, err := s.GroupRepo.FindByIDForUpdate(ctx, group.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
+		}
+		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+	}
+	if existing == nil {
+		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
+	}
 
 	// Check for room conflicts if room is assigned (exclude current group)
 	if group.RoomID > 0 {
@@ -329,6 +339,15 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 		if hasConflict {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrRoomConflict}
+		}
+		if existing.RoomID != group.RoomID {
+			incoming, err := s.VisitRepo.CountActiveByGroupID(ctx, group.ID)
+			if err != nil {
+				return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+			}
+			if err := s.ensureRoomCapacity(ctx, group.RoomID, incoming); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -543,8 +562,10 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 		}
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
 	}
-	if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
-		return err
+	if visit.ExitTime == nil {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return err
+		}
 	}
 
 	// Handle attendance (create new or update on re-entry)

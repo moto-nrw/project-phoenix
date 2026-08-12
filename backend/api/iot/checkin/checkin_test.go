@@ -1648,6 +1648,48 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rr.Code, "Expected 409 Conflict for capacity exceeded. Body: %s", rr.Body.String())
 }
 
+func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	device := testpkg.CreateTestDevice(t, ctx.db, "capacity-transfer-rollback")
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Capacity", "Transfer")
+	sourceRoom := testpkg.CreateTestRoom(t, ctx.db, "Capacity Transfer Source")
+	targetRoom := testpkg.CreateTestRoom(t, ctx.db, "Capacity Transfer Target")
+	capacity := 1
+	targetRoom.Capacity = &capacity
+	_, err := ctx.db.NewUpdate().Model(targetRoom).Column("capacity").WherePK().Exec(t.Context())
+	require.NoError(t, err)
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "capacity-transfer-rollback")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, sourceRoom.ID)
+	targetGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, targetRoom.ID)
+	movingStudent := testpkg.CreateTestStudent(t, ctx.db, "Moving", "Student", "1a")
+	presentStudent := testpkg.CreateTestStudent(t, ctx.db, "Present", "Student", "1a")
+	sourceVisit := testpkg.CreateTestVisit(t, ctx.db, movingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Hour), nil)
+	targetVisit := testpkg.CreateTestVisit(t, ctx.db, presentStudent.ID, targetGroup.ID, time.Now().Add(-time.Hour), nil)
+	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID, staff.ID, sourceRoom.ID, targetRoom.ID, activity.ID, sourceGroup.ID, targetGroup.ID, movingStudent.ID, presentStudent.ID, sourceVisit.ID, targetVisit.ID)
+
+	card := testpkg.CreateTestRFIDCard(t, ctx.db, fmt.Sprintf("CAPROLLBACK%d", time.Now().UnixNano()))
+	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
+	testpkg.LinkRFIDToStudent(t, ctx.db, movingStudent.PersonID, card.ID)
+
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Mount("/", ctx.resource.Router())
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/checkin", map[string]interface{}{
+		"student_rfid": card.ID,
+		"action":       "checkin",
+		"room_id":      targetRoom.ID,
+	}, testutil.WithDeviceContext(createTestDeviceContext(device)), testutil.WithStaffContext(staff))
+
+	rr := testutil.ExecuteRequest(router, req)
+
+	require.Equal(t, http.StatusConflict, rr.Code)
+	var persisted active.Visit
+	require.NoError(t, ctx.db.NewSelect().Model(&persisted).Where("id = ?", sourceVisit.ID).Scan(t.Context()))
+	assert.Nil(t, persisted.ExitTime)
+	assert.Equal(t, sourceGroup.ID, persisted.ActiveGroupID)
+}
+
 // =============================================================================
 // CHECKOUT WITH ROOM INFO TESTS
 // =============================================================================
