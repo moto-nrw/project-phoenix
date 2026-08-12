@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	wissingenDepartureModesVersion     = "1.15.283"
+	wissingenDepartureModesVersion     = "1.15.284"
 	wissingenDepartureModesDescription = "Derive departure modes for approved Wissingen 2026/2027 enrollments from the confirmed legacy form answers"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.283: Deriving departure modes for approved Wissingen 2026/2027 enrollments...")
+	fmt.Println("Migration 1.15.284: Deriving departure modes for approved Wissingen 2026/2027 enrollments...")
 
 	result, err := db.NewRaw(`
 		WITH matching_children AS (
@@ -197,12 +197,12 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	if affected, rowsErr := result.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.283: updated %d Wissingen student departure plan(s)\n", affected)
+		fmt.Printf("Migration 1.15.284: updated %d Wissingen student departure plan(s)\n", affected)
 	}
 	return nil
 }
 
 func wissingenDepartureModesDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.283: derived departure plans are not cleared automatically")
+	fmt.Println("Rolling back migration 1.15.284: derived departure plans are not cleared automatically")
 	return nil
 }
