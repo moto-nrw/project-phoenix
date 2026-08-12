@@ -98,7 +98,13 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 			  AND jsonb_typeof(custom_data -> 'schedule_pickup') = 'object'
 			  AND NOT EXISTS (
 				SELECT 1
-				FROM jsonb_each(custom_data -> 'schedule_pickup') AS schedule_entry(day, value)
+				FROM jsonb_each(
+					CASE
+						WHEN jsonb_typeof(custom_data -> 'schedule_pickup') = 'object'
+							THEN custom_data -> 'schedule_pickup'
+						ELSE '{}'::jsonb
+					END
+				) AS schedule_entry(day, value)
 				WHERE schedule_entry.day NOT IN ('mon', 'tue', 'wed', 'thu', 'fri')
 				   OR jsonb_typeof(schedule_entry.value) <> 'string'
 				   OR (

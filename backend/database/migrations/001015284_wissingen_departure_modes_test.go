@@ -203,6 +203,12 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 		"darf_ihr_kind_alleine_nach_hause_gehen":false
 	}`)
 
+	malformedSchedule := testpkg.CreateTestStudentForTenant(t, db, tenantID, "MalformedSchedule", "Child", "1a")
+	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, malformedSchedule.ID, `{
+		"schedule_pickup":"malformed",
+		"darf_ihr_kind_alleine_nach_hause_gehen":false
+	}`)
+
 	require.NoError(t, wissingenDepartureModesUp(ctx, db))
 	require.NoError(t, wissingenDepartureModesUp(ctx, db), "migration must be idempotent")
 
@@ -255,4 +261,8 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	unknownWeekdayRow := loadWissingenDepartureTestRow(t, db, unknownWeekday.ID)
 	assertWissingenDepartureJSON(t, `{}`, unknownWeekdayRow.AllowedDepartureModes)
 	assert.Nil(t, unknownWeekdayRow.PickupStatus)
+
+	malformedScheduleRow := loadWissingenDepartureTestRow(t, db, malformedSchedule.ID)
+	assertWissingenDepartureJSON(t, `{}`, malformedScheduleRow.AllowedDepartureModes)
+	assert.Nil(t, malformedScheduleRow.PickupStatus)
 }
