@@ -141,6 +141,15 @@ func (f *fakeRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
 func (f *fakeRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
 	panic("unused")
 }
+func (f *fakeRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ReleasePartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+	panic("unused")
+}
 
 // -----------------------------------------------------------------------------
 // Router helpers

@@ -91,14 +91,23 @@ func (s CareDayStatus) ExemptFromAbsence() bool { return s == CareDayNotSchedule
 // instead of the derivation it overrides (#1747 review).
 //
 // A row that already carries a real attendance status tells its own story and
-// reports unknown — with one exception: an absence a broad day status (sick /
-// excused / class trip) wrote and still owns. ApplyStatusDay stamps every
-// expected row of the day, including days the child was never booked into care,
-// and keeps its provenance in student_status_day_id (a check-in and a manual
-// PATCH both clear that column). Until the block ends and MarkNotScheduled
-// undoes it, such a row is a false absence, so it keeps the non-booking
-// verdict. A cancelled care day WAS booked, so its absence is real and stays
-// one, and a manual absence is never relabelled.
+// reports unknown — with two exceptions that still count as non-bookings when
+// the plan says the child was never expected:
+//
+//  1. An absence a broad day status (sick / excused / class trip) wrote and
+//     still owns via student_status_day_id. ApplyStatusDay stamps every
+//     expected row of the day, including days the child was never booked into
+//     care (a check-in and a manual PATCH both clear that column).
+//  2. An absence a partial-day excusal wrote and still owns via
+//     pickup_exception_id. ApplyPartialAbsence does the same for blocks that
+//     start at or after the cutoff; without recognizing that provenance the
+//     planner treats the active absence as real and under-counts non-scheduled
+//     children until session end.
+//
+// Until the block ends and MarkNotScheduled undoes it, such a row is a false
+// absence, so it keeps the non-booking verdict. A cancelled care day WAS
+// booked, so its absence is real and stays one, and a manual absence is never
+// relabelled.
 func AttendanceRowCareDay(instanceCompleted bool, row *schedule.InstanceStudent, planVerdict CareDayStatus) CareDayStatus {
 	if row == nil {
 		return CareDayUnknown
@@ -113,7 +122,10 @@ func AttendanceRowCareDay(instanceCompleted bool, row *schedule.InstanceStudent,
 		return CareDayUnknown
 	}
 	if row.Status != schedule.AttendanceStatusExpected {
-		if row.StudentStatusDayID != nil && planVerdict == CareDayNotScheduled {
+		// Plan-owned absences on a not-scheduled day remain non-bookings while
+		// the block is active. Manual status already returned above.
+		if planVerdict == CareDayNotScheduled &&
+			(row.StudentStatusDayID != nil || row.PickupExceptionID != nil) {
 			return CareDayNotScheduled
 		}
 		return CareDayUnknown

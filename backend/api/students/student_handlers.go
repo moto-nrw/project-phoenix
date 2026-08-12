@@ -1364,6 +1364,8 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 		return common.ErrorForbidden(errors.New("you can only update students in groups you supervise"))
 	case errors.Is(err, errStudentNotFoundUnderLock):
 		return common.ErrorNotFound(errors.New("student not found"))
+	case errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict):
+		return common.ErrorConflictWithCode(err, "partial_absence_conflict")
 	// The merged plan (request modes applied onto the stored row) can violate
 	// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
 	// anderem Kind" day on a child with no stored note. That is client input,

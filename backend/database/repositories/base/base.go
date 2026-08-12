@@ -118,6 +118,30 @@ func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 	return entityVal, nil
 }
 
+// FindByIDForUpdate is FindByID with a row lock held until the surrounding
+// transaction finishes. Callers use it when a state check and subsequent
+// mutation must be atomic.
+func (r *Repository[T]) FindByIDForUpdate(ctx context.Context, id any) (T, error) {
+	var entity T
+	entityType := reflect.TypeFor[T]()
+	if entityType.Kind() == reflect.Pointer {
+		entityType = entityType.Elem()
+	}
+	entityVal := reflect.New(entityType).Interface().(T)
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
+	query := GetDB(ctx, r.DB).NewSelect().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
+		For("UPDATE")
+	query = r.applyTenantFilter(ctx, query, entityName)
+	if err := query.Scan(ctx); err != nil {
+		return entity, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
+	}
+	return entityVal, nil
+}
+
 // FindByIDOrNil behaves like FindByID but returns the zero value and a nil error
 // when no row matches, instead of a wrapped sql.ErrNoRows. Repositories whose
 // service layer treats "not found" as nil (rather than an error) delegate their

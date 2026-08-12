@@ -2,10 +2,14 @@ package active
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/uptrace/bun"
 )
 
 // StudentStatusDayService exposes student status-day persistence to the api
@@ -14,13 +18,25 @@ import (
 // their transaction wrappers, mutual-exclusion logic, and live-flag updates,
 // so behaviour is byte-identical.
 type StudentStatusDayService struct {
-	repo activeModels.StudentStatusDayRepository
+	repo             activeModels.StudentStatusDayRepository
+	pickupExceptions scheduleModels.StudentPickupExceptionRepository
+	db               *bun.DB
 }
 
 // NewStudentStatusDayService creates a StudentStatusDayService backed by the
 // status-day repository.
 func NewStudentStatusDayService(repo activeModels.StudentStatusDayRepository) *StudentStatusDayService {
 	return &StudentStatusDayService{repo: repo}
+}
+
+// NewStudentStatusDayServiceWithPartialAbsences also prevents a full-day
+// status from silently overwriting a time-specific excusal on the same date.
+func NewStudentStatusDayServiceWithPartialAbsences(
+	repo activeModels.StudentStatusDayRepository,
+	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
+	db *bun.DB,
+) *StudentStatusDayService {
+	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db}
 }
 
 // GetActiveByStudentIDsAndDate returns the active status rows of many
@@ -55,6 +71,17 @@ func (s *StudentStatusDayService) GetActiveByID(ctx context.Context, id int64) (
 
 // UpsertReported records a reported status day.
 func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *activeModels.StudentStatusDay) error {
+	if entry != nil && s.pickupExceptions != nil {
+		if s.db == nil {
+			return errors.New("student status day service database is not configured")
+		}
+		if err := careplanning.LockExceptionDay(ctx, s.db, entry.StudentID, entry.Date); err != nil {
+			return err
+		}
+		if err := s.ensureNoPartialAbsenceConflicts(ctx, entry.StudentID, []timezone.Date{entry.Date}); err != nil {
+			return err
+		}
+	}
 	return s.repo.UpsertReported(ctx, entry)
 }
 

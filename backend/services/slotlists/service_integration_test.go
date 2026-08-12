@@ -265,11 +265,12 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			PickupSchedules:   scheduleRepo.NewStudentPickupScheduleRepository(db),
 			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
 		}),
-		PickupScheduleRepo: scheduleRepo.NewStudentPickupScheduleRepository(db),
-		StudentRepo:        usersRepo.NewStudentRepository(db),
-		PersonRepo:         usersRepo.NewPersonRepository(db),
-		EducationGroupRepo: educationRepo.NewGroupRepository(db),
-		RoomRepo:           roomRepo,
+		PickupExceptionRepo: scheduleRepo.NewStudentPickupExceptionRepository(db),
+		PickupScheduleRepo:  scheduleRepo.NewStudentPickupScheduleRepository(db),
+		StudentRepo:         usersRepo.NewStudentRepository(db),
+		PersonRepo:          usersRepo.NewPersonRepository(db),
+		EducationGroupRepo:  educationRepo.NewGroupRepository(db),
+		RoomRepo:            roomRepo,
 		PickupService: scheduleSvc.NewPickupScheduleServiceWithBulk(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
@@ -1476,6 +1477,79 @@ func TestRenderList_PDFSmoke(t *testing.T) {
 	assert.Equal(t, "application/pdf", file.ContentType)
 	assert.NotEmpty(t, file.Data)
 	assert.Contains(t, file.Filename, "tagesliste-abgleich-freie-angebotsauswahl")
+}
+
+// A partial-day excusal (student_pickup_exceptions.excused_from) must sign a
+// child off on the Ganztag Abgleich after the cutoff. Without that evidence a
+// child who left early (or was never expected after the cutoff) is labelled
+// "Fehlt" and inflates the missing counter.
+func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(pickupDate.Weekday())
+
+	partial := testpkg.CreateTestStudent(t, db, "SL-Partial", fmt.Sprintf("P-%d", suffix), "2b")
+	missing := testpkg.CreateTestStudent(t, db, "SL-Missing", fmt.Sprintf("M-%d", suffix), "2b")
+	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("PA-%d", suffix))
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	exceptionRepo := scheduleRepo.NewStudentPickupExceptionRepository(db)
+	var pickupIDs []int64
+	for _, row := range []*scheduleModels.StudentPickupSchedule{
+		{StudentID: partial.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		{StudentID: missing.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+
+	// 15:00 is long-day (short cutoff 14:30, long cutoff 16:00). Owning the
+	// pickup time at the partial cutoff keeps the child in that cohort.
+	from := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	exc := &scheduleModels.StudentPickupException{
+		StudentID:             partial.ID,
+		ExceptionDate:         pickupDate,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staff.ID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	exc.SetTenantID(1)
+	require.NoError(t, exceptionRepo.Create(ctx, exc))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", exc.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupActivityFixtures(t, db, partial.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, missing.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         pickupDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	partialRow := rowByStudent(result.Rows, partial.ID)
+	require.NotNil(t, partialRow, "partial-excused child stays in the cohort")
+	assert.True(t, partialRow.Excused, "excused_from covering the pickup is registered sign-off")
+	assert.Equal(t, "Abgemeldet (entschuldigt)", partialRow.StatusLabel)
+
+	missingRow := rowByStudent(result.Rows, missing.ID)
+	require.NotNil(t, missingRow)
+	assert.False(t, missingRow.Excused)
+	assert.Equal(t, "Fehlt", missingRow.StatusLabel)
+
+	assert.Equal(t, 1, result.Counters.Excused)
+	assert.Equal(t, 1, result.Counters.Missing)
 }
 
 // A registered sick/excused/class-trip day (active.student_status_days) must

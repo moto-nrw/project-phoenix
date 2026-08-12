@@ -495,6 +495,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		IoTService:              api.Services.IoT,
 		StaffPINAuthenticator:   api.Services.StaffPINAuth,
 		PickupScheduleService:   api.Services.PickupSchedule,
+		PartialAbsenceService:   api.Services.PartialAbsence,
 		ArrivalScheduleService:  api.Services.ArrivalSchedule,
 		InstanceService:         api.Services.Instance,
 		CareDayService:          api.Services.CareDay,
