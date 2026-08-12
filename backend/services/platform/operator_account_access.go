@@ -135,6 +135,22 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
 
+		// Same guard as UpdateAccountTenantRole: a revoke deliberately leaves
+		// person/staff/teacher records behind (see RevokeAccountTenantAccess),
+		// so re-granting the same school with the Lehrkraft role would revive
+		// a live caregiver profile — users.teachers plus its group
+		// supervisions — on an account whose JWT only carries class_day
+		// permissions. Offboarded (soft-deleted) profiles do not block.
+		if authSvc.IsLehrkraftSystemRole(role) {
+			hasCaregiverProfile, profErr := s.hasSchoolCaregiverProfile(tenantCtx, accountID)
+			if profErr != nil {
+				return profErr
+			}
+			if hasCaregiverProfile {
+				return &InvalidDataError{Err: fmt.Errorf("cannot assign the lehrkraft role: the account has a caregiver profile at this school; remove it via staff offboarding first")}
+			}
+		}
+
 		mapping := &authModels.AccountTenant{AccountID: accountID, TenantID: schoolID}
 		if err := s.AccountTenantRepo.EnsureActive(tenantCtx, mapping); err != nil {
 			return fmt.Errorf("activate account-tenant mapping: %w", err)
@@ -225,18 +241,36 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		}
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
-		// A caregiver requires a local person, staff and teacher record. The
-		// role-change endpoint has no identity fields, so copy the deterministically
-		// selected active identity from another school (or the local one). Without
-		// one, reject the change before assigning the role.
+		// Server-side mirror of the UI guards (role-management-modal,
+		// account-tenant-access-modal): switching an account whose school
+		// identity includes a caregiver profile to Lehrkraft would strand
+		// users.teachers and its active group supervisions on an account
+		// whose JWT only carries class_day permissions. The profile is
+		// removed through the school's own staff offboarding, never through
+		// a role swap — so a direct endpoint call must be rejected too.
+		if authSvc.IsLehrkraftSystemRole(role) {
+			hasCaregiverProfile, profErr := s.hasSchoolCaregiverProfile(tenantCtx, accountID)
+			if profErr != nil {
+				return profErr
+			}
+			if hasCaregiverProfile {
+				return &InvalidDataError{Err: fmt.Errorf("cannot assign the lehrkraft role: the account has a caregiver profile at this school; remove it via staff offboarding first")}
+			}
+		}
+		// A caregiver requires a local person, staff and teacher record; a
+		// Lehrkraft (#1772) requires person and staff (no teacher profile) so
+		// the school can assign classes under Mitarbeiter. The role-change
+		// endpoint has no identity fields, so copy the deterministically
+		// selected active identity from another school (or the local one).
+		// Without one, reject the change before assigning the role.
 		firstName, lastName := "", ""
-		if isSystemCaregiverRole(role) {
+		if isSystemCaregiverRole(role) || authSvc.IsLehrkraftSystemRole(role) {
 			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
 			if findErr != nil {
 				return findErr
 			}
 			if existing == nil {
-				return &InvalidDataError{Err: fmt.Errorf("a person record is required before assigning the caregiver role")}
+				return &InvalidDataError{Err: fmt.Errorf("a person record is required before assigning this role")}
 			}
 			firstName, lastName = existing.FirstName, existing.LastName
 			if err := s.ensureSchoolIdentity(tenantCtx, accountID, schoolID, role, firstName, lastName, "", true); err != nil {
@@ -529,6 +563,13 @@ func (s *operatorProvisioningService) activePersonForAccount(ctx context.Context
 		}
 	}
 	return selected, nil
+}
+
+// hasSchoolCaregiverProfile reports whether the account's identity at the
+// school in ctx includes a live caregiver profile (users.teachers). Delegates
+// to the shared walk so this guard cannot drift from the tenant RBAC path.
+func (s *operatorProvisioningService) hasSchoolCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	return authSvc.HasLiveCaregiverProfile(ctx, s.PersonRepo, s.StaffRepo, s.TeacherRepo, accountID)
 }
 
 // ensureSchoolIdentity creates the person, staff and (for caregiver roles)

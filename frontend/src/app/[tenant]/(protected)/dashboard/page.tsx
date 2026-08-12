@@ -18,6 +18,7 @@ import {
   getActivityStatusColor,
   getGroupStatusColor,
 } from "~/lib/dashboard-helpers";
+import { getTimeBasedGreeting } from "~/lib/greeting";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { RoleGuard } from "~/components/auth/role-guard";
 import {
@@ -32,14 +33,6 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 
 const logger = createLogger({ component: "DashboardPage" });
-
-// Helper function to get time-based greeting
-function getTimeBasedGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Guten Morgen";
-  if (hour < 17) return "Guten Tag";
-  return "Guten Abend";
-}
 
 // Stat Card Component - matches database page style
 interface StatCardProps {
@@ -481,8 +474,10 @@ function DashboardContent() {
                           {activity.name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          {activity.category} • {activity.participants}/
-                          {activity.maxCapacity} Teilnehmer
+                          {activity.category} • {activity.participants}
+                          {activity.maxCapacity == null
+                            ? " Teilnehmer"
+                            : `/${activity.maxCapacity} Teilnehmer`}
                         </p>
                       </div>
                       <div

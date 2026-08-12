@@ -429,6 +429,9 @@ func (s *CheckinService) checkActivityCapacity(ctx context.Context, activeGroup 
 			return newInternalError(checkinErrGetActivity)
 		}
 	}
+	if !activityGroup.HasParticipantLimit() {
+		return nil
+	}
 
 	currentOccupancy, countErr := s.countActiveGroupOccupancy(ctx, activeGroup.ID)
 	if countErr != nil {

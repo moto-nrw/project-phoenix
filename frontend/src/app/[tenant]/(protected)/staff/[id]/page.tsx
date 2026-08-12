@@ -28,6 +28,7 @@ import {
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
+import { KlassenTab } from "~/components/staff/klassen-tab";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
@@ -147,6 +148,10 @@ export default function StaffDetailContent() {
   // may see the staff list at all — mirrors the backend route gate.
   const canViewStammdatenSections =
     canEdit || canManageTimeTracking || canEditStammdaten;
+  // Klassen-Zuweisung (#1772): Spiegel der Backend-Gates — Lesen users:read,
+  // Ersetzen users:manage (hasPermission ist wildcard-aware, admin:* matcht).
+  const canViewKlassen = canEdit || hasPermission(session, "users:read");
+  const canEditKlassen = canEdit || hasPermission(session, "users:manage");
   const canViewFinancial = hasPermission(session, "staff:financial");
   const canViewStammdaten = canViewStammdatenSections || canViewFinancial;
   // Dokumente (#1424): mirrors the backend route gate — any of the three
@@ -289,6 +294,9 @@ export default function StaffDetailContent() {
           {canViewDocuments ? (
             <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
           ) : null}
+          {canViewKlassen ? (
+            <TabsTrigger value="klassen">Klassen</TabsTrigger>
+          ) : null}
         </TabsList>
 
         {canViewTimeTracking ? (
@@ -336,6 +344,15 @@ export default function StaffDetailContent() {
         {canViewDocuments ? (
           <TabsPrimitive.Content value="dokumente">
             <DokumenteTab staffId={staffId} />
+          </TabsPrimitive.Content>
+        ) : null}
+
+        {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
+            Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
+            Ersetzen mit users:manage — beides erzwingt das Backend. */}
+        {canViewKlassen ? (
+          <TabsPrimitive.Content value="klassen">
+            <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
           </TabsPrimitive.Content>
         ) : null}
       </Tabs>

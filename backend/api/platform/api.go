@@ -38,10 +38,15 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// All routes require authentication
+	// All routes require authentication. TenantMiddleware supplies the
+	// scope guard on top: parent- and school-scope tokens are rejected
+	// with 401 (#2207) — before it, this group was the only /api mount
+	// without a scope check, so a portal-bound token could read tenant
+	// announcements here. Tenant, org, and platform tokens pass unchanged.
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(jwt.TenantMiddleware)
 
 		// Announcements for users
 		r.Route("/announcements", func(r chi.Router) {

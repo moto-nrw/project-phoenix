@@ -38,9 +38,7 @@ import (
 // schedule row per weekday all linked to the same timeframe. WeekPattern
 // matches activities.schedules.week_pattern: 0=every week, 1=A, 2=B.
 //
-// MaxParticipants is optional and defaults to 999 — the timetable use
-// case is dominated by care/Mensa-style activities where the cap is the
-// room capacity, not a numerical roster limit.
+// MaxParticipants is optional. Omitted or null means no participant limit.
 type createTemplateRequest struct {
 	Name            string `json:"name"`
 	Type            string `json:"type"` // care | activity | external

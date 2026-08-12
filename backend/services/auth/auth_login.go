@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -342,16 +343,65 @@ func (s *Service) verifyPassword(account *auth.Account, password string) error {
 	return nil
 }
 
+// mintGuard runs inside the token-persistence transaction, immediately before
+// the token row is written. It is the only place where an authorization fact
+// can be re-checked atomically with the write it authorizes: everything a
+// login flow verified earlier lives in an already-committed transaction and
+// may be stale by the time the token is minted.
+//
+// Implementations receive a context carrying the phoenix_admin transaction, so
+// they MUST call repositories directly instead of opening a nested WithAdminTx
+// (bun does not nest — that would take a second connection and defeat the
+// point). Returning an error aborts the transaction and the mint; it is
+// surfaced verbatim, never retried.
+//
+// The account is the one the CALLER holds. In refreshTokenInTransaction that is
+// the row this very transaction locked FOR UPDATE, so a guard may read it as
+// current; on the login path it is the pre-transaction read, and a guard that
+// needs fresh account state must re-read (and lock) it itself.
+//
+// A guard is also where anything the JWT is built from belongs. Assembling
+// claims AFTER the transaction committed means a failure at that point has
+// already rotated the caller's refresh token and has no successor to hand
+// back — see refreshClaimsGuard.
+type mintGuard func(ctx context.Context, account *auth.Account) error
+
+// mintGuardError marks an error as coming from a mintGuard so the retry loop
+// can pass the caller's sentinel through untouched instead of burying it under
+// the generic "login transaction" wrapper.
+type mintGuardError struct{ err error }
+
+func (e *mintGuardError) Error() string { return e.err.Error() }
+func (e *mintGuardError) Unwrap() error { return e.err }
+
 // createRefreshTokenWithRetry creates a refresh token with retry logic for concurrent logins
 func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account, tenantID int64) (*auth.Token, error) {
+	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, nil)
+}
+
+// createRefreshTokenWithRetryGuarded is createRefreshTokenWithRetry with an
+// authorization re-check that runs inside the persistence transaction. A guard
+// failure is terminal — the retry loop only exists for token-family
+// collisions, and re-running a guard that just said "no" would be pointless.
+func (s *Service) createRefreshTokenWithRetryGuarded(
+	ctx context.Context,
+	account *auth.Account,
+	tenantID int64,
+	guard mintGuard,
+) (*auth.Token, error) {
 	token := s.newRefreshToken(account.ID)
 
 	maxRetries := 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := s.persistTokenInTransaction(ctx, account, token, tenantID)
+		err := s.persistTokenInTransaction(ctx, account, token, tenantID, guard)
 
 		if err == nil {
 			return token, nil
+		}
+
+		var guardErr *mintGuardError
+		if errors.As(err, &guardErr) {
+			return nil, guardErr.err
 		}
 
 		if !s.isTokenFamilyConflict(err) {
@@ -388,8 +438,17 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 // Uses WithAdminTx (BYPASSRLS) because this is a public login route with no JWT/tenant
 // context. The phoenix_auth connection role cannot pass RLS policies on auth.tokens,
 // so we switch to phoenix_admin for the token write.
-func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
+//
+// guard (optional) re-validates the caller's authorization inside this
+// transaction, before anything is written — see mintGuard.
+func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
 	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		if guard != nil {
+			if err := guard(ctx, account); err != nil {
+				return &mintGuardError{err: err}
+			}
+		}
+
 		// Updating the account first acquires its row lock for the rest of this
 		// transaction. Concurrent token issuers for the same account then enforce
 		// the session cap serially instead of deleting from identical snapshots.
@@ -470,15 +529,23 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 		}
 
 		// Step 2: Load roles scoped to the resolved tenant (D13 §6.1 step 6).
-		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		if err := s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID); err != nil {
+			return err
+		}
 
 		// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
-		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		permissions, err := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		if err != nil {
+			return err
+		}
 		roleNames := s.extractRoleNames(account.Roles)
 		permissionStrs := s.extractPermissionNames(permissions)
 
 		username := s.extractUsername(account)
-		firstName, lastName := s.loadPersonNames(ctx, account.ID)
+		firstName, lastName, err := s.loadPersonNamesForTenant(ctx, account.ID, tenantID)
+		if err != nil {
+			return err
+		}
 		isAdmin := s.checkRoleFlags(roleNames)
 
 		result = &accountMetadata{
@@ -504,48 +571,10 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 // re-resolving via slug or default fallback could silently switch to a different tenant.
 func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *auth.Account, tenantID int64) (*accountMetadata, error) {
 	var result *accountMetadata
-	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-
-		// Look up the school's organization ID for the JWT org_id claim.
-		var orgID int64
-		if tenantID > 0 {
-			school, err := s.repos.School.FindByID(ctx, tenantID)
-			if err != nil {
-				// Distinguish "not found" from transient DB errors so the caller
-				// returns 401 (re-login) instead of 500 (retry) when the school
-				// was hard-deleted between token issuance and this refresh.
-				if errors.Is(err, sql.ErrNoRows) {
-					return &AuthError{Op: "load metadata for tenant", Err: ErrTenantNotFound}
-				}
-				return fmt.Errorf("lookup school for tenant %d: %w", tenantID, err)
-			}
-			if school == nil || school.IsDeleted() {
-				return &AuthError{Op: "load metadata for tenant", Err: ErrTenantNotFound}
-			}
-			orgID = school.OrganizationID
-		}
-
-		// Load roles and permissions scoped to the preserved tenant.
-		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
-		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
-		roleNames := s.extractRoleNames(account.Roles)
-		permissionStrs := s.extractPermissionNames(permissions)
-
-		username := s.extractUsername(account)
-		firstName, lastName := s.loadPersonNames(ctx, account.ID)
-		isAdmin := s.checkRoleFlags(roleNames)
-
-		result = &accountMetadata{
-			roleNames:      roleNames,
-			permissionStrs: permissionStrs,
-			username:       username,
-			firstName:      firstName,
-			lastName:       lastName,
-			isAdmin:        isAdmin,
-			tenantID:       tenantID,
-			orgID:          orgID,
-		}
-		return nil
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, _ bun.Tx) error {
+		var err error
+		result, err = s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -553,20 +582,94 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 	return result, nil
 }
 
+// loadAccountMetadataForTenantInTx is loadAccountMetadataForTenant for callers
+// that ALREADY hold a phoenix_admin transaction and need the load to happen
+// inside it. bun does not nest transactions, so a caller inside one must not
+// route through the WithAdminTx wrapper above: that would take a second
+// connection with its own snapshot — which is precisely how the school refresh
+// used to end up assembling claims from state its own rotation had already
+// committed past.
+//
+// Only pass a context carrying a phoenix_admin transaction. Under the
+// phoenix_tenant role the role/permission reads hit RLS and come back empty,
+// which reads downstream as a legitimately unprivileged session.
+func (s *Service) loadAccountMetadataForTenantInTx(ctx context.Context, account *auth.Account, tenantID int64) (*accountMetadata, error) {
+	// Look up the school's organization ID for the JWT org_id claim.
+	var orgID int64
+	if tenantID > 0 {
+		school, err := s.repos.School.FindByID(ctx, tenantID)
+		if err != nil {
+			// Distinguish "not found" from transient DB errors so the caller
+			// returns 401 (re-login) instead of 500 (retry) when the school
+			// was hard-deleted between token issuance and this refresh.
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, &AuthError{Op: "load metadata for tenant", Err: ErrTenantNotFound}
+			}
+			return nil, fmt.Errorf("lookup school for tenant %d: %w", tenantID, err)
+		}
+		if school == nil || school.IsDeleted() {
+			return nil, &AuthError{Op: "load metadata for tenant", Err: ErrTenantNotFound}
+		}
+		orgID = school.OrganizationID
+	}
+
+	// Load roles and permissions scoped to the preserved tenant.
+	if err := s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID); err != nil {
+		return nil, err
+	}
+	permissions, err := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	roleNames := s.extractRoleNames(account.Roles)
+	permissionStrs := s.extractPermissionNames(permissions)
+
+	username := s.extractUsername(account)
+	// Pin the person lookup to the tenant this token is being minted for —
+	// the refresh/switch paths carry the previous school in the ambient
+	// context (see loadPersonNamesForTenant).
+	firstName, lastName, err := s.loadPersonNamesForTenant(ctx, account.ID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	isAdmin := s.checkRoleFlags(roleNames)
+
+	return &accountMetadata{
+		roleNames:      roleNames,
+		permissionStrs: permissionStrs,
+		username:       username,
+		firstName:      firstName,
+		lastName:       lastName,
+		isAdmin:        isAdmin,
+		tenantID:       tenantID,
+		orgID:          orgID,
+	}, nil
+}
+
 // ensureAccountRolesLoadedForTenant loads account roles scoped to a specific tenant.
 // Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 6).
-func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account *auth.Account, tenantID int64) {
+//
+// Query failures are PROPAGATED, never swallowed. An empty role set is not a
+// harmless degradation: MFAService.IsRequired evaluates security.mfa_mode =
+// required_admins against exactly these roles, so a transient DB error used to
+// turn an admin into a role-less account and waved the login through without a
+// second factor. A genuine "no roles" result arrives as an empty slice, so only
+// real infra errors reach the caller — which maps them to a retryable 500.
+func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account *auth.Account, tenantID int64) error {
 	// Clear any previously loaded roles to ensure fresh tenant-scoped loading
 	account.Roles = nil
 
 	accountRoles, err := s.repos.AccountRole.FindByAccountIDForTenant(ctx, account.ID, tenantID)
 	if err != nil {
-		s.getLogger().Warn("failed to load tenant-scoped roles",
+		if isNotFoundError(err) {
+			return nil
+		}
+		s.getLogger().Warn("failed to load tenant-scoped roles; refusing login",
 			slog.Int64("account_id", account.ID),
 			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err),
 		)
-		return
+		return fmt.Errorf("load tenant-scoped roles for account %d at tenant %d: %w", account.ID, tenantID, err)
 	}
 
 	for _, ar := range accountRoles {
@@ -574,21 +677,29 @@ func (s *Service) ensureAccountRolesLoadedForTenant(ctx context.Context, account
 			account.Roles = append(account.Roles, ar.Role)
 		}
 	}
+	return nil
 }
 
 // loadAccountPermissionsForTenant retrieves permissions scoped to a specific tenant.
 // Used during login/switch flows where no tenant context exists yet (D13 §6.1 step 7).
-func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID int64, tenantID int64) []*auth.Permission {
+//
+// Same fail-closed contract as ensureAccountRolesLoadedForTenant: a DB error
+// must not silently mint a token with an empty permission set, which reads to
+// every downstream authorize check as a legitimately unprivileged session.
+func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*auth.Permission, error) {
 	permissions, err := s.repos.Permission.FindByAccountIDForTenant(ctx, accountID, tenantID)
 	if err != nil {
-		s.getLogger().Warn("failed to load tenant-scoped permissions",
+		if isNotFoundError(err) {
+			return []*auth.Permission{}, nil
+		}
+		s.getLogger().Warn("failed to load tenant-scoped permissions; refusing login",
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err),
 		)
-		return []*auth.Permission{}
+		return nil, fmt.Errorf("load tenant-scoped permissions for account %d at tenant %d: %w", accountID, tenantID, err)
 	}
-	return permissions
+	return permissions, nil
 }
 
 // extractRoleNames converts roles to string slice
@@ -617,13 +728,100 @@ func (s *Service) extractUsername(account *auth.Account) string {
 	return ""
 }
 
-// loadPersonNames retrieves first and last name from person record
-func (s *Service) loadPersonNames(ctx context.Context, accountID int64) (string, string) {
+// loadPersonNames retrieves first and last name from the person record visible
+// in the context's tenant scope. A missing person row is a legitimate result
+// ("" / ""); a failed LOOKUP is not, and is propagated — collapsing the two
+// used to send a blank-named token on a DB blip and, worse, sent the caller
+// into the cross-school fallback below on the strength of an error.
+func (s *Service) loadPersonNames(ctx context.Context, accountID int64) (string, string, error) {
 	person, err := s.repos.Person.FindByAccountID(ctx, accountID)
-	if err != nil || person == nil {
-		return "", ""
+	if err != nil {
+		return "", "", err
 	}
-	return person.FirstName, person.LastName
+	if person == nil {
+		return "", "", nil
+	}
+	return person.FirstName, person.LastName, nil
+}
+
+// loadPersonNamesForTenant resolves the person names that belong in a token
+// minted FOR tenantID, instead of whichever tenant happens to sit in the
+// ambient context.
+//
+// users.persons is tenant-scoped and PersonRepository.FindByAccountID applies
+// the tenant from the CONTEXT. Every mint path that switches schools — the
+// tenant portal's SwitchTenant, the school portal's SwitchSchool — runs inside
+// the request of the SOURCE school, so the ambient context named the school
+// the user is leaving: an account with person rows at two schools got the old
+// school's name stamped into the new JWT, and one with a person row only at
+// the target got no name at all.
+//
+// The fallback keeps accounts without a person row at the target working: an
+// org-scope Träger user reaches a school through organization membership, and
+// their person row stays at their home school. It is deliberately NOT the
+// unscoped "any person row with this account_id" query it used to be. That one
+// dropped the tenant filter entirely and took whatever row the database handed
+// back first — with no ORDER BY, so an account with person rows at several
+// schools got an arbitrary school's name stamped into its JWT, and a *failed*
+// target lookup fell into it as readily as a genuinely empty one.
+//
+// What replaces it is bounded and deterministic: only schools the account is
+// ACTIVELY mapped to are consulted, in ascending tenant order, and the name is
+// used only when those schools agree on it. Two different names across two
+// schools is an ambiguity this function is not entitled to resolve — it yields
+// no name (and says so in the log) rather than guessing one.
+func (s *Service) loadPersonNamesForTenant(ctx context.Context, accountID, tenantID int64) (string, string, error) {
+	if tenantID > 0 {
+		firstName, lastName, err := s.loadPersonNames(tenant.WithTenantID(ctx, tenantID), accountID)
+		if err != nil {
+			return "", "", fmt.Errorf("load person names for account %d at tenant %d: %w", accountID, tenantID, err)
+		}
+		if firstName != "" || lastName != "" {
+			return firstName, lastName, nil
+		}
+	}
+	return s.loadPersonNamesFromMappedTenants(ctx, accountID, tenantID)
+}
+
+// loadPersonNamesFromMappedTenants resolves a person name from the OTHER
+// schools the account is actively mapped to — the authorized, deterministic
+// half of loadPersonNamesForTenant's fallback.
+func (s *Service) loadPersonNamesFromMappedTenants(ctx context.Context, accountID, excludeTenantID int64) (string, string, error) {
+	mappings, err := s.repos.AccountTenant.FindActiveByAccountID(ctx, accountID)
+	if err != nil {
+		return "", "", fmt.Errorf("list active tenants of account %d for person lookup: %w", accountID, err)
+	}
+
+	tenantIDs := make([]int64, 0, len(mappings))
+	for _, mapping := range mappings {
+		if mapping.TenantID != excludeTenantID && mapping.TenantID > 0 {
+			tenantIDs = append(tenantIDs, mapping.TenantID)
+		}
+	}
+	slices.Sort(tenantIDs)
+
+	var firstName, lastName string
+	for _, mappedTenantID := range tenantIDs {
+		candidateFirst, candidateLast, err := s.loadPersonNames(tenant.WithTenantID(ctx, mappedTenantID), accountID)
+		if err != nil {
+			return "", "", fmt.Errorf("load person names for account %d at tenant %d: %w", accountID, mappedTenantID, err)
+		}
+		if candidateFirst == "" && candidateLast == "" {
+			continue
+		}
+		if firstName == "" && lastName == "" {
+			firstName, lastName = candidateFirst, candidateLast
+			continue
+		}
+		if candidateFirst != firstName || candidateLast != lastName {
+			s.getLogger().Warn("person name ambiguous across schools; minting token without a name",
+				slog.Int64("account_id", accountID),
+				slog.Int64("tenant_id", excludeTenantID),
+			)
+			return "", "", nil
+		}
+	}
+	return firstName, lastName, nil
 }
 
 // checkRoleFlags determines if account has admin role
@@ -1113,7 +1311,12 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 // Uses WithAdminTx (BYPASSRLS) because token refresh is a pre-authentication flow
 // with no JWT/tenant context yet. The phoenix_auth connection role cannot pass RLS
 // policies on auth.tokens (same reason persistTokenInTransaction uses WithAdminTx).
-func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64) (*auth.Account, *auth.Token, bool, error) {
+// guard (optional) re-validates the caller's authorization inside this
+// transaction, immediately after the account row is locked and before any
+// token is written — see mintGuard. It is what keeps a scope-specific
+// authorization decision (today: school-portal access) from being made
+// against state the rotation has already committed past.
+func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64, guard mintGuard) (*auth.Account, *auth.Token, bool, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
 	var newToken *auth.Token
@@ -1145,6 +1348,18 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			}
 			s.logRefreshDecision("refresh_session_rejected", reason, refreshClaims.ID, refreshClaims.TenantID)
 			return err
+		}
+
+		// Authorization runs HERE — after the account row is locked, before
+		// the rotation writes anything. Doing it after the transaction
+		// committed (where the school checks used to live) meant a
+		// revocation could land in between and still be answered with a
+		// freshly minted token; it also meant a legitimate refusal had
+		// already consumed the caller's refresh token.
+		if guard != nil {
+			if err := guard(ctx, account); err != nil {
+				return err
+			}
 		}
 
 		dbToken, err = s.repos.Token.FindByTokenForUpdate(ctx, refreshClaims.Token)
@@ -1422,8 +1637,52 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		}
 	}
 
+	// A school token without a school is dead on arrival: SchoolMiddleware
+	// refuses tenant_id=0 on every request, and nothing downstream can pin the
+	// session to a school either — the rotation would fall back to the
+	// account's default mapping and mint a successor for a school this session
+	// never proved access to. Refusing BEFORE the rotation matters as much as
+	// refusing at all: this used to be caught only after the transaction had
+	// committed, so a token nothing accepts was answered by burning the
+	// caller's refresh token.
+	if refreshClaims.Scope == tenant.ScopeSchool && refreshClaims.TenantID <= 0 {
+		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", refreshClaims.ID, refreshClaims.TenantID)
+		return nil, &AuthError{Op: "refresh school session", Err: ErrTenantAccessDenied}
+	}
+
+	// Every refresh carries its authorization AND its claims INTO the rotation
+	// transaction. For the school scope that is the whole portal's footing —
+	// account liveness, school liveness, an active mapping, the school-portal
+	// role — re-checked under the account lock, so a revocation that commits
+	// while the refresh is in flight either loses the race outright or blocks
+	// until the rotation is done and cuts the NEXT one. Checking after the
+	// rotation (as this path used to) had both failure modes: a token minted
+	// for an account whose access had just been revoked, and a rejected refresh
+	// that had nonetheless burned the caller's refresh token.
+	//
+	// The claims payload is assembled in the same transaction for the second
+	// half of that argument, and that half is not school-specific — hence a
+	// guard on EVERY path, not just the school one. Loading claims afterwards
+	// left a window no handoff could repair: roles, permissions or the person
+	// lookup failing there (a soft-deleted school, a DB blip) returns an error
+	// to a caller whose refresh token the rotation has already consumed, and
+	// whose successor it never received. With no recovery proof in hand the
+	// retry cannot reach the handoff and may be read as replay. Inside the
+	// transaction that outcome cannot exist: either the rotation and the claims
+	// commit together, or the transaction rolls back and the presented refresh
+	// token is still the caller's.
+	var (
+		guard    mintGuard
+		metadata *accountMetadata
+	)
+	if refreshClaims.Scope == tenant.ScopeSchool {
+		guard = s.schoolRefreshMintGuard(int64(refreshClaims.ID), refreshClaims.TenantID, &metadata)
+	} else {
+		guard = s.refreshClaimsGuard(refreshClaims.Scope, refreshClaims.TenantID, &metadata)
+	}
+
 	// Validate and refresh token in transaction (pass tenant from old JWT for the new token)
-	account, newToken, recovered, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent, refreshClaims.TenantID)
+	account, newToken, recovered, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent, refreshClaims.TenantID, guard)
 	if err != nil {
 		return nil, err
 	}
@@ -1435,40 +1694,92 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 		)
 	}
 
-	// Load account metadata (roles, permissions, person info)
-	// Refresh flow preserves the tenant from the existing refresh token — never re-resolve
-	// via default fallback, which could silently switch to a different tenant for multi-tenant users.
-	//
-	// Parent-scope refresh tokens must round-trip as parent tokens.
-	// loadAccountMetadataForTenant returns tenant-scope metadata (scope="",
-	// tenant_id pinned), so a naive refresh would silently demote a parent
-	// JWT to a tenant JWT — that token then fails the parents-portal
-	// ParentMiddleware on the very next request and the parent dashboard
-	// gets stuck on the auth-guard loading state.
-	//
-	// We detect this via:
-	//   - explicit scope claim (new tokens, see RefreshClaims.Scope), OR
-	//   - backward-compat: account is guardian-only at the refresh tenant
-	//     (old in-flight refresh tokens issued before Scope was added).
-	var metadata *accountMetadata
-	if refreshClaims.Scope == tenant.ScopeParent || s.isGuardianOnlyAccount(ctx, account, refreshClaims.TenantID) {
-		metadata = s.buildParentMetadata(account)
-	} else {
-		metadata, err = s.loadAccountMetadataForTenant(ctx, account, refreshClaims.TenantID)
-		if err != nil {
-			return nil, err
-		}
+	// The claims are already assembled: the guard built them inside the
+	// rotation transaction (see above), so there is deliberately nothing left
+	// to load here and no second chance to fail after the rotation committed.
+	// A nil payload past a successful rotation would mean a guard returned nil
+	// without filling it — impossible today, and an internal error rather than
+	// a token minted from an empty claims struct.
+	if metadata == nil {
+		return nil, &AuthError{Op: "refresh session", Err: fmt.Errorf("refresh claims payload missing after rotation")}
 	}
 
 	// Build JWT claims from account and metadata
 	appClaims, newRefreshClaims := s.buildJWTClaims(account, newToken, metadata, account.Email)
 
-	// Generate token pair and log success as token refresh
-	accessToken, refreshToken, err := s.generateAndLogTokens(ctx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent, audit.EventTypeTokenRefresh)
+	// Generate token pair and log success as token refresh.
+	//
+	// The whole refresh validates against refreshClaims.TenantID, so the audit
+	// event must be filed there too. The incoming context has no tenant (the
+	// refresh route is pre-authentication), and logAuthEvent then falls back to
+	// the account's FIRST active mapping — for anyone mapped to several schools
+	// that routinely attributes the refresh to the wrong school.
+	auditCtx := ctx
+	if refreshClaims.TenantID > 0 {
+		auditCtx = tenant.WithTenantID(ctx, refreshClaims.TenantID)
+	}
+	accessToken, refreshToken, err := s.generateAndLogTokens(auditCtx, account.ID, appClaims, newRefreshClaims, ipAddress, userAgent, audit.EventTypeTokenRefresh)
 	if err != nil {
 		return nil, err
 	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshToken}, nil
+}
+
+// refreshClaimsGuard assembles the claims payload of a NON-school refresh from
+// inside the rotation transaction — the tenant and parent scopes.
+//
+// It exists for atomicity, not for authorization: the tenant scope settles its
+// access in validateTenantAccess before any of this runs. What the guard buys
+// is that a claims load which FAILS cannot leave the caller stranded. Run after
+// the transaction (where this used to live), a failing role, permission or
+// person lookup returned an error on a rotation that had already committed:
+// the presented refresh token was consumed, the successor was never handed
+// back, and a retry without a recovery proof cannot reach the handoff — it
+// looks like replay and can take the whole token family down. In here the two
+// halves share one transaction, so an error rolls the rotation back and the
+// caller still holds the token it presented.
+//
+// The scope decision itself is unchanged. Parent-scope refresh tokens must
+// round-trip as parent tokens: loadAccountMetadataForTenantInTx returns
+// tenant-scope metadata (scope="", tenant_id pinned), so a naive refresh would
+// silently demote a parent JWT to a tenant JWT — that token then fails the
+// parents-portal ParentMiddleware on the very next request and the parent
+// dashboard gets stuck on the auth-guard loading state. It is detected via:
+//   - the explicit scope claim (new tokens, see RefreshClaims.Scope), OR
+//   - backward-compat: the account is guardian-only at the refresh tenant
+//     (old in-flight refresh tokens issued before Scope was added).
+//
+// That backward-compat probe now PROPAGATES its errors instead of reading a
+// failed role load as "not guardian-only" (isGuardianOnlyAccount's contract,
+// which the post-rotation caller could afford because the very next step
+// reloaded the same roles and failed there). Inside the guard the distinction
+// is real: guessing here would mint a tenant JWT for a guardian.
+func (s *Service) refreshClaimsGuard(scope string, tenantID int64, out **accountMetadata) mintGuard {
+	return func(ctx context.Context, account *auth.Account) error {
+		if scope == tenant.ScopeParent {
+			*out = s.buildParentMetadata(account)
+			return nil
+		}
+
+		guardianOnly, err := s.isGuardianOnlyAccountInTx(ctx, account, tenantID)
+		if err != nil {
+			return err
+		}
+		if guardianOnly {
+			*out = s.buildParentMetadata(account)
+			return nil
+		}
+
+		// Refresh preserves the tenant of the existing refresh token — never
+		// re-resolve via the default fallback, which could silently switch a
+		// multi-school account to a different school.
+		metadata, err := s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
+		if err != nil {
+			return err
+		}
+		*out = metadata
+		return nil
+	}
 }
 
 // validateTenantAccess ensures the account still has active access to the tenant from the refresh token
@@ -1514,6 +1825,19 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 	}
 	if school == nil || school.IsDeleted() {
 		s.logRefreshDecision("refresh_session_rejected", "tenant_deleted", claims.ID, claims.TenantID)
+		return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
+	}
+
+	// An inactive school cannot be logged into on ANY portal — every resolver
+	// (resolveAccountTenantBySlug, resolveAccountTenantDefault, the school
+	// portal-tenant finder) skips it. Refusing it here too keeps a running
+	// session from outliving the switch-off, and it has to happen HERE rather
+	// than after rotation: the later liveness gate only ran once the refresh
+	// token had already been consumed, so a school deactivated mid-session
+	// answered its next refresh with an error AND destroyed the token that
+	// would have let the client retry.
+	if !school.Active {
+		s.logRefreshDecision("refresh_session_rejected", "tenant_inactive", claims.ID, claims.TenantID)
 		return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
 	}
 
@@ -1571,9 +1895,24 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			}
 		}
 
+		// Log successful logout against the school the session actually
+		// belonged to. /auth/logout is a pre-deauthentication route with no
+		// tenant in context, and logAuthEvent then falls back to the account's
+		// FIRST active mapping — for a Lehrkraft or a caregiver mapped to
+		// several schools that files the logout under a school they were never
+		// logged into. The token row carries the tenant the session was minted
+		// for; the claims are the fallback for pre-tenant-claim legacy rows.
+		auditCtx := ctx
+		switch {
+		case dbToken.TenantID > 0:
+			auditCtx = tenant.WithTenantID(ctx, dbToken.TenantID)
+		case refreshClaims.TenantID > 0:
+			auditCtx = tenant.WithTenantID(ctx, refreshClaims.TenantID)
+		}
+
 		// Log successful logout
 		if ipAddress != "" {
-			s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
+			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
 		}
 
 		return nil

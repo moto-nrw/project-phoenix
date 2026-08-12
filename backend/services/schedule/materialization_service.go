@@ -628,6 +628,9 @@ func (s *materializationService) copyTargetStudents(
 	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
 		return &ScheduleError{Op: "materialize template: apply target student status days", Err: err}
 	}
+	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
+		return &ScheduleError{Op: "materialize template: apply target student partial absences", Err: err}
+	}
 	return nil
 }
 
@@ -682,6 +685,9 @@ func (s *materializationService) copyEnrollments(
 	}
 	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
 		return &ScheduleError{Op: "materialize template: apply student status days", Err: err}
+	}
+	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
+		return &ScheduleError{Op: "materialize template: apply student partial absences", Err: err}
 	}
 	return nil
 }

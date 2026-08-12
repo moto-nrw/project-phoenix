@@ -61,7 +61,17 @@ export function RoleManagementModal({
       ]);
 
       setCurrentRoles(accountRoles);
-      setRoleOptions(toAssignableRoleOptions(allRoles));
+      // lehrkraft (#1772) ist hier bewusst NICHT wählbar: der Rollen-Tausch
+      // würde nur die auth-Rolle wechseln und das Betreuungsprofil
+      // (users.teachers) samt aktiver Gruppen-Aufsichten stehen lassen —
+      // genau die Kombination, die Einladung und Operator-Provisioning
+      // verbieten. Lehrkraft-Zugänge entstehen über die Einladung bzw. die
+      // Personal-Anlage.
+      setRoleOptions(
+        toAssignableRoleOptions(allRoles).filter(
+          (option) => option.systemName !== "lehrkraft",
+        ),
+      );
       setTargetRoleId(
         accountRoles.length > 0 ? Number(accountRoles[0]?.id) : undefined,
       );
@@ -86,6 +96,12 @@ export function RoleManagementModal({
   const currentRoleIds = currentRoles.map((role) => Number(role.id));
   const isUnchanged =
     targetRoleId !== undefined && currentRoleIds.includes(targetRoleId);
+  // Ein Lehrkraft-Konto (#1772) hat kein Betreuungsprofil — ein Tausch auf
+  // Betreuer/Admin hier würde die volle Rolle ohne users.teachers-Zeile
+  // hinterlassen. Solche Wechsel laufen über Offboarding + Neuanlage.
+  const currentIsLehrkraft = currentRoles.some(
+    (role) => role.name.toLowerCase() === "lehrkraft",
+  );
 
   async function handleSave() {
     if (!accountId || targetRoleId === undefined || isUnchanged) {
@@ -142,7 +158,13 @@ export function RoleManagementModal({
           <button
             type="button"
             onClick={() => void handleSave()}
-            disabled={saving || loading || isUnchanged || !targetRoleId}
+            disabled={
+              saving ||
+              loading ||
+              isUnchanged ||
+              !targetRoleId ||
+              currentIsLehrkraft
+            }
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? "Wird gespeichert..." : "Speichern"}
@@ -170,29 +192,36 @@ export function RoleManagementModal({
             </DataGrid>
           </InfoSection>
 
-          <div>
-            <label
-              id="target-role-select-label"
-              htmlFor="target-role-select"
-              className="mb-1 block text-xs font-medium text-gray-700"
-            >
-              Neue Rolle
-            </label>
-            <CustomSelect
-              id="target-role-select"
-              ariaLabelledBy="target-role-select-label"
-              value={targetRoleId === undefined ? "" : String(targetRoleId)}
-              onChange={(next) =>
-                setTargetRoleId(next === "" ? undefined : Number(next))
-              }
-              options={roleOptions.map((role) => ({
-                value: String(role.id),
-                label: role.name,
-              }))}
-              placeholder="Rolle auswählen..."
-              disabled={saving}
+          {currentIsLehrkraft ? (
+            <Alert
+              type="info"
+              message="Lehrkraft-Zugänge haben kein Betreuungsprofil und können hier nicht umgestellt werden. Für einen Wechsel den Zugang deaktivieren und die Person neu anlegen bzw. einladen."
             />
-          </div>
+          ) : (
+            <div>
+              <label
+                id="target-role-select-label"
+                htmlFor="target-role-select"
+                className="mb-1 block text-xs font-medium text-gray-700"
+              >
+                Neue Rolle
+              </label>
+              <CustomSelect
+                id="target-role-select"
+                ariaLabelledBy="target-role-select-label"
+                value={targetRoleId === undefined ? "" : String(targetRoleId)}
+                onChange={(next) =>
+                  setTargetRoleId(next === "" ? undefined : Number(next))
+                }
+                options={roleOptions.map((role) => ({
+                  value: String(role.id),
+                  label: role.name,
+                }))}
+                placeholder="Rolle auswählen..."
+                disabled={saving}
+              />
+            </div>
+          )}
 
           <Alert type="error" message={errorMessage} />
         </div>

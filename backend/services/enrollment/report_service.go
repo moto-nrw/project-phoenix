@@ -16,10 +16,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 var (
@@ -126,6 +128,19 @@ type ClassRosterFilters struct {
 	PhaseID     int64  `json:"phase_id"`
 	SchoolClass string `json:"school_class"`
 	AllClasses  bool   `json:"all_classes"`
+	// OfferingDate pins the offering-link selection to a specific calendar
+	// day (#1772 class day view: paging to Monday must show Monday's
+	// selection, not today's). Nil keeps the export default
+	// reportOfferingDate(phase) — today clamped to the phase window.
+	OfferingDate *timezone.Date `json:"offering_date,omitempty"`
+	// SkipGuardianData omits the guardian-facing enrichments (emergency
+	// contacts, request guardians, companion links). The class day view
+	// keeps only Registered/OfferingsByDay/Arrival-/PickupByDay and serves
+	// no guardian contact data at all (#1772) — and it rebuilds the roster
+	// per covering phase for every class on the teachers' landing page, so
+	// these three queries would be pure fan-out waste there. Internal-only,
+	// never bound from a request.
+	SkipGuardianData bool `json:"-"`
 }
 
 type ClassRosterReport struct {
@@ -174,6 +189,10 @@ type ReportService interface {
 	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
 	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error)
 	ExportClassRoster(ctx context.Context, filters ClassRosterFilters, actorAccountID int64, actorRole, format string) (*ClassRosterReport, error)
+	// ClassDay is the read-only per-class day view for the Lehrkraft handoff
+	// (#1772). Every call writes a GDPR access-log row for the actor;
+	// actorRole carries the caller's actual roles (comma-joined claims).
+	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64, actorRole string) (*ClassDayReport, error)
 }
 
 type ReportServiceConfig struct {
@@ -193,6 +212,26 @@ type ReportServiceConfig struct {
 	StudentCompanionRepo userModels.StudentCompanionRepository
 	PersonRepo           userModels.PersonRepository
 	EducationGroupRepo   educationModels.GroupRepository
+	// StudentStatusDayRepo supplies the scheduled day statuses (sick /
+	// excused / class trip) the class day view (#1772) marks students with.
+	// REQUIRED for ClassDay: it fails fast ("status/schedule dependencies
+	// not configured") rather than serving a sheet where a sick child shows
+	// as staying. The enrollment reports and the class roster never consume
+	// it, so a config built only for those may leave it nil.
+	StudentStatusDayRepo activeModels.StudentStatusDayRepository
+	// PickupScheduleSvc / ArrivalScheduleSvc supply the effective per-date
+	// times (weekly plan + day exceptions) for the class day view. They are
+	// the CURRENT truth — the enrollment form answer is only the snapshot the
+	// plan was materialized from. REQUIRED for ClassDay (same fail-fast as
+	// StudentStatusDayRepo); no other report path consumes them.
+	PickupScheduleSvc  scheduleService.PickupScheduleService
+	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	// CareDaySvc owns the "kommt heute / kommt nicht" decision (timeless
+	// exception on EITHER leg cancels the day). The class day view consumes
+	// it instead of re-deriving the precedence from raw schedule entries —
+	// re-implementations are explicitly forbidden (care_day_resolver.go).
+	// REQUIRED for ClassDay (same fail-fast); unused by the other reports.
+	CareDaySvc scheduleService.CareDayService
 }
 
 type reportService struct {
@@ -420,26 +459,38 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if s.StudentRepo == nil {
 		return nil, fmt.Errorf("class roster report: student repo not configured")
 	}
+	students, err := s.classRosterStudents(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+	return s.classRosterForStudents(ctx, filters, students)
+}
+
+// classRosterForStudents builds the roster for an already-loaded student
+// set. Split out for the class day view (#1772): that view merges the
+// roster of EVERY covering phase for every class on the teachers' landing
+// page, so it loads the class once and reuses it across phases instead of
+// re-querying identical students per phase. Callers pass normalized,
+// validated filters — the public ClassRoster wrapper owns that.
+func (s *reportService) classRosterForStudents(ctx context.Context, filters ClassRosterFilters, students []*userModels.Student) (*ClassRosterReport, error) {
 	if s.PersonRepo == nil {
 		return nil, fmt.Errorf("class roster report: person repo not configured")
 	}
 	if s.EducationGroupRepo == nil {
 		return nil, fmt.Errorf("class roster report: education group repo not configured")
 	}
-	if s.StudentGuardianRepo == nil {
-		return nil, fmt.Errorf("class roster report: student guardian repo not configured")
-	}
-	if s.RequestGuardianRepo == nil {
-		return nil, fmt.Errorf("class roster report: request guardian repo not configured")
+	if !filters.SkipGuardianData {
+		if s.StudentGuardianRepo == nil {
+			return nil, fmt.Errorf("class roster report: student guardian repo not configured")
+		}
+		if s.RequestGuardianRepo == nil {
+			return nil, fmt.Errorf("class roster report: request guardian repo not configured")
+		}
 	}
 
 	phase, err := s.PhaseRepo.FindByID(ctx, filters.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: phase %d: %w", filters.PhaseID, ErrReportPhaseNotFound)
-	}
-	students, err := s.classRosterStudents(ctx, filters)
-	if err != nil {
-		return nil, err
 	}
 	if len(students) > maxReportRows {
 		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
@@ -451,13 +502,17 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		}
 	}
 	studentIDs := classRosterStudentIDs(students)
-	studentGuardianContacts, err := s.classRosterStudentGuardianContacts(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-	companions, err := s.classRosterCompanions(ctx, studentIDs)
-	if err != nil {
-		return nil, err
+	studentGuardianContacts := map[int64][]ClassRosterGuardian{}
+	companions := map[int64][]userModels.CompanionLink{}
+	if !filters.SkipGuardianData {
+		studentGuardianContacts, err = s.classRosterStudentGuardianContacts(ctx, studentIDs)
+		if err != nil {
+			return nil, err
+		}
+		companions, err = s.classRosterCompanions(ctx, studentIDs)
+		if err != nil {
+			return nil, err
+		}
 	}
 	persons, err := s.PersonRepo.FindByIDs(ctx, classRosterPersonIDs(students))
 	if err != nil {
@@ -487,11 +542,13 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list children: %w", err)
 		}
-		requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
-		if err != nil {
-			return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
+		if !filters.SkipGuardianData {
+			requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+			if err != nil {
+				return nil, fmt.Errorf("class roster report: list request guardians: %w", err)
+			}
+			requestGuardiansByID = classRosterRequestGuardiansByRequestID(requestGuardians)
 		}
-		requestGuardiansByID = classRosterRequestGuardiansByRequestID(requestGuardians)
 		children = classRosterChildrenForStudents(children, studentByID)
 		if len(children) > maxReportRows {
 			return nil, fmt.Errorf("class roster report: %d children: %w", len(children), ErrReportExportTooLarge)
@@ -515,7 +572,11 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	}
 
 	enrollmentsByStudent, approvedChildIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, approvedChildIDs, reportOfferingDate(phase))
+	offeringDate := reportOfferingDate(phase)
+	if filters.OfferingDate != nil {
+		offeringDate = *filters.OfferingDate
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, approvedChildIDs, offeringDate)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list child offerings: %w", err)
 	}

@@ -285,6 +285,18 @@ func (m *mockAuthService) LoginParent(context.Context, string, string) (string, 
 func (m *mockAuthService) LoginParentWithAudit(context.Context, string, string, string, string) (string, string, error) {
 	return "", "", nil
 }
+
+// No-op stubs for the school-portal additions (#2207) — same reason as
+// above: the provisioning tests never touch the school scope.
+func (m *mockAuthService) LoginSchoolWithMFAGate(context.Context, string, string, string, string, string) (*authSvc.LoginResult, error) {
+	return nil, nil
+}
+func (m *mockAuthService) IssueSchoolTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) SwitchSchool(context.Context, int64, string, string, string) (string, string, error) {
+	return "", "", nil
+}
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {
 	if m.registerFn != nil {
 		return m.registerFn(ctx, email, username, password, roleID, tenantID)

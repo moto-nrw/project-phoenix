@@ -40,6 +40,8 @@ vi.mock("~/lib/auth-utils", () => {
     hasPermission: vi.fn((_session: unknown, _permission: string) =>
       isAdminFn(),
     ),
+    // These scenarios model staff/admin accounts, never a pure Lehrkraft.
+    isLehrkraftOnly: vi.fn(() => false),
   };
 });
 
@@ -235,10 +237,16 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
     });
 
-    it("shows student search for admins", () => {
+    it("shows all children with the children concept icon for admins", () => {
+      mockUsePathname.mockReturnValue("/students/search");
       render(<Sidebar />);
 
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      const link = screen.getByText("Alle Kinder").closest("a");
+      expect(link).toBeInTheDocument();
+      expect(link?.querySelector("svg")).toHaveAttribute(
+        "data-moto-duotone-tone",
+        "greenVivid",
+      );
     });
   });
 
@@ -290,7 +298,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
 
     it("shows student search when staff is actively supervising", () => {
@@ -307,7 +315,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
 
     it("shows student search for staff without supervision (at correct position)", () => {
@@ -325,7 +333,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Should still show Kindersuche (added at correct position)
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
   });
 
@@ -473,7 +481,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const searchLink = screen.getByText("Kindersuche").closest("a");
+      const searchLink = screen.getByText("Alle Kinder").closest("a");
       expect(searchLink).toHaveClass("bg-gray-100");
     });
 
@@ -512,7 +520,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Should default to Kindersuche when no from param
-      const searchLink = screen.getByText("Kindersuche").closest("a");
+      const searchLink = screen.getByText("Alle Kinder").closest("a");
       expect(searchLink).toHaveClass("bg-gray-100");
     });
   });
@@ -1454,7 +1462,7 @@ describe("Sidebar", () => {
     it("does not render teacher-specific items", () => {
       render(<Sidebar />);
 
-      expect(screen.queryByText("Kindersuche")).not.toBeInTheDocument();
+      expect(screen.queryByText("Alle Kinder")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
       expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
@@ -1643,7 +1651,7 @@ describe("Sidebar", () => {
 
     it("keeps Kindersuche and Mitarbeiter visible (not binary-hidden)", () => {
       render(<Sidebar />);
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
       expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
     });
   });
@@ -1902,7 +1910,7 @@ describe("Sidebar", () => {
       ).not.toBeInTheDocument();
       // Aufsicht und Kindersuche bleiben als Staff-Einstiege erhalten.
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
 
     it("shows the Meine Gruppe accordion for fixed-groups tenants", () => {

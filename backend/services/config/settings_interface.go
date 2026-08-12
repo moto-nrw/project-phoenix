@@ -31,6 +31,25 @@ type SettingsService interface {
 	// before the tenant middleware sets PostgreSQL-level tenant context.
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
 
+	// ResolveStringForTenantInTx resolves a setting as a string on the
+	// caller's ALREADY OPEN transaction, bypassing both the context snapshot
+	// and the request-scoped memo cache.
+	//
+	// For callers that must observe committed state as of NOW, from inside a
+	// transaction whose locks make that observation meaningful — the
+	// school-portal mint guard re-decides the MFA gate this way (#2207).
+	// Every other resolve path is deliberately memoized per request, which is
+	// exactly wrong there: the login already resolved the same key minutes
+	// earlier, so a cached re-read would return the stale value it is meant
+	// to replace.
+	//
+	// Requires an ambient transaction (base.ContextWithTx) whose role can
+	// read config.setting_values for tenantID — phoenix_admin, or a tenant
+	// transaction on the same tenant. Without one it returns an error rather
+	// than silently falling back to an RLS-filtered read that would report
+	// every setting as unset.
+	ResolveStringForTenantInTx(ctx context.Context, tenantID int64, key string) (string, error)
+
 	// ResolveBool resolves a setting as a bool.
 	ResolveBool(ctx context.Context, key string) (bool, error)
 
@@ -113,6 +132,26 @@ type SettingsService interface {
 	// class-restricted phase cannot race into a state where every submission
 	// fails class_not_eligible. Best-effort: skipped without an ambient tx.
 	LockClassCollectionPair(ctx context.Context) error
+
+	// LockMFAPolicy takes the per-tenant transaction-scoped EXCLUSIVE advisory
+	// lock guarding security.mfa_mode. SetValue and ResetValue take it before
+	// they touch that key, so the write cannot commit while a session mint that
+	// already read the old mode is still in flight. Held until the writing
+	// transaction commits. Best-effort: skipped without an ambient tx.
+	LockMFAPolicy(ctx context.Context) error
+
+	// LockMFAPolicySharedForTenant is the SHARED counterpart taken by the token
+	// mint paths that re-decide the MFA gate inside their mint transaction
+	// (services/auth schoolMintGuard). Shared holders never block one another,
+	// so concurrent logins do not serialize; it conflicts only with the
+	// exclusive writer lock above, which is what stops "MFA is off" from being
+	// read, an admin enabling MFA, and an MFA-free session being minted
+	// afterwards anyway (#2207).
+	//
+	// The tenant is explicit because the login flows run outside
+	// TenantTxMiddleware and carry the resolved school in an argument, not in
+	// the context. Same best-effort tx semantics.
+	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
 }
 
 // BatchSettingsService extends SettingsService with query-coalescing reads.

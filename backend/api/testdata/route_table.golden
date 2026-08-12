@@ -49,6 +49,7 @@ DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
 DELETE /api/students/{id}/documents/{documentId}
+DELETE /api/students/{id}/partial-absences/{partialAbsenceId}
 DELETE /api/students/{id}/photo
 DELETE /api/students/{id}/pickup-exceptions/{exceptionId}
 DELETE /api/students/{id}/pickup-notes/{noteId}
@@ -157,6 +158,8 @@ GET /api/calendar/appointments/{appointmentId}/ics
 GET /api/calendar/appointments/{appointmentId}/overview
 GET /api/calendar/my
 GET /api/calendar/recipient-options
+GET /api/class-day/
+GET /api/class-day/classes
 GET /api/database/stats
 GET /api/display/
 GET /api/display/dashboard
@@ -352,6 +355,7 @@ GET /api/students/{id}/documents
 GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/in-group-room
+GET /api/students/{id}/partial-absences
 GET /api/students/{id}/photo/{filename}
 GET /api/students/{id}/pickup-schedules
 GET /api/students/{id}/privacy-consent
@@ -510,6 +514,8 @@ GET /public/calendar/{token}
 GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
+GET /school/class-day/
+GET /school/class-day/classes
 HEAD /internal/metrics
 OPTIONS /internal/metrics
 PATCH /api/display/{id}/
@@ -670,6 +676,7 @@ POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
 POST /api/students/{id}/documents
+POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
@@ -810,6 +817,12 @@ POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
 POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
+POST /school/auth/login
+POST /school/auth/mfa/enroll/confirm
+POST /school/auth/mfa/enroll/start
+POST /school/auth/mfa/resend
+POST /school/auth/mfa/verify
+POST /school/auth/switch-school
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
@@ -864,6 +877,7 @@ PUT /api/students/{id}
 PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
 PUT /api/students/{id}/arrival-schedules
+PUT /api/students/{id}/partial-absences/{partialAbsenceId}
 PUT /api/students/{id}/pickup-exceptions/{exceptionId}
 PUT /api/students/{id}/pickup-notes/{noteId}
 PUT /api/students/{id}/pickup-schedules

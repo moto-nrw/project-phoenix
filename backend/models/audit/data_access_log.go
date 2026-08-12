@@ -42,6 +42,11 @@ const (
 	// this one names a child, so StudentID is SET and metadata carries only
 	// document_id and category.
 	ResourceTypeStudentDocumentDownload = "student_document_download"
+	// ResourceTypeClassDayView records serving the read-only per-class day
+	// view (#1772): care and departure data of one class on one date, shown
+	// to a Lehrkraft (or any other class_day:read holder). StudentID stays
+	// NULL; metadata carries school_class, date and student_count.
+	ResourceTypeClassDayView = "class_day_view"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

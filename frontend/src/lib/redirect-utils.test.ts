@@ -70,6 +70,32 @@ describe("redirect-utils", () => {
       expect(result).toBe("/dashboard");
     });
 
+    it("should return /klassen for lehrkraft-only users (#1772)", () => {
+      const session = createSession(["lehrkraft"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: false,
+        isLoadingGroups: false,
+        isSupervising: false,
+        isLoadingSupervision: false,
+      };
+
+      const result = getSmartRedirectPath(session, supervisionState);
+      expect(result).toBe("/klassen");
+    });
+
+    it("keeps caregiver flows for dual-role lehrkraft accounts", () => {
+      const session = createSession(["lehrkraft", "user"]);
+      const supervisionState: SupervisionState = {
+        hasGroups: true,
+        isLoadingGroups: false,
+        isSupervising: false,
+        isLoadingSupervision: false,
+      };
+
+      const result = getSmartRedirectPath(session, supervisionState);
+      expect(result).toBe("/ogs-groups");
+    });
+
     it("should return /ogs-groups for users with groups", () => {
       const session = createSession(["user"]);
       const supervisionState: SupervisionState = {

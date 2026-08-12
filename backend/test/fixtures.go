@@ -36,6 +36,7 @@ const (
 	whereIDIn                     = "id IN (?)"
 	whereIDOrAccountID            = "id = ? OR account_id = ?"
 	whereAccountIDIn              = "account_id IN (?)"
+	whereTenantIDIn               = "tenant_id IN (?)"
 	tableUsersTeachers            = "users.teachers"
 	tableUsersStaff               = "users.staff"
 	tableUsersPersons             = "users.persons"
@@ -1529,6 +1530,35 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	return role
 }
 
+// AssignLehrkraftSystemRole assigns the seeded lehrkraft system role (#1772)
+// to the account, scoped to the given tenant. The role is created by
+// migration in every schema the tests run against, so the lookup must
+// succeed. Cleanup: CleanupAuthFixtures removes auth.account_roles rows by
+// account_id.
+func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var roleID int64
+	err := db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", "lehrkraft").
+		Where("is_system = TRUE").
+		Scan(ctx, &roleID)
+	require.NoError(tb, err, "seeded lehrkraft system role must exist")
+
+	roleAssignment := &auth.AccountRole{AccountID: accountID, RoleID: roleID}
+	roleAssignment.SetTenantID(tenantID)
+	_, err = db.NewInsert().
+		Model(roleAssignment).
+		ModelTableExpr(`auth.account_roles`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to assign lehrkraft system role")
+}
+
 // CreateTestPermission creates a permission in the database.
 // Note: The database has a unique constraint on (resource, action), so each call
 // creates a unique resource to avoid constraint violations.
@@ -2159,6 +2189,104 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 	require.NoError(tb, err, "Failed to advance school sequence past explicit tenant ID")
 }
 
+// CreateTestTenant creates an organization + school pair that nobody else
+// shares and returns the school id (= tenant id) plus its subdomain. Pair it
+// with CleanupTestTenant.
+//
+// Prefer this over EnsureTestTenant(db, 42) whenever a test mutates the school
+// row itself — flipping `active`, stamping `deleted_at` — or asserts on
+// tenant-wide state. EnsureTestTenant's ON CONFLICT DO NOTHING means a literal
+// ID silently joins whatever rows a parallel package left behind.
+//
+// The ID deliberately does NOT come from UniqueTestTenantID: those are
+// nanosecond-scale and do not survive a JWT round-trip (JSON numbers decode as
+// float64, exact only below 2^53), so anything asserting on the tenant_id
+// claim — or any refresh, which compares the claim against the stored tenant —
+// would work off a rounded value. Nor can the ID be left to the sequence:
+// EnsureTestTenant setvals it up to whatever nanosecond ID it was handed, so a
+// nextval-assigned school inherits the same problem.
+func CreateTestTenant(tb testing.TB, db *bun.DB) (tenantID int64, subdomain string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tenantID = uniqueJWTSafeTenantID()
+	token := fmt.Sprintf("%d-%d", tenantID, time.Now().UnixNano())
+	subdomain = fmt.Sprintf("t%d", tenantID)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (?, ?, ?, true)`,
+		tenantID, "Test Org "+token, "test-org-"+token)
+	require.NoError(tb, err, "Failed to create test organization")
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (?, ?, ?, ?, ?, true)`,
+		tenantID, tenantID, "Test School "+token, "test-school-"+token, subdomain)
+	require.NoError(tb, err, "Failed to create test school")
+
+	// Push both sequences clear of the WHOLE band, not just past this ID:
+	// setting them to the ID itself would make the next nextval collide with
+	// the next ID this helper hands out.
+	for _, seq := range []string{"platform.organizations", "platform.schools"} {
+		_, err = db.ExecContext(ctx, fmt.Sprintf(`
+			SELECT setval(pg_get_serial_sequence('%s', 'id'),
+				GREATEST((SELECT last_value FROM %s_id_seq), ?))`, seq, seq),
+			testTenantIDCeiling)
+		require.NoError(tb, err, "Failed to advance sequence past the test tenant band")
+	}
+
+	return tenantID, subdomain
+}
+
+// CleanupTestTenant removes the school + owning organization rows created by
+// CreateTestTenant, plus the audit rows that reference the school. Call it
+// AFTER the account cleanup that owns the account_tenants and account_roles
+// rows, otherwise the school delete trips their FKs.
+func CleanupTestTenant(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
+	tb.Helper()
+
+	if len(tenantIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// The organization id is not the school id, so resolve it before the
+	// school rows disappear.
+	var orgIDs []int64
+	if err := db.NewSelect().
+		ColumnExpr("DISTINCT organization_id").
+		TableExpr("platform.schools").
+		Where(whereIDIn, bun.List(tenantIDs)).
+		Scan(ctx, &orgIDs); err != nil {
+		tb.Logf("cleanup lookup platform.schools organization_id: %v", err)
+	}
+
+	// Auth events are written from a detached goroutine, so a row can still
+	// land between the test body and this cleanup; deleting them first keeps
+	// the school delete from failing on the FK.
+	cleanupDelete(tb, db.NewDelete().
+		Table("audit.auth_events").
+		Where(whereTenantIDIn, bun.List(tenantIDs)),
+		"audit.auth_events")
+
+	cleanupDelete(tb, db.NewDelete().
+		Table("platform.schools").
+		Where(whereIDIn, bun.List(tenantIDs)),
+		"platform.schools")
+
+	if len(orgIDs) > 0 {
+		cleanupDelete(tb, db.NewDelete().
+			Table("platform.organizations").
+			Where(whereIDIn, bun.List(orgIDs)),
+			"platform.organizations")
+	}
+}
+
 // MapAccountToTenant creates an active account_tenants mapping without
 // ensuring the tenant infrastructure (organization/school) exists first.
 // Use this when the tenant has already been ensured via EnsureTestTenant.
@@ -2421,6 +2549,67 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 
 	staff.Person = person
 	return staff
+}
+
+// CreateTestStaffWithAccountForTenant is CreateTestStaffWithAccount for a
+// caller-owned tenant instead of the shared tenant 1. Use it whenever the test
+// also needs the account's tenant mapping, roles, or the school row itself —
+// those all hang off the tenant id, and tenant 1 is shared with every other
+// package running in parallel.
+func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &account.ID,
+	}
+	person.SetTenantID(tenantID)
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account for tenant")
+
+	staff := &users.Staff{PersonID: person.ID}
+	staff.SetTenantID(tenantID)
+	err = db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff with account for tenant")
+
+	staff.Person = person
+	return staff, account
+}
+
+// CreateTestClassTeacherForTenant is CreateTestClassTeacher for a caller-owned
+// tenant. The class-day surface reads these rows under RLS, so the assignment
+// must live in the same tenant as the JWT the test presents.
+func CreateTestClassTeacherForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, schoolClass string) *education.ClassTeacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ct := &education.ClassTeacher{
+		StaffID:     staffID,
+		SchoolClass: schoolClass,
+	}
+	ct.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(ct).
+		ModelTableExpr(`education.class_teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test class teacher assignment for tenant")
+
+	return ct
 }
 
 // CreateTestActivityCategoryForTenant creates an activity category belonging to a specific tenant.

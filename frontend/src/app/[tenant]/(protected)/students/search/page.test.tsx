@@ -221,6 +221,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     toggle: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",
+  checkoutConfirmationRoom: () => null,
 }));
 
 // Mock student-helpers

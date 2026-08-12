@@ -42,6 +42,7 @@ type StaffOffboardingServiceDependencies struct {
 	StaffShiftRepo         scheduleModels.StaffShiftRepository
 	StaffShiftSeriesRepo   scheduleModels.StaffShiftSeriesRepository
 	StaffAbsenceRepo       activeModels.StaffAbsenceRepository
+	AccountRepo            authModels.AccountRepository
 	AccountTenantRepo      authModels.AccountTenantRepository
 	RoleRepo               authModels.RoleRepository
 	AccountPermissionRepo  authModels.AccountPermissionRepository
@@ -291,6 +292,24 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 		return nil
 	}
 	accountID := *person.AccountID
+
+	// LOCK ORDER — auth.accounts FIRST, before any role, permission or mapping
+	// row of this account is touched. Everything below runs in ONE transaction
+	// (RunInTx reuses the caller's), and it ends by updating auth.accounts in
+	// the no-mapping-left case, so without this line the account row was locked
+	// LAST. The school-portal mint guard (services/auth: schoolMintGuard) walks
+	// the same rows in the opposite direction — account FOR UPDATE first, then
+	// school, mapping, roles — because it must decide against a locked account.
+	// Two paths taking the same rows in opposite orders is the textbook shape of
+	// a PostgreSQL deadlock (40P01), and here both paths are reachable at once:
+	// offboarding a Lehrkraft while that person logs into the school portal or
+	// redeems an MFA code is a perfectly ordinary Monday morning. Taking the row
+	// here costs one statement and makes the two serialize instead: whoever wins
+	// the account row runs to completion, the other waits and then sees the
+	// committed result.
+	if _, err := s.AccountRepo.FindByIDForUpdate(ctx, accountID); err != nil {
+		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("lock account %d before revoking access: %w", accountID, err)}
+	}
 
 	// Remove tenant-scoped roles (also revokes this tenant's tokens per role).
 	// The guardian role is kept: a dual-role teacher/guardian account must stay

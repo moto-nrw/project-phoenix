@@ -260,6 +260,12 @@ func mapPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, authService.ErrMFARateLimited),
 		errors.Is(err, authService.ErrMFALocked):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
+	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+		// Passkey enrollment starts an email challenge, so it inherits the
+		// MFA service's fail-closed behaviour on a status or rate-limit
+		// lookup error. That is a transient infrastructure problem: 503 so
+		// the client retries instead of surfacing a permanent-looking 500.
+		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	case errors.Is(err, authService.ErrParentMustUseParentPortal):
 		// Same code as the password path in session_handlers.go — a client
 		// must not have to care which login route produced the 403.

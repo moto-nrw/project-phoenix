@@ -1736,8 +1736,7 @@ export function useEventForm({
           ? Number(target.educationGroupId)
           : undefined,
       })),
-      max_participants:
-        template.maxParticipants > 0 ? template.maxParticipants : undefined,
+      max_participants: template.maxParticipants,
       // An occurrence form starts from the occurrence's own pin, which is
       // blank when it inherits from the series. Preserve the fetched template
       // override until the user explicitly edits this field.

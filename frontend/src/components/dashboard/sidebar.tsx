@@ -19,7 +19,12 @@ import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasPermission,
+  hasRole,
+  isCaregiver,
+  isLehrkraftOnly,
+} from "~/lib/auth-utils";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
@@ -92,8 +97,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     ...STAFF_FLAT_PAGES.studentSearch,
-    icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-    activeColor: "text-moto-blue",
+    icon: navigationIcons.userSingle,
+    concept: "children",
     alwaysShow: true,
   },
   {
@@ -116,6 +121,15 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     activeColor: "text-moto-orange",
     alwaysShow: true,
+  },
+  {
+    // Lehrkraft-Klassenansicht (#1772): sichtbar nur für Konten mit der
+    // lehrkraft-Rolle (Gating unten in filteredNavItems — permission-basiert
+    // ginge nicht, weil admin:* class_day:read matcht, Admins aber keine
+    // Klassen zugewiesen haben und auf einer leeren Seite landen würden).
+    ...STAFF_FLAT_PAGES.klassen,
+    icon: navigationIcons.academicCap,
+    activeColor: "text-[#5080D8]",
   },
   {
     ...STAFF_FLAT_PAGES.calendar,
@@ -476,6 +490,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   const userIsAdmin = hasRole(session, "admin");
   const userIsCaregiver = isCaregiver(session);
+  // Lehrkraft (#1772): externe Schullehrer mit ausschließlich class_day:read.
+  // Ein reines Lehrkraft-Konto sieht nur die Klassenansicht und die Hilfe —
+  // jede andere Seite würde 403 antworten oder leer rendern. Geteiltes
+  // Prädikat aus auth-utils, damit Header/MobileNav/Redirect nicht driften.
+  const userIsLehrkraft = hasRole(session, "lehrkraft");
+  const userIsLehrkraftOnly = isLehrkraftOnly(session);
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
   // (backend api/announcement/api.go), because the service does no per-caller
@@ -599,6 +619,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
+    // Klassenansicht (#1772): role-gated, not permission-gated — admin:*
+    // matches class_day:read, but admins have no class assignments and the
+    // page would render empty for them.
+    if (item.href === "/klassen") return userIsLehrkraft;
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
@@ -1206,6 +1230,30 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   }
 
+  // Reines Lehrkraft-Konto (#1772): minimale Navigation. Die Betreuungs- und
+  // Verwaltungsbereiche würden alle 403 antworten — nur Klassenansicht und
+  // Hilfe sind erreichbar.
+  if (userIsLehrkraftOnly) {
+    const klassenItem = filteredNavItems.find(
+      (item) => item.href === "/klassen",
+    );
+    const helpItem = filteredNavItems.find((item) => item.href === "/help");
+    return (
+      <aside
+        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
+      >
+        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+          <nav className="flex-1 space-y-1 overflow-y-auto p-3 lg:p-4 xl:p-3">
+            {klassenItem && renderNavItem(klassenItem)}
+          </nav>
+          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
+            {helpItem && renderNavItem(helpItem)}
+          </nav>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside
       className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
@@ -1318,7 +1366,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Kindersuche (flat) */}
+          {/* Alle Kinder (flat) */}
           {beforeAccordionItems
             .filter((item) => item.href === "/students/search")
             .map(renderNavItem)}

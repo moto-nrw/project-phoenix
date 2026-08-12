@@ -111,7 +111,7 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 	require.NotEmpty(t, tokenString)
 
 	// Active challenge row exists.
-	active, err := repos.MFAEmailChallenge.FindActiveByAccountID(ctx, acc.ID)
+	active, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NotNil(t, active)
 	assert.Equal(t, acc.ID, active.AccountID)

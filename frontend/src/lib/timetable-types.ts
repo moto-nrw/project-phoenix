@@ -439,7 +439,7 @@ export interface TimetableTemplate {
   educationGroupId?: string;
   educationGroupName?: string;
   isOpen: boolean;
-  maxParticipants: number;
+  maxParticipants: number | null;
   /** Durable Wochennotiz for the series (activities.groups.notes, #1837). */
   notes?: string;
   /** Category's mapped Dienstplan-Schichtart (#1836/#1837); empty = unmapped. */
@@ -528,7 +528,7 @@ export interface BackendTimetableTemplate {
   education_group_id?: number;
   education_group_name?: string;
   is_open: boolean;
-  max_participants: number;
+  max_participants: number | null;
   notes?: string;
   shift_type_name?: string;
   shift_type_color?: string;
@@ -959,7 +959,7 @@ export interface CreateTemplateBody {
   /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
   notes?: string;
   education_group_id?: number;
-  max_participants?: number;
+  max_participants?: number | null;
   /** Manual Personalbedarf override (#1839); null/omitted = derive. */
   required_staff?: number | null;
   week_pattern?: number;

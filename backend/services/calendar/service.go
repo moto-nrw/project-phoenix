@@ -1491,13 +1491,14 @@ func (s *service) parentCareDays(
 // current plan.
 //
 // Only an undecided row can be hidden: a check-in or a hand-made decision tells
-// its own story and outranks the plan. A row a broad day status flipped to
-// 'absent' is NOT such a decision — sick/excused/class trip lands on every
-// expected row of the day, including days the child was never booked into care,
-// and it keeps its provenance in student_status_day_id (a manual PATCH and a
-// check-in both clear that column). Those rows stay subject to the care-day
-// filter, or reporting a child sick would resurrect a parent-calendar event on
-// a weekday they were never booked for.
+// its own story and outranks the plan. A row a broad day status or partial-day
+// excusal flipped to 'absent' is NOT such a decision — those projections land
+// on every expected row of the day, including days the child was never booked
+// into care, and keep provenance in student_status_day_id or
+// pickup_exception_id (a manual PATCH and a check-in both clear those columns).
+// Those rows stay subject to the care-day filter, or reporting a child sick /
+// partially excused would resurrect a parent-calendar event on a weekday they
+// were never booked for.
 //
 // A cancelled care day ("kommt heute nicht") is deliberately NOT hidden. The
 // day was booked, so the block still exists for that child — same reason
@@ -1507,7 +1508,9 @@ func notScheduledForParent(
 	row *scheduleModels.InstanceStudent,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
 ) bool {
-	if row.Status != scheduleModels.AttendanceStatusExpected && row.StudentStatusDayID == nil {
+	if row.Status != scheduleModels.AttendanceStatusExpected &&
+		row.StudentStatusDayID == nil &&
+		row.PickupExceptionID == nil {
 		return false
 	}
 	// Staff can set an unbooked slot back to 'expected' — "the plan is wrong,

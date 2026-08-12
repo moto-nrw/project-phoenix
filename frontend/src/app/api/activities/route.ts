@@ -143,7 +143,7 @@ function createFallbackActivity(body: CreateActivityRequest): Activity {
   return {
     id: "0",
     name: body.name ?? "",
-    max_participant: body.max_participants ?? 0,
+    max_participant: body.max_participants ?? null,
     is_open_ags: false,
     supervisor_id: "",
     ag_category_id: String(body.category_id ?? ""),
@@ -163,7 +163,7 @@ export const POST = createPostHandler<Activity, CreateActivityRequest>(
   async (_request: NextRequest, body: CreateActivityRequest, token: string) => {
     // Validate required fields
     if (!body.name?.trim()) throw new Error("Name is required");
-    if (!body.max_participants || body.max_participants <= 0) {
+    if (body.max_participants != null && body.max_participants <= 0) {
       throw new Error("Max participants must be greater than 0");
     }
     if (!body.category_id) throw new Error("Category is required");

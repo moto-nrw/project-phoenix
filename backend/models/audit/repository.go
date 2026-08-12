@@ -27,6 +27,12 @@ type AuthEventRepository interface {
 // Access-log rows are append-only and are never updated or deleted by the application.
 type DataAccessLogRepository interface {
 	Create(ctx context.Context, entry *DataAccessLog) error
+	// ExistsSince reports whether the actor already has a row of resourceType,
+	// accessed at or after since, whose metadata matches every given
+	// key/value (text comparison). Lets polling readers collapse identical
+	// re-reads into one evidential row instead of flooding the append-only
+	// log with duplicates.
+	ExistsSince(ctx context.Context, actorAccountID int64, resourceType string, metadata map[string]string, since time.Time) (bool, error)
 }
 
 type UnregisteredTagScanRepository interface {

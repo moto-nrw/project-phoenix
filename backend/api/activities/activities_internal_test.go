@@ -373,12 +373,25 @@ func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, "Test Activity", response.Name)
-	assert.Equal(t, 20, response.MaxParticipants)
+	assert.NotNil(t, response.MaxParticipants)
+	assert.Equal(t, 20, *response.MaxParticipants)
 	assert.True(t, response.IsOpen)
 	assert.Equal(t, int64(5), response.CategoryID)
 	assert.Equal(t, int64(10), *response.PlannedRoomID)
 	assert.Equal(t, 15, response.EnrollmentCount)
 	assert.Empty(t, response.Schedules)
+}
+
+func TestBuildBaseActivityResponse_UnlimitedCapacity(t *testing.T) {
+	group := &activitiesModel.Group{
+		Name:            "Open Sports Hall",
+		MaxParticipants: 0,
+		CategoryID:      5,
+	}
+
+	response := buildBaseActivityResponse(group, 75)
+
+	assert.Nil(t, response.MaxParticipants)
 }
 
 func TestBuildBaseActivityResponse_NilRoomID(t *testing.T) {

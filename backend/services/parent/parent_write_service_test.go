@@ -16,8 +16,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,6 +41,36 @@ type recordingParentAbsenceNotifier struct {
 	reports []notificationsService.AbsenceReport
 }
 
+type pausingStudentRepository struct {
+	userModels.StudentRepository
+	locked  chan<- struct{}
+	release <-chan struct{}
+}
+
+func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	student, err := r.StudentRepository.FindByIDForUpdate(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	close(r.locked)
+	select {
+	case <-r.release:
+		return student, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+type signalingStudentService struct {
+	usersService.StudentService
+	attempted chan<- struct{}
+}
+
+func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+	close(s.attempted)
+	return s.StudentService.GetByIDForUpdate(ctx, id)
+}
+
 func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 	_ context.Context,
 	report notificationsService.AbsenceReport,
@@ -51,9 +85,10 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		PickupExceptionRepo: repos.StudentPickupException,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentSickNoteEnabled: sickEnabled,
@@ -299,6 +334,135 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
 		Where("id = ?", chain.StudentID).Scan(context.Background(), &sick))
 	assert.False(t, sick, "a future-only sick note must not flip today's live flag")
+}
+
+func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, chain)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	})
+
+	date := timezone.TodayDate().AddDays(7)
+	from := timezone.WallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
+	staffID := staff.ID
+	pickup := &scheduleModels.StudentPickupException{
+		StudentID:             chain.StudentID,
+		ExceptionDate:         date,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	pickup.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+
+	_, err := svc.SubmitSickNote(
+		context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{date}, "Fieber", activeModels.StudentStatusDaySick,
+	)
+	require.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
+
+	rows, findErr := repos.StudentStatusDay.FindActiveByStudentAndDateRange(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date,
+	)
+	require.NoError(t, findErr)
+	assert.Empty(t, rows)
+}
+
+func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	parentLocked := make(chan struct{})
+	releaseParent := make(chan struct{})
+	parentSvc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		PickupExceptionRepo: repos.StudentPickupException,
+		StudentRepo: &pausingStudentRepository{
+			StudentRepository: repos.Student,
+			locked:            parentLocked,
+			release:           releaseParent,
+		},
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: true,
+				configModels.KeyParentNotesEnabled:    true,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+		DB:          db,
+		Logger:      slog.Default(),
+	})
+
+	statusSvc := activeService.NewStudentStatusDayService(repos.StudentStatusDay)
+	studentSvc := usersService.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
+	staffAttempted := make(chan struct{})
+	staffStudentSvc := &signalingStudentService{StudentService: studentSvc, attempted: staffAttempted}
+	date := timezone.TodayDate().AddDays(40)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	parentResult := make(chan error, 1)
+	go func() {
+		_, err := parentSvc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
+			[]timezone.Date{date}, "Fieber", activeModels.StudentStatusDaySick)
+		parentResult <- err
+	}()
+
+	select {
+	case <-parentLocked:
+	case <-ctx.Done():
+		t.Fatal("parent write did not acquire the student lock")
+	}
+
+	staffResult := make(chan error, 1)
+	go func() {
+		staffResult <- statusSvc.CreateForDates(testpkg.TenantContext(chain.TenantID), activeService.StatusDayWriteContext{
+			DB:             db,
+			TenantID:       chain.TenantID,
+			StudentService: staffStudentSvc,
+			Authorize:      func(context.Context, *userModels.Student) bool { return true },
+			AfterCommit:    func(int64) {},
+		}, chain.StudentID, activeModels.StudentStatusDayExcused, "Termin", []timezone.Date{date})
+	}()
+
+	select {
+	case <-staffAttempted:
+	case <-ctx.Done():
+		t.Fatal("staff write did not attempt the student lock")
+	}
+	select {
+	case err := <-staffResult:
+		t.Fatalf("staff write returned before the parent released the shared student lock: %v", err)
+	default:
+	}
+
+	close(releaseParent)
+	require.NoError(t, <-parentResult)
+	staffErr := <-staffResult
+	var conflictErr *activeService.StudentStatusDayConflictError
+	require.ErrorAs(t, staffErr, &conflictErr)
+	require.Len(t, conflictErr.Conflicts, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, conflictErr.Conflicts[0].Status)
+
+	rows, err := statusSvc.GetActiveByStudentAndDateRange(testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status,
+		"the staff write must not overwrite the parent row after waiting for its lock")
 }
 
 func TestSubmitSickNote_NoDates(t *testing.T) {

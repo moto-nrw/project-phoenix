@@ -14,6 +14,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -62,10 +63,11 @@ import { StudentCardGridSkeleton } from "~/components/students/student-card-skel
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
+  checkoutConfirmationRoom,
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { usePresenceMode } from "~/lib/tenant-context";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
@@ -1232,12 +1234,25 @@ function SearchPageContent() {
   // Page-level school check-in/out mode. When active, clicking a card toggles
   // the student's attendance instead of navigating to the detail page.
   //
-  // Only exposed in binary-mode tenants. Detailed-mode schools check
-  // students in via the RFID kiosk and a parallel web button would create
-  // confusing divergent state.
-  const presenceMode = usePresenceMode();
-  const isBinaryMode = presenceMode === "binary";
+  // Available in BOTH presence modes since #2220: the endpoint behind it
+  // (POST /api/students/{id}/school-checkin) is mode-agnostic and, in detailed
+  // mode, a checkout ends the open room visit in the same transaction — so
+  // attendance and room state can't drift apart. The remaining gates are the
+  // planning date (check-in always writes today's attendance) and the
+  // "Anwesenheit über Web-App erfassen" setting. The trigger components check
+  // the setting themselves too; gating here as well keeps their layout
+  // wrappers (mobile spacing, the grid's bottom padding) out of the tree when
+  // the school has web attendance switched off.
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const checkinModeAvailable = isToday && attendanceWebEnabled;
   const schoolCheckin = useSchoolCheckinMode();
+  // Checkout of a student who is currently in a room asks first and names the
+  // room; every roomless state stays a single tap (#2220).
+  const [pendingRoomCheckout, setPendingRoomCheckout] = useState<{
+    studentId: string;
+    studentName: string;
+    room: string;
+  } | null>(null);
   const {
     enabled: studentPhotosEnabled,
     isLoading: studentPhotosSettingLoading,
@@ -2432,7 +2447,7 @@ function SearchPageContent() {
           header on desktop via primaryAction. */}
       <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
         <PageHeaderWithSearch
-          title="Kindersuche"
+          title="Alle Kinder"
           badge={{
             icon: (
               <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />
@@ -2440,7 +2455,7 @@ function SearchPageContent() {
             count: filteredStudents.length,
           }}
           primaryAction={
-            isBinaryMode && isToday ? (
+            checkinModeAvailable ? (
               <SchoolCheckinFab
                 variant="inline"
                 isActive={schoolCheckin.isActive}
@@ -2505,7 +2520,7 @@ function SearchPageContent() {
 
       {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
           Check-in toggles TODAY's attendance, so it hides on other dates. */}
-      {isBinaryMode && isToday && (
+      {checkinModeAvailable && (
         <div className="mb-3 md:hidden">
           <SchoolCheckinModeMobile
             isActive={schoolCheckin.isActive}
@@ -2518,7 +2533,7 @@ function SearchPageContent() {
 
       {/* Student Grid. Bottom padding reserves room for the mobile sticky
           bar / tablet floating FAB; desktop has neither. */}
-      <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
+      <div className={checkinModeAvailable ? "pb-24 lg:pb-0" : undefined}>
         {(() => {
           // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
           // or while a date switch is in flight — keepPreviousData still holds
@@ -2612,6 +2627,11 @@ function SearchPageContent() {
           const renderStudentCard = (student: Student) => {
             const checkinState = deriveCheckinState(student.current_location);
             const studentIdStr = student.id.toString();
+            // Detailed-mode students sitting in a room get a confirmation
+            // step; everyone else toggles straight away (#2220).
+            const roomToConfirm = checkoutConfirmationRoom(
+              student.current_location,
+            );
             return (
               <StudentCard
                 key={student.id}
@@ -2622,12 +2642,21 @@ function SearchPageContent() {
                 onClick={() =>
                   router.push(`/students/${student.id}?from=${buildFromParam}`)
                 }
-                checkinMode={isBinaryMode && isToday && schoolCheckin.isActive}
+                checkinMode={checkinModeAvailable && schoolCheckin.isActive}
                 checkinState={checkinState}
                 isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
-                onCheckinClick={() =>
-                  void schoolCheckin.toggle(studentIdStr, checkinState)
-                }
+                onCheckinClick={() => {
+                  if (roomToConfirm) {
+                    setPendingRoomCheckout({
+                      studentId: studentIdStr,
+                      studentName:
+                        `${student.first_name} ${student.second_name}`.trim(),
+                      room: roomToConfirm,
+                    });
+                    return;
+                  }
+                  void schoolCheckin.toggle(studentIdStr, checkinState);
+                }}
                 locationBadge={
                   isToday ? (
                     <StudentPresenceBadge
@@ -2808,7 +2837,7 @@ function SearchPageContent() {
           desktopFiltersFrom="xl". Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
-      {isBinaryMode && isToday && (
+      {checkinModeAvailable && (
         <div className="hidden md:block xl:hidden">
           <SchoolCheckinFab
             variant="floating"
@@ -2820,6 +2849,34 @@ function SearchPageContent() {
           />
         </div>
       )}
+
+      {/* Checkout out of a room ends the running room visit, so it asks
+          first and names the room (#2220). Roomless states never reach
+          this dialog — they stay a single tap. */}
+      <ConfirmationModal
+        isOpen={pendingRoomCheckout !== null}
+        onClose={() => setPendingRoomCheckout(null)}
+        onConfirm={() => {
+          if (!pendingRoomCheckout) return;
+          void schoolCheckin.toggle(pendingRoomCheckout.studentId, "anwesend");
+          setPendingRoomCheckout(null);
+        }}
+        title="Aus der Betreuung abmelden?"
+        confirmText="Abmelden"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+      >
+        <p className="text-sm text-gray-600">
+          <span className="font-medium text-gray-900">
+            {pendingRoomCheckout?.studentName}
+          </span>{" "}
+          ist gerade in{" "}
+          <span className="font-medium text-gray-900">
+            {pendingRoomCheckout?.room}
+          </span>
+          . Beim Abmelden wird der laufende Raumbesuch beendet und das Kind gilt
+          für heute als gegangen.
+        </p>
+      </ConfirmationModal>
 
       {isExportOpen && (
         <StudentExportModal

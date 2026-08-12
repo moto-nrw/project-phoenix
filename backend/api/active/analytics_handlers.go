@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 )
 
 // ===== Analytics Handlers =====
@@ -61,7 +62,7 @@ func (rs *Resource) getDashboardAnalytics(w http.ResponseWriter, r *http.Request
 			Name:         activity.Name,
 			Category:     activity.Category,
 			Participants: activity.Participants,
-			MaxCapacity:  activity.MaxCapacity,
+			MaxCapacity:  activitiesModel.ParticipantLimitPtr(activity.MaxCapacity),
 			Status:       activity.Status,
 		})
 	}
