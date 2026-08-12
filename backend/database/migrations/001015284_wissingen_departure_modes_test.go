@@ -26,7 +26,7 @@ type wissingenDepartureTestRow struct {
 	DepartureDays          json.RawMessage `bun:"departure_days"`
 	BusDays                json.RawMessage `bun:"bus_days"`
 	PickupDays             json.RawMessage `bun:"pickup_days"`
-	PickupStatus           string          `bun:"pickup_status"`
+	PickupStatus           *string         `bun:"pickup_status"`
 	DepartureCompanionNote *string         `bun:"departure_companion_note"`
 }
 
@@ -91,6 +91,12 @@ func loadWissingenDepartureTestRow(t *testing.T, db *bun.DB, studentID int64) wi
 func assertWissingenDepartureJSON(t *testing.T, expected string, actual json.RawMessage) {
 	t.Helper()
 	assert.JSONEq(t, expected, string(actual))
+}
+
+func assertWissingenPickupStatus(t *testing.T, expected string, actual *string) {
+	t.Helper()
+	require.NotNil(t, actual)
+	assert.Equal(t, expected, *actual)
 }
 
 func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlans(t *testing.T) {
@@ -185,6 +191,18 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 		"darf_ihr_kind_alleine_nach_hause_gehen":"malformed"
 	}`)
 
+	invalidTime := testpkg.CreateTestStudentForTenant(t, db, tenantID, "InvalidTime", "Child", "1a")
+	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, invalidTime.ID, `{
+		"schedule_pickup":{"mon":"15:00","tue":"25:99"},
+		"darf_ihr_kind_alleine_nach_hause_gehen":false
+	}`)
+
+	unknownWeekday := testpkg.CreateTestStudentForTenant(t, db, tenantID, "UnknownWeekday", "Child", "1a")
+	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, unknownWeekday.ID, `{
+		"schedule_pickup":{"mon":"15:00","sat":"15:00"},
+		"darf_ihr_kind_alleine_nach_hause_gehen":false
+	}`)
+
 	require.NoError(t, wissingenDepartureModesUp(ctx, db))
 	require.NoError(t, wissingenDepartureModesUp(ctx, db), "migration must be idempotent")
 
@@ -193,7 +211,7 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	assertWissingenDepartureJSON(t, `{"mon":"pickup","thu":"pickup"}`, pickupRow.DepartureDays)
 	assertWissingenDepartureJSON(t, `{}`, pickupRow.BusDays)
 	assertWissingenDepartureJSON(t, `{"mon":true,"thu":true}`, pickupRow.PickupDays)
-	assert.Equal(t, "Wird abgeholt", pickupRow.PickupStatus)
+	assertWissingenPickupStatus(t, "Wird abgeholt", pickupRow.PickupStatus)
 	assert.Nil(t, pickupRow.DepartureCompanionNote)
 
 	aloneRow := loadWissingenDepartureTestRow(t, db, alone.ID)
@@ -201,18 +219,18 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	assertWissingenDepartureJSON(t, `{}`, aloneRow.DepartureDays)
 	assertWissingenDepartureJSON(t, `{}`, aloneRow.BusDays)
 	assertWissingenDepartureJSON(t, `{}`, aloneRow.PickupDays)
-	assert.Equal(t, "Geht alleine nach Hause", aloneRow.PickupStatus)
+	assertWissingenPickupStatus(t, "Geht alleine nach Hause", aloneRow.PickupStatus)
 
 	busRow := loadWissingenDepartureTestRow(t, db, bus.ID)
 	assertWissingenDepartureJSON(t, `{"tue":["alone","bus"]}`, busRow.AllowedDepartureModes)
 	assertWissingenDepartureJSON(t, `{"tue":"bus"}`, busRow.DepartureDays)
 	assertWissingenDepartureJSON(t, `{"tue":true}`, busRow.BusDays)
-	assert.Equal(t, "Geht alleine nach Hause", busRow.PickupStatus)
+	assertWissingenPickupStatus(t, "Geht alleine nach Hause", busRow.PickupStatus)
 
 	accompaniedRow := loadWissingenDepartureTestRow(t, db, accompanied.ID)
 	assertWissingenDepartureJSON(t, `{"fri":["alone","accompanied"]}`, accompaniedRow.AllowedDepartureModes)
 	assertWissingenDepartureJSON(t, `{"fri":"accompanied"}`, accompaniedRow.DepartureDays)
-	assert.Equal(t, "Geht mit anderem Kind", accompaniedRow.PickupStatus)
+	assertWissingenPickupStatus(t, "Geht mit anderem Kind", accompaniedRow.PickupStatus)
 	require.NotNil(t, accompaniedRow.DepartureCompanionNote)
 	assert.Equal(t, "Begleitkind", *accompaniedRow.DepartureCompanionNote)
 
@@ -220,12 +238,21 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	assertWissingenDepartureJSON(t, `{"mon":["alone","bus","accompanied"],"thu":["alone","bus","accompanied"]}`, combinedRow.AllowedDepartureModes)
 	assertWissingenDepartureJSON(t, `{"mon":"bus","thu":"bus"}`, combinedRow.DepartureDays)
 	assertWissingenDepartureJSON(t, `{"mon":true,"thu":true}`, combinedRow.BusDays)
-	assert.Equal(t, "Geht mit anderem Kind", combinedRow.PickupStatus)
+	assertWissingenPickupStatus(t, "Geht mit anderem Kind", combinedRow.PickupStatus)
 
 	manualRow := loadWissingenDepartureTestRow(t, db, manual.ID)
 	assertWissingenDepartureJSON(t, `{"mon":["alone"],"wed":["alone"]}`, manualRow.AllowedDepartureModes)
-	assert.Equal(t, "Geht alleine nach Hause", manualRow.PickupStatus)
+	assertWissingenPickupStatus(t, "Geht alleine nach Hause", manualRow.PickupStatus)
 
 	duplicateRow := loadWissingenDepartureTestRow(t, db, duplicate.ID)
 	assertWissingenDepartureJSON(t, `{}`, duplicateRow.AllowedDepartureModes)
+	assert.Nil(t, duplicateRow.PickupStatus)
+
+	invalidTimeRow := loadWissingenDepartureTestRow(t, db, invalidTime.ID)
+	assertWissingenDepartureJSON(t, `{}`, invalidTimeRow.AllowedDepartureModes)
+	assert.Nil(t, invalidTimeRow.PickupStatus)
+
+	unknownWeekdayRow := loadWissingenDepartureTestRow(t, db, unknownWeekday.ID)
+	assertWissingenDepartureJSON(t, `{}`, unknownWeekdayRow.AllowedDepartureModes)
+	assert.Nil(t, unknownWeekdayRow.PickupStatus)
 }

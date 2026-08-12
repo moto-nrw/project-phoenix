@@ -96,6 +96,16 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 			FROM matching_children
 			WHERE matching_child_count = 1
 			  AND jsonb_typeof(custom_data -> 'schedule_pickup') = 'object'
+			  AND NOT EXISTS (
+				SELECT 1
+				FROM jsonb_each(custom_data -> 'schedule_pickup') AS schedule_entry(day, value)
+				WHERE schedule_entry.day NOT IN ('mon', 'tue', 'wed', 'thu', 'fri')
+				   OR jsonb_typeof(schedule_entry.value) <> 'string'
+				   OR (
+					btrim(schedule_entry.value #>> '{}') <> ''
+					AND btrim(schedule_entry.value #>> '{}') !~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$'
+				   )
+			  )
 			  AND jsonb_typeof(custom_data -> 'darf_ihr_kind_alleine_nach_hause_gehen') = 'boolean'
 			  AND (
 				custom_data -> 'fahrt_ihr_kind_mit_dem_bus_nach_hause' IS NULL
