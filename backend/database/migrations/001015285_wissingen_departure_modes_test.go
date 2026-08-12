@@ -133,10 +133,16 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 		"soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen":true,
 		"mit_welchem_kind_soll_ihr_kind_zusammen_gehen":"Wird wegen Abholung ignoriert"
 	}`)
+	_, err = db.NewRaw(`
+		UPDATE users.students
+		SET pickup_status = 'Geht alleine nach Hause'
+		WHERE id = ?
+	`, pickup.ID).Exec(ctx)
+	require.NoError(t, err)
 
 	alone := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Alone", "Child", "1a")
 	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, alone.ID, `{
-		"schedule_pickup":{"mon":"15:00","wed":"15:00"},
+		"schedule_pickup":{"mon":"9:00","wed":"15:00"},
 		"darf_ihr_kind_alleine_nach_hause_gehen":true,
 		"fahrt_ihr_kind_mit_dem_bus_nach_hause":false,
 		"soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen":false
@@ -178,6 +184,30 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 			pickup_status = 'Geht alleine nach Hause'
 		WHERE id = ?
 	`, manual.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	statusOnly := testpkg.CreateTestStudentForTenant(t, db, tenantID, "StatusOnly", "Child", "1a")
+	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, statusOnly.ID, `{
+		"schedule_pickup":{"mon":"15:00"},
+		"darf_ihr_kind_alleine_nach_hause_gehen":true
+	}`)
+	_, err = db.NewRaw(`
+		UPDATE users.students
+		SET pickup_status = 'Wird abgeholt'
+		WHERE id = ?
+	`, statusOnly.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	noteOnly := testpkg.CreateTestStudentForTenant(t, db, tenantID, "NoteOnly", "Child", "1a")
+	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, noteOnly.ID, `{
+		"schedule_pickup":{"mon":"15:00"},
+		"darf_ihr_kind_alleine_nach_hause_gehen":true
+	}`)
+	_, err = db.NewRaw(`
+		UPDATE users.students
+		SET departure_companion_note = 'Manuell geprüft'
+		WHERE id = ?
+	`, noteOnly.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	duplicate := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Duplicate", "Child", "1a")
@@ -249,6 +279,16 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 	manualRow := loadWissingenDepartureTestRow(t, db, manual.ID)
 	assertWissingenDepartureJSON(t, `{"mon":["alone"],"wed":["alone"]}`, manualRow.AllowedDepartureModes)
 	assertWissingenPickupStatus(t, "Geht alleine nach Hause", manualRow.PickupStatus)
+
+	statusOnlyRow := loadWissingenDepartureTestRow(t, db, statusOnly.ID)
+	assertWissingenDepartureJSON(t, `{}`, statusOnlyRow.AllowedDepartureModes)
+	assertWissingenPickupStatus(t, "Wird abgeholt", statusOnlyRow.PickupStatus)
+
+	noteOnlyRow := loadWissingenDepartureTestRow(t, db, noteOnly.ID)
+	assertWissingenDepartureJSON(t, `{}`, noteOnlyRow.AllowedDepartureModes)
+	assert.Nil(t, noteOnlyRow.PickupStatus)
+	require.NotNil(t, noteOnlyRow.DepartureCompanionNote)
+	assert.Equal(t, "Manuell geprüft", *noteOnlyRow.DepartureCompanionNote)
 
 	duplicateRow := loadWissingenDepartureTestRow(t, db, duplicate.ID)
 	assertWissingenDepartureJSON(t, `{}`, duplicateRow.AllowedDepartureModes)

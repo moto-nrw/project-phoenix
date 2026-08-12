@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	wissingenDepartureModesVersion     = "1.15.284"
+	wissingenDepartureModesVersion     = "1.15.285"
 	wissingenDepartureModesDescription = "Derive departure modes for approved Wissingen 2026/2027 enrollments from the confirmed legacy form answers"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.284: Deriving departure modes for approved Wissingen 2026/2027 enrollments...")
+	fmt.Println("Migration 1.15.285: Deriving departure modes for approved Wissingen 2026/2027 enrollments...")
 
 	result, err := db.NewRaw(`
 		WITH matching_children AS (
@@ -109,7 +109,7 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 				   OR jsonb_typeof(schedule_entry.value) <> 'string'
 				   OR (
 					btrim(schedule_entry.value #>> '{}') <> ''
-					AND btrim(schedule_entry.value #>> '{}') !~ '^(?:[01][0-9]|2[0-3]):[0-5][0-9]$'
+					AND btrim(schedule_entry.value #>> '{}') !~ '^(?:[0-9]|[01][0-9]|2[0-3]):[0-5][0-9]$'
 				   )
 			  )
 			  AND jsonb_typeof(custom_data -> 'darf_ihr_kind_alleine_nach_hause_gehen') = 'boolean'
@@ -206,19 +206,24 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 		  AND COALESCE(student.allowed_departure_modes, '{}'::jsonb) = '{}'::jsonb
 		  AND COALESCE(student.departure_days, '{}'::jsonb) = '{}'::jsonb
 		  AND COALESCE(student.bus_days, '{}'::jsonb) = '{}'::jsonb
-		  AND COALESCE(student.pickup_days, '{}'::jsonb) = '{}'::jsonb;
+		  AND COALESCE(student.pickup_days, '{}'::jsonb) = '{}'::jsonb
+		  AND student.departure_companion_note IS NULL
+		  AND (
+			student.pickup_status IS NULL
+			OR student.pickup_status = 'Geht alleine nach Hause'
+		  );
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed deriving Wissingen departure modes: %w", err)
 	}
 
 	if affected, rowsErr := result.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.284: updated %d Wissingen student departure plan(s)\n", affected)
+		fmt.Printf("Migration 1.15.285: updated %d Wissingen student departure plan(s)\n", affected)
 	}
 	return nil
 }
 
 func wissingenDepartureModesDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.284: derived departure plans are not cleared automatically")
+	fmt.Println("Rolling back migration 1.15.285: derived departure plans are not cleared automatically")
 	return nil
 }
