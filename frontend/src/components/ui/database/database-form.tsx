@@ -97,13 +97,15 @@ function applyInitialData<T>(
 
   for (const key of Object.keys(initialData)) {
     const value = initialData[key as keyof T];
-    if (value === undefined || value === null) {
+    if (value === undefined) {
       continue;
     }
 
     // Convert string to number if field type requires it
     const field = allFields.find((f) => f.name === key);
-    if (field?.type === "number" && typeof value === "string") {
+    if (value === null) {
+      formData[key] = null;
+    } else if (field?.type === "number" && typeof value === "string") {
       formData[key] = Number.parseInt(value, 10) || 0;
     } else {
       formData[key] = value;

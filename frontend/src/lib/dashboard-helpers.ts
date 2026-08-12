@@ -53,7 +53,7 @@ interface CurrentActivity {
   name: string;
   category: string;
   participants: number;
-  maxCapacity: number;
+  maxCapacity: number | null;
   status: "active" | "full" | "ending_soon";
 }
 
@@ -100,7 +100,7 @@ export interface DashboardAnalyticsResponse {
     name: string;
     category: string;
     participants: number;
-    max_capacity: number;
+    max_capacity: number | null;
     status: string;
   }>;
   active_groups_summary: Array<{

@@ -372,7 +372,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Neue Aktivität anlegen.",
           "`Name` kurz und verständlich eintragen.",
           "`Kategorie` wählen.",
-          "`Maximale Teilnehmer` eintragen, wenn eine Grenze gilt.",
+          "`Maximale Teilnehmer` eintragen, wenn eine Grenze gilt. Ohne Kapazitätsgrenze das Feld leeren, sodass `Keine Begrenzung` angezeigt wird.",
           "Speichern.",
         ],
         callout: {
@@ -381,7 +381,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Aktivitätsformular mit Name, Kategorie und maximale Teilnehmer.",
+          "Aktivitätsformular mit Name, Kategorie und der Option `Keine Begrenzung`.",
         image: "/help/screens/aktivitaeten-anlegen.webp",
       },
     ],
