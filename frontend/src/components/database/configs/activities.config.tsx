@@ -405,10 +405,15 @@ export const activitiesConfig = defineEntityConfig<Activity>({
 
   service: {
     mapRequest: (data: Partial<Activity>): Record<string, unknown> => {
+      const maxParticipants = data.max_participant as unknown;
+
       // Convert frontend Activity to backend format
       const request: Record<string, unknown> = {
         name: data.name,
-        max_participants: data.max_participant ?? null,
+        max_participants:
+          maxParticipants === "" || maxParticipants == null
+            ? null
+            : maxParticipants,
         category_id: data.ag_category_id
           ? Number.parseInt(data.ag_category_id, 10)
           : undefined,

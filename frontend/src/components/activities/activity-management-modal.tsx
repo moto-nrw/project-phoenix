@@ -16,6 +16,7 @@ import { createLogger } from "~/lib/logger";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -500,9 +501,12 @@ export function ActivityManagementModal({
                   />
                 </button>
               </div>
-              <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700">
-                <input
-                  type="checkbox"
+              <label
+                htmlFor="activity-no-participant-limit"
+                className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700"
+              >
+                <Checkbox
+                  id="activity-no-participant-limit"
                   checked={!form.max_participants}
                   onChange={(event) =>
                     setForm((prev) => ({
@@ -511,7 +515,6 @@ export function ActivityManagementModal({
                     }))
                   }
                   disabled={readOnly}
-                  className="text-moto-blue focus:ring-moto-blue h-5 w-5 rounded border-gray-300 disabled:cursor-not-allowed"
                 />
                 Keine Begrenzung
               </label>

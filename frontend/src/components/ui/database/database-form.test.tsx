@@ -848,6 +848,41 @@ describe("DatabaseForm", () => {
     });
   });
 
+  it("preserves a null initial number as an empty field", async () => {
+    const sections: FormSection[] = [
+      {
+        title: "Kapazität",
+        fields: [
+          {
+            name: "max_participant",
+            label: "Maximale Teilnehmer",
+            type: "number",
+            required: false,
+            min: 1,
+          },
+        ],
+      },
+    ];
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={sections}
+        initialData={{ max_participant: null }}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const input = screen.getByRole("spinbutton");
+    await waitFor(() => expect(input).toHaveValue(null));
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ max_participant: null }),
+    );
+  });
+
   it("preserves unsaved edits when privacy consent revalidates", async () => {
     const sections: FormSection[] = [
       {

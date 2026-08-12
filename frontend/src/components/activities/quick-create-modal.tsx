@@ -12,6 +12,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -349,9 +350,12 @@ export function QuickCreateActivityModal({
                   />
                 </button>
               </div>
-              <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700">
-                <input
-                  type="checkbox"
+              <label
+                htmlFor="quick-create-no-participant-limit"
+                className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700"
+              >
+                <Checkbox
+                  id="quick-create-no-participant-limit"
                   checked={!form.max_participants}
                   onChange={(event) =>
                     setForm((prev) => ({
@@ -359,7 +363,6 @@ export function QuickCreateActivityModal({
                       max_participants: event.target.checked ? "" : "15",
                     }))
                   }
-                  className="text-moto-blue focus:ring-moto-blue h-5 w-5 rounded border-gray-300"
                 />
                 Keine Begrenzung
               </label>

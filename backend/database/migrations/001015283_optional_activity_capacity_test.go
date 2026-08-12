@@ -13,8 +13,8 @@ func TestOptionalActivityCapacity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
-	const tenantID int64 = 22361
-	testpkg.EnsureTestTenant(t, db, tenantID)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	defer testpkg.CleanupTestTenant(t, db, tenantID)
 	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
 	ctx := context.Background()
