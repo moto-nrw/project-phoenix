@@ -32,6 +32,15 @@ func optionalActivityCapacityUp(ctx context.Context, db *bun.DB) error {
 		WHERE is_template = TRUE
 			AND max_participants = 999;
 
+		UPDATE activities.groups AS activity_group
+		SET max_participants = NULL
+		FROM activities.categories AS category
+		WHERE activity_group.tenant_id = category.tenant_id
+			AND activity_group.category_id = category.id
+			AND activity_group.is_template = FALSE
+			AND activity_group.max_participants = 999
+			AND LOWER(TRIM(category.name)) = 'spontan';
+
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_max_participants,
 			ADD CONSTRAINT chk_activities_groups_max_participants
