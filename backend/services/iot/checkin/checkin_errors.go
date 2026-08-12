@@ -79,6 +79,7 @@ const (
 	checkinErrEndVisit          = "failed to end visit record"
 	checkinErrCreateVisit       = "failed to create visit record"
 	checkinErrGetRoom           = "failed to get room information"
+	checkinErrCheckRoomCapacity = "failed to check room capacity"
 	checkinErrGetActivity       = "failed to get activity information"
 	checkinErrCheckActivityCap  = "failed to check activity capacity"
 	checkinErrFindActiveGroups  = "error finding active groups in room"
