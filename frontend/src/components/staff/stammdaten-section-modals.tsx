@@ -5,10 +5,11 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { ISODatePicker } from "~/components/ui/date-picker";
+import { ISODateInput, ISODatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
+import { todayISO } from "~/lib/date-helpers";
 import {
   staffStammdatenService,
   type StammdatenArbeitsvertrag,
@@ -163,6 +164,7 @@ export function PersonEditModal({
   const [firstName, setFirstName] = useState(person.firstName);
   const [lastName, setLastName] = useState(person.lastName);
   const [birthday, setBirthday] = useState(person.birthday ?? "");
+  const [birthdayValid, setBirthdayValid] = useState(true);
   const [gender, setGender] = useState<string>(person.gender ?? "");
   const [note, setNote] = useState("");
   const { saving, error, run } = useSectionSave(onSaved);
@@ -187,11 +189,14 @@ export function PersonEditModal({
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
           />
-          <ISODatePicker
+          <ISODateInput
             label="Geburtsdatum"
             id="stammdaten-birthday"
             value={birthday}
             onChange={setBirthday}
+            onValidityChange={setBirthdayValid}
+            max={todayISO()}
+            maxDateError="Das Geburtsdatum darf nicht in der Zukunft liegen."
           />
           <SelectField
             id="stammdaten-gender"
@@ -206,7 +211,7 @@ export function PersonEditModal({
         <ModalFooter
           onClose={onClose}
           saving={saving}
-          disabled={!valid}
+          disabled={!valid || !birthdayValid}
           onSave={() =>
             void run("stammdaten_person_save_failed", () =>
               staffStammdatenService.updatePerson(
