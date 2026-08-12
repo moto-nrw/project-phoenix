@@ -53,6 +53,7 @@ type ResourceConfig struct {
 	IoTService             iotSvc.Service
 	StaffPINAuthenticator  authService.StaffPINAuthenticator
 	PickupScheduleService  scheduleService.PickupScheduleService
+	PartialAbsenceService  scheduleService.PartialAbsenceService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
 	InstanceService        scheduleService.InstanceService
 	// CareDayService gates the day-planning timetable signal on the child's
@@ -212,11 +213,15 @@ func (rs *Resource) Router() chi.Router {
 
 		// Pickup schedule routes (full access required - checked in handlers)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/partial-absences", rs.getStudentPartialAbsences)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/pickup-schedules/bulk", rs.bulkUpsertPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/partial-absences", rs.createStudentPartialAbsence)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/partial-absences/{partialAbsenceId}", rs.updateStudentPartialAbsence)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/partial-absences/{partialAbsenceId}", rs.deleteStudentPartialAbsence)
 
 		// Pickup note routes (full access required - checked in handlers)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-notes", rs.createStudentPickupNote)

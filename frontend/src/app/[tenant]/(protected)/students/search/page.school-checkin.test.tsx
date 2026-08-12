@@ -39,6 +39,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     if (loc) return "anwesend";
     return "unknown";
   },
+  checkoutConfirmationRoom: () => null,
 }));
 
 // Page gates the toggle on binary mode; override the global mock
@@ -51,6 +52,7 @@ vi.mock("~/lib/tenant-context", () => ({
   })),
   useTenantSlugSafe: vi.fn(() => "test-tenant"),
   usePresenceMode: vi.fn(() => "binary"),
+  useAttendanceWebEnabled: vi.fn(() => true),
   useNFCEnabled: vi.fn(() => true),
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));

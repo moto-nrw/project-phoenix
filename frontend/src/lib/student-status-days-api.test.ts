@@ -5,6 +5,7 @@ import {
   deleteStudentStatusDay,
   fetchStudentStatusDays,
   StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
 } from "./student-status-days-api";
 
 const backendDay = {
@@ -89,6 +90,26 @@ describe("student-status-days-api", () => {
         status: "excused",
       }),
     ]);
+  });
+
+  it("maps partial-absence conflicts to a dedicated error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        {
+          status: "error",
+          error: "student status day conflicts with a partial absence",
+          code: "partial_absence_conflict",
+        },
+        { status: 409 },
+      ),
+    );
+
+    const error = await createStudentStatusDays("42", "sick", [
+      "2026-05-26",
+    ]).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(StudentStatusDayPartialAbsenceConflictError);
+    expect((error as Error).message).toMatch(/Abmeldung ab einer Uhrzeit/);
   });
 
   it("deletes a planned status day", async () => {
