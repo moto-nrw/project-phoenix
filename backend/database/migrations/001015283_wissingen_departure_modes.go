@@ -60,16 +60,6 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 			  AND schema.version = 20
 			  AND child.status = 'approved'
 			  AND COALESCE(child.created_student_id, child.matched_student_id) IS NOT NULL
-			  AND jsonb_typeof(child.custom_data -> 'schedule_pickup') = 'object'
-			  AND jsonb_typeof(child.custom_data -> 'darf_ihr_kind_alleine_nach_hause_gehen') = 'boolean'
-			  AND (
-				child.custom_data -> 'fahrt_ihr_kind_mit_dem_bus_nach_hause' IS NULL
-				OR jsonb_typeof(child.custom_data -> 'fahrt_ihr_kind_mit_dem_bus_nach_hause') = 'boolean'
-			  )
-			  AND (
-				child.custom_data -> 'soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen' IS NULL
-				OR jsonb_typeof(child.custom_data -> 'soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen') = 'boolean'
-			  )
 			  AND EXISTS (
 				SELECT 1 FROM jsonb_array_elements(schema.fields) AS field
 				WHERE field ->> 'key' = 'schedule_pickup'
@@ -101,6 +91,21 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 				  AND COALESCE(field ->> 'target', '') = ''
 			  )
 		),
+		valid_children AS (
+			SELECT student_id, custom_data
+			FROM matching_children
+			WHERE matching_child_count = 1
+			  AND jsonb_typeof(custom_data -> 'schedule_pickup') = 'object'
+			  AND jsonb_typeof(custom_data -> 'darf_ihr_kind_alleine_nach_hause_gehen') = 'boolean'
+			  AND (
+				custom_data -> 'fahrt_ihr_kind_mit_dem_bus_nach_hause' IS NULL
+				OR jsonb_typeof(custom_data -> 'fahrt_ihr_kind_mit_dem_bus_nach_hause') = 'boolean'
+			  )
+			  AND (
+				custom_data -> 'soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen' IS NULL
+				OR jsonb_typeof(custom_data -> 'soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen') = 'boolean'
+			  )
+		),
 		answers AS (
 			SELECT
 				student_id,
@@ -114,8 +119,7 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 					(custom_data ->> 'darf_ihr_kind_alleine_nach_hause_gehen')::boolean
 					AND COALESCE((custom_data ->> 'soll_ihr_kind_nur_gemeinsam_mit_einem_anderen_kind_gehen_durfen')::boolean, false)
 				) AS goes_accompanied
-			FROM matching_children
-			WHERE matching_child_count = 1
+			FROM valid_children
 		),
 		plans AS (
 			SELECT

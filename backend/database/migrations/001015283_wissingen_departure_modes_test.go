@@ -180,7 +180,10 @@ func TestWissingenDepartureModes_DerivesConfirmedAnswersAndPreservesExistingPlan
 		"darf_ihr_kind_alleine_nach_hause_gehen":false
 	}`
 	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, duplicate.ID, duplicateData)
-	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, duplicate.ID, duplicateData)
+	insertWissingenDepartureTestChild(t, db, tenantID, schemaID, phaseID, duplicate.ID, `{
+		"schedule_pickup":"malformed",
+		"darf_ihr_kind_alleine_nach_hause_gehen":"malformed"
+	}`)
 
 	require.NoError(t, wissingenDepartureModesUp(ctx, db))
 	require.NoError(t, wissingenDepartureModesUp(ctx, db), "migration must be idempotent")
