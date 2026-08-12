@@ -21,13 +21,13 @@
 export const CALENDAR_PANEL_MARGIN = 8;
 
 /**
- * Narrowest a stretchable calendar gets: 7 × (20px day button + 8px cell
- * gutter) + 12px compact card padding per side + the 1px border. The previous
- * 176px floor was derived from the 20px *cell*, forgetting that the px-1
- * gutter lives inside the cell — which left the clickable day button at ~13px,
- * too narrow for two-digit dates. 20px is what the BUTTON needs.
+ * Narrowest a stretchable calendar gets. The day grid itself fits into less,
+ * but the complete component also needs room for both navigation buttons and
+ * the month and year controls. Keeping that requirement in the shared geometry
+ * prevents icon-only triggers from collapsing the panel and clipping its
+ * header.
  */
-const CALENDAR_MIN_WIDTH = 222;
+const CALENDAR_MIN_WIDTH = 304;
 
 /**
  * Height used for the flip-up decision: the worst case, a six-week month.

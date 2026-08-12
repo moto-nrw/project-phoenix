@@ -450,7 +450,7 @@ export function DatePicker({
               <FocusScope asChild loop trapped>
                 <div
                   ref={popoverRef}
-                  className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
+                  className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
                   style={{
                     top: popoverPosition.top,
                     left: popoverPosition.left,
@@ -464,7 +464,7 @@ export function DatePicker({
             ) : (
               <div
                 ref={popoverRef}
-                className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
+                className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
                 style={{
                   top: popoverPosition.top,
                   left: popoverPosition.left,
@@ -902,7 +902,7 @@ const NAV_OPTION_ACTIVE_CLASS =
   "flex w-full cursor-pointer items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors";
 
 const NAV_SELECT_CLASS =
-  "inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+  "inline-flex h-9 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
 
 // The offered years always include the month currently on screen, so a value
 // outside the caller's bounds (legacy data) still shows its own year instead of
@@ -951,7 +951,7 @@ function CalendarNavHeader({
 
   return (
     <div
-      className={`flex items-center justify-between ${
+      className={`grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center ${
         compact ? "mb-3 gap-1" : "mb-4 gap-2"
       }`}
     >
@@ -980,7 +980,7 @@ function CalendarNavHeader({
         // OS-level popup, which cannot be styled to match the kit and does not
         // exist in the DOM (so it never appears in a screenshot or a test).
         // The menu z-index has to clear the calendar's own portal.
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_5rem] items-center gap-1">
           <ListboxDropdown
             ariaLabel={labels.month}
             value={String(month.getMonth())}
@@ -991,6 +991,7 @@ function CalendarNavHeader({
             onChange={(next) =>
               onMonthChange(new Date(month.getFullYear(), Number(next), 1))
             }
+            containerClassName="relative min-w-0"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
             optionClassName={NAV_OPTION_CLASS}
@@ -1009,6 +1010,7 @@ function CalendarNavHeader({
             onChange={(next) =>
               onMonthChange(new Date(Number(next), month.getMonth(), 1))
             }
+            containerClassName="relative min-w-0"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
             optionClassName={NAV_OPTION_CLASS}
@@ -1062,7 +1064,7 @@ function buildSingleDisabledMatchers(
   return matchers;
 }
 
-// A panel narrower than this cannot afford the roomier padding: at the 222px
+// A panel narrower than this cannot afford the roomier padding: at a very small
 // minimum, p-4 would shave the day buttons below their 20px floor and truncate
 // the "Juli 2026" caption. Below the threshold the card falls back to p-3 and
 // spends the space on the grid instead.
@@ -1079,7 +1081,7 @@ function getCalendarContainerClass(
   // sized to the trigger; inline takes its parent's width and only needs the
   // legible-minimum floor.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-full min-w-[222px]`;
+    return `${base} mt-2 w-full min-w-[304px]`;
   }
   return `${base} w-full`;
 }
