@@ -3,60 +3,44 @@ package students
 import (
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPickupStatusKindBuckets(t *testing.T) {
-	tests := []struct {
-		status string
-		want   string
-	}{
-		{"", "none"},
-		{"   ", "none"},
-		{"Geht alleine nach Hause", "self"},
-		{"self", "self"},
-		{"geht_alleine", "self"},
-		{"Wird abgeholt", "pickedUp"},
-		{"picked_up", "pickedUp"},
-		{"Taxi", "other"},
-		// Accompanied ("Mit anderem Kind") must land in "other", never "self":
-		// the child leaves with a companion, so admin filters must not bucket them
-		// as a self-goer (#1694).
-		{users.PickupStatusAccompanied, "other"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.status, func(t *testing.T) {
-			assert.Equal(t, tt.want, pickupStatusKind(tt.status))
-		})
-	}
-}
-
 func TestApplyAdministrativeFilters(t *testing.T) {
+	planningDate := timezone.NewDate(2026, time.June, 1)
 	consentYes := true
 	consentNo := false
 	students := []StudentResponse{
 		{
-			ID:                301,
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Geht alleine nach Hause",
-			HasFullAccess:     true,
+			ID:                      301,
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayMonday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                302,
-			Bus:               false,
-			PhotoConsentGiven: &consentNo,
-			PickupStatus:      "Wird abgeholt",
-			HasFullAccess:     true,
+			ID:                      302,
+			Bus:                     false,
+			PhotoConsentGiven:       &consentNo,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayMonday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           true,
 		},
 		{
 			// Redacted student: never matches an administrative filter (GDPR).
-			ID:            303,
-			Bus:           true,
-			PickupStatus:  "Wird abgeholt",
-			HasFullAccess: false,
+			ID:                      303,
+			Bus:                     true,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayMonday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           false,
 		},
 		{
 			// Full access, no pickup rule recorded → kind "none".
@@ -67,9 +51,11 @@ func TestApplyAdministrativeFilters(t *testing.T) {
 		{
 			// Redacted student that would otherwise match pickup "self":
 			// confirms GDPR redaction also gates the pickup filter.
-			ID:            305,
-			PickupStatus:  "Geht alleine nach Hause",
-			HasFullAccess: false,
+			ID:                      305,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayMonday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           false,
 		},
 	}
 
@@ -118,7 +104,7 @@ func TestApplyAdministrativeFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyAdministrativeFilters(students, tt.bus, tt.photoConsent, tt.pickupSt)
+			got := applyAdministrativeFilters(students, tt.bus, tt.photoConsent, tt.pickupSt, planningDate)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)

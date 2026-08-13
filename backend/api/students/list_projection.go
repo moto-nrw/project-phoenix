@@ -1,6 +1,11 @@
 package students
 
-import "time"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/users"
+)
 
 // Values accepted by the `view` query parameter of GET /api/students.
 const (
@@ -65,15 +70,15 @@ type SlimStudentResponse struct {
 	// Planned + actual times (the arrival/pickup rows and their sort/group
 	// modes). Only populated for full-access rows and when the caller passes
 	// include_pickup_times / include_arrival_times.
-	PickupStatus       string  `json:"pickup_status,omitempty"`
-	PickupTime         *string `json:"pickup_time,omitempty"`
-	PickupIsException  bool    `json:"pickup_is_exception,omitempty"`
-	PickupNotes        string  `json:"pickup_notes,omitempty"`
-	ArrivalTime        *string `json:"arrival_time,omitempty"`
-	ArrivalIsException bool    `json:"arrival_is_exception,omitempty"`
-	ArrivalNotes       string  `json:"arrival_notes,omitempty"`
-	ActualArrivalTime  *string `json:"actual_arrival_time,omitempty"`
-	ActualPickupTime   *string `json:"actual_pickup_time,omitempty"`
+	DepartureModes     []users.DepartureMode `json:"departure_modes,omitempty"`
+	PickupTime         *string               `json:"pickup_time,omitempty"`
+	PickupIsException  bool                  `json:"pickup_is_exception,omitempty"`
+	PickupNotes        string                `json:"pickup_notes,omitempty"`
+	ArrivalTime        *string               `json:"arrival_time,omitempty"`
+	ArrivalIsException bool                  `json:"arrival_is_exception,omitempty"`
+	ArrivalNotes       string                `json:"arrival_notes,omitempty"`
+	ActualArrivalTime  *string               `json:"actual_arrival_time,omitempty"`
+	ActualPickupTime   *string               `json:"actual_pickup_time,omitempty"`
 
 	// "Nach Laufgemeinschaft" grouping; only with include_companions=true.
 	CompanionStudentIDs []int64 `json:"companion_student_ids,omitempty"`
@@ -89,7 +94,7 @@ type SlimStudentResponse struct {
 
 // slimStudentResponses projects the fully built, filtered and paginated list
 // onto the Kindersuche wire shape.
-func slimStudentResponses(responses []StudentResponse) []SlimStudentResponse {
+func slimStudentResponses(responses []StudentResponse, planningDate timezone.Date) []SlimStudentResponse {
 	slim := make([]SlimStudentResponse, len(responses))
 	for i := range responses {
 		r := &responses[i]
@@ -112,7 +117,7 @@ func slimStudentResponses(responses []StudentResponse) []SlimStudentResponse {
 			DayPlanningStatus:   r.DayPlanningStatus,
 			DayPlanningLabel:    r.DayPlanningLabel,
 			PendingExcusedNote:  r.PendingExcusedNote,
-			PickupStatus:        r.PickupStatus,
+			DepartureModes:      dailyDepartureModes(*r, planningDate),
 			PickupTime:          r.PickupTime,
 			PickupIsException:   r.PickupIsException,
 			PickupNotes:         r.PickupNotes,

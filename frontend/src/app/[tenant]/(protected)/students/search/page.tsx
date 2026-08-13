@@ -46,12 +46,14 @@ import {
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
   getSchoolYear,
+  type DepartureMode,
 } from "~/lib/student-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   StudentCard,
   SchoolClassIcon,
   GroupIcon,
+  DepartureModeIcon,
   StudentInfoRow,
   PickupTimeRow,
   ArrivalTimeRow,
@@ -112,7 +114,6 @@ type StatusFilter =
   | "klassenfahrt"
   | "entschuldigt";
 type BooleanFilter = "all" | "yes" | "no";
-type PickupStatusKind = "self" | "pickedUp" | "other" | "none" | "redacted";
 type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
 type SortMode = "name" | "arrival" | "pickup";
@@ -536,45 +537,23 @@ function pickupLabelForStudent(student: Student): string {
   return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Gehzeit";
 }
 
-function pickupStatusKind(student: Student): PickupStatusKind {
-  if (student.has_full_access === false) return "redacted";
+const DAILY_DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
+  alone: "Geht alleine nach Hause",
+  bus: "Bus",
+  pickup: "Wird abgeholt",
+  accompanied: "Mit anderem Kind",
+};
 
-  const raw = student.pickup_status?.trim();
-  if (!raw) return "none";
-
-  const normalized = raw.toLowerCase();
-  if (
-    normalized.includes("alleine") ||
-    normalized === "selbst" ||
-    normalized === "self" ||
-    normalized === "alone" ||
-    normalized === "walk_home" ||
-    normalized === "geht_alleine"
-  ) {
-    return "self";
-  }
-  if (
-    normalized.includes("abgeholt") ||
-    normalized === "parent" ||
-    normalized === "parents" ||
-    normalized === "guardian" ||
-    normalized === "pickup" ||
-    normalized === "picked_up" ||
-    normalized === "wird_abgeholt"
-  ) {
-    return "pickedUp";
-  }
-
-  return "other";
+function dailyDepartureLabelForStudent(student: Student): string {
+  if (student.has_full_access === false) return "Nicht einsehbar";
+  const modes = student.departure_modes ?? [];
+  if (modes.length === 0) return "-";
+  return modes.map((mode) => DAILY_DEPARTURE_MODE_LABELS[mode]).join(", ");
 }
 
-function pickupStatusLabelForStudent(student: Student): string {
-  const kind = pickupStatusKind(student);
-  if (kind === "redacted") return "Nicht einsehbar";
-  if (kind === "self") return "Geht alleine nach Hause";
-  if (kind === "pickedUp") return "Wird abgeholt";
-  if (kind === "none") return "Keine Abholregelung";
-  return student.pickup_status?.trim() || "Keine Abholregelung";
+function dailyDepartureGroupLabelForStudent(student: Student): string {
+  const label = dailyDepartureLabelForStudent(student);
+  return label === "-" ? "Keine Abholregelung" : label;
 }
 
 function arrivalLabelForStudent(student: Student): string {
@@ -736,7 +715,7 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
             ? arrivalLabelForStudent(student)
             : groupMode === "pickup"
               ? pickupLabelForStudent(student)
-              : pickupStatusLabelForStudent(student);
+              : dailyDepartureGroupLabelForStudent(student);
     const key = companionLabels
       ? (companionGroup?.key ?? NO_COMPANION_GROUP_LABEL)
       : label;
@@ -2694,15 +2673,17 @@ function SearchPageContent() {
                 }
                 extraContent={
                   <>
-                    {/* Fixed four-row skeleton: every card renders Klasse,
-                        Gruppe and the two time slots so names and rows align
-                        across the grid; missing values show a dash. */}
                     <StudentInfoRow icon={<SchoolClassIcon />}>
                       {student.school_class || "—"}
                     </StudentInfoRow>
                     <StudentInfoRow icon={<GroupIcon />}>
                       Gruppe: {student.group_name || "—"}
                     </StudentInfoRow>
+                    {student.has_full_access !== false && (
+                      <StudentInfoRow icon={<DepartureModeIcon />} wrap>
+                        Heimweg: {dailyDepartureLabelForStudent(student)}
+                      </StudentInfoRow>
+                    )}
                     {student.has_full_access !== false &&
                       student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow

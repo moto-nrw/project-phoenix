@@ -1,6 +1,6 @@
 package students
 
-import "strings"
+import "github.com/moto-nrw/project-phoenix/internal/timezone"
 
 // Administrative filters (#1492): bus / photo consent / pickup rule.
 //
@@ -14,7 +14,7 @@ import "strings"
 
 // matchesAdministrativeFilters reports whether a single response satisfies all
 // active administrative filters. Empty or "all" values are treated as "off".
-func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupStatus string) bool {
+func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupStatus string, planningDate timezone.Date) bool {
 	if isActiveFilterValue(bus) {
 		// s.Bus is derived from bus_days.HasAny() when the response is built, so
 		// filtering on it evaluates bus_days semantics — the single source of
@@ -29,7 +29,7 @@ func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupSt
 		}
 	}
 	if isActiveFilterValue(pickupStatus) {
-		if !s.HasFullAccess || pickupStatusKind(s.PickupStatus) != pickupStatus {
+		if !s.HasFullAccess || !dailyDepartureMatchesFilter(dailyDepartureModes(s, planningDate), pickupStatus) {
 			return false
 		}
 	}
@@ -39,45 +39,15 @@ func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupSt
 // applyAdministrativeFilters returns the subset of responses matching the
 // active administrative filters. When none is active the input is returned
 // unchanged so callers can invoke it unconditionally.
-func applyAdministrativeFilters(responses []StudentResponse, bus, photoConsent, pickupStatus string) []StudentResponse {
+func applyAdministrativeFilters(responses []StudentResponse, bus, photoConsent, pickupStatus string, planningDate timezone.Date) []StudentResponse {
 	if !isActiveFilterValue(bus) && !isActiveFilterValue(photoConsent) && !isActiveFilterValue(pickupStatus) {
 		return responses
 	}
 	filtered := make([]StudentResponse, 0, len(responses))
 	for _, response := range responses {
-		if matchesAdministrativeFilters(response, bus, photoConsent, pickupStatus) {
+		if matchesAdministrativeFilters(response, bus, photoConsent, pickupStatus, planningDate) {
 			filtered = append(filtered, response)
 		}
 	}
 	return filtered
-}
-
-// pickupStatusKind normalizes the free-text pickup rule stored on a student
-// into one of the filterable buckets: "self", "pickedUp", "other" or "none".
-// Shared by the student list filter, the list export filter and their labels
-// so the categorisation can never drift between the two paths.
-func pickupStatusKind(status string) string {
-	raw := strings.TrimSpace(status)
-	if raw == "" {
-		return "none"
-	}
-	normalized := strings.ToLower(raw)
-	if strings.Contains(normalized, "alleine") ||
-		normalized == "selbst" ||
-		normalized == "self" ||
-		normalized == "alone" ||
-		normalized == "walk_home" ||
-		normalized == "geht_alleine" {
-		return "self"
-	}
-	if strings.Contains(normalized, "abgeholt") ||
-		normalized == "parent" ||
-		normalized == "parents" ||
-		normalized == "guardian" ||
-		normalized == "pickup" ||
-		normalized == "picked_up" ||
-		normalized == "wird_abgeholt" {
-		return "pickedUp"
-	}
-	return "other"
 }
