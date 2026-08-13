@@ -73,15 +73,6 @@ var (
 	// path is deliberately not gated on the guardian link, mirroring the chat's
 	// old ConfirmRequest/requireLinkedGuardian split this flow replaced.
 	ErrCareRequestGuardianAccessRevoked = errors.New("schedule: care request guardian access revoked")
-	// ErrCareRequestMessagingDisabled means the school turned parent-OGS
-	// messaging (operations.parent_notes_enabled) OFF after the request was
-	// filed. Approving APPLIES the permanent weekly-plan change AND the
-	// guardian's "bestätigt" pill is the only notification channel — the emitter
-	// drops that pill while messaging is off, so approving would silently change
-	// the child's plan with no parent notice. Approval is therefore refused;
-	// staff wind the request down by REJECTING it (reject is deliberately not
-	// gated). Mirrors the chat's requireEnabled gate this flow replaced.
-	ErrCareRequestMessagingDisabled = errors.New("schedule: care request messaging disabled")
 	// ErrCareRequestRejectReasonRequired means staff rejected without a reason.
 	ErrCareRequestRejectReasonRequired = errors.New("schedule: reject reason is required")
 	// ErrCareRequestRejectReasonTooLong means the reason exceeded the bound.
@@ -443,26 +434,11 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	// only thing that may announce a companion change.
 	companionsChanged := false
 	if input.Approve {
-		// Two apply-only gates, both mirroring the chat's ConfirmRequest path this
-		// flow replaced. Both run in the ambient tenant tx, on the
-		// locked-still-pending row; reject skips both so staff can always wind a
-		// stuck request down.
+		// The guardian-access gate runs in the ambient tenant transaction on the
+		// locked-still-pending row. Message delivery is deliberately not a gate:
+		// request decisions remain available when parent messaging is disabled.
 		if s.emitter != nil {
-			// (1) Refuse to APPLY when messaging is OFF for the school. Approving
-			// posts the guardian's "bestätigt" pill as its only notification, and
-			// the emitter drops that pill while operations.parent_notes_enabled is
-			// off — so approving would change the child's permanent plan with no
-			// parent notice. The chat's ConfirmRequest gated exactly this via
-			// requireEnabled. Fail-open on a transient settings blip (see the
-			// emitter helper).
-			tenantID := req.TenantID
-			if tenantID <= 0 {
-				tenantID = tenant.FromContext(ctx)
-			}
-			if !s.emitter.MessagingEnabledForTenant(ctx, tenantID) {
-				return nil, ErrCareRequestMessagingDisabled
-			}
-			// (2) Refuse to APPLY when the submitting guardian has lost access to
+			// Refuse to APPLY when the submitting guardian has lost access to
 			// the child (unlinked or parent_portal.access revoked) since the
 			// request was filed. Approving overwrites the child's permanent weekly
 			// plan and posts a parent-visible pill for a recipient the parent APIs
@@ -855,6 +831,32 @@ type careScheduleChanges struct {
 	modes    map[string]usersModels.DepartureMode
 	arrivals map[int]string
 	pickups  map[int]string
+}
+
+// CareScheduleRequestedFields reports which independently configurable field
+// groups a validated permanent-care request contains.
+type CareScheduleRequestedFields struct {
+	Arrival       bool
+	Pickup        bool
+	DepartureMode bool
+}
+
+// RequestedCareScheduleFields validates a request payload through the same
+// parser used by create/apply and exposes only its field groups to the parent
+// policy layer.
+func RequestedCareScheduleFields(payload map[string]any) (CareScheduleRequestedFields, error) {
+	changes, err := buildCareScheduleChanges(payload)
+	if err != nil {
+		return CareScheduleRequestedFields{}, err
+	}
+	if changes.isEmpty() {
+		return CareScheduleRequestedFields{}, fmt.Errorf("%w: no changes", ErrInvalidCareRequestPayload)
+	}
+	return CareScheduleRequestedFields{
+		Arrival:       len(changes.arrivals) > 0,
+		Pickup:        len(changes.pickups) > 0,
+		DepartureMode: len(changes.modes) > 0,
+	}, nil
 }
 
 func (c careScheduleChanges) isEmpty() bool {
