@@ -18,6 +18,14 @@ describe("clampCalendarWidth", () => {
     expect(dayButton).toBeGreaterThanOrEqual(20);
   });
 
+  it("keeps the complete header visible under an icon-only trigger", () => {
+    expect(clampCalendarWidth(40, VIEWPORT.width)).toBe(304);
+  });
+
+  it("shrinks the panel to the available width below 320px", () => {
+    expect(clampCalendarWidth(40, 280)).toBe(264);
+  });
+
   it("still matches the trigger width when the trigger is wide enough", () => {
     expect(clampCalendarWidth(380, VIEWPORT.width)).toBe(380);
   });

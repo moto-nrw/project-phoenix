@@ -78,6 +78,19 @@ func TestErrorRenderer_ConflictError(t *testing.T) {
 	assert.Equal(t, "Room Conflict", resp.Status)
 }
 
+func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
+	renderer := active.ErrorRenderer(&activeSvc.RoomCapacityError{
+		RoomID:           12,
+		RoomName:         "Mensa",
+		CurrentOccupancy: 43,
+		MaxCapacity:      43,
+	})
+	resp, ok := renderer.(*common.ErrResponse)
+	assert.True(t, ok)
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Equal(t, "Room Capacity Exceeded", resp.Status)
+}
+
 // TestErrorRenderer_StudentAlreadyActiveConflict guards the Issue #844
 // review fix: ErrStudentAlreadyActive must map to 409 Conflict, not
 // 400 Bad Request. The active service's CreateVisit now translates

@@ -2,7 +2,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import type { ActivityCategory } from "~/lib/activity-api";
-import { useActivityForm, type ActivityFormState } from "./useActivityForm";
+import {
+  parseParticipantLimit,
+  useActivityForm,
+  type ActivityFormState,
+} from "./useActivityForm";
+
+describe("parseParticipantLimit", () => {
+  it("maps an empty field to an unlimited capacity", () => {
+    expect(parseParticipantLimit("")).toBeNull();
+  });
+
+  it("parses a positive participant limit", () => {
+    expect(parseParticipantLimit("75")).toBe(75);
+  });
+});
 
 // Mock the activity API
 vi.mock("~/lib/activity-api", () => ({
@@ -394,7 +408,7 @@ describe("useActivityForm", () => {
       expect(error).toBeNull();
     });
 
-    it("should return error when max_participants is empty", () => {
+    it("should allow an empty max_participants value", () => {
       const { result } = renderHook(() =>
         useActivityForm(
           { name: "Soccer", category_id: "1", max_participants: "" },
@@ -404,7 +418,7 @@ describe("useActivityForm", () => {
 
       const error = result.current.validateForm();
 
-      expect(error).toBe("Max participants must be a positive number");
+      expect(error).toBeNull();
     });
 
     it("should return null when all fields are valid", () => {

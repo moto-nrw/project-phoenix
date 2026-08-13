@@ -57,9 +57,10 @@ func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Se
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
-	excused := absenceSvc.NewExcusedAbsenceRequestService(
+	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
+		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
 		nil, // userContext: admin perms in the ctx short-circuit the write gate
@@ -67,16 +68,18 @@ func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Se
 		bc,
 		nil, // settings: nil resolves group mode to fixed_groups (supervisor gate)
 		slog.Default(),
+		db,
 	)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:       repos.ParentChild,
-		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     repos.Student,
-		Settings:        excusedApprovalSettings{requiresApproval: requiresApproval},
-		Broadcaster:     bc,
-		ExcusedRequests: excused,
-		DB:              db,
-		Logger:          slog.Default(),
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		PickupExceptionRepo: repos.StudentPickupException,
+		Settings:            excusedApprovalSettings{requiresApproval: requiresApproval},
+		Broadcaster:         bc,
+		ExcusedRequests:     excused,
+		DB:                  db,
+		Logger:              slog.Default(),
 	})
 	return svc, excused, bc, db
 }

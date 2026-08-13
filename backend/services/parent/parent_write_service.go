@@ -253,6 +253,9 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		if err != nil {
 			return err
 		}
+		if err := s.ensureNoPartialAbsenceForStatusWrite(txCtx, studentID, dates); err != nil {
+			return err
+		}
 		notifyAbsence := slices.Contains(dates, today) &&
 			isNewParentReportableAbsence(fresh, status)
 
@@ -348,6 +351,45 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	return &SickNoteResult{StatusDays: result}, nil
 }
 
+// ensureNoPartialAbsenceForStatusWrite serializes parent and staff writes for
+// every requested day, then refuses to replace a time-specific excusal with a
+// broad sick/excused status. The check must run before clearing any status rows.
+func (s *service) ensureNoPartialAbsenceForStatusWrite(
+	ctx context.Context, studentID int64, dates []timezone.Date,
+) error {
+	if s.DB == nil {
+		return errors.New("parent: database is not configured")
+	}
+	if s.PickupExceptionRepo == nil {
+		return errors.New("parent: pickup exception repository is not configured")
+	}
+
+	sortedDates := append([]timezone.Date(nil), dates...)
+	slices.SortFunc(sortedDates, timezone.Date.Compare)
+	for _, date := range sortedDates {
+		if err := scheduleService.LockCareExceptionDay(ctx, s.DB, studentID, date); err != nil {
+			return err
+		}
+	}
+
+	rows, err := s.PickupExceptionRepo.FindByStudentIDAndDateRange(
+		ctx, studentID, sortedDates[0], sortedDates[len(sortedDates)-1],
+	)
+	if err != nil {
+		return err
+	}
+	requested := make(map[timezone.Date]struct{}, len(dates))
+	for _, date := range dates {
+		requested[date] = struct{}{}
+	}
+	for _, row := range rows {
+		if _, ok := requested[row.ExceptionDate]; ok && row.ExcusedFrom != nil {
+			return ErrCareExceptionConflict
+		}
+	}
+	return nil
+}
+
 func isNewParentReportableAbsence(student *usersModels.Student, status string) bool {
 	switch status {
 	case activeModels.StudentStatusDaySick:
@@ -387,6 +429,12 @@ func (s *service) submitExcusedRequest(ctx context.Context, child *parentChild, 
 			return nil, ErrNoteTooLong
 		case errors.Is(txErr, absenceSvc.ErrExcusedRequestOverlap):
 			return nil, ErrExcusedRequestOverlap
+		// A planned partial-day excusal already owns one of the requested dates
+		// (same refusal as a direct parent status write that hits
+		// ensureNoPartialAbsenceForStatusWrite). Surface as the existing care
+		// conflict so the handler returns HTTP 409, not 500.
+		case errors.Is(txErr, absenceSvc.ErrExcusedRequestStatusConflict):
+			return nil, ErrCareExceptionConflict
 		default:
 			return nil, fmt.Errorf("parent: submit excused request: %w", txErr)
 		}
@@ -820,7 +868,7 @@ func (s *service) dayHasStaffException(ctx context.Context, studentID int64, dat
 	if err != nil {
 		return false, err
 	}
-	if pickup != nil && pickup.Source == scheduleModels.ExceptionSourceStaff {
+	if pickup != nil && (pickup.Source == scheduleModels.ExceptionSourceStaff || pickup.ExcusedFrom != nil) {
 		return true, nil
 	}
 	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
@@ -1028,6 +1076,9 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
+		if pickup != nil && pickup.ExcusedFrom != nil {
+			return ErrCareExceptionConflict
+		}
 		if pickup != nil && pickup.Source == scheduleModels.ExceptionSourceGuardian {
 			if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
 				return err
@@ -1097,7 +1148,7 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 		if p.UpdatedAt.After(ce.UpdatedAt) {
 			ce.UpdatedAt = p.UpdatedAt
 		}
-		if p.Source == scheduleModels.ExceptionSourceStaff {
+		if p.Source == scheduleModels.ExceptionSourceStaff || p.ExcusedFrom != nil {
 			ce.Source = scheduleModels.ExceptionSourceStaff
 		}
 	}

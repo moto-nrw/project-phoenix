@@ -15,9 +15,10 @@ import (
 
 type absorbGroupRepo struct {
 	activeModel.GroupRepository
-	openGroups []*activeModel.Group
-	lockedIDs  []int64
-	endedIDs   []int64
+	openGroups   []*activeModel.Group
+	lockedGroups map[int64]*activeModel.Group
+	lockedIDs    []int64
+	endedIDs     []int64
 }
 
 func (r *absorbGroupRepo) FindActiveByRoomID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
@@ -26,12 +27,43 @@ func (r *absorbGroupRepo) FindActiveByRoomID(_ context.Context, _ int64) ([]*act
 
 func (r *absorbGroupRepo) FindByIDForUpdate(_ context.Context, id int64) (*activeModel.Group, error) {
 	r.lockedIDs = append(r.lockedIDs, id)
+	if group := r.lockedGroups[id]; group != nil {
+		return group, nil
+	}
 	for _, group := range r.openGroups {
 		if group.ID == id {
 			return group, nil
 		}
 	}
 	return nil, nil
+}
+
+func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T) {
+	now := time.Now()
+	candidate := &activeModel.Group{StartTime: now, RoomID: 42}
+	candidate.ID = 11
+	locked := *candidate
+	locked.RoomID = 99
+	groupRepo := &absorbGroupRepo{
+		openGroups:   []*activeModel.Group{candidate},
+		lockedGroups: map[int64]*activeModel.Group{candidate.ID: &locked},
+	}
+	visitRepo := &absorbVisitRepo{}
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		InstanceRepo:     &absorbInstanceRepo{},
+		InstanceStudents: &absorbInstanceStudentRepo{},
+		ActiveGroupRepo:  groupRepo,
+		SupervisorRepo:   &absorbSupervisorRepo{},
+		VisitRepo:        visitRepo,
+		Logger:           slog.New(slog.DiscardHandler),
+	}}
+
+	err := svc.absorbUnsupervisedOpenGroups(context.Background(), 9, 42, 10)
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{candidate.ID}, groupRepo.lockedIDs)
+	assert.Empty(t, visitRepo.transfers)
+	assert.Empty(t, groupRepo.endedIDs)
 }
 
 func (r *absorbGroupRepo) EndSession(_ context.Context, id int64) error {
@@ -143,15 +175,15 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	)
 
 	now := time.Now()
-	newGroup := &activeModel.Group{StartTime: now}
+	newGroup := &activeModel.Group{StartTime: now, RoomID: 42}
 	newGroup.ID = newGroupID
-	unsupervised := &activeModel.Group{StartTime: now}
+	unsupervised := &activeModel.Group{StartTime: now, RoomID: 42}
 	unsupervised.ID = 11
-	supervised := &activeModel.Group{StartTime: now}
+	supervised := &activeModel.Group{StartTime: now, RoomID: 42}
 	supervised.ID = 12
-	bridged := &activeModel.Group{StartTime: now}
+	bridged := &activeModel.Group{StartTime: now, RoomID: 42}
 	bridged.ID = 13
-	staleFallback := &activeModel.Group{StartTime: now.AddDate(0, 0, -1)}
+	staleFallback := &activeModel.Group{StartTime: now.AddDate(0, 0, -1), RoomID: 42}
 	staleFallback.ID = 14
 
 	groupRepo := &absorbGroupRepo{openGroups: []*activeModel.Group{newGroup, unsupervised, supervised, bridged, staleFallback}}

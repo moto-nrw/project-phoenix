@@ -198,6 +198,74 @@ func TestActiveService_CreateVisit(t *testing.T) {
 			"expected ErrStudentAlreadyActive, got %v", err)
 		assert.Equal(t, int64(0), duplicate.ID, "duplicate visit must not be persisted")
 	})
+
+	t.Run("rejects a visit when the room capacity is reached", func(t *testing.T) {
+		activityA := testpkg.CreateTestActivityGroup(t, db, "capacity-source")
+		activityB := testpkg.CreateTestActivityGroup(t, db, "capacity-target")
+		room := testpkg.CreateTestRoom(t, db, "Capacity Room")
+		capacity := 1
+		room.Capacity = &capacity
+		_, err := db.NewUpdate().Model(room).Column("capacity").Where("id = ?", room.ID).Exec(ctx)
+		require.NoError(t, err)
+		sourceGroup := testpkg.CreateTestActiveGroup(t, db, activityA.ID, room.ID)
+		targetGroup := testpkg.CreateTestActiveGroup(t, db, activityB.ID, room.ID)
+		existingStudent := testpkg.CreateTestStudent(t, db, "Existing", "Capacity", "1a")
+		incomingStudent := testpkg.CreateTestStudent(t, db, "Incoming", "Capacity", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Capacity", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, "capacity-device")
+		existingVisit := testpkg.CreateTestVisit(t, db, existingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Minute), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, activityA.ID, activityB.ID, room.ID, sourceGroup.ID, targetGroup.ID, existingStudent.ID, incomingStudent.ID, staff.ID, iotDevice.ID, existingVisit.ID)
+
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		visit := &activeModels.Visit{
+			StudentID:     incomingStudent.ID,
+			ActiveGroupID: targetGroup.ID,
+			EntryTime:     time.Now(),
+		}
+
+		err = service.CreateVisit(deviceCtx, visit)
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
+		var capacityErr *active.RoomCapacityError
+		require.True(t, errors.As(err, &capacityErr))
+		assert.Equal(t, 1, capacityErr.CurrentOccupancy)
+		assert.Equal(t, 1, capacityErr.MaxCapacity)
+		assert.Zero(t, visit.ID)
+	})
+
+	t.Run("allows a closed historical visit when the room is full", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "closed-capacity-visit")
+		room := testpkg.CreateTestRoom(t, db, "Closed Capacity Room")
+		capacity := 1
+		room.Capacity = &capacity
+		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		presentStudent := testpkg.CreateTestStudent(t, db, "Present", "Capacity", "1a")
+		historicalStudent := testpkg.CreateTestStudent(t, db, "Historical", "Capacity", "1a")
+		staff := testpkg.CreateTestStaff(t, db, "Historical", "Staff")
+		iotDevice := testpkg.CreateTestDevice(t, db, "historical-capacity-device")
+		presentVisit := testpkg.CreateTestVisit(t, db, presentStudent.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, presentStudent.ID, historicalStudent.ID, staff.ID, iotDevice.ID, presentVisit.ID)
+
+		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		exitTime := time.Now().Add(-30 * time.Minute)
+		visit := &activeModels.Visit{
+			StudentID:     historicalStudent.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     exitTime.Add(-time.Hour),
+			ExitTime:      &exitTime,
+		}
+
+		err = service.CreateVisit(deviceCtx, visit)
+
+		require.NoError(t, err)
+		assert.Positive(t, visit.ID)
+		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+	})
 }
 
 // =============================================================================
@@ -234,6 +302,61 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		updated, err := service.GetVisit(ctx, visit.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, updated.ExitTime)
+	})
+
+	t.Run("allows transfer with checkout into a full room", func(t *testing.T) {
+		sourceActivity := testpkg.CreateTestActivityGroup(t, db, "transfer-checkout-source")
+		targetActivity := testpkg.CreateTestActivityGroup(t, db, "transfer-checkout-target")
+		sourceRoom := testpkg.CreateTestRoom(t, db, "Transfer Checkout Source")
+		targetRoom := testpkg.CreateTestRoom(t, db, "Transfer Checkout Target")
+		capacity := 1
+		targetRoom.Capacity = &capacity
+		_, err := db.NewUpdate().Model(targetRoom).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		sourceGroup := testpkg.CreateTestActiveGroup(t, db, sourceActivity.ID, sourceRoom.ID)
+		targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+		movingStudent := testpkg.CreateTestStudent(t, db, "Transfer", "Checkout", "1a")
+		presentStudent := testpkg.CreateTestStudent(t, db, "Target", "Present", "1a")
+		movingVisit := testpkg.CreateTestVisit(t, db, movingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Hour), nil)
+		presentVisit := testpkg.CreateTestVisit(t, db, presentStudent.ID, targetGroup.ID, time.Now().Add(-time.Hour), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, sourceActivity.ID, targetActivity.ID, sourceRoom.ID, targetRoom.ID, sourceGroup.ID, targetGroup.ID, movingStudent.ID, presentStudent.ID, movingVisit.ID, presentVisit.ID)
+
+		checkoutAt := time.Now()
+		movingVisit.ActiveGroupID = targetGroup.ID
+		movingVisit.ExitTime = &checkoutAt
+
+		err = service.UpdateVisit(ctx, movingVisit)
+
+		require.NoError(t, err)
+		updated, err := service.GetVisit(ctx, movingVisit.ID)
+		require.NoError(t, err)
+		assert.Equal(t, targetGroup.ID, updated.ActiveGroupID)
+		assert.Equal(t, checkoutAt.Unix(), updated.ExitTime.Unix())
+	})
+
+	t.Run("rejects reopening a closed visit in a full room", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "reopen-full-room")
+		room := testpkg.CreateTestRoom(t, db, "Reopen Full Room")
+		capacity := 1
+		room.Capacity = &capacity
+		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		presentStudent := testpkg.CreateTestStudent(t, db, "Present", "Reopen", "1a")
+		reopeningStudent := testpkg.CreateTestStudent(t, db, "Closed", "Reopen", "1a")
+		presentVisit := testpkg.CreateTestVisit(t, db, presentStudent.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
+		closedAt := time.Now().Add(-30 * time.Minute)
+		closedVisit := testpkg.CreateTestVisit(t, db, reopeningStudent.ID, activeGroup.ID, time.Now().Add(-2*time.Hour), &closedAt)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, presentStudent.ID, reopeningStudent.ID, presentVisit.ID, closedVisit.ID)
+
+		closedVisit.ExitTime = nil
+		err = service.UpdateVisit(ctx, closedVisit)
+
+		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
+		persisted, findErr := service.GetVisit(ctx, closedVisit.ID)
+		require.NoError(t, findErr)
+		require.NotNil(t, persisted.ExitTime)
+		assert.Equal(t, closedAt.Unix(), persisted.ExitTime.Unix())
 	})
 
 	t.Run("returns error for nil visit", func(t *testing.T) {

@@ -40,13 +40,17 @@ func (f fakeTenantSettings) ResolveBoolForTenant(context.Context, int64, string)
 
 type fakeMsgRepo struct {
 	usersModels.ParentMessageRepository
-	createErr error
-	nextID    int64
-	stampAt   time.Time
-	created   []*usersModels.ParentMessage
+	createErr    error
+	nextID       int64
+	stampAt      time.Time
+	created      []*usersModels.ParentMessage
+	beforeCreate func()
 }
 
 func (f *fakeMsgRepo) Create(_ context.Context, m *usersModels.ParentMessage) error {
+	if f.beforeCreate != nil {
+		f.beforeCreate()
+	}
 	if f.createErr != nil {
 		return f.createErr
 	}
@@ -72,6 +76,13 @@ type fakeThreadRepo struct {
 	touched      *touchCall
 	guardians    []*usersModels.MessageableGuardian
 	guardiansErr error
+	locked       bool
+	lockErr      error
+}
+
+func (f *fakeThreadRepo) LockForMessageAppend(context.Context, int64) error {
+	f.locked = true
+	return f.lockErr
 }
 
 func (f *fakeThreadRepo) ListGuardiansForStudent(context.Context, int64) ([]*usersModels.MessageableGuardian, error) {
@@ -100,11 +111,18 @@ type fakeReadRepo struct {
 	staffCursorErr    error
 	guardianCursor    *usersModels.ReadCursor
 	guardianCursorErr error
+	handled           []markCall
+	handledErr        error
 }
 
 func (f *fakeReadRepo) MarkReadUpTo(_ context.Context, tenantID, threadID, accountID int64, readAt time.Time, messageID int64) (bool, error) {
 	f.marks = append(f.marks, markCall{tenantID, threadID, accountID, messageID, readAt})
 	return f.markAdvanced, f.markErr
+}
+
+func (f *fakeReadRepo) MarkStaffHandledUpTo(_ context.Context, tenantID, threadID int64, handledAt time.Time, messageID int64) error {
+	f.handled = append(f.handled, markCall{tenantID: tenantID, threadID: threadID, messageID: messageID, readAt: handledAt})
+	return f.handledErr
 }
 
 func (f *fakeReadRepo) LatestReadCursorByOther(context.Context, int64, int64) (*usersModels.ReadCursor, error) {
@@ -177,8 +195,10 @@ func TestGuardianHasChildAccess(t *testing.T) {
 
 func TestAppendMessage_PersistsThenTouchesOffDBStampedRow(t *testing.T) {
 	stamp := time.Now().Add(-time.Minute).Truncate(time.Microsecond)
-	mr := &fakeMsgRepo{stampAt: stamp}
 	tr := &fakeThreadRepo{}
+	mr := &fakeMsgRepo{stampAt: stamp, beforeCreate: func() {
+		assert.True(t, tr.locked, "the thread must be locked before the message insert")
+	}}
 	m := &usersModels.ParentMessage{ThreadID: 42, SenderKind: usersModels.ParentMessageSenderStaff, Body: "Hallo"}
 
 	require.NoError(t, AppendMessage(context.Background(), mr, tr, m))
@@ -190,6 +210,14 @@ func TestAppendMessage_PersistsThenTouchesOffDBStampedRow(t *testing.T) {
 	assert.Equal(t, m.ID, tr.touched.messageID)
 	assert.Equal(t, usersModels.ParentMessageSenderStaff, tr.touched.kind)
 	assert.Equal(t, "Hallo", tr.touched.body)
+}
+
+func TestAppendMessage_LockErrorSkipsInsert(t *testing.T) {
+	mr := &fakeMsgRepo{}
+	tr := &fakeThreadRepo{lockErr: errors.New("lock failed")}
+	err := AppendMessage(context.Background(), mr, tr, &usersModels.ParentMessage{ThreadID: 42})
+	require.Error(t, err)
+	assert.Empty(t, mr.created)
 }
 
 func TestAppendMessage_CreateErrorSkipsTouch(t *testing.T) {
@@ -375,6 +403,29 @@ func TestMarkReadToNewest_PropagatesRepoError(t *testing.T) {
 	rr := &fakeReadRepo{markErr: errors.New("upsert failed")}
 	messages := []*usersModels.ParentMessage{msg(1, 200, usersModels.ParentMessageSenderGuardian)}
 	_, err := MarkReadToNewest(context.Background(), rr, 1, 42, 100, true, messages)
+	require.Error(t, err)
+}
+
+func TestMarkStaffHandledToVisible_BoundsToVisibleGuardianActivity(t *testing.T) {
+	guardian := msg(1, 200, usersModels.ParentMessageSenderGuardian)
+	staffReply := msg(2, 100, usersModels.ParentMessageSenderStaff)
+	concurrentGuardian := msg(3, 200, usersModels.ParentMessageSenderGuardian)
+	requestCreated := msg(4, 200, usersModels.ParentMessageSenderSystem)
+	requestCreated.EventActorKind = usersModels.ParentMessageSenderGuardian
+	requestCreated.EventType = usersModels.ParentMessageEventRequestCreated
+
+	rr := &fakeReadRepo{}
+	err := MarkStaffHandledToVisible(context.Background(), rr, 1, 42, staffReply.ID, []*usersModels.ParentMessage{guardian, staffReply, concurrentGuardian, requestCreated})
+	require.NoError(t, err)
+	require.Len(t, rr.handled, 1)
+	assert.Equal(t, guardian.ID, rr.handled[0].messageID, "the team boundary must stop at the client snapshot and leave concurrent guardian activity open")
+}
+
+func TestMarkStaffHandledToVisible_PropagatesRepoError(t *testing.T) {
+	rr := &fakeReadRepo{handledErr: errors.New("update failed")}
+	err := MarkStaffHandledToVisible(context.Background(), rr, 1, 42, 1, []*usersModels.ParentMessage{
+		msg(1, 200, usersModels.ParentMessageSenderGuardian),
+	})
 	require.Error(t, err)
 }
 

@@ -173,6 +173,11 @@ const FOLLOW_UP_WARNING =
 type QuickRepeatPreset =
   "einmalig" | "woechentlich-am" | "jeden-wochentag" | "benutzerdefiniert";
 
+type SeriesEditScope = "single" | "following" | "all";
+
+const isSeriesEditScope = (value: string): value is SeriesEditScope =>
+  value === "single" || value === "following" || value === "all";
+
 function mondayOfWeekISO(dateISO: string): string {
   const date = parseISODate(dateISO);
   date.setDate(date.getDate() - (isoWeekday(dateISO) - 1));
@@ -278,6 +283,11 @@ export function useEventForm({
   const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
     roomId: number;
   } | null>(null);
+  const [selectedInstanceScope, setSelectedInstanceScope] =
+    useState<SeriesEditScope | null>(null);
+  const [scopedSeries, setScopedSeries] = useState<TimetableTemplate | null>(
+    null,
+  );
   const [scopeClosingDayWarning, setScopeClosingDayWarning] = useState<{
     conflict: ClosingDayConflict;
     scope: "all" | "following";
@@ -358,12 +368,18 @@ export function useEventForm({
   // re-implementing any validation rule.
   const lastValidationErrors = useRef<Record<string, string>>({});
 
+  const effectiveSeries = initialSeries ?? scopedSeries;
   const isEditingInstance = initialInstance !== null;
-  const isEditingSeries = initialSeries !== null;
+  const isEditingSeries = effectiveSeries !== null;
   const isConverting = convertInstance !== null;
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
-  const choiceDialogOpen = pendingSeriesEdit !== null;
-  const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
+  const scopeSelectionRequired = Boolean(
+    initialInstance?.activityGroupId &&
+    !initialSeries &&
+    selectedInstanceScope === null,
+  );
+  const choiceDialogOpen = scopeSelectionRequired || pendingSeriesEdit !== null;
+  const canDeleteSeries = initialSeries !== null && onDeleteSeries;
   const selectedCalendarPeriod = useMemo(
     () => calendarPeriods.find((item) => item.id === form.calendarPeriodId),
     [calendarPeriods, form.calendarPeriodId],
@@ -423,12 +439,12 @@ export function useEventForm({
     return options;
   }, [form.targetGradeLevels, gradeLevelMax]);
   const initialGradeTargets = new Set(
-    (initialSeries?.targets ?? []).flatMap((target) =>
+    (effectiveSeries?.targets ?? []).flatMap((target) =>
       target.gradeLevel === undefined ? [] : [String(target.gradeLevel)],
     ),
   );
-  if (initialSeries?.targetGradeLevel !== undefined) {
-    initialGradeTargets.add(String(initialSeries.targetGradeLevel));
+  if (effectiveSeries?.targetGradeLevel !== undefined) {
+    initialGradeTargets.add(String(effectiveSeries.targetGradeLevel));
   }
   const preservesGradeAboveTenantCap =
     gradeLevelMax !== undefined &&
@@ -489,6 +505,8 @@ export function useEventForm({
     setDeletingSeries(false);
     setExpanded(variant === "full");
     setPendingSeriesEdit(null);
+    setSelectedInstanceScope(null);
+    setScopedSeries(null);
     setScopeClosingDayWarning(null);
     setLostEdits(null);
     setConflictWarnings([]);
@@ -677,11 +695,11 @@ export function useEventForm({
     // #2135: a series starts at its start date, not the period start. For a
     // new series that is the picked Datum; a stored series keeps the
     // schedules' validFrom. Never probe dates the materializer skips.
-    const from = initialSeries
+    const from = effectiveSeries
       ? latestISODate(
           period.startDate,
           today,
-          initialSeries.schedules[0]?.validFrom ?? "",
+          effectiveSeries.schedules[0]?.validFrom ?? "",
         )
       : latestISODate(period.startDate, form.date || "");
     const shared = {
@@ -689,7 +707,7 @@ export function useEventForm({
       endTime: form.endTime,
       excludeInstanceId: convertInstance?.id,
       concreteInstanceDate: convertInstance ? form.date : undefined,
-      replanActivityGroupId: initialSeries?.id,
+      replanActivityGroupId: effectiveSeries?.id,
       calendarPeriodId: period.id,
       weekPattern: form.weekPattern,
     };
@@ -722,9 +740,9 @@ export function useEventForm({
   }, [
     calendarPeriods,
     convertInstance,
+    effectiveSeries,
     form,
     initialInstance?.id,
-    initialSeries,
     isSeriesFlow,
     staffIDsForSave,
   ]);
@@ -1736,8 +1754,7 @@ export function useEventForm({
           ? Number(target.educationGroupId)
           : undefined,
       })),
-      max_participants:
-        template.maxParticipants > 0 ? template.maxParticipants : undefined,
+      max_participants: template.maxParticipants,
       // An occurrence form starts from the occurrence's own pin, which is
       // blank when it inherits from the series. Preserve the fetched template
       // override until the user explicitly edits this field.
@@ -1929,9 +1946,28 @@ export function useEventForm({
     if (
       isEditingInstance &&
       initialInstance?.activityGroupId &&
-      !initialSeries
+      !initialSeries &&
+      selectedInstanceScope !== null
     ) {
-      setPendingSeriesEdit({ roomId: parsed.roomId });
+      if (selectedInstanceScope === "single") {
+        setSubmitting(true);
+        try {
+          await checkCoverageBeforeSave(coverageProbes);
+          const saved = await timetableService.update(
+            initialInstance.id,
+            instanceBody(parsed.roomId, initialInstance.activityGroupId),
+          );
+          toastSuccess("Termin gespeichert");
+          onSaved({ kind: "instance", instance: saved });
+          onClose();
+        } catch (err) {
+          handleScopeError("single", err);
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
+      await handleScopeSelect(selectedInstanceScope, { roomId: parsed.roomId });
       return;
     }
 
@@ -2232,9 +2268,14 @@ export function useEventForm({
     const chainScalars = chainResolved
       ? chainPreservedScalars(template)
       : { preserved: {}, edited: false };
-    const body = chainResolved
-      ? { ...templateBodyFromForm(template, roomId), ...chainScalars.preserved }
-      : templateBodyFromForm(template, roomId);
+    const body = scopedSeries
+      ? seriesBody(roomId, Number(form.categoryId))
+      : chainResolved
+        ? {
+            ...templateBodyFromForm(template, roomId),
+            ...chainScalars.preserved,
+          }
+        : templateBodyFromForm(template, roomId);
     const scopeProbes = seriesCoverageProbes(
       template,
       body,
@@ -2254,46 +2295,71 @@ export function useEventForm({
     if (chainResolved) {
       const rosterFrom =
         typedScope === "following" ? initialInstance.date : berlinTodayISO();
-      const studentScope = studentRosterTouched.current
-        ? changedRosterIDs(form.studentIds, initialStudentIDsSnapshot)
-        : [];
-      const staffScope = staffRosterTouched.current ? changedStaffIDs() : [];
-      // #2187 review: with per-weekday rosters this form describes exactly ONE
-      // weekday, so the mirroring must not judge the predecessor's other
-      // weekdays against it. A series with one shared roster sends no weekday
-      // scope — there the edit really does describe every weekday.
-      const editedWeekday = isoWeekday(initialInstance.date);
       const perWeekdaySeries = template.weekdayAssignments.length > 0;
-      const scopeWeekdays = perWeekdaySeries ? [editedWeekday] : [];
-      // A per-weekday successor only carries assignments for the weekdays it
-      // still runs. When the split moved it off the clicked one, the body says
-      // nothing about that day, so there is nothing to mirror — sending the
-      // anchor anyway would judge the predecessor against a roster that never
-      // mentioned the weekday.
-      const weekdayDescribed =
-        !perWeekdaySeries ||
-        template.weekdayAssignments.some(
-          (assignment) => assignment.weekday === editedWeekday,
+      const studentScope = new Set<number>();
+      const staffScope = new Set<number>();
+      const scopeWeekdays: number[] = [];
+      let primaryChanged = false;
+
+      if (scopedSeries && perWeekdaySeries) {
+        for (const assignment of template.weekdayAssignments) {
+          const next = form.weekdayRosters[assignment.weekday];
+          if (!next) continue;
+          const changedStudents = changedRosterIDs(
+            next.studentIds,
+            assignment.studentIds,
+          );
+          const changedStaff = changedRosterIDs(
+            next.staffIds,
+            assignment.staffIds,
+          );
+          const weekdayPrimaryChanged =
+            next.primaryStaffId !== assignment.primaryStaffId;
+          if (
+            changedStudents.length > 0 ||
+            changedStaff.length > 0 ||
+            weekdayPrimaryChanged
+          ) {
+            scopeWeekdays.push(assignment.weekday);
+            changedStudents.forEach((id) => studentScope.add(id));
+            changedStaff.forEach((id) => staffScope.add(id));
+            for (const id of [next.primaryStaffId, assignment.primaryStaffId]) {
+              const numeric = Number(id);
+              if (id && Number.isFinite(numeric) && numeric > 0) {
+                staffScope.add(numeric);
+              }
+            }
+            primaryChanged ||= weekdayPrimaryChanged;
+          }
+        }
+      } else {
+        changedRosterIDs(form.studentIds, initialStudentIDsSnapshot).forEach(
+          (id) => studentScope.add(id),
         );
+        changedStaffIDs().forEach((id) => staffScope.add(id));
+        primaryChanged = primaryStaffTouched();
+      }
+      const studentScopeIDs = [...studentScope];
+      const staffScopeIDs = [...staffScope];
       const rosterChanged =
-        weekdayDescribed && (studentScope.length > 0 || staffScope.length > 0);
+        studentScopeIDs.length > 0 || staffScopeIDs.length > 0;
       await timetableService.updateTemplate(seriesTemplateId, {
         ...body,
         ...(rosterChanged
           ? {
               series_roster_from: rosterFrom,
-              ...(studentScope.length > 0
-                ? { series_roster_scope_student_ids: studentScope }
+              ...(studentScopeIDs.length > 0
+                ? { series_roster_scope_student_ids: studentScopeIDs }
                 : {}),
-              ...(staffScope.length > 0
-                ? { series_roster_scope_staff_ids: staffScope }
+              ...(staffScopeIDs.length > 0
+                ? { series_roster_scope_staff_ids: staffScopeIDs }
                 : {}),
               ...(scopeWeekdays.length > 0
                 ? { series_roster_scope_weekdays: scopeWeekdays }
                 : {}),
               // primary_staff_id names the successor's Hauptbetreuung; it may
               // only reach a predecessor row when the user moved it.
-              ...(primaryStaffTouched()
+              ...(primaryChanged
                 ? { series_roster_primary_changed: true }
                 : {}),
             }
@@ -2442,9 +2508,60 @@ export function useEventForm({
     onClose();
   };
 
-  const handleScopeSelect = async (scope: string) => {
-    if (submitting) return;
-    const pending = pendingSeriesEdit;
+  const handleInitialScopeSelect = async (scope: string) => {
+    if (
+      submitting ||
+      !initialInstance?.activityGroupId ||
+      !isSeriesEditScope(scope)
+    ) {
+      return;
+    }
+    if (scope === "single") {
+      setSelectedInstanceScope("single");
+      return;
+    }
+
+    const typedScope = scope === "following" ? "following" : "all";
+    setSubmitting(true);
+    setValidationError(null);
+    try {
+      const template = await timetableService.getTemplate(
+        initialInstance.activityGroupId,
+        form.calendarPeriodId,
+      );
+      const nextForm = formFromSeries(
+        template,
+        initialInstance.date,
+        defaultCalendarPeriodId,
+      );
+      setScopedSeries(template);
+      setForm(nextForm);
+      setInitialStudentIDsSnapshot([...nextForm.studentIds]);
+      setInitialStaffIDsSnapshot([...nextForm.staffIds]);
+      setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+      requiredStaffTouched.current = false;
+      studentRosterTouched.current = false;
+      staffRosterTouched.current = false;
+      listKindTouched.current = false;
+      setSelectedInstanceScope(typedScope);
+    } catch (err) {
+      const message = timetableSeriesErrorMessage(
+        err,
+        "Regeltermin konnte nicht geladen werden",
+      );
+      setValidationError(message);
+      toastError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  async function handleScopeSelect(
+    scope: string,
+    pendingOverride?: { roomId: number },
+  ) {
+    if (submitting || !isSeriesEditScope(scope)) return;
+    const pending = pendingOverride ?? pendingSeriesEdit;
     const groupId = initialInstance?.activityGroupId;
     if (!pending || !initialInstance || !groupId) return;
 
@@ -2472,10 +2589,9 @@ export function useEventForm({
     const typedScope = scope === "following" ? "following" : "all";
     setSubmitting(true);
     try {
-      const template = await timetableService.getTemplate(
-        groupId,
-        form.calendarPeriodId,
-      );
+      const template =
+        scopedSeries ??
+        (await timetableService.getTemplate(groupId, form.calendarPeriodId));
       // #2187: the occurrence may belong to a capped predecessor of a split
       // chain; the backend then returns the living successor. Every series-
       // scope write from here on targets THAT template, never the
@@ -2492,7 +2608,9 @@ export function useEventForm({
       const periodEnd =
         findPeriod(templateCalendarPeriodId)?.endDate ??
         findPeriod(form.calendarPeriodId)?.endDate;
-      const body = templateBodyFromForm(template, pending.roomId);
+      const body = scopedSeries
+        ? seriesBody(pending.roomId, Number(form.categoryId))
+        : templateBodyFromForm(template, pending.roomId);
       const scopeFrom =
         typedScope === "following" ? initialInstance.date : berlinTodayISO();
       const closingConflict = findScopeClosingDayConflict(
@@ -2524,7 +2642,7 @@ export function useEventForm({
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
   const confirmScopeClosingDay = async () => {
     if (submitting) return;
@@ -2918,7 +3036,7 @@ export function useEventForm({
   // save is never blocked, mirroring the conflict warnings.
   const sourceOverlapWarnings = useMemo(() => {
     if (selectedOfferingSources.length === 0) return [] as string[];
-    const currentTemplateId = initialSeries?.id;
+    const currentTemplateId = effectiveSeries?.id;
     const selected = form.sourceGradeLevels;
     const seen = new Set<string>();
     const warnings: string[] = [];
@@ -2946,7 +3064,7 @@ export function useEventForm({
       }
     }
     return warnings;
-  }, [form.sourceGradeLevels, initialSeries?.id, selectedOfferingSources]);
+  }, [form.sourceGradeLevels, effectiveSeries?.id, selectedOfferingSources]);
 
   const applySourceOfferingIds = (nextIds: string[]) => {
     // Selecting the first source clears the manual roster (server-managed).
@@ -3200,7 +3318,10 @@ export function useEventForm({
     handleConfirmSeriesDelete,
     expanded,
     choiceDialogOpen,
+    scopeSelectionRequired,
+    isScopedSeriesEdit: scopedSeries !== null,
     setPendingSeriesEdit,
+    handleInitialScopeSelect,
     handleScopeSelect,
     scopeClosingDayWarning,
     setScopeClosingDayWarning,

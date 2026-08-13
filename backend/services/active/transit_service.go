@@ -100,6 +100,20 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
 	}
 
+	incoming := 0
+	for _, studentID := range uniqueIDs {
+		_, hasAttendance := openAttendance[studentID]
+		_, hasVisit := currentVisits[studentID]
+		if hasAttendance && !hasVisit {
+			incoming++
+		}
+	}
+	if incoming > 0 {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, incoming); err != nil {
+			return nil, err
+		}
+	}
+
 	result := &TransitAssignResult{
 		Assigned:      []int64{},
 		Skipped:       []TransitAssignSkipped{},
@@ -193,6 +207,9 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 	if err := s.authorizeMoveStudents(ctx, op, auth, supervisedGroups, uniqueIDs, openAttendance, currentVisits, true); err != nil {
 		return nil, err
 	}
+	if err := s.ensureCapacityForStudentMove(ctx, targetGroup, uniqueIDs, openAttendance, currentVisits); err != nil {
+		return nil, err
+	}
 
 	result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
 	for _, studentID := range uniqueIDs {
@@ -240,6 +257,56 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 	}
 
 	return result, nil
+}
+
+func (s *service) ensureCapacityForStudentMove(
+	ctx context.Context,
+	targetGroup *active.Group,
+	studentIDs []int64,
+	openAttendance map[int64]*active.Attendance,
+	currentVisits map[int64]*active.Visit,
+) error {
+	groupIDs := make([]int64, 0, len(currentVisits))
+	seenGroupIDs := make(map[int64]struct{}, len(currentVisits))
+	for _, visit := range currentVisits {
+		if visit == nil || visit.ActiveGroupID == targetGroup.ID {
+			continue
+		}
+		if _, seen := seenGroupIDs[visit.ActiveGroupID]; seen {
+			continue
+		}
+		seenGroupIDs[visit.ActiveGroupID] = struct{}{}
+		groupIDs = append(groupIDs, visit.ActiveGroupID)
+	}
+
+	groups, err := s.GroupRepo.FindByIDs(ctx, groupIDs)
+	if err != nil {
+		return &ActiveError{Op: "MoveStudentsToActiveGroup", Err: ErrDatabaseOperation}
+	}
+
+	incoming := 0
+	for _, studentID := range studentIDs {
+		if !studentHasOpenAttendance(openAttendance, studentID) {
+			continue
+		}
+		currentVisit := currentVisits[studentID]
+		if currentVisit == nil {
+			incoming++
+			continue
+		}
+		if currentVisit.ActiveGroupID == targetGroup.ID {
+			continue
+		}
+		currentGroup := groups[currentVisit.ActiveGroupID]
+		if currentGroup == nil || currentGroup.RoomID != targetGroup.RoomID {
+			incoming++
+		}
+	}
+
+	if incoming == 0 {
+		return nil
+	}
+	return s.ensureRoomCapacity(ctx, targetGroup.RoomID, incoming)
 }
 
 // MoveStudentsToTransitAuthorized is the HTTP-facing transit move path. It

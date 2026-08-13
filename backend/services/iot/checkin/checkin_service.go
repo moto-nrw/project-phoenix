@@ -79,6 +79,7 @@ type SelectedActiveGroup struct {
 	Group        *active.Group
 	RoomName     string
 	DeviceScoped bool
+	created      bool
 }
 
 // CheckinResult holds the outcome of processing a check-in request. It is built
@@ -305,37 +306,8 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 		)
 		return nil, nil, newInternalError(checkinErrGetRoom)
 	}
-
-	if room != nil && room.Capacity != nil {
-		currentOccupancy, countErr := s.active.CountActiveVisitsByRoomID(ctx, roomID)
-		if countErr != nil {
-			s.getLogger().ErrorContext(ctx, "failed to count room occupancy",
-				slog.Int64("room_id", roomID),
-				slog.String("error", countErr.Error()),
-			)
-			return nil, nil, newInternalError(checkinErrCheckRoomCapacity)
-		}
-
-		if currentOccupancy >= *room.Capacity {
-			s.getLogger().WarnContext(ctx, "room is at capacity",
-				slog.String("room_name", room.Name),
-				slog.Int64("room_id", roomID),
-				slog.Int("current_occupancy", currentOccupancy),
-				slog.Int("capacity", *room.Capacity),
-			)
-			return nil, nil, &RoomCapacityError{
-				RoomID:           roomID,
-				RoomName:         room.Name,
-				CurrentOccupancy: currentOccupancy,
-				MaxCapacity:      *room.Capacity,
-			}
-		}
-
-		s.getLogger().DebugContext(ctx, "room capacity check passed",
-			slog.String("room_name", room.Name),
-			slog.Int("current_occupancy", currentOccupancy),
-			slog.Int("capacity", *room.Capacity),
-		)
+	if err := s.checkRoomCapacity(ctx, room); err != nil {
+		return nil, nil, err
 	}
 
 	selection, err := s.findOrCreateActiveGroupForRoom(ctx, room, deviceID)
@@ -358,6 +330,11 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 		slog.Int64("active_group_id", selection.Group.ID),
 	)
 	if err := s.active.CreateVisit(ctx, newVisit); err != nil {
+		var roomCapacityErr *activeSvc.RoomCapacityError
+		if errors.As(err, &roomCapacityErr) {
+			s.deleteEmptyCreatedGroup(ctx, selection)
+			return nil, nil, roomCapacityErr
+		}
 		// Duplicate active visit — race between two concurrent scans, or a
 		// previous checkout that didn't fully commit. Surface as a 409
 		// conflict carrying the existing visit details.
@@ -396,6 +373,43 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 	return &newVisit.ID, selection, nil
 }
 
+func (s *CheckinService) deleteEmptyCreatedGroup(ctx context.Context, selection *SelectedActiveGroup) {
+	if selection == nil || !selection.created || selection.Group == nil {
+		return
+	}
+	if err := s.active.DeleteActiveGroup(ctx, selection.Group.ID); err != nil {
+		s.getLogger().WarnContext(ctx, "failed to remove empty active group after rejected check-in",
+			slog.Int64("active_group_id", selection.Group.ID),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+func (s *CheckinService) checkRoomCapacity(ctx context.Context, room *facilities.Room) error {
+	if room.Capacity == nil || *room.Capacity <= 0 {
+		return nil
+	}
+
+	currentOccupancy, err := s.active.CountActiveVisitsByRoomID(ctx, room.ID)
+	if err != nil {
+		s.getLogger().ErrorContext(ctx, "failed to count room occupancy",
+			slog.Int64("room_id", room.ID),
+			slog.String("error", err.Error()),
+		)
+		return newInternalError(checkinErrCheckRoomCapacity)
+	}
+	if currentOccupancy >= *room.Capacity {
+		return &activeSvc.RoomCapacityError{
+			RoomID:           room.ID,
+			RoomName:         room.Name,
+			CurrentOccupancy: currentOccupancy,
+			MaxCapacity:      *room.Capacity,
+		}
+	}
+
+	return nil
+}
+
 // countActiveGroupOccupancy counts active visits (exit_time IS NULL) in an
 // active group.
 func (s *CheckinService) countActiveGroupOccupancy(ctx context.Context, activeGroupID int64) (int, error) {
@@ -428,6 +442,9 @@ func (s *CheckinService) checkActivityCapacity(ctx context.Context, activeGroup 
 			)
 			return newInternalError(checkinErrGetActivity)
 		}
+	}
+	if !activityGroup.HasParticipantLimit() {
+		return nil
 	}
 
 	currentOccupancy, countErr := s.countActiveGroupOccupancy(ctx, activeGroup.ID)
@@ -643,6 +660,7 @@ func (s *CheckinService) createSpecialRoomActiveGroupIfNeeded(ctx context.Contex
 		Group:        newActiveGroup,
 		RoomName:     room.Name,
 		DeviceScoped: false,
+		created:      true,
 	}, nil
 }
 

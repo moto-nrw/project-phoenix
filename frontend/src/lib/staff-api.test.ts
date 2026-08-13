@@ -1442,7 +1442,7 @@ describe("staff-api", () => {
         mode: "custom",
         rotationLength: 1,
         rotationAnchorDate: "2026-06-01",
-        entries: [{ weekIndex: 0, dayOfWeek: 1, targetMinutes: 360 }],
+        entries: [{ weekIndex: 0, dayOfWeek: 1, targetMinutes: 267 }],
         saveAsTemplate: "Teilzeit",
       });
 
@@ -1454,7 +1454,7 @@ describe("staff-api", () => {
             mode: "custom",
             rotation_length: 1,
             rotation_anchor_date: "2026-06-01",
-            entries: [{ week_index: 0, day_of_week: 1, target_minutes: 360 }],
+            entries: [{ week_index: 0, day_of_week: 1, target_minutes: 267 }],
             save_as_template: "Teilzeit",
           }),
         }),

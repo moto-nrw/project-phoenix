@@ -16,6 +16,10 @@ export interface ActivityFormState {
   max_participants: string;
 }
 
+export function parseParticipantLimit(value: string): number | null {
+  return value ? Number.parseInt(value, 10) : null;
+}
+
 /**
  * Return type for the useActivityForm hook.
  */
@@ -114,6 +118,9 @@ export function useActivityForm(
     }
     if (!form.category_id) {
       return "Please select a category";
+    }
+    if (!form.max_participants) {
+      return null;
     }
     const maxParticipants = Number.parseInt(form.max_participants, 10);
     if (Number.isNaN(maxParticipants) || maxParticipants < 1) {

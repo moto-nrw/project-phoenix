@@ -46,8 +46,24 @@ var (
 	ErrSessionConflict        = errors.New("session conflict detected")
 	ErrInvalidActivitySession = errors.New("invalid activity session parameters")
 	// Room conflict management errors
-	ErrRoomConflict = errors.New("room is already occupied by another active group")
+	ErrRoomConflict         = errors.New("room is already occupied by another active group")
+	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
 )
+
+type RoomCapacityError struct {
+	RoomID           int64
+	RoomName         string
+	CurrentOccupancy int
+	MaxCapacity      int
+}
+
+func (e *RoomCapacityError) Error() string {
+	return fmt.Sprintf("room capacity exceeded: %s (%d/%d)", e.RoomName, e.CurrentOccupancy, e.MaxCapacity)
+}
+
+func (e *RoomCapacityError) Unwrap() error {
+	return ErrRoomCapacityExceeded
+}
 
 // ActiveError represents an error that occurred in the active service
 type ActiveError struct {

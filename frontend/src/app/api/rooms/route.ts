@@ -17,7 +17,7 @@ interface RoomCreateRequest {
   name: string;
   building?: string;
   floor?: number; // Optional
-  capacity?: number; // Optional
+  capacity?: number | null; // Optional
   category?: string; // Optional
   color?: string; // Optional
   device_id?: string;
@@ -148,7 +148,7 @@ export const POST = createPostHandler<BackendRoom, RoomCreateRequest>(
     }
 
     // Validate capacity if provided (must be > 0)
-    if (body.capacity !== undefined && body.capacity <= 0) {
+    if (body.capacity != null && body.capacity <= 0) {
       throw new Error("Capacity must be greater than 0");
     }
 

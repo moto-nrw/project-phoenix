@@ -159,55 +159,46 @@ func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) 
 	return int(deleted), err
 }
 
-// DeleteByAccountID removes all tokens for an account
-func (r *TokenRepository) DeleteByAccountID(ctx context.Context, accountID int64) error {
+// DeleteByAccountIDReturning atomically deletes and returns every affected
+// token so the service can persist a complete revocation audit in the same
+// transaction; the generic repository cannot express DELETE ... RETURNING.
+func (r *TokenRepository) DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*auth.Token, error) {
+	var deleted []*auth.Token
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.Token)(nil)).
 		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".account_id = ?`, accountID)
-
+		Where(`"token".account_id = ?`, accountID).
+		Returning("*")
 	query = base.WithTenantFilter(ctx, query, "token")
-
-	_, err := query.Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "delete by account ID",
-			Err: err,
-		}
+	if err := query.Scan(ctx, &deleted); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "delete and return by account ID", Err: err}
 	}
-
-	return nil
+	return deleted, nil
 }
 
-// DeleteByTenantID removes all tokens for a given tenant (school).
-// Used during soft-delete to immediately revoke all refresh tokens.
-func (r *TokenRepository) DeleteByTenantID(ctx context.Context, tenantID int64) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
+// DeleteByTenantIDReturning uses DELETE ... RETURNING so tenant revocation and
+// its per-family audit evidence can commit atomically; generic CRUD cannot.
+func (r *TokenRepository) DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*auth.Token, error) {
+	var deleted []*auth.Token
+	err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.Token)(nil)).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".tenant_id = ?`, tenantID).
-		Exec(ctx)
+		Returning("*").
+		Scan(ctx, &deleted)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "delete tokens by tenant ID",
-			Err: err,
-		}
+		return nil, &modelBase.DatabaseError{Op: "delete and return tokens by tenant ID", Err: err}
 	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count affected rows",
-			Err: err,
-		}
-	}
-	return int(n), nil
+	return deleted, nil
 }
 
 // Create overrides the base Create method to handle validation
 func (r *TokenRepository) Create(ctx context.Context, token *auth.Token) error {
 	if token == nil {
 		return fmt.Errorf("token cannot be nil")
+	}
+	if token.PortalScope == "" {
+		token.PortalScope = auth.PortalScopeUnknown
 	}
 
 	// Validate token
@@ -309,11 +300,10 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 	return query
 }
 
-// CleanupOldTokensForAccount keeps only the most recent N active, unexpired
-// sessions for an account. Rotated predecessor rows are recovery metadata and
-// are cleaned separately after their refresh JWTs expire.
-func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error {
-	// First, get all active sessions for the account ordered newest first.
+// CleanupOldTokensForAccountReturning enforces the active-session cap and
+// returns only sessions that were actually revoked for same-transaction audit;
+// generic CRUD cannot combine the ordered cap policy with DELETE ... RETURNING.
+func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, keepCount int) ([]*auth.Token, error) {
 	var tokens []*auth.Token
 	selectQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
@@ -321,69 +311,45 @@ func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accoun
 		Where(`"token".account_id = ?`, accountID).
 		Where(`"token".rotated_at IS NULL`).
 		Where(`"token".expiry > ?`, time.Now()).
-		OrderExpr(`"token".id DESC`) // Assuming ID is auto-incrementing, so higher ID = newer
-
+		OrderExpr(`"token".id DESC`)
 	selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")
-
-	err := selectQuery.Scan(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "find tokens for cleanup",
-			Err: err,
-		}
+	if err := selectQuery.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find tokens for audited cleanup", Err: err}
 	}
-
-	// If we have more tokens than we want to keep, delete the old ones
-	if len(tokens) > keepCount {
-		// Get the IDs of tokens to delete (all except the most recent keepCount)
-		var idsToDelete []int64
-		for i := keepCount; i < len(tokens); i++ {
-			idsToDelete = append(idsToDelete, tokens[i].ID)
-		}
-
-		// Delete the old tokens
-		if len(idsToDelete) > 0 {
-			delQuery := base.GetDB(ctx, r.db).NewDelete().
-				Model((*auth.Token)(nil)).
-				ModelTableExpr(`auth.tokens AS "token"`).
-				Where(`"token".id IN (?)`, bun.List(idsToDelete))
-
-			delQuery = base.WithTenantFilter(ctx, delQuery, "token")
-
-			_, err = delQuery.Exec(ctx)
-
-			if err != nil {
-				return &modelBase.DatabaseError{
-					Op:  "delete old tokens",
-					Err: err,
-				}
-			}
-		}
+	if len(tokens) <= keepCount {
+		return nil, nil
 	}
-
-	return nil
-}
-
-// DeleteByFamilyID deletes all tokens in a specific family
-func (r *TokenRepository) DeleteByFamilyID(ctx context.Context, familyID string) error {
+	ids := make([]int64, 0, len(tokens)-keepCount)
+	for _, token := range tokens[keepCount:] {
+		ids = append(ids, token.ID)
+	}
+	var deleted []*auth.Token
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.Token)(nil)).
 		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".family_id = ?`, familyID)
-
+		Where(`"token".id IN (?)`, bun.List(ids)).
+		Returning("*")
 	query = base.WithTenantFilter(ctx, query, "token")
-
-	_, err := query.Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "delete tokens by family ID",
-			Err: err,
-		}
+	if err := query.Scan(ctx, &deleted); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "delete and return old tokens", Err: err}
 	}
+	return deleted, nil
+}
 
-	return nil
+// DeleteByFamilyIDReturning uses DELETE ... RETURNING so family revocation and
+// its audit evidence share one transaction; generic CRUD cannot express it.
+func (r *TokenRepository) DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*auth.Token, error) {
+	var deleted []*auth.Token
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".family_id = ?`, familyID).
+		Returning("*")
+	query = base.WithTenantFilter(ctx, query, "token")
+	if err := query.Scan(ctx, &deleted); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "delete and return tokens by family ID", Err: err}
+	}
+	return deleted, nil
 }
 
 // GetLatestTokenInFamily gets the token with the highest generation in a family

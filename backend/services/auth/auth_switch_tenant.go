@@ -37,7 +37,7 @@ func (s *Service) SwitchTenant(ctx context.Context, accountID int64, tenantSlug 
 	}
 
 	// 3. Create refresh token with resolved tenant ID
-	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)
 	if err != nil {
 		return "", "", err
 	}

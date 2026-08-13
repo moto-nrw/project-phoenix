@@ -608,8 +608,11 @@ export function ListboxDropdown<K extends string>({
           renderTrigger({ selectedLabel, open })
         ) : (
           <>
-            <span>{selectedLabel}</span>
-            <ChevronDown className="h-4 w-4 text-gray-400" aria-hidden />
+            <span className="min-w-0 truncate">{selectedLabel}</span>
+            <ChevronDown
+              className="h-4 w-4 shrink-0 text-gray-400"
+              aria-hidden
+            />
           </>
         )}
       </button>

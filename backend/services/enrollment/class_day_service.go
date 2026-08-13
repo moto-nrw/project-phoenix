@@ -260,7 +260,7 @@ func (s *reportService) classDayRosterRows(ctx context.Context, students []*user
 		if student == nil {
 			continue
 		}
-		row, err := classRosterRow(student, persons[student.PersonID], classRosterGroupName(student, groups), nil, nil, nil, nil, nil)
+		row, err := classRosterRow(student, persons[student.PersonID], classRosterGroupName(student, groups), nil, nil, nil, nil, nil, true)
 		if err != nil {
 			return nil, err
 		}

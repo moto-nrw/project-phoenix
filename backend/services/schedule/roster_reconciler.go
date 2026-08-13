@@ -289,6 +289,11 @@ func (s *RosterReconciler) fillInstancesMaterializedDuringAlumnusWindow(
 			return 0, 0, &ScheduleError{Op: "reconcile roster: apply student status days", Err: err}
 		}
 		statusApplied += n
+		n, err = s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date)
+		if err != nil {
+			return 0, 0, &ScheduleError{Op: "reconcile roster: apply student partial absences", Err: err}
+		}
+		statusApplied += n
 	}
 
 	return restored, statusApplied, nil
@@ -430,6 +435,9 @@ func (s *RosterReconciler) ReconcileSourcedTemplateRosters(
 		if _, err := s.instanceStudentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
 			return created, removed, &ScheduleError{Op: "reconcile sourced roster: apply student status days", Err: err}
 		}
+		if _, err := s.instanceStudentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
+			return created, removed, &ScheduleError{Op: "reconcile sourced roster: apply student partial absences", Err: err}
+		}
 	}
 
 	if created > 0 || removed > 0 {
@@ -457,12 +465,15 @@ func enrollmentsPlanStudentOn(rows []*activities.StudentEnrollment, date timezon
 // instanceRowIsStillPlanned reports whether an attendance row is still purely
 // a plan: no observed presence, no hand decision, not a hand-added walk-in.
 // Only such rows may be removed when the sourced roster stops covering the
-// child. A row a broad day status rewrote to 'absent' is still a plan — the
-// status day describes the child's day, not this occurrence — and its slot
-// dies with the booking (same rule as the grade-transition archive, #405).
+// child. A row a broad day status or partial-day excusal rewrote to 'absent'
+// is still a plan — the provenance describes the child's day plan, not this
+// occurrence — and its slot dies with the booking (same rule as the
+// grade-transition archive, #405).
 func instanceRowIsStillPlanned(row *schedule.InstanceStudent) bool {
 	if row.IsUnplanned || row.CheckedInAt != nil || row.CheckedOutAt != nil || row.ManualStatusAt != nil {
 		return false
 	}
-	return row.Status == schedule.AttendanceStatusExpected || row.StudentStatusDayID != nil
+	return row.Status == schedule.AttendanceStatusExpected ||
+		row.StudentStatusDayID != nil ||
+		row.PickupExceptionID != nil
 }

@@ -70,8 +70,9 @@ func ListKindLabel(kind string) string {
 type Group struct {
 	base.Model `bun:"schema:activities,table:groups"`
 	base.TenantModel
-	Name            string `bun:"name,notnull" json:"name"`
-	MaxParticipants int    `bun:"max_participants,notnull" json:"max_participants"`
+	Name string `bun:"name,notnull" json:"name"`
+	// MaxParticipants uses zero in Go and SQL NULL for an unlimited activity.
+	MaxParticipants int `bun:"max_participants,nullzero" json:"max_participants"`
 	// RequiredStaff is the manual Personalbedarf override for the template
 	// (issue #1839). NULL means "derive from the Betreuungsschlüssel" (#1869);
 	// a set value (>= 0) is inherited by materialized instances at read time
@@ -150,8 +151,8 @@ func (g *Group) Validate() error {
 		return errors.New("group name is required")
 	}
 
-	if g.MaxParticipants <= 0 {
-		return errors.New("max participants must be greater than zero")
+	if g.MaxParticipants < 0 {
+		return errors.New("max participants cannot be negative")
 	}
 
 	if g.CategoryID <= 0 {
@@ -351,7 +352,25 @@ func (g *Group) IsSupervisedBy(staffID int64) bool {
 	return false
 }
 
-// HasAvailableSpots checks if the group has available spots based on current enrollment count
+// HasParticipantLimit reports whether the group has a numerical capacity cap.
+func (g *Group) HasParticipantLimit() bool {
+	return g.MaxParticipants > 0
+}
+
+// ParticipantLimit returns nil for an unlimited group.
+func (g *Group) ParticipantLimit() *int {
+	return ParticipantLimitPtr(g.MaxParticipants)
+}
+
+// ParticipantLimitPtr converts the Go zero value into the public nil form.
+func ParticipantLimitPtr(limit int) *int {
+	if limit <= 0 {
+		return nil
+	}
+	return &limit
+}
+
+// HasAvailableSpots checks if the group has available spots based on current enrollment count.
 func (g *Group) HasAvailableSpots(currentEnrollmentCount int) bool {
-	return g.MaxParticipants > currentEnrollmentCount
+	return !g.HasParticipantLimit() || g.MaxParticipants > currentEnrollmentCount
 }

@@ -160,6 +160,10 @@ type StudentArrivalScheduleRepository interface {
 type StudentArrivalExceptionRepository interface {
 	base.Repository[*StudentArrivalException]
 
+	// FindByIDForUpdate retrieves and locks an exception for an atomic
+	// invariant check followed by mutation.
+	FindByIDForUpdate(ctx context.Context, id any) (*StudentArrivalException, error)
+
 	// FindByStudentID finds all arrival exceptions for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentArrivalException, error)
 

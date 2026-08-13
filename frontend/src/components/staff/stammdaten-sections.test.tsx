@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { StammdatenTab } from "./stammdaten-tab";
-import type { StaffStammdaten } from "~/lib/staff-api";
+import { staffStammdatenService, type StaffStammdaten } from "~/lib/staff-api";
 
 // Section rendering + permission gating of the Stammdaten tab (#1423). The
 // SWR mock switches on the cache key so the aggregate, payroll and financial
@@ -103,6 +103,7 @@ describe("StammdatenTab Sektionen (#1423)", () => {
   beforeEach(() => {
     mutate.mockReset();
     revealFinancial.mockReset();
+    vi.mocked(staffStammdatenService.updatePerson).mockReset();
     swrErrors.current = new Map();
   });
 
@@ -151,6 +152,34 @@ describe("StammdatenTab Sektionen (#1423)", () => {
     fireEvent.click(editButtons[0]!);
     expect(screen.getByText("Person bearbeiten")).toBeInTheDocument();
     expect(screen.getByLabelText("Vorname")).toHaveValue("Mila");
+  });
+
+  it("überschreibt ein vorhandenes Geburtsdatum und sendet den ISO-Wert", async () => {
+    seedSWR();
+    render(
+      <StammdatenTab
+        staffId="42"
+        canManagePayroll={false}
+        canManagePayrollSettings={false}
+        canViewSections
+        canEditSections
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    const birthdayInput = screen.getByLabelText("Geburtsdatum");
+    expect(birthdayInput).toHaveValue("12.04.1990");
+
+    fireEvent.change(birthdayInput, { target: { value: "17.04.1982" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(staffStammdatenService.updatePerson).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ birthday: "1982-04-17" }),
+        "",
+      ),
+    );
   });
 
   it("zeigt ohne staff:financial die Sperre statt der Bank-Sektion", () => {

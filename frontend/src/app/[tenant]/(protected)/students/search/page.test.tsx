@@ -221,6 +221,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     toggle: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",
+  checkoutConfirmationRoom: () => null,
 }));
 
 // Mock student-helpers
@@ -267,6 +268,7 @@ const mockStudents = [
     arrival_time: "08:00",
     pickup_time: "15:30",
     pickup_status: "Geht alleine nach Hause",
+    departure_modes: ["alone"],
     bus: true,
     photo_consent_given: true,
     photo_consent_given_at: "2026-01-01T10:00:00Z",
@@ -281,6 +283,7 @@ const mockStudents = [
     current_location: "Zuhause",
     arrival_time: "08:30",
     pickup_status: "Wird abgeholt",
+    departure_modes: ["pickup"],
     bus: false,
     photo_consent_given: false,
     has_full_access: true,
@@ -295,6 +298,7 @@ const mockStudents = [
     arrival_time: "08:15",
     pickup_time: "16:00",
     pickup_status: "Geht alleine nach Hause",
+    departure_modes: ["alone"],
     bus: true,
     photo_consent_given: false,
     has_full_access: true,
@@ -308,6 +312,7 @@ const mockStudents = [
     current_location: "Schulhof",
     arrival_time: "09:00",
     pickup_status: "Wird abgeholt",
+    departure_modes: ["pickup"],
     bus: false,
     photo_consent_given: true,
     photo_consent_given_at: "2026-01-02T10:00:00Z",
@@ -2515,7 +2520,7 @@ describe("StudentSearchPage", () => {
     // GDPR exclusion of redacted students from the pickup-status filter is
     // enforced and tested server-side now (see backend applyAdministrativeFilters).
 
-    it("groups students by permanent pickup status", async () => {
+    it("groups students by the selected day's departure modes", async () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
@@ -2535,6 +2540,72 @@ describe("StudentSearchPage", () => {
       expect(
         screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
       ).toEqual(["Geht alleine nach Hause", "Wird abgeholt"]);
+    });
+
+    it("shows every allowed departure mode and a placeholder for a missing rule", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              departure_modes: ["alone", "bus", "pickup", "accompanied"],
+            },
+            {
+              ...mockStudents[1]!,
+              departure_modes: [],
+            },
+            {
+              ...mockStudents[2]!,
+              id: "restricted",
+              first_name: "Restricted",
+              second_name: "Child",
+              departure_modes: ["pickup"],
+              has_full_access: false,
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      } as never);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText(
+          "Heimweg: Geht alleine nach Hause, Bus, Wird abgeholt, Mit anderem Kind",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Heimweg: -")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Restricted Child/ }),
+      ).not.toHaveTextContent("Heimweg:");
+    });
+
+    it("shows an unknown legacy departure rule without treating it as self-going", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              departure_modes: [],
+              departure_label: "Taxi mit Begleitperson",
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      } as never);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText("Heimweg: Taxi mit Begleitperson"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Heimweg: Geht alleine nach Hause")).toBeNull();
     });
 
     it("groups students by status in operational order", async () => {

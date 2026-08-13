@@ -74,9 +74,9 @@ func loggerOr(logger *slog.Logger) *slog.Logger {
 	return cmp.Or(logger, slog.Default())
 }
 
-// AppendMessage persists an already-built ParentMessage, then updates the
-// thread's last-activity preview. The caller has already authorized/validated the
-// body and stamped SenderKind / SenderName / tenant on msg.
+// AppendMessage serializes the thread, persists an already-built message, then
+// updates the last-activity preview. The caller has already authorized and
+// stamped the sender and tenant fields.
 //
 // The thread touch is driven off the inserted row's DB-stamped created_at
 // (msg.CreatedAt), NOT a Go time.Now(): messages.created_at defaults to the
@@ -85,24 +85,18 @@ func loggerOr(logger *slog.Logger) *slog.Logger {
 // preview guard (TouchLastMessage) could then keep the older message. Using the
 // row's own created_at keeps every comparison on one clock.
 //
-// It deliberately does NOT advance the sender's read cursor. Advancing the cursor
-// to the just-sent message leaps it past an EARLIER counterpart message that
-// committed AFTER this send: created_at defaults to the transaction's start
-// instant, so a counterpart whose tx began first (lower created_at) but committed
-// later sits below the sent message's timestamp, and a cursor moved to the send
-// would mark that never-seen message read once it commits. Instead the unread
-// predicates exclude a reader's OWN messages by sender_account_id
-// (notReaderAuthored in database/repositories/users/parent_message_read.go), which
-// is what keeps a dual-role (staff+guardian) sender from counting their own
-// just-sent message as unread to themselves — without any cursor move. The
-// legitimate "I have now seen everything" advance happens on the read path
-// (MarkReadToNewest), bounded to the snapshot actually returned to the client.
+// It deliberately does not advance the sender's read cursor. Own messages are
+// excluded by sender_account_id, while read paths advance only to a snapshot the
+// client actually received.
 func AppendMessage(
 	ctx context.Context,
 	msgRepo usersModels.ParentMessageRepository,
 	threadRepo usersModels.ParentMessageThreadRepository,
 	msg *usersModels.ParentMessage,
 ) error {
+	if err := threadRepo.LockForMessageAppend(ctx, msg.ThreadID); err != nil {
+		return err
+	}
 	if err := msgRepo.Create(ctx, msg); err != nil {
 		return err
 	}
@@ -189,6 +183,37 @@ func MarkReadToNewest(
 		return false, nil
 	}
 	return readRepo.MarkReadUpTo(ctx, tenantID, threadID, accountID, newest.CreatedAt, newest.ID)
+}
+
+// MarkStaffHandledToVisible advances the shared team boundary only through the
+// last timeline row the replying client displayed. Missing or stale boundaries
+// are safe no-ops, so a concurrent message can stay open but is never skipped.
+func MarkStaffHandledToVisible(
+	ctx context.Context,
+	readRepo usersModels.ParentMessageReadRepository,
+	tenantID, threadID int64,
+	handledUpToMessageID int64,
+	messages []*usersModels.ParentMessage,
+) error {
+	if handledUpToMessageID <= 0 {
+		return nil
+	}
+	var newest *usersModels.ParentMessage
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		if usersModels.IsCounterpartMessage(msg, true) {
+			newest = msg
+		}
+		if msg.ID == handledUpToMessageID {
+			if newest == nil {
+				return nil
+			}
+			return readRepo.MarkStaffHandledUpTo(ctx, tenantID, threadID, newest.CreatedAt, newest.ID)
+		}
+	}
+	return nil
 }
 
 // DecorateReadReceipts stamps the "OGS hat gelesen" indicator (ReadByStaff) on

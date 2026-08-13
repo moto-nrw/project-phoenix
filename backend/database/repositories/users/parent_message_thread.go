@@ -96,27 +96,31 @@ func (r *ParentMessageThreadRepository) GetOrCreate(ctx context.Context, tenantI
 	return existing, nil
 }
 
+// LockForMessageAppend serializes inserts into a thread within the caller's
+// transaction, keeping message tuple order aligned with commit order.
+func (r *ParentMessageThreadRepository) LockForMessageAppend(ctx context.Context, threadID int64) error {
+	var id int64
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		TableExpr(tableExprParentMessageThreadsAsThread).
+		ColumnExpr(`"parent_message_thread".id`).
+		Where(`"parent_message_thread".id = ?`, threadID).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "parent_message_thread")
+	if err := query.Scan(ctx, &id); err != nil {
+		return &modelBase.DatabaseError{Op: "lock parent message thread for append", Err: err}
+	}
+	return nil
+}
+
 // TouchLastMessage atomically advances the thread's denormalized last-activity
 // fields (last_message_at, last_sender_kind, last_message_body) — the columns the
 // inbox projection sorts and previews by — but ONLY when `at` is newer than the
 // stored last_message_at. This is the single write path for those fields on both
 // portals.
 //
-// The `(last_message_at, last_message_id)` guard is what makes concurrent sends
-// correct. Without it, a staff reply and a guardian message to the SAME thread
-// each load the thread, stamp their own captured instant, and race on a full-row
-// Update: whichever transaction COMMITS last wins, even when its message is
-// actually the OLDER of the two. That leaves /api/messages and the parent thread
-// list sorted by — and previewing — the wrong message, showing the wrong last
-// sender. Folding every update into this one guarded statement makes the
-// denormalized fields monotonic in the SAME (created_at, id) order the message
-// log uses, so a later-committing-but-older writer is a no-op and the
-// genuinely-latest message always owns the preview. The id tie-breaker matters
-// because clock_timestamp() can hand two messages the same created_at (the unread
-// cursor already tie-breaks on id for exactly this reason): on an equal instant
-// the higher-id message still wins, so the preview can never lag behind
-// ListByThread. A fresh thread (NULL last_message_at) always loses to its first
-// real message.
+// The composite guard also protects repair and legacy call sites from moving the
+// preview backward. The append path separately locks the thread before insert,
+// aligning message order with commit order.
 func (r *ParentMessageThreadRepository) TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error {
 	query := base.GetDB(ctx, r.DB).NewUpdate().
 		Model((*users.ParentMessageThread)(nil)).

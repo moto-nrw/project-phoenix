@@ -310,6 +310,7 @@ type TemplateFieldsUpdate struct {
 	RoomID                  int64
 	EducationGroupID        *int64
 	MaxParticipants         int
+	MaxParticipantsProvided bool
 	// RequiredStaff is the manual Personalbedarf override (#1839). nil ->
 	// clear the override (derive from the Betreuungsschlüssel).
 	RequiredStaff     *int

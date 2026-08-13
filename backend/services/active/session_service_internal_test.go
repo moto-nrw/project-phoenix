@@ -856,6 +856,21 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 	})
 }
 
+func TestMarkRollbackOnRoomCapacity(t *testing.T) {
+	ctx := tenant.WithRollbackMarker(context.Background())
+	capacityErr := &RoomCapacityError{RoomID: 30, RoomName: "Mensa", CurrentOccupancy: 43, MaxCapacity: 43}
+
+	returned := markRollbackOnRoomCapacity(ctx, capacityErr)
+
+	require.ErrorIs(t, returned, ErrRoomCapacityExceeded)
+	assert.True(t, tenant.RollbackRequested(ctx))
+
+	otherCtx := tenant.WithRollbackMarker(context.Background())
+	otherErr := errors.New("other failure")
+	assert.ErrorIs(t, markRollbackOnRoomCapacity(otherCtx, otherErr), otherErr)
+	assert.False(t, tenant.RollbackRequested(otherCtx))
+}
+
 func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing.T) {
 	var assigned []int64
 	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), GroupRepo: &mockGroupRepository{

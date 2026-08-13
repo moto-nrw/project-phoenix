@@ -179,6 +179,21 @@ describe("activitiesConfig", () => {
     });
   });
 
+  it("maps an empty participant limit to null", () => {
+    const data = {
+      name: "Test Activity",
+      max_participant: "",
+      ag_category_id: "3",
+    } as unknown as Partial<Activity>;
+
+    const mapped = activitiesConfig.service?.mapRequest?.(data);
+    expect(mapped).toEqual({
+      name: "Test Activity",
+      max_participants: null,
+      category_id: 3,
+    });
+  });
+
   it("maps response data correctly", () => {
     const responseData = {
       id: "1",

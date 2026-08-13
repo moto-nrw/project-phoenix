@@ -23,7 +23,12 @@ interface ApiResponse<T> {
   conflict_count?: number;
   message?: string;
   error?: string;
+  /** Stable backend conflict code (e.g. partial_absence_conflict). */
+  code?: string;
 }
+
+/** Matches backend `partial_absence_conflict` on status-day writes. */
+const PARTIAL_ABSENCE_CONFLICT_CODE = "partial_absence_conflict";
 
 interface BackendStudentStatusDay {
   id: number;
@@ -60,9 +65,22 @@ export class StudentStatusDayConflictError extends Error {
   }
 }
 
+/** Full-day status write refused because a partial-day excusal already exists. */
+export class StudentStatusDayPartialAbsenceConflictError extends Error {
+  constructor() {
+    super(
+      "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+    );
+    this.name = "StudentStatusDayPartialAbsenceConflictError";
+  }
+}
+
 function parseConflictError(
   result: ApiResponse<BackendStudentStatusDay[]>,
-): StudentStatusDayConflictError {
+): Error {
+  if (result.code === PARTIAL_ABSENCE_CONFLICT_CODE) {
+    return new StudentStatusDayPartialAbsenceConflictError();
+  }
   const conflicts = (result.conflicts ?? result.data ?? []).map(mapStatusDay);
   const totalCount =
     typeof result.conflict_count === "number" &&

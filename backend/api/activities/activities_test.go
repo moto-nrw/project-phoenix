@@ -269,25 +269,44 @@ func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 	testutil.AssertBadRequest(t, rr)
 }
 
-func TestCreateActivity_BadRequest_ZeroParticipants(t *testing.T) {
+func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("ZeroP-%d", time.Now().UnixNano()))
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unlimited", "Activity")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+
+	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("Unlimited-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
 
 	body := map[string]interface{}{
-		"name":             "ZeroParticipants",
-		"max_participants": 0,
+		"name":             "OpenSportsHall",
+		"max_participants": nil,
 		"is_open":          true,
 		"category_id":      category.ID,
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities", body)
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.TeacherTestClaims(int(account.ID)))
 
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+	require.Equal(t, http.StatusCreated, rr.Code, "body: %s", rr.Body.String())
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Nil(t, data["max_participants"])
 
-	testutil.AssertBadRequest(t, rr)
+	if id, ok := data["id"].(float64); ok {
+		activityID := int64(id)
+		var persistedCapacity *int
+		require.NoError(t, ctx.db.NewRaw(
+			`SELECT max_participants FROM activities.groups WHERE id = ?`, activityID,
+		).Scan(testpkg.TenantContext(1), &persistedCapacity))
+		assert.Nil(t, persistedCapacity)
+		persistedActivity, err := ctx.services.Activities.GetGroup(testpkg.TenantContext(1), activityID)
+		require.NoError(t, err)
+		assert.Zero(t, persistedActivity.MaxParticipants)
+		cleanupActivity(t, ctx.db, activityID)
+	}
 }
 
 func TestUpdateActivity_Success(t *testing.T) {
