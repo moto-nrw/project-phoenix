@@ -168,6 +168,32 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 	return ai
 }
 
+func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *scheduleModels.ActivityInstance {
+	t.Helper()
+	ai := &scheduleModels.ActivityInstance{
+		Date:          timezone.NewDate(2026, 4, 20),
+		Title:         "Lifecycle-Test-Spontaneous",
+		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		RoomID:        s.roomID,
+		Status:        scheduleModels.InstanceStatusPlanned,
+		IsSpontaneous: true,
+	}
+	ai.SetTenantID(1)
+	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
+	if withStaff {
+		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
+		row.SetTenantID(1)
+		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+		require.NoError(t, err)
+	}
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", ai.ID)
+	})
+	return ai
+}
+
 // forceSetInstanceStatus rewrites the status column directly. Used by 409-path
 // tests to move an instance into a state that can't be reached via the public
 // API (e.g. cancelled-from-scratch).
@@ -494,10 +520,12 @@ func TestInstance_Reopen_HappyPath(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
 	})
 
-	_, err = s.svc.Complete(scheduleSvc.WithLifecycleActor(s.ctx, 42), ai.ID)
+	// completed_by is an auth.accounts FK. These fixtures do not seed an
+	// account, so Complete writes a nil actor and Reopen uses the admin path.
+	_, err = s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
 
-	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 42, false)
+	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
 	assert.Equal(t, started.ActiveGroupID, reopened.ActiveGroupID)
@@ -515,17 +543,20 @@ func TestInstance_Reopen_RejectsOccupiedRoom(t *testing.T) {
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
 	})
-	_, err = s.svc.Complete(scheduleSvc.WithLifecycleActor(s.ctx, 42), first.ID)
+	_, err = s.svc.Complete(s.ctx, first.ID)
 	require.NoError(t, err)
 
-	second := seedInstance(t, s, true, false)
+	// A second planned row on the same template+date violates
+	// idx_activity_instances_template_unique. Occupancy cares about the
+	// room, so a spontaneous instance in the same room is enough.
+	second := seedSpontaneousInstance(t, s, true)
 	other, err := s.svc.Start(s.ctx, second.ID, 0)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", other.ActiveGroupID)
 	})
 
-	_, err = s.svc.Reopen(s.ctx, first.ID, 42, true)
+	_, err = s.svc.Reopen(s.ctx, first.ID, 0, true)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, activeSvc.ErrRoomConflict)
 }
@@ -548,7 +579,7 @@ func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
 		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
 	}
 
-	_, err = s.svc.Complete(scheduleSvc.WithLifecycleActor(s.ctx, 42), ai.ID)
+	_, err = s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
 
 	_, err = s.db.NewUpdate().
@@ -558,7 +589,7 @@ func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.svc.Reopen(s.ctx, ai.ID, 42, true)
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, activeSvc.ErrRoomCapacityExceeded)
 }

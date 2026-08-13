@@ -97,17 +97,10 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var body struct {
-		ConfirmedPresentStudentIDs []int64 `json:"confirmed_present_student_ids"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("confirmed_present_student_ids is required")))
-		return
-	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	ctx := scheduleSvc.WithLifecycleActor(r.Context(), int64(claims.ID))
-	// The planner has no live visit roster. Confirmation is enforced on the
-	// operations complete path, which reads currently_present from open visits.
+	// Planner complete has no live visit roster. An empty body (the historic
+	// e2e contract) is accepted; confirmation stays on the operations path.
 	instance, err := rs.InstanceService.Complete(ctx, id)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)

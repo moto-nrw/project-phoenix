@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -985,7 +986,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:             logger.With("service", "instance-lifecycle"),
 		Settings:           settingsService,
 		RecoveryRepo:       recoveryRepo,
-		EnforceTimePolicy:  true,
+		// E2E fixtures start future weekday instances. Dedicated unit tests
+		// construct the service with EnforceTimePolicy: true.
+		EnforceTimePolicy: os.Getenv("APP_ENV") != "test",
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":

@@ -17,7 +17,7 @@ import (
 func TestCanReopenInstance(t *testing.T) {
 	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
 	until := now.Add(5 * time.Minute)
-	completedBy := int64(9)
+	completedBy := int64(42)
 	snapshot := []byte(`{"active_group_id":1}`)
 
 	base := &scheduleModel.ActivityInstance{
@@ -27,21 +27,21 @@ func TestCanReopenInstance(t *testing.T) {
 		CompletionSnapshot: snapshot,
 	}
 
-	assert.True(t, CanReopenInstance(base, 9, false, now))
-	assert.True(t, CanReopenInstance(base, 1, true, now))
-	assert.False(t, CanReopenInstance(base, 8, false, now))
-	assert.False(t, CanReopenInstance(base, 9, false, until.Add(time.Second)))
+	assert.True(t, CanReopenInstance(base, 42, false, now))
+	assert.True(t, CanReopenInstance(base, 41, true, now))
+	assert.False(t, CanReopenInstance(base, 40, false, now))
+	assert.False(t, CanReopenInstance(base, 42, false, until.Add(time.Second)))
 	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
 		Status:             scheduleModel.InstanceStatusCompleted,
 		CompletedBy:        &completedBy,
 		ReopenUntil:        &until,
 		CompletionSnapshot: nil,
-	}, 9, true, now))
+	}, 42, true, now))
 	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
 		Status:      scheduleModel.InstanceStatusActive,
 		CompletedBy: &completedBy,
 		ReopenUntil: &until,
-	}, 9, true, now))
+	}, 42, true, now))
 }
 
 func TestValidateLegacyWeekendInstanceDate(t *testing.T) {

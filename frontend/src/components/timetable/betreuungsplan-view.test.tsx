@@ -1121,7 +1121,7 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("detail-start"));
     await waitFor(() => expect(mockStart).toHaveBeenCalledWith("42"));
     fireEvent.click(screen.getByText("detail-complete"));
-    await waitFor(() => expect(mockComplete).toHaveBeenCalledWith("42"));
+    await waitFor(() => expect(mockComplete).toHaveBeenCalledWith("42", []));
     fireEvent.click(screen.getByText("detail-cancel"));
     await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("42"));
     fireEvent.click(screen.getByText("detail-attendance"));
