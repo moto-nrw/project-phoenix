@@ -8,11 +8,14 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -48,6 +51,10 @@ type PersonServiceDependencies struct {
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
 	TeacherRepo userModels.TeacherRepository
+	// RoleRepo answers which roles the staff member's account holds. Required
+	// by the caregiver-profile paths: the Lehrkraft role (#1772) is provisioned
+	// without a profile on purpose and must not be handed one here.
+	RoleRepo auth.RoleRepository
 	// PersonnelNumberAudit is required for UpdatePersonnelNumber; the write
 	// path refuses to run without it (no change without a trace, #1417).
 	PersonnelNumberAudit auditModels.PersonnelNumberChangeCreator
@@ -636,11 +643,22 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 
 	tenantID := tenant.FromContext(ctx)
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := s.refuseCaregiverProfileForLehrkraft(ctx, input.PersonID, input.IsTeacher); err != nil {
+			return err
+		}
+
 		existing, err := s.StaffRepo.FindByPersonID(ctx, input.PersonID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 		if existing != nil && existing.DeletedAt == nil {
+			// Adoption is an edit of a record that is already in the directory,
+			// so it owes users:update — the create permission this route is
+			// gated on does not cover overwriting someone's notes or writing
+			// a caregiver profile onto them.
+			if !authorize.HasPermission(permissions.UsersUpdate, input.ActorPermissions) {
+				return ErrStaffAdoptionNotPermitted
+			}
 			existing.StaffNotes = input.StaffNotes
 			if err := s.StaffRepo.Update(ctx, existing); err != nil {
 				return err
@@ -668,6 +686,51 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 	}
 
 	return staff, teacher, teacherCreationFailed, nil
+}
+
+// refuseCaregiverProfileForLehrkraft rejects a request that would give a
+// caregiver profile to an account holding the Lehrkraft system role (#1772).
+//
+// The role-assignment paths already refuse the combination from the other
+// direction: AssignRoleToAccount, the operator role change and the invitation
+// flow all reject Lehrkraft on an account that carries a live profile. Staff
+// creation was the open side of the same door — a Lehrkraft account is
+// provisioned with a staff record and deliberately without a profile, so
+// POST /api/staff with is_teacher:true found the record, adopted it and
+// created exactly the profile the other paths forbid, along with the caregiver
+// permissions the create handler grants on that basis.
+//
+// Runs inside the caller's transaction, before anything is written.
+//
+// Fails closed: a person without an account cannot be a Lehrkraft, but an
+// unreadable role set is not permission to write the profile — the same call
+// the default-permission grant makes when it cannot resolve the roles.
+func (s *personService) refuseCaregiverProfileForLehrkraft(ctx context.Context, personID int64, isTeacher bool) error {
+	if !isTeacher {
+		return nil
+	}
+
+	person, err := s.PersonRepo.FindByID(ctx, personID)
+	if err != nil {
+		return err
+	}
+	if person == nil || person.AccountID == nil {
+		return nil
+	}
+
+	if s.RoleRepo == nil {
+		return errors.New("role repository is required to decide the caregiver profile")
+	}
+	roles, err := s.RoleRepo.FindByAccountID(ctx, *person.AccountID)
+	if err != nil {
+		return err
+	}
+	for _, role := range roles {
+		if authSvc.IsLehrkraftSystemRole(role) {
+			return ErrStaffLehrkraftCaregiverProfile
+		}
+	}
+	return nil
 }
 
 // liveTeacherForStaff returns the caregiver profile the staff record already
@@ -738,6 +801,12 @@ func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userM
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		currentStaff, err := s.StaffRepo.FindByIDForUpdate(ctx, staff.ID)
 		if err != nil {
+			return err
+		}
+
+		// Same guard as the create path: the edit form must not be the way a
+		// Lehrkraft account acquires the caregiver profile its role excludes.
+		if err := s.refuseCaregiverProfileForLehrkraft(ctx, currentStaff.PersonID, isTeacher); err != nil {
 			return err
 		}
 		currentStaff.PersonID = staff.PersonID

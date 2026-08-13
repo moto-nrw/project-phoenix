@@ -399,6 +399,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
+		RoleRepo:             repos.Role,
 		PersonnelNumberAudit: repos.PersonnelNumberChange,
 
 		// Staff Stammdaten (#1423)

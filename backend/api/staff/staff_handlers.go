@@ -20,6 +20,18 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// staffWriteErrorRules classifies the sentinels the staff write paths raise
+// before anything is persisted: both are caller mistakes, not server faults,
+// and both carry a German message the staff form shows verbatim.
+var staffWriteErrorRules = []common.ErrorRule{
+	{Target: usersSvc.ErrStaffAdoptionNotPermitted, Render: common.ErrorForbidden},
+	{Target: usersSvc.ErrStaffLehrkraftCaregiverProfile, Render: common.ErrorConflict},
+}
+
+func renderStaffWriteError(w http.ResponseWriter, r *http.Request, err error) {
+	common.RenderError(w, r, common.RenderWithRules(err, staffWriteErrorRules, common.ErrorInternalServer))
+}
+
 // =============================================================================
 // HELPER METHODS - Reduce code duplication for common parsing/validation
 // =============================================================================
@@ -339,15 +351,16 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Create staff record (and optionally teacher) in tenant transaction
 	staff, teacher, teacherCreationFailed, err := rs.PersonService.CreateStaffWithTeacher(r.Context(), usersSvc.CreateStaffInput{
-		PersonID:       req.PersonID.Int64(),
-		StaffNotes:     req.StaffNotes,
-		IsTeacher:      req.IsTeacher,
-		Specialization: req.Specialization,
-		Role:           req.Role,
-		Qualifications: req.Qualifications,
+		PersonID:         req.PersonID.Int64(),
+		StaffNotes:       req.StaffNotes,
+		IsTeacher:        req.IsTeacher,
+		Specialization:   req.Specialization,
+		Role:             req.Role,
+		Qualifications:   req.Qualifications,
+		ActorPermissions: jwt.PermissionsFromCtx(r.Context()),
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderStaffWriteError(w, r, err)
 		return
 	}
 	isTeacher := teacher != nil
@@ -414,7 +427,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, action, err := rs.PersonService.UpdateStaffWithTeacher(r.Context(), staff, req.IsTeacher, req.Specialization, req.Role, req.Qualifications)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderStaffWriteError(w, r, err)
 		return
 	}
 
