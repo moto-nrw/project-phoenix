@@ -360,6 +360,24 @@ func TestCompleteInstance_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestReopenInstance_NilService(t *testing.T) {
+	rs := NewResource(Dependencies{})
+	router := setupLifecycleRouter(rs, "/instances/{id}/reopen", rs.reopenInstance)
+
+	w := doPost(t, router, "/instances/1/reopen", nil)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestReopenInstance_InvalidID(t *testing.T) {
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
+	router := setupLifecycleRouter(rs, "/instances/{id}/reopen", rs.reopenInstance)
+
+	w := doPost(t, router, "/instances/bad/reopen", nil)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestCompleteInstance_NilService(t *testing.T) {
 	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)

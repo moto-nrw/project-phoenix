@@ -130,6 +130,10 @@ func (rs *Resource) reopenInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
+	if rs.InstanceService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
+		return
+	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	result, err := rs.InstanceService.Reopen(r.Context(), id, int64(claims.ID), claims.IsAdmin)
 	if err != nil {

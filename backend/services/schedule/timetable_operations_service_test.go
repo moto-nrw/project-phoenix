@@ -734,6 +734,24 @@ func TestTimetableOperationsPatchAttendanceRejectsCompletedInstance(t *testing.T
 	assert.Empty(t, deps.studentRepo.updates)
 }
 
+func TestTimetableOperationsReopenRequiresOperate(t *testing.T) {
+	instanceID := int64(428)
+	deps := newTimetableOpsDeps()
+	completed := activeInstance(instanceID, 306)
+	completed.Status = scheduleModel.InstanceStatusCompleted
+	deps.instanceRepo.byID[instanceID] = completed
+
+	result, err := deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	assert.Nil(t, result)
+
+	wireAssignedStaff(deps, 694, 516, 275, instanceID)
+	result, err = deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, instanceID, result.Instance.ID)
+}
+
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
 	instanceID := int64(405)
 	deps := newTimetableOpsDeps()
@@ -1481,6 +1499,12 @@ func (s *fakeOpsInstanceService) Complete(_ context.Context, instanceID int64) (
 	inst := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCompleted}
 	inst.ID = instanceID
 	return inst, nil
+}
+
+func (s *fakeOpsInstanceService) Reopen(_ context.Context, instanceID, _ int64, _ bool) (*StartInstanceResult, error) {
+	inst := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
+	inst.ID = instanceID
+	return &StartInstanceResult{Instance: inst, ActiveGroupID: 911}, nil
 }
 
 type fakeOpsActiveGroupRepo struct {

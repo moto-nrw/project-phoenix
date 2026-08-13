@@ -102,6 +102,7 @@ type TimetableOperationsDependencies struct {
 	DB                 *bun.DB
 	Logger             *slog.Logger
 	Now                func() time.Time
+	RecoveryRepo       scheduleModel.ActivityRecoveryRepository
 }
 
 type OperationPlannedInstance struct {
@@ -358,6 +359,9 @@ func (s *timetableOperationsService) Complete(ctx context.Context, accountID int
 }
 
 func (s *timetableOperationsService) Reopen(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error) {
+	if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
+		return nil, err
+	}
 	return s.deps.InstanceService.Reopen(ctx, instanceID, accountID, isAdmin)
 }
 
@@ -488,6 +492,18 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	}
 	if inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled {
 		return nil, fmt.Errorf("%w: attendance is frozen after completion", ErrTimetableOperationConflict)
+	}
+	if s.deps.RecoveryRepo != nil {
+		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instanceID); err != nil {
+			return nil, err
+		}
+		inst, err = s.loadInstance(ctx, instanceID)
+		if err != nil {
+			return nil, err
+		}
+		if inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled {
+			return nil, fmt.Errorf("%w: attendance is frozen after completion", ErrTimetableOperationConflict)
+		}
 	}
 	row, err := s.deps.InstanceStudents.FindByInstanceAndStudent(ctx, instanceID, studentID)
 	if err != nil {

@@ -963,6 +963,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
+	recoveryRepo := scheduleRepo.NewActivityRecoveryRepository(db)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
@@ -983,7 +984,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                 db,
 		Logger:             logger.With("service", "instance-lifecycle"),
 		Settings:           settingsService,
-		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(db),
+		RecoveryRepo:       recoveryRepo,
 		EnforceTimePolicy:  true,
 	})
 
@@ -1090,6 +1091,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "timetable-operations"),
+		RecoveryRepo:       recoveryRepo,
 	})
 
 	// Initialize auth service with validated config

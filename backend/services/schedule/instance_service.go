@@ -497,6 +497,10 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		return nil, &ScheduleError{Op: "start instance: load instance_staff", Err: err}
 	}
 
+	if _, err := s.deps.RoomRepo.FindByIDForUpdate(ctx, instance.RoomID); err != nil {
+		return nil, &ScheduleError{Op: "start instance: lock room", Err: err}
+	}
+
 	now := s.now()
 	newGroup := &activeModel.Group{
 		StartTime:      now,
@@ -769,6 +773,9 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		if err := s.deps.RecoveryRepo.LockOpenVisits(ctx, *instance.ActiveGroupID); err != nil {
 			return nil, &ScheduleError{Op: "complete instance: lock visits", Err: err}
 		}
+		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
+			return nil, &ScheduleError{Op: "complete instance: lock attendance", Err: err}
+		}
 	}
 
 	visitsBefore, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, *instance.ActiveGroupID)
@@ -954,6 +961,13 @@ func CanReopenInstance(instance *scheduleModel.ActivityInstance, accountID int64
 }
 
 func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
+	room, err := s.deps.RoomRepo.FindByIDForUpdate(ctx, instance.RoomID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: lock room", Err: err}
+	}
+	if room == nil {
+		return &ScheduleError{Op: "reopen instance: lock room", Err: fmt.Errorf("room %d not found", instance.RoomID)}
+	}
 	hasConflict, _, err := s.deps.ActiveGroupRepo.CheckRoomConflict(ctx, instance.RoomID, snapshot.ActiveGroupID)
 	if err != nil {
 		return &ScheduleError{Op: "reopen instance: check room", Err: err}
@@ -963,13 +977,6 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 	}
 	if len(snapshot.VisitIDs) == 0 {
 		return nil
-	}
-	room, err := s.deps.RoomRepo.FindByIDForUpdate(ctx, instance.RoomID)
-	if err != nil {
-		return &ScheduleError{Op: "reopen instance: lock room", Err: err}
-	}
-	if room == nil {
-		return &ScheduleError{Op: "reopen instance: lock room", Err: fmt.Errorf("room %d not found", instance.RoomID)}
 	}
 	if room.Capacity == nil || *room.Capacity <= 0 {
 		return nil
