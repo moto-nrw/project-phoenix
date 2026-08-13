@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	pushSubscriptionTokenFamilyVersion     = "1.15.290"
+	pushSubscriptionTokenFamilyVersion     = "1.15.292"
 	pushSubscriptionTokenFamilyDescription = "Bind Web Push subscriptions to the refresh-token family that registered them"
 )
 
@@ -22,12 +22,12 @@ func init() {
 }
 
 func pushSubscriptionTokenFamilyUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.290: Binding push subscriptions to token families...")
+	fmt.Println("Migration 1.15.292: Binding push subscriptions to token families...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE iot.push_subscriptions
 			ADD COLUMN IF NOT EXISTS token_family_id TEXT NOT NULL DEFAULT '';
 		COMMENT ON COLUMN iot.push_subscriptions.token_family_id IS
-			'Refresh-token family that registered this device; empty on pre-1.15.290 rows';
+			'Refresh-token family that registered this device; empty on pre-1.15.292 rows';
 		CREATE INDEX IF NOT EXISTS idx_push_subscriptions_token_family
 			ON iot.push_subscriptions (account_id, token_family_id)
 			WHERE token_family_id <> '';
