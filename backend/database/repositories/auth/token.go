@@ -179,6 +179,23 @@ func (r *TokenRepository) ListInactiveAccountIDsWithLiveTokens(ctx context.Conte
 	return ids, nil
 }
 
+// HasLiveTokensCreatedAfter reports whether the account minted a live
+// refresh token after since. Used to skip stale pending wipes after
+// reactivation or a later login.
+func (r *TokenRepository) HasLiveTokensCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error) {
+	exists, err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`auth.tokens AS "token"`).
+		Where(`"token".account_id = ?`, accountID).
+		Where(`"token".rotated_at IS NULL`).
+		Where(`"token".expiry > ?`, time.Now()).
+		Where(`"token".created_at > ?`, since).
+		Exists(ctx)
+	if err != nil {
+		return false, &modelBase.DatabaseError{Op: "check live tokens created after", Err: err}
+	}
+	return exists, nil
+}
+
 // DeleteByAccountIDReturning atomically deletes and returns every affected
 // token so the service can persist a complete revocation audit in the same
 // transaction; the generic repository cannot express DELETE ... RETURNING.

@@ -844,3 +844,72 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
+
+func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("activate-clear-pending")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "account_deactivated", time.Now())
+	require.NoError(t, service.ActivateAccount(ctx, int(account.ID)))
+
+	pending, err := db.NewSelect().
+		TableExpr("audit.auth_events").
+		Where("account_id = ?", account.ID).
+		Where("event_type = ?", "token_revoked").
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, pending)
+}
+
+func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("stale-pending-login")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "administrative_revoke", time.Now().Add(-time.Minute))
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > NOW()").
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
+
+func insertPendingAccountWideWipe(t *testing.T, db *bun.DB, accountID, tenantID int64, reason string, createdAt time.Time) {
+	t.Helper()
+	_, err := db.NewRaw(`
+		INSERT INTO audit.auth_events (tenant_id, account_id, event_type, success, ip_address, metadata, created_at)
+		VALUES (?, ?, 'token_revoked', true, '0.0.0.0', jsonb_build_object('reason', ?::text, 'pending_account_wide_wipe', true), ?)
+	`, tenantID, accountID, reason, createdAt).Exec(context.Background())
+	require.NoError(t, err)
+}

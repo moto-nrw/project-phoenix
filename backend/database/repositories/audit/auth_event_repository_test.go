@@ -2,6 +2,7 @@ package audit_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -213,4 +214,33 @@ func TestAuthEventRepository_List(t *testing.T) {
 			assert.True(t, e.Success)
 		}
 	})
+}
+
+func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).AuthEvent
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "pending_wipe@example.com")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	event := audit.NewAuthEvent(account.ID, audit.EventTypeTokenRevoked, true, "0.0.0.0")
+	event.SetMetadata("reason", "password_reset")
+	event.SetMetadata("pending_account_wide_wipe", true)
+	require.NoError(t, repo.Create(ctx, event))
+	defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
+
+	pending, err := repo.ListPendingAccountWideWipes(ctx, event.CreatedAt.Add(-time.Minute))
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	assert.Equal(t, account.ID, pending[0].AccountID)
+	assert.Equal(t, "password_reset", pending[0].Reason)
+	assert.False(t, pending[0].CreatedAt.IsZero())
+
+	require.NoError(t, repo.MarkAccountWideWipeCompleted(ctx, account.ID))
+	pending, err = repo.ListPendingAccountWideWipes(ctx, event.CreatedAt.Add(-time.Minute))
+	require.NoError(t, err)
+	assert.Empty(t, pending)
 }

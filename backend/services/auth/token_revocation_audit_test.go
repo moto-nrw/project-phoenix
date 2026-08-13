@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -126,4 +127,44 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 		OrderExpr(`"auth_event".id DESC`).Limit(1).Scan(ctx))
 	assert.Equal(t, authModels.PortalScopeTenant, event.Metadata["portal_scope"])
 	assert.Equal(t, float64(1), event.Metadata["revoked_token_count"])
+}
+
+func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("pending-wipe-reason")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`
+		INSERT INTO audit.auth_events (tenant_id, account_id, event_type, success, ip_address, metadata, created_at)
+		VALUES (?, ?, 'token_revoked', true, '0.0.0.0', jsonb_build_object('reason', 'password_reset', 'pending_account_wide_wipe', true), ?)
+	`, tenantID, account.ID, time.Now()).Exec(context.Background())
+	require.NoError(t, err)
+
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+
+	var event auditModels.AuthEvent
+	require.NoError(t, db.NewSelect().Model(&event).ModelTableExpr(`audit.auth_events AS "auth_event"`).
+		Where(`"auth_event".account_id = ?`, account.ID).
+		Where(`"auth_event".event_type = ?`, auditModels.EventTypeTokenRevoked).
+		Where(`"auth_event".metadata->>'reason' = 'password_reset'`).
+		Where(`COALESCE("auth_event".metadata->>'pending_account_wide_wipe', 'false') <> 'true'`).
+		OrderExpr(`"auth_event".id DESC`).Limit(1).Scan(ctx))
+	assert.Equal(t, "password_reset", event.Metadata["reason"])
+
+	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, count)
 }

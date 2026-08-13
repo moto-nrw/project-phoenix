@@ -166,6 +166,9 @@ func (s *Service) scheduleAccountWideRevoke(ctx context.Context, accountID int64
 			return err
 		}
 		s.queuePushCleanup(ctx, accountID, nil, reason)
+		if tenant.IsAdminTx(ctx) {
+			return s.markAccountWideWipeCompleted(ctx, accountID)
+		}
 		return nil
 	}
 	if tenant.HasAfterCommitHooks(ctx) {
@@ -220,6 +223,11 @@ func (s *Service) queuePushCleanup(ctx context.Context, accountID int64, tokens 
 		tenant.RegisterAfterCommit(ctx, run)
 		return
 	}
+	if hasAmbientTx(ctx) {
+		// Tokens are not committed yet. A separate admin tx would leave
+		// push deleted if the caller rolls back.
+		return
+	}
 	run()
 }
 
@@ -249,15 +257,15 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 	err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		var innerErr error
 		tokens, innerErr = s.deleteAllAccountTokensInCtx(txCtx, accountID, reason, ipAddress, userAgent)
-		return innerErr
+		if innerErr != nil {
+			return innerErr
+		}
+		return s.markAccountWideWipeCompleted(txCtx, accountID)
 	})
 	if err != nil {
 		return err
 	}
-	if err := s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason); err != nil {
-		return err
-	}
-	return s.markAccountWideWipeCompleted(adminCtx, accountID)
+	return s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason)
 }
 
 func (s *Service) markAccountWideWipeCompleted(ctx context.Context, accountID int64) error {

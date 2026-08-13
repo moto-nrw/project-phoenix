@@ -261,6 +261,27 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	})
 }
 
+func TestTokenRepository_HasLiveTokensCreatedAfter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "liveAfterToken")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
+	defer testpkg.CleanupTableRecords(t, db, "auth.tokens", token.ID)
+
+	has, err := repo.HasLiveTokensCreatedAfter(ctx, account.ID, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.True(t, has)
+
+	has, err = repo.HasLiveTokensCreatedAfter(ctx, account.ID, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
 func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

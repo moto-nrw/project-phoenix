@@ -1135,6 +1135,10 @@ func (noopTokenRepository) ListInactiveAccountIDsWithLiveTokens(context.Context)
 	panic("ListInactiveAccountIDsWithLiveTokens not implemented")
 }
 
+func (noopTokenRepository) HasLiveTokensCreatedAfter(context.Context, int64, time.Time) (bool, error) {
+	panic("HasLiveTokensCreatedAfter not implemented")
+}
+
 func (noopTokenRepository) DeleteByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
 	panic("DeleteByAccountIDReturning not implemented")
 }

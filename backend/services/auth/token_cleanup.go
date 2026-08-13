@@ -50,15 +50,51 @@ func (s *Service) reconcileRevokedSessions(ctx context.Context) error {
 			}
 			queue(inactive)
 		}
-		if s.repos.AuthEvent != nil {
-			pending, err := s.repos.AuthEvent.ListPendingAccountWideWipeAccountIDs(adminCtx, time.Now().Add(-7*24*time.Hour))
-			if err != nil {
+		for accountID := range seen {
+			if err := s.wipeAccountWideIndependently(adminCtx, accountID, "account_deactivated", "", ""); err != nil {
 				return err
 			}
-			queue(pending)
 		}
-		for accountID := range seen {
-			if err := s.wipeAccountWideIndependently(adminCtx, accountID, "administrative_revoke", "", ""); err != nil {
+		if s.repos.AuthEvent == nil {
+			if s.repos.PushSubscription == nil {
+				return nil
+			}
+			return s.repos.PushSubscription.DeleteOrphanedSubscriptions(adminCtx)
+		}
+		pending, err := s.repos.AuthEvent.ListPendingAccountWideWipes(adminCtx, time.Now().Add(-7*24*time.Hour))
+		if err != nil {
+			return err
+		}
+		for _, wipe := range pending {
+			if _, already := seen[wipe.AccountID]; already {
+				continue
+			}
+			reason := wipe.Reason
+			if !isAccountWideRevocation(reason) {
+				reason = "administrative_revoke"
+			}
+			if reason == "account_deactivated" && s.repos.Account != nil {
+				account, accErr := s.repos.Account.FindByID(adminCtx, wipe.AccountID)
+				if accErr == nil && account.Active {
+					if err := s.markAccountWideWipeCompleted(adminCtx, wipe.AccountID); err != nil {
+						return err
+					}
+					continue
+				}
+			}
+			if s.repos.Token != nil {
+				newer, newerErr := s.repos.Token.HasLiveTokensCreatedAfter(adminCtx, wipe.AccountID, wipe.CreatedAt)
+				if newerErr != nil {
+					return newerErr
+				}
+				if newer {
+					if err := s.markAccountWideWipeCompleted(adminCtx, wipe.AccountID); err != nil {
+						return err
+					}
+					continue
+				}
+			}
+			if err := s.wipeAccountWideIndependently(adminCtx, wipe.AccountID, reason, "", ""); err != nil {
 				return err
 			}
 		}
