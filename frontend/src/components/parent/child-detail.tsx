@@ -286,7 +286,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         description={t("today.description")}
         bodyClassName="mt-4 space-y-4"
       >
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <ParentStatusRow icon={HeartPulse} label={t("today.sickLabel")}>
             <SickStatusSummary
               sickDays={care.sickDays}

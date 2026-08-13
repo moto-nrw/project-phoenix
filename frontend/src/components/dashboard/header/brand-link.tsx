@@ -49,12 +49,15 @@ interface BrandLinkProps {
   readonly isScrolled?: boolean;
   readonly href?: string;
   readonly label?: string | null;
+  /** Unterhalb md nur das Logo zeigen (Elternportal: Platz für den Seitentitel). */
+  readonly hideLabelOnMobile?: boolean;
 }
 
 export function BrandLink({
   isScrolled = false,
   href = "/dashboard",
   label,
+  hideLabelOnMobile = false,
 }: BrandLinkProps) {
   const displayLabel = label?.trim() || "moto";
   const usesTenantLabel = Boolean(label?.trim());
@@ -66,7 +69,11 @@ export function BrandLink({
     >
       <BrandLogo />
 
-      <div className="flex min-w-0 items-center space-x-3">
+      <div
+        className={`min-w-0 items-center space-x-3 ${
+          hideLabelOnMobile ? "hidden md:flex" : "flex"
+        }`}
+      >
         <span className={brandLabelClass(isScrolled, usesTenantLabel)}>
           {displayLabel}
         </span>
