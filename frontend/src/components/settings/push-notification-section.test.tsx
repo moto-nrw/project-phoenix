@@ -71,7 +71,7 @@ describe("PushNotificationSection", () => {
 
     expect(
       await screen.findByText(
-        "Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet.",
+        "Benachrichtigungen sind hier zurzeit nicht verfügbar.",
       ),
     ).toBeInTheDocument();
     expect(

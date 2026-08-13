@@ -210,7 +210,7 @@ export function PushNotificationSection({
 
       {state === "disabled" && (
         <p className="text-sm text-gray-600">
-          Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet.
+          Benachrichtigungen sind hier zurzeit nicht verfügbar.
         </p>
       )}
 
