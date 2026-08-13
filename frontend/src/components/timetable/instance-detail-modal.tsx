@@ -277,7 +277,9 @@ function attendancePatchForInstance(
   onAttendancePatch: InstanceDetailModalProps["onAttendancePatch"],
 ): InstanceDetailModalProps["onAttendancePatch"] {
   if (!attendanceWebEnabled || !instance) return undefined;
-  if (instance.status === "cancelled") return undefined;
+  if (instance.status === "cancelled" || instance.status === "completed") {
+    return undefined;
+  }
   return onAttendancePatch;
 }
 

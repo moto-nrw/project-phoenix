@@ -6,6 +6,7 @@ package timetable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -620,7 +621,21 @@ func TestListInstances_DateValidation(t *testing.T) {
 
 func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
 	res := NewResource(Dependencies{})
-	assert.True(t, res.enforcePlannedEnd(context.Background()))
+	got, err := res.enforcePlannedEnd(context.Background())
+	require.NoError(t, err)
+	assert.True(t, got)
+}
+
+func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) {
+				return false, errors.New("settings down")
+			},
+		},
+	})
+	_, err := res.enforcePlannedEnd(context.Background())
+	require.ErrorIs(t, err, scheduleSvc.ErrLifecycleSettings)
 }
 
 func TestListInstances_IsLive(t *testing.T) {

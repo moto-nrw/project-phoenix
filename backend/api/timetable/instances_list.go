@@ -471,8 +471,12 @@ func (rs *Resource) enrichInstance(
 
 	assignedStaff := len(staffRows) - absentCount
 	childrenCount := attendance.expected + attendance.present
+	enforcePlannedEnd, err := rs.enforcePlannedEnd(ctx)
+	if err != nil {
+		return enrichedInstance{}, nil, nil, err
+	}
 	availability := scheduleSvc.EvaluateLifecycleAvailability(
-		inst, time.Now(), 0, rs.enforcePlannedEnd(ctx),
+		inst, time.Now(), 0, enforcePlannedEnd,
 	)
 
 	item := enrichedInstance{

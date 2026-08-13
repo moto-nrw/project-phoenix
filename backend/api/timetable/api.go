@@ -832,12 +832,16 @@ func (rs *Resource) childrenPerStaffRatio(ctx context.Context) int {
 	)
 }
 
-func (rs *Resource) enforcePlannedEnd(ctx context.Context) bool {
-	return configSvc.ResolveBoolOrDefault(
-		ctx,
-		rs.SettingsService,
-		configModel.KeyTimetableEnforcePlannedEnd,
-		true,
-		rs.getLogger(),
-	)
+func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
+	if rs.SettingsService == nil {
+		// Registry default for timetable.enforce_planned_end. Tests and
+		// partial facades may leave settings unwired; a real lookup failure
+		// below must still surface.
+		return true, nil
+	}
+	enforce, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyTimetableEnforcePlannedEnd)
+	if err != nil {
+		return false, fmt.Errorf("%w: resolve planned end policy: %v", scheduleSvc.ErrLifecycleSettings, err)
+	}
+	return enforce, nil
 }

@@ -885,6 +885,9 @@ describe("InstanceDetailModal", () => {
     expect(screen.getByText(/Entschuldigt/)).toBeInTheDocument();
     expect(screen.getByText(/Ausflug/)).toBeInTheDocument();
     expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /als anwesend markieren|abmelden/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("explains why an offering-sourced occurrence has no children", () => {
