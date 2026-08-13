@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -157,6 +159,136 @@ func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
 	edited := detect(t, s)
 	require.Len(t, edited, 1)
 	assert.Equal(t, []string{scheduleSvc.EditedChangeStudents}, edited[0].Changes)
+}
+
+func TestDetectEditedInWindow_StudentRosterRemoval(t *testing.T) {
+	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+	defer s.runCleanup(t)
+	inst := materializeSingleInstance(t, s)
+
+	_, err := s.db.NewDelete().
+		Model((*scheduleModels.InstanceStudent)(nil)).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".instance_id = ?`, inst.ID).
+		Where(`"instance_student".student_id = ?`, s.students[0]).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	edited := detect(t, s)
+	require.Len(t, edited, 1)
+	assert.Equal(t, []string{scheduleSvc.EditedChangeStudents}, edited[0].Changes)
+}
+
+func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
+	statuses := []struct {
+		name      string
+		status    string
+		substatus string
+	}{
+		{name: "sick", status: activeModels.StudentStatusDaySick, substatus: scheduleModels.AttendanceSubstatusSick},
+		{name: "excused", status: activeModels.StudentStatusDayExcused, substatus: scheduleModels.AttendanceSubstatusExcused},
+		{name: "class trip", status: activeModels.StudentStatusDayClassTrip, substatus: scheduleModels.AttendanceSubstatusFieldTrip},
+	}
+
+	for _, tc := range statuses {
+		t.Run(tc.name, func(t *testing.T) {
+			s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+			defer s.runCleanup(t)
+			inst := materializeSingleInstance(t, s)
+
+			statusDay := &activeModels.StudentStatusDay{
+				StudentID:  s.students[0],
+				Date:       editWindowStart,
+				Status:     tc.status,
+				ReportedAt: time.Now(),
+				Source:     activeModels.StudentStatusSourcePlanned,
+			}
+			require.NoError(t, s.factory.StudentStatusDays.UpsertReported(s.ctx, statusDay))
+			s.extraCleanups = append(s.extraCleanups, func() {
+				testpkg.CleanupStudentStatusDays(t, s.db, statusDay.ID)
+			})
+
+			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			before, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
+			require.NoError(t, err)
+			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, before.Status)
+			require.NotNil(t, before.Substatus)
+			assert.Equal(t, tc.substatus, *before.Substatus)
+			require.NotNil(t, before.StudentStatusDayID)
+			assert.Equal(t, statusDay.ID, *before.StudentStatusDayID)
+
+			assert.Empty(t, detect(t, s), "a status-owned absence does not change roster membership")
+
+			_, err = s.factory.Instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
+			require.NoError(t, err)
+			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
+			require.Len(t, regenerated, 1)
+			s.registerCleanup("schedule.activity_instances", regenerated[0].ID)
+
+			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
+			require.NoError(t, err)
+			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, after.Status)
+			require.NotNil(t, after.Substatus)
+			assert.Equal(t, tc.substatus, *after.Substatus)
+			require.NotNil(t, after.StudentStatusDayID)
+			assert.Equal(t, statusDay.ID, *after.StudentStatusDayID)
+		})
+	}
+}
+
+func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *testing.T) {
+	tests := []struct {
+		name  string
+		apply func(*scheduleModels.InstanceStudent)
+	}{
+		{name: "observed present", apply: func(row *scheduleModels.InstanceStudent) {
+			now := time.Now()
+			row.Status = scheduleModels.AttendanceStatusPresent
+			row.CheckedInAt = &now
+		}},
+		{name: "manual absent", apply: func(row *scheduleModels.InstanceStudent) {
+			now := time.Now()
+			row.Status = scheduleModels.AttendanceStatusAbsent
+			row.ManualStatusAt = &now
+		}},
+		{name: "not scheduled", apply: func(row *scheduleModels.InstanceStudent) {
+			row.Status = scheduleModels.AttendanceStatusExpected
+			row.NotScheduled = true
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+			defer s.runCleanup(t)
+			inst := materializeSingleInstance(t, s)
+			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			row, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
+			require.NoError(t, err)
+			tc.apply(row)
+			require.NoError(t, studentRepo.Update(s.ctx, row))
+
+			edited := detect(t, s)
+			require.Len(t, edited, 1)
+			assert.Equal(t, []string{scheduleSvc.EditedChangeAttendance}, edited[0].Changes,
+				"unrestored attendance is a lost edit, but not a roster-membership change")
+			assert.NotContains(t, edited[0].Changes, scheduleSvc.EditedChangeStudents)
+
+			_, err = s.factory.Instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
+			require.NoError(t, err)
+			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
+			require.Len(t, regenerated, 1)
+			s.registerCleanup("schedule.activity_instances", regenerated[0].ID)
+
+			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
+			require.NoError(t, err)
+			assert.Equal(t, scheduleModels.AttendanceStatusExpected, after.Status)
+			assert.False(t, after.NotScheduled)
+			assert.Nil(t, after.ManualStatusAt)
+			assert.Nil(t, after.CheckedInAt)
+		})
+	}
 }
 
 func TestDetectEditedInWindow_StaffRosterEdit(t *testing.T) {

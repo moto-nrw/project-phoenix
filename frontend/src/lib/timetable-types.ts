@@ -647,6 +647,7 @@ export type EditedChange =
   | "time"
   | "staff"
   | "students"
+  | "attendance"
   | "list_kind"
   | "deleted";
 
