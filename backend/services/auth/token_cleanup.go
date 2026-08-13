@@ -55,20 +55,21 @@ func (s *Service) RevokeAllTokens(ctx context.Context, accountID int) error {
 }
 
 func (s *Service) RevokeAllTokensWithReason(ctx context.Context, accountID int, reason string) error {
-	var revoked []*auth.Token
-	var err error
 	if isAccountWideRevocation(reason) {
-		revoked, err = s.deleteAccountTokensWithAudit(ctx, int64(accountID), reason, "", "")
-	} else {
-		err = s.runInTx(ctx, func(txCtx context.Context) error {
-			tokens, txErr := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), reason, "", "")
-			if txErr != nil {
-				return txErr
-			}
-			revoked = tokens
-			return nil
-		})
+		if err := s.scheduleAccountWideRevoke(ctx, int64(accountID), reason, "", ""); err != nil {
+			return &AuthError{Op: "revoke all tokens", Err: err}
+		}
+		return nil
 	}
+	var revoked []*auth.Token
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		tokens, txErr := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), reason, "", "")
+		if txErr != nil {
+			return txErr
+		}
+		revoked = tokens
+		return nil
+	})
 	if err != nil {
 		return &AuthError{Op: "revoke all tokens", Err: err}
 	}

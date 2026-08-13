@@ -148,7 +148,7 @@ func tokenTenantIDsForPortal(tokens []*authModels.Token, portal string) []int64 
 
 func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
 	if isAccountWideRevocation(reason) {
-		return s.deleteAllAccountTokensWithAudit(ctx, accountID, reason, ipAddress, userAgent)
+		return nil, s.scheduleAccountWideRevoke(ctx, accountID, reason, ipAddress, userAgent)
 	}
 	tokens, err := s.repos.Token.DeleteByAccountIDReturning(ctx, accountID)
 	if err != nil {
@@ -160,31 +160,69 @@ func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID in
 	return tokens, nil
 }
 
-func (s *Service) deleteAllAccountTokensWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
-	var tokens []*authModels.Token
-	run := func(adminCtx context.Context) error {
-		var err error
-		tokens, err = s.repos.Token.DeleteByAccountIDReturning(adminCtx, accountID)
+func (s *Service) scheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
+	if tenant.IsAdminTx(ctx) || (tenant.FromContext(ctx) == 0 && hasAmbientTx(ctx)) {
+		_, err := s.deleteAllAccountTokensInCtx(ctx, accountID, reason, ipAddress, userAgent)
+		return err
+	}
+	if tenant.HasAfterCommitHooks(ctx) {
+		tenant.RegisterAfterCommit(ctx, func() {
+			if err := s.wipeAccountWideIndependently(ctx, accountID, reason, ipAddress, userAgent); err != nil {
+				s.getLogger().Warn("failed to revoke remaining sessions after commit",
+					slog.Int64("account_id", accountID),
+					slog.String("reason", reason),
+					slog.Any("error", err),
+				)
+			}
+		})
+		return nil
+	}
+	if hasAmbientTx(ctx) {
+		// Plain tenant RunInTx has no after-commit queue. Nesting AdminTx
+		// deadlocks. The caller must invoke revoke after that tx commits.
+		return nil
+	}
+	return s.wipeAccountWideIndependently(ctx, accountID, reason, ipAddress, userAgent)
+}
+
+func hasAmbientTx(ctx context.Context) bool {
+	_, ok := modelBase.TxFromContext(ctx)
+	return ok
+}
+
+func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
+	if s.db == nil {
+		tokens, err := s.deleteAllAccountTokensInCtx(ctx, accountID, reason, ipAddress, userAgent)
 		if err != nil {
 			return err
 		}
-		return s.auditRevokedTokens(adminCtx, tokens, reason, ipAddress, userAgent)
-	}
-	// Never nest a second transaction. Offboarding and tenant requests already
-	// hold a connection (and often the account row). A nested AdminTx times
-	// out on the 3-conn test pool. Cross-tenant wipe happens when we can
-	// start a fresh admin transaction.
-	if _, ok := modelBase.TxFromContext(ctx); ok {
-		return tokens, run(ctx)
-	}
-	if s.db == nil {
-		return tokens, run(ctx)
+		s.cleanupPushAfterTokenRevocation(ctx, accountID, tokens, reason)
+		return nil
 	}
 	adminCtx := tenant.WithTenantID(modelBase.ContextWithoutTx(ctx), 0)
+	adminCtx = tenant.ContextWithoutAfterCommitHooks(adminCtx)
+	var tokens []*authModels.Token
 	err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		return run(txCtx)
+		var innerErr error
+		tokens, innerErr = s.deleteAllAccountTokensInCtx(txCtx, accountID, reason, ipAddress, userAgent)
+		return innerErr
 	})
-	return tokens, err
+	if err != nil {
+		return err
+	}
+	s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason)
+	return nil
+}
+
+func (s *Service) deleteAllAccountTokensInCtx(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
+	tokens, err := s.repos.Token.DeleteByAccountIDReturning(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
+		return nil, err
+	}
+	return tokens, nil
 }
 
 func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.Token, reason, ipAddress, userAgent string) error {

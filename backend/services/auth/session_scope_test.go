@@ -7,6 +7,7 @@ import (
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -174,6 +175,48 @@ func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
 
 	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/school-a"))
 	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/school-b"))
+}
+
+func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("revoke-all-tenant-tx")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	other := &authModels.Token{
+		AccountID:   account.ID,
+		Token:       uniqueTestName("other-school-live"),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: authModels.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/tx-school-a", "family-a")
+	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/tx-school-b", "family-b")
+
+	require.NoError(t, tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return service.RevokeAllTokens(txCtx, int(account.ID))
+	}))
+
+	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count)
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/tx-school-a"))
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/tx-school-b"))
 }
 
 func countStaffPush(t *testing.T, db *bun.DB, accountID int64, endpoint string) int {

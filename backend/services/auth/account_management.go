@@ -39,11 +39,9 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 	if err != nil {
 		return err
 	}
-	revoked, err := s.deleteAccountTokensWithAudit(ctx, int64(accountID), "account_deactivated", "", "")
-	if err != nil {
+	if err := s.scheduleAccountWideRevoke(ctx, int64(accountID), "account_deactivated", "", ""); err != nil {
 		return &AuthError{Op: "revoke tokens during account deactivation", Err: err}
 	}
-	s.cleanupPushAfterTokenRevocation(ctx, int64(accountID), revoked, "account_deactivated")
 	return nil
 }
 
