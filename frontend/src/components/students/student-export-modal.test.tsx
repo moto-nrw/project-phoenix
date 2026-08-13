@@ -219,6 +219,29 @@ describe("StudentExportModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("treats one escaped class name as a single class (#2218)", async () => {
+    // A class may legitimately be called "A,B", and it then travels escaped as
+    // "A\,B". Splitting on the bare comma would read that as two classes and
+    // offer per-class separation for a single-class export.
+    await openModal({
+      filters: { search: "mila", school_class: "A\\,B" },
+    });
+
+    expect(
+      screen.queryByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers grouping when two classes are selected (#2218)", async () => {
+    await openModal({
+      filters: { search: "mila", school_class: "3a,4b" },
+    });
+
+    expect(
+      screen.getByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+    ).toBeChecked();
+  });
+
   it("keeps the dialog open and reports export failures", async () => {
     mockExportStudents.mockRejectedValueOnce(new Error("PDF kaputt"));
     const { onClose } = await openModal();

@@ -537,9 +537,9 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Alle Kinder` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
-          "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern.",
+          "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern. `Klasse`, `Gruppe` und `Stufe` erlauben mehrere Werte gleichzeitig: einfach mehrere Einträge antippen, etwa `3a` und `4b`, wenn zwei Gruppen zusammen betreut werden. Ohne Auswahl gilt weiterhin `alle`; ein erneuter Klick auf einen Eintrag nimmt ihn wieder heraus, `Zurücksetzen` im Filterfenster leert alle Filter.",
           "Über `Filter` im Abschnitt `Anwesenheit` beim Punkt `Tag` (`Heute`, `Morgen` oder ein frei gewähltes Datum bis zum Sonntag der laufenden Woche) festlegen, für welchen Tag die geplante Anwesenheit gilt. Direkt darunter grenzt der Filter `Kommt` beziehungsweise `Kommt nicht` die Liste auf den gewählten Tag ein; Krankmeldungen, Entschuldigungen und Tagesausnahmen werden für diesen Tag ausgewertet. Bei einem anderen Tag als heute bleiben aktuelle Aufenthaltsorte und Live-Filter ausgeblendet, denn wer gerade im Haus ist, sagt nichts über einen anderen Tag aus. Auch Ergebniszahl und `Exportieren` nutzen den gewählten Tag.",
-          "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Ohne Klassenfilter erzeugt die Option `Nach Klassen getrennt` alle Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
+          "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Bei genau einer gewählten Klasse entsteht eine einzelne Liste. Sind mehrere oder gar keine Klassen gewählt, erzeugt die Option `Nach Klassen getrennt` die Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
           "Die Vorlage `Tagesplanung` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
           "Die Vorlage `Geburtstagsliste` gibt die Geburtstage der gefilterten Kinder nach Kalender sortiert aus, voreingestellt für den aktuellen Monat. Alle Listen der Schule gebündelt findest du unter `Datenverwaltung` -> `Exporte`.",
           "Auf jeder Kinderkarte unter `Heimweg` ablesen, wie das Kind am gewählten Tag nach Hause gehen darf. Sind mehrere Wege erlaubt, werden alle angezeigt. Ein Strich bedeutet, dass keine Regel hinterlegt ist.",
@@ -555,8 +555,19 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Alle Kinder mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
-        image: "/help/screens/kindersuche.webp",
+          "Alle Kinder mit Suchfeld, Status-Badges und Aktivitäts-Indikatoren sowie das Filterfenster mit der Mehrfachauswahl bei Klasse.",
+        gallery: [
+          {
+            image: "/help/screens/kindersuche.webp",
+            caption:
+              "Alle Kinder mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
+          },
+          {
+            image: "/help/screens/kindersuche-mehrfachauswahl.webp",
+            caption:
+              "Filterfenster: „Klasse“ ist aufgeklappt, „Klasse 3a“ und „Klasse 4b“ sind angehakt, das Feld zeigt „2 Klassen“. „Stufe“ und „Gruppe“ funktionieren genauso.",
+          },
+        ],
       },
       {
         id: "kinderdetailansicht",

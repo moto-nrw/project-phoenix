@@ -391,7 +391,10 @@ describe("FilterPanel", () => {
       expect(mockOnChange).toHaveBeenCalledWith("101");
     });
 
-    it("renders multi-select dropdowns as compact buttons with counts", () => {
+    // A multi-select is a dropdown too, not a wall of toggle chips: a school
+    // with ten groups and eight classes would otherwise get two unreadable
+    // blocks of buttons that grow with every class it adds.
+    it("renders multi-select dropdowns as a dropdown naming the selection", () => {
       const multiDropdownFilters: FilterConfig[] = [
         {
           ...dropdownFilters[0]!,
@@ -408,13 +411,36 @@ describe("FilterPanel", () => {
         />,
       );
 
-      expect(screen.queryByTestId("filter-room")).not.toBeInTheDocument();
-      expect(screen.getByText("Raum 101")).toHaveClass(
-        "bg-gray-900",
-        "text-white",
+      expect(screen.getByTestId("filter-room")).toHaveTextContent("Raum 101");
+      fireEvent.click(screen.getByTestId("filter-room"));
+      expect(
+        screen.getByRole("option", { name: "Raum 101 (5)" }),
+      ).toHaveAttribute("aria-selected", "true");
+      expect(
+        screen.getByRole("option", { name: "Raum 102 (3)" }),
+      ).toHaveAttribute("aria-selected", "false");
+    });
+
+    it("names an empty multi-select selection after the filter", () => {
+      const multiDropdownFilters: FilterConfig[] = [
+        {
+          ...dropdownFilters[0]!,
+          value: [],
+          multiSelect: true,
+        },
+      ];
+
+      render(
+        <FilterPanel
+          isOpen={true}
+          onClose={mockOnClose}
+          filters={multiDropdownFilters}
+        />,
       );
-      expect(screen.getByText("(5)")).toHaveClass("text-gray-300");
-      expect(screen.getByText("(3)")).toHaveClass("text-gray-500");
+
+      // No neutral "Alle …" option to check — an empty selection IS "alle",
+      // and the trigger has to say so.
+      expect(screen.getByTestId("filter-room")).toHaveTextContent("Alle Raum");
     });
 
     it("toggles multi-select dropdown options", () => {
@@ -434,9 +460,15 @@ describe("FilterPanel", () => {
         />,
       );
 
-      fireEvent.click(screen.getByText("Raum 102"));
+      fireEvent.click(screen.getByTestId("filter-room"));
+      fireEvent.click(screen.getByRole("option", { name: "Raum 102 (3)" }));
 
       expect(mockOnChange).toHaveBeenCalledWith(["101", "102"]);
+      // The menu stays open so a second value can be picked without
+      // reopening it.
+      expect(
+        screen.getByRole("option", { name: "Raum 101 (5)" }),
+      ).toBeInTheDocument();
     });
   });
 

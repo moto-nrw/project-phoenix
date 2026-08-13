@@ -28,9 +28,9 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	})
 
 	assert.Equal(t, "mila", params.search)
-	assert.Equal(t, int64(17), params.groupID)
+	assert.Equal(t, []int64{17}, params.groupIDs)
 	assert.Equal(t, int64(42), params.roomID)
-	assert.Equal(t, "3a", params.schoolClass)
+	assert.Equal(t, []string{"3a"}, params.schoolClasses)
 	assert.Equal(t, studentExportPageSize, params.pageSize)
 	assert.True(t, params.includePickupTimes)
 	assert.True(t, params.includeArrivalTimes)
@@ -318,6 +318,44 @@ func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 	assert.Contains(t, labels, "Abholregelung: Geht alleine nach Hause")
 	assert.Contains(t, labels, "Momentaufnahme: Klassenfahrt")
 	assert.Contains(t, labels, "Tagesplanung: Kommt heute nicht")
+}
+
+// #2218: an export started from the Kindersuche inherits the page's filters,
+// so a multi-class / multi-group selection must survive the trip into the list
+// query instead of collapsing to its first value.
+func TestExportRequestToListParamsAcceptsMultipleClassesAndGroups(t *testing.T) {
+	params := exportRequestToListParams(studentExportRequest{
+		Filters: studentExportFilters{
+			SchoolClass: "3a, 4b",
+			GroupID:     "17,19",
+		},
+	})
+
+	assert.Equal(t, []string{"3a", "4b"}, params.schoolClasses)
+	assert.Equal(t, []int64{17, 19}, params.groupIDs)
+}
+
+// The school-year filter runs in memory over the fetched rows, so it needs the
+// same multi-value semantics — and the printed header must name every selected
+// year rather than only the first (#2218).
+func TestApplyExportFiltersMultipleSchoolYears(t *testing.T) {
+	students := []StudentResponse{
+		{ID: 201, SchoolClass: "2a"},
+		{ID: 202, SchoolClass: "3a"},
+		{ID: 203, SchoolClass: "Klasse 4b"},
+	}
+
+	got := applyExportFilters(students, studentExportFilters{Year: "3,4"}, listexport.PresetOGSWeekly, testExportDate)
+
+	gotIDs := make([]int64, 0, len(got))
+	for _, student := range got {
+		gotIDs = append(gotIDs, student.ID)
+	}
+	assert.Equal(t, []int64{202, 203}, gotIDs)
+
+	labels := exportFilterLabels(studentExportFilters{Year: "3,4", SchoolClass: "3a,4b"})
+	assert.Contains(t, labels, "Stufe: 3, 4")
+	assert.Contains(t, labels, "Klasse: 3a, 4b")
 }
 
 func TestWeeklyCellUsesExplicitLabels(t *testing.T) {

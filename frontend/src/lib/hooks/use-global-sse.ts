@@ -32,8 +32,8 @@ import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
   SEARCH_STUDENTS_ALL_GROUPS_KEY,
-  SEARCH_STUDENTS_GROUP_KEY_PREFIX,
   SEARCH_STUDENTS_KEY_PREFIX,
+  searchStudentsKeyTargetsGroup,
 } from "~/lib/swr/search-students-key";
 import {
   notifyStudentCompanionDisplayChanged,
@@ -440,7 +440,7 @@ export function useGlobalSSE(): SSEHookState {
             (broadSearch ||
               key.includes(SEARCH_STUDENTS_ALL_GROUPS_KEY) ||
               [...scopedEduGroupIds].some((gid) =>
-                keyTargetsId(key, gid, [SEARCH_STUDENTS_GROUP_KEY_PREFIX]),
+                searchStudentsKeyTargetsGroup(key, gid),
               )),
         ).catch((err) => {
           logger.debug("swr_revalidation_failed", {
