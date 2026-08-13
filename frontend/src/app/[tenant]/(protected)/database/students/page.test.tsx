@@ -17,6 +17,8 @@ vi.mock("next-auth/react", () => ({
 // the detail panel to show, and assert on `mockReplace` for click-driven
 // navigations (which in the real page flow would update the URL).
 let currentSearch: URLSearchParams = new URLSearchParams();
+let suspendSearchParams = false;
+const pendingSearchParams = new Promise<never>(() => undefined);
 const mockReplace = vi.fn((url: string) => {
   const q = url.includes("?") ? (url.split("?")[1] ?? "") : "";
   currentSearch = new URLSearchParams(q);
@@ -30,7 +32,16 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   useRouter: vi.fn(() => ({ push: vi.fn(), replace: mockReplace })),
   usePathname: vi.fn(() => "/tenant/database/students"),
-  useSearchParams: () => currentSearch,
+  useSearchParams: () => {
+    if (suspendSearchParams) throw pendingSearchParams;
+    return currentSearch;
+  },
+}));
+
+vi.mock("../section-skeleton", () => ({
+  DatabaseSectionSkeleton: () => (
+    <div data-testid="database-section-skeleton">Loading</div>
+  ),
 }));
 
 // Mock SWR hooks
@@ -345,6 +356,7 @@ const mockStudents = [
 
 describe("StudentsPage", () => {
   beforeEach(() => {
+    suspendSearchParams = false;
     vi.clearAllMocks();
     setSelectedStudent(null);
     mockSessionWithPermissions(["config:manage", "users:delete"]);
@@ -377,6 +389,14 @@ describe("StudentsPage", () => {
     mockGetOne.mockImplementation((id: string) =>
       Promise.resolve(mockStudents.find((s) => s.id === id)),
     );
+  });
+
+  it("shows the database skeleton while the route suspends", () => {
+    suspendSearchParams = true;
+
+    render(<StudentsPage />);
+
+    expect(screen.getByTestId("database-section-skeleton")).toBeVisible();
   });
 
   it("renders the page with students data", async () => {
