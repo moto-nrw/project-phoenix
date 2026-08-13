@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -206,6 +207,83 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	count, err = readRepo.UnreadMessageCountForStaff(ctx, reader, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+// TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage pins the
+// reply/message race: handling a snapshot up to one guardian row must leave a
+// later row with the same timestamp and a higher id unread for every colleague.
+func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Miriam", "Klein")
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+
+	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
+	msgRepo := usersRepo.NewParentMessageRepository(db)
+	readRepo := usersRepo.NewParentMessageReadRepository(db)
+	ctx := tenantCtx()
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, threadRepo.Create(ctx, thread))
+
+	tie := time.Now().Truncate(time.Microsecond)
+	first := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "erste")
+	first.CreatedAt, first.UpdatedAt = tie, tie
+	require.NoError(t, msgRepo.Create(ctx, first))
+	require.NoError(t, readRepo.MarkStaffHandledUpTo(ctx, 1, thread.ID, first.CreatedAt, first.ID))
+
+	concurrent := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "gleichzeitig")
+	concurrent.CreatedAt, concurrent.UpdatedAt = tie, tie
+	require.NoError(t, msgRepo.Create(ctx, concurrent))
+	require.Greater(t, concurrent.ID, first.ID)
+
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "a tied higher-id message outside the handled snapshot must remain unread")
+
+	require.NoError(t, readRepo.MarkStaffHandledUpTo(ctx, 1, thread.ID, concurrent.CreatedAt, concurrent.ID))
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+}
+
+func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentMessageThreadRepository(db)
+	ctx := tenantCtx()
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, repo.Create(ctx, thread))
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	holderCtx := modelBase.ContextWithTx(ctx, &holder)
+	require.NoError(t, repo.LockForMessageAppend(holderCtx, thread.ID))
+
+	contender, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = contender.Rollback() }()
+	_, err = contender.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
+	require.NoError(t, err)
+	contenderCtx := modelBase.ContextWithTx(ctx, &contender)
+	err = repo.LockForMessageAppend(contenderCtx, thread.ID)
+	require.Error(t, err, "a second append must wait for the first transaction")
+	assert.True(t, isLockTimeoutError(err), "expected lock_timeout, got: %v", err)
+	require.NoError(t, contender.Rollback())
+
+	require.NoError(t, holder.Commit())
+	followUp, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = followUp.Rollback() }()
+	followUpCtx := modelBase.ContextWithTx(ctx, &followUp)
+	require.NoError(t, repo.LockForMessageAppend(followUpCtx, thread.ID))
 }
 
 // newRequestCreatedPill builds a "request created" event pill as the emitter
