@@ -177,7 +177,9 @@ export function DatePicker({
   // Known only after the trigger is measured; until then assume the roomy
   // variant, which is what every field wider than a filter chip gets.
   const isCompactPanel =
-    popoverPosition !== null && popoverPosition.width < COMPACT_CARD_MAX_WIDTH;
+    calendarLayout === "inline" ||
+    (popoverPosition !== null &&
+      popoverPosition.width < COMPACT_CARD_MAX_WIDTH);
   const locale = isMultiple ? de : (props.locale ?? de);
   const labels = resolveLabels(isMultiple ? undefined : props.labels);
   const displayValue = isMultiple
@@ -1138,9 +1140,10 @@ function getCalendarContainerClass(
     compact ? "p-3" : "p-4"
   }`;
   // The floating layouts get their width from the portal wrapper. Inline
-  // calendars belong to their container and must shrink with narrow modals.
+  // calendars belong to their container, but retain the minimum width needed
+  // for 20px day buttons with compact card padding.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-full min-w-0 max-w-full`;
+    return `${base} mt-2 w-full min-w-[222px] max-w-full`;
   }
   return `${base} w-full`;
 }

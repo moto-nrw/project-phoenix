@@ -201,7 +201,7 @@ describe("DatePicker", () => {
     expect(controls?.nextElementSibling).toBe(panel);
   });
 
-  it("lets an inline calendar shrink to a narrow modal", () => {
+  it("keeps compact sizing and legible day buttons in a narrow modal", () => {
     render(
       <DatePicker
         value={null}
@@ -215,8 +215,8 @@ describe("DatePicker", () => {
     const panel = screen
       .getByTestId("day-picker")
       .closest("[data-date-picker-panel]");
-    expect(panel).toHaveClass("w-full", "min-w-0", "max-w-full");
-    expect(panel).not.toHaveClass("min-w-[304px]");
+    expect(panel).toHaveClass("w-full", "min-w-[222px]", "max-w-full", "p-3");
+    expect(panel).not.toHaveClass("p-4", "min-w-[304px]");
   });
 
   it("calls onChange when a date is selected", async () => {
