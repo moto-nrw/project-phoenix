@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { timetableOperationsApi } from "./timetable-operations-api";
+import {
+  timetableOperationsApi,
+  TimetableOperationsApiError,
+} from "./timetable-operations-api";
 
 describe("timetableOperationsApi", () => {
   let originalFetch: typeof fetch;
@@ -319,6 +322,25 @@ describe("timetableOperationsApi", () => {
     await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 500)",
     );
+  });
+
+  it("keeps http status and backend code on operations errors", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      jsonResponse({ error: "Raum belegt", code: "room_conflict" }, false, 409),
+    );
+
+    const err = await timetableOperationsApi.reopen("137").then(
+      () => {
+        throw new Error("expected reopen to fail");
+      },
+      (caught: unknown) => caught,
+    );
+    expect(err).toBeInstanceOf(TimetableOperationsApiError);
+    expect(err).toMatchObject({
+      name: "TimetableOperationsApiError",
+      httpStatus: 409,
+      code: "room_conflict",
+    });
   });
 });
 

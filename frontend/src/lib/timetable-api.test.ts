@@ -1253,4 +1253,55 @@ describe("staff pool + move (#1884)", () => {
     const [, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
     expect(JSON.parse(String(init.body))).toEqual({ staff_id: 9 });
   });
+
+  it("posts confirmed present ids and reopens a completed instance", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            status: "completed",
+            completed_at: "2026-05-04T13:00:00Z",
+            reopen_until: "2026-05-04T13:05:00Z",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            status: "active",
+            active_group_id: 99,
+            started_at: "2026-05-04T13:01:00Z",
+            warnings: [],
+          },
+        }),
+      );
+
+    await expect(
+      timetableService.complete("42", ["21", "22"]),
+    ).resolves.toMatchObject({
+      instanceId: "42",
+      status: "completed",
+      reopenUntil: "2026-05-04T13:05:00Z",
+    });
+    await expect(timetableService.reopen("42")).resolves.toMatchObject({
+      instanceId: "42",
+      activeGroupId: "99",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/instances/42/complete",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ confirmed_present_student_ids: [21, 22] }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/instances/42/reopen",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
 });

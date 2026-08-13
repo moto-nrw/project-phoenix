@@ -511,6 +511,30 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 	require.NotNil(t, group.EndTime, "active.group should have been ended")
 }
 
+func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+
+	now := time.Now()
+	visit := &activeModels.Visit{StudentID: s.student1, ActiveGroupID: started.ActiveGroupID, EntryTime: now}
+	visit.SetTenantID(1)
+	_, err = s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
+
+	_, err = s.svc.Complete(scheduleSvc.WithCompletionConfirmation(s.ctx, []int64{s.student2}), ai.ID)
+	require.ErrorIs(t, err, scheduleSvc.ErrCompletionConfirmationStale)
+
+	completed, err := s.svc.Complete(scheduleSvc.WithCompletionConfirmation(s.ctx, []int64{s.student1}), ai.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusCompleted, completed.Status)
+}
+
 func TestInstance_Reopen_HappyPath(t *testing.T) {
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)
@@ -592,6 +616,87 @@ func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, activeSvc.ErrRoomCapacityExceeded)
+}
+
+func TestInstance_Reopen_RejectsNonActor(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 42, false)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationForbidden)
+}
+
+func TestInstance_Reopen_RejectsExpiredWindow(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("reopen_until = ?", time.Now().Add(-time.Minute)).
+		Where("id = ?", ai.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
+}
+
+func TestInstance_Reopen_RejectsAttendanceChangedAfterComplete(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("schedule.instance_students").
+		Set("updated_at = ?", time.Now().Add(time.Minute)).
+		Where("instance_id = ?", ai.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationConflict)
+}
+
+func TestInstance_Reopen_RejectsMissingSnapshot(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("completion_snapshot = NULL").
+		Where("id = ?", ai.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 }
 
 func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {

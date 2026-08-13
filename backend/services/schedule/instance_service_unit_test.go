@@ -14,6 +14,93 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type lifecycleSettingsStub struct {
+	intVal  int
+	intErr  error
+	boolVal bool
+	boolErr error
+}
+
+func (s lifecycleSettingsStub) ResolveInt(context.Context, string) (int, error) {
+	return s.intVal, s.intErr
+}
+
+func (s lifecycleSettingsStub) ResolveBool(context.Context, string) (bool, error) {
+	return s.boolVal, s.boolErr
+}
+
+func plannedLifecycleInstance() *scheduleModel.ActivityInstance {
+	return &scheduleModel.ActivityInstance{
+		Date:      timezone.NewDate(2026, 8, 13),
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+	}
+}
+
+func TestValidateStartTime(t *testing.T) {
+	inst := plannedLifecycleInstance()
+	tooEarly := time.Date(2026, 8, 13, 13, 0, 0, 0, timezone.Berlin)
+	inWindow := time.Date(2026, 8, 13, 13, 50, 0, 0, timezone.Berlin)
+	afterEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, timezone.Berlin)
+
+	require.NoError(t, (&instanceService{}).validateStartTime(context.Background(), inst, tooEarly))
+
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		EnforceTimePolicy: true,
+		Settings:          lifecycleSettingsStub{intVal: 15},
+	}}
+	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, tooEarly), ErrInstanceStartTooEarly)
+	require.NoError(t, svc.validateStartTime(context.Background(), inst, inWindow))
+	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, afterEnd), ErrInstanceStartExpired)
+
+	spontaneous := *inst
+	spontaneous.IsSpontaneous = true
+	require.NoError(t, svc.validateStartTime(context.Background(), &spontaneous, tooEarly))
+
+	svc.deps.Settings = lifecycleSettingsStub{intErr: errors.New("settings unavailable")}
+	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, inWindow), ErrLifecycleSettings)
+}
+
+func TestValidateCompleteTime(t *testing.T) {
+	inst := plannedLifecycleInstance()
+	beforeEnd := time.Date(2026, 8, 13, 14, 30, 0, 0, timezone.Berlin)
+	atEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, timezone.Berlin)
+
+	require.NoError(t, (&instanceService{}).validateCompleteTime(context.Background(), inst, beforeEnd))
+
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		EnforceTimePolicy: true,
+		Settings:          lifecycleSettingsStub{boolVal: true},
+	}}
+	require.ErrorIs(t, svc.validateCompleteTime(context.Background(), inst, beforeEnd), ErrInstanceCompleteEarly)
+	require.NoError(t, svc.validateCompleteTime(context.Background(), inst, atEnd))
+
+	svc.deps.Settings = lifecycleSettingsStub{boolVal: false}
+	require.NoError(t, svc.validateCompleteTime(context.Background(), inst, beforeEnd))
+
+	spontaneous := *inst
+	spontaneous.IsSpontaneous = true
+	svc.deps.Settings = lifecycleSettingsStub{boolVal: true}
+	require.NoError(t, svc.validateCompleteTime(context.Background(), &spontaneous, beforeEnd))
+
+	svc.deps.Settings = lifecycleSettingsStub{boolErr: errors.New("settings unavailable")}
+	require.ErrorIs(t, svc.validateCompleteTime(context.Background(), inst, atEnd), ErrLifecycleSettings)
+}
+
+func TestInstanceNowUsesWallClockWhenUnset(t *testing.T) {
+	got := (&instanceService{}).now()
+	assert.False(t, got.IsZero())
+}
+
+func TestWithCompletionConfirmationStoresClone(t *testing.T) {
+	ids := []int64{42, 41}
+	ctx := WithCompletionConfirmation(context.Background(), ids)
+	ids[0] = 40
+	got, ok := ctx.Value(lifecycleConfirmedStudentsKey).([]int64)
+	require.True(t, ok)
+	assert.Equal(t, []int64{42, 41}, got)
+}
+
 func TestCanReopenInstance(t *testing.T) {
 	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
 	until := now.Add(5 * time.Minute)

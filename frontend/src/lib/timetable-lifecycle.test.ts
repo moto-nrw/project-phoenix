@@ -36,6 +36,17 @@ describe("timetable lifecycle clock", () => {
     ).toBe(false);
   });
 
+  it("keeps start available when the payload already allows it", () => {
+    expect(
+      canStartPlannedInstance(
+        { canStart: true, startExpiresAt: "not-a-date" },
+        now,
+      ),
+    ).toBe(true);
+    expect(canStartPlannedInstance({ canStart: false }, now)).toBe(false);
+    expect(isPlannedStartExpired(undefined, now)).toBe(false);
+  });
+
   it("unlocks complete when completeAvailableAt is reached", () => {
     expect(canCompleteInstance(false, "2026-05-10T14:30:00+02:00", now)).toBe(
       false,
