@@ -920,6 +920,13 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	if s.deps.RecoveryRepo == nil {
 		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: errors.New("recovery repository not wired")}
 	}
+	// CreateVisit locks student then room. Lock snapshot students first so a
+	// concurrent check-in of one of those children into another group in the
+	// same room cannot deadlock (room-then-student vs student-then-room).
+	studentIDs, err := s.lockReopenSnapshotStudents(ctx, snapshot)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.validateReopenOccupancy(ctx, instance, snapshot); err != nil {
 		return nil, err
 	}
@@ -928,38 +935,6 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	}
 	if err := s.validateReopenSupervisorsUnchanged(ctx, instance, snapshot); err != nil {
 		return nil, err
-	}
-	closedVisits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "reopen instance: load visits", Err: err}
-	}
-	studentByVisit := make(map[int64]int64, len(closedVisits))
-	for _, visit := range closedVisits {
-		studentByVisit[visit.ID] = visit.StudentID
-	}
-	studentIDs := make([]int64, 0, len(snapshot.VisitIDs))
-	for _, visitID := range snapshot.VisitIDs {
-		studentID := studentByVisit[visitID]
-		if studentID <= 0 {
-			return nil, fmt.Errorf("%w: snapshot visit missing", ErrInvalidInstanceTransition)
-		}
-		studentIDs = append(studentIDs, studentID)
-	}
-	slices.Sort(studentIDs)
-	studentIDs = slices.Compact(studentIDs)
-	for _, studentID := range studentIDs {
-		if _, err := s.deps.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
-			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: err}
-		}
-	}
-	for _, studentID := range studentIDs {
-		current, findErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-		if findErr != nil && !modelBase.IsNoRows(findErr) {
-			return nil, findErr
-		}
-		if current != nil {
-			return nil, fmt.Errorf("%w: student %d already has an active visit", ErrTimetableOperationConflict, studentID)
-		}
 	}
 	if err := s.deps.RecoveryRepo.Restore(ctx, instance.ID, snapshot, s.now()); err != nil {
 		if modelBase.IsUniqueViolation(err) {
@@ -1109,6 +1084,45 @@ func AttendanceUnchangedSinceCompletion(instance *scheduleModel.ActivityInstance
 	return true
 }
 
+func (s *instanceService) lockReopenSnapshotStudents(ctx context.Context, snapshot scheduleModel.ActivityCompletionSnapshot) ([]int64, error) {
+	if len(snapshot.VisitIDs) == 0 {
+		return nil, nil
+	}
+	closedVisits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "reopen instance: load visits", Err: err}
+	}
+	studentByVisit := make(map[int64]int64, len(closedVisits))
+	for _, visit := range closedVisits {
+		studentByVisit[visit.ID] = visit.StudentID
+	}
+	studentIDs := make([]int64, 0, len(snapshot.VisitIDs))
+	for _, visitID := range snapshot.VisitIDs {
+		studentID := studentByVisit[visitID]
+		if studentID <= 0 {
+			return nil, fmt.Errorf("%w: snapshot visit missing", ErrInvalidInstanceTransition)
+		}
+		studentIDs = append(studentIDs, studentID)
+	}
+	slices.Sort(studentIDs)
+	studentIDs = slices.Compact(studentIDs)
+	for _, studentID := range studentIDs {
+		if _, err := s.deps.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: err}
+		}
+	}
+	for _, studentID := range studentIDs {
+		current, findErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
+		if findErr != nil && !modelBase.IsNoRows(findErr) {
+			return nil, findErr
+		}
+		if current != nil {
+			return nil, fmt.Errorf("%w: student %d already has an active visit", ErrTimetableOperationConflict, studentID)
+		}
+	}
+	return studentIDs, nil
+}
+
 func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
 	room, err := s.deps.RoomRepo.FindByIDForUpdate(ctx, instance.RoomID)
 	if err != nil {
@@ -1252,6 +1266,16 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 			// closed for them.
 			return nil, &ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
 		}
+	}
+	// Same attendance row locks the PATCH path takes. Without them a PATCH
+	// can observe active, wait on its UPDATE, then commit after this cancel
+	// has already frozen the instance.
+	if s.deps.RecoveryRepo != nil {
+		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
+			return nil, &ScheduleError{Op: "cancel instance: lock attendance", Err: err}
+		}
+	}
+	if instance.Status == scheduleModel.InstanceStatusActive {
 		if err := s.deps.ActiveService.EndActivitySession(ctx, *instance.ActiveGroupID); err != nil {
 			return nil, &ScheduleError{Op: "cancel instance: end active.group", Err: err}
 		}

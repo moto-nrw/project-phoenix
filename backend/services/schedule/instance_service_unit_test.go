@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -190,6 +191,87 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 	require.NotNil(t, dash[0].Data.GroupIDs)
 	assert.Equal(t, []string{"70"}, *dash[0].Data.GroupIDs)
 	assert.Empty(t, broadcaster.EventsOfType(realtime.EventStudentCheckIn))
+}
+
+type reopenVisitStub struct {
+	activeModel.VisitRepository
+	byGroup map[int64][]*activeModel.Visit
+	current map[int64]*activeModel.Visit
+	findErr error
+}
+
+func (r *reopenVisitStub) FindByActiveGroupID(_ context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	return r.byGroup[activeGroupID], nil
+}
+
+func (r *reopenVisitStub) GetCurrentByStudentID(_ context.Context, studentID int64) (*activeModel.Visit, error) {
+	return r.current[studentID], nil
+}
+
+type reopenStudentLockStub struct {
+	usersModel.StudentRepository
+	locked []int64
+}
+
+func (s *reopenStudentLockStub) FindByIDForUpdate(_ context.Context, id int64) (*usersModel.Student, error) {
+	s.locked = append(s.locked, id)
+	student := &usersModel.Student{}
+	student.ID = id
+	return student, nil
+}
+
+func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
+	visitA := &activeModel.Visit{StudentID: 52}
+	visitA.ID = 20
+	visitB := &activeModel.Visit{StudentID: 41}
+	visitB.ID = 21
+	visitDup := &activeModel.Visit{StudentID: 52}
+	visitDup.ID = 22
+	students := &reopenStudentLockStub{}
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		VisitRepo: &reopenVisitStub{byGroup: map[int64][]*activeModel.Visit{
+			90: {visitA, visitB, visitDup},
+		}},
+		StudentRepo: students,
+	}}
+
+	got, err := svc.lockReopenSnapshotStudents(context.Background(), scheduleModel.ActivityCompletionSnapshot{
+		ActiveGroupID: 90,
+		VisitIDs:      []int64{22, 20, 21},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{41, 52}, got)
+	assert.Equal(t, []int64{41, 52}, students.locked)
+}
+
+func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
+	visit := &activeModel.Visit{StudentID: 52}
+	visit.ID = 20
+	current := &activeModel.Visit{StudentID: 52}
+	current.ID = 99
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		VisitRepo: &reopenVisitStub{
+			byGroup: map[int64][]*activeModel.Visit{90: {visit}},
+			current: map[int64]*activeModel.Visit{52: current},
+		},
+		StudentRepo: &reopenStudentLockStub{},
+	}}
+
+	_, err := svc.lockReopenSnapshotStudents(context.Background(), scheduleModel.ActivityCompletionSnapshot{
+		ActiveGroupID: 90,
+		VisitIDs:      []int64{20},
+	})
+	require.ErrorIs(t, err, ErrTimetableOperationConflict)
+}
+
+func TestLockReopenSnapshotStudents_EmptySnapshot(t *testing.T) {
+	svc := &instanceService{}
+	got, err := svc.lockReopenSnapshotStudents(context.Background(), scheduleModel.ActivityCompletionSnapshot{})
+	require.NoError(t, err)
+	assert.Nil(t, got)
 }
 
 func TestBroadcastRestoredVisits_SkipsEmptyRestore(t *testing.T) {

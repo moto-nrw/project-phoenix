@@ -102,7 +102,8 @@ type ActivityRecoveryRepository interface {
 	// concurrent staffing change cannot hide from the unchanged-row check.
 	LockSupervisors(ctx context.Context, supervisorIDs []int64) error
 	// LockAttendance locks every instance_students row of the instance so
-	// reopen can refuse a restore after a post-completion attendance edit.
+	// complete/cancel serialize with attendance PATCH and reopen can refuse
+	// a restore after a post-completion attendance edit.
 	LockAttendance(ctx context.Context, instanceID int64) error
 	Restore(ctx context.Context, instanceID int64, snapshot ActivityCompletionSnapshot, now time.Time) error
 }
