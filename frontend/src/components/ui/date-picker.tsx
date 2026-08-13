@@ -532,6 +532,12 @@ function DatePickerCalendar({
   readonly onChange: (date: Date | null) => void;
 }) {
   const [month, setMonth] = useState(value ?? new Date());
+  const controlledMonthTime = value?.getTime();
+
+  useEffect(() => {
+    if (controlledMonthTime === undefined) return;
+    setMonth(new Date(controlledMonthTime));
+  }, [controlledMonthTime]);
 
   return (
     <div
@@ -956,7 +962,7 @@ const NAV_OPTION_ACTIVE_CLASS =
   "flex w-full cursor-pointer items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors";
 
 const NAV_SELECT_CLASS =
-  "inline-flex h-9 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+  "inline-flex h-9 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
 
 // The offered years always include the month currently on screen, so a value
 // outside the caller's bounds (legacy data) still shows its own year instead of

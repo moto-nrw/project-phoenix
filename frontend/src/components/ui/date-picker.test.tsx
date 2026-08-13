@@ -9,12 +9,18 @@ vi.mock("react-day-picker", () => ({
     selected,
     onSelect,
     required,
+    month,
   }: {
     selected?: Date | Date[];
     onSelect: (date: Date | undefined) => void;
     required?: boolean;
+    month?: Date;
   }) => (
-    <div data-testid="day-picker" data-required={required}>
+    <div
+      data-testid="day-picker"
+      data-required={required}
+      data-month={month?.toISOString()}
+    >
       <button
         type="button"
         onClick={() => onSelect(new Date("2024-01-15T00:00:00Z"))}
@@ -406,6 +412,73 @@ describe("DatePicker", () => {
 
     expect(month).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+  });
+
+  it("constrains a long month label inside a narrow header", () => {
+    render(
+      <DatePicker
+        value={new Date("2024-01-15T00:00:00Z")}
+        onChange={mockOnChange}
+        monthYearNavigation
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+
+    const month = screen.getByRole("combobox", { name: "Monat" });
+    expect(month).toHaveClass("min-w-0", "overflow-hidden");
+    expect(month.querySelector("span")).toHaveClass("min-w-0", "truncate");
+    expect(month.querySelector("svg")).toHaveClass("shrink-0");
+  });
+
+  it("synchronizes the displayed month when the controlled value changes", () => {
+    const { rerender } = render(
+      <DatePicker
+        value={new Date("2024-01-15T00:00:00Z")}
+        onChange={mockOnChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2024-01-15T00:00:00.000Z",
+    );
+
+    rerender(
+      <DatePicker
+        value={new Date("1982-04-17T00:00:00Z")}
+        onChange={mockOnChange}
+      />,
+    );
+
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "1982-04-17T00:00:00.000Z",
+    );
+  });
+
+  it("keeps manual navigation when the controlled day is unchanged", () => {
+    const value = new Date("2024-01-15T00:00:00Z");
+    const { rerender } = render(
+      <DatePicker value={value} onChange={mockOnChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2024-02-15T00:00:00.000Z",
+    );
+
+    rerender(
+      <DatePicker value={new Date(value.getTime())} onChange={mockOnChange} />,
+    );
+
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2024-02-15T00:00:00.000Z",
+    );
   });
 
   it("applies custom className", () => {
