@@ -114,6 +114,11 @@ const unambiguousNameFromMappedSchools = `
 //   - only where that account still has ACTIVE access to that school
 //   - only where the account holds a staff-tier role there
 //   - never a person that is a student, neither as target nor as name source
+//   - every person/staff/teacher match is scoped to one school, so that no row
+//     belonging to a different school can satisfy the repair, suppress it, or
+//     hide the account from the report. The composite FKs from migration
+//     1.15.2 already tie each row's tenant to its parent's — the predicates
+//     state that where it is relied upon rather than inheriting it silently
 //
 // Caregiver profiles (users.teachers) are created under the same rule the
 // provisioning now applies, and like it the rule is decided PER ROLE: caregiver
@@ -161,10 +166,24 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 				  AND at.tenant_id = p.tenant_id
 				  AND at.status = 'active'
 			  )
+			  -- Tenant-scoped to match the pair actually being inserted. The
+			  -- composite FK fk_staff_person_tenant already guarantees a staff
+			  -- row shares its person's school, so this cannot currently select
+			  -- a different row than the unscoped form would; it states the
+			  -- invariant where it is relied upon instead of leaving the
+			  -- statement correct only by reference to migration 1.15.2.
 			  AND NOT EXISTS (
 				SELECT 1 FROM users.staff s
-				WHERE s.person_id = p.id AND s.deleted_at IS NULL
+				WHERE s.person_id = p.id
+				  AND s.tenant_id = p.tenant_id
+				  AND s.deleted_at IS NULL
 			  )
+			  -- Deliberately NOT tenant-scoped, unlike the guard above. This one
+			  -- refuses rather than suppresses: a person that is a child's record
+			  -- anywhere is never personnel, and a students row under a different
+			  -- tenant than its person is corrupt data we must not write on top of.
+			  -- Guards that withhold the repair fail closed; guards that trigger
+			  -- it are scoped so they cannot fail open.
 			  AND NOT EXISTS (
 				SELECT 1 FROM users.students st WHERE st.person_id = p.id
 			  )
@@ -181,12 +200,22 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 			INSERT INTO users.teachers (tenant_id, staff_id, specialization, created_at, updated_at)
 			SELECT s.tenant_id, s.id, '', NOW(), NOW()
 			FROM users.staff s
-			JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+			-- p.tenant_id = s.tenant_id: the profile is written with the staff
+			-- row's tenant, so every predicate below (account mapping, role
+			-- tier, child refusal) has to be evaluated at that same school.
+			-- fk_staff_person_tenant already makes the two equal; spelling it
+			-- out keeps this join honest on its own terms.
+			JOIN users.persons p
+			  ON p.id = s.person_id
+			 AND p.tenant_id = s.tenant_id
+			 AND p.deleted_at IS NULL
 			WHERE s.deleted_at IS NULL
 			  AND p.account_id IS NOT NULL
 			  AND NOT EXISTS (
 				SELECT 1 FROM users.teachers t
-				WHERE t.staff_id = s.id AND t.deleted_at IS NULL
+				WHERE t.staff_id = s.id
+				  AND t.tenant_id = s.tenant_id
+				  AND t.deleted_at IS NULL
 			  )
 			  -- Same refusal as the staff step, and needed independently of it:
 			  -- this step starts from users.staff, so a staff row that legacy
@@ -331,7 +360,15 @@ func listUnrepairableSchoolIdentities(ctx context.Context, db bun.IDB) ([]unrepa
 			NOT EXISTS (
 				SELECT 1
 				FROM users.persons p
-				JOIN users.staff s ON s.person_id = p.id AND s.deleted_at IS NULL
+				-- Same tenant scoping as the staff insert, read the other way
+				-- round: only a staff row at THIS school means the account is
+				-- repaired and may drop off the list. Equal by
+				-- fk_staff_person_tenant today, stated because the report is
+				-- the last thing standing between a broken account and silence.
+				JOIN users.staff s
+				  ON s.person_id = p.id
+				 AND s.tenant_id = p.tenant_id
+				 AND s.deleted_at IS NULL
 				WHERE p.account_id = at.account_id
 				  AND p.tenant_id = at.tenant_id
 				  AND p.deleted_at IS NULL

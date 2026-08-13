@@ -274,10 +274,10 @@ class TeacherService {
     // so the backend creates the person and staff record in the same
     // transaction (#2222) instead of us stitching the chain together across
     // three requests that can fail in the middle.
-    let personId: string;
+    let identity: SchoolIdentity;
     if (teacherData.linkExisting) {
       // Link existing account — password is NOT changed
-      personId = await this.linkAccountToTenant(email, roleId, teacherData);
+      identity = await this.linkAccountToTenant(email, roleId, teacherData);
     } else {
       const password = teacherData.password;
       if (!password) {
@@ -295,12 +295,12 @@ class TeacherService {
       if (createResult.status === "account_exists") {
         return { status: "account_exists", email };
       }
-      personId = createResult.personId;
+      identity = createResult.identity;
     }
 
     // Step 2: apply the staff details to the record that already exists. The
     // backend adopts it instead of creating a second one.
-    const staffData = await this.createStaff(teacherData, personId);
+    const staffData = await this.createStaff(teacherData, identity);
 
     // Return with credentials and name data
     return {
@@ -327,7 +327,8 @@ class TeacherService {
     roleId: number,
     identity: PersonIdentityFields,
   ): Promise<
-    { status: "created"; personId: string } | { status: "account_exists" }
+    | { status: "created"; identity: SchoolIdentity }
+    | { status: "account_exists" }
   > {
     const response = await sessionFetch("/api/auth/register", {
       method: "POST",
@@ -376,7 +377,7 @@ class TeacherService {
       );
     }
 
-    return { status: "created" as const, personId: identityIds.person_id };
+    return { status: "created" as const, identity: identityIds };
   }
 
   /** Links an existing account to the current tenant. */
@@ -384,7 +385,7 @@ class TeacherService {
     email: string,
     roleId: number,
     identity: PersonIdentityFields,
-  ): Promise<string> {
+  ): Promise<SchoolIdentity> {
     const response = await sessionFetch("/api/auth/link-to-tenant", {
       method: "POST",
       credentials: "include",
@@ -416,28 +417,37 @@ class TeacherService {
       );
     }
 
-    return identityIds.person_id;
+    return identityIds;
   }
 
-  /** Creates staff record with is_teacher flag */
+  /**
+   * Schreibt die Personaldetails auf den Datensatz, den die Provisionierung
+   * bereits angelegt hat.
+   *
+   * `is_teacher` kommt aus genau dieser Provisionierung und nicht mehr aus dem
+   * Formular: das Backend entscheidet die Frage an der Rollenstufe
+   * (RoleNeedsCaregiverProfile) und legt users.teachers nur für die
+   * Betreuer-Stufe an. Das Formular kannte davon nur die Lehrkraft-Ausnahme und
+   * schickte sonst is_teacher=true — eine Verwaltungsrolle bekam dadurch hier
+   * doch noch ein Betreuungsprofil, das EnsureSchoolIdentity eine Anfrage
+   * vorher bewusst weggelassen hatte. Die angelegte Identität ist die Antwort;
+   * eine zweite Ableitung derselben Regel im Frontend würde nur wieder
+   * auseinanderlaufen.
+   */
   private async createStaff(
     teacherData: {
       staff_notes?: string | null;
       specialization?: string | null;
       role?: string | null;
       qualifications?: string | null;
-      is_teacher?: boolean;
     },
-    personId: string,
+    identity: SchoolIdentity,
   ): Promise<Teacher> {
     const response = await sessionFetch("/api/staff", {
       method: "POST",
       credentials: "include",
-      body: buildStaffRequestBody(personId, {
-        // Lehrkraft (#1772) bekommt kein Betreuungsprofil (users.teachers):
-        // das Formular setzt is_teacher=false, alle anderen Rollen behalten
-        // den bisherigen Default.
-        is_teacher: teacherData.is_teacher ?? true,
+      body: buildStaffRequestBody(identity.person_id, {
+        is_teacher: Boolean(identity.teacher_id),
         staff_notes: teacherData.staff_notes?.trim() ?? "",
         specialization: teacherData.specialization?.trim() ?? "",
         role: teacherData.role?.trim() ?? "",

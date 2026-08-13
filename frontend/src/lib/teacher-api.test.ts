@@ -527,6 +527,82 @@ describe("teacher-api", () => {
       expect(staffInit.body).toContain(`"person_id":"${personId}"`);
       expect(staffInit.body).not.toContain("9007199254740992");
     });
+
+    // is_teacher follows what the provisioning actually created, not what the
+    // form guessed. The backend decides the caregiver profile by role tier
+    // (RoleNeedsCaregiverProfile) and reports the result as
+    // school_identity.teacher_id; asking for one it deliberately left out is
+    // how an admin-tier account used to end up with users.teachers anyway.
+    it("asks for no caregiver profile when the provisioning created none", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            // Admin tier: person and staff, no teacher_id.
+            school_identity: { person_id: "100", staff_id: "7" },
+          }),
+      } as Response);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(sampleTeacher),
+      } as Response);
+
+      await teacherService.createTeacher({
+        first_name: "Test",
+        last_name: "Teacher",
+        password: "SecurePass123!",
+        role_id: 1,
+        // What the form asked for is deliberately ignored.
+        is_teacher: true,
+      } as Parameters<typeof teacherService.createTeacher>[0]);
+
+      const staffCall = mockFetch.mock.calls.find(
+        (call) => call[0] === "/api/staff",
+      );
+      const staffInit = staffCall![1] as { body: string };
+      const staffBody = JSON.parse(staffInit.body) as Record<string, unknown>;
+      expect(staffBody.is_teacher).toBe(false);
+    });
+
+    it("asks for the caregiver profile the provisioning created", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 50,
+            // Caregiver tier: the profile is already there, so the details
+            // request updates it instead of leaving it unwritten.
+            school_identity: {
+              person_id: "100",
+              staff_id: "7",
+              teacher_id: "9",
+            },
+          }),
+      } as Response);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(sampleTeacher),
+      } as Response);
+
+      await teacherService.createTeacher({
+        first_name: "Test",
+        last_name: "Teacher",
+        password: "SecurePass123!",
+        role_id: 2,
+      });
+
+      const staffCall = mockFetch.mock.calls.find(
+        (call) => call[0] === "/api/staff",
+      );
+      const staffInit = staffCall![1] as { body: string };
+      const staffBody = JSON.parse(staffInit.body) as Record<string, unknown>;
+      expect(staffBody.is_teacher).toBe(true);
+    });
   });
 
   describe("teacherService.updateTeacher", () => {

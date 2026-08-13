@@ -788,6 +788,80 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	assertNoPersonAt(t, db, account.ID, accessTargetTenantID)
 }
 
+// The ambiguity above must not reach a request that needs no name at all.
+//
+// A revoke deliberately leaves person, staff and teacher behind, so re-granting
+// the same school finds the identity already complete and has nothing to name.
+// Resolving the name first anyway meant asking the account's other schools,
+// finding two spellings there, and refusing a re-grant on the strength of a
+// disagreement that had no bearing on it — the operator could only get past it
+// by retyping a name that was already on the record and was never going to be
+// written.
+func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteAmbiguityElsewhere(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildProvisioningService(t, db)
+	ctx := context.Background()
+
+	account := testpkg.CreateTestAccount(t, db, "access-regrant-ambiguous")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testSchoolID)
+	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
+
+	// Two other schools that disagree on the name, so no name can be borrowed.
+	first := testpkg.CreateTestPerson(t, db, "Anna", "Beispiel")
+	linkPersonToAccount(t, db, first.ID, account.ID)
+	second := createPersonAtTenant(t, db, ambiguousNameTenantID, "Bea", "Beispiel")
+	linkPersonToAccount(t, db, second.ID, account.ID)
+
+	defer func() {
+		cleanupAccessFixtures(t, db, account.ID)
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+	}()
+
+	operator := testpkg.CreateTestOperator(t, db)
+	adminRoleID := systemRoleID(t, db, "admin")
+
+	// The first grant carries its own name, so the ambiguity never comes up.
+	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{
+			RoleID:    adminRoleID,
+			FirstName: "Carla",
+			LastName:  "Beispiel",
+		}, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID, operator.ID, testClientIP)
+	require.NoError(t, err)
+
+	// The re-grant brings no name — and must not need one.
+	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
+		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+	require.NoError(t, err, "the retained identity answers the question the other schools cannot")
+
+	granted := entryFor(entries, accessTargetTenantID)
+	require.NotNil(t, granted)
+	assert.Equal(t, authModels.AccountTenantStatusActive, granted.Status)
+
+	// The retained person was reused rather than duplicated, and nothing
+	// overwrote the name it already carried.
+	var names []struct {
+		FirstName string `bun:"first_name"`
+		LastName  string `bun:"last_name"`
+	}
+	err = db.NewSelect().
+		ColumnExpr("first_name, last_name").
+		TableExpr(`users.persons`).
+		Where(`account_id = ?`, account.ID).
+		Where(`tenant_id = ?`, accessTargetTenantID).
+		Where(`deleted_at IS NULL`).
+		Scan(ctx, &names)
+	require.NoError(t, err)
+	require.Len(t, names, 1, "the partial unique index allows exactly one person per account and school")
+	assert.Equal(t, "Carla", names[0].FirstName)
+	assert.Equal(t, "Beispiel", names[0].LastName)
+}
+
 // A second school for the ambiguity case; kept apart from accessTargetTenantID
 // so the disagreement is between two schools that are neither the target.
 const ambiguousNameTenantID int64 = 1021002

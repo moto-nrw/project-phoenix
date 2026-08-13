@@ -111,29 +111,18 @@ func (s *operatorProvisioningService) GrantAccountTenantAccess(
 		if err != nil {
 			return err
 		}
-		// Names for the person record that carries the account at this school.
-		// Fall back to a person the account already has at another school so
-		// the operator does not have to retype them.
-		firstName, lastName := strings.TrimSpace(req.FirstName), strings.TrimSpace(req.LastName)
-		if firstName == "" || lastName == "" {
-			existing, findErr := s.activePersonForAccount(adminCtx, accountID)
-			if findErr != nil {
-				return findErr
-			}
-			if existing != nil {
-				if firstName == "" {
-					firstName = existing.FirstName
-				}
-				if lastName == "" {
-					lastName = existing.LastName
-				}
-			}
-		}
-		if firstName == "" || lastName == "" {
-			return &InvalidDataError{Err: fmt.Errorf("first_name and last_name are required for accounts without a person record")}
-		}
-
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+
+		// Names for the person record that carries the account at this school.
+		// Resolved before anything is written, and only when one is actually
+		// needed — a re-grant after a revoke finds the person still there and
+		// needs no name at all (see identityNamesForSchool).
+		firstName, lastName, err := s.identityNamesForSchool(
+			tenantCtx, adminCtx, accountID,
+			strings.TrimSpace(req.FirstName), strings.TrimSpace(req.LastName))
+		if err != nil {
+			return err
+		}
 
 		// Same guard as UpdateAccountTenantRole: a revoke deliberately leaves
 		// person/staff/teacher records behind (see RevokeAccountTenantAccess),
@@ -264,7 +253,7 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		// endpoint carries no identity fields, so a school that has no person
 		// for this account yet has to borrow the name.
 		if authSvc.RoleNeedsStaffRecord(role) {
-			firstName, lastName, nameErr := s.roleChangeIdentityNames(tenantCtx, adminCtx, accountID)
+			firstName, lastName, nameErr := s.identityNamesForSchool(tenantCtx, adminCtx, accountID, "", "")
 			if nameErr != nil {
 				return nameErr
 			}
@@ -607,23 +596,36 @@ func (s *operatorProvisioningService) activePersonForAccount(ctx context.Context
 	return selected, nil
 }
 
-// roleChangeIdentityNames resolves the name a new person at this school would
-// carry, for a role change that brings no identity fields of its own.
+// identityNamesForSchool resolves the name a new person at this school would
+// carry. Shared by the two operator paths that provision an identity: granting
+// access, which may bring names of its own, and a role change, which never
+// does.
 //
-// Empty strings mean "not needed": the account already has a person here, and
-// EnsureSchoolIdentity completes the chain on that one rather than inventing a
-// second, which the partial unique index on (tenant_id, account_id) would refuse
-// anyway. Asking the other schools in that case would let a name disagreement
-// elsewhere block a role change that needs no name at all.
+// Three questions, and the order is the point:
 //
-// Otherwise the name has to come from another of the account's schools, and only
-// an unambiguous non-student identity will do (see activePersonForAccount).
-// Without one the change is refused rather than completed halfway or with a
-// guessed name.
-func (s *operatorProvisioningService) roleChangeIdentityNames(
+//  1. Did the caller supply both names? Then they win and nothing is looked up.
+//  2. Does the account already have a live person at THIS school? Then no name
+//     is needed and none may be resolved. EnsureSchoolIdentity completes the
+//     chain on that person rather than inventing a second one, which the
+//     partial unique index on (tenant_id, account_id) refuses anyway — so the
+//     empty strings returned here are never read. Asking the other schools
+//     first is what made a re-grant after a revoke fail: the revoke
+//     deliberately keeps person, staff and teacher, so the identity is already
+//     sitting there complete, and a differently spelled name at some other
+//     school would refuse a request that needed no name in the first place.
+//  3. Only then borrow from another of the account's schools, and only an
+//     unambiguous non-student identity will do (see activePersonForAccount).
+//     Without one the request is refused rather than completed halfway or with
+//     a guessed name.
+func (s *operatorProvisioningService) identityNamesForSchool(
 	tenantCtx, adminCtx context.Context,
 	accountID int64,
+	firstName, lastName string,
 ) (string, string, error) {
+	if firstName != "" && lastName != "" {
+		return firstName, lastName, nil
+	}
+
 	local, err := s.PersonRepo.FindByAccountID(tenantCtx, accountID)
 	if err != nil {
 		return "", "", err
@@ -636,11 +638,19 @@ func (s *operatorProvisioningService) roleChangeIdentityNames(
 	if err != nil {
 		return "", "", err
 	}
-	if existing == nil {
-		return "", "", &InvalidDataError{Err: fmt.Errorf(
-			"a person record is required before assigning this role: the account has none at this school, and none of its other schools provides an unambiguous name to use")}
+	if existing != nil {
+		if firstName == "" {
+			firstName = existing.FirstName
+		}
+		if lastName == "" {
+			lastName = existing.LastName
+		}
 	}
-	return existing.FirstName, existing.LastName, nil
+	if firstName == "" || lastName == "" {
+		return "", "", &InvalidDataError{Err: fmt.Errorf(
+			"first_name and last_name are required: the account has no person record at this school, and none of its other schools provides an unambiguous name to use")}
+	}
+	return firstName, lastName, nil
 }
 
 // personIsStudent reports whether the person record belongs to a child.

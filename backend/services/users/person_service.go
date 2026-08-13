@@ -624,6 +624,11 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 // person → staff chain themselves, so the staff creation that follows in the
 // same flow finds its row already there; adopting turns what would be a
 // duplicate row into the detail update the caller meant.
+//
+// The returned teacher record reports the state the staff member is actually
+// in, not the state the request asked for: an adopted staff row can already
+// carry a live caregiver profile, and a request that did not ask for one does
+// not remove it (see liveTeacherForStaff).
 func (s *personService) CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
 	var staff *userModels.Staff
 	var teacher *userModels.Teacher
@@ -653,6 +658,8 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 
 		if input.IsTeacher {
 			teacher, teacherCreationFailed = s.ensureTeacherForStaff(ctx, staff.ID, input)
+		} else {
+			teacher = s.liveTeacherForStaff(ctx, staff.ID)
 		}
 
 		return nil
@@ -661,6 +668,33 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 	}
 
 	return staff, teacher, teacherCreationFailed, nil
+}
+
+// liveTeacherForStaff returns the caregiver profile the staff record already
+// carries, or nil.
+//
+// Read when the request did NOT ask for one, which is not the same as asking
+// for it to be gone. Adopting an existing staff row can find a live
+// users.teachers row underneath, and reporting that staff member back as
+// "no caregiver profile" was wrong twice over: the caller renders a plain staff
+// record for someone whose caregiver screens work, and the create handler hands
+// out the non-caregiver default permissions on that basis.
+//
+// Deleting the profile instead is not this path's call, and deliberately so:
+// the row carries group supervisions, and removing it is what staff offboarding
+// does — the same reason the operator paths refuse a Lehrkraft role change
+// rather than clearing the profile out from under it. UpdateStaffWithTeacher
+// answers the identical question the identical way (TeacherActionExisting).
+//
+// Lookup errors are swallowed to nil, matching the non-fatal contract of
+// everything else touching the teacher record here: a failed read must not sink
+// a staff record that persisted.
+func (s *personService) liveTeacherForStaff(ctx context.Context, staffID int64) *userModels.Teacher {
+	existing, err := s.TeacherRepo.FindByStaffID(ctx, staffID)
+	if err != nil || existing == nil || existing.DeletedAt != nil {
+		return nil
+	}
+	return existing
 }
 
 // ensureTeacherForStaff creates the caregiver profile or updates the live one.

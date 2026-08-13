@@ -214,6 +214,75 @@ func liveStaffCount(t *testing.T, db *bun.DB, personID int64) int {
 	return count
 }
 
+// The repair matches persons, staff and teachers within one school, and the
+// statements say so explicitly. What makes an unscoped match unreachable rather
+// than merely unlikely is the schema: the composite foreign keys from migration
+// 1.15.2 tie each row's tenant to its parent's, so a staff row on another
+// school's person — the shape that could otherwise read as "already repaired"
+// and hide an account from both the fix and the report — cannot be stored at
+// all.
+//
+// Pinned here because the SQL above leans on it. Drop either constraint and the
+// tenant predicates stop being belt-and-braces and start being the only thing
+// holding the invariant up, which is worth failing a test over.
+func TestRepairSchoolIdentitiesTenantScopingIsEnforcedBySchema(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	defer testpkg.CleanupTenantTestData(t, db, otherTenantID)
+
+	role := createIdentityRepairRole(t, db, tenantID, "reparatur-fremdschule", strPtrValue("user"))
+	defer cleanupIdentityRepairRoles(t, db, role)
+
+	holder := createBrokenSchoolIdentity(t, db, tenantID, "Repair", "Fremd", role)
+	defer cleanupBrokenSchoolIdentities(t, db, holder)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO users.staff (tenant_id, person_id, staff_notes, created_at, updated_at)
+		VALUES (?, ?, '', NOW(), NOW())`, otherTenantID, holder.personID)
+	require.Error(t, err, "a staff row must not outlive the school of the person it belongs to")
+	assert.Contains(t, err.Error(), "fk_staff_person_tenant")
+
+	// And with the invariant intact, the repair does what it says on the tin.
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db))
+	require.NoError(t, repairSchoolIdentitiesUp(ctx, db), "repair migration must be idempotent")
+
+	assert.Equal(t, 1, liveStaffCountForTenant(t, db, holder.personID, tenantID),
+		"the school the account holds its role at gets the staff record")
+	assert.Equal(t, 1, liveTeacherCountForTenant(t, db, holder.personID, tenantID),
+		"and the caregiver profile lands under that same school")
+}
+
+func liveStaffCountForTenant(t *testing.T, db *bun.DB, personID, tenantID int64) int {
+	t.Helper()
+	count, err := db.NewSelect().
+		TableExpr(`users.staff AS "s"`).
+		Where(`"s".person_id = ?`, personID).
+		Where(`"s".tenant_id = ?`, tenantID).
+		Where(`"s".deleted_at IS NULL`).
+		Count(context.Background())
+	require.NoError(t, err)
+	return count
+}
+
+func liveTeacherCountForTenant(t *testing.T, db *bun.DB, personID, tenantID int64) int {
+	t.Helper()
+	count, err := db.NewSelect().
+		TableExpr(`users.teachers AS "t"`).
+		Join(`JOIN users.staff AS "s" ON "s".id = "t".staff_id`).
+		Where(`"s".person_id = ?`, personID).
+		Where(`"t".tenant_id = ?`, tenantID).
+		Where(`"t".deleted_at IS NULL`).
+		Count(context.Background())
+	require.NoError(t, err)
+	return count
+}
+
 func liveTeacherCount(t *testing.T, db *bun.DB, personID int64) int {
 	t.Helper()
 	count, err := db.NewSelect().

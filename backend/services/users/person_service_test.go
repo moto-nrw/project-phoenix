@@ -1356,3 +1356,58 @@ func TestUsersError_Unwrap(t *testing.T) {
 		assert.Contains(t, msg, "teacher")
 	})
 }
+
+// =============================================================================
+// CreateStaffWithTeacher — adopting an existing staff record
+// =============================================================================
+
+// A staff record that is adopted rather than created can already carry a live
+// caregiver profile, and the request that adopts it does not necessarily ask
+// for one: since #2222 the account-creating paths provision the chain by role
+// tier, and the follow-up details request only asks for the profile the
+// provisioning actually created.
+//
+// Reporting such a staff member back as "no caregiver profile" was wrong twice
+// over — the caller renders a plain staff record for someone whose caregiver
+// screens work, and createStaff hands out the non-caregiver default permissions
+// on that basis.
+//
+// Not asking for the profile is not the same as asking for it to be gone: the
+// row carries group supervisions, and removing it is what staff offboarding
+// does.
+func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE — a person whose staff record already has a caregiver profile.
+	existing := testpkg.CreateTestTeacher(t, db, "Uebernommen", "Betreuung")
+	defer testpkg.CleanupTeacherFixtures(t, db, existing.ID)
+
+	// ACT — the details request does not ask for a caregiver profile.
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+		PersonID:   existing.Staff.PersonID,
+		StaffNotes: "Notiz",
+		IsTeacher:  false,
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.False(t, teacherCreationFailed)
+	require.NotNil(t, staff)
+	assert.Equal(t, existing.Staff.ID, staff.ID, "the live staff record is adopted, not duplicated")
+
+	require.NotNil(t, teacher, "the caregiver profile the staff record carries must be reported")
+	assert.Equal(t, existing.ID, teacher.ID)
+
+	// And it is still there: not asking for a profile never deletes one.
+	count, err := db.NewSelect().
+		TableExpr(`users.teachers`).
+		Where(`staff_id = ?`, existing.Staff.ID).
+		Where(`deleted_at IS NULL`).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
