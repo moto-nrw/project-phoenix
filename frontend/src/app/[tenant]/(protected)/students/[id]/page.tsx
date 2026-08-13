@@ -10,6 +10,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -313,6 +314,7 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
+  const nfcEnabled = useNFCEnabled();
   const { mutate } = useSWRConfig();
   const router = useTenantRouter();
   const params = useParams();
@@ -1096,7 +1098,8 @@ function StudentDetailPageContent() {
       return (
         <p className="text-moto-amber-strong text-sm">
           Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive
-          Aufsicht in einem Raum über ein NFC-Tablet.
+          Aufsicht in einem Raum über{" "}
+          {nfcEnabled ? "ein NFC-Tablet" : "die Web-App"}.
         </p>
       );
     }
