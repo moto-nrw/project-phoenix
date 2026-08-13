@@ -571,6 +571,18 @@ func (s *service) loadPendingExcused(ctx context.Context, date timezone.Date) (m
 func applyPlanning(state *buildState, pending map[int64]*activeModels.ExcusedAbsenceRequest) {
 	for i := range state.projected {
 		student := &state.projected[i]
+		// The parent's pending note runs FIRST and outside the full-access
+		// branch below — same split as the student list (#2232): the note is
+		// the review queue's signal, gated by the permission to decide the
+		// request, not by read access to the child's record. Under open care
+		// the deciding staffer supervises no group, so every child reaches
+		// them restricted; tying the note to full access would hide exactly
+		// the request they own. loadPendingExcused already returns an empty
+		// map for anyone who may not review.
+		if request := pending[student.ID]; request != nil {
+			note := request.Note
+			student.PendingExcusedNote = &note
+		}
 		if !student.fullAccess {
 			continue
 		}
@@ -590,10 +602,6 @@ func applyPlanning(state *buildState, pending map[int64]*activeModels.ExcusedAbs
 			student.DayPlanningStatus = "comes_today"
 		}
 		student.DayPlanningLabel = planningLabel(decision)
-		if request := pending[student.ID]; request != nil {
-			note := request.Note
-			student.PendingExcusedNote = &note
-		}
 		applyTimes(student, state.arrivals[student.ID], attendance)
 	}
 }

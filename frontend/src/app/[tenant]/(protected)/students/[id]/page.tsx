@@ -493,8 +493,24 @@ function StudentDetailPageContent() {
   );
   const [statusDayRange, setStatusDayRange] =
     useState<StatusDayRange>(getStatusDayRange);
+  // Status days follow the absence gate, not the read gate: whoever may write
+  // a child's absences may read them (the backend widened the per-child check
+  // on GET /{id}/status-days for exactly this, #2232). Without this the
+  // planning dialog opened empty for a school without feste Gruppen — existing
+  // sick days stayed invisible and could not be cleared.
+  const canReadStatusDays = hasFullAccess || hasAbsenceWriteAccess;
+  // A partial excusal ("Ab Uhrzeit") is a pickup exception, not a status day:
+  // its endpoints require users:update at the route AND full care access to the
+  // child in the handler. The absence permission grants neither, so the scope
+  // switch stays hidden for an absence-only staffer instead of offering a save
+  // that would fail (#2232).
+  const canPlanPartialExcusal =
+    hasFullAccess &&
+    hasWriteAccess &&
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "users:update");
   const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
-    hasFullAccess && studentId
+    canReadStatusDays && studentId
       ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
       : null,
     async () =>
@@ -1371,6 +1387,7 @@ function StudentDetailPageContent() {
         isSubmitting={plannedStatusLoading}
         existingDays={statusDays}
         existingPartialAbsences={partialAbsences}
+        canPlanPartialExcusal={canPlanPartialExcusal}
         deletingStatusDayId={deletingPlannedStatusDayId}
         onClose={() => setPlannedStatusModal(null)}
         loadExistingDays={loadPlannedStatusExistingDays}
