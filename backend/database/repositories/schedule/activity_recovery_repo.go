@@ -43,7 +43,7 @@ func (r *ActivityRecoveryRepository) LockSupervisors(ctx context.Context, superv
 	query := db.NewSelect().
 		TableExpr(`active.group_supervisors AS "group_supervisor"`).
 		ColumnExpr(`"group_supervisor".id`).
-		Where(`"group_supervisor".id IN (?)`, bun.In(supervisorIDs)).
+		Where(`"group_supervisor".id IN (?)`, bun.List(supervisorIDs)).
 		OrderExpr(`"group_supervisor".id ASC`).
 		For("UPDATE")
 	query = base.WithTenantFilter(ctx, query, "group_supervisor")
