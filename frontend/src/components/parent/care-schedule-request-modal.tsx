@@ -40,6 +40,12 @@ export type CareScheduleInitialValues = Record<
   Readonly<CareWeekdayDraft>
 >;
 
+export interface CareScheduleRequestCapabilities {
+  readonly arrival: boolean;
+  readonly pickup: boolean;
+  readonly departure_mode: boolean;
+}
+
 const EMPTY_DRAFT: CareWeekdayDraft = { mode: "", arrival: "", pickup: "" };
 
 // RequestModalFooter renders the shared cancel/submit buttons using the kit
@@ -93,10 +99,12 @@ export function CareScheduleRequestModal({
   onClose,
   onSubmit,
   initialValues,
+  capabilities,
 }: Readonly<{
   onClose: () => void;
   onSubmit: (payload: Record<string, unknown>) => Promise<void>;
   initialValues?: CareScheduleInitialValues;
+  capabilities: CareScheduleRequestCapabilities;
 }>) {
   const t = useTranslations("parentChildCare");
   const [rows, setRows] = useState<Record<number, CareWeekdayDraft>>(() =>
@@ -134,10 +142,12 @@ export function CareScheduleRequestModal({
       } = { weekday: num };
       // Only non-empty values that differ from the current plan count as a
       // change (empty string = unchanged per the backend contract).
-      if (row.mode && row.mode !== base.mode) entry.mode = row.mode;
-      if (row.arrival && row.arrival !== base.arrival)
+      if (capabilities.departure_mode && row.mode && row.mode !== base.mode)
+        entry.mode = row.mode;
+      if (capabilities.arrival && row.arrival && row.arrival !== base.arrival)
         entry.arrival = row.arrival;
-      if (row.pickup && row.pickup !== base.pickup) entry.pickup = row.pickup;
+      if (capabilities.pickup && row.pickup && row.pickup !== base.pickup)
+        entry.pickup = row.pickup;
       const changed =
         entry.mode !== undefined ||
         entry.arrival !== undefined ||
@@ -190,41 +200,47 @@ export function CareScheduleRequestModal({
                   {weekdayLabel}
                 </p>
                 <div className="space-y-2">
-                  <CustomSelect
-                    value={row.mode}
-                    options={careModeOptions}
-                    onChange={(v) => setField(num, "mode", v)}
-                    ariaLabel={t("request.careSchedule.modeAria", {
-                      day: weekdayLabel,
-                    })}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-gray-500">
-                        {t("request.careSchedule.arrival")}
-                      </span>
-                      <input
-                        type="time"
-                        value={row.arrival}
-                        onChange={(e) =>
-                          setField(num, "arrival", e.target.value)
-                        }
-                        className={timeClass}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-gray-500">
-                        {t("request.careSchedule.pickup")}
-                      </span>
-                      <input
-                        type="time"
-                        value={row.pickup}
-                        onChange={(e) =>
-                          setField(num, "pickup", e.target.value)
-                        }
-                        className={timeClass}
-                      />
-                    </label>
+                  {capabilities.departure_mode && (
+                    <CustomSelect
+                      value={row.mode}
+                      options={careModeOptions}
+                      onChange={(v) => setField(num, "mode", v)}
+                      ariaLabel={t("request.careSchedule.modeAria", {
+                        day: weekdayLabel,
+                      })}
+                    />
+                  )}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {capabilities.arrival && (
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-gray-500">
+                          {t("request.careSchedule.arrival")}
+                        </span>
+                        <input
+                          type="time"
+                          value={row.arrival}
+                          onChange={(e) =>
+                            setField(num, "arrival", e.target.value)
+                          }
+                          className={timeClass}
+                        />
+                      </label>
+                    )}
+                    {capabilities.pickup && (
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-gray-500">
+                          {t("request.careSchedule.pickup")}
+                        </span>
+                        <input
+                          type="time"
+                          value={row.pickup}
+                          onChange={(e) =>
+                            setField(num, "pickup", e.target.value)
+                          }
+                          className={timeClass}
+                        />
+                      </label>
+                    )}
                   </div>
                 </div>
               </div>

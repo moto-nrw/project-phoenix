@@ -15,9 +15,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -32,7 +32,22 @@ var (
 	ErrCareRequestAlreadyPending = errors.New("parent: care schedule request already pending")
 	// ErrInvalidCareRequestPayload means the payload failed validation.
 	ErrInvalidCareRequestPayload = errors.New("parent: invalid care schedule request payload")
+	// ErrCareRequestFieldDisabled means the payload contains at least one field
+	// group the child's school has disabled for permanent parent requests.
+	ErrCareRequestFieldDisabled = errors.New("parent: care schedule request field disabled")
 )
+
+// CareScheduleRequestCapabilities are the resolved field-level permissions
+// returned to the parent UI and enforced again on submission.
+type CareScheduleRequestCapabilities struct {
+	Arrival       bool
+	Pickup        bool
+	DepartureMode bool
+}
+
+func (c CareScheduleRequestCapabilities) Any() bool {
+	return c.Arrival || c.Pickup || c.DepartureMode
+}
 
 // CareScheduleWeekday is one weekday (1=Mon..5=Fri) of the child's current
 // permanent weekly plan: arrival/pickup wall-clock times (empty = not set) and
@@ -59,9 +74,10 @@ type PendingCareRequest struct {
 type ChildCareSchedule struct {
 	Weekdays       []CareScheduleWeekday
 	PendingRequest *PendingCareRequest
-	// CanRequest gates the "Änderung anfragen" button: messaging enabled for
-	// the school AND the calling guardian holds parent_portal.request.submit.
-	CanRequest bool
+	// CanRequest gates the "Änderung anfragen" button: at least one field is
+	// enabled and the calling guardian holds parent_portal.request.submit.
+	CanRequest          bool
+	RequestCapabilities CareScheduleRequestCapabilities
 	// TodayAbsent is true when the child has any active scheduled absence today
 	// (sick, excused, or class trip — any source). It is the parent-safe absence
 	// signal the "Heute → Abholung" tile needs: ListSickDays deliberately hides
@@ -104,27 +120,38 @@ func (s *service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child care schedule: %w", txErr)
 	}
-	view.CanRequest = child.hasPermission(authorize.GuardianPermissionRequestSubmit) &&
-		parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.tenantID, s.Logger)
+	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
+	if err != nil {
+		return nil, err
+	}
+	view.RequestCapabilities = capabilities
+	view.CanRequest = child.hasPermission(authorize.GuardianPermissionRequestSubmit) && capabilities.Any()
 	return view, nil
 }
 
 // CreateCareScheduleRequest stores a pending change request for the child's
 // weekly plan and returns the refreshed view. Requires
-// parent_portal.request.submit; gated by operations.parent_notes_enabled
-// (the chat pills are the request's feedback channel).
+// parent_portal.request.submit and the field-level school settings. Messaging
+// is independent: notification pills are best-effort when messages are on.
 func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}
-	// Fail OPEN on a transient resolve error (via the shared helper) so a
-	// config-DB blip does not 500 a guardian's request; a genuine disabled
-	// flag still returns ErrNotesDisabled.
-	if !parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.tenantID, s.Logger) {
-		return nil, ErrNotesDisabled
+	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
+	if err != nil {
+		return nil, err
 	}
-	view := &ChildCareSchedule{CanRequest: true}
+	requested, err := scheduleService.RequestedCareScheduleFields(payload)
+	if err != nil {
+		return nil, mapCareRequestError(err, "validate care schedule request")
+	}
+	if (requested.Arrival && !capabilities.Arrival) ||
+		(requested.Pickup && !capabilities.Pickup) ||
+		(requested.DepartureMode && !capabilities.DepartureMode) {
+		return nil, ErrCareRequestFieldDisabled
+	}
+	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
 			return err
@@ -156,10 +183,11 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 	if err != nil {
 		return nil, err
 	}
-	view := &ChildCareSchedule{
-		CanRequest: child.hasPermission(authorize.GuardianPermissionRequestSubmit) &&
-			parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.tenantID, s.Logger),
+	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
+	if err != nil {
+		return nil, err
 	}
+	view := &ChildCareSchedule{CanRequest: child.hasPermission(authorize.GuardianPermissionRequestSubmit) && capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if _, err := s.CareRequests.WithdrawRequest(txCtx, requestID, studentID, accountID); err != nil {
 			return err
@@ -176,6 +204,28 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 		slog.Int64("tenant_id", child.tenantID),
 	)
 	return view, nil
+}
+
+func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, tenantID int64) (CareScheduleRequestCapabilities, error) {
+	resolve := func(key string) (bool, error) {
+		if s.Settings == nil {
+			return false, errors.New("parent: settings service not configured")
+		}
+		return s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
+	}
+	arrival, err := resolve(configModels.KeyParentCareArrivalRequestEnabled)
+	if err != nil {
+		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve arrival request setting: %w", err)
+	}
+	pickup, err := resolve(configModels.KeyParentCarePickupRequestEnabled)
+	if err != nil {
+		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve pickup request setting: %w", err)
+	}
+	mode, err := resolve(configModels.KeyParentCareModeRequestEnabled)
+	if err != nil {
+		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
+	}
+	return CareScheduleRequestCapabilities{Arrival: arrival, Pickup: pickup, DepartureMode: mode}, nil
 }
 
 // buildCareScheduleView loads the weekly plan + pending request inside the

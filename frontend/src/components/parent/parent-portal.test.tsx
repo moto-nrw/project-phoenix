@@ -25,6 +25,11 @@ const mocks = vi.hoisted(() => ({
   getChildCareSchedule: vi.fn().mockResolvedValue({
     weekdays: [],
     can_request: false,
+    request_capabilities: {
+      arrival: false,
+      pickup: false,
+      departure_mode: false,
+    },
     today_absent: false,
   }),
   listChildThreads: vi.fn().mockResolvedValue([]),

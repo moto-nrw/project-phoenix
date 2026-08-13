@@ -129,8 +129,6 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
 		case errors.Is(err, scheduleService.ErrCareRequestGuardianAccessRevoked):
 			renderError(w, r, common.ErrorConflictWithCode(err, "guardian_access_revoked"))
-		case errors.Is(err, scheduleService.ErrCareRequestMessagingDisabled):
-			renderError(w, r, common.ErrorConflictWithCode(err, "messaging_disabled"))
 		case errors.Is(err, scheduleService.ErrCareRequestForbidden):
 			renderError(w, r, common.ErrorForbidden(err))
 		case errors.Is(err, scheduleService.ErrCareRequestRejectReasonRequired),

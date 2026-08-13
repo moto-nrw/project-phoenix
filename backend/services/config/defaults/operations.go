@@ -582,6 +582,45 @@ func init() {
 		SortOrder:       61,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyParentCareArrivalRequestEnabled,
+		Label:           "Dauerhafte Ankunftszeiten durch Eltern ändern lassen",
+		Description:     "Wenn aktiviert, können Eltern Änderungen an den dauerhaften wöchentlichen Ankunftszeiten zur Freigabe einreichen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       63,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentCarePickupRequestEnabled,
+		Label:           "Dauerhafte Abholzeiten durch Eltern ändern lassen",
+		Description:     "Wenn aktiviert, können Eltern Änderungen an den dauerhaften wöchentlichen Abholzeiten zur Freigabe einreichen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       64,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentCareModeRequestEnabled,
+		Label:           "Dauerhafte Abholart durch Eltern ändern lassen",
+		Description:     "Wenn aktiviert, können Eltern Änderungen an der dauerhaften wöchentlichen Abholart zur Freigabe einreichen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       65,
+	})
+
 	// Whether a guardian sees the individual staff member's name (first name +
 	// last initial, e.g. "Anna M.") on team replies instead of the neutral
 	// "OGS [Schulname]" label. Defaults ON so a messaging-active school attributes

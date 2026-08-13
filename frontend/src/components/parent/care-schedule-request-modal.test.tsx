@@ -25,11 +25,17 @@ const initial: CareScheduleInitialValues = {
   4: { mode: "", arrival: "", pickup: "" },
   5: { mode: "", arrival: "", pickup: "" },
 };
+const allCapabilities = {
+  arrival: true,
+  pickup: true,
+  departure_mode: true,
+} as const;
 
 describe("CareScheduleRequestModal", () => {
   it("prefills the per-day rows from initialValues", () => {
     render(
       <CareScheduleRequestModal
+        capabilities={allCapabilities}
         initialValues={initial}
         onClose={vi.fn()}
         onSubmit={vi.fn().mockResolvedValue(undefined)}
@@ -44,6 +50,7 @@ describe("CareScheduleRequestModal", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <CareScheduleRequestModal
+        capabilities={allCapabilities}
         initialValues={initial}
         onClose={vi.fn()}
         onSubmit={onSubmit}
@@ -63,6 +70,7 @@ describe("CareScheduleRequestModal", () => {
     const onSubmit = vi.fn();
     render(
       <CareScheduleRequestModal
+        capabilities={allCapabilities}
         initialValues={initial}
         onClose={vi.fn()}
         onSubmit={onSubmit}
@@ -78,7 +86,13 @@ describe("CareScheduleRequestModal", () => {
 
   it("treats every filled field as a change when no initialValues are given", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
-    render(<CareScheduleRequestModal onClose={vi.fn()} onSubmit={onSubmit} />);
+    render(
+      <CareScheduleRequestModal
+        capabilities={allCapabilities}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
     fireEvent.change(timeInputs()[MON_ARRIVAL]!, {
       target: { value: "07:30" },
     });
@@ -88,5 +102,28 @@ describe("CareScheduleRequestModal", () => {
     expect(onSubmit).toHaveBeenCalledWith({
       weekdays: [{ weekday: 1, arrival: "07:30" }],
     });
+  });
+
+  it("renders and submits only fields allowed by the API capabilities", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CareScheduleRequestModal
+        capabilities={{ arrival: true, pickup: false, departure_mode: false }}
+        initialValues={initial}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(timeInputs()).toHaveLength(5);
+    expect(screen.queryByText("Abholzeit")).not.toBeInTheDocument();
+    fireEvent.change(timeInputs()[0]!, { target: { value: "07:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        weekdays: [{ weekday: 1, arrival: "07:30" }],
+      }),
+    );
   });
 });

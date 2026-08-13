@@ -992,6 +992,11 @@ export interface ChildCareSchedule {
   readonly weekdays: CareScheduleWeekday[];
   readonly pending_request?: PendingCareRequest;
   readonly can_request: boolean;
+  readonly request_capabilities: {
+    readonly arrival: boolean;
+    readonly pickup: boolean;
+    readonly departure_mode: boolean;
+  };
   // True when the child has any active scheduled absence today (sick, excused,
   // or class trip — any source). The parent-safe absence signal for the "Heute
   // → Abholung" tile: the windowed sick-day list (listSickDays) hides

@@ -509,6 +509,11 @@ describe("useChildCare reportSick", () => {
     vi.spyOn(parentApi, "getChildCareSchedule").mockResolvedValue({
       weekdays: [{ weekday: todayWd, pickup: "16:00", modes: [] }],
       can_request: false,
+      request_capabilities: {
+        arrival: false,
+        pickup: false,
+        departure_mode: false,
+      },
       today_absent: false,
     });
     // Reject features so the hook falls back to DEFAULT_FEATURES — avoids
@@ -585,6 +590,11 @@ describe("useChildCare studentId switch", () => {
           ? Promise.resolve({
               weekdays: [{ weekday: todayWd, pickup: "16:00", modes: [] }],
               can_request: false,
+              request_capabilities: {
+                arrival: false,
+                pickup: false,
+                departure_mode: false,
+              },
               today_absent: false,
             })
           : new Promise(() => {
@@ -644,6 +654,11 @@ describe("useChildCare studentId switch", () => {
             },
           ],
           can_request: false,
+          request_capabilities: {
+            arrival: false,
+            pickup: false,
+            departure_mode: false,
+          },
           today_absent: false,
         }),
     );
