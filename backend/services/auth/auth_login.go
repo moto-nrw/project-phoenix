@@ -58,7 +58,7 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 	}
 
 	// Create refresh token with resolved tenant ID
-	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)
 	if err != nil {
 		return "", "", err
 	}
@@ -224,7 +224,7 @@ func (s *Service) LoginWithMFAGate(
 	}
 
 	// Token-pair issuance (regular login or MFA-skipped via trusted device).
-	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +297,7 @@ func (s *Service) IssueTokensForAuthenticatedAccount(
 		return "", "", &AuthError{Op: "issue tokens", Err: ErrParentMustUseParentPortal}
 	}
 
-	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID)
+	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)
 	if err != nil {
 		return "", "", err
 	}
@@ -375,8 +375,8 @@ func (e *mintGuardError) Error() string { return e.err.Error() }
 func (e *mintGuardError) Unwrap() error { return e.err }
 
 // createRefreshTokenWithRetry creates a refresh token with retry logic for concurrent logins
-func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account, tenantID int64) (*auth.Token, error) {
-	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, nil)
+func (s *Service) createRefreshTokenWithRetry(ctx context.Context, account *auth.Account, tenantID int64, scope string) (*auth.Token, error) {
+	return s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, scope, nil)
 }
 
 // createRefreshTokenWithRetryGuarded is createRefreshTokenWithRetry with an
@@ -387,9 +387,10 @@ func (s *Service) createRefreshTokenWithRetryGuarded(
 	ctx context.Context,
 	account *auth.Account,
 	tenantID int64,
+	scope string,
 	guard mintGuard,
 ) (*auth.Token, error) {
-	token := s.newRefreshToken(account.ID)
+	token := s.newRefreshToken(account.ID, scope)
 
 	maxRetries := 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
@@ -420,16 +421,17 @@ func (s *Service) createRefreshTokenWithRetryGuarded(
 }
 
 // newRefreshToken creates a new refresh token for the given account
-func (s *Service) newRefreshToken(accountID int64) *auth.Token {
+func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 	identifier := "Service login"
 	return &auth.Token{
-		Token:      uuid.Must(uuid.NewV4()).String(),
-		AccountID:  accountID,
-		Expiry:     time.Now().Add(s.jwtRefreshExpiry),
-		Mobile:     false,
-		Identifier: &identifier,
-		FamilyID:   uuid.Must(uuid.NewV4()).String(),
-		Generation: 0,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		AccountID:   accountID,
+		Expiry:      time.Now().Add(s.jwtRefreshExpiry),
+		Mobile:      false,
+		Identifier:  &identifier,
+		FamilyID:    uuid.Must(uuid.NewV4()).String(),
+		Generation:  0,
+		PortalScope: persistedPortalScope(scope),
 	}
 }
 
@@ -479,8 +481,12 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 
 		// Enforce the cap after insertion so at most five active sessions remain.
 		const maxTokensPerAccount = 5
-		if err := s.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
+		deleted, err := s.repos.Token.CleanupOldTokensForAccountReturning(ctx, account.ID, maxTokensPerAccount)
+		if err != nil {
 			return fmt.Errorf("enforce active session cap: %w", err)
+		}
+		if err := s.auditRevokedTokens(ctx, deleted, "session_cap", "", ""); err != nil {
+			return err
 		}
 
 		return nil
@@ -1372,7 +1378,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 		}
 
 		if dbToken.AccountID != int64(refreshClaims.ID) || (refreshClaims.TenantID > 0 && dbToken.TenantID != refreshClaims.TenantID) {
-			if err := s.revokeRefreshTokenFamily(ctx, dbToken); err != nil {
+			if err := s.deleteFamilyWithAudit(ctx, dbToken, "claim_mismatch", ipAddress, userAgent); err != nil {
 				return fmt.Errorf("revoke mismatched refresh-token family: %w", err)
 			}
 			rejectAfterCommit = ErrInvalidToken
@@ -1381,7 +1387,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 		}
 
 		if now.After(dbToken.Expiry) {
-			if err := s.revokeRefreshTokenFamily(ctx, dbToken); err != nil {
+			if err := s.deleteFamilyWithAudit(ctx, dbToken, "token_expired", ipAddress, userAgent); err != nil {
 				return fmt.Errorf("delete expired refresh-token family: %w", err)
 			}
 			rejectAfterCommit = ErrTokenExpired
@@ -1392,7 +1398,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 		dbToken, recovered, err = s.resolveRefreshHandoff(ctx, dbToken, now)
 		if err != nil {
 			if errors.Is(err, ErrInvalidToken) {
-				if revokeErr := s.revokeRefreshTokenFamily(ctx, dbToken); revokeErr != nil {
+				if revokeErr := s.deleteFamilyWithAudit(ctx, dbToken, "replay_detected", ipAddress, userAgent); revokeErr != nil {
 					return fmt.Errorf("revoke replayed refresh-token family: %w", revokeErr)
 				}
 				rejectAfterCommit = ErrInvalidToken
@@ -1407,7 +1413,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 				return fmt.Errorf("inspect refresh-token family: %w", latestErr)
 			}
 			if latestToken != nil && latestToken.Generation > dbToken.Generation {
-				if revokeErr := s.revokeRefreshTokenFamily(ctx, dbToken); revokeErr != nil {
+				if revokeErr := s.deleteFamilyWithAudit(ctx, dbToken, "lineage_mismatch", ipAddress, userAgent); revokeErr != nil {
 					return fmt.Errorf("revoke inconsistent refresh-token family: %w", revokeErr)
 				}
 				rejectAfterCommit = ErrInvalidToken
@@ -1431,7 +1437,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			newToken = dbToken
 		} else {
 			// Create and persist new token with resolved tenant.
-			newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID, effectiveTenantID, now)
+			newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID, effectiveTenantID, refreshClaims.Scope, now)
 			if err != nil {
 				return err
 			}
@@ -1538,15 +1544,16 @@ func (s *Service) fetchAndValidateAccount(ctx context.Context, accountID int64, 
 
 // createAndPersistNewToken creates a successor and persists the bounded
 // predecessor handoff atomically.
-func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64, now time.Time) (*auth.Token, error) {
+func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64, scope string, now time.Time) (*auth.Token, error) {
 	newToken := &auth.Token{
-		Token:      uuid.Must(uuid.NewV4()).String(),
-		AccountID:  accountID,
-		Expiry:     now.Add(s.jwtRefreshExpiry),
-		Mobile:     oldToken.Mobile,
-		Identifier: oldToken.Identifier,
-		FamilyID:   oldToken.FamilyID,
-		Generation: oldToken.Generation + 1,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		AccountID:   accountID,
+		Expiry:      now.Add(s.jwtRefreshExpiry),
+		Mobile:      oldToken.Mobile,
+		Identifier:  oldToken.Identifier,
+		FamilyID:    oldToken.FamilyID,
+		Generation:  oldToken.Generation + 1,
+		PortalScope: persistedPortalScope(scope),
 	}
 
 	// Set tenant ID from refresh claims (not from context — refresh is a public route)
@@ -1563,15 +1570,6 @@ func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.T
 	}
 
 	return newToken, nil
-}
-
-func (s *Service) revokeRefreshTokenFamily(ctx context.Context, token *auth.Token) error {
-	if token.FamilyID == "" {
-		// Legacy pre-family rows must never turn an empty family identifier into
-		// a cross-account bulk delete.
-		return s.repos.Token.Delete(ctx, token.ID)
-	}
-	return s.repos.Token.DeleteByFamilyID(ctx, token.FamilyID)
 }
 
 func (s *Service) logRefreshDecision(event, reason string, accountID int, tenantID int64) {
@@ -1882,17 +1880,13 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 		// Delete ALL tokens for this account to ensure complete logout
 		// This ensures that all sessions (access and refresh tokens) are invalidated
-		err = s.repos.Token.DeleteByAccountID(ctx, dbToken.AccountID)
+		_, err = s.deleteAccountTokensWithAudit(ctx, dbToken.AccountID, "logout", ipAddress, userAgent)
 		if err != nil {
-			// Log the error but don't fail the logout
 			s.getLogger().Warn("failed to delete all tokens during logout",
 				slog.Int64("account_id", dbToken.AccountID),
 				slog.Any("error", err),
 			)
-			// Still try to delete the specific token
-			if deleteErr := s.repos.Token.Delete(ctx, dbToken.ID); deleteErr != nil {
-				return &AuthError{Op: "delete token", Err: deleteErr}
-			}
+			return &AuthError{Op: "delete tokens with audit", Err: err}
 		}
 
 		// Log successful logout against the school the session actually

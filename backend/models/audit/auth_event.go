@@ -27,6 +27,7 @@ const (
 	EventTypeLogout                      = "logout"
 	EventTypeTokenRefresh                = "token_refresh"
 	EventTypeTokenExpired                = "token_expired"
+	EventTypeTokenRevoked                = "token_revoked"
 	EventTypePasswordReset               = "password_reset"
 	EventTypeAccountLocked               = "account_locked"
 	EventTypeTenantSwitch                = "tenant_switch"
@@ -63,7 +64,7 @@ func (ae *AuthEvent) Validate() error {
 
 	// Validate event type
 	switch ae.EventType {
-	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh,
+	case EventTypeLogin, EventTypeLogout, EventTypeTokenRefresh, EventTypeTokenRevoked,
 		EventTypeTokenExpired, EventTypePasswordReset, EventTypeAccountLocked,
 		EventTypeTenantSwitch, EventTypeCaregiverCapabilityEnabled,
 		EventTypeCaregiverCapabilityDisabled,

@@ -128,8 +128,8 @@ type OperatorRefreshTokenRepository interface {
 	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
 	DeleteExpiredRotated(ctx context.Context, familyID string, now time.Time) error
 	Delete(ctx context.Context, id any) error
-	DeleteByOperatorID(ctx context.Context, operatorID int64) (int, error)
-	DeleteByFamilyID(ctx context.Context, familyID string) error
+	DeleteByOperatorIDReturning(ctx context.Context, operatorID int64) ([]*OperatorRefreshToken, error)
+	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*OperatorRefreshToken, error)
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*OperatorRefreshToken, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 }
