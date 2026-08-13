@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
@@ -106,15 +107,24 @@ func tokenFamilyIDs(tokens []*authModels.Token) []string {
 	return ids
 }
 
-func tokenTenantIDs(tokens []*authModels.Token) []int64 {
-	return tokenTenantIDsForPortal(tokens, "")
+func pushPortalsForScope(portalScope string) []string {
+	switch portalScope {
+	case authModels.PortalScopeParent:
+		return []string{iotModels.PushPortalParent}
+	case authModels.PortalScopeUnknown, "":
+		return []string{iotModels.PushPortalStaff, iotModels.PushPortalParent}
+	default:
+		return []string{iotModels.PushPortalStaff}
+	}
 }
 
-func pushPortalForScope(portalScope string) string {
-	if portalScope == authModels.PortalScopeParent {
-		return iotModels.PushPortalParent
+func tokenMatchesPushPortal(portalScope, portal string) bool {
+	for _, candidate := range pushPortalsForScope(portalScope) {
+		if candidate == portal {
+			return true
+		}
 	}
-	return iotModels.PushPortalStaff
+	return false
 }
 
 func tokenTenantIDsForPortal(tokens []*authModels.Token, portal string) []int64 {
@@ -124,7 +134,7 @@ func tokenTenantIDsForPortal(tokens []*authModels.Token, portal string) []int64 
 		if token == nil || token.TenantID <= 0 {
 			continue
 		}
-		if portal != "" && pushPortalForScope(token.PortalScope) != portal {
+		if portal != "" && !tokenMatchesPushPortal(token.PortalScope, portal) {
 			continue
 		}
 		if _, ok := seen[token.TenantID]; ok {
@@ -137,6 +147,9 @@ func tokenTenantIDsForPortal(tokens []*authModels.Token, portal string) []int64 
 }
 
 func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
+	if isAccountWideRevocation(reason) {
+		return s.deleteAllAccountTokensWithAudit(ctx, accountID, reason, ipAddress, userAgent)
+	}
 	tokens, err := s.repos.Token.DeleteByAccountIDReturning(ctx, accountID)
 	if err != nil {
 		return nil, err
@@ -144,48 +157,70 @@ func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID in
 	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
 		return nil, err
 	}
-	if isAccountWideRevocation(reason) {
-		if err := s.deletePushAcrossTenants(ctx, accountID); err != nil {
-			return nil, err
-		}
-		return tokens, nil
-	}
-	if err := s.deletePushForFamilies(ctx, accountID, tokenFamilyIDs(tokens)); err != nil {
-		return nil, err
-	}
-	if err := s.deletePushUnboundForTokens(ctx, accountID, tokens); err != nil {
-		return nil, err
-	}
-	if len(tokens) == 0 {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			return tokens, s.deletePushUnboundAtTenants(ctx, accountID, []int64{tenantID}, iotModels.PushPortalStaff)
-		}
-	}
 	return tokens, nil
 }
 
+func (s *Service) deleteAllAccountTokensWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
+	var tokens []*authModels.Token
+	run := func(adminCtx context.Context) error {
+		var err error
+		tokens, err = s.repos.Token.DeleteByAccountIDReturning(adminCtx, accountID)
+		if err != nil {
+			return err
+		}
+		return s.auditRevokedTokens(adminCtx, tokens, reason, ipAddress, userAgent)
+	}
+	if _, ok := modelBase.TxFromContext(ctx); ok && (tenant.FromContext(ctx) == 0 || tenant.IsAdminTx(ctx)) {
+		return tokens, run(ctx)
+	}
+	if s.db == nil {
+		return tokens, run(ctx)
+	}
+	adminCtx := tenant.WithTenantID(modelBase.ContextWithoutTx(ctx), 0)
+	err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		return run(txCtx)
+	})
+	return tokens, err
+}
+
 func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.Token, reason, ipAddress, userAgent string) error {
-	portal := pushPortalForScope(token.PortalScope)
 	if token.FamilyID == "" {
 		if err := s.repos.Token.Delete(ctx, token.ID); err != nil {
 			return err
 		}
-		if err := s.auditRevokedTokens(ctx, []*authModels.Token{token}, reason, ipAddress, userAgent); err != nil {
-			return err
-		}
-		return s.deletePushUnboundAtTenants(ctx, token.AccountID, []int64{token.TenantID}, portal)
+		return s.auditRevokedTokens(ctx, []*authModels.Token{token}, reason, ipAddress, userAgent)
 	}
 	tokens, err := s.repos.Token.DeleteByFamilyIDReturning(ctx, token.FamilyID)
 	if err != nil {
 		return err
 	}
-	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
-		return err
+	return s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent)
+}
+
+func (s *Service) cleanupPushAfterTokenRevocation(ctx context.Context, accountID int64, tokens []*authModels.Token, reason string) {
+	var err error
+	if isAccountWideRevocation(reason) {
+		err = s.deletePushAcrossTenants(ctx, accountID)
+	} else {
+		err = s.deletePushForFamilies(ctx, accountID, tokenFamilyIDs(tokens))
+		if err == nil {
+			err = s.deletePushUnboundForTokens(ctx, accountID, tokens)
+		}
 	}
-	if err := s.deletePushForFamily(ctx, token.AccountID, token.FamilyID); err != nil {
-		return err
+	if err != nil {
+		s.getLogger().Warn("failed to delete push subscriptions after token revocation",
+			slog.Int64("account_id", accountID),
+			slog.String("reason", reason),
+			slog.Any("error", err),
+		)
 	}
-	return s.deletePushUnboundAtTenants(ctx, token.AccountID, []int64{token.TenantID}, portal)
+}
+
+func (s *Service) cleanupPushAfterFamilyRevocation(ctx context.Context, token *authModels.Token) {
+	if token == nil {
+		return
+	}
+	s.cleanupPushAfterTokenRevocation(ctx, token.AccountID, []*authModels.Token{token}, "family")
 }
 
 // deletePushAcrossTenants removes every staff and parent push row for the account.
@@ -198,10 +233,6 @@ func (s *Service) deletePushAcrossTenants(ctx context.Context, accountID int64) 
 		}
 		return s.repos.PushSubscription.DeleteParentByAccountID(adminCtx, accountID)
 	})
-}
-
-func (s *Service) deletePushForFamily(ctx context.Context, accountID int64, familyID string) error {
-	return s.deletePushForFamilies(ctx, accountID, []string{familyID})
 }
 
 func (s *Service) deletePushForFamilies(ctx context.Context, accountID int64, familyIDs []string) error {

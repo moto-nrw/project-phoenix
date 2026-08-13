@@ -301,22 +301,20 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 }
 
 // CleanupOldTokensForAccountReturning enforces the active-session cap for one
-// portal and returns only sessions that were actually revoked for
+// portal group and returns only sessions that were actually revoked for
 // same-transaction audit; generic CRUD cannot combine the ordered cap policy
 // with DELETE ... RETURNING.
 //
-// Pre-1.15.289 rows still have portal_scope = unknown. Those count toward
-// this portal's cap so a legacy session cannot sit beside five new ones.
+// Tenant and org share the staff allowance. Unknown legacy rows are isolated
+// so a known-portal login cannot evict a session whose portal is unknown.
 func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*auth.Token, error) {
-	if portalScope == "" {
-		portalScope = auth.PortalScopeUnknown
-	}
+	scopes := auth.CapPortalScopes(portalScope)
 	var tokens []*auth.Token
 	selectQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
-		Where(`"token".portal_scope IN (?, ?)`, portalScope, auth.PortalScopeUnknown).
+		Where(`"token".portal_scope IN (?)`, bun.List(scopes)).
 		Where(`"token".rotated_at IS NULL`).
 		Where(`"token".expiry > ?`, time.Now()).
 		OrderExpr(`"token".id DESC`)

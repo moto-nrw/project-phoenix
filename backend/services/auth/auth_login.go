@@ -449,7 +449,8 @@ func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 // guard (optional) re-validates the caller's authorization inside this
 // transaction, before anything is written — see mintGuard.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
-	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+	var evicted []*auth.Token
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		if err := s.applyMintGuard(ctx, account, guard); err != nil {
 			return err
 		}
@@ -482,8 +483,18 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 			)
 		}
 
-		return s.enforcePortalSessionCap(ctx, account.ID, token.PortalScope)
+		deleted, err := s.enforcePortalSessionCap(ctx, account.ID, token.PortalScope)
+		if err != nil {
+			return err
+		}
+		evicted = deleted
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	s.cleanupPushAfterTokenRevocation(ctx, account.ID, evicted, "session_cap")
+	return nil
 }
 
 func (s *Service) applyMintGuard(ctx context.Context, account *auth.Account, guard mintGuard) error {
@@ -498,19 +509,16 @@ func (s *Service) applyMintGuard(ctx context.Context, account *auth.Account, gua
 
 // enforcePortalSessionCap keeps at most five active sessions in this portal.
 // Other portals keep their own sessions.
-func (s *Service) enforcePortalSessionCap(ctx context.Context, accountID int64, portalScope string) error {
+func (s *Service) enforcePortalSessionCap(ctx context.Context, accountID int64, portalScope string) ([]*auth.Token, error) {
 	const maxActiveSessionsPerPortal = 5
 	deleted, err := s.repos.Token.CleanupOldTokensForAccountReturning(ctx, accountID, portalScope, maxActiveSessionsPerPortal)
 	if err != nil {
-		return fmt.Errorf("enforce active session cap: %w", err)
+		return nil, fmt.Errorf("enforce active session cap: %w", err)
 	}
 	if err := s.auditRevokedTokens(ctx, deleted, "session_cap", "", ""); err != nil {
-		return err
+		return nil, err
 	}
-	if err := s.deletePushForFamilies(ctx, accountID, tokenFamilyIDs(deleted)); err != nil {
-		return err
-	}
-	return s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDs(deleted), pushPortalForScope(portalScope))
+	return deleted, nil
 }
 
 // isTokenFamilyConflict checks if error is due to token family conflict
@@ -1354,6 +1362,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	var newToken *auth.Token
 	var recovered bool
 	var rejectAfterCommit error
+	var revokedForPush *auth.Token
 
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		var err error
@@ -1407,6 +1416,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			if err := s.deleteFamilyWithAudit(ctx, dbToken, "claim_mismatch", ipAddress, userAgent); err != nil {
 				return fmt.Errorf("revoke mismatched refresh-token family: %w", err)
 			}
+			revokedForPush = dbToken
 			rejectAfterCommit = ErrInvalidToken
 			s.logRefreshDecision("refresh_session_rejected", "claim_mismatch", refreshClaims.ID, refreshClaims.TenantID)
 			return nil
@@ -1416,6 +1426,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			if err := s.deleteFamilyWithAudit(ctx, dbToken, "token_expired", ipAddress, userAgent); err != nil {
 				return fmt.Errorf("delete expired refresh-token family: %w", err)
 			}
+			revokedForPush = dbToken
 			rejectAfterCommit = ErrTokenExpired
 			s.logRefreshDecision("refresh_session_rejected", "token_expired", refreshClaims.ID, refreshClaims.TenantID)
 			return nil
@@ -1427,6 +1438,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 				if revokeErr := s.deleteFamilyWithAudit(ctx, dbToken, "replay_detected", ipAddress, userAgent); revokeErr != nil {
 					return fmt.Errorf("revoke replayed refresh-token family: %w", revokeErr)
 				}
+				revokedForPush = dbToken
 				rejectAfterCommit = ErrInvalidToken
 				s.logRefreshDecision("refresh_session_rejected", "replay_detected", refreshClaims.ID, refreshClaims.TenantID)
 				return nil
@@ -1442,6 +1454,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 				if revokeErr := s.deleteFamilyWithAudit(ctx, dbToken, "lineage_mismatch", ipAddress, userAgent); revokeErr != nil {
 					return fmt.Errorf("revoke inconsistent refresh-token family: %w", revokeErr)
 				}
+				revokedForPush = dbToken
 				rejectAfterCommit = ErrInvalidToken
 				s.logRefreshDecision("refresh_session_rejected", "lineage_mismatch", refreshClaims.ID, refreshClaims.TenantID)
 				return nil
@@ -1478,6 +1491,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	if err != nil {
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
 	}
+	s.cleanupPushAfterFamilyRevocation(ctx, revokedForPush)
 	if rejectAfterCommit != nil {
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: rejectAfterCommit}
 	}
@@ -1893,6 +1907,7 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 	}
 
 	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
+	var revoked *auth.Token
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
@@ -1929,8 +1944,12 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
 		}
 
+		revoked = dbToken
 		return nil
 	})
+	if err == nil {
+		s.cleanupPushAfterFamilyRevocation(ctx, revoked)
+	}
 	return err
 }
 

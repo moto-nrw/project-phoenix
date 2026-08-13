@@ -25,7 +25,7 @@ func (s *Service) ActivateAccount(ctx context.Context, accountID int) error {
 
 // DeactivateAccount deactivates a user account
 func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		account, err := s.repos.Account.FindByID(txCtx, int64(accountID))
 		if err != nil {
 			return &AuthError{Op: "deactivate account", Err: ErrAccountNotFound}
@@ -34,11 +34,17 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 		if err := s.repos.Account.Update(txCtx, account); err != nil {
 			return &AuthError{Op: "deactivate account", Err: err}
 		}
-		if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "account_deactivated", "", ""); err != nil {
-			return &AuthError{Op: "revoke tokens during account deactivation", Err: err}
-		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	revoked, err := s.deleteAccountTokensWithAudit(ctx, int64(accountID), "account_deactivated", "", "")
+	if err != nil {
+		return &AuthError{Op: "revoke tokens during account deactivation", Err: err}
+	}
+	s.cleanupPushAfterTokenRevocation(ctx, int64(accountID), revoked, "account_deactivated")
+	return nil
 }
 
 // UpdateAccount updates account information

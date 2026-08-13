@@ -25,11 +25,11 @@ func TestPersistedPortalScope(t *testing.T) {
 	}
 }
 
-func TestPushPortalForScope(t *testing.T) {
-	assert.Equal(t, iotModels.PushPortalParent, pushPortalForScope(authModels.PortalScopeParent))
-	assert.Equal(t, iotModels.PushPortalStaff, pushPortalForScope(authModels.PortalScopeTenant))
-	assert.Equal(t, iotModels.PushPortalStaff, pushPortalForScope(authModels.PortalScopeOrg))
-	assert.Equal(t, iotModels.PushPortalStaff, pushPortalForScope(authModels.PortalScopeSchool))
-	assert.Equal(t, iotModels.PushPortalStaff, pushPortalForScope(authModels.PortalScopeUnknown))
-	assert.Equal(t, iotModels.PushPortalStaff, pushPortalForScope(""))
+func TestPushPortalsForScope(t *testing.T) {
+	assert.Equal(t, []string{iotModels.PushPortalParent}, pushPortalsForScope(authModels.PortalScopeParent))
+	assert.Equal(t, []string{iotModels.PushPortalStaff}, pushPortalsForScope(authModels.PortalScopeTenant))
+	assert.Equal(t, []string{iotModels.PushPortalStaff}, pushPortalsForScope(authModels.PortalScopeOrg))
+	assert.Equal(t, []string{iotModels.PushPortalStaff}, pushPortalsForScope(authModels.PortalScopeSchool))
+	assert.Equal(t, []string{iotModels.PushPortalStaff, iotModels.PushPortalParent}, pushPortalsForScope(authModels.PortalScopeUnknown))
+	assert.Equal(t, []string{iotModels.PushPortalStaff, iotModels.PushPortalParent}, pushPortalsForScope(""))
 }

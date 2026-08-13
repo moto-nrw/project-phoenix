@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
@@ -516,4 +517,107 @@ func TestRevokeAllTokensClearsParentPushAcrossTenants(t *testing.T) {
 
 	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-school-a"))
 	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-school-b"))
+}
+
+func TestLogoutUnknownScopeRemovesBothUnboundPortals(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("logout-unknown-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	_, refreshToken, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().
+		TableExpr("auth.tokens").
+		Set("portal_scope = ?", authModels.PortalScopeUnknown).
+		Where("account_id = ?", account.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/unknown-parent-unbound", "")
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/unknown-staff-unbound", "")
+
+	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "", ""))
+
+	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/unknown-parent-unbound"))
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/unknown-staff-unbound"))
+}
+
+func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("session-cap-unknown")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	for i := range 5 {
+		legacy := &authModels.Token{
+			AccountID:   account.ID,
+			Token:       uniqueTestName("unknown-session") + "-" + string(rune('a'+i)),
+			Expiry:      time.Now().Add(time.Hour),
+			PortalScope: authModels.PortalScopeUnknown,
+		}
+		legacy.SetTenantID(tenantID)
+		_, err = db.NewInsert().Model(legacy).ModelTableExpr("auth.tokens").Exec(context.Background())
+		require.NoError(t, err)
+	}
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeUnknown, 5)
+	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeTenant, 1)
+}
+
+func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("revoke-all-tokens")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	other := &authModels.Token{
+		AccountID:   account.ID,
+		Token:       uniqueTestName("other-school-session"),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: authModels.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+
+	require.NoError(t, service.RevokeAllTokens(ctx, int(account.ID)))
+
+	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count)
 }
