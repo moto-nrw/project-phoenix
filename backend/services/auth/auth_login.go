@@ -479,9 +479,10 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 			)
 		}
 
-		// Enforce the cap after insertion so at most five active sessions remain.
-		const maxTokensPerAccount = 5
-		deleted, err := s.repos.Token.CleanupOldTokensForAccountReturning(ctx, account.ID, maxTokensPerAccount)
+		// Enforce the cap after insertion so at most five active sessions remain
+		// in this portal. Other portals keep their own sessions.
+		const maxActiveSessionsPerPortal = 5
+		deleted, err := s.repos.Token.CleanupOldTokensForAccountReturning(ctx, account.ID, token.PortalScope, maxActiveSessionsPerPortal)
 		if err != nil {
 			return fmt.Errorf("enforce active session cap: %w", err)
 		}
@@ -1842,7 +1843,8 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 	return nil
 }
 
-// LogoutWithAudit invalidates a refresh token with audit logging.
+// LogoutWithAudit invalidates the presented refresh-token family with audit
+// logging. Other devices and other portals keep their sessions.
 //
 // Uses WithAdminTx (BYPASSRLS) because logout is a pre-deauthentication flow.
 // auth.tokens has RLS enabled — without setting app.current_tenant_id, the
@@ -1878,15 +1880,12 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		}
 		accountID = dbToken.AccountID
 
-		// Delete ALL tokens for this account to ensure complete logout
-		// This ensures that all sessions (access and refresh tokens) are invalidated
-		_, err = s.deleteAccountTokensWithAudit(ctx, dbToken.AccountID, "logout", ipAddress, userAgent)
-		if err != nil {
-			s.getLogger().Warn("failed to delete all tokens during logout",
+		if err := s.deleteFamilyWithAudit(ctx, dbToken, "logout", ipAddress, userAgent); err != nil {
+			s.getLogger().Warn("failed to delete refresh-token family during logout",
 				slog.Int64("account_id", dbToken.AccountID),
 				slog.Any("error", err),
 			)
-			return &AuthError{Op: "delete tokens with audit", Err: err}
+			return &AuthError{Op: "delete token family with audit", Err: err}
 		}
 
 		// Log successful logout against the school the session actually
@@ -1915,9 +1914,9 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		return err
 	}
 
-	// Staff subscriptions are tenant-specific, but logout is account-wide.
-	// Remove every staff row server-side so subscriptions registered on other
-	// school subdomains cannot keep receiving notifications.
+	// Staff push subscriptions are not bound to a token family. Remove every
+	// staff row so a logged-out device stops receiving notifications even if
+	// the browser never unregisters itself.
 	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
 		return s.repos.PushSubscription.DeleteStaffByAccountID(txCtx, accountID)
 	})

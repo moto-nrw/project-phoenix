@@ -300,15 +300,20 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 	return query
 }
 
-// CleanupOldTokensForAccountReturning enforces the active-session cap and
-// returns only sessions that were actually revoked for same-transaction audit;
-// generic CRUD cannot combine the ordered cap policy with DELETE ... RETURNING.
-func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, keepCount int) ([]*auth.Token, error) {
+// CleanupOldTokensForAccountReturning enforces the active-session cap for one
+// portal and returns only sessions that were actually revoked for
+// same-transaction audit; generic CRUD cannot combine the ordered cap policy
+// with DELETE ... RETURNING.
+func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*auth.Token, error) {
+	if portalScope == "" {
+		portalScope = auth.PortalScopeUnknown
+	}
 	var tokens []*auth.Token
 	selectQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
+		Where(`"token".portal_scope = ?`, portalScope).
 		Where(`"token".rotated_at IS NULL`).
 		Where(`"token".expiry > ?`, time.Now()).
 		OrderExpr(`"token".id DESC`)

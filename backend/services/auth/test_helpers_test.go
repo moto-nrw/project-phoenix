@@ -1143,7 +1143,7 @@ func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface
 	panic("FindValidTokens not implemented")
 }
 
-func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, int) ([]*authModel.Token, error) {
+func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, string, int) ([]*authModel.Token, error) {
 	panic("CleanupOldTokensForAccountReturning not implemented")
 }
 

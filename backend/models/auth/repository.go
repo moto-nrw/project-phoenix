@@ -170,7 +170,7 @@ type TokenRepository interface {
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
-	CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, keepCount int) ([]*Token, error)
+	CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*Token, error)
 
 	// Bulk deletion
 	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)

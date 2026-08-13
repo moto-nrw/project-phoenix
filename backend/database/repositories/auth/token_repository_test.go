@@ -455,7 +455,7 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, expired))
 
-	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, 5)
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeUnknown, 5)
 	require.NoError(t, err)
 	require.Empty(t, deleted)
 	for _, token := range activeTokens {
@@ -469,7 +469,7 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 		Expiry:    time.Now().Add(time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, newest))
-	deleted, err = repo.CleanupOldTokensForAccountReturning(ctx, account.ID, 5)
+	deleted, err = repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeUnknown, 5)
 	require.NoError(t, err)
 	require.Len(t, deleted, 1)
 
@@ -491,6 +491,41 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	require.NoError(t, err, "session-cap cleanup must leave recovery handoffs alone")
 	_, err = repo.FindByID(ctx, expired.ID)
 	require.NoError(t, err, "session-cap cleanup must leave expired-token cleanup to its own lifecycle")
+}
+
+func TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupPortalTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	parent := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeParent,
+	}
+	require.NoError(t, repo.Create(ctx, parent))
+
+	for i := 0; i < 5; i++ {
+		token := &auth.Token{
+			AccountID:   account.ID,
+			Token:       fmt.Sprintf("portal-cap-token-%d-%d", time.Now().UnixNano(), i),
+			Expiry:      time.Now().Add(time.Hour),
+			PortalScope: auth.PortalScopeTenant,
+		}
+		require.NoError(t, repo.Create(ctx, token))
+	}
+
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeTenant, 5)
+	require.NoError(t, err)
+	require.Empty(t, deleted)
+
+	_, err = repo.FindByID(ctx, parent.ID)
+	require.NoError(t, err, "a parent-portal session must not be evicted by the tenant session cap")
 }
 
 func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
