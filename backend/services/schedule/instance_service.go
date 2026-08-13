@@ -816,7 +816,17 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		snapshot.SupervisorIDs = append(snapshot.SupervisorIDs, supervisor.ID)
 	}
 	for _, row := range attendanceBefore {
-		snapshot.Attendance = append(snapshot.Attendance, scheduleModel.CompletionAttendanceSnapshot{RowID: row.ID, Status: row.Status, Substatus: row.Substatus, Note: row.Note, CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt, NotScheduled: row.NotScheduled})
+		snapshot.Attendance = append(snapshot.Attendance, scheduleModel.CompletionAttendanceSnapshot{
+			RowID:              row.ID,
+			Status:             row.Status,
+			Substatus:          row.Substatus,
+			Note:               row.Note,
+			CheckedInAt:        row.CheckedInAt,
+			CheckedOutAt:       row.CheckedOutAt,
+			NotScheduled:       row.NotScheduled,
+			StudentStatusDayID: row.StudentStatusDayID,
+			PickupExceptionID:  row.PickupExceptionID,
+		})
 	}
 	instance.CompletionSnapshot, err = json.Marshal(snapshot)
 	if err != nil {

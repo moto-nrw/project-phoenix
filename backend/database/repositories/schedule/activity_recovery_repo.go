@@ -105,7 +105,7 @@ func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int
 		}
 	}
 	for _, row := range snapshot.Attendance {
-		result, execErr = db.NewUpdate().Table("schedule.instance_students").Set("status = ?", row.Status).Set("substatus = ?", row.Substatus).Set("note = ?", row.Note).Set("checked_in_at = ?", row.CheckedInAt).Set("checked_out_at = ?", row.CheckedOutAt).Set("not_scheduled = ?", row.NotScheduled).Where("id = ? AND instance_id = ?", row.RowID, instanceID).Exec(ctx)
+		result, execErr = db.NewUpdate().Table("schedule.instance_students").Set("status = ?", row.Status).Set("substatus = ?", row.Substatus).Set("note = ?", row.Note).Set("checked_in_at = ?", row.CheckedInAt).Set("checked_out_at = ?", row.CheckedOutAt).Set("not_scheduled = ?", row.NotScheduled).Set("student_status_day_id = ?", row.StudentStatusDayID).Set("pickup_exception_id = ?", row.PickupExceptionID).Where("id = ? AND instance_id = ?", row.RowID, instanceID).Exec(ctx)
 		if err := expectRestoredRows(result, execErr, 1, "attendance row"); err != nil {
 			return fmt.Errorf("restore attendance row %d: %w", row.RowID, err)
 		}

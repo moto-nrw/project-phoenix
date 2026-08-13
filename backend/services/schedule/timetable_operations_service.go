@@ -235,9 +235,16 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	// Collect first, resolve care days once, map second. Every instance here
 	// falls on the same date, so one care-day resolution covers them all —
 	// resolving inside the loop would be a query burst per instance (#1747).
+	horizon := opts.HorizonMinutes
+	if horizon <= 0 {
+		horizon = 15
+	}
+	if startLead > horizon {
+		horizon = startLead
+	}
 	candidates := make([]plannedNowCandidate, 0, len(instances))
 	for _, inst := range instances {
-		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, opts.HorizonMinutes) {
+		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, horizon) {
 			continue
 		}
 		roomName := roomNames[inst.RoomID]

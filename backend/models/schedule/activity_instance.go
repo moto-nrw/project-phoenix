@@ -73,13 +73,15 @@ type ActivityInstance struct {
 }
 
 type CompletionAttendanceSnapshot struct {
-	RowID        int64      `json:"row_id"`
-	Status       string     `json:"status"`
-	Substatus    *string    `json:"substatus,omitempty"`
-	Note         *string    `json:"note,omitempty"`
-	CheckedInAt  *time.Time `json:"checked_in_at,omitempty"`
-	CheckedOutAt *time.Time `json:"checked_out_at,omitempty"`
-	NotScheduled bool       `json:"not_scheduled"`
+	RowID              int64      `json:"row_id"`
+	Status             string     `json:"status"`
+	Substatus          *string    `json:"substatus,omitempty"`
+	Note               *string    `json:"note,omitempty"`
+	CheckedInAt        *time.Time `json:"checked_in_at,omitempty"`
+	CheckedOutAt       *time.Time `json:"checked_out_at,omitempty"`
+	NotScheduled       bool       `json:"not_scheduled"`
+	StudentStatusDayID *int64     `json:"student_status_day_id,omitempty"`
+	PickupExceptionID  *int64     `json:"pickup_exception_id,omitempty"`
 }
 
 type ActivityCompletionSnapshot struct {

@@ -232,6 +232,22 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 	})
 }
 
+func TestTimetableOperationsPlannedNowIncludesStartLeadWindow(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	deps.settings.leadMinutes = 60
+	wireAssignedStaff(deps, 631, 436, 229, 341)
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(341, scheduleModel.InstanceStatusPlanned, now.Add(45*time.Minute), now.Add(2*time.Hour)),
+	}
+
+	result, err := deps.service.PlannedNow(context.Background(), 631, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(341), result[0].ID)
+}
+
 func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
@@ -1693,10 +1709,11 @@ func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID in
 }
 
 type fakeOpsSettings struct {
-	enabled   bool
-	err       error
-	mode      string
-	stringErr error
+	enabled     bool
+	err         error
+	mode        string
+	stringErr   error
+	leadMinutes int
 }
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
@@ -1711,5 +1728,8 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, _ string) (string, er
 }
 
 func (s *fakeOpsSettings) ResolveInt(_ context.Context, _ string) (int, error) {
+	if s.leadMinutes > 0 {
+		return s.leadMinutes, s.err
+	}
 	return 15, s.err
 }
