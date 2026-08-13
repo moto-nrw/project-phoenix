@@ -299,12 +299,20 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 	assert.Empty(t, row.PickupByDay["tue"])
 
 	offerings := map[int64]*enrollmentModels.CareOffering{
-		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: true},
 	}
 	constrained, err := classRosterRow(student, person, "", enrollment, offerings, schemas, nil, nil)
 	require.NoError(t, err)
 	assert.Empty(t, constrained.CareDays)
 	assert.Equal(t, "14:30", constrained.PickupByDay["mon"])
+
+	inactiveOnly := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: false},
+	}
+	unconstrained, err := classRosterRow(student, person, "", enrollment, inactiveOnly, schemas, nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, unconstrained.CareDays)
+	assert.Equal(t, "14:30", unconstrained.PickupByDay["mon"])
 }
 
 func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {

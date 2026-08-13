@@ -1154,14 +1154,26 @@ func classRosterRow(
 }
 
 // classRosterCareDays is the roster-side mirror of relevantCareDaysForChild:
-// booked offering days when the phase has a catalog, every weekday when it
-// does not. EffectiveDays is derived only from booked offerings and stays
-// empty in the unconstrained case, which would hide valid pickup times.
+// booked offering days when the phase has an active catalog (or leftover
+// selections), every weekday when it does not. The form only loads active
+// offerings; ListByPhase includes inactive rows, so an inactive-only catalog
+// must not count as constrained. EffectiveDays is derived only from booked
+// offerings and stays empty in the unconstrained case, which would hide
+// valid pickup times.
 func classRosterCareDays(effectiveDays []string, offeringByID map[int64]*enrollmentModels.CareOffering) []string {
-	if len(offeringByID) == 0 {
-		return sortedDayCodes([]string{"mon", "tue", "wed", "thu", "fri"})
+	if classRosterHasActiveOfferings(offeringByID) || len(effectiveDays) > 0 {
+		return effectiveDays
 	}
-	return effectiveDays
+	return sortedDayCodes([]string{"mon", "tue", "wed", "thu", "fri"})
+}
+
+func classRosterHasActiveOfferings(offeringByID map[int64]*enrollmentModels.CareOffering) bool {
+	for _, offering := range offeringByID {
+		if offering != nil && offering.IsActive {
+			return true
+		}
+	}
+	return false
 }
 
 // classRosterCompanions loads the "läuft mit" links of every listed child, so
