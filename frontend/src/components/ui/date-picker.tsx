@@ -361,76 +361,46 @@ export function DatePicker({
     containerRef.current?.closest("[data-date-picker-focus-trap]") !== null;
 
   return (
-    <div
-      className={`relative flex items-center gap-1 ${className}`}
-      ref={containerRef}
-    >
-      <button
-        ref={triggerRef}
-        type="button"
-        id={isMultiple ? undefined : props.id}
-        aria-label={
-          isMultiple
-            ? undefined
-            : (props.ariaLabel ?? (iconOnly ? "Kalender öffnen" : undefined))
-        }
-        aria-expanded={isOpen}
-        aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
-        disabled={isDisabled}
-        onClick={toggleOpen}
-        className={`flex items-center rounded-lg border transition-all ${
-          iconOnly
-            ? "h-10 w-10 shrink-0 justify-center"
-            : `min-w-0 flex-1 justify-between ${
-                TRIGGER_SIZE_CLASS[
-                  (isMultiple ? undefined : props.controlSize) ?? "sm"
-                ]
-              }`
-        } ${
-          !isMultiple && props.invalid ? "border-moto-red" : "border-gray-200"
-        } ${
-          isDisabled
-            ? "cursor-not-allowed bg-gray-50 text-gray-400"
-            : isOpen
-              ? "border-gray-300 bg-gray-50"
-              : "bg-white hover:bg-gray-50"
-        }`}
-      >
-        {!iconOnly && (
-          <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
-            {displayValue ?? placeholder}
-          </span>
-        )}
-        <svg
-          className="h-4 w-4 shrink-0 text-gray-400"
-          aria-hidden="true"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-          />
-        </svg>
-      </button>
-      {canClear && (
+    <div className={`relative ${className}`} ref={containerRef}>
+      <div className="flex items-center gap-1" data-date-picker-controls>
         <button
+          ref={triggerRef}
           type="button"
-          onClick={() => {
-            if (isMultiple) {
-              props.onChangeDates([]);
-            } else {
-              props.onChange(null);
-            }
-          }}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          aria-label={labels.clear}
+          id={isMultiple ? undefined : props.id}
+          aria-label={
+            isMultiple
+              ? undefined
+              : (props.ariaLabel ?? (iconOnly ? "Kalender öffnen" : undefined))
+          }
+          aria-expanded={isOpen}
+          aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
+          disabled={isDisabled}
+          onClick={toggleOpen}
+          className={`flex items-center rounded-lg border transition-all ${
+            iconOnly
+              ? "h-10 w-10 shrink-0 justify-center"
+              : `min-w-0 flex-1 justify-between ${
+                  TRIGGER_SIZE_CLASS[
+                    (isMultiple ? undefined : props.controlSize) ?? "sm"
+                  ]
+                }`
+          } ${
+            !isMultiple && props.invalid ? "border-moto-red" : "border-gray-200"
+          } ${
+            isDisabled
+              ? "cursor-not-allowed bg-gray-50 text-gray-400"
+              : isOpen
+                ? "border-gray-300 bg-gray-50"
+                : "bg-white hover:bg-gray-50"
+          }`}
         >
+          {!iconOnly && (
+            <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
+              {displayValue ?? placeholder}
+            </span>
+          )}
           <svg
-            className="h-4 w-4"
+            className="h-4 w-4 shrink-0 text-gray-400"
             aria-hidden="true"
             fill="none"
             viewBox="0 0 24 24"
@@ -440,11 +410,40 @@ export function DatePicker({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
         </button>
-      )}
+        {canClear && (
+          <button
+            type="button"
+            onClick={() => {
+              if (isMultiple) {
+                props.onChangeDates([]);
+              } else {
+                props.onChange(null);
+              }
+            }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            aria-label={labels.clear}
+          >
+            <svg
+              className="h-4 w-4"
+              aria-hidden="true"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
 
       {/* The overlay/inline layouts render in place; the popover layout renders
           the calendar into document.body at a viewport-fixed position. Portals
@@ -1132,11 +1131,10 @@ function getCalendarContainerClass(
   const base = `rounded-xl border border-gray-200 bg-white shadow-lg ${
     compact ? "p-3" : "p-4"
   }`;
-  // The floating layouts get their width from the portal wrapper, which is
-  // sized to the trigger; inline takes its parent's width and only needs the
-  // legible-minimum floor.
+  // The floating layouts get their width from the portal wrapper. Inline
+  // calendars belong to their container and must shrink with narrow modals.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-full min-w-[304px]`;
+    return `${base} mt-2 w-full min-w-0 max-w-full`;
   }
   return `${base} w-full`;
 }

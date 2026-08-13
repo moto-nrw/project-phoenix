@@ -175,6 +175,44 @@ describe("DatePicker", () => {
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
   });
 
+  it("renders an inline calendar below the trigger controls", () => {
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="inline"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+
+    const controls = screen
+      .getByRole("button", { name: /datum auswählen/i })
+      .closest("[data-date-picker-controls]");
+    const panel = screen
+      .getByTestId("day-picker")
+      .closest("[data-date-picker-panel]");
+    expect(controls?.nextElementSibling).toBe(panel);
+  });
+
+  it("lets an inline calendar shrink to a narrow modal", () => {
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="inline"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+
+    const panel = screen
+      .getByTestId("day-picker")
+      .closest("[data-date-picker-panel]");
+    expect(panel).toHaveClass("w-full", "min-w-0", "max-w-full");
+    expect(panel).not.toHaveClass("min-w-[304px]");
+  });
+
   it("calls onChange when a date is selected", async () => {
     render(<DatePicker value={null} onChange={mockOnChange} />);
 
@@ -450,7 +488,10 @@ describe("DatePicker", () => {
     const trigger = screen.getByRole("button", { name: /datum auswählen/i });
     // jsdom reports an all-zero rect by default, which would make a top-left
     // render indistinguishable from a correctly positioned one.
-    vi.spyOn(trigger.parentElement!, "getBoundingClientRect").mockReturnValue({
+    vi.spyOn(
+      trigger.parentElement!.parentElement!,
+      "getBoundingClientRect",
+    ).mockReturnValue({
       top: 200,
       bottom: 240,
       left: 120,
