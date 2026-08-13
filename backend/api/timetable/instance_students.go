@@ -108,17 +108,7 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	inst, err := rs.TimetableData.GetActivityInstance(ctx, instanceID)
-	if err != nil {
-		if modelBase.IsNoRows(err) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
-		return
-	}
-	if inst != nil && (inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled) {
-		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance is frozen after completion")))
+	if rs.rejectFrozenAttendanceWrite(w, r, instanceID) {
 		return
 	}
 
@@ -146,6 +136,23 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 	)
 
 	common.Respond(w, r, http.StatusOK, mapAttendanceToResponse(updated), "Attendance updated")
+}
+
+func (rs *Resource) rejectFrozenAttendanceWrite(w http.ResponseWriter, r *http.Request, instanceID int64) bool {
+	inst, err := rs.TimetableData.GetActivityInstance(r.Context(), instanceID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			return true
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
+		return true
+	}
+	if inst != nil && (inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled) {
+		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance is frozen after completion")))
+		return true
+	}
+	return false
 }
 
 // parseAttendancePathIDs reads instance_id and student_id from the path.
