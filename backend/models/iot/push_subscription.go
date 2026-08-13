@@ -129,6 +129,9 @@ type PushSubscriptionRepository interface {
 	// were never bound to a token family. tenantID > 0 limits the delete to
 	// that school. Callers must use an admin transaction.
 	DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	// DeleteOrphanedSubscriptions removes push rows whose token family is gone
+	// or whose tenant has no live session left for that portal.
+	DeleteOrphanedSubscriptions(ctx context.Context) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
 

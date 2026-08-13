@@ -449,7 +449,6 @@ func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 // guard (optional) re-validates the caller's authorization inside this
 // transaction, before anything is written — see mintGuard.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
-	var evicted []*auth.Token
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		if err := s.applyMintGuard(ctx, account, guard); err != nil {
 			return err
@@ -487,13 +486,12 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		if err != nil {
 			return err
 		}
-		evicted = deleted
+		s.queuePushCleanup(ctx, account.ID, deleted, "session_cap")
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	s.cleanupPushAfterTokenRevocation(ctx, account.ID, evicted, "session_cap")
 	return nil
 }
 
@@ -1491,7 +1489,9 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	if err != nil {
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
 	}
-	s.cleanupPushAfterFamilyRevocation(ctx, revokedForPush)
+	if revokedForPush != nil {
+		s.queuePushCleanup(ctx, revokedForPush.AccountID, []*auth.Token{revokedForPush}, "family")
+	}
 	if rejectAfterCommit != nil {
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: rejectAfterCommit}
 	}
@@ -1947,8 +1947,8 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		revoked = dbToken
 		return nil
 	})
-	if err == nil {
-		s.cleanupPushAfterFamilyRevocation(ctx, revoked)
+	if err == nil && revoked != nil {
+		s.queuePushCleanup(ctx, revoked.AccountID, []*auth.Token{revoked}, "family")
 	}
 	return err
 }

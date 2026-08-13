@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -157,6 +158,25 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 func (r *TokenRepository) DeleteExpiredTokens(ctx context.Context) (int, error) {
 	deleted, err := r.DeleteBefore(ctx, "expiry", time.Now(), "delete expired tokens")
 	return int(deleted), err
+}
+
+// ListInactiveAccountIDsWithLiveTokens returns accounts that are deactivated
+// but still have unexpired refresh tokens. Used to recover a failed
+// account-wide wipe.
+func (r *TokenRepository) ListInactiveAccountIDsWithLiveTokens(ctx context.Context) ([]int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr("DISTINCT t.account_id").
+		TableExpr(`auth.tokens AS t`).
+		Join(`INNER JOIN auth.accounts AS a ON a.id = t.account_id`).
+		Where(`a.active = ?`, false).
+		Where(`t.rotated_at IS NULL`).
+		Where(`t.expiry > ?`, time.Now()).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list inactive accounts with live tokens", Err: err}
+	}
+	return ids, nil
 }
 
 // DeleteByAccountIDReturning atomically deletes and returns every affected
@@ -318,7 +338,9 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 		Where(`"token".rotated_at IS NULL`).
 		Where(`"token".expiry > ?`, time.Now()).
 		OrderExpr(`"token".id DESC`)
-	selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")
+	if !tenant.IsAdminTx(ctx) {
+		selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")
+	}
 	if err := selectQuery.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find tokens for audited cleanup", Err: err}
 	}
@@ -335,7 +357,9 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".id IN (?)`, bun.List(ids)).
 		Returning("*")
-	query = base.WithTenantFilter(ctx, query, "token")
+	if !tenant.IsAdminTx(ctx) {
+		query = base.WithTenantFilter(ctx, query, "token")
+	}
 	if err := query.Scan(ctx, &deleted); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "delete and return old tokens", Err: err}
 	}

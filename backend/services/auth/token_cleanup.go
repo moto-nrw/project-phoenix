@@ -9,6 +9,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -21,7 +22,51 @@ func (s *Service) CleanupExpiredTokens(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, &AuthError{Op: "cleanup expired tokens", Err: err}
 	}
+	if recErr := s.reconcileRevokedSessions(ctx); recErr != nil {
+		s.getLogger().Warn("revocation follow-up reconciliation failed",
+			slog.Any("error", recErr),
+		)
+	}
 	return count, nil
+}
+
+func (s *Service) reconcileRevokedSessions(ctx context.Context) error {
+	if s.db == nil {
+		return nil
+	}
+	return tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		seen := map[int64]struct{}{}
+		queue := func(ids []int64) {
+			for _, id := range ids {
+				if id > 0 {
+					seen[id] = struct{}{}
+				}
+			}
+		}
+		if s.repos.Token != nil {
+			inactive, err := s.repos.Token.ListInactiveAccountIDsWithLiveTokens(adminCtx)
+			if err != nil {
+				return err
+			}
+			queue(inactive)
+		}
+		if s.repos.AuthEvent != nil {
+			pending, err := s.repos.AuthEvent.ListPendingAccountWideWipeAccountIDs(adminCtx, time.Now().Add(-7*24*time.Hour))
+			if err != nil {
+				return err
+			}
+			queue(pending)
+		}
+		for accountID := range seen {
+			if err := s.wipeAccountWideIndependently(adminCtx, accountID, "administrative_revoke", "", ""); err != nil {
+				return err
+			}
+		}
+		if s.repos.PushSubscription == nil {
+			return nil
+		}
+		return s.repos.PushSubscription.DeleteOrphanedSubscriptions(adminCtx)
+	})
 }
 
 // CleanupExpiredPasswordResetTokens removes expired password reset tokens
@@ -73,7 +118,7 @@ func (s *Service) RevokeAllTokensWithReason(ctx context.Context, accountID int, 
 	if err != nil {
 		return &AuthError{Op: "revoke all tokens", Err: err}
 	}
-	s.cleanupPushAfterTokenRevocation(ctx, int64(accountID), revoked, reason)
+	s.queuePushCleanup(ctx, int64(accountID), revoked, reason)
 	return nil
 }
 

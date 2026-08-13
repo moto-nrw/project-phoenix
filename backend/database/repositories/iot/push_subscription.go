@@ -212,6 +212,45 @@ func (r *PushSubscriptionRepository) DeleteParentUnboundByAccount(ctx context.Co
 	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalParent, "delete unbound parent push subscriptions")
 }
 
+func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Context) error {
+	db := base.GetDB(ctx, r.DB)
+	_, err := db.NewDelete().
+		TableExpr(tablePushSubscriptions+` AS "push_subscription"`).
+		Where(`"push_subscription".token_family_id <> ?`, "").
+		Where(`NOT EXISTS (
+			SELECT 1 FROM auth.tokens AS "token"
+			WHERE "token".account_id = "push_subscription".account_id
+				AND "token".family_id = "push_subscription".token_family_id
+				AND "token".rotated_at IS NULL
+				AND "token".expiry > NOW()
+		)`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete orphaned family push subscriptions", Err: err}
+	}
+	_, err = db.NewDelete().
+		TableExpr(tablePushSubscriptions+` AS "push_subscription"`).
+		Where(`"push_subscription".token_family_id = ?`, "").
+		Where(`NOT EXISTS (
+			SELECT 1 FROM auth.tokens AS "token"
+			WHERE "token".account_id = "push_subscription".account_id
+				AND "token".tenant_id = "push_subscription".tenant_id
+				AND "token".rotated_at IS NULL
+				AND "token".expiry > NOW()
+				AND (
+					("push_subscription".portal = ? AND "token".portal_scope = ?)
+					OR ("push_subscription".portal = ? AND "token".portal_scope IN (?, ?, ?, ?))
+				)
+		)`, iot.PushPortalParent, authModels.PortalScopeParent,
+			iot.PushPortalStaff, authModels.PortalScopeTenant, authModels.PortalScopeOrg,
+			authModels.PortalScopeSchool, authModels.PortalScopeUnknown).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete orphaned unbound push subscriptions", Err: err}
+	}
+	return nil
+}
+
 func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context, accountID, tenantID int64, portal, op string) error {
 	query := base.GetDB(ctx, r.DB).NewDelete().
 		TableExpr(tablePushSubscriptions).

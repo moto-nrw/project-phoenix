@@ -123,3 +123,21 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 
 	return events, nil
 }
+
+// ListPendingAccountWideWipeAccountIDs returns accounts whose tenant request
+// recorded a pending cross-school wipe that the after-commit step may have
+// missed.
+func (r *AuthEventRepository) ListPendingAccountWideWipeAccountIDs(ctx context.Context, since time.Time) ([]int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr("DISTINCT account_id").
+		TableExpr("audit.auth_events").
+		Where("event_type = ?", audit.EventTypeTokenRevoked).
+		Where("created_at >= ?", since).
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}

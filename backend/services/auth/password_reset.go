@@ -247,7 +247,6 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	// Uses WithAdminTx (BYPASSRLS) because password reset is a pre-authentication flow
 	// with no JWT/tenant context. Token.DeleteByAccountID touches auth.tokens which has
 	// RLS policies — phoenix_auth cannot satisfy them without tenant context.
-	var revoked []*auth.Token
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Update account password
 		if err := s.repos.Account.UpdatePassword(ctx, resetToken.AccountID, passwordHash); err != nil {
@@ -260,18 +259,15 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		}
 
 		// Invalidate all existing auth tokens for security
-		tokens, err := s.deleteAccountTokensWithAudit(ctx, resetToken.AccountID, "password_reset", "", "")
-		if err != nil {
+		if _, err := s.deleteAccountTokensWithAudit(ctx, resetToken.AccountID, "password_reset", "", ""); err != nil {
 			return fmt.Errorf("revoke tokens during password reset: %w", err)
 		}
-		revoked = tokens
 		return nil
 	})
 
 	if err != nil {
 		return &AuthError{Op: "reset password transaction", Err: err}
 	}
-	s.cleanupPushAfterTokenRevocation(ctx, resetToken.AccountID, revoked, "password_reset")
 	return nil
 }
 

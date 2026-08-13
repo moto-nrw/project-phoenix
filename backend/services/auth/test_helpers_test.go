@@ -1131,6 +1131,10 @@ func (noopTokenRepository) DeleteExpiredTokens(context.Context) (int, error) {
 	panic("DeleteExpiredTokens not implemented")
 }
 
+func (noopTokenRepository) ListInactiveAccountIDsWithLiveTokens(context.Context) ([]int64, error) {
+	panic("ListInactiveAccountIDsWithLiveTokens not implemented")
+}
+
 func (noopTokenRepository) DeleteByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
 	panic("DeleteByAccountIDReturning not implemented")
 }

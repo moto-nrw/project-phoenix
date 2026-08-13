@@ -219,6 +219,84 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/tx-school-b"))
 }
 
+func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	ctx := testpkg.TenantContext(1)
+	email, username := uniqueTestCredentials("switch-cap")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureTestTenant(t, db, 2)
+	testpkg.MapAccountToTenant(t, db, account.ID, 2)
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+
+	for range 5 {
+		_, _, err = service.Login(ctx, email, testPassword)
+		require.NoError(t, err)
+	}
+	_, _, err = service.SwitchTenant(ctx, account.ID, "t2")
+	require.NoError(t, err)
+
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > NOW()").
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 5, count, "switch-tenant must share the staff portal cap across schools")
+}
+
+func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("orphan-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/orphan-family", "missing-family")
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/orphan-family"))
+}
+
+func TestDeactivateAccountFromAdminTxRemovesPush(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("admin-deact-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/admin-deact-a", "family-a")
+	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/admin-deact-b", "family-b")
+
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		return service.DeactivateAccount(adminCtx, int(account.ID))
+	}))
+
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/admin-deact-a"))
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/admin-deact-b"))
+}
+
 func countStaffPush(t *testing.T, db *bun.DB, accountID int64, endpoint string) int {
 	t.Helper()
 	return countPush(t, db, accountID, iotModels.PushPortalStaff, endpoint)

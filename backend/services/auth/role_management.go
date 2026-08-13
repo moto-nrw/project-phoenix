@@ -208,7 +208,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 	if err != nil {
 		return err
 	}
-	s.cleanupPushAfterTokenRevocation(ctx, int64(accountID), revoked, "role_changed")
+	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
 	return nil
 }
 
@@ -256,7 +256,7 @@ func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID i
 	if err != nil {
 		return err
 	}
-	s.cleanupPushAfterTokenRevocation(ctx, int64(accountID), revoked, "role_changed")
+	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
 	return nil
 }
 

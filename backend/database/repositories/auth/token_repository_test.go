@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -8,9 +9,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // ============================================================================
@@ -605,6 +608,49 @@ func TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg
 
 	_, err = repo.FindByID(ctx, newest.ID)
 	require.NoError(t, err)
+}
+
+func TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupAdminCapTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+	testpkg.EnsureTestTenant(t, db, 2)
+	testpkg.MapAccountToTenant(t, db, account.ID, 2)
+
+	var firstSchool []*auth.Token
+	for i := 0; i < 5; i++ {
+		token := &auth.Token{
+			AccountID:   account.ID,
+			Token:       fmt.Sprintf("admin-cap-t1-%d-%d", time.Now().UnixNano(), i),
+			Expiry:      time.Now().Add(time.Hour),
+			PortalScope: auth.PortalScopeTenant,
+		}
+		require.NoError(t, repo.Create(ctx, token))
+		firstSchool = append(firstSchool, token)
+	}
+	other := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	other.SetTenantID(2)
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		return repo.Create(adminCtx, other)
+	}))
+
+	var deleted []*auth.Token
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		var err error
+		deleted, err = repo.CleanupOldTokensForAccountReturning(adminCtx, account.ID, auth.PortalScopeTenant, 5)
+		return err
+	}))
+	require.Len(t, deleted, 1)
+	require.Equal(t, firstSchool[0].ID, deleted[0].ID)
 }
 
 func TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown(t *testing.T) {

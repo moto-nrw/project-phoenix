@@ -162,10 +162,16 @@ func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID in
 
 func (s *Service) scheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
 	if tenant.IsAdminTx(ctx) || (tenant.FromContext(ctx) == 0 && hasAmbientTx(ctx)) {
-		_, err := s.deleteAllAccountTokensInCtx(ctx, accountID, reason, ipAddress, userAgent)
-		return err
+		if _, err := s.deleteAllAccountTokensInCtx(ctx, accountID, reason, ipAddress, userAgent); err != nil {
+			return err
+		}
+		s.queuePushCleanup(ctx, accountID, nil, reason)
+		return nil
 	}
 	if tenant.HasAfterCommitHooks(ctx) {
+		if err := s.recordPendingAccountWideWipe(ctx, accountID, reason); err != nil {
+			return err
+		}
 		tenant.RegisterAfterCommit(ctx, func() {
 			if err := s.wipeAccountWideIndependently(ctx, accountID, reason, ipAddress, userAgent); err != nil {
 				s.getLogger().Warn("failed to revoke remaining sessions after commit",
@@ -185,19 +191,54 @@ func (s *Service) scheduleAccountWideRevoke(ctx context.Context, accountID int64
 	return s.wipeAccountWideIndependently(ctx, accountID, reason, ipAddress, userAgent)
 }
 
+func (s *Service) recordPendingAccountWideWipe(ctx context.Context, accountID int64, reason string) error {
+	if s.repos.AuthEvent == nil {
+		return nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil
+	}
+	event := auditModels.NewAuthEvent(accountID, auditModels.EventTypeTokenRevoked, true, internalRevocationAuditIP)
+	event.SetTenantID(tenantID)
+	event.SetMetadata("reason", reason)
+	event.SetMetadata("pending_account_wide_wipe", true)
+	return s.repos.AuthEvent.Create(ctx, event)
+}
+
+func (s *Service) queuePushCleanup(ctx context.Context, accountID int64, tokens []*authModels.Token, reason string) {
+	run := func() {
+		if err := s.cleanupPushAfterTokenRevocation(s.independentCleanupCtx(ctx), accountID, tokens, reason); err != nil {
+			s.getLogger().Warn("failed to delete push subscriptions after token revocation",
+				slog.Int64("account_id", accountID),
+				slog.String("reason", reason),
+				slog.Any("error", err),
+			)
+		}
+	}
+	if tenant.HasAfterCommitHooks(ctx) {
+		tenant.RegisterAfterCommit(ctx, run)
+		return
+	}
+	run()
+}
+
+func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
+	return tenant.ContextWithoutAfterCommitHooks(tenant.WithTenantID(modelBase.ContextWithoutTx(ctx), 0))
+}
+
 func hasAmbientTx(ctx context.Context) bool {
 	_, ok := modelBase.TxFromContext(ctx)
 	return ok
 }
 
 func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
-	if s.db == nil {
+	if s.db == nil || tenant.IsAdminTx(ctx) {
 		tokens, err := s.deleteAllAccountTokensInCtx(ctx, accountID, reason, ipAddress, userAgent)
 		if err != nil {
 			return err
 		}
-		s.cleanupPushAfterTokenRevocation(ctx, accountID, tokens, reason)
-		return nil
+		return s.cleanupPushAfterTokenRevocation(ctx, accountID, tokens, reason)
 	}
 	adminCtx := tenant.WithTenantID(modelBase.ContextWithoutTx(ctx), 0)
 	adminCtx = tenant.ContextWithoutAfterCommitHooks(adminCtx)
@@ -210,8 +251,7 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 	if err != nil {
 		return err
 	}
-	s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason)
-	return nil
+	return s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason)
 }
 
 func (s *Service) deleteAllAccountTokensInCtx(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
@@ -239,30 +279,14 @@ func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.T
 	return s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent)
 }
 
-func (s *Service) cleanupPushAfterTokenRevocation(ctx context.Context, accountID int64, tokens []*authModels.Token, reason string) {
-	var err error
+func (s *Service) cleanupPushAfterTokenRevocation(ctx context.Context, accountID int64, tokens []*authModels.Token, reason string) error {
 	if isAccountWideRevocation(reason) {
-		err = s.deletePushAcrossTenants(ctx, accountID)
-	} else {
-		err = s.deletePushForFamilies(ctx, accountID, tokenFamilyIDs(tokens))
-		if err == nil {
-			err = s.deletePushUnboundForTokens(ctx, accountID, tokens)
-		}
+		return s.deletePushAcrossTenants(ctx, accountID)
 	}
-	if err != nil {
-		s.getLogger().Warn("failed to delete push subscriptions after token revocation",
-			slog.Int64("account_id", accountID),
-			slog.String("reason", reason),
-			slog.Any("error", err),
-		)
+	if err := s.deletePushForFamilies(ctx, accountID, tokenFamilyIDs(tokens)); err != nil {
+		return err
 	}
-}
-
-func (s *Service) cleanupPushAfterFamilyRevocation(ctx context.Context, token *authModels.Token) {
-	if token == nil {
-		return
-	}
-	s.cleanupPushAfterTokenRevocation(ctx, token.AccountID, []*authModels.Token{token}, "family")
+	return s.deletePushUnboundForTokens(ctx, accountID, tokens)
 }
 
 // deletePushAcrossTenants removes every staff and parent push row for the account.
