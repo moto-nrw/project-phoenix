@@ -36,4 +36,8 @@ describe("MOTO_CONCEPTS", () => {
     expect(MOTO_CONCEPTS.schoolyard.tone).toBe("orange");
     expect(MOTO_CONCEPTS.utilization.tone).toBe("gold");
   });
+
+  it("renders passkeys as a clean outline without a duotone fill", () => {
+    expect(MOTO_CONCEPTS.passkeys.weight).toBe("regular");
+  });
 });
