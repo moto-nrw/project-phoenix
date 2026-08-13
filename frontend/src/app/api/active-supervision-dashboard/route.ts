@@ -125,6 +125,7 @@ interface BackendPlannedTimetableInstance {
   is_absent?: boolean;
   can_start?: boolean;
   start_available_at?: string;
+  start_expires_at?: string;
   roster_preview?: BackendTimetableRosterRow[];
 }
 
@@ -252,6 +253,7 @@ interface ActiveSupervisionDashboardResponse {
     isAbsent: boolean;
     canStart: boolean;
     startAvailableAt: string;
+    startExpiresAt: string;
     rosterPreview: Array<{
       studentId: string;
       studentName: string;
@@ -377,6 +379,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       isAbsent: i.is_absent ?? false,
       canStart: i.can_start ?? false,
       startAvailableAt: i.start_available_at ?? "",
+      startExpiresAt: i.start_expires_at ?? "",
       rosterPreview: (i.roster_preview ?? []).map((row) => ({
         studentId: row.student_id.toString(),
         studentName: row.student_name,

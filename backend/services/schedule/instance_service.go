@@ -899,6 +899,9 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	if err := s.validateReopenOccupancy(ctx, instance, snapshot); err != nil {
 		return nil, err
 	}
+	if err := s.validateReopenAttendanceUnchanged(ctx, instance); err != nil {
+		return nil, err
+	}
 	closedVisits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "reopen instance: load visits", Err: err}
@@ -977,6 +980,27 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
 		return activeSvc.ErrRoomCapacityExceeded
+	}
+	return nil
+}
+
+func (s *instanceService) validateReopenAttendanceUnchanged(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
+	if s.deps.RecoveryRepo != nil {
+		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
+			return &ScheduleError{Op: "reopen instance: lock attendance", Err: err}
+		}
+	}
+	if instance.CompletedAt == nil {
+		return nil
+	}
+	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: load attendance", Err: err}
+	}
+	for _, row := range rows {
+		if row.GetUpdatedAt().After(*instance.CompletedAt) {
+			return fmt.Errorf("%w: attendance changed after completion", ErrTimetableOperationConflict)
+		}
 	}
 	return nil
 }

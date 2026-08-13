@@ -27,6 +27,7 @@ export interface PlannedTimetableInstance {
   rosterPreview: TimetableRosterRow[];
   canStart?: boolean;
   startAvailableAt?: string;
+  startExpiresAt?: string;
 }
 
 interface TimetableRosterInstance {
@@ -125,6 +126,7 @@ interface BackendPlannedTimetableInstance {
   roster_preview?: BackendRosterRow[];
   can_start?: boolean;
   start_available_at?: string;
+  start_expires_at?: string;
 }
 
 interface BackendRosterInstance {
@@ -207,6 +209,7 @@ export function mapPlannedInstance(
     rosterPreview: (raw.roster_preview ?? []).map(mapRosterRow),
     canStart: raw.can_start ?? false,
     startAvailableAt: raw.start_available_at ?? "",
+    startExpiresAt: raw.start_expires_at ?? "",
   };
 }
 

@@ -132,6 +132,7 @@ type OperationPlannedInstance struct {
 	Warnings          []InstanceConflictWarning `json:"warnings"`
 	CanStart          bool                      `json:"can_start"`
 	StartAvailableAt  string                    `json:"start_available_at"`
+	StartExpiresAt    string                    `json:"start_expires_at"`
 }
 
 type OperationRoster struct {
@@ -272,6 +273,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
 		mapped.CanStart = availability.CanStart
 		mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
+		mapped.StartExpiresAt = availability.CompleteAvailableAt.Format(time.RFC3339)
 		if opts.IncludeRoster {
 			roster, err := s.buildRosterWithCareDay(ctx, candidate.instance.ID, careDay)
 			if err != nil {
@@ -479,6 +481,13 @@ func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accoun
 func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error) {
 	if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
 		return nil, err
+	}
+	inst, err := s.loadInstance(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled {
+		return nil, fmt.Errorf("%w: attendance is frozen after completion", ErrTimetableOperationConflict)
 	}
 	row, err := s.deps.InstanceStudents.FindByInstanceAndStudent(ctx, instanceID, studentID)
 	if err != nil {
@@ -1073,7 +1082,15 @@ func plannedNowWindow(inst *scheduleModel.ActivityInstance, now time.Time, horiz
 		horizonMinutes = 15
 	}
 	start := instanceStartAt(inst, now.Location())
+	end := instanceEndAt(inst, now.Location())
+	if !now.Before(end) {
+		return false
+	}
 	return (start.After(now.Add(-15*time.Minute)) && start.Before(now.Add(time.Duration(horizonMinutes)*time.Minute))) || start.Before(now)
+}
+
+func instanceEndAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {
+	return time.Date(inst.Date.Year, inst.Date.Month, inst.Date.Day, inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), 0, loc)
 }
 
 func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, studentRows []*scheduleModel.InstanceStudent, now time.Time, currentStaffID int64, roomName *string, careDay map[int64]CareDayStatus) OperationPlannedInstance {

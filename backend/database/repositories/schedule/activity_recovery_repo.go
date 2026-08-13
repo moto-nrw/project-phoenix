@@ -34,6 +34,22 @@ func (r *ActivityRecoveryRepository) LockOpenVisits(ctx context.Context, activeG
 	return nil
 }
 
+func (r *ActivityRecoveryRepository) LockAttendance(ctx context.Context, instanceID int64) error {
+	db := base.GetDB(ctx, r.db)
+	var rowIDs []int64
+	query := db.NewSelect().
+		TableExpr(`schedule.instance_students AS "instance_student"`).
+		ColumnExpr(`"instance_student".id`).
+		Where(`"instance_student".instance_id = ?`, instanceID).
+		OrderExpr(`"instance_student".id ASC`).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "instance_student")
+	if err := query.Scan(ctx, &rowIDs); err != nil {
+		return fmt.Errorf("lock attendance: %w", err)
+	}
+	return nil
+}
+
 func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int64, snapshot scheduleModel.ActivityCompletionSnapshot, now time.Time) error {
 	db := base.GetDB(ctx, r.db)
 	result, execErr := db.NewUpdate().Table("active.groups").Set("end_time = NULL").Set("last_activity = ?", now).Where("id = ? AND end_time IS NOT NULL", snapshot.ActiveGroupID).Exec(ctx)

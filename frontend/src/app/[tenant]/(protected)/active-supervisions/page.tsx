@@ -50,6 +50,7 @@ import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { toISODate } from "~/lib/date-helpers";
+import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { fetchStudents } from "~/lib/student-api";
@@ -513,6 +514,12 @@ function TimetableRosterHeader({
   onComplete,
   onConfirmExpected,
 }: TimetableRosterHeaderProps) {
+  const now = useMinuteClock();
+  const completeEnabled = canCompleteInstance(
+    roster.instance.canComplete,
+    roster.instance.completeAvailableAt,
+    now,
+  );
   const handleConfirmExpectedClick = async () => {
     await onConfirmExpected(confirmableExpectedRows);
   };
@@ -562,11 +569,11 @@ function TimetableRosterHeader({
           {attendanceWebEnabled ? (
             <button
               type="button"
-              disabled={isCompletingInstance || !roster.instance.canComplete}
+              disabled={isCompletingInstance || !completeEnabled}
               onClick={handleCompleteClick}
               className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
-              {roster.instance.canComplete
+              {completeEnabled
                 ? "Beenden"
                 : `Beenden ab ${roster.instance.endTime}`}
             </button>
@@ -855,24 +862,30 @@ function MeinRaumPageContent() {
   const [isCompletingInstance, setIsCompletingInstance] = useState(false);
   const [showCompleteConfirmation, setShowCompleteConfirmation] =
     useState(false);
-  const [reopenableInstanceId, setReopenableInstanceId] = useState<
-    string | null
-  >(null);
+  const [storedReopen, setStoredReopen] = useState<{
+    instanceId: string;
+    expiresAt: number;
+  } | null>(null);
+  const reopenableInstanceId = storedReopen?.instanceId ?? null;
 
   useEffect(() => {
-    const stored = readStoredReopenBanner();
-    if (!stored) {
-      setReopenableInstanceId(null);
+    setStoredReopen(readStoredReopenBanner());
+  }, []);
+
+  useEffect(() => {
+    if (!storedReopen) return;
+    const remainingMs = storedReopen.expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      clearStoredReopenBanner();
+      setStoredReopen(null);
       return;
     }
-    setReopenableInstanceId(stored.instanceId);
-    const remainingMs = stored.expiresAt - Date.now();
     const timeoutId = window.setTimeout(() => {
       clearStoredReopenBanner();
-      setReopenableInstanceId(null);
+      setStoredReopen(null);
     }, remainingMs);
     return () => window.clearTimeout(timeoutId);
-  }, []);
+  }, [storedReopen]);
   const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
   const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
@@ -1797,10 +1810,13 @@ function MeinRaumPageContent() {
         : Date.now() + REOPEN_WINDOW_MS;
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
         clearStoredReopenBanner();
-        setReopenableInstanceId(null);
+        setStoredReopen(null);
       } else {
         writeStoredReopenBanner(activeTimetableInstanceId, expiresAt);
-        setReopenableInstanceId(activeTimetableInstanceId);
+        setStoredReopen({
+          instanceId: activeTimetableInstanceId,
+          expiresAt,
+        });
       }
       setShowCompleteConfirmation(false);
       setSelectedTimetableInstanceId(null);
@@ -1826,14 +1842,14 @@ function MeinRaumPageContent() {
     try {
       const result = await timetableOperationsApi.reopen(reopenableInstanceId);
       clearStoredReopenBanner();
-      setReopenableInstanceId(null);
+      setStoredReopen(null);
       setSelectedTimetableInstanceId(result.instanceId);
       await mutateDashboard();
       setRefreshKey((previous) => previous + 1);
     } catch (err) {
       if (isReopenUnavailableError(err)) {
         clearStoredReopenBanner();
-        setReopenableInstanceId(null);
+        setStoredReopen(null);
       }
       setError(
         err instanceof Error

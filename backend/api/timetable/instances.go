@@ -106,7 +106,8 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	ctx := scheduleSvc.WithLifecycleActor(r.Context(), int64(claims.ID))
-	ctx = scheduleSvc.WithCompletionConfirmation(ctx, body.ConfirmedPresentStudentIDs)
+	// The planner has no live visit roster. Confirmation is enforced on the
+	// operations complete path, which reads currently_present from open visits.
 	instance, err := rs.InstanceService.Complete(ctx, id)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)

@@ -802,12 +802,7 @@ function TimetablesContent() {
             toast.success("Aktivität gestartet");
           }
         } else if (action === "complete") {
-          await timetableService.complete(
-            selectedInstance.id,
-            (selectedInstance.students ?? [])
-              .filter((row) => row.status === "present")
-              .map((row) => row.studentId),
-          );
+          await timetableService.complete(selectedInstance.id, []);
           toast.success("Aktivität beendet");
         } else if (action === "reopen") {
           await timetableService.reopen(selectedInstance.id);

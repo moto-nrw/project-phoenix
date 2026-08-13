@@ -93,6 +93,9 @@ type ActivityRecoveryRepository interface {
 	// LockOpenVisits takes FOR UPDATE locks on every still-open visit of the
 	// group so completion can snapshot the same rows EndActivitySession closes.
 	LockOpenVisits(ctx context.Context, activeGroupID int64) error
+	// LockAttendance locks every instance_students row of the instance so
+	// reopen can refuse a restore after a post-completion attendance edit.
+	LockAttendance(ctx context.Context, instanceID int64) error
 	Restore(ctx context.Context, instanceID int64, snapshot ActivityCompletionSnapshot, now time.Time) error
 }
 

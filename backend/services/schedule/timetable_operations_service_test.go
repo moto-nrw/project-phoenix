@@ -712,6 +712,28 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 	assert.Equal(t, "403", *calls[0].Event.Data.InstanceID)
 }
 
+func TestTimetableOperationsPatchAttendanceRejectsCompletedInstance(t *testing.T) {
+	instanceID := int64(427)
+	studentID := int64(567)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 693, 515, 274, instanceID)
+	completed := activeInstance(instanceID, 305)
+	completed.Status = scheduleModel.InstanceStatusCompleted
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = &scheduleModel.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     scheduleModel.AttendanceStatusPresent,
+	}
+	status := scheduleModel.AttendanceStatusAbsent
+
+	row, err := deps.service.PatchAttendance(context.Background(), 693, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{Status: &status})
+
+	require.ErrorIs(t, err, ErrTimetableOperationConflict)
+	assert.Nil(t, row)
+	assert.Empty(t, deps.studentRepo.updates)
+}
+
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
 	instanceID := int64(405)
 	deps := newTimetableOpsDeps()
@@ -1165,10 +1187,11 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 func TestTimetableOperationHelpers(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
-	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now), now, 0))
-	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now), now, 0))
-	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now), now, 0))
-	assert.True(t, plannedNowWindow(instanceWithTimes(409, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now), now, 120))
+	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now.Add(time.Hour)), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now.Add(2*time.Hour)), now, 0))
+	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now.Add(2*time.Hour)), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(409, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now.Add(3*time.Hour)), now, 120))
+	assert.False(t, plannedNowWindow(instanceWithTimes(410, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now), now, 0))
 	assert.True(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255}}, 255))
 	assert.False(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255, IsAbsent: true}}, 255))
 	planned, ok := findPlanned([]*scheduleModel.InstanceStudent{{StudentID: 556}}, 556)
