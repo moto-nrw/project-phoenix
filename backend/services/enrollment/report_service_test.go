@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -110,7 +112,7 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 		},
 	}
 
-	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas, nil, nil)
+	row, err := classRosterRow(student, person, "Eulen", enrollment, offerings, schemas, nil, nil, true)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Eulen", row.GroupName)
@@ -154,7 +156,7 @@ func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
 		2: {Name: "Ganztag bis 16:00", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
 	}
 
-	row, err := classRosterRow(student, person, "", enrollment, offerings, nil, nil, nil)
+	row, err := classRosterRow(student, person, "", enrollment, offerings, nil, nil, nil, true)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mon", "wed", "fri"}, row.CareDays)
@@ -250,7 +252,7 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 		},
 	}
 
-	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas, nil, nil)
+	row, err := classRosterRow(student, person, "Eulen", enrollment, nil, schemas, nil, nil, true)
 
 	require.NoError(t, err)
 	assert.Equal(t, "11:15", row.ArrivalByDay["mon"])
@@ -290,7 +292,7 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 		},
 	}
 
-	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, nil)
+	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, nil, true)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.CareDays)
@@ -301,7 +303,7 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 	offerings := map[int64]*enrollmentModels.CareOffering{
 		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: true},
 	}
-	constrained, err := classRosterRow(student, person, "", enrollment, offerings, schemas, nil, nil)
+	constrained, err := classRosterRow(student, person, "", enrollment, offerings, schemas, nil, nil, true)
 	require.NoError(t, err)
 	assert.Empty(t, constrained.CareDays)
 	assert.Equal(t, "14:30", constrained.PickupByDay["mon"])
@@ -309,10 +311,17 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 	inactiveOnly := map[int64]*enrollmentModels.CareOffering{
 		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: false},
 	}
-	unconstrained, err := classRosterRow(student, person, "", enrollment, inactiveOnly, schemas, nil, nil)
+	unconstrained, err := classRosterRow(student, person, "", enrollment, inactiveOnly, schemas, nil, nil, true)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, unconstrained.CareDays)
 	assert.Equal(t, "14:30", unconstrained.PickupByDay["mon"])
+
+	// The form does not load leftover catalog rows when offerings are off,
+	// so pickup times without a booking stay unrestricted.
+	disabledCatalog, err := classRosterRow(student, person, "", enrollment, offerings, schemas, nil, nil, false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, disabledCatalog.CareDays)
+	assert.Equal(t, "14:30", disabledCatalog.PickupByDay["mon"])
 }
 
 func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
@@ -323,7 +332,7 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	}
 	person := &userModels.Person{FirstName: "Tom", LastName: "Ohne"}
 
-	row, err := classRosterRow(student, person, "", nil, nil, nil, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, nil)
+	row, err := classRosterRow(student, person, "", nil, nil, nil, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, nil, true)
 
 	require.NoError(t, err)
 	assert.False(t, row.Registered)
@@ -356,7 +365,7 @@ func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
 	}}
 
 	t.Run("without enrollment", func(t *testing.T) {
-		row, err := classRosterRow(student, person, "", nil, nil, nil, nil, nil)
+		row, err := classRosterRow(student, person, "", nil, nil, nil, nil, nil, true)
 
 		require.NoError(t, err)
 		assert.False(t, row.Registered)
@@ -374,7 +383,7 @@ func TestClassRosterRowFallsBackToLegacyStudentGuardianFields(t *testing.T) {
 		row, err := classRosterRow(student, person, "", &classRosterApprovedEnrollment{
 			request: req,
 			child:   child,
-		}, nil, nil, nil, nil)
+		}, nil, nil, nil, nil, true)
 
 		require.NoError(t, err)
 		assert.True(t, row.Registered)
@@ -453,6 +462,59 @@ func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
 	assert.Equal(t, []int64{20}, childIDs)
 	require.Len(t, got[studentID].links, 1)
 	assert.Equal(t, newestOfferingID, got[studentID].links[0].CareOfferingID)
+}
+
+func TestClassRosterIgnoresLeftoverCatalogWhenOfferingsDisabled(t *testing.T) {
+	studentID := int64(100)
+	personID := int64(200)
+	requestID := int64(300)
+	childID := int64(400)
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: studentID}, PersonID: personID, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{personID: {FirstName: "Lina", LastName: "Muster"}},
+		&fakeClassRosterRequestRepo{requests: []*enrollmentModels.Request{
+			{Model: baseModels.Model{ID: requestID}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
+		}},
+		&fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{
+			{Model: baseModels.Model{ID: childID}, RequestID: requestID, Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &studentID},
+		}},
+	)
+	svc.CareOfferingRepo = &fakeClassRosterCareOfferingRepo{offerings: []*enrollmentModels.CareOffering{
+		{Model: baseModels.Model{ID: 1}, Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice, IsActive: true},
+	}}
+	svc.Settings = classRosterSettingsStub{careOfferingsEnabled: false}
+
+	report, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, report.Rows[0].CareDays)
+}
+
+func TestClassRosterFailsWhenCareOfferingsSettingCannotBeResolved(t *testing.T) {
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: 100}, PersonID: 200, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{200: {FirstName: "Lina", LastName: "Muster"}},
+		&fakeClassRosterRequestRepo{},
+		&fakeClassRosterChildRepo{},
+	)
+	svc.Settings = classRosterSettingsStub{err: errors.New("settings unavailable")}
+
+	_, err := svc.ClassRoster(context.Background(), ClassRosterFilters{PhaseID: 55, SchoolClass: "1a"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), configModel.KeyEnrollmentCareOfferingsEnabled)
+}
+
+func TestClassRosterCareDaysKeepsLeftoverBookingsWhenOfferingsDisabled(t *testing.T) {
+	got := classRosterCareDays(
+		[]string{"mon", "wed"},
+		map[int64]*enrollmentModels.CareOffering{
+			1: {Name: "Ganztag", IsActive: true},
+		},
+		false,
+	)
+	assert.Equal(t, []string{"mon", "wed"}, got)
 }
 
 func TestClassRosterScopesRequestLimitToSelectedClass(t *testing.T) {
@@ -1043,10 +1105,38 @@ func (r *fakeClassRosterChildOfferingRepo) ListByRequestChildIDsAtDate(_ context
 
 type fakeClassRosterCareOfferingRepo struct {
 	enrollmentModels.CareOfferingRepository
+	offerings []*enrollmentModels.CareOffering
 }
 
 func (r *fakeClassRosterCareOfferingRepo) ListByPhase(_ context.Context, _ int64) ([]*enrollmentModels.CareOffering, error) {
-	return nil, nil
+	return r.offerings, nil
+}
+
+type classRosterSettingsStub struct {
+	careOfferingsEnabled bool
+	err                  error
+}
+
+func (s classRosterSettingsStub) HasTenantOverride(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+func (s classRosterSettingsStub) ResolveBool(_ context.Context, key string) (bool, error) {
+	if s.err != nil {
+		return false, s.err
+	}
+	if key == configModel.KeyEnrollmentCareOfferingsEnabled {
+		return s.careOfferingsEnabled, nil
+	}
+	return false, nil
+}
+
+func (s classRosterSettingsStub) ResolveString(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (s classRosterSettingsStub) ResolveInt(context.Context, string) (int, error) {
+	return 0, nil
 }
 
 type fakeClassRosterStudentGuardianRepo struct {
@@ -1115,7 +1205,7 @@ func TestClassRosterRowNamesStructuredCompanions(t *testing.T) {
 		{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{userModels.PickupDayMonday}},
 	}
 
-	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions)
+	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions, true)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Mo: Mit anderem Kind (mit: Mia Schulz (Mo))", row.Departure)
@@ -1141,7 +1231,7 @@ func TestClassRosterRowCombinesCompanionsAndNote(t *testing.T) {
 		{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{userModels.PickupDayMonday}},
 	}
 
-	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions)
+	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions, true)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Mo: Mit anderem Kind, Di: Mit anderem Kind (mit: Mia Schulz (Mo); Dienstags mit Nachbarskind Tom)", row.Departure)
@@ -1191,7 +1281,7 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 		{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{userModels.PickupDayMonday, userModels.PickupDayTuesday}},
 	}
 
-	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, companions)
+	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, companions, true)
 
 	require.NoError(t, err)
 	assert.Equal(t, "Mo: Mit anderem Kind, Di: Bus (mit: Mia Schulz (Mo))", row.Departure)
