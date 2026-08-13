@@ -257,6 +257,56 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 	assert.Equal(t, "15:30", row.PickupByDay["mon"])
 }
 
+func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T) {
+	schemaID := int64(91)
+	req := &enrollmentModels.Request{
+		Model:       baseModels.Model{ID: 14},
+		SchemaID:    &schemaID,
+		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
+	}
+	child := &enrollmentModels.RequestChild{
+		Model:      baseModels.Model{ID: 24},
+		RequestID:  14,
+		FirstName:  "Lina",
+		LastName:   "Muster",
+		Status:     enrollmentModels.ChildStatusApproved,
+		CustomData: map[string]any{"pickup": map[string]any{"mon": "14:30", "thu": "15:00"}},
+	}
+	student := &userModels.Student{
+		Model:       baseModels.Model{ID: 104},
+		PersonID:    204,
+		SchoolClass: "1a",
+	}
+	person := &userModels.Person{FirstName: "Lina", LastName: "Muster"}
+	enrollment := &classRosterApprovedEnrollment{
+		request: req,
+		child:   child,
+	}
+	schemas := map[int64]*enrollmentModels.FormSchema{
+		schemaID: {
+			Fields: []enrollmentModels.FormField{
+				{Key: "pickup", Target: enrollmentModels.TargetSchedulePickup, Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true},
+			},
+		},
+	}
+
+	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, nil)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.CareDays)
+	assert.Equal(t, "14:30", row.PickupByDay["mon"])
+	assert.Equal(t, "15:00", row.PickupByDay["thu"])
+	assert.Empty(t, row.PickupByDay["tue"])
+
+	offerings := map[int64]*enrollmentModels.CareOffering{
+		1: {Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice},
+	}
+	constrained, err := classRosterRow(student, person, "", enrollment, offerings, schemas, nil, nil)
+	require.NoError(t, err)
+	assert.Empty(t, constrained.CareDays)
+	assert.Equal(t, "14:30", constrained.PickupByDay["mon"])
+}
+
 func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	student := &userModels.Student{
 		Model:       baseModels.Model{ID: 101},

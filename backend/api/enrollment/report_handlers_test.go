@@ -178,6 +178,14 @@ func TestClassRosterWeeklyCellShowsOnlyPickupTimeForCareDays(t *testing.T) {
 			},
 			want: "—",
 		},
+		{
+			name: "unconstrained weekdays keep stored pickup time",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:    []string{"mon", "tue", "wed", "thu", "fri"},
+				PickupByDay: map[string]string{"mon": "14:30"},
+			},
+			want: "14:30 Uhr",
+		},
 	}
 
 	for _, tt := range tests {

@@ -1142,7 +1142,7 @@ func classRosterRow(
 	row.EnrollmentSummary = classRosterEnrollmentSummary(careRow.Offerings)
 	row.Offerings = careRow.Offerings
 	row.OfferingsByDay = classRosterOfferingsByDay(careRow.Offerings)
-	row.CareDays = careRow.EffectiveDays
+	row.CareDays = classRosterCareDays(careRow.EffectiveDays, offeringByID)
 	row.PickupByDay = pickupByDay
 	row.ArrivalByDay = arrivalByDay
 	row.Departure = departure
@@ -1151,6 +1151,17 @@ func classRosterRow(
 		row.Guardians = studentContactGuardians
 	}
 	return row, nil
+}
+
+// classRosterCareDays is the roster-side mirror of relevantCareDaysForChild:
+// booked offering days when the phase has a catalog, every weekday when it
+// does not. EffectiveDays is derived only from booked offerings and stays
+// empty in the unconstrained case, which would hide valid pickup times.
+func classRosterCareDays(effectiveDays []string, offeringByID map[int64]*enrollmentModels.CareOffering) []string {
+	if len(offeringByID) == 0 {
+		return sortedDayCodes([]string{"mon", "tue", "wed", "thu", "fri"})
+	}
+	return effectiveDays
 }
 
 // classRosterCompanions loads the "läuft mit" links of every listed child, so
