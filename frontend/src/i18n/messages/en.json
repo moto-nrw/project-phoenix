@@ -490,6 +490,7 @@
     "errorHelpBefore": "You can request a new invitation from the school or sign in via",
     "startPage": "the start page",
     "errorHelpAfter": ".",
+    "contactOgs": "Please contact your OGS.",
     "errors": {
       "expired": "This invitation has expired or has already been used.",
       "notFound": "We could not find this invitation.",

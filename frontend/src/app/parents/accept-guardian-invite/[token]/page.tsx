@@ -5,6 +5,7 @@ import { AuthShell } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
 import { GuardianInvitationAcceptForm } from "~/components/auth/guardian-invitation-accept-form";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
+import { Alert } from "~/components/ui/alert";
 import {
   validateGuardianInvitation,
   type GuardianInvitationValidation,
@@ -21,7 +22,10 @@ interface PageProps {
 
 interface ValidationOutcome {
   invitation: GuardianInvitationValidation | null;
-  errorMessage: string | null;
+  error: {
+    message: string;
+    contactOgs: boolean;
+  } | null;
 }
 
 async function fetchInvitationServer(
@@ -38,18 +42,18 @@ async function fetchInvitationServer(
       if (response.status === 410) {
         return {
           invitation: null,
-          errorMessage: t("errors.expired"),
+          error: { message: t("errors.expired"), contactOgs: true },
         };
       }
       if (response.status === 404) {
         return {
           invitation: null,
-          errorMessage: t("errors.notFound"),
+          error: { message: t("errors.notFound"), contactOgs: false },
         };
       }
       return {
         invitation: null,
-        errorMessage: t("errors.load"),
+        error: { message: t("errors.load"), contactOgs: false },
       };
     }
 
@@ -76,7 +80,7 @@ async function fetchInvitationServer(
     if (!payload?.email || !payload?.expires_at) {
       return {
         invitation: null,
-        errorMessage: t("errors.incomplete"),
+        error: { message: t("errors.incomplete"), contactOgs: false },
       };
     }
 
@@ -90,7 +94,7 @@ async function fetchInvitationServer(
         tenantSlug: payload.tenant_slug,
         schoolLogoUrl: payload.school_logo_url,
       },
-      errorMessage: null,
+      error: null,
     };
   } catch (error) {
     logger.error("guardian_invitation_validation_failed_server", {
@@ -98,7 +102,7 @@ async function fetchInvitationServer(
     });
     return {
       invitation: null,
-      errorMessage: t("errors.load"),
+      error: { message: t("errors.load"), contactOgs: false },
     };
   }
 }
@@ -109,11 +113,11 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
   const t = await getTranslations("guardianInvite");
   const tAuthShell = await getTranslations("parentAuthShell");
   const { token } = await params;
-  const { invitation, errorMessage } = token
+  const { invitation, error } = token
     ? await fetchInvitationServer(token, t)
     : {
         invitation: null,
-        errorMessage: t("errors.missingToken"),
+        error: { message: t("errors.missingToken"), contactOgs: false },
       };
 
   const schoolName = invitation?.schoolName?.trim() || t("fallbackSchool");
@@ -139,11 +143,16 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
       footer={<LanguageSwitcher />}
       testimonialPanelCopy={testimonialPanelCopy}
     >
-      {errorMessage && (
+      {error && (
         <div className="space-y-4">
-          <div className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4">
-            <p className="text-moto-red-strong text-sm">{errorMessage}</p>
-          </div>
+          <Alert
+            type="error"
+            message={
+              error.contactOgs
+                ? `${error.message} ${t("contactOgs")}`
+                : error.message
+            }
+          />
           <div className="text-center text-sm text-gray-600">
             <p>
               {t("errorHelpBefore")}{" "}
@@ -159,7 +168,7 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
         </div>
       )}
 
-      {!errorMessage && invitation && token && (
+      {!error && invitation && token && (
         <GuardianInvitationAcceptForm token={token} invitation={invitation} />
       )}
     </AuthShell>
