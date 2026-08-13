@@ -97,8 +97,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     ...STAFF_FLAT_PAGES.studentSearch,
-    icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-    activeColor: "text-moto-blue",
+    icon: navigationIcons.userSingle,
+    concept: "children",
     alwaysShow: true,
   },
   {
@@ -1366,7 +1366,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Kindersuche (flat) */}
+          {/* Alle Kinder (flat) */}
           {beforeAccordionItems
             .filter((item) => item.href === "/students/search")
             .map(renderNavItem)}

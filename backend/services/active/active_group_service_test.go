@@ -230,6 +230,30 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("rejects moving open visits into a room below their occupancy", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "capacity-group-move")
+		sourceRoom := testpkg.CreateTestRoom(t, db, "Capacity Group Source")
+		targetRoom := testpkg.CreateTestRoom(t, db, "Capacity Group Target")
+		capacity := 1
+		targetRoom.Capacity = &capacity
+		_, err := db.NewUpdate().Model(targetRoom).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, sourceRoom.ID)
+		studentA := testpkg.CreateTestStudent(t, db, "Capacity", "GroupA", "1a")
+		studentB := testpkg.CreateTestStudent(t, db, "Capacity", "GroupB", "1a")
+		visitA := testpkg.CreateTestVisit(t, db, studentA.ID, group.ID, time.Now().Add(-time.Hour), nil)
+		visitB := testpkg.CreateTestVisit(t, db, studentB.ID, group.ID, time.Now().Add(-time.Hour), nil)
+		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, sourceRoom.ID, targetRoom.ID, group.ID, studentA.ID, studentB.ID, visitA.ID, visitB.ID)
+
+		group.RoomID = targetRoom.ID
+		err = service.UpdateActiveGroup(ctx, group)
+
+		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
+		persisted, findErr := service.GetActiveGroup(ctx, group.ID)
+		require.NoError(t, findErr)
+		assert.Equal(t, sourceRoom.ID, persisted.RoomID)
+	})
 }
 
 // =============================================================================

@@ -29,7 +29,7 @@ Checkliste:
 Die wichtigsten Bereiche sind:
 
 - `Home`
-- `Kindersuche`
+- `Alle Kinder`
 - `Aktivitäten`
 - `Räume`
 - `Mitarbeiter`
@@ -123,7 +123,7 @@ Mögliche Kategorien sind:
 - `Themenraum`
 - `Sport`
 
-Eine klare Raumbenennung hilft später in der Kindersuche, in der aktuellen Aufsicht und im Stundenplan.
+Eine klare Raumbenennung hilft später unter `Alle Kinder`, in der aktuellen Aufsicht und im Stundenplan.
 
 ### 1.6 Gruppen anlegen
 
@@ -154,14 +154,14 @@ Aktivitäten können später im `Stundenplan` genutzt oder bei einer spontanen A
 
 Diese Kapitel sind für den täglichen Betrieb gedacht. Sie helfen beim Suchen, Einchecken, Beaufsichtigen und Dokumentieren.
 
-### 2.1 Kinder suchen
+### 2.1 Alle Kinder
 
-1. Öffnen Sie `Kindersuche`.
+1. Öffnen Sie `Alle Kinder`.
 2. Suchen Sie nach dem Namen des Kindes.
 3. Nutzen Sie bei Bedarf die Filter.
 4. Öffnen Sie das Kind, um Details zu sehen.
 
-In der Kindersuche sehen Sie je nach Einrichtung unter anderem:
+Unter `Alle Kinder` sehen Sie je nach Einrichtung unter anderem:
 
 - Anwesenheitsstatus
 - Raum oder Aktivität
@@ -311,7 +311,7 @@ Planungsoptionen:
 
 ### 4.1 Kinderdetail öffnen
 
-1. Öffnen Sie `Kindersuche` oder `Datenverwaltung`.
+1. Öffnen Sie `Alle Kinder` oder `Datenverwaltung`.
 2. Öffnen Sie das gewünschte Kind.
 3. Wechseln Sie zwischen den Tabs.
 

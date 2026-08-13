@@ -51,16 +51,33 @@ func (s *Service) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
 
 // RevokeAllTokens revokes all tokens for an account
 func (s *Service) RevokeAllTokens(ctx context.Context, accountID int) error {
-	if err := s.repos.Token.DeleteByAccountID(ctx, int64(accountID)); err != nil {
-		return &AuthError{Op: "revoke all tokens", Err: err}
-	}
-	return nil
+	return s.RevokeAllTokensWithReason(ctx, accountID, "administrative_revoke")
+}
+
+func (s *Service) RevokeAllTokensWithReason(ctx context.Context, accountID int, reason string) error {
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), reason, "", ""); err != nil {
+			return &AuthError{Op: "revoke all tokens", Err: err}
+		}
+		return nil
+	})
 }
 
 // RevokeTokensByTenantID deletes all refresh tokens for a given tenant.
 // Used during soft-delete to immediately cut off session refresh for all users of the school.
 func (s *Service) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error) {
-	count, err := s.repos.Token.DeleteByTenantID(ctx, tenantID)
+	count := 0
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		deleted, err := s.repos.Token.DeleteByTenantIDReturning(txCtx, tenantID)
+		if err != nil {
+			return err
+		}
+		if err := s.auditRevokedTokens(txCtx, deleted, "tenant_deleted", "", ""); err != nil {
+			return err
+		}
+		count = len(deleted)
+		return nil
+	})
 	if err != nil {
 		return 0, &AuthError{Op: "revoke tokens by tenant", Err: err}
 	}

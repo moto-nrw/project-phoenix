@@ -473,18 +473,12 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 	assert.Nil(t, thread, "a request filed while disabled leaves no thread, so nothing to reconcile")
 }
 
-// TestDecide_ApproveRefusedWhenMessagingDisabled pins the P2 messaging gate
-// (#1803 review follow-up): if the school turns operations.parent_notes_enabled
-// OFF after a request is filed, APPROVING is refused — the guardian's "bestätigt"
-// pill is the only notification channel and the emitter drops it while messaging
-// is off, so approving would change the child's permanent plan with no parent
-// notice. The request stays pending, the plan is untouched, and REJECTING stays
-// available. Mirrors the chat's ConfirmRequest/requireEnabled gate this flow
-// replaced.
-func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
+// TestDecide_ApproveAllowedWhenMessagingDisabled pins that request decisions
+// are independent from the optional parent-message channel.
+func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 	f := newCareFixture(t)
-	// Wire an emitter whose settings report messaging OFF. The messaging gate
-	// runs before the guardian-link check, so the guardian is left linked.
+	// Wire an emitter whose settings report messaging OFF; notification pills
+	// are dropped, but the request workflow remains available.
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
@@ -503,20 +497,17 @@ func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
 
 	ctx := f.staffCtx(f.staffAccount)
 
-	_, err = svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
-	require.ErrorIs(t, err, schedule.ErrCareRequestMessagingDisabled, "approving with messaging disabled must be refused")
-
-	still, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, still.Status, "a refused approval leaves the request pending")
+	assert.Equal(t, scheduleModels.CareRequestStatusApproved, item.Request.Status)
+
+	stored, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusApproved, stored.Status)
 
 	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
-	assert.Empty(t, arrivals, "a refused approval must not apply the requested plan")
-
-	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "Nachrichten deaktiviert, bitte telefonisch klären", ReviewedBy: f.staffAccount})
-	require.NoError(t, err, "reject must stay available while messaging is disabled")
-	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
+	require.NotEmpty(t, arrivals, "approval applies the requested plan without messaging")
 }
 
 // TestDecide_SecondDecideNotPending pins the idempotency/race guard: once a

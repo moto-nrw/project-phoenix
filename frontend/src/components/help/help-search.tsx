@@ -78,6 +78,7 @@ const helpFuse = new Fuse(indexedHelpSearchIndex, {
   minMatchCharLength: MIN_QUERY_LENGTH,
   keys: [
     { name: "titleFold", weight: 0.5 },
+    { name: "searchTermFolds", weight: 0.3 },
     { name: "chapterFold", weight: 0.2 },
     { name: "summaryFold", weight: 0.2 },
     { name: "bodyFold", weight: 0.1 },
@@ -145,6 +146,7 @@ function runSearch(fuse: HelpFuse, rawQuery: string): HelpSearchHit[] {
       else if (titleFold.startsWith(fullFold))
         boost += 400; // title prefix
       else if (titleFold.includes(fullFold)) boost += 200; // phrase in title
+      if (entry.indexed.searchTermFolds.includes(fullFold)) boost += 800;
       if (entry.tokenHits === matchTokens.length) boost += 100; // all words matched
       // Word-aligned title hits beat substring-in-word hits: "raum" as a
       // prefix of the title word "raume" outranks "raum" buried inside

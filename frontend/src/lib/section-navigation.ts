@@ -133,13 +133,13 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
  * Darstellung, kein Navigationsfakt.
  *
  * Die mobile Navigation kürzt einige Namen bewusst ("Suchen" statt
- * "Kindersuche", weil unter einem Symbol nur wenig Platz ist) und weicht
+ * "Alle Kinder", weil unter einem Symbol nur wenig Platz ist) und weicht
  * deshalb ab. Der Test in navigation-sync.test.ts prüft trotzdem, dass jeder
  * mobile Pfad einen Kopfzeilen-Titel bekommt.
  */
 export const STAFF_FLAT_PAGES = {
   dashboard: { href: "/dashboard", label: "Home" },
-  studentSearch: { href: "/students/search", label: "Kindersuche" },
+  studentSearch: { href: "/students/search", label: "Alle Kinder" },
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },
   staff: { href: "/staff", label: "Mitarbeiter" },

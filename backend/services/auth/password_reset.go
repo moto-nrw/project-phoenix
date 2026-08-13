@@ -259,12 +259,8 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		}
 
 		// Invalidate all existing auth tokens for security
-		if err := s.repos.Token.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
-			// Log error but don't fail the password reset
-			s.getLogger().Warn("failed to delete tokens during password reset",
-				slog.Int64("account_id", resetToken.AccountID),
-				slog.Any("error", err),
-			)
+		if _, err := s.deleteAccountTokensWithAudit(ctx, resetToken.AccountID, "password_reset", "", ""); err != nil {
+			return fmt.Errorf("revoke tokens during password reset: %w", err)
 		}
 
 		return nil

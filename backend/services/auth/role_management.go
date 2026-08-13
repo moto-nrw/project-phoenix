@@ -193,7 +193,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 				return &AuthError{Op: "assign role to account", Err: err}
 			}
 
-			if err := s.repos.Token.DeleteByAccountID(txCtx, int64(accountID)); err != nil {
+			if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", ""); err != nil {
 				return &AuthError{Op: "revoke tokens after role assignment", Err: err}
 			}
 		}
@@ -267,7 +267,7 @@ func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID i
 			return &AuthError{Op: "remove role from account", Err: err}
 		}
 
-		if err := s.repos.Token.DeleteByAccountID(txCtx, int64(accountID)); err != nil {
+		if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", ""); err != nil {
 			return &AuthError{Op: "revoke tokens after role removal", Err: err}
 		}
 

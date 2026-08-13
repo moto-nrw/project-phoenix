@@ -10,6 +10,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -73,10 +74,17 @@ import {
   deleteStudentStatusDay,
   fetchStudentStatusDays,
   StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import { fetchStudentCarePlanDay } from "~/lib/student-care-plan-api";
+import {
+  deleteStudentPartialAbsence,
+  fetchStudentPartialAbsences,
+  saveStudentPartialAbsence,
+} from "~/lib/student-partial-absences-api";
 import { StudentDetailSkeleton } from "./page-skeleton";
 
 type TodayArrival = {
@@ -306,6 +314,7 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
+  const nfcEnabled = useNFCEnabled();
   const { mutate } = useSWRConfig();
   const router = useTenantRouter();
   const params = useParams();
@@ -491,11 +500,36 @@ function StudentDetailPageContent() {
       fetchStudentStatusDays(studentId, statusDayRange.from, statusDayRange.to),
     { revalidateOnFocus: false },
   );
+  const { data: partialAbsences = [], mutate: mutatePartialAbsences } =
+    useSWRAuth(
+      hasFullAccess && studentId
+        ? `student-partial-absences-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
+        : null,
+      async () =>
+        fetchStudentPartialAbsences(
+          studentId,
+          statusDayRange.from,
+          statusDayRange.to,
+        ),
+      { revalidateOnFocus: false },
+    );
   const ensureStatusDayRange = useCallback((from: string, to: string) => {
     setStatusDayRange((current) => extendStatusDayRange(current, [from, to]));
   }, []);
   const loadPlannedStatusExistingDays = useCallback(
-    (from: string, to: string) => fetchStudentStatusDays(studentId, from, to),
+    (from: string, to: string) => {
+      ensureStatusDayRange(from, to);
+      return fetchStudentStatusDays(studentId, from, to);
+    },
+    [ensureStatusDayRange, studentId],
+  );
+  const loadPlannedPartialAbsences = useCallback(
+    (from: string, to: string) =>
+      fetchStudentPartialAbsences(studentId, from, to),
+    [studentId],
+  );
+  const loadPlannedCarePlanDay = useCallback(
+    (date: string) => fetchStudentCarePlanDay(studentId, date),
     [studentId],
   );
   // Reason attached to today's sick day (set by staff or by a parent via the
@@ -909,7 +943,9 @@ function StudentDetailPageContent() {
         status: plannedStatusModal,
         error: err instanceof Error ? err.message : String(err),
       });
-      if (err instanceof StudentStatusDayConflictError) {
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        toast.warning(err.message);
+      } else if (err instanceof StudentStatusDayConflictError) {
         const conflicts = err.conflicts
           .map(
             (day) =>
@@ -950,6 +986,70 @@ function StudentDetailPageContent() {
       throw err;
     } finally {
       setDeletingPlannedStatusDayId(null);
+    }
+  };
+
+  const handleSavePartialAbsence = async (
+    partialAbsenceId: string | null,
+    date: string,
+    fromTime: string,
+    reason?: string,
+  ) => {
+    if (!student) return;
+    setPlannedStatusLoading(true);
+    try {
+      await saveStudentPartialAbsence(
+        studentId,
+        partialAbsenceId,
+        date,
+        fromTime,
+        reason,
+      );
+      setStatusDayRange((current) => extendStatusDayRange(current, [date]));
+      await Promise.all([
+        mutatePartialAbsences(),
+        mutate(`pickup-data-${studentId}`),
+      ]);
+      refreshData();
+      toast.success(
+        partialAbsenceId
+          ? `Entschuldigung für ${student.name} wurde aktualisiert`
+          : `Entschuldigung für ${student.name} wurde gespeichert`,
+      );
+      setPlannedStatusModal(null);
+    } catch (err) {
+      logger.error("partial_absence_save_failed", {
+        student_id: studentId,
+        partial_absence_id: partialAbsenceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Entschuldigung konnte nicht gespeichert werden");
+      throw err;
+    } finally {
+      setPlannedStatusLoading(false);
+    }
+  };
+
+  const handleDeletePartialAbsence = async (partialAbsenceId: string) => {
+    setPlannedStatusLoading(true);
+    try {
+      await deleteStudentPartialAbsence(studentId, partialAbsenceId);
+      await Promise.all([
+        mutatePartialAbsences(),
+        mutate(`pickup-data-${studentId}`),
+      ]);
+      refreshData();
+      toast.success("Teilentschuldigung wurde entfernt");
+    } catch (err) {
+      logger.error("partial_absence_delete_failed", {
+        student_id: studentId,
+        partial_absence_id: partialAbsenceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Teilentschuldigung konnte nicht entfernt werden");
+      throw err;
+    } finally {
+      setPlannedStatusLoading(false);
     }
   };
 
@@ -998,7 +1098,8 @@ function StudentDetailPageContent() {
       return (
         <p className="text-moto-amber-strong text-sm">
           Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive
-          Aufsicht in einem Raum über ein NFC-Tablet.
+          Aufsicht in einem Raum über{" "}
+          {nfcEnabled ? "ein NFC-Tablet" : "die Web-App"}.
         </p>
       );
     }
@@ -1259,11 +1360,16 @@ function StudentDetailPageContent() {
         studentName={student.name}
         isSubmitting={plannedStatusLoading}
         existingDays={statusDays}
+        existingPartialAbsences={partialAbsences}
         deletingStatusDayId={deletingPlannedStatusDayId}
         onClose={() => setPlannedStatusModal(null)}
         loadExistingDays={loadPlannedStatusExistingDays}
+        loadPartialAbsences={loadPlannedPartialAbsences}
+        loadCarePlanDay={loadPlannedCarePlanDay}
         onSubmit={handleCreatePlannedStatus}
         onDeleteStatusDay={handleDeletePlannedStatus}
+        onSubmitPartialAbsence={handleSavePartialAbsence}
+        onDeletePartialAbsence={handleDeletePartialAbsence}
       />
     </>
   );

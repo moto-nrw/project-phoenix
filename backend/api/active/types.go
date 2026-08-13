@@ -204,7 +204,7 @@ type CurrentActivityItem struct {
 	Name         string `json:"name"`
 	Category     string `json:"category"`
 	Participants int    `json:"participants"`
-	MaxCapacity  int    `json:"max_capacity"`
+	MaxCapacity  *int   `json:"max_capacity"`
 	Status       string `json:"status"`
 }
 

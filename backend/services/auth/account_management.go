@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 )
@@ -26,26 +25,20 @@ func (s *Service) ActivateAccount(ctx context.Context, accountID int) error {
 
 // DeactivateAccount deactivates a user account
 func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
-	account, err := s.repos.Account.FindByID(ctx, int64(accountID))
-	if err != nil {
-		return &AuthError{Op: "deactivate account", Err: ErrAccountNotFound}
-	}
-
-	account.Active = false
-	if err := s.repos.Account.Update(ctx, account); err != nil {
-		return &AuthError{Op: "deactivate account", Err: err}
-	}
-
-	// Also invalidate all tokens for this account
-	if err := s.repos.Token.DeleteByAccountID(ctx, int64(accountID)); err != nil {
-		// Log error but don't fail the deactivation
-		s.getLogger().Warn("failed to delete tokens during account deactivation",
-			slog.Int("account_id", accountID),
-			slog.Any("error", err),
-		)
-	}
-
-	return nil
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		account, err := s.repos.Account.FindByID(txCtx, int64(accountID))
+		if err != nil {
+			return &AuthError{Op: "deactivate account", Err: ErrAccountNotFound}
+		}
+		account.Active = false
+		if err := s.repos.Account.Update(txCtx, account); err != nil {
+			return &AuthError{Op: "deactivate account", Err: err}
+		}
+		if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "account_deactivated", "", ""); err != nil {
+			return &AuthError{Op: "revoke tokens during account deactivation", Err: err}
+		}
+		return nil
+	})
 }
 
 // UpdateAccount updates account information

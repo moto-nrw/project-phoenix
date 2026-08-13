@@ -265,6 +265,7 @@ export function ChildCareScheduleSection({
       {modalOpen && (
         <CareScheduleRequestModal
           initialValues={initialValues}
+          capabilities={data.request_capabilities}
           onClose={() => setModalOpen(false)}
           onSubmit={async (payload) => {
             setData(await submitCareScheduleRequest(studentId, payload));

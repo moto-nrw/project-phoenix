@@ -416,8 +416,9 @@ func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { r
 func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
 	return 0, nil
 }
-func (m *mockAuthService) RevokeAllTokens(context.Context, int) error                 { return nil }
-func (m *mockAuthService) RevokeTokensByTenantID(context.Context, int64) (int, error) { return 0, nil }
+func (m *mockAuthService) RevokeAllTokens(context.Context, int) error                   { return nil }
+func (m *mockAuthService) RevokeAllTokensWithReason(context.Context, int, string) error { return nil }
+func (m *mockAuthService) RevokeTokensByTenantID(context.Context, int64) (int, error)   { return 0, nil }
 func (m *mockAuthService) GetActiveTokens(context.Context, int) ([]*authModels.Token, error) {
 	return nil, nil
 }

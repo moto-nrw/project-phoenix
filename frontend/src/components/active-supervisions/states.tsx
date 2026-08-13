@@ -12,6 +12,7 @@ import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 interface MinimalActiveGroup {
   id: string;
@@ -49,6 +50,8 @@ export function ActiveSupervisionLoadingView() {
 }
 
 export function NoActiveSupervisionAccessView() {
+  const nfcEnabled = useNFCEnabled();
+
   useSetBreadcrumb({
     pageTitle: "Aktuelle Aufsicht",
   });
@@ -68,8 +71,9 @@ export function NoActiveSupervisionAccessView() {
               Du bist aktuell in keinem Raum als Live-Aktivität registriert.
             </p>
             <p className="mt-4 text-sm text-gray-500">
-              Starte eine Aktivität an einem Terminal, um Live-Raumdaten
-              einzusehen.
+              Starte eine Aktivität{" "}
+              {nfcEnabled ? "an einem Terminal" : "in der Web-App"}, um
+              Live-Raumdaten einzusehen.
             </p>
           </div>
         </div>

@@ -33,6 +33,17 @@ import { ThreadSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "MessageThreadPage" });
 
+export function isMessageSnapshotUnavailable(
+  isLoading: boolean,
+  isValidating: boolean,
+  messageCount: number,
+  loadError: unknown,
+): boolean {
+  return (
+    Boolean(loadError) || ((isLoading || isValidating) && messageCount === 0)
+  );
+}
+
 function MessageThreadContent() {
   const params = useParams();
   const threadId = params.threadId as string;
@@ -112,6 +123,12 @@ function MessageThreadContent() {
   // Nachrichten…" until the GET resolves. A background revalidation of a thread
   // that already has messages keeps messages.length > 0, so this stays false.
   const messagesLoading = (isLoading || isValidating) && messages.length === 0;
+  const snapshotUnavailable = isMessageSnapshotUnavailable(
+    isLoading,
+    isValidating,
+    messages.length,
+    loadError,
+  );
 
   // Per-ROW open/closed tracking for "request_created" pills. A pill offers the
   // "Anfrage bearbeiten" action only while its request is still open; once
@@ -186,10 +203,14 @@ function MessageThreadContent() {
   const handleSend = async () => {
     const body = draft.trim();
     if (!body || isSending) return;
+    if (snapshotUnavailable) {
+      setSendError("Bitte warten Sie, bis der Nachrichtenverlauf geladen ist.");
+      return;
+    }
     setIsSending(true);
     setSendError(null);
     try {
-      const updated = await postMessage(threadId, body);
+      const updated = await postMessage(threadId, body, messages.at(-1)?.id);
       // Show the sent message immediately. The postMessage response now carries
       // the rebuilt "current → requested" diff inline on every still-open request
       // (like the GET path), so the optimistic replace keeps the review card's
@@ -346,6 +367,7 @@ function MessageThreadContent() {
               onChange={setDraft}
               onSend={() => void handleSend()}
               sending={isSending}
+              disabled={snapshotUnavailable}
               placeholder="Nachricht an die Eltern schreiben..."
             />
           ) : (

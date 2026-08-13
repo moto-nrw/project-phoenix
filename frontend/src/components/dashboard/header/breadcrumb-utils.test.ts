@@ -12,8 +12,8 @@ import type { PageTypeInfo } from "./breadcrumb-utils";
 describe("breadcrumb-utils", () => {
   describe("getPageTitle", () => {
     describe("student pages", () => {
-      it("should return 'Kindersuche' for /students/search", () => {
-        expect(getPageTitle("/students/search")).toBe("Kindersuche");
+      it("should return 'Alle Kinder' for /students/search", () => {
+        expect(getPageTitle("/students/search")).toBe("Alle Kinder");
       });
 
       it("should return 'Kinder Details' for student detail page", () => {
@@ -287,16 +287,16 @@ describe("breadcrumb-utils", () => {
       expect(getBreadcrumbLabel("/rooms?room=42")).toBe("Räume");
     });
 
-    it("should return 'Kindersuche' for unknown referrer", () => {
-      expect(getBreadcrumbLabel("/students")).toBe("Kindersuche");
+    it("should return 'Alle Kinder' for unknown referrer", () => {
+      expect(getBreadcrumbLabel("/students")).toBe("Alle Kinder");
     });
 
-    it("should return 'Kindersuche' for empty referrer", () => {
-      expect(getBreadcrumbLabel("")).toBe("Kindersuche");
+    it("should return 'Alle Kinder' for empty referrer", () => {
+      expect(getBreadcrumbLabel("")).toBe("Alle Kinder");
     });
 
-    it("should return 'Kindersuche' for dashboard referrer", () => {
-      expect(getBreadcrumbLabel("/dashboard")).toBe("Kindersuche");
+    it("should return 'Alle Kinder' for dashboard referrer", () => {
+      expect(getBreadcrumbLabel("/dashboard")).toBe("Alle Kinder");
     });
   });
 

@@ -488,14 +488,18 @@ function extractBackendRoom(responseData: unknown): BackendRoom {
  */
 function validateRoomForCreation(room: {
   name?: string;
-  capacity?: number;
+  capacity?: number | null;
   category?: string;
 }): void {
   if (!room.name) {
     throw new Error("Missing required field: name");
   }
-  if (room.capacity === undefined || room.capacity <= 0) {
-    throw new Error("Missing required field: capacity must be greater than 0");
+  if (
+    room.capacity !== undefined &&
+    room.capacity !== null &&
+    room.capacity <= 0
+  ) {
+    throw new Error("capacity must be greater than 0");
   }
   if (!room.category) {
     throw new Error("Missing required field: category");

@@ -114,7 +114,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responses = applyExportFilters(responses, req.Filters, req.Preset)
+	responses = applyExportFilters(responses, req.Filters, req.Preset, planningDate)
 	// The cap is applied to the rows that actually land in the document, after
 	// every requested filter has run — so a narrow list still exports at a large
 	// school and only a genuinely oversized result is refused.
@@ -400,7 +400,7 @@ func matchesTimeFilter(planned *string, isException bool, filter string) bool {
 	return planned != nil && *planned == filter
 }
 
-func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset listexport.Preset) []StudentResponse {
+func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset listexport.Preset, planningDate timezone.Date) []StudentResponse {
 	// Months were validated when the request was decoded.
 	months, _ := parseExportMonths(filters.Months)
 	// The birthday preset demands a birthday even without a month filter, so a
@@ -408,7 +408,7 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 	byBirthday := preset == listexport.PresetBirthdayList || len(months) > 0
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		if exportStudentMatchesFilters(student, filters, byBirthday, months) {
+		if exportStudentMatchesFilters(student, filters, byBirthday, months, planningDate) {
 			filtered = append(filtered, student)
 		}
 	}
@@ -417,7 +417,7 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 
 // exportStudentMatchesFilters reports whether one child survives every requested
 // export filter. byBirthday and months are precomputed by applyExportFilters.
-func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool) bool {
+func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool, planningDate timezone.Date) bool {
 	if byBirthday && !birthdayExportMatch(student, months) {
 		return false
 	}
@@ -427,7 +427,7 @@ func exportStudentMatchesFilters(student StudentResponse, filters studentExportF
 	if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
 		return false
 	}
-	if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus) {
+	if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus, planningDate) {
 		return false
 	}
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
@@ -844,7 +844,7 @@ func collectResponseIDs(students []StudentResponse) []int64 {
 }
 
 func (rs *Resource) exportSubtitle(r *http.Request, count int) string {
-	name := "Kindersuche"
+	name := "Alle Kinder"
 	if tenantID := tenant.FromContext(r.Context()); tenantID > 0 && rs.SchoolService != nil {
 		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && school.Name != "" {
 			name = school.Name

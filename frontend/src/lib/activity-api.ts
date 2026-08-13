@@ -364,7 +364,7 @@ function createSafeActivity(data: CreateActivityRequest): Activity {
   return {
     id: "0",
     name: data.name ?? "",
-    max_participant: data.max_participants ?? 0,
+    max_participant: data.max_participants ?? null,
     is_open_ags: false,
     supervisor_id: data.supervisor_ids?.[0]
       ? String(data.supervisor_ids[0])

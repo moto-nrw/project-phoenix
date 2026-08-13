@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
@@ -84,9 +85,10 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		PickupExceptionRepo: repos.StudentPickupException,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentSickNoteEnabled: sickEnabled,
@@ -334,6 +336,45 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	assert.False(t, sick, "a future-only sick note must not flip today's live flag")
 }
 
+func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
+	svc, _, db := buildWriteService(t, true, true)
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, chain)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	})
+
+	date := timezone.TodayDate().AddDays(7)
+	from := timezone.WallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
+	staffID := staff.ID
+	pickup := &scheduleModels.StudentPickupException{
+		StudentID:             chain.StudentID,
+		ExceptionDate:         date,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	pickup.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+
+	_, err := svc.SubmitSickNote(
+		context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{date}, "Fieber", activeModels.StudentStatusDaySick,
+	)
+	require.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
+
+	rows, findErr := repos.StudentStatusDay.FindActiveByStudentAndDateRange(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date,
+	)
+	require.NoError(t, findErr)
+	assert.Empty(t, rows)
+}
+
 func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -344,8 +385,9 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		PickupExceptionRepo: repos.StudentPickupException,
 		StudentRepo: &pausingStudentRepository{
 			StudentRepository: repos.Student,
 			locked:            parentLocked,

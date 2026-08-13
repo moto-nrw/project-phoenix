@@ -180,7 +180,7 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 		"activity_id":       activity.ID,
 		"activity_name":     activity.Name,
 		"enrollment_count":  rs.getEnrollmentCount(r.Context(), activity.ID),
-		"max_participants":  activity.MaxParticipants,
+		"max_participants":  activity.ParticipantLimit(),
 		"students_enrolled": req.StudentIDs,
 	}
 

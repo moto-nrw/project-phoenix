@@ -711,10 +711,12 @@ func TestOperatorAuthService_ChangePassword_Success(t *testing.T) {
 
 	email := fmt.Sprintf("chpw-ok-%d@test.local", time.Now().UnixNano())
 	operatorID, _ := createEmailChangeTestOperator(t, db, email)
+	_, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("192.0.2.20"))
+	require.NoError(t, err)
 
 	// Read old hash for comparison
 	var oldHash string
-	err := db.NewSelect().
+	err = db.NewSelect().
 		TableExpr("platform.operators").
 		Column("password_hash").
 		Where("id = ?", operatorID).
@@ -734,6 +736,18 @@ func TestOperatorAuthService_ChangePassword_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, oldHash, newHash, "password hash should be updated")
 	assert.NotEmpty(t, newHash)
+
+	var auditEntry platform.OperatorAuditLog
+	err = db.NewSelect().Model(&auditEntry).
+		ModelTableExpr(`platform.operator_audit_log AS "operator_audit_log"`).
+		Where(`"operator_audit_log".operator_id = ?`, operatorID).
+		Where(`"operator_audit_log".action = ?`, platform.ActionTokenRevoked).
+		OrderExpr(`"operator_audit_log".id DESC`).Limit(1).Scan(ctx)
+	require.NoError(t, err)
+	changes, err := auditEntry.GetChanges()
+	require.NoError(t, err)
+	assert.Equal(t, "operator", changes["portal_scope"])
+	assert.Equal(t, "password_change", changes["reason"])
 }
 
 func TestOperatorAuthService_ChangePassword_WrongCurrentPassword(t *testing.T) {
@@ -1308,9 +1322,9 @@ func TestOperatorAuthService_RefreshToken_HandoffLookupErrorDoesNotRevokeFamily(
 				RecoveryProofHash: recoveryProofHash,
 			}, nil
 		},
-		deleteByFamilyIDFn: func(context.Context, string) error {
+		deleteByFamilyIDFn: func(context.Context, string) ([]*platform.OperatorRefreshToken, error) {
 			familyRevoked = true
-			return nil
+			return nil, nil
 		},
 	}
 

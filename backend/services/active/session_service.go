@@ -127,7 +127,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
 	txHandler := modelBase.NewTxHandler(s.DB)
 
-	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
 			return err
 		}
@@ -149,6 +149,7 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		_, err = createSession(txCtx, finalRoomID)
 		return err
 	})
+	return markRollbackOnRoomCapacity(ctx, err)
 }
 
 func (s *service) acquireActivitySessionLock(ctx context.Context, tx bun.Tx, activityID int64, operation string) error {
@@ -283,6 +284,11 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	if err != nil {
 		return nil, 0, err
 	}
+	if transferredCount > 0 {
+		if err := s.ensureRoomCapacity(ctx, roomID, 0); err != nil {
+			return nil, 0, err
+		}
+	}
 
 	return newGroup, transferredCount, nil
 }
@@ -364,7 +370,7 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 	const operation = "ForceStartActivitySessionWithSupervisors"
 	txHandler := modelBase.NewTxHandler(s.DB)
 
-	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
 			return err
 		}
@@ -406,6 +412,14 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		*newGroup = group
 		return nil
 	})
+	return markRollbackOnRoomCapacity(ctx, err)
+}
+
+func markRollbackOnRoomCapacity(ctx context.Context, err error) error {
+	if errors.Is(err, ErrRoomCapacityExceeded) {
+		tenant.MarkRollback(ctx)
+	}
+	return err
 }
 
 func appendActiveGroupID(ids []int64, id int64) []int64 {
@@ -515,6 +529,28 @@ func (s *service) transferForceStartedActivityState(ctx context.Context, oldGrou
 }
 
 func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
+	if s.GroupRepo == nil {
+		return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+	}
+	oldGroup, err := s.GroupRepo.FindByID(ctx, oldGroupID)
+	if err != nil {
+		return 0, err
+	}
+	newGroup, err := s.GroupRepo.FindByID(ctx, newGroupID)
+	if err != nil {
+		return 0, err
+	}
+	if oldGroup != nil && newGroup != nil && oldGroup.RoomID != newGroup.RoomID {
+		incoming, err := s.VisitRepo.CountActiveByGroupID(ctx, oldGroupID)
+		if err != nil {
+			return 0, err
+		}
+		if incoming > 0 {
+			if err := s.ensureRoomCapacity(ctx, newGroup.RoomID, incoming); err != nil {
+				return 0, err
+			}
+		}
+	}
 	return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
 }
 

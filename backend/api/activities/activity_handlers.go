@@ -70,7 +70,7 @@ func buildBaseActivityResponse(group *activities.Group, enrollmentCount int) Act
 	response := ActivityResponse{
 		ID:              group.ID,
 		Name:            group.Name,
-		MaxParticipants: group.MaxParticipants,
+		MaxParticipants: group.ParticipantLimit(),
 		IsOpen:          group.IsOpen,
 		CategoryID:      group.CategoryID,
 		PlannedRoomID:   group.PlannedRoomID,
@@ -373,7 +373,7 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	response := ActivityResponse{
 		ID:              createdGroup.ID,
 		Name:            createdGroup.Name,
-		MaxParticipants: createdGroup.MaxParticipants,
+		MaxParticipants: createdGroup.ParticipantLimit(),
 		IsOpen:          createdGroup.IsOpen,
 		CategoryID:      createdGroup.CategoryID,
 		PlannedRoomID:   createdGroup.PlannedRoomID,

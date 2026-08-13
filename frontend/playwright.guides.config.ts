@@ -18,6 +18,8 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./scripts",
   testMatch: "generate-guides.ts",
+  // The 91-page features guide can exceed Playwright's 30-second default on CI.
+  timeout: 120_000,
   workers: 1,
   retries: process.env.CI ? 2 : 0,
   reporter: "list",

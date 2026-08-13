@@ -204,11 +204,11 @@ type roleManagementTokenRepo struct {
 	deleteByAccountIDFn func(context.Context, int64) error
 }
 
-func (r roleManagementTokenRepo) DeleteByAccountID(ctx context.Context, accountID int64) error {
+func (r roleManagementTokenRepo) DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*authModel.Token, error) {
 	if r.deleteByAccountIDFn != nil {
-		return r.deleteByAccountIDFn(ctx, accountID)
+		return nil, r.deleteByAccountIDFn(ctx, accountID)
 	}
-	return nil
+	return nil, nil
 }
 
 func newRoleManagementService(

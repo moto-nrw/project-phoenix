@@ -58,6 +58,11 @@ function schedule(
       { weekday: 5, arrival: "08:00", pickup: "15:00", modes: ["bus"] },
     ],
     can_request: true,
+    request_capabilities: {
+      arrival: true,
+      pickup: true,
+      departure_mode: true,
+    },
     today_absent: false,
     ...overrides,
   };
@@ -127,6 +132,25 @@ describe("ChildCareScheduleSection", () => {
 
   it("hides the request button when requesting is not allowed", async () => {
     mockGet.mockResolvedValue(schedule({ can_request: false }));
+    render(<ChildCareScheduleSection studentId="42" />);
+
+    expect(await screen.findByText("Betreuungszeiten")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Änderung anfragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the request action when every permanent-care field is disabled", async () => {
+    mockGet.mockResolvedValue(
+      schedule({
+        can_request: false,
+        request_capabilities: {
+          arrival: false,
+          pickup: false,
+          departure_mode: false,
+        },
+      }),
+    );
     render(<ChildCareScheduleSection studentId="42" />);
 
     expect(await screen.findByText("Betreuungszeiten")).toBeInTheDocument();

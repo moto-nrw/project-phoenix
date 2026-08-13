@@ -338,11 +338,11 @@ export function StudentsInRoomSection({
             variant="outline"
             size="sm"
             onClick={openInSearch}
-            aria-label="In Kindersuche öffnen"
-            title="In Kindersuche öffnen"
+            aria-label="Alle Kinder öffnen"
+            title="Alle Kinder öffnen"
             className="h-8 shrink-0 gap-1.5 rounded-full px-2.5 py-0 text-xs font-medium shadow-none"
           >
-            Kindersuche
+            Alle Kinder
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
         )}
@@ -359,8 +359,8 @@ export function StudentsInRoomSection({
         >
           Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
           {hiddenCount} weitere {hiddenCount === 1 ? "Kind ist" : "Kinder sind"}{" "}
-          aktuell nicht in dieser Übersicht, bitte in der Kindersuche öffnen, um
-          alle zu sehen.
+          aktuell nicht in dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle
+          zu sehen.
         </div>
       )}
 

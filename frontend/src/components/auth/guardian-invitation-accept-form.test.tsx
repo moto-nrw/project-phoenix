@@ -171,9 +171,10 @@ describe("GuardianInvitationAcceptForm", () => {
       screen.getByRole("button", { name: "Einladung akzeptieren" }),
     );
 
-    expect(
-      await screen.findByText(/Diese Einladung ist nicht mehr gültig/),
-    ).toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Diese Einladung ist nicht mehr gültig.");
+    expect(alert).toHaveTextContent("Kontaktieren Sie bitte Ihre OGS.");
+    expect(screen.queryByText(/moto-(Team|Support)/i)).not.toBeInTheDocument();
 
     Object.defineProperty(globalThis, "navigator", {
       value: { onLine: false },

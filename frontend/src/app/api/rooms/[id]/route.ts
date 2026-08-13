@@ -20,7 +20,7 @@ interface RoomUpdateRequest {
   name?: string;
   building?: string;
   floor?: number;
-  capacity?: number;
+  capacity?: number | null;
   category?: string;
   color?: string;
   deviceId?: string;
@@ -182,7 +182,7 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
     }
 
     // Validate update data if provided
-    if (body.capacity !== undefined && body.capacity <= 0) {
+    if (body.capacity != null && body.capacity <= 0) {
       throw new Error("Capacity must be greater than 0");
     }
 

@@ -5,6 +5,7 @@ import { Loader2, Pencil, Plus, StickyNote, Trash2, X } from "lucide-react";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { createLogger } from "~/lib/logger";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import type { ArrivalNote } from "~/lib/student-arrival-api";
 import {
   type ArrivalDayData,
@@ -38,6 +39,7 @@ export function ArrivalDayEditModal({
   onUpdateNote,
   onDeleteNote,
 }: ArrivalDayEditModalProps) {
+  const nfcEnabled = useNFCEnabled();
   const [arrivalTime, setArrivalTime] = useState("");
   const [hasTimeOverride, setHasTimeOverride] = useState(false);
   const [markAbsent, setMarkAbsent] = useState(false);
@@ -350,12 +352,14 @@ export function ArrivalDayEditModal({
             ) : null}
           </div>
 
-          <div className="mb-3">
-            <Alert
-              type="info"
-              message="Notizen werden auch auf den NFC-Tablets angezeigt."
-            />
-          </div>
+          {nfcEnabled ? (
+            <div className="mb-3">
+              <Alert
+                type="info"
+                message="Notizen werden auch auf den NFC-Tablets angezeigt."
+              />
+            </div>
+          ) : null}
 
           {day.notes.length > 0 ? (
             <div className="space-y-2">

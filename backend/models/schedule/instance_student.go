@@ -82,6 +82,9 @@ type InstanceStudent struct {
 	// Manual slot decisions keep this nil and therefore win over later broad
 	// status changes.
 	StudentStatusDayID *int64 `bun:"student_status_day_id" json:"-"`
+	// PickupExceptionID marks a partial excusal that owns the slot absence.
+	// Actual attendance and manual slot decisions clear this provenance.
+	PickupExceptionID *int64 `bun:"pickup_exception_id" json:"-"`
 }
 
 // Validate ensures the attendance row is well-formed.
@@ -274,6 +277,9 @@ type InstanceStudentRepository interface {
 	ApplyStatusDay(ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string) (int, error)
 	ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error)
 	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
+	ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
+	ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
+	ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
 
 	// UpdateAttendanceFields writes only the fields carried by the patch.
 	// Callers (the PATCH handler) must validate cross-field invariants

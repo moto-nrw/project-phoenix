@@ -187,6 +187,30 @@ describe("getStaffDisplayType", () => {
     expect(result).toBe("Gast");
   });
 
+  it("maps 'lehrkraft' accountRole to Lehrkraft", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: undefined,
+      accountRole: "lehrkraft",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Lehrkraft");
+  });
+
+  it("maps an accountRole regardless of its stored casing", () => {
+    const staff = createSampleStaff({
+      role: undefined,
+      isTeacher: false,
+      specialization: undefined,
+      accountRole: "Lehrkraft",
+    });
+    const result = getStaffDisplayType(staff);
+
+    expect(result).toBe("Lehrkraft");
+  });
+
   it("maps 'user' accountRole to Betreuer", () => {
     const staff = createSampleStaff({
       role: undefined,

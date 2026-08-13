@@ -168,6 +168,9 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 	if in.RoomID <= 0 {
 		return errors.New("room id is required")
 	}
+	if in.MaxParticipants < 0 {
+		return errors.New("max participants cannot be negative")
+	}
 	if in.CalendarPeriodID != nil && *in.CalendarPeriodID <= 0 {
 		return errors.New("calendar period id must be positive when set")
 	}
