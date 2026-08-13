@@ -68,7 +68,11 @@ export function LanguageSwitcher({
           <span className={compact ? "sr-only" : "text-gray-600"}>
             {t("label")}
           </span>
-          <span className="min-w-0 truncate text-sm font-semibold text-gray-900">
+          <span
+            className={`min-w-0 truncate text-sm font-semibold text-gray-900 ${
+              compact ? "hidden md:inline" : ""
+            }`}
+          >
             {selectedLabel}
           </span>
           <ChevronDown
