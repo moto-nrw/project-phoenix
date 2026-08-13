@@ -127,7 +127,7 @@ func (s *Service) LoginSchoolWithMFAGate(
 		guardOpts = append(guardOpts, withMFAGateRecheck(s.freshSchoolMFAPolicy(account.ID, portalTenantID)))
 	}
 	var metadata *accountMetadata
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, s.schoolMintGuard(account.ID, portalTenantID, &metadata, guardOpts...))
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, portalTenantID, tenant.ScopeSchool, s.schoolMintGuard(account.ID, portalTenantID, &metadata, guardOpts...))
 	if errors.Is(err, errSchoolMFARequiredAtMint) {
 		// Nothing was written — the guard aborted its own transaction. Send
 		// the login down the branch it would have taken had the role been
@@ -195,7 +195,7 @@ func (s *Service) IssueSchoolTokensForAuthenticatedAccount(
 	}
 
 	var metadata *accountMetadata
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, s.schoolMintGuard(account.ID, tenantID, &metadata))
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, tenantID, tenant.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &metadata))
 	if err != nil {
 		return "", "", wrapSchoolMintError("issue school tokens", err)
 	}
@@ -263,7 +263,7 @@ func (s *Service) SwitchSchool(ctx context.Context, accountID int64, tenantSlug,
 	}
 
 	var metadata *accountMetadata
-	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, targetTenantID, s.schoolMintGuard(accountID, targetTenantID, &metadata))
+	token, err := s.createRefreshTokenWithRetryGuarded(ctx, account, targetTenantID, tenant.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &metadata))
 	if err != nil {
 		return "", "", wrapSchoolMintError("switch school", err)
 	}

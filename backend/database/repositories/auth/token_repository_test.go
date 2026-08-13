@@ -318,8 +318,9 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 		token2 := testpkg.CreateTestToken(t, db, account.ID, "access")
 		defer cleanupAccountRecords(t, db, account.ID)
 
-		err := repo.DeleteByAccountID(ctx, account.ID)
+		deleted, err := repo.DeleteByAccountIDReturning(ctx, account.ID)
 		require.NoError(t, err)
+		require.Len(t, deleted, 2)
 
 		// Verify tokens are gone
 		_, err = repo.FindByID(ctx, token1.ID)
@@ -407,8 +408,9 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 		require.NoError(t, err)
 
 		// Delete family
-		err = repo.DeleteByFamilyID(ctx, familyID)
+		deleted, err := repo.DeleteByFamilyIDReturning(ctx, familyID)
 		require.NoError(t, err)
+		require.Len(t, deleted, 2)
 
 		// Verify tokens are gone
 		tokens, err := repo.FindByFamilyID(ctx, familyID)
@@ -453,7 +455,9 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, expired))
 
-	require.NoError(t, repo.CleanupOldTokensForAccount(ctx, account.ID, 5))
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, 5)
+	require.NoError(t, err)
+	require.Empty(t, deleted)
 	for _, token := range activeTokens {
 		_, err := repo.FindByID(ctx, token.ID)
 		require.NoError(t, err, "rotated and expired rows must not displace active sessions")
@@ -465,10 +469,12 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 		Expiry:    time.Now().Add(time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, newest))
-	require.NoError(t, repo.CleanupOldTokensForAccount(ctx, account.ID, 5))
+	deleted, err = repo.CleanupOldTokensForAccountReturning(ctx, account.ID, 5)
+	require.NoError(t, err)
+	require.Len(t, deleted, 1)
 
 	var currentIDs []int64
-	err := db.NewSelect().
+	err = db.NewSelect().
 		TableExpr("auth.tokens").
 		Column("id").
 		Where("account_id = ?", account.ID).
@@ -682,11 +688,11 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 
 		// ACT
 		ctx := testpkg.TenantContext(tenantID)
-		count, err := repo.DeleteByTenantID(ctx, tenantID)
+		deleted, err := repo.DeleteByTenantIDReturning(ctx, tenantID)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.Equal(t, 1, count)
+		assert.Len(t, deleted, 1)
 
 		// Verify the token is actually gone
 		_, findErr := repo.FindByID(ctx, token.ID)
@@ -699,8 +705,8 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 		testpkg.EnsureTestTenant(t, db, tenantID)
 		ctx := testpkg.TenantContext(tenantID)
 
-		count, err := repo.DeleteByTenantID(ctx, tenantID)
+		deleted, err := repo.DeleteByTenantIDReturning(ctx, tenantID)
 		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+		assert.Empty(t, deleted)
 	})
 }
