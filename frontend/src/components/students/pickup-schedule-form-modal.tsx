@@ -11,6 +11,7 @@ import type {
 import { WEEKDAYS } from "@/lib/pickup-schedule-helpers";
 import { Alert } from "~/components/ui/alert";
 import { createLogger } from "~/lib/logger";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "PickupScheduleForm" });
 
@@ -27,6 +28,7 @@ export function PickupScheduleFormModal({
   onSubmit,
   initialSchedules,
 }: PickupScheduleFormModalProps) {
+  const nfcEnabled = useNFCEnabled();
   const [schedules, setSchedules] =
     useState<PickupScheduleFormData[]>(initialSchedules);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,12 +133,14 @@ export function PickupScheduleFormModal({
           Zeiten und Notizen gelten wöchentlich wiederkehrend für jeden
           Wochentag.
         </p>
-        <div className="mb-4">
-          <Alert
-            type="info"
-            message="Abholzeiten und Notizen werden auch auf den NFC-Tablets angezeigt und sind für Kinder einsehbar."
-          />
-        </div>
+        {nfcEnabled ? (
+          <div className="mb-4">
+            <Alert
+              type="info"
+              message="Abholzeiten und Notizen werden auch auf den NFC-Tablets angezeigt und sind für Kinder einsehbar."
+            />
+          </div>
+        ) : null}
         {error && (
           <div
             ref={errorRef}

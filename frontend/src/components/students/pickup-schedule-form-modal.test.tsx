@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PickupScheduleFormModal } from "./pickup-schedule-form-modal";
 import type { PickupScheduleFormData } from "@/lib/pickup-schedule-helpers";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 // Mock FormModal
 vi.mock("~/components/ui/form-modal", () => ({
@@ -64,6 +65,29 @@ describe("PickupScheduleFormModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
+  });
+
+  it("shows the NFC tablet note only for NFC tenants", () => {
+    const props = {
+      isOpen: true,
+      onClose: mockOnClose,
+      onSubmit: mockOnSubmit,
+      initialSchedules: emptySchedules,
+    };
+
+    const { rerender } = render(<PickupScheduleFormModal {...props} />);
+
+    expect(
+      screen.getByText(
+        "Abholzeiten und Notizen werden auch auf den NFC-Tablets angezeigt und sind für Kinder einsehbar.",
+      ),
+    ).toBeInTheDocument();
+
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+    rerender(<PickupScheduleFormModal {...props} />);
+
+    expect(screen.queryByText(/NFC-Tablets/i)).not.toBeInTheDocument();
   });
 
   describe("Modal open/close behavior", () => {
