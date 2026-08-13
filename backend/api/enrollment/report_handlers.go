@@ -678,7 +678,7 @@ func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) str
 	if pickup := strings.TrimSpace(row.PickupByDay[day]); pickup != "" {
 		return pickup + " Uhr"
 	}
-	return "Betreuung"
+	return "Keine Abholzeit"
 }
 
 func classRosterGuardianContactsLabel(guardians []enrollmentService.ClassRosterGuardian) string {
