@@ -84,31 +84,98 @@ func TestLogoutLeavesStaffPushOnOtherDevices(t *testing.T) {
 		testpkg.CleanupTestTenant(t, db, tenantID)
 	})
 
-	otherEndpoint := "https://fcm.googleapis.com/other-device"
-	otherSub := &iotModels.PushSubscription{
-		AccountID: account.ID,
-		Portal:    iotModels.PushPortalStaff,
-		Endpoint:  otherEndpoint,
-		P256dh:    "p256dh-key",
-		Auth:      "auth-key",
-	}
-	otherSub.SetTenantID(tenantID)
-	_, err = db.NewInsert().Model(otherSub).Exec(ctx)
-	require.NoError(t, err)
-
 	_, firstRefresh, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
+	_, secondRefresh, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	firstFamily := tokenFamilyID(t, db, account.ID, 0)
+	secondFamily := tokenFamilyID(t, db, account.ID, 1)
+	require.NotEqual(t, firstFamily, secondFamily)
+
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/this-device", firstFamily)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/other-device", secondFamily)
 
 	require.NoError(t, service.LogoutWithAudit(ctx, firstRefresh, "", ""))
 
+	_, _, err = service.RefreshToken(ctx, firstRefresh)
+	require.Error(t, err)
+	_, _, err = service.RefreshToken(ctx, secondRefresh)
+	require.NoError(t, err)
+
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/this-device"))
+	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/other-device"))
+}
+
+func tokenFamilyID(t *testing.T, db *bun.DB, accountID int64, offset int) string {
+	t.Helper()
+	var familyID string
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("family_id").
+		TableExpr("auth.tokens").
+		Where("account_id = ?", accountID).
+		Where("rotated_at IS NULL").
+		OrderExpr("id ASC").
+		Offset(offset).
+		Limit(1).
+		Scan(context.Background(), &familyID))
+	require.NotEmpty(t, familyID)
+	return familyID
+}
+
+func insertStaffPush(t *testing.T, db *bun.DB, accountID, tenantID int64, endpoint, familyID string) {
+	t.Helper()
+	sub := &iotModels.PushSubscription{
+		AccountID:     accountID,
+		Portal:        iotModels.PushPortalStaff,
+		Endpoint:      endpoint,
+		P256dh:        "p256dh-key",
+		Auth:          "auth-key",
+		TokenFamilyID: familyID,
+	}
+	sub.SetTenantID(tenantID)
+	_, err := db.NewInsert().Model(sub).ModelTableExpr("iot.push_subscriptions").Exec(context.Background())
+	require.NoError(t, err)
+}
+
+func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("revoke-all-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID := account.ID + 1_000_000_000
+	testpkg.EnsureTestTenant(t, db, secondaryTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/school-a", "family-a")
+	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/school-b", "family-b")
+
+	require.NoError(t, service.RevokeAllTokens(ctx, int(account.ID)))
+
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/school-a"))
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/school-b"))
+}
+
+func countStaffPush(t *testing.T, db *bun.DB, accountID int64, endpoint string) int {
+	t.Helper()
 	count, err := db.NewSelect().
 		Model((*iotModels.PushSubscription)(nil)).
-		Where("account_id = ?", account.ID).
+		ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+		Where("account_id = ?", accountID).
 		Where("portal = ?", iotModels.PushPortalStaff).
-		Where("endpoint = ?", otherEndpoint).
-		Count(ctx)
+		Where("endpoint = ?", endpoint).
+		Count(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 1, count, "staff push on another device must survive family-scoped logout")
+	return count
 }
 
 func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {

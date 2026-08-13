@@ -80,6 +80,7 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSu
 		Set("p256dh = EXCLUDED.p256dh").
 		Set("auth = EXCLUDED.auth").
 		Set("user_agent = EXCLUDED.user_agent").
+		Set("token_family_id = EXCLUDED.token_family_id").
 		Set("updated_at = NOW()").
 		Exec(ctx)
 	if err != nil {
@@ -159,13 +160,31 @@ func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context,
 // revocation.
 func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context, accountID int64) error {
 	_, err := base.GetDB(ctx, r.DB).NewDelete().
-		Model((*iot.PushSubscription)(nil)).
-		ModelTableExpr(tablePushSubscriptions).
+		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
 		Where(pushPortalFilter, iot.PushPortalStaff).
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "delete staff push subscriptions", Err: err}
+	}
+	return nil
+}
+
+// DeleteStaffByTokenFamilyID removes staff-portal subscriptions registered by
+// one refresh-token family, across tenants. The caller must supply an admin
+// transaction. An empty family ID is a no-op so unbound legacy rows survive.
+func (r *PushSubscriptionRepository) DeleteStaffByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error {
+	if familyID == "" {
+		return nil
+	}
+	_, err := base.GetDB(ctx, r.DB).NewDelete().
+		TableExpr(tablePushSubscriptions).
+		Where("account_id = ?", accountID).
+		Where("token_family_id = ?", familyID).
+		Where(pushPortalFilter, iot.PushPortalStaff).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete staff push subscriptions by token family", Err: err}
 	}
 	return nil
 }

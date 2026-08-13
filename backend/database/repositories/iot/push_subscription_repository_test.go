@@ -440,6 +440,31 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("family deletion removes only that family's staff rows", func(t *testing.T) {
+		keepEndpoint := endpoint + "/family-keep"
+		dropEndpoint := endpoint + "/family-drop"
+		keep := newSubscription(account.ID, iotModels.PushPortalStaff, keepEndpoint)
+		keep.TokenFamilyID = "family-keep"
+		drop := newSubscription(account.ID, iotModels.PushPortalStaff, dropEndpoint)
+		drop.TokenFamilyID = "family-drop"
+		require.NoError(t, repo.Upsert(ctx, keep))
+		require.NoError(t, repo.Upsert(ctx, drop))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteStaffByTokenFamilyID(adminCtx, account.ID, "family-drop")
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".portal = ?`, iotModels.PushPortalStaff).
+			Scan(context.Background()))
+		assert.True(t, hasSubscriptionEndpoint(remaining, keepEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(remaining, dropEndpoint))
+	})
+
 	t.Run("guardian finder excludes subscriptions without a tenant mapping", func(t *testing.T) {
 		// Pending-enrollment-only recipients have no mapping for the school.
 		// Even a stale subscription row must therefore stay out of Web Push.

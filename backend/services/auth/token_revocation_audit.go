@@ -8,6 +8,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 const internalRevocationAuditIP = "0.0.0.0"
@@ -85,13 +88,8 @@ func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID in
 	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
 		return nil, err
 	}
-	// Every session is gone. Staff push is not bound to a token family, so
-	// it has to be cleared here or the devices would keep receiving
-	// notifications after password reset, deactivation, or an admin revoke.
-	if s.repos.PushSubscription != nil {
-		if err := s.repos.PushSubscription.DeleteStaffByAccountID(ctx, accountID); err != nil {
-			return nil, err
-		}
+	if err := s.deleteStaffPushAcrossTenants(ctx, accountID); err != nil {
+		return nil, err
 	}
 	return tokens, nil
 }
@@ -107,5 +105,43 @@ func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.T
 	if err != nil {
 		return err
 	}
-	return s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent)
+	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
+		return err
+	}
+	return s.deleteStaffPushForFamily(ctx, token.AccountID, token.FamilyID)
+}
+
+// deleteStaffPushAcrossTenants removes every staff push row for the account.
+// Tenant-scoped callers get a dedicated admin transaction so RLS cannot hide
+// other schools. An ambient admin transaction is reused.
+func (s *Service) deleteStaffPushAcrossTenants(ctx context.Context, accountID int64) error {
+	return s.withStaffPushAdminTx(ctx, func(adminCtx context.Context) error {
+		return s.repos.PushSubscription.DeleteStaffByAccountID(adminCtx, accountID)
+	})
+}
+
+func (s *Service) deleteStaffPushForFamily(ctx context.Context, accountID int64, familyID string) error {
+	if familyID == "" {
+		return nil
+	}
+	return s.withStaffPushAdminTx(ctx, func(adminCtx context.Context) error {
+		return s.repos.PushSubscription.DeleteStaffByTokenFamilyID(adminCtx, accountID, familyID)
+	})
+}
+
+func (s *Service) withStaffPushAdminTx(ctx context.Context, fn func(context.Context) error) error {
+	if s.repos.PushSubscription == nil {
+		return nil
+	}
+	if s.db == nil {
+		return fn(ctx)
+	}
+	if tenant.FromContext(ctx) == 0 {
+		if _, ok := modelBase.TxFromContext(ctx); ok {
+			return fn(ctx)
+		}
+	}
+	return tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		return fn(adminCtx)
+	})
 }

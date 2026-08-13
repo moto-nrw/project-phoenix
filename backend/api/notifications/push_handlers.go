@@ -50,10 +50,11 @@ func (rs *Resource) subscribePush(w http.ResponseWriter, r *http.Request) {
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	err := rs.PushService.Subscribe(r.Context(), int64(claims.ID), notificationsService.PushSubscriptionInput{
-		Endpoint:  req.Endpoint,
-		P256dh:    req.Keys.P256dh,
-		Auth:      req.Keys.Auth,
-		UserAgent: r.UserAgent(),
+		Endpoint:      req.Endpoint,
+		P256dh:        req.Keys.P256dh,
+		Auth:          req.Keys.Auth,
+		UserAgent:     r.UserAgent(),
+		TokenFamilyID: claims.FamilyID,
 	})
 	switch {
 	case errors.Is(err, notificationsService.ErrWebPushNotConfigured):

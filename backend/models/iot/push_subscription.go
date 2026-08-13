@@ -61,12 +61,13 @@ func ValidatePushEndpoint(endpoint string) error {
 type PushSubscription struct {
 	base.Model `bun:"schema:iot,table:push_subscriptions"`
 	base.TenantModel
-	AccountID int64  `bun:"account_id,notnull" json:"account_id"`
-	Portal    string `bun:"portal,notnull" json:"portal"`
-	Endpoint  string `bun:"endpoint,notnull" json:"endpoint"`
-	P256dh    string `bun:"p256dh,notnull" json:"-"`
-	Auth      string `bun:"auth,notnull" json:"-"`
-	UserAgent string `bun:"user_agent,notnull,default:''" json:"user_agent"`
+	AccountID     int64  `bun:"account_id,notnull" json:"account_id"`
+	Portal        string `bun:"portal,notnull" json:"portal"`
+	Endpoint      string `bun:"endpoint,notnull" json:"endpoint"`
+	P256dh        string `bun:"p256dh,notnull" json:"-"`
+	Auth          string `bun:"auth,notnull" json:"-"`
+	UserAgent     string `bun:"user_agent,notnull,default:''" json:"user_agent"`
+	TokenFamilyID string `bun:"token_family_id,notnull,default:''" json:"-"`
 }
 
 // Validate ensures push subscription data is valid.
@@ -110,6 +111,11 @@ type PushSubscriptionRepository interface {
 	// reserve this for account-wide session revocation, not a single-device
 	// logout.
 	DeleteStaffByAccountID(ctx context.Context, accountID int64) error
+	// DeleteStaffByTokenFamilyID removes staff-portal subscriptions registered
+	// by one refresh-token family, across tenants. Callers must use an admin
+	// transaction. An empty family ID is a no-op so pre-binding rows are not
+	// swept by an unbound logout.
+	DeleteStaffByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
 

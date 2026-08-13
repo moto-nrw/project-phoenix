@@ -1030,6 +1030,7 @@ func (s *Service) buildJWTClaims(
 		Scope:       metadata.scope,
 		TenantID:    metadata.tenantID,
 		OrgID:       metadata.orgID,
+		FamilyID:    token.FamilyID,
 	}
 
 	refreshClaims := jwt.RefreshClaims{
@@ -1924,10 +1925,6 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 		return nil
 	})
-	// Family-scoped logout leaves other sessions signed in, so their staff
-	// push subscriptions stay. The logging-out device unregisters itself
-	// through the frontend before this call. Account-wide push cleanup lives
-	// on full-session revocation (password reset, deactivation, role change).
 	return err
 }
 
