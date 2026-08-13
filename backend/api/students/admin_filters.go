@@ -29,7 +29,7 @@ func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupSt
 		}
 	}
 	if isActiveFilterValue(pickupStatus) {
-		if !s.HasFullAccess || !dailyDepartureMatchesFilter(dailyDepartureModes(s, planningDate), pickupStatus) {
+		if !s.HasFullAccess || !dailyDepartureMatchesFilter(dailyDepartureForDate(s, planningDate), pickupStatus) {
 			return false
 		}
 	}

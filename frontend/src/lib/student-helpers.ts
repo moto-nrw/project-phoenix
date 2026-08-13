@@ -550,6 +550,7 @@ export interface BackendSlimStudent {
   day_planning_label?: string;
   pending_excused_note?: string;
   departure_modes?: DepartureMode[];
+  departure_label?: string;
   pickup_time?: string;
   pickup_is_exception?: boolean;
   pickup_notes?: string;
@@ -644,6 +645,7 @@ export interface Student {
   departure_days?: DepartureDays;
   allowed_departure_modes?: AllowedDepartureModes;
   departure_modes?: DepartureMode[];
+  departure_label?: string;
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
@@ -866,6 +868,7 @@ export function mapSlimStudentResponse(
     day_planning_label: backendStudent.day_planning_label,
     pending_excused_note: backendStudent.pending_excused_note,
     departure_modes: backendStudent.departure_modes,
+    departure_label: backendStudent.departure_label,
     pickup_time: backendStudent.pickup_time,
     pickup_is_exception: backendStudent.pickup_is_exception,
     pickup_notes: backendStudent.pickup_notes,

@@ -49,6 +49,7 @@ describe("mapSlimStudentResponse", () => {
       excused: false,
       class_trip: false,
       departure_modes: ["bus", "pickup"],
+      departure_label: "Taxi mit Begleitperson",
       has_full_access: true,
     };
 
@@ -56,6 +57,9 @@ describe("mapSlimStudentResponse", () => {
       "bus",
       "pickup",
     ]);
+    expect(mapSlimStudentResponse(backendStudent).departure_label).toBe(
+      "Taxi mit Begleitperson",
+    );
   });
 });
 

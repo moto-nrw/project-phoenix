@@ -184,6 +184,20 @@ func TestSlimStudentResponseCopiesValues(t *testing.T) {
 	assert.Equal(t, full.HasFullAccess, got.HasFullAccess)
 }
 
+func TestSlimStudentResponsePreservesUnknownLegacyDepartureLabel(t *testing.T) {
+	full := StudentResponse{
+		ID:                      7,
+		PickupStatus:            "Taxi mit Begleitperson",
+		DepartureRuleConfigured: true,
+		HasFullAccess:           true,
+	}
+
+	slim := slimStudentResponses([]StudentResponse{full}, timezone.NewDate(2026, time.June, 1))
+	require.Len(t, slim, 1)
+	assert.Empty(t, slim[0].DepartureModes)
+	assert.Equal(t, "Taxi mit Begleitperson", slim[0].DepartureLabel)
+}
+
 // TestParseStudentListView covers the query-parameter contract.
 func TestParseStudentListView(t *testing.T) {
 	for _, tc := range []struct {

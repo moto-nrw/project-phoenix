@@ -546,6 +546,8 @@ const DAILY_DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
 
 function dailyDepartureLabelForStudent(student: Student): string {
   if (student.has_full_access === false) return "Nicht einsehbar";
+  const legacyLabel = student.departure_label?.trim();
+  if (legacyLabel) return legacyLabel;
   const modes = student.departure_modes ?? [];
   if (modes.length === 0) return "-";
   return modes.map((mode) => DAILY_DEPARTURE_MODE_LABELS[mode]).join(", ");

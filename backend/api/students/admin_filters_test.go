@@ -57,6 +57,12 @@ func TestApplyAdministrativeFilters(t *testing.T) {
 			DepartureRuleConfigured: true,
 			HasFullAccess:           false,
 		},
+		{
+			ID:                      306,
+			PickupStatus:            "Taxi mit Begleitperson",
+			DepartureRuleConfigured: true,
+			HasFullAccess:           true,
+		},
 	}
 
 	tests := []struct {
@@ -66,12 +72,12 @@ func TestApplyAdministrativeFilters(t *testing.T) {
 	}{
 		{
 			name:    "no filters returns all unchanged",
-			wantIDs: []int64{301, 302, 303, 304, 305},
+			wantIDs: []int64{301, 302, 303, 304, 305, 306},
 		},
 		{
 			name:    "all sentinel is treated as off",
 			bus:     "all",
-			wantIDs: []int64{301, 302, 303, 304, 305},
+			wantIDs: []int64{301, 302, 303, 304, 305, 306},
 		},
 		{
 			name:    "bus yes excludes redacted students",
@@ -92,6 +98,11 @@ func TestApplyAdministrativeFilters(t *testing.T) {
 			name:     "pickup none matches students without a recorded rule",
 			pickupSt: "none",
 			wantIDs:  []int64{304},
+		},
+		{
+			name:     "legacy other rule does not match pickup self or none",
+			pickupSt: "other",
+			wantIDs:  []int64{306},
 		},
 		{
 			name:         "combined bus + photo_consent + pickup",

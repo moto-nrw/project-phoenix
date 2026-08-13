@@ -2583,6 +2583,31 @@ describe("StudentSearchPage", () => {
       ).not.toHaveTextContent("Heimweg:");
     });
 
+    it("shows an unknown legacy departure rule without treating it as self-going", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              departure_modes: [],
+              departure_label: "Taxi mit Begleitperson",
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      } as never);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText("Heimweg: Taxi mit Begleitperson"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Heimweg: Geht alleine nach Hause")).toBeNull();
+    });
+
     it("groups students by status in operational order", async () => {
       const studentsByStatus = [
         { ...mockStudents[1]!, first_name: "HomeChild" },

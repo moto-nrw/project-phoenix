@@ -22,15 +22,15 @@ func TestDailyDepartureModes(t *testing.T) {
 
 	assert.Equal(t,
 		[]users.DepartureMode{users.DeparturePickup},
-		dailyDepartureModes(student, timezone.NewDate(2026, time.June, 1)),
+		dailyDepartureForDate(student, timezone.NewDate(2026, time.June, 1)).Modes,
 	)
 	assert.Equal(t,
 		[]users.DepartureMode{users.DepartureAlone, users.DepartureBus},
-		dailyDepartureModes(student, timezone.NewDate(2026, time.June, 5)),
+		dailyDepartureForDate(student, timezone.NewDate(2026, time.June, 5)).Modes,
 	)
 	assert.Equal(t,
 		[]users.DepartureMode{users.DepartureAlone},
-		dailyDepartureModes(student, timezone.NewDate(2026, time.June, 2)),
+		dailyDepartureForDate(student, timezone.NewDate(2026, time.June, 2)).Modes,
 	)
 }
 
@@ -44,35 +44,79 @@ func TestDailyDepartureModesRedactionAndMissingRule(t *testing.T) {
 		HasFullAccess:           false,
 	}
 
-	assert.Nil(t, dailyDepartureModes(configured, monday))
-	assert.Nil(t, dailyDepartureModes(StudentResponse{HasFullAccess: true}, monday))
-	assert.Nil(t, dailyDepartureModes(StudentResponse{
+	assert.Nil(t, dailyDepartureForDate(configured, monday).Modes)
+	assert.Nil(t, dailyDepartureForDate(StudentResponse{HasFullAccess: true}, monday).Modes)
+	assert.Nil(t, dailyDepartureForDate(StudentResponse{
 		DepartureRuleConfigured: true,
 		HasFullAccess:           true,
-	}, timezone.NewDate(2026, time.June, 6)))
+	}, timezone.NewDate(2026, time.June, 6)).Modes)
 }
 
 func TestDailyDepartureModesSupportsLegacyRules(t *testing.T) {
 	monday := timezone.NewDate(2026, time.June, 1)
-	student := StudentResponse{
-		PickupStatus:            "Wird abgeholt",
-		DepartureRuleConfigured: true,
-		HasFullAccess:           true,
+	tests := []struct {
+		status string
+		mode   users.DepartureMode
+	}{
+		{status: "Geht alleine nach Hause", mode: users.DepartureAlone},
+		{status: "self", mode: users.DepartureAlone},
+		{status: "Wird abgeholt", mode: users.DeparturePickup},
+		{status: "parent", mode: users.DeparturePickup},
+		{status: "parents", mode: users.DeparturePickup},
+		{status: "guardian", mode: users.DeparturePickup},
+		{status: "picked_up", mode: users.DeparturePickup},
+		{status: "Bus", mode: users.DepartureBus},
+		{status: users.PickupStatusAccompanied, mode: users.DepartureAccompanied},
 	}
 
-	assert.Equal(t,
-		[]users.DepartureMode{users.DeparturePickup},
-		dailyDepartureModes(student, monday),
-	)
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			student := StudentResponse{
+				PickupStatus:            tt.status,
+				DepartureRuleConfigured: true,
+				HasFullAccess:           true,
+			}
+			departure := dailyDepartureForDate(student, monday)
+
+			assert.Equal(t, []users.DepartureMode{tt.mode}, departure.Modes)
+			assert.Empty(t, departure.LegacyLabel)
+			assert.True(t, departure.Configured)
+		})
+	}
+}
+
+func TestDailyDeparturePreservesUnknownLegacyRuleAsNonSelf(t *testing.T) {
+	departure := dailyDepartureForDate(StudentResponse{
+		PickupStatus:            "Taxi mit Begleitperson",
+		DepartureRuleConfigured: true,
+		HasFullAccess:           true,
+	}, timezone.NewDate(2026, time.June, 1))
+
+	assert.Empty(t, departure.Modes)
+	assert.Equal(t, "Taxi mit Begleitperson", departure.LegacyLabel)
+	assert.True(t, departure.Configured)
+	assert.False(t, dailyDepartureMatchesFilter(departure, "self"))
+	assert.False(t, dailyDepartureMatchesFilter(departure, "pickedUp"))
+	assert.False(t, dailyDepartureMatchesFilter(departure, "none"))
+	assert.True(t, dailyDepartureMatchesFilter(departure, "other"))
 }
 
 func TestDailyDepartureMatchesFilterSupportsMultipleModes(t *testing.T) {
-	modes := []users.DepartureMode{users.DepartureAlone, users.DeparturePickup}
+	departure := dailyDeparture{
+		Modes:      []users.DepartureMode{users.DepartureAlone, users.DeparturePickup},
+		Configured: true,
+	}
 
-	assert.True(t, dailyDepartureMatchesFilter(modes, "self"))
-	assert.True(t, dailyDepartureMatchesFilter(modes, "pickedUp"))
-	assert.False(t, dailyDepartureMatchesFilter(modes, "none"))
-	assert.True(t, dailyDepartureMatchesFilter(nil, "none"))
-	assert.True(t, dailyDepartureMatchesFilter([]users.DepartureMode{users.DepartureBus}, "other"))
-	assert.True(t, dailyDepartureMatchesFilter([]users.DepartureMode{users.DepartureAccompanied}, "other"))
+	assert.True(t, dailyDepartureMatchesFilter(departure, "self"))
+	assert.True(t, dailyDepartureMatchesFilter(departure, "pickedUp"))
+	assert.False(t, dailyDepartureMatchesFilter(departure, "none"))
+	assert.True(t, dailyDepartureMatchesFilter(dailyDeparture{}, "none"))
+	assert.True(t, dailyDepartureMatchesFilter(dailyDeparture{
+		Modes:      []users.DepartureMode{users.DepartureBus},
+		Configured: true,
+	}, "other"))
+	assert.True(t, dailyDepartureMatchesFilter(dailyDeparture{
+		Modes:      []users.DepartureMode{users.DepartureAccompanied},
+		Configured: true,
+	}, "other"))
 }

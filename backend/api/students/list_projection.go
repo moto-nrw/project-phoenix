@@ -71,6 +71,7 @@ type SlimStudentResponse struct {
 	// modes). Only populated for full-access rows and when the caller passes
 	// include_pickup_times / include_arrival_times.
 	DepartureModes     []users.DepartureMode `json:"departure_modes,omitempty"`
+	DepartureLabel     string                `json:"departure_label,omitempty"`
 	PickupTime         *string               `json:"pickup_time,omitempty"`
 	PickupIsException  bool                  `json:"pickup_is_exception,omitempty"`
 	PickupNotes        string                `json:"pickup_notes,omitempty"`
@@ -98,6 +99,7 @@ func slimStudentResponses(responses []StudentResponse, planningDate timezone.Dat
 	slim := make([]SlimStudentResponse, len(responses))
 	for i := range responses {
 		r := &responses[i]
+		departure := dailyDepartureForDate(*r, planningDate)
 		slim[i] = SlimStudentResponse{
 			ID:                  r.ID,
 			FirstName:           r.FirstName,
@@ -117,7 +119,8 @@ func slimStudentResponses(responses []StudentResponse, planningDate timezone.Dat
 			DayPlanningStatus:   r.DayPlanningStatus,
 			DayPlanningLabel:    r.DayPlanningLabel,
 			PendingExcusedNote:  r.PendingExcusedNote,
-			DepartureModes:      dailyDepartureModes(*r, planningDate),
+			DepartureModes:      departure.Modes,
+			DepartureLabel:      departure.LegacyLabel,
 			PickupTime:          r.PickupTime,
 			PickupIsException:   r.PickupIsException,
 			PickupNotes:         r.PickupNotes,

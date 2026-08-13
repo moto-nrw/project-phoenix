@@ -9,38 +9,63 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-func dailyDepartureModes(student StudentResponse, date timezone.Date) []users.DepartureMode {
+type dailyDeparture struct {
+	Modes       []users.DepartureMode
+	LegacyLabel string
+	Configured  bool
+}
+
+func dailyDepartureForDate(student StudentResponse, date timezone.Date) dailyDeparture {
 	if !student.HasFullAccess {
-		return nil
+		return dailyDeparture{}
 	}
 	day, ok := departureDayKey(date.Weekday())
 	if !ok {
-		return nil
+		return dailyDeparture{}
 	}
 	allowed := student.AllowedDepartureModes.Normalize()
 	if modes := allowed[day]; len(modes) > 0 {
-		return modes
+		return dailyDeparture{Modes: modes, Configured: true}
 	}
 	if allowed.HasAny() {
-		return []users.DepartureMode{users.DepartureAlone}
+		return dailyDeparture{Modes: []users.DepartureMode{users.DepartureAlone}, Configured: true}
 	}
-	if student.DepartureRuleConfigured {
-		return []users.DepartureMode{legacyDepartureMode(student.PickupStatus)}
+	if !student.DepartureRuleConfigured {
+		return dailyDeparture{}
 	}
-	return nil
+	if mode, ok := legacyDepartureMode(student.PickupStatus); ok {
+		return dailyDeparture{Modes: []users.DepartureMode{mode}, Configured: true}
+	}
+	return dailyDeparture{
+		LegacyLabel: strings.TrimSpace(student.PickupStatus),
+		Configured:  true,
+	}
 }
 
-func legacyDepartureMode(status string) users.DepartureMode {
+func legacyDepartureMode(status string) (users.DepartureMode, bool) {
 	normalized := strings.ToLower(strings.TrimSpace(status))
 	switch {
-	case strings.Contains(normalized, "abgeholt"), normalized == "pickup", normalized == "picked_up":
-		return users.DeparturePickup
+	case strings.Contains(normalized, "alleine"),
+		normalized == "selbst",
+		normalized == "self",
+		normalized == "alone",
+		normalized == "walk_home",
+		normalized == "geht_alleine":
+		return users.DepartureAlone, true
+	case strings.Contains(normalized, "abgeholt"),
+		normalized == "parent",
+		normalized == "parents",
+		normalized == "guardian",
+		normalized == "pickup",
+		normalized == "picked_up",
+		normalized == "wird_abgeholt":
+		return users.DeparturePickup, true
 	case strings.Contains(normalized, "bus"):
-		return users.DepartureBus
+		return users.DepartureBus, true
 	case strings.Contains(normalized, "anderem kind"), normalized == "accompanied":
-		return users.DepartureAccompanied
+		return users.DepartureAccompanied, true
 	default:
-		return users.DepartureAlone
+		return "", false
 	}
 }
 
@@ -61,18 +86,18 @@ func departureDayKey(weekday time.Weekday) (string, bool) {
 	}
 }
 
-func dailyDepartureMatchesFilter(modes []users.DepartureMode, filter string) bool {
+func dailyDepartureMatchesFilter(departure dailyDeparture, filter string) bool {
 	switch filter {
 	case "self":
-		return slices.Contains(modes, users.DepartureAlone)
+		return slices.Contains(departure.Modes, users.DepartureAlone)
 	case "pickedUp":
-		return slices.Contains(modes, users.DeparturePickup)
+		return slices.Contains(departure.Modes, users.DeparturePickup)
 	case "none":
-		return len(modes) == 0
+		return !departure.Configured
 	case "other":
-		return len(modes) > 0 &&
-			!slices.Contains(modes, users.DepartureAlone) &&
-			!slices.Contains(modes, users.DeparturePickup)
+		return departure.Configured &&
+			!slices.Contains(departure.Modes, users.DepartureAlone) &&
+			!slices.Contains(departure.Modes, users.DeparturePickup)
 	default:
 		return false
 	}
