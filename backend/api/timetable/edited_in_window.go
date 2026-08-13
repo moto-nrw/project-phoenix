@@ -27,8 +27,8 @@ type editedOccurrenceItem struct {
 	StartTime  string `json:"start_time"`
 	Title      string `json:"title"`
 	// Changes lists the diverging field categories ("title", "notes", "room",
-	// "time", "staff", "students") — stable machine-readable strings the
-	// frontend maps to German labels.
+	// "time", "staff", "students", "attendance") — stable machine-readable
+	// strings the frontend maps to German labels.
 	Changes []string `json:"changes"`
 }
 

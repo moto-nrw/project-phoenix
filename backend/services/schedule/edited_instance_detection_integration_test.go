@@ -269,7 +269,24 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 			tc.apply(row)
 			require.NoError(t, studentRepo.Update(s.ctx, row))
 
-			assert.Empty(t, detect(t, s), "attendance state is separate from roster membership")
+			edited := detect(t, s)
+			require.Len(t, edited, 1)
+			assert.Equal(t, []string{scheduleSvc.EditedChangeAttendance}, edited[0].Changes,
+				"unrestored attendance is a lost edit, but not a roster-membership change")
+			assert.NotContains(t, edited[0].Changes, scheduleSvc.EditedChangeStudents)
+
+			_, err = s.factory.Instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
+			require.NoError(t, err)
+			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
+			require.Len(t, regenerated, 1)
+			s.registerCleanup("schedule.activity_instances", regenerated[0].ID)
+
+			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
+			require.NoError(t, err)
+			assert.Equal(t, scheduleModels.AttendanceStatusExpected, after.Status)
+			assert.False(t, after.NotScheduled)
+			assert.Nil(t, after.ManualStatusAt)
+			assert.Nil(t, after.CheckedInAt)
 		})
 	}
 }

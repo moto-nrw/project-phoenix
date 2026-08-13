@@ -52,6 +52,7 @@ const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
   time: "Zeit/Datum",
   staff: "Personal",
   students: "Kinder",
+  attendance: "Anwesenheit",
   list_kind: "Listenart",
   deleted: "Gelöschter Termin",
 };

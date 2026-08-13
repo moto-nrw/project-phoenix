@@ -27,6 +27,14 @@ const (
 	EditedChangeTime        = "time"
 	EditedChangeStaff       = "staff"
 	EditedChangeStudents    = "students"
+	// EditedChangeAttendance marks a manual or observed attendance state on a
+	// still-planned occurrence (present, hand-set absent, not_scheduled, a
+	// manual_status_at stamp). ReplanWeek deletes the instance and rematerializes
+	// expected rows; it reapplies status-day and pickup-exception absences but
+	// does not snapshot ordinary attendance, so this must be reported as a lost
+	// edit. Distinct from EditedChangeStudents: the child can stay on the roster
+	// while the attendance state itself would be discarded.
+	EditedChangeAttendance = "attendance"
 	// EditedChangeListKind marks a per-occurrence Listenart override (#1565): the
 	// occurrence's list_kind diverges from what the template would materialize. A
 	// series re-plan copies list_kind from the template, so this single-occurrence
@@ -300,23 +308,17 @@ func (s *materializationService) staffRosterByInstance(ctx context.Context, ids 
 	return byInstance, nil
 }
 
-// studentRosterByInstance batch-loads instance_students membership grouped by
-// instance. Attendance status is deliberately irrelevant: broad status days
-// turn planned rows absent, and observed/manual outcomes may change status too,
-// without adding or removing the child from the occurrence's roster (#2225).
-func (s *materializationService) studentRosterByInstance(ctx context.Context, ids []int64) (map[int64]map[int64]struct{}, error) {
+// studentRosterByInstance batch-loads instance_students rows grouped by
+// instance. Membership is derived from the row's existence; attendance state
+// is kept so unrestored present/absent can be reported separately (#2225).
+func (s *materializationService) studentRosterByInstance(ctx context.Context, ids []int64) (map[int64][]*schedule.InstanceStudent, error) {
 	rows, err := s.studentRepo.FindByInstanceIDs(ctx, ids)
 	if err != nil {
 		return nil, &ScheduleError{Op: "detect edited: load student rosters", Err: err}
 	}
-	byInstance := make(map[int64]map[int64]struct{}, len(ids))
+	byInstance := make(map[int64][]*schedule.InstanceStudent, len(ids))
 	for _, row := range rows {
-		set := byInstance[row.InstanceID]
-		if set == nil {
-			set = make(map[int64]struct{})
-			byInstance[row.InstanceID] = set
-		}
-		set[row.StudentID] = struct{}{}
+		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
 	}
 	return byInstance, nil
 }
@@ -331,7 +333,7 @@ func diffOccurrence(
 	enrollments []*activities.StudentEnrollment,
 	supervisors []*activities.SupervisorPlanned,
 	staffRows []*schedule.InstanceStaff,
-	studentSet map[int64]struct{},
+	studentRows []*schedule.InstanceStudent,
 	expected []materialParams,
 ) []string {
 	var changes []string
@@ -405,14 +407,31 @@ func diffOccurrence(
 	// instance_students membership. Graduated (alumnus) students are excluded to
 	// mirror copyEnrollments — materialization no longer copies them, so counting
 	// their enrollment here would flag a phantom "students changed" edit (#405).
+	// Attendance status is not membership: a status-day absence keeps the child
+	// on the roster (#2225). Manual/observed states that rematerialization
+	// would discard are a separate attendance category.
 	expectedStudents := make(map[int64]struct{})
 	for _, e := range enrollments {
 		if isEnrollmentValidOn(e, inst.Date, periodID) && !enrollmentStudentIsAlumnus(e) {
 			expectedStudents[e.StudentID] = struct{}{}
 		}
 	}
+	studentSet := make(map[int64]struct{}, len(studentRows))
+	attendanceLost := false
+	for _, row := range studentRows {
+		if row == nil {
+			continue
+		}
+		studentSet[row.StudentID] = struct{}{}
+		if attendanceWouldBeLost(row) {
+			attendanceLost = true
+		}
+	}
 	if !sameIDSet(expectedStudents, studentSet) {
 		changes = append(changes, EditedChangeStudents)
+	}
+	if attendanceLost {
+		changes = append(changes, EditedChangeAttendance)
 	}
 
 	sort.Strings(changes)
@@ -464,4 +483,32 @@ func sameIDSet(a, b map[int64]struct{}) bool {
 		}
 	}
 	return true
+}
+
+// attendanceWouldBeLost reports whether a series re-plan would discard this
+// row's attendance state. ReplanWeek deletes the planned instance (cascading
+// the row) and rematerializes it as expected, then reapplies active status
+// days and pickup-exception absences. Ordinary present/absent, not_scheduled,
+// and hand-set stamps have no restore path.
+func attendanceWouldBeLost(row *schedule.InstanceStudent) bool {
+	if row == nil {
+		return false
+	}
+	// Status-day and pickup-exception absences are reapplied after
+	// rematerialization. They are not lost unless a later manual or observed
+	// overlay sits on top of them.
+	statusOwned := row.StudentStatusDayID != nil || row.PickupExceptionID != nil
+	if statusOwned &&
+		row.Status == schedule.AttendanceStatusAbsent &&
+		row.ManualStatusAt == nil &&
+		!row.NotScheduled &&
+		row.CheckedInAt == nil &&
+		row.CheckedOutAt == nil {
+		return false
+	}
+	if row.Status != schedule.AttendanceStatusExpected {
+		return true
+	}
+	return row.NotScheduled || row.ManualStatusAt != nil ||
+		row.CheckedInAt != nil || row.CheckedOutAt != nil
 }
