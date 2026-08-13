@@ -412,6 +412,58 @@ describe("PageHeaderWithSearch", () => {
     });
   });
 
+  describe("primaryAction + kebab row placement", () => {
+    const quietWithFilters: PageHeaderWithSearchProps = {
+      ...baseProps,
+      filterVariant: "quiet",
+      filters: [
+        {
+          id: "status",
+          label: "Status",
+          type: "buttons",
+          value: "all",
+          onChange: vi.fn(),
+          options: [{ value: "all", label: "Alle" }],
+        },
+      ],
+    };
+    const primaryAction = <button data-testid="primary-action">Aktion</button>;
+    const overflowMenu = [{ label: "Exportieren", onClick: vi.fn() }];
+
+    it("keeps the kebab beside the primary action when the second row would be empty", () => {
+      // Quiet filters live in the popover and there is no inline action, so
+      // the kebab would otherwise sit alone on its own line.
+      render(
+        <PageHeaderWithSearch
+          {...quietWithFilters}
+          primaryAction={primaryAction}
+          overflowMenu={overflowMenu}
+        />,
+      );
+
+      const kebab = screen.getByTestId("overflow-menu");
+      expect(kebab.parentElement).toBe(
+        screen.getByTestId("primary-action").parentElement,
+      );
+    });
+
+    it("leaves the kebab on the second row when inline filters share it", () => {
+      render(
+        <PageHeaderWithSearch
+          {...quietWithFilters}
+          filterVariant={undefined}
+          primaryAction={primaryAction}
+          overflowMenu={overflowMenu}
+        />,
+      );
+
+      expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
+      expect(screen.getByTestId("overflow-menu").parentElement).not.toBe(
+        screen.getByTestId("primary-action").parentElement,
+      );
+    });
+  });
+
   describe("activeFilterDisplay prop", () => {
     const filtersWithActive: PageHeaderWithSearchProps = {
       ...baseProps,

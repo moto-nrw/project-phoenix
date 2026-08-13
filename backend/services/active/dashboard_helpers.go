@@ -489,6 +489,9 @@ func findActiveSessionForActivity(activityID int64, activeGroups []*active.Group
 
 // determineActivityStatus returns the status string based on capacity
 func determineActivityStatus(participants, maxCapacity int) string {
+	if maxCapacity <= 0 {
+		return "active"
+	}
 	if participants >= maxCapacity {
 		return "full"
 	}

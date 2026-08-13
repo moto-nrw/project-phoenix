@@ -30,6 +30,10 @@ const (
 // type-switch fallbacks, and its output strings are part of the PyrePortal
 // contract.
 func ErrorRenderer(err error) render.Renderer {
+	if errors.Is(err, activeSvc.ErrRoomCapacityExceeded) {
+		return common.ErrorConflict(err)
+	}
+
 	// Delegate to service-specific error handlers
 	if iotErr, ok := err.(*iotSvc.IoTError); ok {
 		return handleIoTServiceError(iotErr)

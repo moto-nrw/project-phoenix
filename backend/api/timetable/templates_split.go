@@ -314,7 +314,8 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		CategoryID:              req.CategoryID,
 		PlanningTrackID:         req.PlanningTrackID.Value,
 		PlanningTrackIDProvided: req.PlanningTrackID.Set,
-		MaxParticipants:         req.MaxParticipants,
+		MaxParticipants:         req.MaxParticipants.Value,
+		MaxParticipantsProvided: req.MaxParticipants.Set,
 		// Three-state: only when required_staff is present in the body do we
 		// touch the successor's override — a null clears it (derive), an
 		// omitted field inherits the source template's value.

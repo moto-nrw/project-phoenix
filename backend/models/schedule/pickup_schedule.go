@@ -119,13 +119,20 @@ type StudentPickupException struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_exceptions"`
 	base.TenantModel
 
-	StudentID         int64         `bun:"student_id,notnull" json:"student_id"`
-	ExceptionDate     timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
-	PickupTime        *time.Time    `bun:"pickup_time" json:"pickup_time,omitempty"`
-	Reason            *string       `bun:"reason" json:"reason,omitempty"`
-	Source            string        `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
-	CreatedBy         int64         `bun:"created_by,nullzero" json:"created_by,omitempty"`
-	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
+	StudentID     int64         `bun:"student_id,notnull" json:"student_id"`
+	ExceptionDate timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
+	PickupTime    *time.Time    `bun:"pickup_time" json:"pickup_time,omitempty"`
+	Reason        *string       `bun:"reason" json:"reason,omitempty"`
+	// ExcusedFrom turns this existing day-specific pickup override into the
+	// source for a partial excusal. PickupTime normally matches it, but may
+	// differ after an explicit pickup-time decision.
+	ExcusedFrom           *time.Time `bun:"excused_from" json:"excused_from,omitempty"`
+	ExcusedReason         *string    `bun:"excused_reason" json:"excused_reason,omitempty"`
+	ExcusedCreatedBy      *int64     `bun:"excused_created_by" json:"excused_created_by,omitempty"`
+	ExcusedOwnsPickupTime bool       `bun:"excused_owns_pickup_time,notnull,default:false" json:"excused_owns_pickup_time"`
+	Source                string     `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CreatedBy             int64      `bun:"created_by,nullzero" json:"created_by,omitempty"`
+	CreatedByGuardian     *int64     `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
 }
 
 // Validate ensures pickup exception data is valid
@@ -138,6 +145,18 @@ func (e *StudentPickupException) Validate() error {
 	}
 	if e.Reason != nil && len(*e.Reason) > scheduleReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
+	}
+	if e.ExcusedReason != nil && len(*e.ExcusedReason) > scheduleReasonMaxLength {
+		return errors.New("excused_reason cannot exceed 255 characters")
+	}
+	if e.ExcusedFrom == nil {
+		if e.ExcusedReason != nil || e.ExcusedCreatedBy != nil || e.ExcusedOwnsPickupTime {
+			return errors.New("partial absence metadata requires excused_from")
+		}
+	} else if e.ExcusedCreatedBy == nil || *e.ExcusedCreatedBy <= 0 {
+		return errors.New("excused_created_by is required for partial absences")
+	} else if e.ExcusedOwnsPickupTime && e.PickupTime == nil {
+		return errors.New("owned partial-absence pickup time is required")
 	}
 	if err := validateExceptionAuthor(e.Source, e.CreatedBy, e.CreatedByGuardian); err != nil {
 		return err
@@ -178,6 +197,10 @@ type StudentPickupScheduleRepository interface {
 // StudentPickupExceptionRepository defines operations for managing student pickup exceptions
 type StudentPickupExceptionRepository interface {
 	base.Repository[*StudentPickupException]
+
+	// FindByIDForUpdate retrieves and locks an exception for an atomic
+	// invariant check followed by mutation.
+	FindByIDForUpdate(ctx context.Context, id any) (*StudentPickupException, error)
 
 	// FindByStudentID finds all pickup exceptions for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupException, error)

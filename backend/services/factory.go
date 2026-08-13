@@ -103,6 +103,7 @@ type Factory struct {
 	ShiftTypes               schedule.ShiftTypeService
 	PlanningTracks           schedule.PlanningTrackService
 	PickupSchedule           schedule.PickupScheduleService
+	PartialAbsence           schedule.PartialAbsenceService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	CareDay                  schedule.CareDayService
@@ -886,6 +887,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
+	partialAbsenceService := schedule.NewPartialAbsenceService(
+		repos.StudentPickupException,
+		repos.StudentStatusDay,
+		repos.ExcusedAbsenceRequest,
+		repos.InstanceStudent,
+		db,
+	)
 
 	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
 	// active/users/facilities/activities services plus the daily-checkout gate
@@ -1667,6 +1675,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupScheduleSvc:        pickupScheduleService,
 		ArrivalScheduleSvc:       arrivalScheduleService,
 		CareDaySvc:               careDayService,
+		Settings:                 settingsService,
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
@@ -1796,15 +1805,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// gate for parent-submitted excused absences. Reuses the same review queue,
 	// badge and pill machinery as the care-schedule requests above; on approval
 	// it writes the excused status days directly.
-	excusedRequestService := absence.NewExcusedAbsenceRequestService(
+	excusedRequestService := absence.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
+		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
 		logger.With("service", "excused-requests"),
+		db,
 	)
 
 	// The notification router and the consent service are built here, ahead of
@@ -1978,6 +1989,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AttendanceRepo:      repos.Attendance,
 		StatusDayRepo:       repos.StudentStatusDay,
 		CareDayService:      careDayService,
+		PickupExceptionRepo: repos.StudentPickupException,
 		PickupScheduleRepo:  repos.StudentPickupSchedule,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,
@@ -2060,7 +2072,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
 	workTimeModelService.SetBroadcaster(realtimeHub)
-	studentStatusDayService := active.NewStudentStatusDayService(repos.StudentStatusDay)
+	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
+		repos.StudentStatusDay,
+		repos.StudentPickupException,
+		db,
+	)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
 		People:          usersService,
 		Education:       educationService,
@@ -2155,6 +2171,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ShiftTypes:               shiftTypeService,
 		PlanningTracks:           planningTrackService,
 		PickupSchedule:           pickupScheduleService,
+		PartialAbsence:           partialAbsenceService,
 		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CareDay:                  careDayService,

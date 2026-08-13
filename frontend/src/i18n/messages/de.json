@@ -490,6 +490,7 @@
     "errorHelpBefore": "Du kannst eine neue Einladung bei der Schule anfordern oder dich über",
     "startPage": "die Startseite",
     "errorHelpAfter": "anmelden.",
+    "contactOgs": "Kontaktieren Sie bitte Ihre OGS.",
     "errors": {
       "expired": "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
       "notFound": "Wir konnten diese Einladung nicht finden.",
@@ -498,7 +499,7 @@
       "missingToken": "Kein Einladungstoken angegeben."
     },
     "formErrors": {
-      "expired": "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung bei der Schule an.",
+      "expired": "Diese Einladung ist nicht mehr gültig.",
       "notFound": "Einladung wurde nicht gefunden.",
       "conflict": "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.",
       "invalid": "Ungültige Eingaben. Bitte überprüfe das Formular.",

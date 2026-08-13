@@ -510,6 +510,9 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 		if lockedGroup == nil || lockedGroup.EndTime != nil {
 			continue
 		}
+		if lockedGroup.RoomID != roomID {
+			continue
+		}
 		if timezone.DateFromTime(lockedGroup.StartTime) != today {
 			continue
 		}
@@ -987,7 +990,11 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	for _, studentID := range sliceutil.UniquePositive(req.StudentIDs) {
+	newStudentIDs := sliceutil.UniquePositive(req.StudentIDs)
+	if err := s.lockCareExceptionDaysForStudents(ctx, newStudentIDs, inst.Date); err != nil {
+		return nil, err
+	}
+	for _, studentID := range newStudentIDs {
 		if studentID <= 0 {
 			continue
 		}
@@ -1003,6 +1010,9 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
 		return nil, &ScheduleError{Op: "create instance: apply student status days", Err: err}
+	}
+	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
+		return nil, &ScheduleError{Op: "create instance: apply student partial absences", Err: err}
 	}
 
 	s.getLogger().Info("instance created",
@@ -1278,6 +1288,24 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		}
 	}
 
+	// Care-day locks before any attendance row mutation. Partial-absence writers
+	// take student → care-day then update rows; deleting/recreating rows first
+	// while waiting for care-day deadlocks against that order.
+	priorStudents, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
+	if err != nil {
+		return &ScheduleError{Op: "update instance: load existing students", Err: err}
+	}
+	lockStudentIDs := make([]int64, 0, len(priorStudents)+len(studentIDs))
+	for _, row := range priorStudents {
+		if row != nil && row.StudentID > 0 {
+			lockStudentIDs = append(lockStudentIDs, row.StudentID)
+		}
+	}
+	lockStudentIDs = append(lockStudentIDs, studentIDs...)
+	if err := s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), instance.Date); err != nil {
+		return err
+	}
+
 	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instanceID); err != nil {
 		return &ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
@@ -1314,6 +1342,27 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, instanceID, instance.Date); err != nil {
 		return &ScheduleError{Op: "update instance: apply student status days", Err: err}
+	}
+	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, instanceID, instance.Date); err != nil {
+		return &ScheduleError{Op: "update instance: apply student partial absences", Err: err}
+	}
+	return nil
+}
+
+// lockCareExceptionDaysForStudents takes student → care-day locks for every
+// child on the instance date, sorted, matching partial-absence writers.
+func (s *instanceService) lockCareExceptionDaysForStudents(
+	ctx context.Context, studentIDs []int64, date timezone.Date,
+) error {
+	if len(studentIDs) == 0 || s.deps.DB == nil {
+		return nil
+	}
+	sorted := append([]int64(nil), studentIDs...)
+	slices.Sort(sorted)
+	for _, studentID := range sorted {
+		if err := LockCareExceptionDay(ctx, s.deps.DB, studentID, date); err != nil {
+			return &ScheduleError{Op: "lock care exception day for roster rewrite", Err: err}
+		}
 	}
 	return nil
 }

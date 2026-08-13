@@ -12,8 +12,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesService "github.com/moto-nrw/project-phoenix/services/activities"
+	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,6 +46,50 @@ func (s *rolloverActiveService) EndActiveGroupSession(_ context.Context, groupID
 type rolloverActivityService struct {
 	activitiesService.ActivityService
 	group *activities.Group
+}
+
+type capacityRejectedActiveService struct {
+	activeService.Service
+	createdGroupID int64
+	deletedGroupID int64
+	roomOccupancy  int
+	createCalls    int
+}
+
+func (s *capacityRejectedActiveService) FindActiveGroupsByRoomID(_ context.Context, _ int64) ([]*active.Group, error) {
+	return nil, nil
+}
+
+func (s *capacityRejectedActiveService) CreateActiveGroup(_ context.Context, group *active.Group) error {
+	s.createCalls++
+	group.ID = s.createdGroupID
+	return nil
+}
+
+func (s *capacityRejectedActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
+
+func (s *capacityRejectedActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
+	return s.roomOccupancy, nil
+}
+
+func (s *capacityRejectedActiveService) CreateVisit(_ context.Context, _ *active.Visit) error {
+	return &activeService.RoomCapacityError{RoomID: 42, RoomName: constants.WCRoomName, CurrentOccupancy: 1, MaxCapacity: 1}
+}
+
+func (s *capacityRejectedActiveService) DeleteActiveGroup(_ context.Context, groupID int64) error {
+	s.deletedGroupID = groupID
+	return nil
+}
+
+type fixedRoomService struct {
+	facilitiesService.Service
+	room *facilities.Room
+}
+
+func (s *fixedRoomService) GetRoom(_ context.Context, _ int64) (*facilities.Room, error) {
+	return s.room, nil
 }
 
 func (s *rolloverActivityService) ListGroups(_ context.Context, _ *base.QueryOptions) ([]*activities.Group, error) {
@@ -173,4 +219,54 @@ func TestFindOrCreateSpecialRoomGroupEndsStaleGroupBeforeSelectingCurrent(t *tes
 	require.NotNil(t, selection)
 	assert.Equal(t, []int64{stale.ID}, activeStub.endedGroupIDs)
 	assert.Equal(t, current.ID, selection.Group.ID)
+}
+
+func TestRejectedCapacityRemovesNewSpecialRoomGroup(t *testing.T) {
+	room := &facilities.Room{Model: base.Model{ID: 42}, Name: constants.WCRoomName}
+	activity := &activities.Group{Model: base.Model{ID: 300}, Name: "WC", MaxParticipants: 999}
+	activeStub := &capacityRejectedActiveService{createdGroupID: 200}
+	service := &CheckinService{
+		active:     activeStub,
+		facilities: &fixedRoomService{room: room},
+		activities: &rolloverActivityService{group: activity},
+		logger:     slog.New(slog.DiscardHandler),
+	}
+
+	_, _, err := service.processCheckin(
+		context.Background(),
+		&users.Student{Model: base.Model{ID: 500}},
+		&users.Person{FirstName: "Capacity", LastName: "Rejected"},
+		room.ID,
+		91,
+	)
+
+	require.ErrorIs(t, err, activeService.ErrRoomCapacityExceeded)
+	assert.Equal(t, activeStub.createdGroupID, activeStub.deletedGroupID)
+}
+
+func TestFullRoomDoesNotCreateSpecialRoomGroup(t *testing.T) {
+	capacity := 1
+	room := &facilities.Room{
+		Model:    base.Model{ID: 42},
+		Name:     constants.WCRoomName,
+		Capacity: &capacity,
+	}
+	activeStub := &capacityRejectedActiveService{createdGroupID: 200, roomOccupancy: 1}
+	service := &CheckinService{
+		active:     activeStub,
+		facilities: &fixedRoomService{room: room},
+		logger:     slog.New(slog.DiscardHandler),
+	}
+
+	_, _, err := service.processCheckin(
+		context.Background(),
+		&users.Student{Model: base.Model{ID: 500}},
+		&users.Person{FirstName: "Capacity", LastName: "Full"},
+		room.ID,
+		91,
+	)
+
+	require.ErrorIs(t, err, activeService.ErrRoomCapacityExceeded)
+	assert.Zero(t, activeStub.createCalls)
+	assert.Zero(t, activeStub.deletedGroupID)
 }

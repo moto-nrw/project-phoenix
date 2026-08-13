@@ -101,6 +101,10 @@ export const StatusSummaryRange: Story = {
 
 export const CareScheduleRequest: Story = {
   render: () => (
-    <CareScheduleRequestModal onClose={() => undefined} onSubmit={noopSubmit} />
+    <CareScheduleRequestModal
+      capabilities={{ arrival: true, pickup: true, departure_mode: true }}
+      onClose={() => undefined}
+      onSubmit={noopSubmit}
+    />
   ),
 };

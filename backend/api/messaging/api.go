@@ -119,7 +119,8 @@ type StartThreadRequest struct {
 }
 
 type PostMessageRequest struct {
-	Body string `json:"body"`
+	Body                 string `json:"body"`
+	HandledUpToMessageID string `json:"handled_up_to_message_id,omitempty"`
 }
 
 type OpenThreadRequest struct {
@@ -252,7 +253,16 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	messages, err := rs.Service.PostMessage(r.Context(), threadID, req.Body)
+	var handledUpToMessageID int64
+	if req.HandledUpToMessageID != "" {
+		parsed, parseErr := strconv.ParseInt(req.HandledUpToMessageID, 10, 64)
+		if parseErr != nil || parsed <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid handled message ID")))
+			return
+		}
+		handledUpToMessageID = parsed
+	}
+	messages, err := rs.Service.PostMessage(r.Context(), threadID, req.Body, handledUpToMessageID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -347,6 +357,8 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, messagingService.ErrGuardianAccessRevoked):
 		common.RenderError(w, r, common.ErrorConflictMessage("Der Empfänger hat keinen Zugriff mehr auf dieses Kind."))
+	case errors.Is(err, messagingService.ErrHandledBoundaryRequired):
+		common.RenderError(w, r, common.ErrorConflictMessage("Der Nachrichtenverlauf hat sich geändert. Bitte laden Sie die Seite neu."))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("messaging request failed", err))
 	}

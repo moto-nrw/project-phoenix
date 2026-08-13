@@ -490,6 +490,7 @@
     "errorHelpBefore": "Mund të kërkoni një ftesë të re nga shkolla ose të hyni përmes",
     "startPage": "faqes fillestare",
     "errorHelpAfter": ".",
+    "contactOgs": "Ju lutemi kontaktoni OGS-në tuaj.",
     "errors": {
       "expired": "Kjo ftesë ka skaduar ose është përdorur tashmë.",
       "notFound": "Nuk mundëm ta gjenim këtë ftesë.",

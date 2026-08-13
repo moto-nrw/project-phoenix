@@ -9,7 +9,7 @@ const logger = createLogger({ component: "QuickCreateActivityRoute" });
 interface QuickCreateActivityRequest {
   name: string;
   category_id: number;
-  max_participants: number;
+  max_participants: number | null;
   room_id?: number;
 }
 
@@ -49,7 +49,7 @@ export const POST = createPostHandler<
     if (!body.category_id || body.category_id <= 0) {
       throw new Error("Valid category is required");
     }
-    if (!body.max_participants || body.max_participants <= 0) {
+    if (body.max_participants != null && body.max_participants <= 0) {
       throw new Error("Max participants must be greater than 0");
     }
 

@@ -82,27 +82,33 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 	consentNo := false
 	students := []StudentResponse{
 		{
-			ID:                101,
-			SchoolClass:       "Klasse 1a",
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Geht alleine nach Hause",
-			HasFullAccess:     true,
+			ID:                      101,
+			SchoolClass:             "Klasse 1a",
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                102,
-			SchoolClass:       "Klasse 2a",
-			Bus:               false,
-			PhotoConsentGiven: &consentNo,
-			PickupStatus:      "Wird abgeholt",
-			HasFullAccess:     true,
+			ID:                      102,
+			SchoolClass:             "Klasse 2a",
+			Bus:                     false,
+			PhotoConsentGiven:       &consentNo,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           true,
 		},
 		{
-			ID:            103,
-			SchoolClass:   "Klasse 3a",
-			Bus:           true,
-			PickupStatus:  "Wird abgeholt",
-			HasFullAccess: false,
+			ID:                      103,
+			SchoolClass:             "Klasse 3a",
+			Bus:                     true,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           false,
 		},
 	}
 
@@ -135,7 +141,7 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly, testExportDate)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -153,7 +159,7 @@ func TestApplyExportFiltersClassTripStatus(t *testing.T) {
 		{ID: 104, Location: "Zuhause"},
 	}
 
-	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, listexport.PresetOGSWeekly)
+	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, listexport.PresetOGSWeekly, testExportDate)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(101), got[0].ID)
@@ -177,11 +183,11 @@ func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *test
 	require.NotNil(t, responses[1].PhotoConsentGiven)
 	assert.False(t, *responses[1].PhotoConsentGiven)
 
-	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, listexport.PresetOGSWeekly)
+	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, listexport.PresetOGSWeekly, testExportDate)
 	require.Len(t, yes, 1)
 	assert.Equal(t, int64(101), yes[0].ID)
 
-	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, listexport.PresetOGSWeekly)
+	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, listexport.PresetOGSWeekly, testExportDate)
 	require.Len(t, no, 1)
 	assert.Equal(t, int64(102), no[0].ID)
 }
@@ -192,36 +198,44 @@ func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
 	// 201/204 come today; 202/203 are planned absent (krank/entschuldigt → not_coming_today).
 	students := []StudentResponse{
 		{
-			ID:                201,
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Geht alleine nach Hause",
-			DayPlanningStatus: DayPlanningStatusComesToday,
-			HasFullAccess:     true,
+			ID:                      201,
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusComesToday,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                202,
-			Bus:               false,
-			PhotoConsentGiven: &consentNo,
-			PickupStatus:      "Wird abgeholt",
-			DayPlanningStatus: DayPlanningStatusNotComingToday,
-			HasFullAccess:     true,
+			ID:                      202,
+			Bus:                     false,
+			PhotoConsentGiven:       &consentNo,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusNotComingToday,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                203,
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Wird abgeholt",
-			DayPlanningStatus: DayPlanningStatusNotComingToday,
-			HasFullAccess:     true,
+			ID:                      203,
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusNotComingToday,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                204,
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Geht alleine nach Hause",
-			DayPlanningStatus: DayPlanningStatusComesToday,
-			HasFullAccess:     true,
+			ID:                      204,
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusComesToday,
+			HasFullAccess:           true,
 		},
 	}
 
@@ -264,7 +278,7 @@ func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly, testExportDate)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -331,7 +345,7 @@ func TestApplyExportFiltersMultipleSchoolYears(t *testing.T) {
 		{ID: 203, SchoolClass: "Klasse 4b"},
 	}
 
-	got := applyExportFilters(students, studentExportFilters{Year: "3,4"}, listexport.PresetOGSWeekly)
+	got := applyExportFilters(students, studentExportFilters{Year: "3,4"}, listexport.PresetOGSWeekly, testExportDate)
 
 	gotIDs := make([]int64, 0, len(got))
 	for _, student := range got {

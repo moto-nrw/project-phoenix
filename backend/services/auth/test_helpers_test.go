@@ -1131,8 +1131,8 @@ func (noopTokenRepository) DeleteExpiredTokens(context.Context) (int, error) {
 	panic("DeleteExpiredTokens not implemented")
 }
 
-func (noopTokenRepository) DeleteByAccountID(context.Context, int64) error {
-	panic("DeleteByAccountID not implemented")
+func (noopTokenRepository) DeleteByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
+	panic("DeleteByAccountIDReturning not implemented")
 }
 
 func (noopTokenRepository) DeleteByAccountIDAndIdentifier(context.Context, int64, string) error {
@@ -1143,24 +1143,24 @@ func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface
 	panic("FindValidTokens not implemented")
 }
 
-func (noopTokenRepository) CleanupOldTokensForAccount(context.Context, int64, int) error {
-	panic("CleanupOldTokensForAccount not implemented")
+func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, int) ([]*authModel.Token, error) {
+	panic("CleanupOldTokensForAccountReturning not implemented")
 }
 
 func (noopTokenRepository) FindByFamilyID(context.Context, string) ([]*authModel.Token, error) {
 	panic("FindByFamilyID not implemented")
 }
 
-func (noopTokenRepository) DeleteByFamilyID(context.Context, string) error {
-	panic("DeleteByFamilyID not implemented")
+func (noopTokenRepository) DeleteByFamilyIDReturning(context.Context, string) ([]*authModel.Token, error) {
+	panic("DeleteByFamilyIDReturning not implemented")
 }
 
 func (noopTokenRepository) GetLatestTokenInFamily(context.Context, string) (*authModel.Token, error) {
 	panic("GetLatestTokenInFamily not implemented")
 }
 
-func (noopTokenRepository) DeleteByTenantID(context.Context, int64) (int, error) {
-	panic("DeleteByTenantID not implemented")
+func (noopTokenRepository) DeleteByTenantIDReturning(context.Context, int64) ([]*authModel.Token, error) {
+	panic("DeleteByTenantIDReturning not implemented")
 }
 
 // stubTokenRepository tracks delete operations for verification.
@@ -1277,11 +1277,11 @@ func (r *stubAccountTenantRepository) ListTenantAccessByAccountID(context.Contex
 	return nil, nil
 }
 
-func (r *stubTokenRepository) DeleteByAccountID(_ context.Context, accountID int64) error {
+func (r *stubTokenRepository) DeleteByAccountIDReturning(_ context.Context, accountID int64) ([]*authModel.Token, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.deletedAccountIDs = append(r.deletedAccountIDs, accountID)
-	return nil
+	return nil, nil
 }
 
 func (r *stubTokenRepository) DeletedAccountIDs() []int64 {

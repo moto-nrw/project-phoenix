@@ -655,6 +655,21 @@ func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab, "pickup-change toggle should be on the operations tab")
 }
 
+func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T) {
+	for _, key := range []string{
+		config.KeyParentCareArrivalRequestEnabled,
+		config.KeyParentCarePickupRequestEnabled,
+		config.KeyParentCareModeRequestEnabled,
+	} {
+		def := config.GetDefinition(key)
+		require.NotNil(t, def, "%s should exist", key)
+		assert.Equal(t, config.FieldBoolean, def.Type)
+		assert.Equal(t, true, def.Default)
+		assert.Equal(t, "operations", def.Tab)
+		assert.Nil(t, def.DependsOn, "%s must not depend on messaging", key)
+	}
+}
+
 // TestGuardianManagementSetting guards the guardian contact/pickup management
 // toggle. It defaults ON like the other parents-portal write features - the
 // safety-critical part (pickup authority) is constrained structurally

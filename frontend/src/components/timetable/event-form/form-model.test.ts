@@ -59,6 +59,25 @@ describe("formFromSeries", () => {
     expect(form.educationGroupId).toBe("");
     expect(form.educationGroupIds).toEqual(["17", "18"]);
   });
+
+  it("keeps offering sources and grade filters as dynamic rules", () => {
+    const form = formFromSeries(
+      template({
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["41", "42"],
+        sourceGradeLevels: [1, 3],
+        studentIds: ["99"],
+      }),
+      "2026-08-13",
+    );
+
+    expect(form.targetGroupType).toBe("angebot");
+    expect(form.sourceCareOfferingIds).toEqual(["41", "42"]);
+    expect(form.sourceGradeLevels).toEqual([1, 3]);
+    // Sourced children stay server-managed; the occurrence snapshot is not
+    // promoted to a manually maintained static roster.
+    expect(form.studentIds).toEqual([]);
+  });
 });
 
 describe("hasPerWeekdayStaffDeviation", () => {

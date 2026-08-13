@@ -64,12 +64,12 @@ func TestRoom_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "zero capacity is valid",
+			name: "zero capacity",
 			room: &Room{
 				Name:     "Storage Room",
 				Capacity: base.IntPtr(0),
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "invalid hex color - wrong chars",
@@ -133,8 +133,17 @@ func TestRoomIsAvailableWithNilCapacity(t *testing.T) {
 		t.Fatalf("expected room with nil capacity to be available for 0 requirement")
 	}
 
-	if room.IsAvailable(5) {
-		t.Fatalf("expected room with nil capacity to be unavailable for capacity > 0")
+	if !room.IsAvailable(5) {
+		t.Fatalf("expected room without a limit to be available for capacity > 0")
+	}
+}
+
+func TestRoomIsAvailableWithLegacyZeroCapacity(t *testing.T) {
+	capacity := 0
+	room := &Room{Capacity: &capacity}
+
+	if !room.IsAvailable(5) {
+		t.Fatalf("expected room with legacy zero capacity to be treated as unlimited")
 	}
 }
 

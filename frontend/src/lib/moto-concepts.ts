@@ -29,6 +29,7 @@ import {
   EnvelopeIcon,
   EyeIcon,
   FileArrowDownIcon,
+  FingerprintSimpleIcon,
   FirstAidKitIcon,
   ForkKnifeIcon,
   GearIcon,
@@ -350,6 +351,13 @@ export const MOTO_CONCEPTS = {
   permissions: concept(
     "Berechtigungen",
     LockKeyIcon,
+    "purple",
+    "function",
+    "system",
+  ),
+  passkeys: concept(
+    "Passkeys",
+    FingerprintSimpleIcon,
     "purple",
     "function",
     "system",

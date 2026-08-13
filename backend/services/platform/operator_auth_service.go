@@ -458,7 +458,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 
 		now := time.Now()
 		if now.After(dbToken.Expiry) {
-			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+			if err := s.deleteOperatorFamilyWithAudit(txCtx, dbToken, "token_expired"); err != nil {
 				return fmt.Errorf("failed to delete expired operator refresh-token family: %w", err)
 			}
 			rejectAfterCommit = true
@@ -472,7 +472,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 			if !errors.As(err, &invalidRefresh) {
 				return err
 			}
-			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+			if err := s.deleteOperatorFamilyWithAudit(txCtx, dbToken, "replay_detected"); err != nil {
 				return fmt.Errorf("failed to revoke replayed operator refresh-token family: %w", err)
 			}
 			rejectAfterCommit = true
@@ -485,7 +485,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 			return fmt.Errorf("failed to inspect operator refresh token family: %w", err)
 		}
 		if latestToken != nil && latestToken.Generation > dbToken.Generation {
-			if err := s.RefreshTokenRepo.DeleteByFamilyID(txCtx, dbToken.FamilyID); err != nil {
+			if err := s.deleteOperatorFamilyWithAudit(txCtx, dbToken, "lineage_mismatch"); err != nil {
 				return fmt.Errorf("failed to revoke operator refresh token family: %w", err)
 			}
 			rejectAfterCommit = true
@@ -695,7 +695,7 @@ func (s *operatorAuthService) ChangePassword(ctx context.Context, operatorID int
 				return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
 			}
 		}
-		if _, err := s.RefreshTokenRepo.DeleteByOperatorID(txCtx, operatorID); err != nil {
+		if err := s.deleteAllOperatorTokensWithAudit(txCtx, operatorID, "password_change"); err != nil {
 			return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
 		}
 		return nil

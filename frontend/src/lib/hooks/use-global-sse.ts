@@ -115,6 +115,7 @@ const PICKUP_TIME_CACHE_KEY_PARTS = [
   "care-plan-day-",
   "care-plan-week-",
   "pickup-data-",
+  "student-partial-absences-",
   "pickup-supervisions-",
   "student-detail-",
 ] as const;
@@ -142,6 +143,7 @@ const ARRIVAL_TIME_CACHE_KEY_PARTS = [
 const STUDENT_UPDATE_CACHE_KEY_PARTS = [
   "student-detail-",
   "student-status-days-",
+  "student-partial-absences-",
   "care-plan-day-",
   "care-plan-week-",
   "pickup-data-",

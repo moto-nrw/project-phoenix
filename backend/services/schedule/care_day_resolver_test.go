@@ -230,3 +230,38 @@ func TestAttendanceRowCareDay_ManualDecisionOutranksThePlan(t *testing.T) {
 	auto := &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected}
 	assert.Equal(t, CareDayNotScheduled, AttendanceRowCareDay(false, auto, CareDayNotScheduled))
 }
+
+// A partial-day excusal rewrites unbooked slots to absent with
+// pickup_exception_id provenance. While the instance is still active the
+// planner must keep counting those children as non-scheduled — the same
+// treatment a broad day status gets via student_status_day_id.
+func TestAttendanceRowCareDay_PartialExcusalProvenanceIsNotScheduled(t *testing.T) {
+	exceptionID := int64(90)
+	statusDayID := int64(30)
+	stamp := time.Date(2026, 4, 20, 13, 0, 0, 0, time.UTC)
+
+	partial := &schedule.InstanceStudent{
+		Status:            schedule.AttendanceStatusAbsent,
+		PickupExceptionID: &exceptionID,
+	}
+	assert.Equal(t, CareDayNotScheduled, AttendanceRowCareDay(false, partial, CareDayNotScheduled),
+		"active partial-excused absence on a not-scheduled plan must stay a non-booking")
+	assert.Equal(t, CareDayUnknown, AttendanceRowCareDay(false, partial, CareDayScheduled),
+		"a partial-excused absence on a day that was booked is a real absence")
+
+	// Manual decisions still outrank provenance of either kind.
+	manualPartial := &schedule.InstanceStudent{
+		Status:            schedule.AttendanceStatusAbsent,
+		PickupExceptionID: &exceptionID,
+		ManualStatusAt:    &stamp,
+	}
+	assert.Equal(t, CareDayUnknown, AttendanceRowCareDay(false, manualPartial, CareDayNotScheduled),
+		"a hand-set absence is never relabelled as non-booking")
+
+	// Broad day-status provenance keeps its existing behaviour.
+	dayStatus := &schedule.InstanceStudent{
+		Status:             schedule.AttendanceStatusAbsent,
+		StudentStatusDayID: &statusDayID,
+	}
+	assert.Equal(t, CareDayNotScheduled, AttendanceRowCareDay(false, dayStatus, CareDayNotScheduled))
+}

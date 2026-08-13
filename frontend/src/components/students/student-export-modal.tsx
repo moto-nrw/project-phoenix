@@ -17,6 +17,7 @@ import {
   type StudentExportFormat,
   type StudentExportPreset,
 } from "~/lib/student-export-api";
+import { parseMultiValueParam } from "~/lib/multi-value-param";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { Modal } from "~/components/ui/modal";
@@ -64,12 +65,12 @@ const FORMAT_OPTIONS: Array<{
 // exactly ONE class makes per-class separation pointless — with two classes in
 // the list the school wants them apart, which is the same situation as an
 // unfiltered export.
+//
+// The value follows the shared escaping grammar, so it is parsed with the
+// shared parser: a single class literally called "A,B" arrives as "A\,B" and
+// must count as one class, not two (#2218 review).
 function isSingleClassSelection(schoolClass: string | undefined): boolean {
-  const classes = (schoolClass ?? "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry !== "");
-  return classes.length === 1;
+  return parseMultiValueParam(schoolClass).length === 1;
 }
 
 export function StudentExportModal({

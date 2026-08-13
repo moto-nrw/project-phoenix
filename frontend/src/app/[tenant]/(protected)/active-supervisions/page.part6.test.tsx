@@ -273,6 +273,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
 
 describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
@@ -280,6 +281,7 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
     navigationMockState.roomParam = null;
     global.fetch = vi.fn();
     // Default mock: loading state
@@ -660,6 +662,33 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       expect(
         screen.getByText("Keine aktive Raum-Aufsicht"),
       ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Starte eine Aktivität an einem Terminal, um Live-Raumdaten einzusehen.",
+        ),
+      ).toBeInTheDocument();
     });
+  });
+
+  it("points NFC-free tenants to the web app when no supervision is active", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("BFF request failed: 403"),
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Starte eine Aktivität in der Web-App, um Live-Raumdaten einzusehen.",
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Terminal/i)).not.toBeInTheDocument();
   });
 });

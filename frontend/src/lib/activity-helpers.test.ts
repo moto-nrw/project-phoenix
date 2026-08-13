@@ -880,6 +880,15 @@ describe("prepareActivityForBackend", () => {
     expect(result.planned_room_id).toBeUndefined();
     expect(result.supervisor_ids).toBeUndefined();
   });
+
+  it("preserves an unlimited participant capacity as null", () => {
+    const result = prepareActivityForBackend({
+      name: "Open Sports Hall",
+      max_participant: null,
+    });
+
+    expect(result.max_participants).toBeNull();
+  });
 });
 
 describe("prepareActivityScheduleForBackend", () => {
@@ -1118,6 +1127,22 @@ describe("formatParticipantStatus", () => {
     const result = formatParticipantStatus(10, 25);
 
     expect(result).toBe("10 / 25 Teilnehmer");
+  });
+
+  it("formats an unlimited activity without a maximum", () => {
+    const activity: Activity = {
+      id: "1",
+      name: "Open Sports Hall",
+      max_participant: null,
+      is_open_ags: true,
+      supervisor_id: "100",
+      ag_category_id: "1",
+      created_at: new Date(),
+      updated_at: new Date(),
+      participant_count: 75,
+    };
+
+    expect(formatParticipantStatus(activity)).toBe("75 Teilnehmer");
   });
 
   it("returns 'Unbekannt' for undefined values", () => {

@@ -229,6 +229,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     toggle: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",
+  checkoutConfirmationRoom: () => null,
 }));
 
 // Mock student-helpers
@@ -275,6 +276,7 @@ const mockStudents = [
     arrival_time: "08:00",
     pickup_time: "15:30",
     pickup_status: "Geht alleine nach Hause",
+    departure_modes: ["alone"],
     bus: true,
     photo_consent_given: true,
     photo_consent_given_at: "2026-01-01T10:00:00Z",
@@ -289,6 +291,7 @@ const mockStudents = [
     current_location: "Zuhause",
     arrival_time: "08:30",
     pickup_status: "Wird abgeholt",
+    departure_modes: ["pickup"],
     bus: false,
     photo_consent_given: false,
     has_full_access: true,
@@ -303,6 +306,7 @@ const mockStudents = [
     arrival_time: "08:15",
     pickup_time: "16:00",
     pickup_status: "Geht alleine nach Hause",
+    departure_modes: ["alone"],
     bus: true,
     photo_consent_given: false,
     has_full_access: true,
@@ -316,6 +320,7 @@ const mockStudents = [
     current_location: "Schulhof",
     arrival_time: "09:00",
     pickup_status: "Wird abgeholt",
+    departure_modes: ["pickup"],
     bus: false,
     photo_consent_given: true,
     photo_consent_given_at: "2026-01-02T10:00:00Z",
@@ -1672,6 +1677,9 @@ describe("StudentSearchPage", () => {
         // rollover where the date is unchanged but semantics flip (#1939).
         requestDate: expect.any(String),
         requestIsToday: expect.any(Boolean),
+        // Null whenever the page walk loaded the whole selection, which is the
+        // case here: a response without pagination counts as one page (#2218).
+        truncatedTotal: null,
       });
       expect(mockGetStudents).toHaveBeenCalledWith(
         expect.objectContaining({ dayStatus: "not_coming_today" }),
@@ -2336,6 +2344,116 @@ describe("StudentSearchPage", () => {
       ]);
     });
 
+    it("reports an incomplete result when the page walk hits its bound (#2218)", async () => {
+      // Past the bound the loaded rows are only a part of the selection. The
+      // count badge, the grouping and the export all read those rows, so the
+      // shortfall has to leave the fetcher instead of ending in the log.
+      const studentService = await import("~/lib/api");
+      const mockGetStudents = vi.fn();
+      mockGetStudents.mockImplementation((filters: { page?: number }) => {
+        const page = filters.page ?? 1;
+        return Promise.resolve({
+          students: [
+            {
+              ...mockStudents[0]!,
+              id: `seite-${page}`,
+              first_name: `Seite${page}`,
+            },
+          ],
+          pagination: {
+            current_page: page,
+            page_size: 1000,
+            total_pages: 25,
+            total_records: 25000,
+          },
+        });
+      });
+      vi.mocked(studentService.studentService.getStudents).mockImplementation(
+        mockGetStudents,
+      );
+
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      const result = (await fetcher.current!()) as {
+        students: { id: string }[];
+        truncatedTotal: number | null;
+      };
+
+      // 20 pages is the bound, not the 25 the backend counted.
+      expect(mockGetStudents).toHaveBeenCalledTimes(20);
+      expect(result.students).toHaveLength(20);
+      expect(result.truncatedTotal).toBe(25000);
+    });
+
+    it("keeps truncatedTotal null when every page was loaded (#2218)", async () => {
+      const studentService = await import("~/lib/api");
+      vi.mocked(studentService.studentService.getStudents).mockResolvedValue({
+        students: [mockStudents[0]!],
+        pagination: {
+          current_page: 1,
+          page_size: 1000,
+          total_pages: 1,
+          total_records: 1,
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof studentService.studentService.getStudents>
+      >);
+
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      const result = (await fetcher.current!()) as {
+        truncatedTotal: number | null;
+      };
+
+      expect(result.truncatedTotal).toBeNull();
+    });
+
+    it("names the incomplete result on screen (#2218)", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [mockStudents[0]!, mockStudents[1]!],
+          truncatedTotal: 25000,
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /Es werden nur die ersten 2 von 25000 Kindern geladen/,
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("stays quiet when the result is complete (#2218)", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: [mockStudents[0]!], truncatedTotal: null },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Kindern geladen/)).not.toBeInTheDocument();
+    });
+
     it("uses consistent default labels for administrative filters", async () => {
       render(<StudentSearchPage />);
 
@@ -2763,7 +2881,7 @@ describe("StudentSearchPage", () => {
     // GDPR exclusion of redacted students from the pickup-status filter is
     // enforced and tested server-side now (see backend applyAdministrativeFilters).
 
-    it("groups students by permanent pickup status", async () => {
+    it("groups students by the selected day's departure modes", async () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
@@ -2783,6 +2901,72 @@ describe("StudentSearchPage", () => {
       expect(
         screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
       ).toEqual(["Geht alleine nach Hause", "Wird abgeholt"]);
+    });
+
+    it("shows every allowed departure mode and a placeholder for a missing rule", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              departure_modes: ["alone", "bus", "pickup", "accompanied"],
+            },
+            {
+              ...mockStudents[1]!,
+              departure_modes: [],
+            },
+            {
+              ...mockStudents[2]!,
+              id: "restricted",
+              first_name: "Restricted",
+              second_name: "Child",
+              departure_modes: ["pickup"],
+              has_full_access: false,
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      } as never);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText(
+          "Heimweg: Geht alleine nach Hause, Bus, Wird abgeholt, Mit anderem Kind",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Heimweg: -")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Restricted Child/ }),
+      ).not.toHaveTextContent("Heimweg:");
+    });
+
+    it("shows an unknown legacy departure rule without treating it as self-going", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              departure_modes: [],
+              departure_label: "Taxi mit Begleitperson",
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      } as never);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText("Heimweg: Taxi mit Begleitperson"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Heimweg: Geht alleine nach Hause")).toBeNull();
     });
 
     it("groups students by status in operational order", async () => {

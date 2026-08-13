@@ -74,6 +74,7 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 		response.HealthInfo = *student.HealthInfo
 	}
 	allowed := student.AllowedDepartureModes.Normalize()
+	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
 	if !allowed.HasAny() {
 		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
 	}
@@ -88,6 +89,13 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	// allowing both would drop the accompanied signal and return this child to
 	// legacy list/search/admin consumers as a self-goer (#1694).
 	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
+}
+
+func departureRuleConfigured(student *users.Student, allowed users.AllowedDepartureModes) bool {
+	if allowed.HasAny() || student.DepartureDays.HasAny() {
+		return true
+	}
+	return student.PickupStatus != nil && strings.TrimSpace(*student.PickupStatus) != ""
 }
 
 func responsePickupStatus(student *users.Student, derived string) string {
@@ -249,6 +257,7 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
 	allowed := student.AllowedDepartureModes.Normalize()
+	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
 	if !allowed.HasAny() {
 		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
 	}

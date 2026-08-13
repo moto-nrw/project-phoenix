@@ -71,6 +71,15 @@ describe("mapRoomResponse", () => {
     expect(result.color).toBeUndefined();
   });
 
+  it("treats a legacy zero capacity as no limit", () => {
+    const result = mapRoomResponse({
+      ...sampleBackendRoom,
+      capacity: 0,
+    });
+
+    expect(result.capacity).toBeUndefined();
+  });
+
   it("handles minimal backend room (required fields only)", () => {
     const minimalRoom: BackendRoom = {
       id: 2,
@@ -174,6 +183,7 @@ describe("prepareRoomForBackend", () => {
       name: "Room 101",
       building: "Building A",
       floor: 2,
+      capacity: 43,
       category: "classroom",
       color: "#FF0000",
       deviceId: "device-123",
@@ -186,6 +196,7 @@ describe("prepareRoomForBackend", () => {
     expect(result.name).toBe("Room 101");
     expect(result.building).toBe("Building A");
     expect(result.floor).toBe(2);
+    expect(result.capacity).toBe(43);
     expect(result.category).toBe("classroom");
     expect(result.color).toBe("#FF0000");
     expect(result.device_id).toBe("device-123"); // camelCase → snake_case
@@ -207,6 +218,7 @@ describe("prepareRoomForBackend", () => {
     expect(result.is_occupied).toBe(false); // defaults to false
     expect(result.building).toBeUndefined();
     expect(result.floor).toBeUndefined();
+    expect(result.capacity).toBeUndefined();
     expect(result.category).toBeUndefined();
   });
 
@@ -233,6 +245,15 @@ describe("prepareRoomForBackend", () => {
     });
 
     expect(result.floor).toBe(0);
+  });
+
+  it("maps an empty capacity to null so an existing limit is cleared", () => {
+    const result = prepareRoomForBackend({
+      name: "Room without limit",
+      capacity: "" as unknown as number,
+    });
+
+    expect(result.capacity).toBeNull();
   });
 
   it("handles room without id (for creation)", () => {
