@@ -131,12 +131,60 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnEnrollmentSummary])
 	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnGroup])
 	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnCareDays])
-	assert.Equal(t, "Randstunde, bis 14:30", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
-	assert.Equal(t, "Ganztag", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
+	assert.Equal(t, "14:30 Uhr", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
+	assert.Equal(t, "Betreuung", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
 	assert.Equal(t, "Eva Muster (eva@example.test, 02551 123)", doc.Rows[0].Values[listexport.ColumnGuardianContacts])
 	assert.Empty(t, doc.Rows[1].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "nein", doc.Rows[1].Values[listexport.ColumnWeeklyMonday])
 	assert.Equal(t, "Stamm Kontakt (02551 456)", doc.Rows[1].Values[listexport.ColumnGuardianContacts])
+}
+
+func TestClassRosterWeeklyCellShowsOnlyPickupTimeForCareDays(t *testing.T) {
+	tests := []struct {
+		name string
+		row  enrollmentService.ClassRosterRow
+		want string
+	}{
+		{
+			name: "care with pickup time",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Ganztagsbetreuung"}},
+				PickupByDay:    map[string]string{"mon": "14:30"},
+			},
+			want: "14:30 Uhr",
+		},
+		{
+			name: "care without pickup time",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Randstunde"}},
+			},
+			want: "Betreuung",
+		},
+		{
+			name: "multiple offerings",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Ganztag", "Randstunde"}},
+				PickupByDay:    map[string]string{"mon": "16:00"},
+			},
+			want: "16:00 Uhr",
+		},
+		{
+			name: "no care ignores stale pickup time",
+			row: enrollmentService.ClassRosterRow{
+				PickupByDay: map[string]string{"mon": "14:30"},
+			},
+			want: "nein",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classRosterWeeklyCell(tt.row, "mon"))
+		})
+	}
 }
 
 func newClassRosterExportHTTPRequest(t *testing.T, body string, perms []string) *http.Request {
