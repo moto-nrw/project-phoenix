@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	rolesBaseRoleBackfillVersion     = "1.15.283"
+	rolesBaseRoleBackfillVersion     = "1.15.292"
 	rolesBaseRoleBackfillDescription = "Backfill auth.roles.base_role for school roles created before the column existed (#2222)"
 )
 
@@ -16,7 +16,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     rolesBaseRoleBackfillVersion,
 		Description: rolesBaseRoleBackfillDescription,
-		DependsOn:   []string{mfaChallengePortalBindingVersion},
+		DependsOn:   []string{authTokenPortalScopeVersion},
 	})
 
 	Migrations.MustRegister(
@@ -79,7 +79,7 @@ const grantsUsersManage = `(
 // System roles are left alone: they carry their tier in their name and
 // EffectiveBaseRole reads it there.
 func rolesBaseRoleBackfillUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.283: Backfilling auth.roles.base_role for school roles...")
+	fmt.Println("Migration 1.15.292: Backfilling auth.roles.base_role for school roles...")
 
 	res, err := db.ExecContext(ctx, `
 		UPDATE auth.roles r
@@ -114,6 +114,6 @@ func rolesBaseRoleBackfillUp(ctx context.Context, db *bun.DB) error {
 // Resetting every school role to NULL would destroy the tiers CreateRole has
 // been requiring since 1.15.31.
 func rolesBaseRoleBackfillDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.283: nothing to undo (backfill only, see doc comment)")
+	fmt.Println("Rolling back migration 1.15.292: nothing to undo (backfill only, see doc comment)")
 	return nil
 }

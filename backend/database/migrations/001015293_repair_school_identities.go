@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	repairSchoolIdentitiesVersion     = "1.15.284"
+	repairSchoolIdentitiesVersion     = "1.15.293"
 	repairSchoolIdentitiesDescription = "Repair accounts that hold a school role without a staff record (#2222)"
 )
 
@@ -130,7 +130,7 @@ const unambiguousNameFromMappedSchools = `
 //
 // Idempotent — every insert is guarded by NOT EXISTS.
 func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.284: Repairing accounts with a school role but no staff record...")
+	fmt.Println("Migration 1.15.293: Repairing accounts with a school role but no staff record...")
 
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		res, err := tx.ExecContext(ctx, `
@@ -390,6 +390,6 @@ func listUnrepairableSchoolIdentities(ctx context.Context, db bun.IDB) ([]unrepa
 // created are indistinguishable from the ones the fixed provisioning creates,
 // and deleting staff records would take their historical references with them.
 func repairSchoolIdentitiesDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.284: nothing to undo (repair only, see doc comment)")
+	fmt.Println("Rolling back migration 1.15.293: nothing to undo (repair only, see doc comment)")
 	return nil
 }

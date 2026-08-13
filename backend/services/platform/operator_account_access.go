@@ -535,7 +535,7 @@ func (s *operatorProvisioningService) ListAssignableSchoolRoles(ctx context.Cont
 //
 // What comes back becomes a person — and therefore a staff member — at the
 // target school, so this is not a convenience lookup. Two restrictions follow,
-// the same two migration 1.15.284 applies in SQL when it repairs the identities
+// the same two migration 1.15.293 applies in SQL when it repairs the identities
 // this path used to leave broken:
 //
 //   - A child's record is never the account holder's identity. Copying its name
