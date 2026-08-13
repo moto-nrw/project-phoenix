@@ -116,7 +116,7 @@ function DesktopSettingsTabs({
       el.removeEventListener("scroll", updateScrollState);
       observer.disconnect();
     };
-  }, [updateScrollState]);
+  }, [updateScrollState, tabs]);
 
   // Keep the active tab fully visible when it changes (e.g. deep link).
   useEffect(() => {
