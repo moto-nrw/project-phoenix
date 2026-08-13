@@ -151,7 +151,7 @@ func (s studentReadScopeStub) FindReadScopeByIDs(_ context.Context, ids []int64)
 
 func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	eduGroupID := int64(7)
+	eduGroupID := int64(70)
 	student := &usersModel.Student{GroupID: &eduGroupID}
 	student.ID = 42
 	svc := &instanceService{deps: InstanceServiceDependencies{
@@ -167,9 +167,9 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 	require.NotNil(t, groupEvents[0].Data.StudentIDs)
 	assert.Equal(t, []string{"42"}, *groupEvents[0].Data.StudentIDs)
 	require.NotNil(t, groupEvents[0].Data.GroupIDs)
-	assert.Equal(t, []string{"7"}, *groupEvents[0].Data.GroupIDs)
+	assert.Equal(t, []string{"70"}, *groupEvents[0].Data.GroupIDs)
 
-	eduCalls := broadcaster.GroupCallsForTopic("edu:7")
+	eduCalls := broadcaster.GroupCallsForTopic("edu:70")
 	require.Len(t, eduCalls, 1)
 	assert.Equal(t, realtime.EventBulkStudentCheckIn, eduCalls[0].Event.Type)
 	require.NotNil(t, eduCalls[0].Event.Data.StudentIDs)
@@ -178,7 +178,7 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 	dash := broadcaster.EventsOfType(realtime.EventDashboardCountsChanged)
 	require.Len(t, dash, 1)
 	require.NotNil(t, dash[0].Data.GroupIDs)
-	assert.Equal(t, []string{"7"}, *dash[0].Data.GroupIDs)
+	assert.Equal(t, []string{"70"}, *dash[0].Data.GroupIDs)
 	assert.Empty(t, broadcaster.EventsOfType(realtime.EventStudentCheckIn))
 }
 
