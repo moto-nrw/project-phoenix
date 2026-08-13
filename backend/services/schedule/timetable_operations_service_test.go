@@ -66,6 +66,29 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 	assert.Equal(t, 1, result[0].PresentStudentsCount)
 	assert.False(t, result[0].IsOverdue)
 	assert.Equal(t, 10, result[0].MinutesUntilStart)
+	assert.NotEmpty(t, result[0].StartExpiresAt)
+}
+
+func TestTimetableOperationsPlannedNowKeepsSpontaneousAfterEnd(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	assignedID := int64(212)
+	instanceID := int64(340)
+	deps := newTimetableOpsDeps()
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = 411
+	deps.personService.staffByPersonID[411] = &usersModel.Staff{}
+	deps.personService.staffByPersonID[411].ID = assignedID
+	inst := instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now)
+	inst.IsSpontaneous = true
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{inst}
+	deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: assignedID}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 611, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, instanceID, result[0].ID)
+	assert.True(t, result[0].CanStart)
+	assert.Empty(t, result[0].StartExpiresAt)
 }
 
 func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
@@ -1239,6 +1262,9 @@ func TestTimetableOperationHelpers(t *testing.T) {
 	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now.Add(2*time.Hour)), now, 0))
 	assert.True(t, plannedNowWindow(instanceWithTimes(409, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now.Add(3*time.Hour)), now, 120))
 	assert.False(t, plannedNowWindow(instanceWithTimes(410, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now), now, 0))
+	spontaneous := instanceWithTimes(411, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now)
+	spontaneous.IsSpontaneous = true
+	assert.True(t, plannedNowWindow(spontaneous, now, 0))
 	assert.True(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255}}, 255))
 	assert.False(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255, IsAbsent: true}}, 255))
 	planned, ok := findPlanned([]*scheduleModel.InstanceStudent{{StudentID: 556}}, 556)

@@ -281,7 +281,9 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
 		mapped.CanStart = availability.CanStart
 		mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
-		mapped.StartExpiresAt = availability.CompleteAvailableAt.Format(time.RFC3339)
+		if !candidate.instance.IsSpontaneous {
+			mapped.StartExpiresAt = availability.CompleteAvailableAt.Format(time.RFC3339)
+		}
 		if opts.IncludeRoster {
 			roster, err := s.buildRosterWithCareDay(ctx, candidate.instance.ID, careDay)
 			if err != nil {
@@ -1113,7 +1115,7 @@ func plannedNowWindow(inst *scheduleModel.ActivityInstance, now time.Time, horiz
 	}
 	start := instanceStartAt(inst, now.Location())
 	end := instanceEndAt(inst, now.Location())
-	if !now.Before(end) {
+	if !inst.IsSpontaneous && !now.Before(end) {
 		return false
 	}
 	return (start.After(now.Add(-15*time.Minute)) && start.Before(now.Add(time.Duration(horizonMinutes)*time.Minute))) || start.Before(now)

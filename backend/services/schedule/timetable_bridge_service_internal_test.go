@@ -240,20 +240,7 @@ func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testin
 		"an instance must not reach 'completed' with unfinalized attendance rows")
 }
 
-type bridgeSettingsStub struct {
-	value bool
-	err   error
-}
-
-func (s bridgeSettingsStub) ResolveInt(context.Context, string) (int, error) {
-	return 0, nil
-}
-
-func (s bridgeSettingsStub) ResolveBool(context.Context, string) (bool, error) {
-	return s.value, s.err
-}
-
-func TestTimetableBridgeRejectsCompleteBeforePlannedEnd(t *testing.T) {
+func TestTimetableBridgeAllowsSystemCompleteBeforePlannedEnd(t *testing.T) {
 	const activeGroupID int64 = 8810
 	date := timezone.NewDate(2026, 5, 4)
 	inst := &scheduleModel.ActivityInstance{
@@ -262,7 +249,7 @@ func TestTimetableBridgeRejectsCompleteBeforePlannedEnd(t *testing.T) {
 		EndTime:   time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC),
 	}
 	inst.ID = 7710
-	calls := make([]string, 0, 1)
+	calls := make([]string, 0, 3)
 	svc := NewTimetableBridgeService(TimetableBridgeDependencies{
 		Instances: &bridgeInstanceRepoStub{
 			byActiveGroup: map[int64]*scheduleModel.ActivityInstance{activeGroupID: inst},
@@ -270,11 +257,11 @@ func TestTimetableBridgeRejectsCompleteBeforePlannedEnd(t *testing.T) {
 			calls:         &calls,
 		},
 		InstanceStudents: &bridgeStudentRepoStub{calls: &calls},
-		Settings:         bridgeSettingsStub{value: true},
 	})
 
 	now := time.Date(2026, 5, 4, 15, 0, 0, 0, timezone.Berlin)
-	_, err := svc.CompleteActiveByActiveGroupIDs(context.Background(), []int64{activeGroupID}, now)
-	require.ErrorIs(t, err, ErrInstanceCompleteEarly)
-	assert.NotContains(t, calls, "complete")
+	completed, err := svc.CompleteActiveByActiveGroupIDs(context.Background(), []int64{activeGroupID}, now)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), completed)
+	assert.Contains(t, calls, "complete")
 }
