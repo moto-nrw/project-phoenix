@@ -180,6 +180,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span />,
   GroupIcon: () => <span />,
+  DepartureModeIcon: () => <span />,
   StudentInfoRow: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),

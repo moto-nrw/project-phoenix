@@ -95,8 +95,9 @@ type StudentResponse struct {
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). Bus, BusDays and PickupDays are derived from it and
 	// kept for backward compatibility with clients not yet on departure_days.
-	DepartureDays         users.DepartureDays         `json:"departure_days,omitempty"`
-	AllowedDepartureModes users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	DepartureDays           users.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes   users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	DepartureRuleConfigured bool                        `json:"-"`
 	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
 	// departure mode (#1694).
 	DepartureCompanionNote string `json:"departure_companion_note,omitempty"`

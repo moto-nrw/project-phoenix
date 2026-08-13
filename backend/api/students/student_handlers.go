@@ -158,7 +158,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Applied here, before in-memory pagination, so server-side counts and
 	// page boundaries reflect the filtered set (no client-side full-page
 	// fetch needed).
-	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus)
+	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus, planningDate)
 
 	// Apply in-memory pagination if response-derived filters were used.
 	if params.hasInMemoryFilters() {
@@ -180,7 +180,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Projection happens last, after every filter, sort and pagination step has
 	// run on the full responses — the two views differ on the wire only (#2097).
 	if params.slimView {
-		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses), pagination, "Students retrieved successfully")
+		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses, planningDate), pagination, "Students retrieved successfully")
 		return
 	}
 	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
