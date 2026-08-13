@@ -116,6 +116,10 @@ type PushSubscriptionRepository interface {
 	// transaction. An empty family ID is a no-op so pre-binding rows are not
 	// swept by an unbound logout.
 	DeleteStaffByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error
+	// DeleteStaffUnboundByAccount removes staff-portal subscriptions that were
+	// never bound to a token family. tenantID > 0 limits the delete to that
+	// school. Callers must use an admin transaction.
+	DeleteStaffUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
 

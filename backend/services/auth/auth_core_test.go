@@ -646,7 +646,7 @@ func TestAuthService_Logout(t *testing.T) {
 			Where("portal = ?", iotModels.PushPortalStaff).
 			Count(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, 2, staffCount, "family-scoped logout must leave staff push for surviving sessions")
+		assert.Equal(t, 1, staffCount, "logout clears unbound staff push at the session school only")
 	})
 
 	t.Run("logout with invalid token returns error", func(t *testing.T) {

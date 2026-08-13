@@ -465,6 +465,33 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.False(t, hasSubscriptionEndpoint(remaining, dropEndpoint))
 	})
 
+	t.Run("unbound deletion is limited to the requested school", func(t *testing.T) {
+		here := newSubscription(account.ID, iotModels.PushPortalStaff, endpoint+"/unbound-here")
+		here.TokenFamilyID = ""
+		otherSchool := createPushTestSchool(t, db)
+		there := newSubscription(account.ID, iotModels.PushPortalStaff, endpoint+"/unbound-there")
+		there.TokenFamilyID = ""
+		there.SetTenantID(otherSchool.ID)
+		require.NoError(t, repo.Upsert(ctx, here))
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.Upsert(adminCtx, there)
+		}))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteStaffUnboundByAccount(adminCtx, account.ID, tenant.FromContext(ctx))
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".token_family_id = ?`, "").
+			Scan(context.Background()))
+		assert.False(t, hasSubscriptionEndpoint(remaining, endpoint+"/unbound-here"))
+		assert.True(t, hasSubscriptionEndpoint(remaining, endpoint+"/unbound-there"))
+	})
+
 	t.Run("guardian finder excludes subscriptions without a tenant mapping", func(t *testing.T) {
 		// Pending-enrollment-only recipients have no mapping for the school.
 		// Even a stale subscription row must therefore stay out of Web Push.

@@ -189,6 +189,24 @@ func (r *PushSubscriptionRepository) DeleteStaffByTokenFamilyID(ctx context.Cont
 	return nil
 }
 
+// DeleteStaffUnboundByAccount removes staff-portal subscriptions that have no
+// token family. The caller must supply an admin transaction. A positive
+// tenantID limits the delete to that school.
+func (r *PushSubscriptionRepository) DeleteStaffUnboundByAccount(ctx context.Context, accountID, tenantID int64) error {
+	query := base.GetDB(ctx, r.DB).NewDelete().
+		TableExpr(tablePushSubscriptions).
+		Where("account_id = ?", accountID).
+		Where("token_family_id = ?", "").
+		Where(pushPortalFilter, iot.PushPortalStaff)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "delete unbound staff push subscriptions", Err: err}
+	}
+	return nil
+}
+
 // staffSubscriptionQuery builds the base query every staff-portal finder shares:
 // staff portal, active account, active tenant mapping, non-guardian role, and
 // the tenant predicate.

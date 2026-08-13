@@ -80,6 +80,47 @@ func (s *Service) auditRevokedTokens(ctx context.Context, tokens []*authModels.T
 	return nil
 }
 
+func isAccountWideRevocation(reason string) bool {
+	switch reason {
+	case "password_reset", "account_deactivated", "administrative_revoke":
+		return true
+	default:
+		return false
+	}
+}
+
+func tokenFamilyIDs(tokens []*authModels.Token) []string {
+	seen := make(map[string]struct{}, len(tokens))
+	ids := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		if token == nil || token.FamilyID == "" {
+			continue
+		}
+		if _, ok := seen[token.FamilyID]; ok {
+			continue
+		}
+		seen[token.FamilyID] = struct{}{}
+		ids = append(ids, token.FamilyID)
+	}
+	return ids
+}
+
+func tokenTenantIDs(tokens []*authModels.Token) []int64 {
+	seen := make(map[int64]struct{}, len(tokens))
+	ids := make([]int64, 0, len(tokens))
+	for _, token := range tokens {
+		if token == nil || token.TenantID <= 0 {
+			continue
+		}
+		if _, ok := seen[token.TenantID]; ok {
+			continue
+		}
+		seen[token.TenantID] = struct{}{}
+		ids = append(ids, token.TenantID)
+	}
+	return ids
+}
+
 func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
 	tokens, err := s.repos.Token.DeleteByAccountIDReturning(ctx, accountID)
 	if err != nil {
@@ -88,10 +129,22 @@ func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID in
 	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
 		return nil, err
 	}
-	if err := s.deleteStaffPushAcrossTenants(ctx, accountID); err != nil {
+	if isAccountWideRevocation(reason) {
+		if err := s.deleteStaffPushAcrossTenants(ctx, accountID); err != nil {
+			return nil, err
+		}
+		return tokens, nil
+	}
+	if err := s.deleteStaffPushForFamilies(ctx, accountID, tokenFamilyIDs(tokens)); err != nil {
 		return nil, err
 	}
-	return tokens, nil
+	tenants := tokenTenantIDs(tokens)
+	if len(tenants) == 0 {
+		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+			tenants = []int64{tenantID}
+		}
+	}
+	return tokens, s.deleteStaffPushUnboundAtTenants(ctx, accountID, tenants)
 }
 
 func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.Token, reason, ipAddress, userAgent string) error {
@@ -99,7 +152,10 @@ func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.T
 		if err := s.repos.Token.Delete(ctx, token.ID); err != nil {
 			return err
 		}
-		return s.auditRevokedTokens(ctx, []*authModels.Token{token}, reason, ipAddress, userAgent)
+		if err := s.auditRevokedTokens(ctx, []*authModels.Token{token}, reason, ipAddress, userAgent); err != nil {
+			return err
+		}
+		return s.deleteStaffPushUnboundAtTenants(ctx, token.AccountID, []int64{token.TenantID})
 	}
 	tokens, err := s.repos.Token.DeleteByFamilyIDReturning(ctx, token.FamilyID)
 	if err != nil {
@@ -108,7 +164,10 @@ func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.T
 	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
 		return err
 	}
-	return s.deleteStaffPushForFamily(ctx, token.AccountID, token.FamilyID)
+	if err := s.deleteStaffPushForFamily(ctx, token.AccountID, token.FamilyID); err != nil {
+		return err
+	}
+	return s.deleteStaffPushUnboundAtTenants(ctx, token.AccountID, []int64{token.TenantID})
 }
 
 // deleteStaffPushAcrossTenants removes every staff push row for the account.
@@ -121,12 +180,35 @@ func (s *Service) deleteStaffPushAcrossTenants(ctx context.Context, accountID in
 }
 
 func (s *Service) deleteStaffPushForFamily(ctx context.Context, accountID int64, familyID string) error {
-	if familyID == "" {
-		return nil
+	return s.deleteStaffPushForFamilies(ctx, accountID, []string{familyID})
+}
+
+func (s *Service) deleteStaffPushForFamilies(ctx context.Context, accountID int64, familyIDs []string) error {
+	for _, familyID := range familyIDs {
+		if familyID == "" {
+			continue
+		}
+		if err := s.withStaffPushAdminTx(ctx, func(adminCtx context.Context) error {
+			return s.repos.PushSubscription.DeleteStaffByTokenFamilyID(adminCtx, accountID, familyID)
+		}); err != nil {
+			return err
+		}
 	}
-	return s.withStaffPushAdminTx(ctx, func(adminCtx context.Context) error {
-		return s.repos.PushSubscription.DeleteStaffByTokenFamilyID(adminCtx, accountID, familyID)
-	})
+	return nil
+}
+
+func (s *Service) deleteStaffPushUnboundAtTenants(ctx context.Context, accountID int64, tenantIDs []int64) error {
+	for _, tenantID := range tenantIDs {
+		if tenantID <= 0 {
+			continue
+		}
+		if err := s.withStaffPushAdminTx(ctx, func(adminCtx context.Context) error {
+			return s.repos.PushSubscription.DeleteStaffUnboundByAccount(adminCtx, accountID, tenantID)
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) withStaffPushAdminTx(ctx context.Context, fn func(context.Context) error) error {

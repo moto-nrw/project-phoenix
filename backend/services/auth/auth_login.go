@@ -504,7 +504,10 @@ func (s *Service) enforcePortalSessionCap(ctx context.Context, accountID int64, 
 	if err != nil {
 		return fmt.Errorf("enforce active session cap: %w", err)
 	}
-	return s.auditRevokedTokens(ctx, deleted, "session_cap", "", "")
+	if err := s.auditRevokedTokens(ctx, deleted, "session_cap", "", ""); err != nil {
+		return err
+	}
+	return s.deleteStaffPushForFamilies(ctx, accountID, tokenFamilyIDs(deleted))
 }
 
 // isTokenFamilyConflict checks if error is due to token family conflict

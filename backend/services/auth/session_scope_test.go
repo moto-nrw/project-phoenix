@@ -153,7 +153,7 @@ func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
 	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
 	t.Cleanup(func() {
 		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		testpkg.CleanupTestTenant(t, db, tenantID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
 	})
 
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/school-a", "family-a")
@@ -239,4 +239,102 @@ func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 
 	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeParent, 1)
 	assertTokenCountByPortal(t, db, account.ID, authModels.PortalScopeTenant, 5)
+}
+
+func TestSessionCapRemovesStaffPushForEvictedFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("session-cap-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	firstFamily := tokenFamilyID(t, db, account.ID, 0)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/evicted-device", firstFamily)
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	keptFamily := tokenFamilyID(t, db, account.ID, 1)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/kept-device", keptFamily)
+
+	for range 4 {
+		_, _, err = service.Login(ctx, email, testPassword)
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/evicted-device"))
+	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/kept-device"))
+}
+
+func TestLogoutRemovesUnboundStaffPushAtSessionTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("logout-unbound-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, refreshToken, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/unbound-here", "")
+	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/unbound-other", "")
+
+	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "", ""))
+
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/unbound-here"))
+	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/unbound-other"))
+}
+
+func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("role-change-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	localFamily := tokenFamilyID(t, db, account.ID, 0)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/this-school", localFamily)
+	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/other-school", "other-family")
+
+	role, err := service.CreateRole(ctx, uniqueTestName("role-change-push"), "limit push wipe", testpkg.StrPtr(authModels.BaseRoleUser))
+	require.NoError(t, err)
+	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID)))
+
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/this-school"))
+	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/other-school"))
+}
+
+func uniqueTestName(prefix string) string {
+	email, _ := uniqueTestCredentials(prefix)
+	return email
 }
