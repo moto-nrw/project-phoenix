@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
-import { AlertCircle, Check, Circle } from "lucide-react";
+import { Check, Circle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import {
@@ -11,6 +11,7 @@ import {
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { Alert } from "~/components/ui/alert";
 import {
   acceptGuardianInvitation,
   type GuardianInvitationValidation,
@@ -24,6 +25,11 @@ const logger = createLogger({ component: "GuardianInvitationAccept" });
 interface Props {
   readonly token: string;
   readonly invitation: GuardianInvitationValidation;
+}
+
+interface GuardianInvitationError {
+  readonly message: string;
+  readonly contactOgs: boolean;
 }
 
 const getErrorMessage = (
@@ -57,11 +63,11 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<GuardianInvitationError | null>(null);
   const [errorFieldName, setErrorFieldName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
-  const errorRef = useScrollToError(error);
+  const errorRef = useScrollToError(error?.message ?? null);
 
   const requirementStatus = useMemo(
     () =>
@@ -88,12 +94,15 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
     setErrorFieldName(null);
 
     if (!allRequirementsMet) {
-      setError(t("formErrors.passwordRules"));
+      setError({ message: t("formErrors.passwordRules"), contactOgs: false });
       setErrorFieldName("password");
       return;
     }
     if (password !== confirmPassword) {
-      setError(t("formErrors.passwordMismatch"));
+      setError({
+        message: t("formErrors.passwordMismatch"),
+        contactOgs: false,
+      });
       setErrorFieldName("confirmPassword");
       return;
     }
@@ -129,7 +138,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         logger.warn("guardian_invitation_accept_offline", {
           error: "no_network_connection",
         });
-        setError(t("formErrors.offline"));
+        setError({ message: t("formErrors.offline"), contactOgs: false });
         setIsSubmitting(false);
         return;
       }
@@ -137,7 +146,10 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
         error: err instanceof Error ? err.message : String(err),
       });
       const apiError = err as ApiError | undefined;
-      setError(getErrorMessage(apiError, err, t));
+      setError({
+        message: getErrorMessage(apiError, err, t),
+        contactOgs: apiError?.status === 410,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -187,17 +199,15 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-5 sm:space-y-6">
       {error && (
-        <div
-          ref={errorRef}
-          className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4"
-        >
-          <div className="flex items-start gap-3">
-            <AlertCircle
-              className="text-moto-red-strong mt-0.5 h-5 w-5 shrink-0"
-              aria-hidden="true"
-            />
-            <p className="text-moto-red-strong text-sm">{error}</p>
-          </div>
+        <div ref={errorRef}>
+          <Alert
+            type="error"
+            message={
+              error.contactOgs
+                ? `${error.message} ${t("contactOgs")}`
+                : error.message
+            }
+          />
         </div>
       )}
 
