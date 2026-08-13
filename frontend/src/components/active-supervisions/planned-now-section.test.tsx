@@ -219,6 +219,7 @@ describe("PlannedNowSection", () => {
             ...plannedInstance,
             isOverdue: false,
             minutesUntilStart: 90,
+            canStart: false,
           },
         ]}
         isStartingInstance={null}
@@ -234,6 +235,30 @@ describe("PlannedNowSection", () => {
     fireEvent.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: "Noch nicht verfügbar" }),
+    ).toBeInTheDocument();
+  });
+
+  it("expands a startable slot even when it is more than 15 minutes away", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            isOverdue: false,
+            minutesUntilStart: 30,
+            canStart: true,
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Als Nächstes/ }),
+    ).toHaveAttribute("aria-expanded", "true");
     expect(
       screen.getByRole("button", { name: /^Starten$/i }),
     ).toBeInTheDocument();

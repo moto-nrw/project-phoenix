@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -513,7 +514,7 @@ func (rs *Resource) enrichInstance(
 
 func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), claims.IsAdmin, time.Now())
+	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), authorize.HasEffectiveAdminScope(ctx), time.Now())
 }
 
 // dayConflictWarningsFor computes the #2139 window conflicts for ONE instance

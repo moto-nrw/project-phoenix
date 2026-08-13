@@ -122,12 +122,15 @@ export function PlannedNowSection({
       !instance.isOverdue &&
       instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES,
   ).length;
+  const startableCount = sortedPlanned.filter((instance) =>
+    canStartPlannedInstance(instance, now),
+  ).length;
   const expectedCount = sortedPlanned.reduce(
     (sum, instance) => sum + instance.expectedStudentsCount,
     0,
   );
   const hasActionableSlot =
-    !hasActiveTimetableSession && (overdueCount > 0 || soonCount > 0);
+    !hasActiveTimetableSession && (overdueCount > 0 || startableCount > 0);
   const isSectionExpanded = sectionExpanded ?? hasActionableSlot;
 
   return (

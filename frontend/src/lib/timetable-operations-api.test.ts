@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   timetableOperationsApi,
   TimetableOperationsApiError,
+  isReopenUnavailableError,
 } from "./timetable-operations-api";
 
 describe("timetableOperationsApi", () => {
@@ -341,6 +342,34 @@ describe("timetableOperationsApi", () => {
       httpStatus: 409,
       code: "room_conflict",
     });
+    expect(isReopenUnavailableError(err)).toBe(false);
+  });
+});
+
+describe("isReopenUnavailableError", () => {
+  it("treats only terminal reopen failures as unavailable", () => {
+    expect(
+      isReopenUnavailableError(
+        new TimetableOperationsApiError("Raum belegt", 409),
+      ),
+    ).toBe(false);
+    expect(
+      isReopenUnavailableError(
+        new TimetableOperationsApiError(
+          "invalid instance transition: reopen window expired",
+          409,
+          "invalid_transition",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isReopenUnavailableError(
+        new TimetableOperationsApiError("nicht berechtigt", 403),
+      ),
+    ).toBe(true);
+    expect(
+      isReopenUnavailableError(new Error("completion snapshot missing")),
+    ).toBe(true);
   });
 });
 

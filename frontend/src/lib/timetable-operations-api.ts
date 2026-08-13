@@ -36,6 +36,21 @@ export class TimetableOperationsApiError extends Error {
   }
 }
 
+// Terminal reopen failures discard the five-minute undo banner. Room,
+// capacity, and concurrent-check-in conflicts also arrive as HTTP 409, but
+// those can clear while the window is still open.
+export function isReopenUnavailableError(err: unknown): boolean {
+  if (err instanceof TimetableOperationsApiError) {
+    return err.httpStatus === 403 || err.code === "invalid_transition";
+  }
+  return (
+    err instanceof Error &&
+    /reopen window|invalid instance transition|snapshot missing/i.test(
+      err.message,
+    )
+  );
+}
+
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;

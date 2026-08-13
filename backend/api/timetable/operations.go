@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -154,7 +155,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
-		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
+		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), authorize.HasEffectiveAdminScope(r.Context()), instanceID)
 		if err != nil {
 			return nil, err
 		}

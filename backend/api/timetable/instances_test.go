@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -33,33 +34,35 @@ import (
 // -----------------------------------------------------------------------------
 
 type mockInstanceService struct {
-	startResult      *scheduleSvc.StartInstanceResult
-	startErr         error
-	completeRes      *scheduleModel.ActivityInstance
-	completeErr      error
-	cancelRes        *scheduleModel.ActivityInstance
-	cancelErr        error
-	deleteErr        error
-	replanRes        *scheduleSvc.ReplanWeekResult
-	replanErr        error
-	createRes        *scheduleModel.ActivityInstance
-	createErr        error
-	updateRes        *scheduleModel.ActivityInstance
-	updateErr        error
-	ackRes           *scheduleModel.ActivityInstance
-	ackErr           error
-	clearAckErr      error
-	lastCancelReason *string
-	lastAckID        int64
-	lastAckValue     bool
-	lastAckNote      *string
-	lastStartID      int64
-	lastStartedBy    int64
-	lastFrom         timezone.Date
-	lastTo           timezone.Date
-	lastReplanGID    *int64
-	lastCreate       *scheduleSvc.CreateInstanceInput
-	lastUpdate       *scheduleSvc.UpdateInstanceInput
+	startResult         *scheduleSvc.StartInstanceResult
+	startErr            error
+	completeRes         *scheduleModel.ActivityInstance
+	completeErr         error
+	cancelRes           *scheduleModel.ActivityInstance
+	cancelErr           error
+	deleteErr           error
+	replanRes           *scheduleSvc.ReplanWeekResult
+	replanErr           error
+	createRes           *scheduleModel.ActivityInstance
+	createErr           error
+	updateRes           *scheduleModel.ActivityInstance
+	updateErr           error
+	ackRes              *scheduleModel.ActivityInstance
+	ackErr              error
+	clearAckErr         error
+	lastCancelReason    *string
+	lastAckID           int64
+	lastAckValue        bool
+	lastAckNote         *string
+	lastStartID         int64
+	lastStartedBy       int64
+	lastReopenAccountID int64
+	lastReopenIsAdmin   bool
+	lastFrom            timezone.Date
+	lastTo              timezone.Date
+	lastReplanGID       *int64
+	lastCreate          *scheduleSvc.CreateInstanceInput
+	lastUpdate          *scheduleSvc.UpdateInstanceInput
 	// real, when set, receives the deviation writes (#1886) so DB-backed
 	// handler tests keep asserting real row effects.
 	real scheduleSvc.InstanceService
@@ -86,6 +89,8 @@ func (m *mockInstanceService) Complete(_ context.Context, _ int64) (*scheduleMod
 }
 
 func (m *mockInstanceService) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*scheduleSvc.StartInstanceResult, error) {
+	m.lastReopenAccountID = accountID
+	m.lastReopenIsAdmin = isAdmin
 	if m.real != nil {
 		return m.real.Reopen(ctx, instanceID, accountID, isAdmin)
 	}
@@ -376,6 +381,46 @@ func TestReopenInstance_InvalidID(t *testing.T) {
 	w := doPost(t, router, "/instances/bad/reopen", nil)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestReopenInstance_EffectiveAdminScope(t *testing.T) {
+	started := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
+	started.ID = 7
+	mock := &mockInstanceService{
+		startResult: &scheduleSvc.StartInstanceResult{
+			Instance:      started,
+			ActiveGroupID: 42,
+		},
+	}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/reopen", rs.reopenInstance)
+
+	cases := []struct {
+		name        string
+		isAdmin     bool
+		permissions []string
+		wantAdmin   bool
+	}{
+		{name: "wildcard admin without admin role", permissions: []string{"admin:*"}, wantAdmin: true},
+		{name: "full-access wildcard", permissions: []string{"*:*"}, wantAdmin: true},
+		{name: "literal admin role", isAdmin: true, permissions: []string{"schedules:manage"}, wantAdmin: true},
+		{name: "ordinary staff", permissions: []string{"schedules:manage"}, wantAdmin: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock.lastReopenIsAdmin = false
+			req := httptest.NewRequest(http.MethodPost, "/instances/7/reopen", bytes.NewReader(nil))
+			testutil.WithClaims(jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: 1})(req)
+			testutil.WithPermissions(tc.permissions...)(req)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+			assert.Equal(t, int64(88), mock.lastReopenAccountID)
+			assert.Equal(t, tc.wantAdmin, mock.lastReopenIsAdmin)
+		})
+	}
 }
 
 func TestCompleteInstance_NilService(t *testing.T) {

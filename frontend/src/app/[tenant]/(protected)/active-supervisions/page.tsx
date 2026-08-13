@@ -55,8 +55,8 @@ import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { fetchStudents } from "~/lib/student-api";
 import {
+  isReopenUnavailableError,
   timetableOperationsApi,
-  TimetableOperationsApiError,
 } from "~/lib/timetable-operations-api";
 import type {
   PlannedTimetableInstance,
@@ -172,22 +172,6 @@ function writeStoredReopenBanner(instanceId: string, expiresAt: number): void {
 
 function clearStoredReopenBanner(): void {
   window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
-}
-
-function isReopenUnavailableError(err: unknown): boolean {
-  if (err instanceof TimetableOperationsApiError) {
-    return (
-      err.httpStatus === 409 ||
-      err.httpStatus === 403 ||
-      err.code === "invalid_transition"
-    );
-  }
-  return (
-    err instanceof Error &&
-    /reopen window|invalid instance transition|snapshot missing/i.test(
-      err.message,
-    )
-  );
 }
 
 export function spontaneousActivityWindow(now: Date): {
