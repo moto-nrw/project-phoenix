@@ -771,6 +771,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 		{scheduleSvc.ErrInstanceNotFound, http.StatusNotFound},
 		{activeSvc.ErrStudentAlreadyActive, http.StatusConflict},
 		{activeSvc.ErrRoomConflict, http.StatusConflict},
+		{activeSvc.ErrRoomCapacityExceeded, http.StatusConflict},
 		{activeSvc.ErrStudentNotFound, http.StatusNotFound},
 		{activeSvc.ErrVisitNotFound, http.StatusNotFound},
 		{activeSvc.ErrInvalidData, http.StatusBadRequest},

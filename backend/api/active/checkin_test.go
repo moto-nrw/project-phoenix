@@ -461,6 +461,36 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, rr.Code)
 	})
 
+	t.Run("returns 409 when room capacity is reached", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "FullRoom", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Full Room Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+
+		student := testpkg.CreateTestStudent(t, db, "FullRoom", "Incoming", "4b")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+		existingStudent := testpkg.CreateTestStudent(t, db, "FullRoom", "Existing", "4b")
+		activity := testpkg.CreateTestActivityGroup(t, db, "full-room-checkin-test")
+		room := testpkg.CreateTestRoom(t, db, "Full Room")
+		room.Capacity = testpkg.IntPtr(1)
+		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(context.Background())
+		require.NoError(t, err)
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		existingVisit := testpkg.CreateTestVisit(t, db, existingStudent.ID, activeGroup.ID, time.Now(), nil)
+
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, existingStudent.ID, activity.ID, room.ID, activeGroup.ID, existingVisit.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
+		req := makeCheckinRequest(t, student.ID, body, token)
+		rr := httptest.NewRecorder()
+		handler.Router().ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusConflict, rr.Code)
+		assert.Contains(t, rr.Body.String(), "room capacity exceeded")
+	})
+
 	t.Run("successful checkin creates visit", func(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 

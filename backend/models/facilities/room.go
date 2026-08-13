@@ -30,9 +30,9 @@ func (r *Room) Validate() error {
 	// Trim spaces from name
 	r.Name = strings.TrimSpace(r.Name)
 
-	// Validate capacity is non-negative (if provided)
-	if r.Capacity != nil && *r.Capacity < 0 {
-		return ErrCapacityNegative
+	// Validate capacity is positive (if provided)
+	if r.Capacity != nil && *r.Capacity <= 0 {
+		return ErrCapacityNotPositive
 	}
 
 	// Validate color is a valid hex color (if provided)
@@ -84,10 +84,10 @@ func (r *Room) Validate() error {
 // renders any of them as 400 (with the German message preferred where one
 // exists for ErrReservedColor).
 var (
-	ErrNameRequired       = errors.New("room name is required")
-	ErrCapacityNegative   = errors.New("capacity cannot be negative")
-	ErrInvalidColorFormat = errors.New("invalid color format, must be a valid hex color")
-	ErrReservedColor      = errors.New("color is reserved for status badges")
+	ErrNameRequired        = errors.New("room name is required")
+	ErrCapacityNotPositive = errors.New("capacity must be greater than zero")
+	ErrInvalidColorFormat  = errors.New("invalid color format, must be a valid hex color")
+	ErrReservedColor       = errors.New("color is reserved for status badges")
 )
 
 // IsValidationError reports whether err is one of the model-level Validate
@@ -95,18 +95,15 @@ var (
 // having to enumerate each variant.
 func IsValidationError(err error) bool {
 	return errors.Is(err, ErrNameRequired) ||
-		errors.Is(err, ErrCapacityNegative) ||
+		errors.Is(err, ErrCapacityNotPositive) ||
 		errors.Is(err, ErrInvalidColorFormat) ||
 		errors.Is(err, ErrReservedColor)
 }
 
 // IsAvailable checks if the room is available for a given capacity
 func (r *Room) IsAvailable(requiredCapacity int) bool {
-	// Capacity is optional (see migration 1.1.5). Treat rooms without a
-	// specified capacity as available for neutral/zero-capacity requests so
-	// that devices still list them instead of filtering everything out.
-	if r.Capacity == nil {
-		return requiredCapacity <= 0
+	if r.Capacity == nil || *r.Capacity <= 0 {
+		return true
 	}
 	return *r.Capacity >= requiredCapacity
 }

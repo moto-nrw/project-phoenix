@@ -389,6 +389,7 @@ func TestUpdateVisitClosedIntervalEditAndReopenReconcileSlot(t *testing.T) {
 					findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) { return existingVisit, nil },
 					updateFunc:   func(context.Context, *activeModels.Visit) error { return nil },
 				},
+				GroupRepo:        &mockGroupRepository{},
 				AttendanceSyncer: syncer,
 			}}
 

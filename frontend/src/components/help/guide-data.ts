@@ -333,7 +333,7 @@ export const setupChapters: readonly GuideChapter[] = [
         steps: [
           "`Datenverwaltung` öffnen und `Räume` wählen.",
           "Neuen Raum anlegen.",
-          "`Raumname`, `Kategorie`, `Gebäude`, `Etage` und `Farbe` pflegen.",
+          "`Raumname`, `Kategorie`, `Gebäude`, `Etage` und `Farbe` pflegen. Optional unter `Maximale Belegung` festlegen, wie viele Kinder gleichzeitig in den Raum eingecheckt sein dürfen. Ohne Angabe gibt es kein Raumlimit.",
           "Kurze, eindeutige Namen nutzen, zum Beispiel `Mensa`, `Turnhalle`, `Gruppenraum Blau`.",
           "Speichern.",
         ],
