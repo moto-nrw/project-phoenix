@@ -83,9 +83,40 @@ nodes whose `getBoundingClientRect().right` exceeds the viewport width.
   overflow root cause the probe finds: below the breakpoint the implicit auto
   column grows to max-content and `truncate` stops working.
 
-## Delivery
+## Delivery: ALWAYS post the sweep as a PR comment via gh
 
-Read the worst-viewport (`se`) shots yourself and fix what they show; attach
-pairs/sweeps to the PR per the PR-screenshots rule in the root `CLAUDE.md`.
+Read the worst-viewport (`se`) shots yourself and fix what they show. Then
+publish the sweep on the PR — do not stop at local file paths. GitHub has no
+API for comment image uploads, so host the PNGs on an orphan branch and link
+them by commit SHA (public repo, raw URLs render fine):
+
+```bash
+git checkout --orphan pr-<NR>-screenshots
+git rm -rf --cached . -q
+mkdir -p screenshots-pr<NR> && cp <shots>/*.png screenshots-pr<NR>/
+git add screenshots-pr<NR>
+git commit -m "docs: Screenshots für PR #<NR>" --no-verify
+git push -u origin pr-<NR>-screenshots
+git checkout -f <feature-branch>   # -f: the orphan switch untracks the old tree
+SHA=$(git rev-parse pr-<NR>-screenshots)
+BASE="https://raw.githubusercontent.com/<owner>/<repo>/$SHA/screenshots-pr<NR>"
+gh pr comment <NR> --body-file <comment.md>   # ![…]($BASE/<name>.png) per shot
+```
+
+Structure the comment: before/after pairs first (if any), then one collapsed
+`<details>` block per viewport with all views. Short caption above every image.
+
+**Re-running the sweep? UPDATE, don't stack comments**: commit the new PNGs to
+the same orphan branch, take the new SHA, then edit the existing comment:
+
+```bash
+gh api repos/<owner>/<repo>/issues/comments/<comment-id> -X PATCH -F body=@<comment.md>
+```
+
+(Find the comment id via `gh api repos/<owner>/<repo>/issues/<NR>/comments`.)
+Leave the orphan branch alive while the PR needs the links; link via SHA, not
+branch name. This flow is the sanctioned exception to the root `CLAUDE.md`
+no-screenshot-branches rule for sweep deliveries.
+
 For before/after pairs of a specific change use the `ui-before-after` skill —
 this skill is the breadth sweep, that one is the depth comparison.
