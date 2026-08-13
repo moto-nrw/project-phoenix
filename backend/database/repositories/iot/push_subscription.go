@@ -234,12 +234,15 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 		Where(`NOT EXISTS (
 			SELECT 1 FROM auth.tokens AS "token"
 			WHERE "token".account_id = "push_subscription".account_id
-				AND "token".tenant_id = "push_subscription".tenant_id
 				AND "token".rotated_at IS NULL
 				AND "token".expiry > NOW()
 				AND (
 					("push_subscription".portal = ? AND "token".portal_scope = ?)
-					OR ("push_subscription".portal = ? AND "token".portal_scope IN (?, ?, ?, ?))
+					OR (
+						"push_subscription".portal = ?
+						AND "token".tenant_id = "push_subscription".tenant_id
+						AND "token".portal_scope IN (?, ?, ?, ?)
+					)
 				)
 		)`, iot.PushPortalParent, authModels.PortalScopeParent,
 			iot.PushPortalStaff, authModels.PortalScopeTenant, authModels.PortalScopeOrg,

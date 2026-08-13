@@ -238,7 +238,10 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 		if err != nil {
 			return err
 		}
-		return s.cleanupPushAfterTokenRevocation(ctx, accountID, tokens, reason)
+		if err := s.cleanupPushAfterTokenRevocation(ctx, accountID, tokens, reason); err != nil {
+			return err
+		}
+		return s.markAccountWideWipeCompleted(ctx, accountID)
 	}
 	adminCtx := tenant.WithTenantID(modelBase.ContextWithoutTx(ctx), 0)
 	adminCtx = tenant.ContextWithoutAfterCommitHooks(adminCtx)
@@ -251,7 +254,17 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 	if err != nil {
 		return err
 	}
-	return s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason)
+	if err := s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason); err != nil {
+		return err
+	}
+	return s.markAccountWideWipeCompleted(adminCtx, accountID)
+}
+
+func (s *Service) markAccountWideWipeCompleted(ctx context.Context, accountID int64) error {
+	if s.repos.AuthEvent == nil {
+		return nil
+	}
+	return s.repos.AuthEvent.MarkAccountWideWipeCompleted(ctx, accountID)
 }
 
 func (s *Service) deleteAllAccountTokensInCtx(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {

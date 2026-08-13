@@ -22,6 +22,7 @@ type AuthEventRepository interface {
 	FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*AuthEvent, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
 	ListPendingAccountWideWipeAccountIDs(ctx context.Context, since time.Time) ([]int64, error)
+	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error
 }
 
 // DataAccessLogRepository is an insert-only repository for audit.data_access_log.

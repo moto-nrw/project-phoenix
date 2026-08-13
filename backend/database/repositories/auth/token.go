@@ -189,7 +189,9 @@ func (r *TokenRepository) DeleteByAccountIDReturning(ctx context.Context, accoun
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
 		Returning("*")
-	query = base.WithTenantFilter(ctx, query, "token")
+	if !tenant.IsAdminTx(ctx) {
+		query = base.WithTenantFilter(ctx, query, "token")
+	}
 	if err := query.Scan(ctx, &deleted); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "delete and return by account ID", Err: err}
 	}

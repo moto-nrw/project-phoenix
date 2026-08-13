@@ -141,3 +141,16 @@ func (r *AuthEventRepository) ListPendingAccountWideWipeAccountIDs(ctx context.C
 	}
 	return ids, nil
 }
+
+// MarkAccountWideWipeCompleted clears pending wipe flags so a later
+// reactivation is not selected for another account-wide delete.
+func (r *AuthEventRepository) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr("audit.auth_events").
+		Set(`metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{pending_account_wide_wipe}', 'false')`).
+		Where("account_id = ?", accountID).
+		Where("event_type = ?", audit.EventTypeTokenRevoked).
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
+		Exec(ctx)
+	return err
+}

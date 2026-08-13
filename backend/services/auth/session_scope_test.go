@@ -742,3 +742,105 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, count)
 }
+
+func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("parent-unbound-other")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, _, err = service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-unbound-home", "")
+	insertParentPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/parent-unbound-other", "")
+
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-unbound-home"))
+	require.Equal(t, 1, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-unbound-other"))
+}
+
+func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("admin-tx-tenant-wipe")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	other := &authModels.Token{
+		AccountID:   account.ID,
+		Token:       uniqueTestName("admin-tx-other-school"),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: authModels.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		return service.RevokeAllTokens(adminCtx, int(account.ID))
+	}))
+
+	count, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
+func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("reactivate-wipe")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	require.NoError(t, tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return service.DeactivateAccount(txCtx, int(account.ID))
+	}))
+	require.NoError(t, service.ActivateAccount(ctx, int(account.ID)))
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > NOW()").
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
