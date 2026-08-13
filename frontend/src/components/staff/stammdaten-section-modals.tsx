@@ -9,7 +9,8 @@ import { ISODateInput, ISODatePicker } from "~/components/ui/date-picker";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
-import { todayISO } from "~/lib/date-helpers";
+import { isValidISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   staffStammdatenService,
   type StammdatenArbeitsvertrag,
@@ -164,7 +165,13 @@ export function PersonEditModal({
   const [firstName, setFirstName] = useState(person.firstName);
   const [lastName, setLastName] = useState(person.lastName);
   const [birthday, setBirthday] = useState(person.birthday ?? "");
-  const [birthdayValid, setBirthdayValid] = useState(true);
+  const berlinToday = useBerlinToday();
+  const birthdayDay = birthday.slice(0, 10);
+  const [birthdayValid, setBirthdayValid] = useState(
+    () =>
+      birthday === "" ||
+      (isValidISODate(birthdayDay) && birthdayDay <= berlinToday),
+  );
   const [gender, setGender] = useState<string>(person.gender ?? "");
   const [note, setNote] = useState("");
   const { saving, error, run } = useSectionSave(onSaved);
@@ -195,7 +202,7 @@ export function PersonEditModal({
             value={birthday}
             onChange={setBirthday}
             onValidityChange={setBirthdayValid}
-            max={todayISO()}
+            max={berlinToday}
             maxDateError="Das Geburtsdatum darf nicht in der Zukunft liegen."
           />
           <SelectField

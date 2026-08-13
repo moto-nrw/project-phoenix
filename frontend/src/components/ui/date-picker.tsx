@@ -211,6 +211,15 @@ export function DatePicker({
     if (!isOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          '[role="combobox"][aria-expanded="true"], [role="listbox"]',
+        )
+      ) {
+        return;
+      }
       event.preventDefault();
       event.stopImmediatePropagation();
       setIsOpen(false);
@@ -352,7 +361,10 @@ export function DatePicker({
     containerRef.current?.closest("[data-date-picker-focus-trap]") !== null;
 
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div
+      className={`relative flex items-center gap-1 ${className}`}
+      ref={containerRef}
+    >
       <button
         ref={triggerRef}
         type="button"
@@ -369,7 +381,7 @@ export function DatePicker({
         className={`flex items-center rounded-lg border transition-all ${
           iconOnly
             ? "h-10 w-10 shrink-0 justify-center"
-            : `w-full justify-between ${
+            : `min-w-0 flex-1 justify-between ${
                 TRIGGER_SIZE_CLASS[
                   (isMultiple ? undefined : props.controlSize) ?? "sm"
                 ]
@@ -390,7 +402,7 @@ export function DatePicker({
           </span>
         )}
         <svg
-          className={`h-4 w-4 text-gray-400 ${canClear ? "mr-6" : ""}`}
+          className="h-4 w-4 shrink-0 text-gray-400"
           aria-hidden="true"
           fill="none"
           viewBox="0 0 24 24"
@@ -414,7 +426,7 @@ export function DatePicker({
               props.onChange(null);
             }
           }}
-          className="absolute top-1/2 right-7 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           aria-label={labels.clear}
         >
           <svg
@@ -756,12 +768,39 @@ export function ISODateInput({
   const [inputValue, setInputValue] = useState(() =>
     formatISODateInputValue(value),
   );
-  const [inputError, setInputError] = useState<string | null>(null);
+  const [inputError, setInputError] = useState<string | null>(() =>
+    validateStoredISODate(
+      value,
+      min,
+      max,
+      invalidDateError,
+      minDateError,
+      maxDateError,
+    ),
+  );
   const errorId = `${id}-error`;
 
   useEffect(() => {
     setInputValue(formatISODateInputValue(value));
-  }, [value]);
+    const nextError = validateStoredISODate(
+      value,
+      min,
+      max,
+      invalidDateError,
+      minDateError,
+      maxDateError,
+    );
+    setInputError(nextError);
+    onValidityChange?.(nextError === null);
+  }, [
+    value,
+    min,
+    max,
+    invalidDateError,
+    minDateError,
+    maxDateError,
+    onValidityChange,
+  ]);
 
   const validate = (nextValue: string, showIncompleteError: boolean) => {
     const trimmed = nextValue.trim();
@@ -855,6 +894,22 @@ function parseGermanDateInput(value: string): string | null {
   if (!match) return null;
   const isoDate = `${match[3]}-${match[2]}-${match[1]}`;
   return isValidISODate(isoDate) ? isoDate : null;
+}
+
+function validateStoredISODate(
+  value: string,
+  min: string | undefined,
+  max: string | undefined,
+  invalidDateError: string,
+  minDateError: string,
+  maxDateError: string,
+): string | null {
+  if (value === "") return null;
+  const isoDate = value.slice(0, 10);
+  if (!isValidISODate(isoDate)) return invalidDateError;
+  if (min && isoDate < min) return minDateError;
+  if (max && isoDate > max) return maxDateError;
+  return null;
 }
 
 function formatISODateInputValue(value: string): string {

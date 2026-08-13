@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { DatePicker, ISODateInput } from "./date-picker";
 
 // Mock react-day-picker
@@ -266,6 +267,33 @@ describe("DatePicker", () => {
     expect(clearButton).toHaveAttribute("type", "button");
   });
 
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ])("clears the date when %s activates the button", async (_name, key) => {
+    const user = userEvent.setup();
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} />);
+
+    const clearButton = screen.getByRole("button", { name: /datum löschen/i });
+    clearButton.focus();
+    await user.keyboard(key);
+
+    expect(mockOnChange).toHaveBeenCalledOnce();
+    expect(mockOnChange).toHaveBeenCalledWith(null);
+  });
+
+  it("does not clear the date for an unrelated key", async () => {
+    const user = userEvent.setup();
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} />);
+
+    screen.getByRole("button", { name: /datum löschen/i }).focus();
+    await user.keyboard("{ArrowDown}");
+
+    expect(mockOnChange).not.toHaveBeenCalled();
+  });
+
   it("prevents calendar from opening when clear button is clicked", async () => {
     const testDate = new Date("2024-01-15T00:00:00Z");
     render(<DatePicker value={testDate} onChange={mockOnChange} />);
@@ -320,6 +348,26 @@ describe("DatePicker", () => {
     expect(screen.queryByTestId("day-picker")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
     expect(parentKeyDown).not.toHaveBeenCalled();
+  });
+
+  it("closes an open month listbox before closing the calendar", () => {
+    render(
+      <DatePicker
+        value={new Date("2024-01-15T00:00:00Z")}
+        onChange={mockOnChange}
+        monthYearNavigation
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    const month = screen.getByRole("combobox", { name: "Monat" });
+    fireEvent.click(month);
+    expect(month).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(month, { key: "Escape" });
+
+    expect(month).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
   });
 
   it("applies custom className", () => {
@@ -503,6 +551,26 @@ describe("DatePicker", () => {
 });
 
 describe("ISODateInput", () => {
+  it("reports an existing date after the configured maximum as invalid", () => {
+    const onValidityChange = vi.fn();
+    render(
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value="2026-08-13"
+        onChange={vi.fn()}
+        onValidityChange={onValidityChange}
+        max="2026-08-12"
+        maxDateError="Das Geburtsdatum darf nicht in der Zukunft liegen."
+      />,
+    );
+
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Das Geburtsdatum darf nicht in der Zukunft liegen.",
+    );
+  });
+
   it("converts a valid German date to the ISO calendar format", () => {
     const onChange = vi.fn();
     render(
