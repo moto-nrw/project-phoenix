@@ -750,7 +750,7 @@ func TestTimetableOperationsPatchAttendanceRejectsCompletedInstance(t *testing.T
 	assert.Empty(t, deps.studentRepo.updates)
 }
 
-func TestTimetableOperationsReopenRequiresOperate(t *testing.T) {
+func TestTimetableOperationsReopenRequiresCompleterOrAdmin(t *testing.T) {
 	instanceID := int64(428)
 	deps := newTimetableOpsDeps()
 	completed := activeInstance(instanceID, 306)
@@ -763,9 +763,22 @@ func TestTimetableOperationsReopenRequiresOperate(t *testing.T) {
 
 	wireAssignedStaff(deps, 694, 516, 275, instanceID)
 	result, err = deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	assert.Nil(t, result)
+
+	completedBy := int64(694)
+	completed.CompletedBy = &completedBy
+	deps.staffRepo.byInstance[instanceID] = nil
+	result, err = deps.service.Reopen(context.Background(), 694, false, instanceID)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, instanceID, result.Instance.ID)
+
+	other := int64(701)
+	completed.CompletedBy = &other
+	result, err = deps.service.Reopen(context.Background(), 694, true, instanceID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 }
 
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {

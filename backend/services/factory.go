@@ -661,6 +661,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Instances:        repos.ActivityInstance,
 		InstanceStudents: repos.InstanceStudent,
 		CareDays:         careDayService,
+		Settings:         settingsService,
 	})
 
 	// Initialize active service with SSE broadcaster

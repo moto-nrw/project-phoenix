@@ -512,16 +512,17 @@ func (rs *Resource) enrichInstance(
 		AssignedStaffCount:     assignedStaff,
 		RequiredStaffOverride:  inst.RequiredStaff,
 		ConflictWarnings:       []scheduleSvc.InstanceConflictWarning{},
-		CanReopen:              reopenEligibility(ctx, inst),
+		CanReopen:              reopenEligibility(ctx, inst, studentRows),
 		CanComplete:            availability.CanComplete,
 		CompleteAvailableAt:    availability.CompleteAvailableAt.Format(time.RFC3339),
 	}
 	return item, staffRows, studentRows, nil
 }
 
-func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance) bool {
+func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance, attendance []*scheduleModel.InstanceStudent) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), authorize.HasEffectiveAdminScope(ctx), time.Now())
+	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), authorize.HasEffectiveAdminScope(ctx), time.Now()) &&
+		scheduleSvc.AttendanceUnchangedSinceCompletion(inst, attendance)
 }
 
 // dayConflictWarningsFor computes the #2139 window conflicts for ONE instance

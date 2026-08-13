@@ -1075,10 +1075,38 @@ func CanReopenInstance(instance *scheduleModel.ActivityInstance, accountID int64
 	if len(instance.CompletionSnapshot) == 0 {
 		return false
 	}
+	if !CanReopenAsActor(instance, accountID, isAdmin) {
+		return false
+	}
+	return true
+}
+
+// CanReopenAsActor is the actor/admin half of the reopen gate. Completing a
+// live group ends its supervisor row, so operational access is not a
+// substitute for this check.
+func CanReopenAsActor(instance *scheduleModel.ActivityInstance, accountID int64, isAdmin bool) bool {
+	if instance == nil || instance.Status != scheduleModel.InstanceStatusCompleted {
+		return false
+	}
 	if isAdmin {
 		return true
 	}
 	return instance.CompletedBy != nil && *instance.CompletedBy == accountID
+}
+
+// AttendanceUnchangedSinceCompletion reports whether any roster row was
+// written after the instance was completed. A later attendance PATCH makes
+// snapshot restore unsafe.
+func AttendanceUnchangedSinceCompletion(instance *scheduleModel.ActivityInstance, rows []*scheduleModel.InstanceStudent) bool {
+	if instance == nil || instance.CompletedAt == nil {
+		return true
+	}
+	for _, row := range rows {
+		if row != nil && row.GetUpdatedAt().After(*instance.CompletedAt) {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {

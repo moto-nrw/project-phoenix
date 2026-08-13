@@ -134,6 +134,9 @@ func (s *TimetableDataService) UpdateInstanceStudentAttendance(ctx context.Conte
 }
 
 func (s *TimetableDataService) GetActivityInstance(ctx context.Context, id int64) (*scheduleModel.ActivityInstance, error) {
+	if s.deps.ActivityInstanceRepo == nil {
+		return nil, nil
+	}
 	return s.deps.ActivityInstanceRepo.FindByID(ctx, id)
 }
 

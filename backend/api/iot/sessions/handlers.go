@@ -13,6 +13,7 @@ import (
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -95,6 +96,10 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	// the mirrored instance's own completion event is registered after commit
 	// and is dropped with the rollback.
 	if err := rs.completeMirroredTimetableInstance(r.Context(), currentSession.ID); err != nil {
+		if errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, "complete_too_early"))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to end mirrored timetable instance", err))
 		return
 	}

@@ -108,6 +108,20 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	inst, err := rs.TimetableData.GetActivityInstance(ctx, instanceID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
+		return
+	}
+	if inst != nil && (inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled) {
+		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance is frozen after completion")))
+		return
+	}
+
 	if verrs := validateAttendancePatch(patch, current); len(verrs) > 0 {
 		renderValidationErrors(w, r, verrs)
 		return

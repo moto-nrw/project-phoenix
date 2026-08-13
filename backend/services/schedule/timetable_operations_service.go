@@ -366,8 +366,15 @@ func (s *timetableOperationsService) Complete(ctx context.Context, accountID int
 }
 
 func (s *timetableOperationsService) Reopen(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error) {
-	if _, err := s.requireCanOperate(ctx, accountID, isAdmin, instanceID); err != nil {
+	inst, err := s.loadInstance(ctx, instanceID)
+	if err != nil {
 		return nil, err
+	}
+	// Completing a live group closes its supervisor row, so requireCanOperate
+	// would reject the same person who just finished the block. Reopen is
+	// gated by the completion actor / admin check instead.
+	if !CanReopenAsActor(inst, accountID, isAdmin) {
+		return nil, ErrTimetableOperationForbidden
 	}
 	return s.deps.InstanceService.Reopen(ctx, instanceID, accountID, isAdmin)
 }

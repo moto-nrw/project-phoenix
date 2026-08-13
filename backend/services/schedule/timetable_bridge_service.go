@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -17,6 +18,10 @@ type TimetableBridgeDependencies struct {
 	// CareDays is optional. Without it no child is spared the absent stamp,
 	// which is the behaviour that predates #1747 — never a silent skip.
 	CareDays CareDayService
+	// Settings is optional. Missing or failing resolution keeps the registry
+	// default (enforce planned end), so kiosk and session-end cannot complete
+	// a planned block early.
+	Settings LifecycleSettings
 }
 
 // TimetableBridgeService completes the schedule-side rows of active.groups that
@@ -62,6 +67,9 @@ func (s *TimetableBridgeService) CompleteActiveByActiveGroupIDs(
 	if len(activeGroupIDs) == 0 {
 		return 0, nil
 	}
+	if err := s.rejectEarlyCompletions(ctx, activeGroupIDs, completedAt); err != nil {
+		return 0, err
+	}
 
 	notScheduled, err := s.notScheduledForEndedSessions(ctx, activeGroupIDs)
 	if err != nil {
@@ -80,6 +88,37 @@ func (s *TimetableBridgeService) CompleteActiveByActiveGroupIDs(
 	}
 
 	return s.deps.Instances.CompleteActiveByActiveGroupIDs(ctx, activeGroupIDs, completedAt)
+}
+
+func (s *TimetableBridgeService) rejectEarlyCompletions(ctx context.Context, activeGroupIDs []int64, now time.Time) error {
+	enforce := true
+	if s.deps.Settings != nil {
+		value, err := s.deps.Settings.ResolveBool(ctx, configModel.KeyTimetableEnforcePlannedEnd)
+		if err != nil {
+			return fmt.Errorf("%w: resolve planned end policy: %v", ErrLifecycleSettings, err)
+		}
+		enforce = value
+	}
+	if !enforce {
+		return nil
+	}
+	for _, activeGroupID := range activeGroupIDs {
+		instance, err := s.deps.Instances.FindByActiveGroupID(ctx, activeGroupID)
+		if err != nil {
+			return &ScheduleError{
+				Op:  "complete bridged instances: load instance for planned-end policy",
+				Err: fmt.Errorf("active group %d: %w", activeGroupID, err),
+			}
+		}
+		if instance == nil {
+			continue
+		}
+		availability := EvaluateLifecycleAvailability(instance, now, 0, true)
+		if !availability.CanComplete {
+			return fmt.Errorf("%w: available at %s", ErrInstanceCompleteEarly, availability.CompleteAvailableAt.Format(time.RFC3339))
+		}
+	}
+	return nil
 }
 
 // notScheduledForEndedSessions collects the (instance, student) pairs where the

@@ -121,6 +121,16 @@ func TestCanReopenInstance(t *testing.T) {
 	assert.True(t, CanReopenInstance(base, 41, true, now))
 	assert.False(t, CanReopenInstance(base, 40, false, now))
 	assert.False(t, CanReopenInstance(base, 42, false, until.Add(time.Second)))
+	assert.True(t, CanReopenAsActor(base, 42, false))
+	assert.False(t, CanReopenAsActor(base, 40, false))
+	completedAt := now
+	base.CompletedAt = &completedAt
+	changed := &scheduleModel.InstanceStudent{}
+	changed.UpdatedAt = now.Add(time.Minute)
+	assert.False(t, AttendanceUnchangedSinceCompletion(base, []*scheduleModel.InstanceStudent{changed}))
+	unchanged := &scheduleModel.InstanceStudent{}
+	unchanged.UpdatedAt = now.Add(-time.Minute)
+	assert.True(t, AttendanceUnchangedSinceCompletion(base, []*scheduleModel.InstanceStudent{unchanged}))
 	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
 		Status:             scheduleModel.InstanceStatusCompleted,
 		CompletedBy:        &completedBy,
