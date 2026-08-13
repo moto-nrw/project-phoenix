@@ -901,11 +901,13 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
-        case "bulk_student_checkout": {
-          // Whole-session end (#848): one event per topic carrying every
-          // affected student. Mirror student_checkout — invalidate the
-          // session's group caches plus each student's detail cache — but read
-          // the batched student_ids list instead of a single student_id.
+        case "bulk_student_checkout":
+        case "bulk_student_checkin": {
+          // Whole-session end (#848) or reopen restore: one event per topic
+          // carrying every affected student. Mirror student_checkin/checkout —
+          // invalidate the session's group caches plus each student's detail
+          // cache — but read the batched student_ids list instead of a single
+          // student_id.
           if (event.active_group_id) {
             pendingGroupIds.current.add(event.active_group_id);
           }

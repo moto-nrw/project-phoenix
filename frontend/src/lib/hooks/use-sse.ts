@@ -150,6 +150,7 @@ export function useSSE(
           "student_checkin",
           "student_checkout",
           "bulk_student_checkout",
+          "bulk_student_checkin",
           "student_updated",
           "activity_start",
           "activity_end",

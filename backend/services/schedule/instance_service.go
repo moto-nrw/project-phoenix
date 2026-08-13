@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -971,7 +972,93 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	instance.CompletedAt, instance.CompletedBy, instance.ReopenUntil = nil, nil, nil
 	instance.CompletionSnapshot = nil
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceStarted, instance, nil, nil)
+	s.broadcastRestoredVisits(ctx, snapshot.ActiveGroupID, studentIDs)
 	return &StartInstanceResult{Instance: instance, ActiveGroupID: snapshot.ActiveGroupID, Warnings: []InstanceConflictWarning{}}, nil
+}
+
+// broadcastRestoredVisits emits the check-in-equivalent invalidation for
+// visits brought back by Reopen. instance_started / active_supervision_changed
+// refresh timetable and supervision caches; they do not touch the OGS
+// student-list and location caches that completion invalidated via
+// bulk_student_checkout. Student IDs stay on group-scoped topics only.
+func (s *instanceService) broadcastRestoredVisits(ctx context.Context, activeGroupID int64, studentIDs []int64) {
+	if s.deps.Broadcaster == nil || activeGroupID == 0 || len(studentIDs) == 0 {
+		return
+	}
+
+	allStudentIDs := make([]string, 0, len(studentIDs))
+	for _, studentID := range studentIDs {
+		allStudentIDs = append(allStudentIDs, strconv.FormatInt(studentID, 10))
+	}
+
+	eduGroups := make(map[int64][]string)
+	if s.deps.StudentRepo != nil {
+		students, err := s.deps.StudentRepo.FindReadScopeByIDs(ctx, studentIDs)
+		if err != nil {
+			s.getLogger().Warn("reopen visit invalidation: student scope lookup failed",
+				slog.String("error", err.Error()),
+			)
+		} else {
+			for _, studentID := range studentIDs {
+				student := students[studentID]
+				if student == nil || student.GroupID == nil {
+					continue
+				}
+				gid := *student.GroupID
+				eduGroups[gid] = append(eduGroups[gid], strconv.FormatInt(studentID, 10))
+			}
+		}
+	}
+
+	allEduGroupIDs := make([]string, 0, len(eduGroups))
+	for gid := range eduGroups {
+		allEduGroupIDs = append(allEduGroupIDs, strconv.FormatInt(gid, 10))
+	}
+
+	sessionIDStr := strconv.FormatInt(activeGroupID, 10)
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		activeData := realtime.EventData{StudentIDs: &allStudentIDs}
+		if len(allEduGroupIDs) > 0 {
+			activeData.GroupIDs = &allEduGroupIDs
+		}
+		activeEvent := realtime.NewEvent(realtime.EventBulkStudentCheckIn, sessionIDStr, activeData)
+		if err := s.deps.Broadcaster.BroadcastToGroup(tenantID, sessionIDStr, activeEvent); err != nil {
+			s.getLogger().Warn("SSE broadcast failed",
+				slog.String("event_type", string(realtime.EventBulkStudentCheckIn)),
+				slog.String("active_group_id", sessionIDStr),
+				slog.String("error", err.Error()),
+			)
+		}
+		for gid, ids := range eduGroups {
+			groupIDs := ids
+			eduGroupID := []string{strconv.FormatInt(gid, 10)}
+			eduEvent := realtime.NewEvent(
+				realtime.EventBulkStudentCheckIn,
+				sessionIDStr,
+				realtime.EventData{StudentIDs: &groupIDs, GroupIDs: &eduGroupID},
+			)
+			eduTopic := fmt.Sprintf("edu:%d", gid)
+			if err := s.deps.Broadcaster.BroadcastToGroup(tenantID, eduTopic, eduEvent); err != nil {
+				s.getLogger().Warn("SSE broadcast failed",
+					slog.String("event_type", string(realtime.EventBulkStudentCheckIn)),
+					slog.String("education_group_topic", eduTopic),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+		dashData := realtime.EventData{}
+		if len(allEduGroupIDs) > 0 {
+			dashData.GroupIDs = &allEduGroupIDs
+		}
+		dashEvent := realtime.NewEvent(realtime.EventDashboardCountsChanged, "", dashData)
+		if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, dashEvent); err != nil {
+			s.getLogger().Warn("SSE dashboard counts broadcast failed",
+				slog.String("error", err.Error()),
+				slog.Int64("tenant_id", tenantID),
+			)
+		}
+	})
 }
 
 // CanReopenInstance is the actor-aware reopen gate the list payload exposes

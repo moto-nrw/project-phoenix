@@ -9,7 +9,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,6 +132,61 @@ func TestCanReopenInstance(t *testing.T) {
 		CompletedBy: &completedBy,
 		ReopenUntil: &until,
 	}, 42, true, now))
+}
+
+type studentReadScopeStub struct {
+	usersModel.StudentRepository
+	byID map[int64]*usersModel.Student
+}
+
+func (s studentReadScopeStub) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*usersModel.Student, error) {
+	out := make(map[int64]*usersModel.Student, len(ids))
+	for _, id := range ids {
+		if student, ok := s.byID[id]; ok {
+			out[id] = student
+		}
+	}
+	return out, nil
+}
+
+func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	eduGroupID := int64(7)
+	student := &usersModel.Student{GroupID: &eduGroupID}
+	student.ID = 42
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		Broadcaster: broadcaster,
+		StudentRepo: studentReadScopeStub{byID: map[int64]*usersModel.Student{42: student}},
+	}}
+
+	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, []int64{42})
+
+	groupEvents := broadcaster.EventsOfType(realtime.EventBulkStudentCheckIn)
+	require.Len(t, groupEvents, 2)
+	assert.Equal(t, "99", groupEvents[0].ActiveGroupID)
+	require.NotNil(t, groupEvents[0].Data.StudentIDs)
+	assert.Equal(t, []string{"42"}, *groupEvents[0].Data.StudentIDs)
+	require.NotNil(t, groupEvents[0].Data.GroupIDs)
+	assert.Equal(t, []string{"7"}, *groupEvents[0].Data.GroupIDs)
+
+	eduCalls := broadcaster.GroupCallsForTopic("edu:7")
+	require.Len(t, eduCalls, 1)
+	assert.Equal(t, realtime.EventBulkStudentCheckIn, eduCalls[0].Event.Type)
+	require.NotNil(t, eduCalls[0].Event.Data.StudentIDs)
+	assert.Equal(t, []string{"42"}, *eduCalls[0].Event.Data.StudentIDs)
+
+	dash := broadcaster.EventsOfType(realtime.EventDashboardCountsChanged)
+	require.Len(t, dash, 1)
+	require.NotNil(t, dash[0].Data.GroupIDs)
+	assert.Equal(t, []string{"7"}, *dash[0].Data.GroupIDs)
+	assert.Empty(t, broadcaster.EventsOfType(realtime.EventStudentCheckIn))
+}
+
+func TestBroadcastRestoredVisits_SkipsEmptyRestore(t *testing.T) {
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
+	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, nil)
+	assert.Empty(t, broadcaster.Calls())
 }
 
 func TestValidateLegacyWeekendInstanceDate(t *testing.T) {

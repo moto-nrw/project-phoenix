@@ -41,6 +41,13 @@ const (
 	// per-student detail-cache invalidation.
 	EventBulkStudentCheckOut EventType = "bulk_student_checkout"
 
+	// Bulk check-in counterpart of EventBulkStudentCheckOut. Used when many
+	// visits become live at once (activity reopen restoring a snapshot) so
+	// clients get one location-cache invalidation instead of N student_checkin
+	// events. Same payload contract as the checkout batch: StudentIDs on
+	// group-scoped topics only, GroupIDs for OGS list scoping.
+	EventBulkStudentCheckIn EventType = "bulk_student_checkin"
+
 	// Activity session lifecycle events
 	EventActivityStart  EventType = "activity_start"
 	EventActivityEnd    EventType = "activity_end"
@@ -221,14 +228,14 @@ type EventData struct {
 	StudentID   *string `json:"student_id,omitempty"`
 	StudentName *string `json:"student_name,omitempty"`
 
-	// StudentIDs carries the affected students on a bulk_student_checkout event
-	// (whole-session end). The client adds each to its per-student
+	// StudentIDs carries the affected students on a bulk_student_checkout or
+	// bulk_student_checkin event. The client adds each to its per-student
 	// detail-cache invalidation set; the refetch itself is topic-driven.
 	StudentIDs *[]string `json:"student_ids,omitempty"`
 
 	// GroupIDs carries the affected educational (OGS) group ids on
 	// dashboard_counts_changed / student_checkin / student_checkout /
-	// bulk_student_checkout (#2057). Group ids only — NEVER student identity —
+	// bulk_student_checkout / bulk_student_checkin (#2057). Group ids only — NEVER student identity —
 	// so the tenant-wide dashboard_counts_changed stays GDPR-safe under
 	// gdpr.student_data_scope: it reveals "counts in group X changed", nothing
 	// about who. Clients scope their ogs-students-{gid} revalidation to these
