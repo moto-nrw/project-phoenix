@@ -170,7 +170,11 @@ func (s *Service) deleteAllAccountTokensWithAudit(ctx context.Context, accountID
 		}
 		return s.auditRevokedTokens(adminCtx, tokens, reason, ipAddress, userAgent)
 	}
-	if _, ok := modelBase.TxFromContext(ctx); ok && (tenant.FromContext(ctx) == 0 || tenant.IsAdminTx(ctx)) {
+	// Never nest a second transaction. Offboarding and tenant requests already
+	// hold a connection (and often the account row). A nested AdminTx times
+	// out on the 3-conn test pool. Cross-tenant wipe happens when we can
+	// start a fresh admin transaction.
+	if _, ok := modelBase.TxFromContext(ctx); ok {
 		return tokens, run(ctx)
 	}
 	if s.db == nil {
@@ -280,12 +284,9 @@ func (s *Service) withStaffPushAdminTx(ctx context.Context, fn func(context.Cont
 	if s.db == nil {
 		return fn(ctx)
 	}
-	// Reuse an ambient admin transaction (login persist already holds
-	// BYPASSRLS and the account row lock). Opening a second AdminTx
-	// here deadlocks on the 3-conn test pool under concurrent login.
-	// A tenant-scoped request still gets a dedicated admin transaction
-	// so RLS cannot hide other schools.
-	if _, ok := modelBase.TxFromContext(ctx); ok && (tenant.FromContext(ctx) == 0 || tenant.IsAdminTx(ctx)) {
+	// Reuse any ambient transaction. Opening a second AdminTx while the
+	// caller still holds a connection deadlocks on the 3-conn test pool.
+	if _, ok := modelBase.TxFromContext(ctx); ok {
 		return fn(ctx)
 	}
 	return tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
