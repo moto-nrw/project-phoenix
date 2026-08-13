@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const activityCompletionSnapshotVersion = "1.15.290"
+const activityCompletionSnapshotVersion = "1.15.291"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -19,7 +19,7 @@ func init() {
 }
 
 func activityCompletionSnapshotUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.290: Adding activity completion snapshots (#2266)...")
+	fmt.Println("Migration 1.15.291: Adding activity completion snapshots (#2266)...")
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances
 			ADD COLUMN IF NOT EXISTS completion_snapshot JSONB;
