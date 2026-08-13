@@ -35,10 +35,10 @@ describe("PushNotificationSection", () => {
   it("shows the enable button when push is supported and not subscribed", async () => {
     render(<PushNotificationSection />);
     expect(
-      await screen.findByRole("button", { name: "Aktivieren" }),
+      await screen.findByRole("button", { name: "Einschalten" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Erhalten Sie Erinnerungen als Systembenachrichtigung/),
+      screen.getByText(/Bekommen Sie Erinnerungen direkt auf dieses Gerät/),
     ).toBeInTheDocument();
   });
 
@@ -47,7 +47,7 @@ describe("PushNotificationSection", () => {
     render(<PushNotificationSection />);
     expect(await screen.findByText(/Zum Home-Bildschirm/)).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Aktivieren" }),
+      screen.queryByRole("button", { name: "Einschalten" }),
     ).not.toBeInTheDocument();
   });
 
@@ -56,7 +56,7 @@ describe("PushNotificationSection", () => {
     render(<PushNotificationSection />);
     expect(
       await screen.findByText(
-        "Dieser Browser unterstützt keine Push-Benachrichtigungen.",
+        "Dieser Browser kann leider keine Benachrichtigungen anzeigen.",
       ),
     ).toBeInTheDocument();
   });
@@ -75,16 +75,14 @@ describe("PushNotificationSection", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Aktivieren" }),
+      screen.queryByRole("button", { name: "Einschalten" }),
     ).not.toBeInTheDocument();
   });
 
   it("shows the blocked message when permission is denied", async () => {
     stubNotificationPermission("denied");
     render(<PushNotificationSection />);
-    expect(
-      await screen.findByText(/für diese Seite blockiert/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/für moto blockiert/)).toBeInTheDocument();
   });
 
   it("subscribes via the push API and flips to the active state", async () => {
@@ -96,24 +94,24 @@ describe("PushNotificationSection", () => {
     });
 
     render(<PushNotificationSection portal="tenant" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Aktivieren" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Einschalten" }));
 
     await waitFor(() =>
       expect(pushApi.subscribePush).toHaveBeenCalledWith("tenant"),
     );
     expect(
       await screen.findByText(
-        "Benachrichtigungen sind auf diesem Gerät aktiviert.",
+        "Benachrichtigungen sind auf diesem Gerät eingeschaltet.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Deaktivieren" }),
+      screen.getByRole("button", { name: "Ausschalten" }),
     ).toBeInTheDocument();
   });
 
   it("passes the parent portal through to the push API", async () => {
     render(<PushNotificationSection portal="parent" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Aktivieren" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Einschalten" }));
     await waitFor(() =>
       expect(pushApi.subscribePush).toHaveBeenCalledWith("parent"),
     );
@@ -124,7 +122,7 @@ describe("PushNotificationSection", () => {
       new Error("Benachrichtigungen wurden nicht erlaubt."),
     );
     render(<PushNotificationSection />);
-    fireEvent.click(await screen.findByRole("button", { name: "Aktivieren" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Einschalten" }));
     expect(
       await screen.findByText("Benachrichtigungen wurden nicht erlaubt."),
     ).toBeInTheDocument();
@@ -140,15 +138,13 @@ describe("PushNotificationSection", () => {
     });
 
     render(<PushNotificationSection />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Deaktivieren" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Ausschalten" }));
 
     await waitFor(() =>
       expect(pushApi.unsubscribePush).toHaveBeenCalledWith("tenant"),
     );
     expect(
-      await screen.findByRole("button", { name: "Aktivieren" }),
+      await screen.findByRole("button", { name: "Einschalten" }),
     ).toBeInTheDocument();
   });
 
@@ -216,7 +212,7 @@ describe("PushNotificationSection", () => {
     expect(
       await screen.findByRole("button", { name: "Wird gesendet…" }),
     ).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Deaktivieren" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ausschalten" })).toBeDisabled();
 
     finishRequest?.();
     await screen.findByText("Testbenachrichtigung wurde gesendet.");
