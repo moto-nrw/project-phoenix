@@ -185,6 +185,9 @@ export interface EnrichedInstance {
    */
   requiredStaffOverride?: number;
   conflictWarnings: ConflictWarning[];
+  canReopen?: boolean;
+  canComplete?: boolean;
+  completeAvailableAt?: string;
 }
 
 interface EmptyRosterReason {
@@ -272,6 +275,9 @@ export interface BackendEnrichedInstance {
     overlap_start?: string;
     overlap_end?: string;
   }>;
+  can_reopen?: boolean;
+  can_complete?: boolean;
+  complete_available_at?: string;
 }
 
 export interface BackendWeeklyInstancesResponse {
@@ -694,6 +700,7 @@ export interface InstanceStatusResult {
   instanceId: string;
   status: InstanceStatus;
   completedAt?: string;
+  reopenUntil?: string;
 }
 
 export interface BackendStartInstanceResult {
@@ -713,6 +720,7 @@ export interface BackendInstanceStatusResult {
   instance_id: number;
   status: InstanceStatus;
   completed_at?: string;
+  reopen_until?: string;
 }
 
 export interface AttendancePatchBody {

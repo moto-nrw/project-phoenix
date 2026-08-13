@@ -363,6 +363,52 @@ describe("useGlobalSSE", () => {
       expect(dashboardCall).toBeDefined();
     });
 
+    it("invalidates group and per-student caches on bulk_student_checkin event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "bulk_student_checkin",
+        active_group_id: "123",
+        data: { student_ids: ["42", "77"], group_ids: ["7"] },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const supervisionCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:supervision-visits-123")
+        );
+      });
+      expect(supervisionCall).toBeDefined();
+
+      for (const id of ["42", "77"]) {
+        const detailCall = mutateCalls.find((call) => {
+          const matcher = call[0];
+          return (
+            typeof matcher === "function" &&
+            (matcher as (key: string) => boolean)(`tenant:student-detail-${id}`)
+          );
+        });
+        expect(detailCall).toBeDefined();
+      }
+
+      const ogsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:ogs-students-7") &&
+          !(matcher as (key: string) => boolean)("tenant:ogs-students-8")
+        );
+      });
+      expect(ogsCall).toBeDefined();
+    });
+
     it("invalidates group and per-student caches on bulk_student_checkout event", () => {
       renderHook(() => useGlobalSSE());
 

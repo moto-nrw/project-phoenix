@@ -802,8 +802,11 @@ function TimetablesContent() {
             toast.success("Aktivität gestartet");
           }
         } else if (action === "complete") {
-          await timetableService.complete(selectedInstance.id);
+          await timetableService.complete(selectedInstance.id, []);
           toast.success("Aktivität beendet");
+        } else if (action === "reopen") {
+          await timetableService.reopen(selectedInstance.id);
+          toast.success("Aktivität wieder geöffnet");
         } else {
           await timetableService.cancel(selectedInstance.id);
           toast.success("Aktivität abgesagt");

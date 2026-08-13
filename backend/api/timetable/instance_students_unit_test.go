@@ -351,6 +351,47 @@ func TestPatchHandler_500_FindError_NotNotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "load instance student failed")
 }
 
+type fakeRecoveryRepo struct {
+	lockAttendance func(ctx context.Context, instanceID int64) error
+}
+
+func (f *fakeRecoveryRepo) LockAttendance(ctx context.Context, instanceID int64) error {
+	if f.lockAttendance != nil {
+		return f.lockAttendance(ctx, instanceID)
+	}
+	return nil
+}
+
+func (f *fakeRecoveryRepo) LockOpenVisits(context.Context, int64) error { panic("unused") }
+func (f *fakeRecoveryRepo) LockOpenSupervisors(context.Context, int64) error {
+	panic("unused")
+}
+func (f *fakeRecoveryRepo) LockSupervisors(context.Context, []int64) error { panic("unused") }
+func (f *fakeRecoveryRepo) Restore(context.Context, int64, schedule.ActivityCompletionSnapshot, time.Time) error {
+	panic("unused")
+}
+
+func TestPatchHandler_500_LockAttendanceFails(t *testing.T) {
+	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
+	current.ID = 7
+	repo := &fakeRepo{currentState: current}
+	recovery := &fakeRecoveryRepo{
+		lockAttendance: func(context.Context, int64) error {
+			return errors.New("could not acquire lock")
+		},
+	}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+		InstanceStudentRepo: repo,
+		RecoveryRepo:        recovery,
+	})}}
+	router := unitRouter(res)
+
+	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "lock attendance failed")
+	assert.Equal(t, 0, repo.updateCalls, "lock failure must short-circuit before UPDATE")
+}
+
 func TestPatchHandler_500_UpdateError(t *testing.T) {
 	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
 	current.ID = 7

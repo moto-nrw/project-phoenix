@@ -7,6 +7,11 @@ import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import {
+  canStartPlannedInstance,
+  isPlannedStartExpired,
+} from "~/lib/timetable-lifecycle";
 import type {
   PlannedTimetableInstance,
   TimetableRosterRow,
@@ -60,15 +65,20 @@ export function PlannedNowSection({
   onStart,
 }: PlannedNowSectionProps) {
   const showTimetableCounts = useShowTimetableCounts();
+  const now = useMinuteClock();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [sectionExpanded, setSectionExpanded] = useState<boolean | null>(null);
   const sortedPlanned = useMemo(
     () =>
-      [...plannedNow].sort((a, b) => {
-        if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
-        return a.minutesUntilStart - b.minutesUntilStart;
-      }),
-    [plannedNow],
+      [...plannedNow]
+        .filter(
+          (instance) => !isPlannedStartExpired(instance.startExpiresAt, now),
+        )
+        .sort((a, b) => {
+          if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+          return a.minutesUntilStart - b.minutesUntilStart;
+        }),
+    [now, plannedNow],
   );
 
   if (sortedPlanned.length === 0) {
@@ -112,12 +122,15 @@ export function PlannedNowSection({
       !instance.isOverdue &&
       instance.minutesUntilStart <= SOON_THRESHOLD_MINUTES,
   ).length;
+  const startableCount = sortedPlanned.filter((instance) =>
+    canStartPlannedInstance(instance, now),
+  ).length;
   const expectedCount = sortedPlanned.reduce(
     (sum, instance) => sum + instance.expectedStudentsCount,
     0,
   );
   const hasActionableSlot =
-    !hasActiveTimetableSession && (overdueCount > 0 || soonCount > 0);
+    !hasActiveTimetableSession && (overdueCount > 0 || startableCount > 0);
   const isSectionExpanded = sectionExpanded ?? hasActionableSlot;
 
   return (
@@ -214,14 +227,21 @@ export function PlannedNowSection({
 
                       <button
                         type="button"
-                        disabled={isStartingInstance === instance.id}
+                        disabled={
+                          isStartingInstance === instance.id ||
+                          !canStartPlannedInstance(instance, now)
+                        }
                         onClick={() => onStart(instance)}
                         className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Play className="h-4 w-4" aria-hidden="true" />
                         {isStartingInstance === instance.id
                           ? "Startet..."
-                          : "Starten"}
+                          : canStartPlannedInstance(instance, now)
+                            ? "Starten"
+                            : instance.startAvailableAt
+                              ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
+                              : "Noch nicht verfügbar"}
                       </button>
                     </div>
 

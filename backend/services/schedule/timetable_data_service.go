@@ -74,6 +74,9 @@ type TimetableDataDependencies struct {
 	DeviationEventRepo auditModel.DeviationEventRepository
 	// ConflictAckRepo stores per-user conflict acknowledgements (#2139).
 	ConflictAckRepo scheduleModel.TimetableConflictAckRepository
+	// RecoveryRepo serializes attendance writes with instance completion.
+	// Production always wires it; unit-test facades may leave it nil.
+	RecoveryRepo scheduleModel.ActivityRecoveryRepository
 	// Broadcaster invalidates planner and "Heute geplant" caches after
 	// template-side changes that bypass the instance CRUD flows.
 	Broadcaster realtime.Broadcaster
@@ -134,7 +137,20 @@ func (s *TimetableDataService) UpdateInstanceStudentAttendance(ctx context.Conte
 }
 
 func (s *TimetableDataService) GetActivityInstance(ctx context.Context, id int64) (*scheduleModel.ActivityInstance, error) {
+	if s.deps.ActivityInstanceRepo == nil {
+		return nil, nil
+	}
 	return s.deps.ActivityInstanceRepo.FindByID(ctx, id)
+}
+
+// LockInstanceAttendance takes FOR UPDATE on every instance_students row so a
+// concurrent Complete cannot flip the instance to completed between the
+// status check and the attendance UPDATE. No-op when RecoveryRepo is unset.
+func (s *TimetableDataService) LockInstanceAttendance(ctx context.Context, instanceID int64) error {
+	if s.deps.RecoveryRepo == nil {
+		return nil
+	}
+	return s.deps.RecoveryRepo.LockAttendance(ctx, instanceID)
 }
 
 func (s *TimetableDataService) GetActivityInstancesByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error) {

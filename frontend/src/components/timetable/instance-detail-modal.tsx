@@ -40,6 +40,8 @@ import {
 } from "~/lib/tenant-context";
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -65,9 +67,9 @@ import type {
 } from "~/lib/timetable-types";
 import { isNotScheduledRow } from "~/lib/timetable-types";
 
-export type LifecycleAction = "start" | "complete" | "cancel";
+export type LifecycleAction = "start" | "complete" | "cancel" | "reopen";
 
-type PendingConfirmAction = "complete" | "cancel" | "delete";
+type PendingConfirmAction = "complete" | "cancel" | "delete" | "reopen";
 
 const CONFIRM_DIALOGS: Record<
   PendingConfirmAction,
@@ -80,7 +82,7 @@ const CONFIRM_DIALOGS: Record<
 > = {
   complete: {
     title: "Termin beenden?",
-    body: "Der laufende Termin wird beendet und kann nicht erneut gestartet werden.",
+    body: "Der laufende Termin wird beendet. Innerhalb von fünf Minuten kann er kontrolliert wieder geöffnet werden.",
     confirmText: "Beenden",
   },
   cancel: {
@@ -93,6 +95,11 @@ const CONFIRM_DIALOGS: Record<
     body: "Der abgesagte Termin wird dauerhaft entfernt.",
     confirmText: "Löschen",
     confirmButtonClass: "bg-moto-red hover:bg-moto-red-strong",
+  },
+  reopen: {
+    title: "Termin wieder öffnen?",
+    body: "Die Aufsicht sowie die Anwesenheiten zum Zeitpunkt des Abschlusses werden wiederhergestellt.",
+    confirmText: "Wieder öffnen",
   },
 };
 
@@ -270,7 +277,9 @@ function attendancePatchForInstance(
   onAttendancePatch: InstanceDetailModalProps["onAttendancePatch"],
 ): InstanceDetailModalProps["onAttendancePatch"] {
   if (!attendanceWebEnabled || !instance) return undefined;
-  if (instance.status === "cancelled") return undefined;
+  if (instance.status === "cancelled" || instance.status === "completed") {
+    return undefined;
+  }
   return onAttendancePatch;
 }
 
@@ -460,6 +469,12 @@ export function InstanceDetailModal({
   // /{slug}-Präfix tragen, sonst führt der Link ins Leere.
   const tenantPath = useTenantAwarePath();
   const today = useBerlinToday();
+  const now = useMinuteClock();
+  const completeEnabled = canCompleteInstance(
+    instance?.canComplete === true,
+    instance?.completeAvailableAt ?? "",
+    now,
+  );
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
@@ -686,11 +701,11 @@ export function InstanceDetailModal({
             onClick={() => setPendingConfirm("complete")}
             isLoading={pendingAction === "complete"}
             loadingText="Beende …"
-            disabled={pendingAction !== null}
+            disabled={pendingAction !== null || !completeEnabled}
           >
             <span className="inline-flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              Beenden
+              {completeEnabled ? "Beenden" : `Beenden ab ${instance.endTime}`}
             </span>
           </Button>
         )}
@@ -728,10 +743,25 @@ export function InstanceDetailModal({
           </Button>
         )}
         {instance.status === "completed" && (
-          <span className="inline-flex items-center gap-2 text-xs text-gray-500">
-            <CheckCircle2 className="h-4 w-4" />
-            Diese Aktivität ist bereits abgeschlossen.
-          </span>
+          <>
+            <span className="inline-flex items-center gap-2 text-xs text-gray-500">
+              <CheckCircle2 className="h-4 w-4" />
+              Diese Aktivität ist bereits abgeschlossen.
+            </span>
+            {instance.canReopen && (
+              <Button
+                variant="outline"
+                size="md"
+                type="button"
+                onClick={() => setPendingConfirm("reopen")}
+                isLoading={pendingAction === "reopen"}
+                loadingText="Öffne wieder …"
+                disabled={pendingAction !== null}
+              >
+                Wieder öffnen
+              </Button>
+            )}
+          </>
         )}
         {instance.status === "cancelled" && (
           <>

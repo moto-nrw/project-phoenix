@@ -578,11 +578,34 @@ class TimetableService {
    * Transitions an active instance to completed. Closes the active.group,
    * marks remaining expected students as absent.
    */
-  async complete(instanceId: string): Promise<InstanceStatusResult> {
-    return this.lifecycle<BackendInstanceStatusResult, InstanceStatusResult>(
+  async complete(
+    instanceId: string,
+    confirmedPresentStudentIds: string[],
+  ): Promise<InstanceStatusResult> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/complete`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          confirmed_present_student_ids: confirmedPresentStudentIds.map(Number),
+        }),
+      },
+    );
+    return mapInstanceStatusResult(
+      await unwrap<BackendInstanceStatusResult>(response),
+    );
+  }
+
+  async reopen(instanceId: string): Promise<StartInstanceResult> {
+    return this.lifecycle<BackendStartInstanceResult, StartInstanceResult>(
       instanceId,
-      "complete",
-      mapInstanceStatusResult,
+      "reopen",
+      mapStartInstanceResult,
     );
   }
 
@@ -605,7 +628,7 @@ class TimetableService {
 
   private async lifecycle<TBackend, TFront>(
     instanceId: string,
-    action: "start" | "complete" | "cancel",
+    action: "start" | "complete" | "cancel" | "reopen",
     mapper: (raw: TBackend) => TFront,
     body: Record<string, unknown> = {},
   ): Promise<TFront> {

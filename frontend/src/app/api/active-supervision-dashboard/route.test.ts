@@ -154,6 +154,8 @@ describe("GET /api/active-supervision-dashboard", () => {
               is_primary: true,
               is_substitute: false,
               is_absent: false,
+              can_start: false,
+              start_available_at: "2026-06-04T13:45:00+02:00",
               roster_preview: [
                 {
                   student_id: 99,
@@ -198,6 +200,8 @@ describe("GET /api/active-supervision-dashboard", () => {
           id: string;
           roomName: string | null;
           isPrimary: boolean;
+          canStart: boolean;
+          startAvailableAt: string;
           rosterPreview: Array<{
             studentId: string;
             studentName: string;
@@ -219,6 +223,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       id: "10",
       roomName: "Lernraum",
       isPrimary: true,
+      canStart: false,
+      startAvailableAt: "2026-06-04T13:45:00+02:00",
     });
     expect(json.data.plannedNow[0]?.rosterPreview[0]).toMatchObject({
       studentId: "99",
