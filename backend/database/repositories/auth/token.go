@@ -304,6 +304,9 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 // portal and returns only sessions that were actually revoked for
 // same-transaction audit; generic CRUD cannot combine the ordered cap policy
 // with DELETE ... RETURNING.
+//
+// Pre-1.15.289 rows still have portal_scope = unknown. Those count toward
+// this portal's cap so a legacy session cannot sit beside five new ones.
 func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*auth.Token, error) {
 	if portalScope == "" {
 		portalScope = auth.PortalScopeUnknown
@@ -313,7 +316,7 @@ func (r *TokenRepository) CleanupOldTokensForAccountReturning(ctx context.Contex
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
-		Where(`"token".portal_scope = ?`, portalScope).
+		Where(`"token".portal_scope IN (?, ?)`, portalScope, auth.PortalScopeUnknown).
 		Where(`"token".rotated_at IS NULL`).
 		Where(`"token".expiry > ?`, time.Now()).
 		OrderExpr(`"token".id DESC`)

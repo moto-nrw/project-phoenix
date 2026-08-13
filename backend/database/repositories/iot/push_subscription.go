@@ -155,7 +155,8 @@ func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context,
 
 // DeleteStaffByAccountID removes every staff-portal subscription for an
 // account across tenants. The caller must supply an admin transaction because
-// this intentionally crosses tenant boundaries during server-side logout.
+// this intentionally crosses tenant boundaries during account-wide session
+// revocation.
 func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context, accountID int64) error {
 	_, err := base.GetDB(ctx, r.DB).NewDelete().
 		Model((*iot.PushSubscription)(nil)).

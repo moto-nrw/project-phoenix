@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -66,6 +67,48 @@ func TestLogoutLeavesOtherDeviceSessionsIntact(t *testing.T) {
 
 	_, _, err = service.RefreshToken(ctx, secondRefresh)
 	require.NoError(t, err, "a second device session must survive logout of the first")
+}
+
+func TestLogoutLeavesStaffPushOnOtherDevices(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("logout-other-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	otherEndpoint := "https://fcm.googleapis.com/other-device"
+	otherSub := &iotModels.PushSubscription{
+		AccountID: account.ID,
+		Portal:    iotModels.PushPortalStaff,
+		Endpoint:  otherEndpoint,
+		P256dh:    "p256dh-key",
+		Auth:      "auth-key",
+	}
+	otherSub.SetTenantID(tenantID)
+	_, err = db.NewInsert().Model(otherSub).Exec(ctx)
+	require.NoError(t, err)
+
+	_, firstRefresh, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	require.NoError(t, service.LogoutWithAudit(ctx, firstRefresh, "", ""))
+
+	count, err := db.NewSelect().
+		Model((*iotModels.PushSubscription)(nil)).
+		Where("account_id = ?", account.ID).
+		Where("portal = ?", iotModels.PushPortalStaff).
+		Where("endpoint = ?", otherEndpoint).
+		Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, count, "staff push on another device must survive family-scoped logout")
 }
 
 func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {

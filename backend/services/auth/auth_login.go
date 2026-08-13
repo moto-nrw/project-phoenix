@@ -1885,10 +1885,7 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	var accountID int64
 	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
-	// Token revocation commits independently so a later push-cleanup failure
-	// cannot leave the authenticated session valid.
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
@@ -1896,7 +1893,6 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			// Token not found, consider logout successful
 			return nil
 		}
-		accountID = dbToken.AccountID
 
 		if err := s.deleteFamilyWithAudit(ctx, dbToken, "logout", ipAddress, userAgent); err != nil {
 			s.getLogger().Warn("failed to delete refresh-token family during logout",
@@ -1928,20 +1924,11 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 
 		return nil
 	})
-	if err != nil || accountID == 0 {
-		return err
-	}
-
-	// Staff push subscriptions are not bound to a token family. Remove every
-	// staff row so a logged-out device stops receiving notifications even if
-	// the browser never unregisters itself.
-	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		return s.repos.PushSubscription.DeleteStaffByAccountID(txCtx, accountID)
-	})
-	if err != nil {
-		return &AuthError{Op: "delete staff push subscriptions", Err: err}
-	}
-	return nil
+	// Family-scoped logout leaves other sessions signed in, so their staff
+	// push subscriptions stay. The logging-out device unregisters itself
+	// through the frontend before this call. Account-wide push cleanup lives
+	// on full-session revocation (password reset, deactivation, role change).
+	return err
 }
 
 // ChangePassword updates an account's password

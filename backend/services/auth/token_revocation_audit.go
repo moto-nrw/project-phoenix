@@ -82,7 +82,18 @@ func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID in
 	if err != nil {
 		return nil, err
 	}
-	return tokens, s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent)
+	if err := s.auditRevokedTokens(ctx, tokens, reason, ipAddress, userAgent); err != nil {
+		return nil, err
+	}
+	// Every session is gone. Staff push is not bound to a token family, so
+	// it has to be cleared here or the devices would keep receiving
+	// notifications after password reset, deactivation, or an admin revoke.
+	if s.repos.PushSubscription != nil {
+		if err := s.repos.PushSubscription.DeleteStaffByAccountID(ctx, accountID); err != nil {
+			return nil, err
+		}
+	}
+	return tokens, nil
 }
 
 func (s *Service) deleteFamilyWithAudit(ctx context.Context, token *authModels.Token, reason, ipAddress, userAgent string) error {

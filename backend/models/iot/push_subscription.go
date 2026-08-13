@@ -106,7 +106,9 @@ type PushSubscriptionRepository interface {
 	// across tenants. Callers must use an admin transaction.
 	DeleteParentByEndpoint(ctx context.Context, endpoint string) error
 	// DeleteStaffByAccountID removes every staff-portal subscription for an
-	// account across tenants. Callers must use an admin transaction.
+	// account across tenants. Callers must use an admin transaction and
+	// reserve this for account-wide session revocation, not a single-device
+	// logout.
 	DeleteStaffByAccountID(ctx context.Context, accountID int64) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
