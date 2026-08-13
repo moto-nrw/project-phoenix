@@ -300,11 +300,12 @@ func (s *materializationService) staffRosterByInstance(ctx context.Context, ids 
 	return byInstance, nil
 }
 
-// studentRosterByInstance batch-loads expected instance_students grouped by
-// instance. Planned occurrences have not started, so every roster row is
-// status='expected' — FindExpectedByInstanceIDs captures the full roster.
+// studentRosterByInstance batch-loads instance_students membership grouped by
+// instance. Attendance status is deliberately irrelevant: broad status days
+// turn planned rows absent, and observed/manual outcomes may change status too,
+// without adding or removing the child from the occurrence's roster (#2225).
 func (s *materializationService) studentRosterByInstance(ctx context.Context, ids []int64) (map[int64]map[int64]struct{}, error) {
-	rows, err := s.studentRepo.FindExpectedByInstanceIDs(ctx, ids)
+	rows, err := s.studentRepo.FindByInstanceIDs(ctx, ids)
 	if err != nil {
 		return nil, &ScheduleError{Op: "detect edited: load student rosters", Err: err}
 	}

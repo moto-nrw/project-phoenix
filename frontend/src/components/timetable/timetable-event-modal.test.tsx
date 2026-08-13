@@ -2842,7 +2842,7 @@ describe("TimetableEventModal", () => {
     expect(mockSplitTemplate).not.toHaveBeenCalled();
   });
 
-  it("skips the warning when no single-occurrence edits exist (#1875)", async () => {
+  it("continues the series save when the probe reports no lost edits for status-day-only absences (#2225)", async () => {
     mockCountEditedInWindow.mockResolvedValue({ count: 0, occurrences: [] });
     renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
@@ -2856,7 +2856,9 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
     await clickSave();
 
-    // No warning modal; the edit goes straight through.
+    // The backend returns zero when attendance changed only because of a
+    // planned sick/excused/class-trip day. No warning modal may interrupt the
+    // series-scope flow; the edit goes straight through.
     await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
     expect(
       screen.queryByText("Einzelanpassungen gehen verloren"),
