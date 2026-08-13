@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -42,6 +43,7 @@ type InstanceStatusResponse struct {
 	InstanceID  int64  `json:"instance_id"`
 	Status      string `json:"status"`
 	CompletedAt string `json:"completed_at,omitempty"`
+	ReopenUntil string `json:"reopen_until,omitempty"`
 }
 
 // startInstance handles POST /instances/{id}/start.
@@ -114,6 +116,9 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 	resp := InstanceStatusResponse{InstanceID: instance.ID, Status: instance.Status}
 	if instance.CompletedAt != nil {
 		resp.CompletedAt = instance.CompletedAt.UTC().Format("2006-01-02T15:04:05Z")
+	}
+	if instance.ReopenUntil != nil {
+		resp.ReopenUntil = instance.ReopenUntil.UTC().Format("2006-01-02T15:04:05Z")
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Instance completed")
 }
@@ -218,6 +223,15 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "start_window_expired"))
 	case errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "complete_too_early"))
+	case errors.Is(err, scheduleSvc.ErrCompletionConfirmationStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
+	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, scheduleSvc.ErrTimetableOperationConflict):
+		common.RenderError(w, r, common.ErrorConflict(err))
+	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict),
+		errors.Is(err, activeSvc.ErrRoomCapacityExceeded):
+		common.RenderError(w, r, common.ErrorConflict(err))
 	case errors.Is(err, scheduleSvc.ErrUnderstaffedAckStillStaffed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist"),

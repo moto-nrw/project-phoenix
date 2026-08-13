@@ -738,17 +738,19 @@ export function InstanceDetailModal({
               <CheckCircle2 className="h-4 w-4" />
               Diese Aktivität ist bereits abgeschlossen.
             </span>
-            <Button
-              variant="outline"
-              size="md"
-              type="button"
-              onClick={() => setPendingConfirm("reopen")}
-              isLoading={pendingAction === "reopen"}
-              loadingText="Öffne wieder …"
-              disabled={pendingAction !== null}
-            >
-              Wieder öffnen
-            </Button>
+            {instance.canReopen && (
+              <Button
+                variant="outline"
+                size="md"
+                type="button"
+                onClick={() => setPendingConfirm("reopen")}
+                isLoading={pendingAction === "reopen"}
+                loadingText="Öffne wieder …"
+                disabled={pendingAction !== null}
+              >
+                Wieder öffnen
+              </Button>
+            )}
           </>
         )}
         {instance.status === "cancelled" && (

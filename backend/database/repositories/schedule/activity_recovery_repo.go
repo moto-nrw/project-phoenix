@@ -17,6 +17,23 @@ func NewActivityRecoveryRepository(db *bun.DB) *ActivityRecoveryRepository {
 	return &ActivityRecoveryRepository{db: db}
 }
 
+func (r *ActivityRecoveryRepository) LockOpenVisits(ctx context.Context, activeGroupID int64) error {
+	db := base.GetDB(ctx, r.db)
+	var visitIDs []int64
+	query := db.NewSelect().
+		TableExpr(`active.visits AS "visit"`).
+		ColumnExpr(`"visit".id`).
+		Where(`"visit".active_group_id = ?`, activeGroupID).
+		Where(`"visit".exit_time IS NULL`).
+		OrderExpr(`"visit".id ASC`).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "visit")
+	if err := query.Scan(ctx, &visitIDs); err != nil {
+		return fmt.Errorf("lock open visits: %w", err)
+	}
+	return nil
+}
+
 func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int64, snapshot scheduleModel.ActivityCompletionSnapshot, now time.Time) error {
 	db := base.GetDB(ctx, r.db)
 	result, execErr := db.NewUpdate().Table("active.groups").Set("end_time = NULL").Set("last_activity = ?", now).Where("id = ? AND end_time IS NOT NULL", snapshot.ActiveGroupID).Exec(ctx)

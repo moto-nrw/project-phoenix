@@ -828,6 +828,9 @@ describe("InstanceDetailModal", () => {
     expect(
       screen.getByText("Diese Aktivität ist bereits abgeschlossen."),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Wieder öffnen" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Raum #3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
     // Das Kit-Modal ruft onClose erst nach der Exit-Animation (250ms) auf.
@@ -1076,6 +1079,23 @@ describe("Personalpool-Affordanz (#1884)", () => {
     expect(
       screen.queryByRole("button", { name: /Person hinzuziehen/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("zeigt Wieder öffnen nur bei canReopen", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({
+          date: "2099-05-04",
+          status: "completed",
+          canReopen: true,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Wieder öffnen" }),
+    ).toBeInTheDocument();
   });
 
   it("versteckt die Affordanz ohne onOpenPool-Handler", () => {

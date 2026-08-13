@@ -379,6 +379,17 @@ func TestCompleteInstance_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestCompleteInstance_StaleConfirmation(t *testing.T) {
+	mock := &mockInstanceService{completeErr: scheduleSvc.ErrCompletionConfirmationStale}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
+
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{7}})
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "completion_confirmation_stale")
+}
+
 func TestCompleteInstance_InvalidTransition(t *testing.T) {
 	mock := &mockInstanceService{completeErr: &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -943,6 +954,14 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInstanceMoved)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "instance_moved")
+	})
+
+	t.Run("stale-completion-confirmation", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderInstanceLifecycleError(w, r, scheduleSvc.ErrCompletionConfirmationStale)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "completion_confirmation_stale")
 	})
 
 	t.Run("unknown-error-500", func(t *testing.T) {

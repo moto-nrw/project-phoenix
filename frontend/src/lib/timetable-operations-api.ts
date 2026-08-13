@@ -24,16 +24,30 @@ interface PlannedNowOptions {
   includeRoster?: boolean;
 }
 
+export class TimetableOperationsApiError extends Error {
+  readonly httpStatus: number;
+  readonly code?: string;
+
+  constructor(message: string, httpStatus: number, code?: string) {
+    super(message);
+    this.name = "TimetableOperationsApiError";
+    this.httpStatus = httpStatus;
+    this.code = code;
+  }
+}
+
 async function unwrap<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let message = `Anfrage fehlgeschlagen (HTTP ${response.status})`;
+    let code: string | undefined;
     try {
-      const body = (await response.json()) as { error?: string };
+      const body = (await response.json()) as { error?: string; code?: string };
       if (body.error) message = body.error;
+      code = body.code;
     } catch {
       // Keep generic error.
     }
-    throw new Error(message);
+    throw new TimetableOperationsApiError(message, response.status, code);
   }
   const envelope = (await response.json()) as ApiEnvelope<T>;
   return envelope.data;
@@ -179,8 +193,8 @@ export const timetableOperationsApi = {
   async complete(
     instanceId: string,
     confirmedPresentStudentIds: string[],
-  ): Promise<void> {
-    await unwrap<unknown>(
+  ): Promise<{ reopenUntil?: string }> {
+    const raw = await unwrap<{ reopen_until?: string }>(
       await fetch(
         `/api/timetable/operations/instances/${instanceId}/complete`,
         {
@@ -197,6 +211,7 @@ export const timetableOperationsApi = {
         },
       ),
     );
+    return { reopenUntil: raw.reopen_until };
   },
 
   async reopen(instanceId: string): Promise<StartOperationResult> {

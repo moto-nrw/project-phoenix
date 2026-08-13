@@ -53,7 +53,10 @@ import { toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { fetchStudents } from "~/lib/student-api";
-import { timetableOperationsApi } from "~/lib/timetable-operations-api";
+import {
+  timetableOperationsApi,
+  TimetableOperationsApiError,
+} from "~/lib/timetable-operations-api";
 import type {
   PlannedTimetableInstance,
   TimetableRoster,
@@ -124,6 +127,66 @@ function formatClock(totalMinutes: number): string {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${padClockPart(hours)}:${padClockPart(minutes)}`;
+}
+
+const REOPEN_STORAGE_KEY = "timetable-reopenable-instance";
+const REOPEN_WINDOW_MS = 5 * 60 * 1000;
+
+function readStoredReopenBanner(): {
+  instanceId: string;
+  expiresAt: number;
+} | null {
+  const raw = window.sessionStorage.getItem(REOPEN_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as {
+      instanceId?: string;
+      expiresAt?: string | number;
+    };
+    if (!parsed.instanceId || parsed.expiresAt == null) {
+      window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+      return null;
+    }
+    const expiresAt =
+      typeof parsed.expiresAt === "number"
+        ? parsed.expiresAt
+        : Date.parse(parsed.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+      return null;
+    }
+    return { instanceId: parsed.instanceId, expiresAt };
+  } catch {
+    window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeStoredReopenBanner(instanceId: string, expiresAt: number): void {
+  window.sessionStorage.setItem(
+    REOPEN_STORAGE_KEY,
+    JSON.stringify({ instanceId, expiresAt }),
+  );
+}
+
+function clearStoredReopenBanner(): void {
+  window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+}
+
+function isReopenUnavailableError(err: unknown): boolean {
+  if (err instanceof TimetableOperationsApiError) {
+    return (
+      err.httpStatus === 409 ||
+      err.httpStatus === 403 ||
+      err.code === "invalid_transition"
+    );
+  }
+  return (
+    err instanceof Error &&
+    /reopen window|invalid instance transition|snapshot missing/i.test(
+      err.message,
+    )
+  );
 }
 
 export function spontaneousActivityWindow(now: Date): {
@@ -797,9 +860,18 @@ function MeinRaumPageContent() {
   >(null);
 
   useEffect(() => {
-    setReopenableInstanceId(
-      window.sessionStorage.getItem("timetable-reopenable-instance"),
-    );
+    const stored = readStoredReopenBanner();
+    if (!stored) {
+      setReopenableInstanceId(null);
+      return;
+    }
+    setReopenableInstanceId(stored.instanceId);
+    const remainingMs = stored.expiresAt - Date.now();
+    const timeoutId = window.setTimeout(() => {
+      clearStoredReopenBanner();
+      setReopenableInstanceId(null);
+    }, remainingMs);
+    return () => window.clearTimeout(timeoutId);
   }, []);
   const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
@@ -1714,17 +1786,22 @@ function MeinRaumPageContent() {
     if (!activeTimetableInstanceId) return;
     try {
       setIsCompletingInstance(true);
-      await timetableOperationsApi.complete(
+      const completed = await timetableOperationsApi.complete(
         activeTimetableInstanceId,
         currentTimetableRoster?.rows
           .filter((row) => row.currentlyPresent)
           .map((row) => row.studentId) ?? [],
       );
-      window.sessionStorage.setItem(
-        "timetable-reopenable-instance",
-        activeTimetableInstanceId,
-      );
-      setReopenableInstanceId(activeTimetableInstanceId);
+      const expiresAt = completed.reopenUntil
+        ? Date.parse(completed.reopenUntil)
+        : Date.now() + REOPEN_WINDOW_MS;
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        clearStoredReopenBanner();
+        setReopenableInstanceId(null);
+      } else {
+        writeStoredReopenBanner(activeTimetableInstanceId, expiresAt);
+        setReopenableInstanceId(activeTimetableInstanceId);
+      }
       setShowCompleteConfirmation(false);
       setSelectedTimetableInstanceId(null);
       await mutateDashboard();
@@ -1748,12 +1825,16 @@ function MeinRaumPageContent() {
     if (!reopenableInstanceId) return;
     try {
       const result = await timetableOperationsApi.reopen(reopenableInstanceId);
-      window.sessionStorage.removeItem("timetable-reopenable-instance");
+      clearStoredReopenBanner();
       setReopenableInstanceId(null);
       setSelectedTimetableInstanceId(result.instanceId);
       await mutateDashboard();
       setRefreshKey((previous) => previous + 1);
     } catch (err) {
+      if (isReopenUnavailableError(err)) {
+        clearStoredReopenBanner();
+        setReopenableInstanceId(null);
+      }
       setError(
         err instanceof Error
           ? err.message

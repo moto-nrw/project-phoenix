@@ -14,6 +14,36 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCanReopenInstance(t *testing.T) {
+	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
+	until := now.Add(5 * time.Minute)
+	completedBy := int64(9)
+	snapshot := []byte(`{"active_group_id":1}`)
+
+	base := &scheduleModel.ActivityInstance{
+		Status:             scheduleModel.InstanceStatusCompleted,
+		CompletedBy:        &completedBy,
+		ReopenUntil:        &until,
+		CompletionSnapshot: snapshot,
+	}
+
+	assert.True(t, CanReopenInstance(base, 9, false, now))
+	assert.True(t, CanReopenInstance(base, 1, true, now))
+	assert.False(t, CanReopenInstance(base, 8, false, now))
+	assert.False(t, CanReopenInstance(base, 9, false, until.Add(time.Second)))
+	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
+		Status:             scheduleModel.InstanceStatusCompleted,
+		CompletedBy:        &completedBy,
+		ReopenUntil:        &until,
+		CompletionSnapshot: nil,
+	}, 9, true, now))
+	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
+		Status:      scheduleModel.InstanceStatusActive,
+		CompletedBy: &completedBy,
+		ReopenUntil: &until,
+	}, 9, true, now))
+}
+
 func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
 	saturday := timezone.NewDate(2026, time.May, 9)
 	monday := saturday.AddDays(2)

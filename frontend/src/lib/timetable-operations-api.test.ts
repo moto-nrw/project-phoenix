@@ -241,7 +241,9 @@ describe("timetableOperationsApi", () => {
       substatus: "sick",
       note: "abgemeldet",
     });
-    await timetableOperationsApi.complete("135", []);
+    await expect(timetableOperationsApi.complete("135", [])).resolves.toEqual({
+      reopenUntil: undefined,
+    });
 
     expect(mockFetch).toHaveBeenNthCalledWith(
       1,

@@ -43,6 +43,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -754,6 +755,22 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		return nil, &ScheduleError{Op: "complete instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
 	}
 
+	// Serialize check-in (CreateVisit locks the group) and checkout (visit
+	// row locks) with this snapshot so recovery restores the rows that
+	// EndActivitySession actually closes.
+	lockedGroup, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: lock group", Err: err}
+	}
+	if lockedGroup == nil || lockedGroup.EndTime != nil {
+		return nil, fmt.Errorf("%w: active group is not open", ErrInvalidInstanceTransition)
+	}
+	if s.deps.RecoveryRepo != nil {
+		if err := s.deps.RecoveryRepo.LockOpenVisits(ctx, *instance.ActiveGroupID); err != nil {
+			return nil, &ScheduleError{Op: "complete instance: lock visits", Err: err}
+		}
+	}
+
 	visitsBefore, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, *instance.ActiveGroupID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "complete instance: snapshot visits", Err: err}
@@ -879,6 +896,9 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	if len(instance.CompletionSnapshot) == 0 || json.Unmarshal(instance.CompletionSnapshot, &snapshot) != nil {
 		return nil, fmt.Errorf("%w: completion snapshot missing", ErrInvalidInstanceTransition)
 	}
+	if err := s.validateReopenOccupancy(ctx, instance, snapshot); err != nil {
+		return nil, err
+	}
 	closedVisits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "reopen instance: load visits", Err: err}
@@ -909,6 +929,56 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	instance.CompletionSnapshot = nil
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceStarted, instance, nil, nil)
 	return &StartInstanceResult{Instance: instance, ActiveGroupID: snapshot.ActiveGroupID, Warnings: []InstanceConflictWarning{}}, nil
+}
+
+// CanReopenInstance is the actor-aware reopen gate the list payload exposes
+// so clients can hide the action when the five-minute window, snapshot, or
+// actor check would reject it.
+func CanReopenInstance(instance *scheduleModel.ActivityInstance, accountID int64, isAdmin bool, now time.Time) bool {
+	if instance == nil || instance.Status != scheduleModel.InstanceStatusCompleted {
+		return false
+	}
+	if instance.ReopenUntil == nil || now.After(*instance.ReopenUntil) {
+		return false
+	}
+	if len(instance.CompletionSnapshot) == 0 {
+		return false
+	}
+	if isAdmin {
+		return true
+	}
+	return instance.CompletedBy != nil && *instance.CompletedBy == accountID
+}
+
+func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
+	hasConflict, _, err := s.deps.ActiveGroupRepo.CheckRoomConflict(ctx, instance.RoomID, snapshot.ActiveGroupID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: check room", Err: err}
+	}
+	if hasConflict {
+		return activeSvc.ErrRoomConflict
+	}
+	if len(snapshot.VisitIDs) == 0 {
+		return nil
+	}
+	room, err := s.deps.RoomRepo.FindByIDForUpdate(ctx, instance.RoomID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: lock room", Err: err}
+	}
+	if room == nil {
+		return &ScheduleError{Op: "reopen instance: lock room", Err: fmt.Errorf("room %d not found", instance.RoomID)}
+	}
+	if room.Capacity == nil || *room.Capacity <= 0 {
+		return nil
+	}
+	currentOccupancy, err := s.deps.VisitRepo.CountActiveByRoomID(ctx, instance.RoomID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
+	}
+	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
+		return activeSvc.ErrRoomCapacityExceeded
+	}
+	return nil
 }
 
 // Cancel implements planned|active → cancelled. From active, the bridge is

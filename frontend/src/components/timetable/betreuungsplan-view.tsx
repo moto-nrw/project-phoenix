@@ -89,7 +89,6 @@ import {
   uniqueAssignedPeriods,
 } from "~/lib/calendar-period-helpers";
 import { timetableService } from "~/lib/timetable-api";
-import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
   chunkDateRange,
@@ -803,13 +802,10 @@ function TimetablesContent() {
             toast.success("Aktivität gestartet");
           }
         } else if (action === "complete") {
-          const roster = await timetableOperationsApi.roster(
-            selectedInstance.id,
-          );
           await timetableService.complete(
             selectedInstance.id,
-            roster.rows
-              .filter((row) => row.currentlyPresent)
+            (selectedInstance.students ?? [])
+              .filter((row) => row.status === "present")
               .map((row) => row.studentId),
           );
           toast.success("Aktivität beendet");

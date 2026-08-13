@@ -21,11 +21,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -124,6 +126,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 		Broadcaster:        broadcaster,
 		DB:                 s.db,
 		Logger:             slog.Default(),
+		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(s.db),
 	})
 }
 
@@ -480,6 +483,84 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	require.NotNil(t, group.EndTime, "active.group should have been ended")
+}
+
+func TestInstance_Reopen_HappyPath(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+
+	_, err = s.svc.Complete(scheduleSvc.WithLifecycleActor(s.ctx, 42), ai.ID)
+	require.NoError(t, err)
+
+	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 42, false)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
+	assert.Equal(t, started.ActiveGroupID, reopened.ActiveGroupID)
+
+	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	require.NoError(t, err)
+	assert.Nil(t, group.EndTime)
+}
+
+func TestInstance_Reopen_RejectsOccupiedRoom(t *testing.T) {
+	s := buildLifecycle(t)
+	first := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, first.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+	_, err = s.svc.Complete(scheduleSvc.WithLifecycleActor(s.ctx, 42), first.ID)
+	require.NoError(t, err)
+
+	second := seedInstance(t, s, true, false)
+	other, err := s.svc.Start(s.ctx, second.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", other.ActiveGroupID)
+	})
+
+	_, err = s.svc.Reopen(s.ctx, first.ID, 42, true)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, activeSvc.ErrRoomConflict)
+}
+
+func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+
+	now := time.Now()
+	for _, studentID := range []int64{s.student1, s.student2} {
+		visit := &activeModels.Visit{StudentID: studentID, ActiveGroupID: started.ActiveGroupID, EntryTime: now}
+		visit.SetTenantID(1)
+		_, insertErr := s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
+		require.NoError(t, insertErr)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
+	}
+
+	_, err = s.svc.Complete(scheduleSvc.WithLifecycleActor(s.ctx, 42), ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("facilities.rooms").
+		Set("capacity = ?", 1).
+		Where("id = ?", s.roomID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 42, true)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, activeSvc.ErrRoomCapacityExceeded)
 }
 
 func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
