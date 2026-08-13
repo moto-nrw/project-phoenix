@@ -24,6 +24,8 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -474,6 +476,10 @@ function TimetableRosterHeader({
             <h2 className="truncate text-base font-semibold text-gray-900">
               {roster.instance.title}
             </h2>
+            <p className="truncate text-sm text-gray-600">
+              {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
+              {roster.instance.startTime}-{roster.instance.endTime}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -493,11 +499,13 @@ function TimetableRosterHeader({
           {attendanceWebEnabled ? (
             <button
               type="button"
-              disabled={isCompletingInstance}
+              disabled={isCompletingInstance || !roster.instance.canComplete}
               onClick={handleCompleteClick}
               className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
-              Beenden
+              {roster.instance.canComplete
+                ? "Beenden"
+                : `Beenden ab ${roster.instance.endTime}`}
             </button>
           ) : null}
         </div>
@@ -782,6 +790,17 @@ function MeinRaumPageContent() {
   );
   const [isStartingSpontaneous, setIsStartingSpontaneous] = useState(false);
   const [isCompletingInstance, setIsCompletingInstance] = useState(false);
+  const [showCompleteConfirmation, setShowCompleteConfirmation] =
+    useState(false);
+  const [reopenableInstanceId, setReopenableInstanceId] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    setReopenableInstanceId(
+      window.sessionStorage.getItem("timetable-reopenable-instance"),
+    );
+  }, []);
   const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
   const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
@@ -1691,11 +1710,22 @@ function MeinRaumPageContent() {
     [activeTimetableInstanceId, mutateRoster],
   );
 
-  const handleCompleteTimetableInstance = useCallback(async () => {
+  const confirmCompleteTimetableInstance = useCallback(async () => {
     if (!activeTimetableInstanceId) return;
     try {
       setIsCompletingInstance(true);
-      await timetableOperationsApi.complete(activeTimetableInstanceId);
+      await timetableOperationsApi.complete(
+        activeTimetableInstanceId,
+        currentTimetableRoster?.rows
+          .filter((row) => row.currentlyPresent)
+          .map((row) => row.studentId) ?? [],
+      );
+      window.sessionStorage.setItem(
+        "timetable-reopenable-instance",
+        activeTimetableInstanceId,
+      );
+      setReopenableInstanceId(activeTimetableInstanceId);
+      setShowCompleteConfirmation(false);
       setSelectedTimetableInstanceId(null);
       await mutateDashboard();
       setRefreshKey((prev) => prev + 1);
@@ -1708,7 +1738,29 @@ function MeinRaumPageContent() {
     } finally {
       setIsCompletingInstance(false);
     }
-  }, [activeTimetableInstanceId, mutateDashboard]);
+  }, [activeTimetableInstanceId, currentTimetableRoster, mutateDashboard]);
+
+  const handleCompleteTimetableInstance = useCallback(async () => {
+    setShowCompleteConfirmation(true);
+  }, []);
+
+  const handleReopenTimetableInstance = useCallback(async () => {
+    if (!reopenableInstanceId) return;
+    try {
+      const result = await timetableOperationsApi.reopen(reopenableInstanceId);
+      window.sessionStorage.removeItem("timetable-reopenable-instance");
+      setReopenableInstanceId(null);
+      setSelectedTimetableInstanceId(result.instanceId);
+      await mutateDashboard();
+      setRefreshKey((previous) => previous + 1);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Aktivität konnte nicht wieder geöffnet werden.",
+      );
+    }
+  }, [mutateDashboard, reopenableInstanceId]);
 
   const handleConfirmExpectedStudents = useCallback(
     async (rows: TimetableRosterRow[]) => {
@@ -2049,6 +2101,24 @@ function MeinRaumPageContent() {
       onStart={(payload) => void handleStartSpontaneousActivity(payload)}
     />
   ) : null;
+  const reopenBanner = reopenableInstanceId ? (
+    <div className="mb-4">
+      <Alert
+        type="success"
+        message="Aktivität wurde beendet. Die Rücknahme ist fünf Minuten lang möglich."
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={() => void handleReopenTimetableInstance()}
+          >
+            Rückgängig
+          </Button>
+        }
+      />
+    </div>
+  ) : null;
 
   // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
   // If the Schulhof tab is available, we'll show the main view with just that tab
@@ -2059,6 +2129,7 @@ function MeinRaumPageContent() {
   ) {
     return (
       <div className="w-full">
+        {reopenBanner}
         {spontaneousStartBanner}
         <EmptyRoomsView
           onClaimed={handleRoomClaimed}
@@ -2258,6 +2329,38 @@ function MeinRaumPageContent() {
 
   return (
     <div className="w-full">
+      {reopenBanner}
+      <ConfirmationModal
+        isOpen={showCompleteConfirmation}
+        onClose={() => setShowCompleteConfirmation(false)}
+        onConfirm={() => void confirmCompleteTimetableInstance()}
+        title="Aktivität wirklich beenden?"
+        confirmText="Aktivität beenden"
+        isConfirmLoading={isCompletingInstance}
+        isDismissDisabled={isCompletingInstance}
+      >
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>
+            <strong>{currentTimetableRoster?.instance.title}</strong> endet laut
+            Plan um {currentTimetableRoster?.instance.endTime} Uhr.
+          </p>
+          <p>
+            Aktuell anwesend:{" "}
+            {currentTimetableRoster?.rows.filter((row) => row.currentlyPresent)
+              .length ?? 0}
+          </p>
+          {(currentTimetableRoster?.rows.filter((row) => row.currentlyPresent)
+            .length ?? 0) > 0 ? (
+            <ul className="list-disc space-y-1 pl-5">
+              {currentTimetableRoster?.rows
+                .filter((row) => row.currentlyPresent)
+                .map((row) => (
+                  <li key={row.studentId}>{row.studentName}</li>
+                ))}
+            </ul>
+          ) : null}
+        </div>
+      </ConfirmationModal>
       {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
       <UnclaimedRooms
         onClaimed={handleRoomClaimed}

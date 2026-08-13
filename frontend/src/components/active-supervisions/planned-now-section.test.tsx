@@ -98,6 +98,24 @@ describe("PlannedNowSection", () => {
     expect(onStart).toHaveBeenCalledWith(plannedInstance);
   });
 
+  it("keeps an early activity visible but locks start until the backend boundary", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            canStart: false,
+            startAvailableAt: "2026-05-10T13:45:00+02:00",
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Starten ab 13:45" });
+    expect(button).toBeDisabled();
+  });
+
   it("renders roster planning warnings", () => {
     render(
       <PlannedNowSection

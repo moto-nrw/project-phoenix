@@ -15,6 +15,7 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -981,6 +982,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "instance-lifecycle"),
+		Settings:           settingsService,
+		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(db),
+		EnforceTimePolicy:  true,
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":

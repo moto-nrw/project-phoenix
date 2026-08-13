@@ -86,8 +86,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		testpkg.CleanupTableRecords(t, db, "users.students", student2.ID)
 	})
 
-	return &lifecycleSetup{
-		svc:      serviceFactory.Instance,
+	setup := &lifecycleSetup{
 		factory:  serviceFactory,
 		repos:    repoFactory,
 		db:       db,
@@ -98,6 +97,11 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		student2: student2.ID,
 		tmplID:   templateRow.ID,
 	}
+	// These state-machine fixtures use fixed wall-clock windows. Time-policy
+	// boundaries have dedicated clock-injected tests; keep this suite focused on
+	// lifecycle persistence and bridge behavior.
+	setup.svc = instanceServiceWithBroadcaster(setup, nil)
+	return setup
 }
 
 func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broadcaster) scheduleSvc.InstanceService {

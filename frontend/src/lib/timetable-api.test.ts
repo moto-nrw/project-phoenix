@@ -692,7 +692,7 @@ describe("timetableService", () => {
       instanceId: "42",
       activeGroupId: "99",
     });
-    await expect(timetableService.complete("42")).resolves.toMatchObject({
+    await expect(timetableService.complete("42", [])).resolves.toMatchObject({
       instanceId: "42",
       status: "completed",
     });

@@ -123,6 +123,8 @@ interface BackendPlannedTimetableInstance {
   is_primary?: boolean;
   is_substitute?: boolean;
   is_absent?: boolean;
+  can_start?: boolean;
+  start_available_at?: string;
   roster_preview?: BackendTimetableRosterRow[];
 }
 
@@ -248,6 +250,8 @@ interface ActiveSupervisionDashboardResponse {
     isPrimary: boolean;
     isSubstitute: boolean;
     isAbsent: boolean;
+    canStart: boolean;
+    startAvailableAt: string;
     rosterPreview: Array<{
       studentId: string;
       studentName: string;
@@ -371,6 +375,8 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       isPrimary: i.is_primary ?? false,
       isSubstitute: i.is_substitute ?? false,
       isAbsent: i.is_absent ?? false,
+      canStart: i.can_start ?? false,
+      startAvailableAt: i.start_available_at ?? "",
       rosterPreview: (i.roster_preview ?? []).map((row) => ({
         studentId: row.student_id.toString(),
         studentName: row.student_name,

@@ -214,14 +214,21 @@ export function PlannedNowSection({
 
                       <button
                         type="button"
-                        disabled={isStartingInstance === instance.id}
+                        disabled={
+                          isStartingInstance === instance.id ||
+                          instance.canStart === false
+                        }
                         onClick={() => onStart(instance)}
                         className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Play className="h-4 w-4" aria-hidden="true" />
                         {isStartingInstance === instance.id
                           ? "Startet..."
-                          : "Starten"}
+                          : instance.canStart !== false
+                            ? "Starten"
+                            : instance.startAvailableAt
+                              ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
+                              : "Noch nicht verfügbar"}
                       </button>
                     </div>
 

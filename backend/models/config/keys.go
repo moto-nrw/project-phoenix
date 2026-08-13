@@ -313,6 +313,8 @@ const (
 	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
 	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"
 	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
+	KeyTimetableStartLeadMinutes          = "timetable.start_lead_minutes"
+	KeyTimetableEnforcePlannedEnd         = "timetable.enforce_planned_end"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
 	// KeyTimetableChildrenPerStaffRatio is the Betreuungsschlüssel: the max

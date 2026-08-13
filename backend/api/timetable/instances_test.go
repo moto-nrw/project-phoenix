@@ -85,6 +85,13 @@ func (m *mockInstanceService) Complete(_ context.Context, _ int64) (*scheduleMod
 	return m.completeRes, nil
 }
 
+func (m *mockInstanceService) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*scheduleSvc.StartInstanceResult, error) {
+	if m.real != nil {
+		return m.real.Reopen(ctx, instanceID, accountID, isAdmin)
+	}
+	return m.startResult, m.startErr
+}
+
 func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	m.lastCancelReason = reason
 	if m.cancelErr != nil {
@@ -317,7 +324,7 @@ func TestCompleteInstance_Success(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/5/complete", nil)
+	w := doPost(t, router, "/instances/5/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]any
@@ -338,7 +345,7 @@ func TestCompleteInstance_NoCompletedAt(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/5/complete", nil)
+	w := doPost(t, router, "/instances/5/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.NotContains(t, w.Body.String(), "completed_at")
@@ -357,7 +364,7 @@ func TestCompleteInstance_NilService(t *testing.T) {
 	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
@@ -367,7 +374,7 @@ func TestCompleteInstance_NotFound(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
@@ -377,7 +384,7 @@ func TestCompleteInstance_InvalidTransition(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid_transition")
@@ -388,7 +395,7 @@ func TestCompleteInstance_InternalError(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

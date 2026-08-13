@@ -89,6 +89,7 @@ import {
   uniqueAssignedPeriods,
 } from "~/lib/calendar-period-helpers";
 import { timetableService } from "~/lib/timetable-api";
+import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
   chunkDateRange,
@@ -802,8 +803,19 @@ function TimetablesContent() {
             toast.success("Aktivität gestartet");
           }
         } else if (action === "complete") {
-          await timetableService.complete(selectedInstance.id);
+          const roster = await timetableOperationsApi.roster(
+            selectedInstance.id,
+          );
+          await timetableService.complete(
+            selectedInstance.id,
+            roster.rows
+              .filter((row) => row.currentlyPresent)
+              .map((row) => row.studentId),
+          );
           toast.success("Aktivität beendet");
+        } else if (action === "reopen") {
+          await timetableService.reopen(selectedInstance.id);
+          toast.success("Aktivität wieder geöffnet");
         } else {
           await timetableService.cancel(selectedInstance.id);
           toast.success("Aktivität abgesagt");

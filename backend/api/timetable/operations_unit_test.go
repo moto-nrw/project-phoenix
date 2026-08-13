@@ -98,17 +98,18 @@ func TestOperationsInstanceEndpoints(t *testing.T) {
 		method string
 		path   string
 		fn     http.HandlerFunc
+		body   any
 	}{
-		{"roster", http.MethodGet, "/instances/230/roster", res.operationsRoster},
-		{"start", http.MethodPost, "/instances/231/start", res.operationsStart},
-		{"complete", http.MethodPost, "/instances/232/complete", res.operationsComplete},
+		{"roster", http.MethodGet, "/instances/230/roster", res.operationsRoster, nil},
+		{"start", http.MethodPost, "/instances/231/start", res.operationsStart, nil},
+		{"complete", http.MethodPost, "/instances/232/complete", res.operationsComplete, map[string]any{"confirmed_present_student_ids": []int64{}}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			router := operationRouter(tc.method, "/instances/{id}/"+lastPathSegment(tc.path), tc.fn)
 
-			rr := executeOperationRequest(router, tc.method, tc.path, nil)
+			rr := executeOperationRequest(router, tc.method, tc.path, tc.body)
 
 			assert.Equal(t, http.StatusOK, rr.Code)
 		})
@@ -1042,6 +1043,10 @@ func (s *fakeOperationsService) Complete(_ context.Context, accountID int64, isA
 	s.lastIsAdmin = isAdmin
 	s.lastInstanceID = instanceID
 	return s.complete, s.err
+}
+
+func (s *fakeOperationsService) Reopen(_ context.Context, _ int64, _ bool, _ int64) (*scheduleSvc.StartInstanceResult, error) {
+	return s.start, s.err
 }
 
 func (s *fakeOperationsService) Roster(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.OperationRoster, error) {

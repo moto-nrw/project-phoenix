@@ -201,6 +201,8 @@ func (rs *Resource) Router() chi.Router {
 				Post("/{id}/start", rs.startInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/{id}/complete", rs.completeInstance)
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+				Post("/{id}/reopen", rs.reopenInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, rs.requireWebAttendanceForActiveInstance).
 				Post("/{id}/cancel", rs.cancelInstance)
 				// #1840 Vertretungsplan: mark a block as deliberately left
@@ -320,6 +322,8 @@ func (rs *Resource) Router() chi.Router {
 				Post("/instances/{id}/start", rs.operationsStart)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/complete", rs.operationsComplete)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
+				Post("/instances/{id}/reopen", rs.operationsReopen)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/students/{student_id}/check-in", rs.operationsCheckInStudent)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).

@@ -176,16 +176,37 @@ export const timetableOperationsApi = {
     );
   },
 
-  async complete(instanceId: string): Promise<void> {
+  async complete(
+    instanceId: string,
+    confirmedPresentStudentIds: string[],
+  ): Promise<void> {
     await unwrap<unknown>(
       await fetch(
         `/api/timetable/operations/instances/${instanceId}/complete`,
         {
           method: "POST",
           credentials: "include",
-          headers: { Accept: "application/json" },
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            confirmed_present_student_ids:
+              confirmedPresentStudentIds.map(Number),
+          }),
         },
       ),
     );
+  },
+
+  async reopen(instanceId: string): Promise<StartOperationResult> {
+    const raw = await unwrap<BackendStartOperationResult>(
+      await fetch(`/api/timetable/operations/instances/${instanceId}/reopen`, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      }),
+    );
+    return mapStartOperation(raw);
   },
 };

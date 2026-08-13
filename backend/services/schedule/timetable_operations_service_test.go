@@ -1662,3 +1662,7 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, _ string) (string, er
 	}
 	return s.mode, nil
 }
+
+func (s *fakeOpsSettings) ResolveInt(_ context.Context, _ string) (int, error) {
+	return 15, s.err
+}

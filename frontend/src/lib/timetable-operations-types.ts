@@ -25,6 +25,8 @@ export interface PlannedTimetableInstance {
   isSubstitute: boolean;
   isAbsent: boolean;
   rosterPreview: TimetableRosterRow[];
+  canStart?: boolean;
+  startAvailableAt?: string;
 }
 
 interface TimetableRosterInstance {
@@ -35,6 +37,11 @@ interface TimetableRosterInstance {
   activeGroupId: string | null;
   roomId: string;
   roomName?: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  canComplete: boolean;
+  completeAvailableAt: string;
 }
 
 export interface TimetableRosterRow {
@@ -116,6 +123,8 @@ interface BackendPlannedTimetableInstance {
   is_substitute?: boolean;
   is_absent?: boolean;
   roster_preview?: BackendRosterRow[];
+  can_start?: boolean;
+  start_available_at?: string;
 }
 
 interface BackendRosterInstance {
@@ -126,6 +135,11 @@ interface BackendRosterInstance {
   active_group_id?: number | null;
   room_id: number;
   room_name?: string | null;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
+  can_complete?: boolean;
+  complete_available_at?: string;
 }
 
 interface BackendRosterRow {
@@ -191,6 +205,8 @@ export function mapPlannedInstance(
     isSubstitute: raw.is_substitute ?? false,
     isAbsent: raw.is_absent ?? false,
     rosterPreview: (raw.roster_preview ?? []).map(mapRosterRow),
+    canStart: raw.can_start ?? false,
+    startAvailableAt: raw.start_available_at ?? "",
   };
 }
 
@@ -234,6 +250,11 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       activeGroupId: raw.instance.active_group_id?.toString() ?? null,
       roomId: raw.instance.room_id.toString(),
       roomName: raw.instance.room_name ?? null,
+      date: raw.instance.date ?? "",
+      startTime: raw.instance.start_time ?? "",
+      endTime: raw.instance.end_time ?? "",
+      canComplete: raw.instance.can_complete ?? false,
+      completeAvailableAt: raw.instance.complete_available_at ?? "",
     },
     rows: raw.rows.map(mapRosterRow),
   };

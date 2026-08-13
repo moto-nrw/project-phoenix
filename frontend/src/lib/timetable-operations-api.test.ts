@@ -241,7 +241,7 @@ describe("timetableOperationsApi", () => {
       substatus: "sick",
       note: "abgemeldet",
     });
-    await timetableOperationsApi.complete("135");
+    await timetableOperationsApi.complete("135", []);
 
     expect(mockFetch).toHaveBeenNthCalledWith(
       1,
@@ -266,6 +266,30 @@ describe("timetableOperationsApi", () => {
       {
         method: "POST",
         credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ confirmed_present_student_ids: [] }),
+      },
+    );
+  });
+
+  it("reopens a recently completed instance", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      jsonResponse({
+        data: { instance_id: 135, active_group_id: 77, status: "active" },
+      }),
+    );
+    await expect(timetableOperationsApi.reopen("135")).resolves.toMatchObject({
+      instanceId: "135",
+      activeGroupId: "77",
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/instances/135/reopen",
+      {
+        method: "POST",
+        credentials: "include",
         headers: { Accept: "application/json" },
       },
     );
@@ -284,13 +308,13 @@ describe("timetableOperationsApi", () => {
         json: () => Promise.reject(new Error("not json")),
       } as Response);
 
-    await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
+    await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Nicht erlaubt",
     );
-    await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
+    await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 418)",
     );
-    await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
+    await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 500)",
     );
   });
