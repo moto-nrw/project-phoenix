@@ -17,6 +17,42 @@ func NewActivityRecoveryRepository(db *bun.DB) *ActivityRecoveryRepository {
 	return &ActivityRecoveryRepository{db: db}
 }
 
+func (r *ActivityRecoveryRepository) LockOpenSupervisors(ctx context.Context, activeGroupID int64) error {
+	db := base.GetDB(ctx, r.db)
+	var supervisorIDs []int64
+	query := db.NewSelect().
+		TableExpr(`active.group_supervisors AS "group_supervisor"`).
+		ColumnExpr(`"group_supervisor".id`).
+		Where(`"group_supervisor".group_id = ?`, activeGroupID).
+		Where(`"group_supervisor".end_date IS NULL`).
+		OrderExpr(`"group_supervisor".id ASC`).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
+	if err := query.Scan(ctx, &supervisorIDs); err != nil {
+		return fmt.Errorf("lock open supervisors: %w", err)
+	}
+	return nil
+}
+
+func (r *ActivityRecoveryRepository) LockSupervisors(ctx context.Context, supervisorIDs []int64) error {
+	if len(supervisorIDs) == 0 {
+		return nil
+	}
+	db := base.GetDB(ctx, r.db)
+	var locked []int64
+	query := db.NewSelect().
+		TableExpr(`active.group_supervisors AS "group_supervisor"`).
+		ColumnExpr(`"group_supervisor".id`).
+		Where(`"group_supervisor".id IN (?)`, bun.In(supervisorIDs)).
+		OrderExpr(`"group_supervisor".id ASC`).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
+	if err := query.Scan(ctx, &locked); err != nil {
+		return fmt.Errorf("lock supervisors: %w", err)
+	}
+	return nil
+}
+
 func (r *ActivityRecoveryRepository) LockOpenVisits(ctx context.Context, activeGroupID int64) error {
 	db := base.GetDB(ctx, r.db)
 	var visitIDs []int64

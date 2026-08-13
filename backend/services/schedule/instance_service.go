@@ -331,7 +331,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
 		deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
-		(deps.EnforceTimePolicy && (deps.Settings == nil || deps.RecoveryRepo == nil)) {
+		deps.RecoveryRepo == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
@@ -773,6 +773,9 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		if err := s.deps.RecoveryRepo.LockOpenVisits(ctx, *instance.ActiveGroupID); err != nil {
 			return nil, &ScheduleError{Op: "complete instance: lock visits", Err: err}
 		}
+		if err := s.deps.RecoveryRepo.LockOpenSupervisors(ctx, *instance.ActiveGroupID); err != nil {
+			return nil, &ScheduleError{Op: "complete instance: lock supervisors", Err: err}
+		}
 		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
 			return nil, &ScheduleError{Op: "complete instance: lock attendance", Err: err}
 		}
@@ -903,10 +906,16 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	if len(instance.CompletionSnapshot) == 0 || json.Unmarshal(instance.CompletionSnapshot, &snapshot) != nil {
 		return nil, fmt.Errorf("%w: completion snapshot missing", ErrInvalidInstanceTransition)
 	}
+	if s.deps.RecoveryRepo == nil {
+		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: errors.New("recovery repository not wired")}
+	}
 	if err := s.validateReopenOccupancy(ctx, instance, snapshot); err != nil {
 		return nil, err
 	}
 	if err := s.validateReopenAttendanceUnchanged(ctx, instance); err != nil {
+		return nil, err
+	}
+	if err := s.validateReopenSupervisorsUnchanged(ctx, instance, snapshot); err != nil {
 		return nil, err
 	}
 	closedVisits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID)
@@ -917,11 +926,22 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 	for _, visit := range closedVisits {
 		studentByVisit[visit.ID] = visit.StudentID
 	}
+	studentIDs := make([]int64, 0, len(snapshot.VisitIDs))
 	for _, visitID := range snapshot.VisitIDs {
 		studentID := studentByVisit[visitID]
 		if studentID <= 0 {
 			return nil, fmt.Errorf("%w: snapshot visit missing", ErrInvalidInstanceTransition)
 		}
+		studentIDs = append(studentIDs, studentID)
+	}
+	slices.Sort(studentIDs)
+	studentIDs = slices.Compact(studentIDs)
+	for _, studentID := range studentIDs {
+		if _, err := s.deps.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: err}
+		}
+	}
+	for _, studentID := range studentIDs {
 		current, findErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
 		if findErr != nil && !modelBase.IsNoRows(findErr) {
 			return nil, findErr
@@ -931,6 +951,9 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 		}
 	}
 	if err := s.deps.RecoveryRepo.Restore(ctx, instance.ID, snapshot, s.now()); err != nil {
+		if modelBase.IsUniqueViolation(err) {
+			return nil, fmt.Errorf("%w: concurrent check-in", ErrTimetableOperationConflict)
+		}
 		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: err}
 	}
 	instance.Status = scheduleModel.InstanceStatusActive
@@ -943,7 +966,8 @@ func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int6
 
 // CanReopenInstance is the actor-aware reopen gate the list payload exposes
 // so clients can hide the action when the five-minute window, snapshot, or
-// actor check would reject it.
+// actor check would reject it. Session-end completions (scheduler, kiosk)
+// write no snapshot or reopen_until and therefore stay false.
 func CanReopenInstance(instance *scheduleModel.ActivityInstance, accountID int64, isAdmin bool, now time.Time) bool {
 	if instance == nil || instance.Status != scheduleModel.InstanceStatusCompleted {
 		return false
@@ -1007,6 +1031,42 @@ func (s *instanceService) validateReopenAttendanceUnchanged(ctx context.Context,
 	for _, row := range rows {
 		if row.GetUpdatedAt().After(*instance.CompletedAt) {
 			return fmt.Errorf("%w: attendance changed after completion", ErrTimetableOperationConflict)
+		}
+	}
+	return nil
+}
+
+func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
+	if len(snapshot.SupervisorIDs) == 0 {
+		return nil
+	}
+	if err := s.deps.RecoveryRepo.LockSupervisors(ctx, snapshot.SupervisorIDs); err != nil {
+		return &ScheduleError{Op: "reopen instance: lock supervisors", Err: err}
+	}
+	rows, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID, false)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: load supervisors", Err: err}
+	}
+	byID := make(map[int64]*activeModel.GroupSupervisor, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+	}
+	for _, supervisorID := range snapshot.SupervisorIDs {
+		row, ok := byID[supervisorID]
+		if !ok {
+			return fmt.Errorf("%w: supervisor snapshot missing", ErrTimetableOperationConflict)
+		}
+		if instance.CompletedAt != nil && row.GetUpdatedAt().After(*instance.CompletedAt) {
+			return fmt.Errorf("%w: supervisor changed after completion", ErrTimetableOperationConflict)
+		}
+		activeRows, findErr := s.deps.SupervisorRepo.FindActiveByStaffID(ctx, row.StaffID)
+		if findErr != nil {
+			return &ScheduleError{Op: "reopen instance: load staff supervisions", Err: findErr}
+		}
+		for _, other := range activeRows {
+			if other.ID != row.ID {
+				return fmt.Errorf("%w: staff %d now supervises another group", ErrTimetableOperationConflict, row.StaffID)
+			}
 		}
 	}
 	return nil

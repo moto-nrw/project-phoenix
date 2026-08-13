@@ -677,6 +677,50 @@ func TestInstance_Reopen_RejectsAttendanceChangedAfterComplete(t *testing.T) {
 	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationConflict)
 }
 
+func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("active.group_supervisors").
+		Set("updated_at = ?", time.Now().Add(time.Minute)).
+		Where("group_id = ?", started.ActiveGroupID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationConflict)
+}
+
+func TestInstance_Reopen_RejectsStaffNowSupervisingElsewhere(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-ReopenRoom-%d", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", otherRoom.ID) })
+	otherGroup := testpkg.CreateTestActiveGroup(t, s.db, s.tmplID, otherRoom.ID)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", otherGroup.ID) })
+	otherSup := testpkg.CreateTestGroupSupervisor(t, s.db, s.staffID, otherGroup.ID, "supervisor")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", otherSup.ID) })
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationConflict)
+}
+
 func TestInstance_Reopen_RejectsMissingSnapshot(t *testing.T) {
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)

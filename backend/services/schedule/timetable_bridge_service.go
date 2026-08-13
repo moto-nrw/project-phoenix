@@ -50,6 +50,9 @@ func NewTimetableBridgeService(deps TimetableBridgeDependencies) *TimetableBridg
 // genuinely expects flip expected → absent, children not booked into care that
 // day keep their expected row as the marker (#1747).
 //
+// Session-end completions stay outside the five-minute reopen window. The
+// planner/operations Complete path owns recovery snapshots.
+//
 // The name matches the repository method it wraps so callers keep one entry
 // point, and the ordering lives in exactly one place: the bulk absent update
 // only matches instances that are still active, so it has to run first.

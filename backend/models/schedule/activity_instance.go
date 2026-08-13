@@ -93,6 +93,12 @@ type ActivityRecoveryRepository interface {
 	// LockOpenVisits takes FOR UPDATE locks on every still-open visit of the
 	// group so completion can snapshot the same rows EndActivitySession closes.
 	LockOpenVisits(ctx context.Context, activeGroupID int64) error
+	// LockOpenSupervisors locks every still-open supervisor of the group so
+	// completion snapshots the same rows EndActivitySession closes.
+	LockOpenSupervisors(ctx context.Context, activeGroupID int64) error
+	// LockSupervisors locks the snapshot supervisor rows during reopen so a
+	// concurrent staffing change cannot hide from the unchanged-row check.
+	LockSupervisors(ctx context.Context, supervisorIDs []int64) error
 	// LockAttendance locks every instance_students row of the instance so
 	// reopen can refuse a restore after a post-completion attendance edit.
 	LockAttendance(ctx context.Context, instanceID int64) error
@@ -235,7 +241,10 @@ type ActivityInstanceRepository interface {
 
 	// CompleteActiveByActiveGroupIDs marks every still-active instance bridged
 	// to one of the given active.groups as completed and returns the number of
-	// rows changed. Used by the scheduler's daily session-end bridge.
+	// rows changed. Used by the scheduler's daily session-end bridge and by
+	// kiosk/session end. This path is outside the five-minute reopen window:
+	// it does not write completed_by, reopen_until, or a completion snapshot,
+	// so CanReopenInstance stays false.
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 
 	// DeletePlannedNonSpontaneousInWindow removes still-planned,
