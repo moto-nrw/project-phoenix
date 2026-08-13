@@ -50,6 +50,14 @@ func TestParseMultiValueParam(t *testing.T) {
 		{"blanks dropped", []string{"3a,,4b,"}, []string{"3a", "4b"}},
 		{"duplicates collapsed", []string{"3a,3a"}, []string{"3a"}},
 		{"empty value", []string{""}, []string{}},
+		// school_class is free text, so a class may carry the separator itself.
+		// The frontend escapes it, and only then is one class distinguishable
+		// from two (#2218 review).
+		{"escaped comma stays one value", []string{`A\,B`}, []string{"A,B"}},
+		{"escaped and separating comma", []string{`A\,B,3a`}, []string{"A,B", "3a"}},
+		{"escaped backslash", []string{`A\\B`}, []string{`A\B`}},
+		{"backslash before separator", []string{`A\\,3a`}, []string{`A\`, "3a"}},
+		{"trailing lone backslash dropped", []string{`3a\`}, []string{"3a"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

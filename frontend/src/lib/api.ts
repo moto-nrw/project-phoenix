@@ -35,6 +35,7 @@ import {
 export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
+import { encodeMultiValueParam } from "./multi-value-param";
 import {
   ALL_COMPANION_WEEKDAYS,
   notifyStudentCompanionsChanged,
@@ -241,19 +242,24 @@ function parseSchoolClassesResponse(responseData: unknown): string[] {
 
 /**
  * Append a filter that may name several values at once (#2218). Values travel
- * comma-separated in a single parameter; an empty selection appends nothing,
- * which is what "no restriction" means on every one of these filters.
+ * comma-separated in a single parameter, escaped so a class name containing a
+ * comma stays one value (see lib/multi-value-param). An empty selection appends
+ * nothing, which is what "no restriction" means on every one of these filters.
+ *
+ * A single string is taken as an already-encoded parameter and passed through:
+ * callers that hand over a raw class name would otherwise have to know the
+ * encoding, and a value that needs escaping never reaches here as a bare string.
  */
 function appendMultiValueParam(
   params: URLSearchParams,
   key: string,
   value?: string | string[],
 ): void {
-  const values = (Array.isArray(value) ? value : [value ?? ""])
-    .map((entry) => entry.trim())
-    .filter((entry) => entry !== "");
-  if (values.length === 0) return;
-  params.append(key, values.join(","));
+  const encoded = Array.isArray(value)
+    ? encodeMultiValueParam(value)
+    : (value ?? "").trim();
+  if (encoded === "") return;
+  params.append(key, encoded);
 }
 
 /**

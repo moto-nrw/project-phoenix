@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,5 +173,78 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 		assert.Contains(t, ids, third.ID)
 		assert.Contains(t, ids, fourth.ID)
 		assert.NotContains(t, ids, second.ID, "grade 2 is outside the selection")
+	})
+
+	// The grade filter is answered in SQL (#2218 review), which means the
+	// group-only fast path — which never runs that query — must stop taking the
+	// shortcut as soon as a grade is named. Otherwise the group's whole roster
+	// comes back with the year silently ignored.
+	t.Run("a grade narrows a group selection", func(t *testing.T) {
+		ids, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"group_id=%d,%d&grade_level=3&page_size=50", groupA.ID, groupB.ID,
+		))
+
+		assert.Equal(t, []int64{third.ID}, ids, "the fourth-grader is outside the selection")
+		assert.Equal(t, 1, total, "the count narrows with the grade, too")
+	})
+
+	// Paging only adds up to the whole selection if consecutive windows come out
+	// of one stable row order. Without an ORDER BY, PostgreSQL may answer two
+	// requests from two different orders, and a child is then listed twice while
+	// another is never listed at all (#2218 review).
+	t.Run("consecutive pages cover a class selection exactly once", func(t *testing.T) {
+		seen := []int64{}
+		for page := 1; page <= 2; page++ {
+			ids, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+				"school_class=%s,%s&page=%d&page_size=1",
+				url.QueryEscape(classThird), url.QueryEscape(classFourth), page,
+			))
+			require.Len(t, ids, 1, "page %d must hold exactly one child", page)
+			assert.Equal(t, 2, total)
+			seen = append(seen, ids...)
+		}
+
+		assert.Equal(t, []int64{third.ID, fourth.ID}, seen,
+			"the pages must walk the selection in id order, each child exactly once")
+	})
+}
+
+// users.students.school_class is free text, so a class may carry the very
+// character the multi-value filters separate on. Escaped, it stays one value
+// end to end; unescaped it would silently become two filters matching nothing
+// (#2218 review).
+func TestListStudents_ClassNameContainingTheSeparator(t *testing.T) {
+	tc := setupTestContext(t)
+
+	suffix := time.Now().UnixNano()
+	commaClass := fmt.Sprintf("A,B-%d", suffix)
+	plainClass := fmt.Sprintf("A-%d", suffix)
+
+	comma := testpkg.CreateTestStudent(t, tc.db, "Sep", "Comma", commaClass)
+	plain := testpkg.CreateTestStudent(t, tc.db, "Sep", "Plain", plainClass)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, comma.ID, plain.ID)
+
+	t.Run("an escaped comma selects the one class", func(t *testing.T) {
+		ids, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"school_class=%s&page_size=50",
+			url.QueryEscape(strings.ReplaceAll(commaClass, ",", `\,`)),
+		))
+
+		assert.Equal(t, []int64{comma.ID}, ids)
+		assert.Equal(t, 1, total)
+	})
+
+	t.Run("an unescaped comma still separates two classes", func(t *testing.T) {
+		ids, _ := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
+			"school_class=%s,%s&page_size=50",
+			url.QueryEscape(plainClass), url.QueryEscape(commaClass),
+		))
+
+		// Membership, not the exact set: the fragments this splits into are
+		// short enough that the shared test database may hold a class of that
+		// name from another fixture.
+		assert.Contains(t, ids, plain.ID)
+		assert.NotContains(t, ids, comma.ID,
+			`"A,B" read as two classes must not match the class actually called "A,B"`)
 	})
 }

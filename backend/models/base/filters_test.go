@@ -183,6 +183,48 @@ func TestFilter_TrimIn(t *testing.T) {
 	})
 }
 
+func TestFilter_FirstNumberIn(t *testing.T) {
+	t.Run("several values", func(t *testing.T) {
+		f := NewFilter().FirstNumberIn("school_class", "3", "4")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.FirstNumberIn() should add one condition, got %d", len(f.conditions))
+		}
+		cond := f.conditions[0]
+		if cond.Operator != OpFirstNumberIn {
+			t.Errorf("Filter.FirstNumberIn() operator = %v, want %v", cond.Operator, OpFirstNumberIn)
+		}
+		values, ok := cond.Value.([]interface{})
+		if !ok {
+			t.Fatalf("Filter.FirstNumberIn() value should be []interface{}, got %T", cond.Value)
+		}
+		if len(values) != 2 {
+			t.Errorf("Filter.FirstNumberIn() should have 2 values, got %d", len(values))
+		}
+	})
+
+	// A single grade keeps the same operator: unlike TrimIn there is no cheaper
+	// one-value form to collapse into.
+	t.Run("single value keeps the operator", func(t *testing.T) {
+		f := NewFilter().FirstNumberIn("school_class", "3")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.FirstNumberIn() should add one condition, got %d", len(f.conditions))
+		}
+		if f.conditions[0].Operator != OpFirstNumberIn {
+			t.Errorf("Filter.FirstNumberIn() operator = %v, want %v", f.conditions[0].Operator, OpFirstNumberIn)
+		}
+	})
+
+	t.Run("no values adds no condition", func(t *testing.T) {
+		f := NewFilter().FirstNumberIn("school_class")
+
+		if len(f.conditions) != 0 {
+			t.Fatalf("Filter.FirstNumberIn() with no values should add no condition, got %d", len(f.conditions))
+		}
+	})
+}
+
 func TestTrimInPlaceholders(t *testing.T) {
 	tests := []struct {
 		count int

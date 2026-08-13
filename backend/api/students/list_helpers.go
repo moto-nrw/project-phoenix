@@ -45,9 +45,10 @@ type studentListParams struct {
 	// via resolvePlanningDate so an invalid value is a 400, not a silent today.
 	date string
 	// gradeLevels filters by the first numeric run in school_class (issue #1838,
-	// Zielgruppe "Jahrgang"). Resolved in-memory via schoolclass.GradePrefix —
-	// a SQL LIKE 'N%' would incorrectly match e.g. grade 1 against "13a".
-	// Several levels may be selected at once (#2218); empty = off.
+	// Zielgruppe "Jahrgang"). Answered in SQL by base.Filter.FirstNumberIn, which
+	// reads the same first digit run schoolclass.GradePrefix reads in Go — a
+	// LIKE 'N%' could not, it would match grade 1 against "13a". Several levels
+	// may be selected at once (#2218); empty = off.
 	gradeLevels []int
 	// Administrative filters (#1492). Resolved against the enriched response
 	// objects in the same in-memory pass as dayStatus so pagination and counts
@@ -96,11 +97,19 @@ func parseStudentListView(value string) (bool, error) {
 // repeated parameters (`school_class=3a&school_class=4b`) are accepted too so a
 // hand-built URL behaves the same. Blanks are dropped and duplicates collapsed,
 // preserving the caller's order.
+//
+// A separator that can also occur inside a value needs an escape, or the two
+// are indistinguishable: users.students.school_class is free text, so a school
+// may well run a class called "A,B" (#2218 review). A comma that belongs to the
+// value is therefore written `\,` and a literal backslash `\\`; the frontend
+// encodes both (lib/multi-value-param.ts) and the export request carries the
+// same shape. Values without either character encode to themselves, so every
+// hand-written `?school_class=3a,4b` keeps working unchanged.
 func parseMultiValueParam(raw []string) []string {
 	values := make([]string, 0, len(raw))
 	seen := make(map[string]struct{}, len(raw))
 	for _, entry := range raw {
-		for _, value := range strings.Split(entry, ",") {
+		for _, value := range splitEscapedList(entry) {
 			value = strings.TrimSpace(value)
 			if value == "" {
 				continue
@@ -113,6 +122,31 @@ func parseMultiValueParam(raw []string) []string {
 		}
 	}
 	return values
+}
+
+// splitEscapedList cuts one parameter at its unescaped commas and unescapes the
+// pieces. A trailing lone backslash is dropped rather than treated as escaping
+// the terminator — it cannot have come from the encoder, and swallowing it is
+// the reading that never invents a value.
+func splitEscapedList(raw string) []string {
+	values := []string{}
+	var current strings.Builder
+	escaped := false
+	for _, r := range raw {
+		switch {
+		case escaped:
+			current.WriteRune(r)
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == ',':
+			values = append(values, current.String())
+			current.Reset()
+		default:
+			current.WriteRune(r)
+		}
+	}
+	return append(values, current.String())
 }
 
 // parseGroupIDList turns a possibly repeated, comma-separated group_id
@@ -197,10 +231,15 @@ func (p *studentListParams) hasPersonFilters() bool {
 	return p.search != "" || p.firstName != "" || p.lastName != "" || p.location != ""
 }
 
+// hasInMemoryFilters reports whether a filter can only be decided on the
+// enriched response, which costs this request its SQL pagination: the query then
+// has to return every matching row so the filter and the page boundary see the
+// same set. Grade level is deliberately NOT one of them any more (#2218 review)
+// — buildBaseFilter answers it in SQL, so `?grade_level=3,4` stays a normal
+// paginated query instead of fetching and enriching the whole school per page.
 func (p *studentListParams) hasInMemoryFilters() bool {
 	return p.hasPersonFilters() ||
 		p.dayStatus != "" && p.dayStatus != DayPlanningStatusAll ||
-		len(p.gradeLevels) > 0 ||
 		p.hasAdministrativeFilters()
 }
 
@@ -212,8 +251,15 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 		isActiveFilterValue(p.pickupStatus)
 }
 
+// canUseGroupOnlyShortcut reports whether the request is nothing but a group
+// selection, so the materialized group members already are the answer. Every
+// other filter must be listed here: the shortcut never runs the SQL query, so a
+// filter it does not name would simply not be applied. Grade level is named
+// explicitly because it is answered in SQL now and therefore no longer covered
+// by hasInMemoryFilters.
 func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 	return len(p.schoolClasses) == 0 &&
+		len(p.gradeLevels) == 0 &&
 		p.guardianName == "" &&
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
@@ -283,6 +329,16 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	// single-value TrimEqual when exactly one is requested.
 	if len(p.schoolClasses) > 0 {
 		filter.TrimIn("school_class", p.schoolClasses...)
+	}
+	// The school year reads the first number out of the same free-text class
+	// name that matchesGradeLevel reads in Go — in SQL, so the year filter keeps
+	// LIMIT/OFFSET and the count query narrows with it (#2218 review).
+	if len(p.gradeLevels) > 0 {
+		levels := make([]string, len(p.gradeLevels))
+		for i, level := range p.gradeLevels {
+			levels[i] = strconv.Itoa(level)
+		}
+		filter.FirstNumberIn("school_class", levels...)
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
@@ -389,6 +445,12 @@ func matchesLocationFilter(location, studentLocation string, hasFullAccess bool)
 // of gradeLevels. An empty slice means the filter is off (matches everything).
 // Uses schoolclass.GradePrefix rather than a naive string-prefix/LIKE check
 // so e.g. grade 1 does not also match "13a".
+//
+// The filter itself is applied in SQL (base.Filter.FirstNumberIn) so it keeps
+// its pagination; this stays as the in-memory twin the response builder runs,
+// where it now only ever confirms what the query already decided. Should the
+// two ever disagree, a page comes back short — never with a child of a year
+// nobody asked for.
 func matchesGradeLevel(schoolClass string, gradeLevels []int) bool {
 	if len(gradeLevels) == 0 {
 		return true

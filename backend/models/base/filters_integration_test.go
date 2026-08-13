@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -699,4 +700,74 @@ func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
 	})
 	require.ErrorIs(t, err, expected)
 	assert.Equal(t, 1, calls, "a non-retryable error must NOT be retried")
+}
+
+// The grade filter is the reason FirstNumberIn exists: a school year is the
+// first number inside a free-text class name, and both the aliased and the
+// unaliased rendering must answer it in SQL. An operator missing from one of
+// the two switches does not fail to compile — it drops the WHERE clause and
+// answers with every row, so both paths are exercised here (#2218 review).
+func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	third := testpkg.CreateTestStudent(t, db, "Grade", "Third", "3a-"+suffix)
+	thirteenth := testpkg.CreateTestStudent(t, db, "Grade", "Thirteenth", "13a-"+suffix)
+	labelled := testpkg.CreateTestStudent(t, db, "Grade", "Labelled", "Klasse 3b-"+suffix)
+	named := testpkg.CreateTestStudent(t, db, "Grade", "Named", "Bienen-"+suffix)
+	defer testpkg.CleanupActivityFixtures(t, db, third.ID, thirteenth.ID, labelled.ID, named.ID)
+
+	assertGradeThree := func(t *testing.T, ids []int64) {
+		t.Helper()
+		assert.Contains(t, ids, third.ID)
+		assert.Contains(t, ids, labelled.ID, `"Klasse 3b" is a third-graders' class too`)
+		assert.NotContains(t, ids, thirteenth.ID, "grade 13 must not be read as grade 1 or 3")
+		assert.NotContains(t, ids, named.ID, "a class without a number is in no year")
+	}
+
+	t.Run("aliased column", func(t *testing.T) {
+		query := db.NewSelect().
+			ColumnExpr(`"student".id`).
+			TableExpr(`users.students AS "student"`)
+		query = base.NewFilter().
+			WithTableAlias("student").
+			FirstNumberIn("school_class", "3").
+			ApplyToQuery(query)
+
+		var ids []int64
+		require.NoError(t, query.Scan(ctx, &ids))
+		assertGradeThree(t, ids)
+	})
+
+	t.Run("plain column identifier", func(t *testing.T) {
+		query := db.NewSelect().
+			ColumnExpr("id").
+			TableExpr("users.students")
+		query = base.NewFilter().
+			FirstNumberIn("school_class", "3").
+			ApplyToQuery(query)
+
+		var ids []int64
+		require.NoError(t, query.Scan(ctx, &ids))
+		assertGradeThree(t, ids)
+	})
+
+	t.Run("several years", func(t *testing.T) {
+		query := db.NewSelect().
+			ColumnExpr(`"student".id`).
+			TableExpr(`users.students AS "student"`)
+		query = base.NewFilter().
+			WithTableAlias("student").
+			FirstNumberIn("school_class", "3", "13").
+			ApplyToQuery(query)
+
+		var ids []int64
+		require.NoError(t, query.Scan(ctx, &ids))
+		assert.Contains(t, ids, third.ID)
+		assert.Contains(t, ids, thirteenth.ID)
+		assert.NotContains(t, ids, named.ID)
+	})
 }

@@ -71,6 +71,11 @@ import {
   SEARCH_STUDENTS_KEY_PREFIX,
   searchStudentsGroupScope,
 } from "~/lib/swr/search-students-key";
+import {
+  encodeMultiValueParam,
+  normalizeMultiValues,
+  parseMultiValueParam,
+} from "~/lib/multi-value-param";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -223,7 +228,9 @@ const MULTI_VALUE_FILTER_PARAMS = new Set<FilterQueryParam>([
 ]);
 
 // Reads one filter param in the shape the parsers expect: a single string for
-// single-valued filters, every occurrence joined for multi-valued ones.
+// single-valued filters, every occurrence joined for multi-valued ones. The
+// occurrences are concatenated as they arrive — each one is already an encoded
+// list, so re-encoding here would escape the separators it brought with it.
 function readFilterParam(
   searchParams: SearchParamReader,
   key: FilterQueryParam,
@@ -331,41 +338,38 @@ const STATUS_FILTER_LABELS: Record<
   entschuldigt: "Entschuldigt",
 };
 
-// Filters a school may pick several values for (#2218) travel as one
-// comma-separated query parameter. Blanks are dropped and duplicates collapsed
-// so `?school_class=3a,,3a` restores as a single selection.
-function parseMultiValueParam(value: string | null | undefined): string[] {
-  if (!value) return [];
-  return [
-    ...new Set(
-      value
-        .split(",")
-        .map((entry) => entry.trim())
-        .filter((entry) => entry !== ""),
-    ),
-  ];
-}
-
 // Keeps only school years the dropdown actually offers, so a hand-edited
 // `?year=7,abc` cannot pin the list to a year that can never be deselected.
-function parseYearParam(value: string | null | undefined): string[] {
+function keepOfferedYears(values: readonly string[]): string[] {
   const offered = new Set<string>(
     SCHOOL_YEAR_MULTI_OPTIONS.map((option) => option.value),
   );
-  return parseMultiValueParam(value).filter((year) => offered.has(year));
+  return normalizeMultiValues(values).filter((year) => offered.has(year));
+}
+
+function parseYearParam(value: string | null | undefined): string[] {
+  return keepOfferedYears(parseMultiValueParam(value));
 }
 
 // Mirrors the backend's effective group filter for every selected id.
-function parseGroupIdsParam(value: string | null | undefined): string[] {
-  return parseMultiValueParam(value)
+function keepValidGroupIds(values: readonly string[]): string[] {
+  return normalizeMultiValues(values)
     .map(normalizeSearchStudentsGroupId)
     .filter((groupId) => groupId !== "");
 }
 
+function parseGroupIdsParam(value: string | null | undefined): string[] {
+  return keepValidGroupIds(parseMultiValueParam(value));
+}
+
 // The shared filter kit hands a multi-select its values as an array and a
-// single-select as a string; normalize before it reaches the state setters.
+// single-select as a string; normalize before it reaches the state setters. An
+// array arrives as the raw selected labels — never re-encoded, or a class named
+// "A,B" would be split apart on its way into the state (#2218 review).
 function asFilterValues(value: string | string[]): string[] {
-  return Array.isArray(value) ? value : parseMultiValueParam(value);
+  return Array.isArray(value)
+    ? normalizeMultiValues(value)
+    : parseMultiValueParam(value);
 }
 
 function validQueryValue<T extends string>(
@@ -411,9 +415,11 @@ function normalizeStoredFilters(
       : "";
 
   return {
-    year: parseYearParam(params.get("year")).join(","),
-    school_class: parseMultiValueParam(params.get("school_class")).join(","),
-    group_id: parseGroupIdsParam(params.get("group_id")).join(","),
+    year: encodeMultiValueParam(parseYearParam(params.get("year"))),
+    school_class: encodeMultiValueParam(
+      parseMultiValueParam(params.get("school_class")),
+    ),
+    group_id: encodeMultiValueParam(parseGroupIdsParam(params.get("group_id"))),
     room_id: params.get("room_id") ?? "",
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
     bus:
@@ -1395,7 +1401,7 @@ function SearchPageContent() {
   // check-in event names a group this view does not show. It has to sit BEFORE
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
-  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${debouncedSearchTerm}-${selectedSchoolClasses.join(",")}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${selectedYears.join(",")}-${pickupStatusFilter}`;
+  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${debouncedSearchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -1462,6 +1468,12 @@ function SearchPageContent() {
       // Walk the remaining pages when the selection is larger than one page.
       // The first request stays untouched (no page parameter), so the common
       // single-page case is byte-identical with before.
+      //
+      // Separate requests only add up to the whole selection because the list
+      // query carries a total order (repositories/users/student.go orders by id
+      // unless a caller asks for something else). Without one, PostgreSQL may
+      // answer two windows out of two different row orders, and children then
+      // appear twice or not at all (#2218 review).
       const totalPages = result.pagination?.total_pages ?? 1;
       const lastPage = Math.min(totalPages, MAX_STUDENT_SEARCH_PAGES);
       for (let page = 2; page <= lastPage; page++) {
@@ -1517,30 +1529,33 @@ function SearchPageContent() {
   }, [updateRoomFilter]);
 
   // The three multi-selects share one shape: an empty selection clears the
-  // query parameter, which is what "alle" means on each of them.
+  // query parameter, which is what "alle" means on each of them. The dropdown
+  // hands over the selected values themselves, so they are validated as a list
+  // and only encoded on the way into the URL — routing them through the
+  // parameter grammar first would tear a class named "A,B" in two.
   const updateSelectedYears = useCallback(
     (values: string[]) => {
-      const years = parseYearParam(values.join(","));
+      const years = keepOfferedYears(values);
       setSelectedYears(years);
-      updateUrlParams({ year: years.join(",") });
+      updateUrlParams({ year: encodeMultiValueParam(years) });
     },
     [updateUrlParams],
   );
 
   const updateSelectedSchoolClasses = useCallback(
     (values: string[]) => {
-      const classes = parseMultiValueParam(values.join(","));
+      const classes = normalizeMultiValues(values);
       setSelectedSchoolClasses(classes);
-      updateUrlParams({ school_class: classes.join(",") });
+      updateUrlParams({ school_class: encodeMultiValueParam(classes) });
     },
     [updateUrlParams],
   );
 
   const updateSelectedGroupIds = useCallback(
     (values: string[]) => {
-      const groupIds = parseGroupIdsParam(values.join(","));
+      const groupIds = keepValidGroupIds(values);
       setSelectedGroupIds(groupIds);
-      updateUrlParams({ group_id: groupIds.join(",") });
+      updateUrlParams({ group_id: encodeMultiValueParam(groupIds) });
     },
     [updateUrlParams],
   );
@@ -2368,10 +2383,12 @@ function SearchPageContent() {
     () => ({
       search: searchTerm,
       // Comma-separated so an export mirrors a multi-selection (#2218); the
-      // backend accepts the same shape as the list endpoint.
-      group_id: selectedGroupIds.join(","),
-      year: selectedYears.length > 0 ? selectedYears.join(",") : "all",
-      school_class: selectedSchoolClasses.join(","),
+      // backend accepts the same shape — and the same escaping — as the list
+      // endpoint, so a class carrying a comma prints as one class.
+      group_id: encodeMultiValueParam(selectedGroupIds),
+      year:
+        selectedYears.length > 0 ? encodeMultiValueParam(selectedYears) : "all",
+      school_class: encodeMultiValueParam(selectedSchoolClasses),
       // The realtime snapshot/room filters are neutral for non-today dates —
       // the export must mirror what the page shows (#1939).
       status: effectiveAttendanceFilter,
@@ -2690,11 +2707,14 @@ function SearchPageContent() {
               if (selectedRoomName) qs.set("room_name", selectedRoomName);
             }
             if (selectedGroupIds.length > 0)
-              qs.set("group_id", selectedGroupIds.join(","));
+              qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
             if (selectedSchoolClasses.length > 0)
-              qs.set("school_class", selectedSchoolClasses.join(","));
+              qs.set(
+                "school_class",
+                encodeMultiValueParam(selectedSchoolClasses),
+              );
             if (selectedYears.length > 0)
-              qs.set("year", selectedYears.join(","));
+              qs.set("year", encodeMultiValueParam(selectedYears));
             if (effectiveAttendanceFilter !== "all")
               qs.set("status", effectiveAttendanceFilter);
             if (busFilter !== "all") qs.set("bus", busFilter);

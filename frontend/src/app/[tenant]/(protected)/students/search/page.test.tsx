@@ -787,6 +787,30 @@ describe("StudentSearchPage", () => {
       });
     });
 
+    it("keeps a class whose name contains the separator in one piece (#2218)", async () => {
+      // school_class is free text, so a class may be called "A,B". Escaped it
+      // stays one selection all the way into the export payload; unescaped it
+      // would arrive as the two classes A and B and filter for neither.
+      mockSearchParams.set("school_class", "A\\,B,3a");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-schoolClass")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({ school_class: "A\\,B,3a" });
+    });
+
     it("restores every occurrence of a repeated filter parameter (#2218)", async () => {
       // We write the selection comma-separated, but a hand-written link (and a
       // plain form submit) repeats the parameter instead — a shape the backend
