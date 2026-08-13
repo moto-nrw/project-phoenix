@@ -451,7 +451,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		require.NoError(t, repo.Upsert(ctx, drop))
 
 		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
-			return repo.DeleteStaffByTokenFamilyID(adminCtx, account.ID, "family-drop")
+			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "family-drop")
 		}))
 
 		var remaining []*iotModels.PushSubscription
@@ -490,6 +490,59 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			Scan(context.Background()))
 		assert.False(t, hasSubscriptionEndpoint(remaining, endpoint+"/unbound-here"))
 		assert.True(t, hasSubscriptionEndpoint(remaining, endpoint+"/unbound-there"))
+	})
+
+	t.Run("family deletion removes parent rows for that family", func(t *testing.T) {
+		keepEndpoint := endpoint + "/parent-family-keep"
+		dropEndpoint := endpoint + "/parent-family-drop"
+		keep := newSubscription(account.ID, iotModels.PushPortalParent, keepEndpoint)
+		keep.TokenFamilyID = "parent-family-keep"
+		drop := newSubscription(account.ID, iotModels.PushPortalParent, dropEndpoint)
+		drop.TokenFamilyID = "parent-family-drop"
+		require.NoError(t, repo.Upsert(ctx, keep))
+		require.NoError(t, repo.Upsert(ctx, drop))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "parent-family-drop")
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".portal = ?`, iotModels.PushPortalParent).
+			Scan(context.Background()))
+		assert.True(t, hasSubscriptionEndpoint(remaining, keepEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(remaining, dropEndpoint))
+	})
+
+	t.Run("parent unbound deletion is limited to the requested school", func(t *testing.T) {
+		here := newSubscription(account.ID, iotModels.PushPortalParent, endpoint+"/parent-unbound-here")
+		here.TokenFamilyID = ""
+		otherSchool := createPushTestSchool(t, db)
+		there := newSubscription(account.ID, iotModels.PushPortalParent, endpoint+"/parent-unbound-there")
+		there.TokenFamilyID = ""
+		there.SetTenantID(otherSchool.ID)
+		require.NoError(t, repo.Upsert(ctx, here))
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.Upsert(adminCtx, there)
+		}))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteParentUnboundByAccount(adminCtx, account.ID, tenant.FromContext(ctx))
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".portal = ?`, iotModels.PushPortalParent).
+			Where(`"push_subscription".token_family_id = ?`, "").
+			Scan(context.Background()))
+		assert.False(t, hasSubscriptionEndpoint(remaining, endpoint+"/parent-unbound-here"))
+		assert.True(t, hasSubscriptionEndpoint(remaining, endpoint+"/parent-unbound-there"))
 	})
 
 	t.Run("guardian finder excludes subscriptions without a tenant mapping", func(t *testing.T) {

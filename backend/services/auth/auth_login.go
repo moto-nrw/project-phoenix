@@ -507,7 +507,10 @@ func (s *Service) enforcePortalSessionCap(ctx context.Context, accountID int64, 
 	if err := s.auditRevokedTokens(ctx, deleted, "session_cap", "", ""); err != nil {
 		return err
 	}
-	return s.deleteStaffPushForFamilies(ctx, accountID, tokenFamilyIDs(deleted))
+	if err := s.deletePushForFamilies(ctx, accountID, tokenFamilyIDs(deleted)); err != nil {
+		return err
+	}
+	return s.deletePushUnboundAtTenants(ctx, accountID, tokenTenantIDs(deleted), pushPortalForScope(portalScope))
 }
 
 // isTokenFamilyConflict checks if error is due to token family conflict

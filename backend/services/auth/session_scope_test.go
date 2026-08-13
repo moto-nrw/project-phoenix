@@ -125,9 +125,19 @@ func tokenFamilyID(t *testing.T, db *bun.DB, accountID int64, offset int) string
 
 func insertStaffPush(t *testing.T, db *bun.DB, accountID, tenantID int64, endpoint, familyID string) {
 	t.Helper()
+	insertPush(t, db, accountID, tenantID, iotModels.PushPortalStaff, endpoint, familyID)
+}
+
+func insertParentPush(t *testing.T, db *bun.DB, accountID, tenantID int64, endpoint, familyID string) {
+	t.Helper()
+	insertPush(t, db, accountID, tenantID, iotModels.PushPortalParent, endpoint, familyID)
+}
+
+func insertPush(t *testing.T, db *bun.DB, accountID, tenantID int64, portal, endpoint, familyID string) {
+	t.Helper()
 	sub := &iotModels.PushSubscription{
 		AccountID:     accountID,
-		Portal:        iotModels.PushPortalStaff,
+		Portal:        portal,
 		Endpoint:      endpoint,
 		P256dh:        "p256dh-key",
 		Auth:          "auth-key",
@@ -167,11 +177,21 @@ func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
 
 func countStaffPush(t *testing.T, db *bun.DB, accountID int64, endpoint string) int {
 	t.Helper()
+	return countPush(t, db, accountID, iotModels.PushPortalStaff, endpoint)
+}
+
+func countParentPush(t *testing.T, db *bun.DB, accountID int64, endpoint string) int {
+	t.Helper()
+	return countPush(t, db, accountID, iotModels.PushPortalParent, endpoint)
+}
+
+func countPush(t *testing.T, db *bun.DB, accountID int64, portal, endpoint string) int {
+	t.Helper()
 	count, err := db.NewSelect().
 		Model((*iotModels.PushSubscription)(nil)).
 		ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
 		Where("account_id = ?", accountID).
-		Where("portal = ?", iotModels.PushPortalStaff).
+		Where("portal = ?", portal).
 		Where("endpoint = ?", endpoint).
 		Count(context.Background())
 	require.NoError(t, err)
@@ -337,4 +357,163 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 func uniqueTestName(prefix string) string {
 	email, _ := uniqueTestCredentials(prefix)
 	return email
+}
+
+func TestLogoutRemovesParentPushForFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("logout-parent-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	_, firstRefresh, err := service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+	_, secondRefresh, err := service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+
+	firstFamily := tokenFamilyID(t, db, account.ID, 0)
+	secondFamily := tokenFamilyID(t, db, account.ID, 1)
+	require.NotEqual(t, firstFamily, secondFamily)
+
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-this", firstFamily)
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-other", secondFamily)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/staff-unrelated", "staff-family")
+
+	require.NoError(t, service.LogoutWithAudit(ctx, firstRefresh, "", ""))
+
+	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-this"))
+	require.Equal(t, 1, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-other"))
+	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/staff-unrelated"))
+
+	_, _, err = service.RefreshToken(ctx, secondRefresh)
+	require.NoError(t, err)
+}
+
+func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("logout-unbound-parent")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, refreshToken, err := service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-unbound-here", "")
+	insertParentPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/parent-unbound-other", "")
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/staff-unbound-here", "")
+
+	require.NoError(t, service.LogoutWithAudit(ctx, refreshToken, "", ""))
+
+	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-unbound-here"))
+	require.Equal(t, 1, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-unbound-other"))
+	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/staff-unbound-here"))
+}
+
+func TestSessionCapRemovesUnboundStaffPushAtEvictedTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("session-cap-unbound")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/unbound-evicted", "")
+
+	for range 5 {
+		_, _, err = service.Login(ctx, email, testPassword)
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/unbound-evicted"))
+}
+
+func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("session-cap-parent-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSeededRole(t, db, account.ID, tenantID, authModels.BaseRoleGuardian)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	_, _, err = service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+	firstFamily := tokenFamilyID(t, db, account.ID, 0)
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-evicted", firstFamily)
+
+	_, _, err = service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+	keptFamily := tokenFamilyID(t, db, account.ID, 1)
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-kept", keptFamily)
+
+	for range 4 {
+		_, _, err = service.LoginParent(ctx, email, testPassword)
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-evicted"))
+	require.Equal(t, 1, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-kept"))
+}
+
+func TestRevokeAllTokensClearsParentPushAcrossTenants(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("revoke-all-parent-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID := account.ID + 1_000_000_000
+	testpkg.EnsureTestTenant(t, db, secondaryTenantID)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/parent-school-a", "parent-family-a")
+	insertParentPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/parent-school-b", "parent-family-b")
+
+	require.NoError(t, service.RevokeAllTokens(ctx, int(account.ID)))
+
+	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-school-a"))
+	require.Equal(t, 0, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/parent-school-b"))
 }

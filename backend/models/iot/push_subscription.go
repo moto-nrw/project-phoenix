@@ -111,15 +111,24 @@ type PushSubscriptionRepository interface {
 	// reserve this for account-wide session revocation, not a single-device
 	// logout.
 	DeleteStaffByAccountID(ctx context.Context, accountID int64) error
-	// DeleteStaffByTokenFamilyID removes staff-portal subscriptions registered
-	// by one refresh-token family, across tenants. Callers must use an admin
-	// transaction. An empty family ID is a no-op so pre-binding rows are not
-	// swept by an unbound logout.
-	DeleteStaffByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error
+	// DeleteParentByAccountID removes every parent-portal subscription for an
+	// account across tenants. Callers must use an admin transaction and
+	// reserve this for account-wide session revocation, not a single-device
+	// logout.
+	DeleteParentByAccountID(ctx context.Context, accountID int64) error
+	// DeleteByTokenFamilyID removes subscriptions registered by one
+	// refresh-token family, any portal, across tenants. Callers must use an
+	// admin transaction. An empty family ID is a no-op so pre-binding rows
+	// are not swept by an unbound logout.
+	DeleteByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error
 	// DeleteStaffUnboundByAccount removes staff-portal subscriptions that were
 	// never bound to a token family. tenantID > 0 limits the delete to that
 	// school. Callers must use an admin transaction.
 	DeleteStaffUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	// DeleteParentUnboundByAccount removes parent-portal subscriptions that
+	// were never bound to a token family. tenantID > 0 limits the delete to
+	// that school. Callers must use an admin transaction.
+	DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
 

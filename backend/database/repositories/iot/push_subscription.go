@@ -159,21 +159,31 @@ func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context,
 // this intentionally crosses tenant boundaries during account-wide session
 // revocation.
 func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context, accountID int64) error {
+	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalStaff, "delete staff push subscriptions")
+}
+
+// DeleteParentByAccountID removes every parent-portal subscription for an
+// account across tenants. The caller must supply an admin transaction.
+func (r *PushSubscriptionRepository) DeleteParentByAccountID(ctx context.Context, accountID int64) error {
+	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalParent, "delete parent push subscriptions")
+}
+
+func (r *PushSubscriptionRepository) deleteByAccountPortal(ctx context.Context, accountID int64, portal, op string) error {
 	_, err := base.GetDB(ctx, r.DB).NewDelete().
 		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
-		Where(pushPortalFilter, iot.PushPortalStaff).
+		Where(pushPortalFilter, portal).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete staff push subscriptions", Err: err}
+		return &modelBase.DatabaseError{Op: op, Err: err}
 	}
 	return nil
 }
 
-// DeleteStaffByTokenFamilyID removes staff-portal subscriptions registered by
-// one refresh-token family, across tenants. The caller must supply an admin
+// DeleteByTokenFamilyID removes subscriptions registered by one refresh-token
+// family, any portal, across tenants. The caller must supply an admin
 // transaction. An empty family ID is a no-op so unbound legacy rows survive.
-func (r *PushSubscriptionRepository) DeleteStaffByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error {
+func (r *PushSubscriptionRepository) DeleteByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error {
 	if familyID == "" {
 		return nil
 	}
@@ -181,10 +191,9 @@ func (r *PushSubscriptionRepository) DeleteStaffByTokenFamilyID(ctx context.Cont
 		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
 		Where("token_family_id = ?", familyID).
-		Where(pushPortalFilter, iot.PushPortalStaff).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete staff push subscriptions by token family", Err: err}
+		return &modelBase.DatabaseError{Op: "delete push subscriptions by token family", Err: err}
 	}
 	return nil
 }
@@ -193,16 +202,27 @@ func (r *PushSubscriptionRepository) DeleteStaffByTokenFamilyID(ctx context.Cont
 // token family. The caller must supply an admin transaction. A positive
 // tenantID limits the delete to that school.
 func (r *PushSubscriptionRepository) DeleteStaffUnboundByAccount(ctx context.Context, accountID, tenantID int64) error {
+	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalStaff, "delete unbound staff push subscriptions")
+}
+
+// DeleteParentUnboundByAccount removes parent-portal subscriptions that have
+// no token family. The caller must supply an admin transaction. A positive
+// tenantID limits the delete to that school.
+func (r *PushSubscriptionRepository) DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error {
+	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalParent, "delete unbound parent push subscriptions")
+}
+
+func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context, accountID, tenantID int64, portal, op string) error {
 	query := base.GetDB(ctx, r.DB).NewDelete().
 		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
 		Where("token_family_id = ?", "").
-		Where(pushPortalFilter, iot.PushPortalStaff)
+		Where(pushPortalFilter, portal)
 	if tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
 	}
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete unbound staff push subscriptions", Err: err}
+		return &modelBase.DatabaseError{Op: op, Err: err}
 	}
 	return nil
 }
