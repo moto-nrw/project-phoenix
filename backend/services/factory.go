@@ -2130,6 +2130,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		DeviationEventRepo:         repos.DeviationEvent,
 		ConflictAckRepo:            repos.TimetableConflictAck,
+		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "timetable-data"),
 		DB:                         db,

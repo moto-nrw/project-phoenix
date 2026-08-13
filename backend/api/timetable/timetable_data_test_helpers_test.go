@@ -62,6 +62,7 @@ func testTimetableDataWithOfferingCallbacks(
 		ResyncOfferingRoster:       resyncOfferingRoster,
 		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(db),
 		ConflictAckRepo:            scheduleRepo.NewTimetableConflictAckRepository(db),
+		RecoveryRepo:               scheduleRepo.NewActivityRecoveryRepository(db),
 		DB:                         db,
 	}
 	return scheduleSvc.NewTimetableDataService(deps)

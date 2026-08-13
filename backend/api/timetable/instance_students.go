@@ -139,7 +139,12 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 }
 
 func (rs *Resource) rejectFrozenAttendanceWrite(w http.ResponseWriter, r *http.Request, instanceID int64) bool {
-	inst, err := rs.TimetableData.GetActivityInstance(r.Context(), instanceID)
+	ctx := r.Context()
+	if err := rs.TimetableData.LockInstanceAttendance(ctx, instanceID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock attendance failed", err))
+		return true
+	}
+	inst, err := rs.TimetableData.GetActivityInstance(ctx, instanceID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))

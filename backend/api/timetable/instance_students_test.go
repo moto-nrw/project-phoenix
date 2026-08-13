@@ -401,6 +401,28 @@ func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "cannot be set when status is expected")
 }
 
+func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
+	s := buildPatchSetup(t)
+	_, err := s.db.NewUpdate().
+		TableExpr("schedule.activity_instances").
+		Set("status = ?", schedule.InstanceStatusCompleted).
+		Where("id = ?", s.instanceID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	router := patchRouter(testpkg.TenantContext(1), s.res)
+	w := doPatch(t, router, fmt.Sprintf("/instances/%d/students/%d", s.instanceID, s.studentID), map[string]any{
+		"note": "nach Abschluss",
+	})
+	require.Equal(t, http.StatusConflict, w.Code, "body: %s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "frozen")
+
+	row, err := scheduleRepo.NewInstanceStudentRepository(s.db).FindByInstanceAndStudent(s.ctx, s.instanceID, s.studentID)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	assert.Nil(t, row.Note, "completed instance must not accept a late attendance write")
+}
+
 func TestPatchInstanceStudent_404_Unknown(t *testing.T) {
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.TenantContext(1), s.res)
