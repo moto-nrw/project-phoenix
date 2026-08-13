@@ -2441,13 +2441,97 @@ describe("TimetableEventModal", () => {
     expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
+  it("chooses the scope before showing fields for a series occurrence", async () => {
+    mockGetTemplate.mockResolvedValue({
+      ...templateWithWeekdayRosters,
+      schedules: [
+        { ...templateWithWeekdayRosters.schedules[0]!, weekday: 1 },
+        {
+          ...templateWithWeekdayRosters.schedules[0]!,
+          id: "10",
+          weekday: 2,
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    expect(
+      await screen.findByText("Wiederholenden Termin ändern"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Titel*")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Titel*")).toHaveValue("Yoga"),
+    );
+    await goToStep(2);
+    expect(screen.getByRole("tab", { name: "Jede Woche" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(screen.getByRole("button", { name: "Mo" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Di" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("loads the effective series part before a following edit", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [
+        { id: "21", name: "Max Kind" },
+        { id: "22", name: "Mila Kind" },
+      ],
+    });
+    mockGetAllStaff.mockResolvedValue([
+      { id: "11", name: "Ada Staff" },
+      { id: "12", name: "Bea Staff" },
+    ]);
+    mockGetTemplate.mockResolvedValue(templateWithWeekdayRosters);
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Titel*")).toHaveValue("Yoga"),
+    );
+    await goToStep(2);
+    expect(screen.getByRole("button", { name: "Mo" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Di" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("Schuljahr 2026/2027")).toBeInTheDocument();
+    await goToStep(3);
+    expect(
+      screen.getByRole("button", { name: "Pro Wochentag" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    expect(screen.getByRole("checkbox", { name: /Ada Staff/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Max Kind/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Di" }));
+    expect(screen.getByRole("checkbox", { name: /Bea Staff/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Mila Kind/ })).toBeChecked();
+  });
+
   it("asks for the scope when editing a series instance and applies 'Nur diese Woche'", async () => {
     const { onSaved } = renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
-
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
 
     expect(
       await screen.findByText("Wiederholenden Termin ändern"),
@@ -2455,9 +2539,7 @@ describe("TimetableEventModal", () => {
     expect(mockUpdate).not.toHaveBeenCalled();
     // The scope copy explains the effect, not the split mechanism.
     expect(
-      screen.getByText(
-        "Ändert diesen und alle künftigen Termine ab dem 04.05.2026 dauerhaft; frühere Termine bleiben unverändert.",
-      ),
+      screen.getByText("Lädt den ab 04.05.2026 wirksamen Serienteil."),
     ).toBeInTheDocument();
     // Neither Datum nor Notiz changed — no single-scope hint.
     expect(
@@ -2465,6 +2547,9 @@ describe("TimetableEventModal", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    expect(screen.getByLabelText("Titel*")).toHaveValue("Mensa");
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -2485,10 +2570,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     await waitFor(() =>
       expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -2497,7 +2585,7 @@ describe("TimetableEventModal", () => {
           effective_date: "2026-05-04",
           materialize_from: "2026-05-04",
           materialize_to: "2026-06-28",
-          name: "Mensa",
+          name: "Yoga",
           // Weekdays/category/period come from the fetched template.
           weekdays: [1],
           category_id: 2,
@@ -2536,10 +2624,13 @@ describe("TimetableEventModal", () => {
         ],
       });
 
-      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-      await clickSave();
       await screen.findByText("Wiederholenden Termin ändern");
+
       fireEvent.click(screen.getByRole("button", { name: new RegExp(scope) }));
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+      await clickSave();
 
       const dialog = await screen.findByRole("dialog", {
         name: "An einem Schließtag planen?",
@@ -2583,12 +2674,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
 
     // Warning lists the concrete affected dates; the series is NOT written yet.
     expect(
@@ -2622,10 +2714,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     expect(
       await screen.findByText("Einzelanpassungen gehen verloren"),
@@ -2655,10 +2750,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     // The split path must probe WITH deletions and surface the deleted date.
     await waitFor(() =>
@@ -2682,12 +2780,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
 
     await waitFor(() =>
       expect(mockCountEditedInWindow).toHaveBeenCalledWith(
@@ -2716,12 +2815,14 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
+
     await screen.findByText("Einzelanpassungen gehen verloren");
 
     // The slide-over footer also has an "Abbrechen"; scope to the warning dialog.
@@ -2747,12 +2848,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
 
     // No warning modal; the edit goes straight through.
     await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
@@ -2770,12 +2872,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await goToStep(3);
-    expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(null);
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(3);
+    await clickSave();
 
     await waitFor(() =>
       expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -2816,6 +2919,11 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await screen.findByLabelText("Titel*");
+
     await goToStep(3);
     await screen.findByText("QA Substitute");
     await goToStep(1);
@@ -2823,8 +2931,6 @@ describe("TimetableEventModal", () => {
       target: { value: "Mensa umbenannt" },
     });
     await clickSave();
-    await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
 
     await waitFor(() =>
       expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -2876,11 +2982,12 @@ describe("TimetableEventModal", () => {
         calendarPeriods: [shortPeriod],
       });
 
-      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-      await clickSave();
       await screen.findByText("Wiederholenden Termin ändern");
       mockCheckShiftCoverage.mockClear();
       fireEvent.click(screen.getByRole("button", { name: buttonName }));
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
 
       await waitFor(() => {
         const scopeProbes = mockCheckShiftCoverage.mock.calls
@@ -2956,20 +3063,25 @@ describe("TimetableEventModal", () => {
       calendarPeriods: [shortPeriod],
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
 
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
+
     await waitFor(() =>
-      expect(mockCheckShiftCoverage).toHaveBeenCalledWith({
-        dates: ["2026-05-04", "2026-05-06", "2026-05-11", "2026-05-13"],
-        startTime: "12:00",
-        endTime: "13:00",
-        staffIds: ["11"],
-        calendarPeriodId: "5",
-        weekPattern: 0,
-      }),
+      expect(mockCheckShiftCoverage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dates: ["2026-05-04", "2026-05-06", "2026-05-11", "2026-05-13"],
+          startTime: "14:00",
+          endTime: "15:00",
+          staffIds: ["11"],
+          calendarPeriodId: "5",
+          weekPattern: 0,
+        }),
+      ),
     );
     expect(mockToastWarning).toHaveBeenCalledWith(
       "Ada Staff fehlt am Mittwoch von 12:30–13:00.",
@@ -3015,10 +3127,13 @@ describe("TimetableEventModal", () => {
       calendarPeriods: [shortPeriod],
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     // validUntil is exclusive: the split successor inherits the boundary,
     // so 2026-05-11 and 2026-05-13 are never created and must not be probed.
@@ -3067,10 +3182,13 @@ describe("TimetableEventModal", () => {
       calendarPeriods: [shortPeriod],
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     // The latest boundary (2026-05-13, exclusive) wins: Monday 2026-05-11
     // stays in the probe even though the Monday schedule ends earlier.
@@ -3091,10 +3209,13 @@ describe("TimetableEventModal", () => {
       calendarPeriods: [...periods, templatePinnedPeriod],
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     await waitFor(() =>
       expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -3127,11 +3248,14 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await screen.findByLabelText("Titel*");
+
     await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
     await clickSave();
-    await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
 
     await waitFor(() =>
       expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -3163,11 +3287,14 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await screen.findByLabelText("Titel*");
+
     await goToStep(3);
     await screen.findByText(/Die Personalliste konnte nicht vollständig/);
     await clickSave();
-    await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
 
     await waitFor(() =>
       expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -3199,12 +3326,13 @@ describe("TimetableEventModal", () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
 
     await waitFor(() =>
       expect(mockCheckShiftCoverage).toHaveBeenCalledWith(
@@ -3216,7 +3344,7 @@ describe("TimetableEventModal", () => {
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
         "7",
         expect.objectContaining({
-          name: "Mensa",
+          name: "Yoga",
           room_id: 3,
           weekdays: [1],
           category_id: 2,
@@ -3251,10 +3379,14 @@ describe("TimetableEventModal", () => {
         },
       });
 
-      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-      await clickSave();
       await screen.findByText("Wiederholenden Termin ändern");
+
       fireEvent.click(screen.getByRole("button", { name: scope }));
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await chooseFromSelect(screen.getByLabelText("Planungsspur"), "Mittag");
+
+      await clickSave();
 
       const expected = expect.objectContaining({ planning_track_id: 8 });
       if (write === "split") {
@@ -3285,12 +3417,17 @@ describe("TimetableEventModal", () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await chooseFromSelect(
+      screen.getByLabelText("Planungsspur"),
+      "Keine Planungsspur",
+    );
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -3309,14 +3446,15 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await goToStep(3);
-    expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(null);
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(3);
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -3339,16 +3477,17 @@ describe("TimetableEventModal", () => {
       },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await goToStep(3);
-    const requiredStaff = screen.getByLabelText("Benötigtes Personal");
-    expect(requiredStaff).toHaveValue(2);
-    fireEvent.change(requiredStaff, { target: { value: "" } });
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await goToStep(3);
+    const requiredStaff = screen.getByLabelText("Benötigtes Personal");
+    expect(requiredStaff).toHaveValue(3);
+    fireEvent.change(requiredStaff, { target: { value: "" } });
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -3367,12 +3506,13 @@ describe("TimetableEventModal", () => {
       calendarPeriods: [...periods, templatePinnedPeriod],
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -3403,13 +3543,16 @@ describe("TimetableEventModal", () => {
       },
     });
 
-    await goToStep(3);
-    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await screen.findByLabelText("Titel*");
+
+    await goToStep(3);
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -3429,13 +3572,16 @@ describe("TimetableEventModal", () => {
       },
     });
 
-    await goToStep(3);
-    await screen.findByText("Max Kind");
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await screen.findByLabelText("Titel*");
+
+    await goToStep(3);
+    await screen.findByText("Max Kind");
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -3483,13 +3629,16 @@ describe("TimetableEventModal", () => {
       },
     });
 
-    await goToStep(3);
-    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await screen.findByLabelText("Titel*");
+
+    await goToStep(3);
+    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    await clickSave();
 
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -3516,11 +3665,14 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+
+    await screen.findByLabelText("Titel*");
+
     await goToStep(3);
     await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
     await clickSave();
-    await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -3548,11 +3700,14 @@ describe("TimetableEventModal", () => {
       },
     });
 
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+
+    await screen.findByLabelText("Titel*");
+
     await goToStep(3);
     await screen.findByText(/Die Personalliste konnte nicht vollständig/);
     await clickSave();
-    await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -3579,24 +3734,15 @@ describe("TimetableEventModal", () => {
     });
   });
 
-  // Franziska (Schule am Berg): editing a series occurrence while flipping
-  // Wiederholung to weekly used to skip the scope dialog and POST a brand-new
-  // series next to the old one.
-  it("asks for the scope when editing a series instance even if Wiederholung is weekly", async () => {
+  it("does not expose recurrence fields before a series scope is chosen", async () => {
     renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await goToStep(2);
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
-      button: 0,
-    });
-    await clickSave();
-
     expect(
       await screen.findByText("Wiederholenden Termin ändern"),
     ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Wiederholt sich")).not.toBeInTheDocument();
     expect(mockCreateTemplate).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
   });
@@ -4512,10 +4658,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockSplitTemplate).toHaveBeenCalledTimes(1);
@@ -4534,12 +4683,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
     fireEvent.click(
       screen.getByRole("button", { name: /Alle Termine der Serie/ }),
     );
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockUpdateTemplate).toHaveBeenCalledTimes(1);
@@ -4558,10 +4708,13 @@ describe("TimetableEventModal", () => {
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    await clickSave();
     await screen.findByText("Wiederholenden Termin ändern");
+
     fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+
+    await clickSave();
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
@@ -4571,22 +4724,14 @@ describe("TimetableEventModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("flags date and note as single-scope-only when the note changed", async () => {
+  it("explains that a single scope opens only the selected occurrence", async () => {
     renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
 
-    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-    fireEvent.change(screen.getByLabelText("Tagesnotiz"), {
-      target: { value: "neuer Hinweis" },
-    });
-    await clickSave();
-
     await screen.findByText("Wiederholenden Termin ändern");
     expect(
-      screen.getByText(
-        /Geändertes Datum und Tagesnotiz gelten nur bei .*die Wochennotiz der Terminreihe bleibt/,
-      ),
+      screen.getByText("Öffnet nur den Termin am 04.05.2026."),
     ).toBeInTheDocument();
   });
 
@@ -4809,15 +4954,16 @@ describe("TimetableEventModal", () => {
       mockGetTemplate.mockResolvedValue(resolvedSuccessor);
       const { onSaved } = renderModal({ initialInstance: chainInstance });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       await goToStep(3);
       await screen.findByText("Max Kind");
       fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
-      );
 
       await waitFor(() =>
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -4857,15 +5003,16 @@ describe("TimetableEventModal", () => {
       mockGetTemplate.mockResolvedValue(resolvedSuccessor);
       renderModal({ initialInstance: chainInstance });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       await goToStep(3);
       await screen.findByText("Max Kind");
       fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Alle Termine der Serie/ }),
-      );
 
       await waitFor(() =>
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -4875,6 +5022,35 @@ describe("TimetableEventModal", () => {
         ),
       );
       expect(mockSplitTemplate).not.toHaveBeenCalled();
+    });
+
+    it("reconciles only changed weekdays for a resolved multi-day series", async () => {
+      mockGetTemplate.mockResolvedValue({
+        ...templateWithWeekdayRosters,
+        id: "88",
+        resolvedFromTemplateId: "87",
+      });
+      renderModal({ initialInstance: chainInstance });
+
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+      await screen.findByLabelText("Titel*");
+      await goToStep(3);
+      fireEvent.click(screen.getByRole("button", { name: "Di" }));
+      fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
+      await clickSave();
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "88",
+          expect.objectContaining({
+            series_roster_scope_weekdays: [2],
+            series_roster_scope_student_ids: [21],
+          }),
+        ),
+      );
     });
 
     it("keeps the successor's Hauptbetreuung when only the staff list changed", async () => {
@@ -4905,15 +5081,16 @@ describe("TimetableEventModal", () => {
         },
       });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       await goToStep(3);
       await screen.findByText("Cem Staff");
       fireEvent.click(screen.getByRole("checkbox", { name: /Cem Staff/ }));
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
-      );
 
       await waitFor(() =>
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -4948,15 +5125,16 @@ describe("TimetableEventModal", () => {
         },
       });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       await goToStep(3);
       await screen.findByText("Cem Staff");
       fireEvent.click(screen.getByRole("checkbox", { name: /Cem Staff/ }));
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
-      );
 
       await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
       const body = mockUpdateTemplate.mock.calls[0]?.[1] as unknown;
@@ -4969,15 +5147,16 @@ describe("TimetableEventModal", () => {
       mockGetTemplate.mockResolvedValue(resolvedSuccessor);
       renderModal({ initialInstance: chainInstance });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       fireEvent.change(screen.getByLabelText("Start*"), {
         target: { value: "12:30" },
       });
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
-      );
 
       await waitFor(() =>
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -4999,16 +5178,17 @@ describe("TimetableEventModal", () => {
         initialInstance: { ...chainInstance, studentIds: ["21"] },
       });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       await goToStep(3);
       await screen.findByText("Max Kind");
       // The child was on the occurrence — this click removes them.
       fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
-      );
 
       await waitFor(() =>
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -5026,15 +5206,16 @@ describe("TimetableEventModal", () => {
       mockGetTemplate.mockResolvedValue(resolvedSuccessor);
       renderModal({ initialInstance: chainInstance });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       fireEvent.change(screen.getByLabelText("Titel*"), {
         target: { value: "Mensa neu" },
       });
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
-      );
 
       await waitFor(() =>
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -5055,12 +5236,13 @@ describe("TimetableEventModal", () => {
         initialInstance: { ...savedInstance, activityGroupId: "7" },
       });
 
-      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-      await clickSave();
       await screen.findByText("Wiederholenden Termin ändern");
       fireEvent.click(
         screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
       );
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
 
       await waitFor(() =>
         expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -5089,15 +5271,16 @@ describe("TimetableEventModal", () => {
         initialInstance: { ...chainInstance, studentIds: ["101", "105"] },
       });
 
+      await screen.findByText("Wiederholenden Termin ändern");
+      fireEvent.click(
+        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
+      );
+
       await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
       await goToStep(3);
       await screen.findByText("Cem Neu");
       fireEvent.click(screen.getByRole("checkbox", { name: /Cem Neu/ }));
       await clickSave();
-      await screen.findByText("Wiederholenden Termin ändern");
-      fireEvent.click(
-        screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
-      );
 
       await waitFor(() =>
         expect(mockUpdateTemplate).toHaveBeenCalledWith(
@@ -5117,8 +5300,6 @@ describe("TimetableEventModal", () => {
       );
       const { onClose } = renderModal({ initialInstance: chainInstance });
 
-      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-      await clickSave();
       await screen.findByText("Wiederholenden Termin ändern");
       fireEvent.click(
         screen.getByRole("button", { name: /Alle Termine der Serie/ }),
@@ -5127,7 +5308,7 @@ describe("TimetableEventModal", () => {
       const message =
         "Der Regeltermin konnte nicht geladen werden. Bitte laden Sie die Seite neu und öffnen Sie den Termin erneut.";
       await waitFor(() => expect(mockToastError).toHaveBeenCalledWith(message));
-      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(await screen.findByText(new RegExp(message))).toBeInTheDocument();
       expect(mockUpdateTemplate).not.toHaveBeenCalled();
       expect(mockSplitTemplate).not.toHaveBeenCalled();
       expect(onClose).not.toHaveBeenCalled();
@@ -5137,12 +5318,13 @@ describe("TimetableEventModal", () => {
       mockGetTemplate.mockResolvedValue(resolvedSuccessor);
       renderModal({ initialInstance: chainInstance });
 
-      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
-      await clickSave();
       await screen.findByText("Wiederholenden Termin ändern");
       fireEvent.click(
         screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }),
       );
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
 
       // In-place update, not a split: individually deleted occurrences survive,
       // so counting them would warn about a loss that cannot happen.

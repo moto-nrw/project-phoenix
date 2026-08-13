@@ -193,7 +193,10 @@ export function TimetableEventModal({
     handleConfirmSeriesDelete,
     expanded,
     choiceDialogOpen,
+    scopeSelectionRequired,
+    isScopedSeriesEdit,
     setPendingSeriesEdit,
+    handleInitialScopeSelect,
     handleScopeSelect,
     scopeClosingDayWarning,
     setScopeClosingDayWarning,
@@ -402,6 +405,37 @@ export function TimetableEventModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldErrors]);
 
+  if (scopeSelectionRequired && initialInstance) {
+    return (
+      <ChoiceModal
+        isOpen={isOpen && choiceDialogOpen}
+        onClose={onClose}
+        title="Wiederholenden Termin ändern"
+        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.${validationError ? ` ${validationError}` : ""}`}
+        options={[
+          {
+            value: "single",
+            label: "Nur diese Woche",
+            description: `Öffnet nur den Termin am ${formatDate(initialInstance.date)}.`,
+          },
+          {
+            value: "following",
+            label: "Ab jetzt dauerhaft",
+            description: `Lädt den ab ${formatDate(initialInstance.date)} wirksamen Serienteil.`,
+          },
+          {
+            value: "all",
+            label: "Alle Termine der Serie",
+            description:
+              "Lädt Rhythmus, Zeitraum sowie Kinder- und Personalzuordnungen der Serie.",
+          },
+        ]}
+        onSelect={(value) => void handleInitialScopeSelect(value)}
+        isBusy={submitting}
+      />
+    );
+  }
+
   return (
     <SlideOver
       open={isOpen}
@@ -470,6 +504,7 @@ export function TimetableEventModal({
             // sonst stünde sie vor den Pflichtfeld-Fehlern.
             if (
               closingDayConflict !== null &&
+              !isScopedSeriesEdit &&
               closingDayConfirmationKey !== null &&
               confirmedClosingConflict.current !== closingDayConfirmationKey &&
               !submitting &&
@@ -505,7 +540,9 @@ export function TimetableEventModal({
 
             {isEditingSeries && (
               <p className="text-xs text-gray-500">
-                Änderungen gelten für alle Termine dieser Serie.
+                {isScopedSeriesEdit
+                  ? "Änderungen gelten für den gewählten Serienumfang."
+                  : "Änderungen gelten für alle Termine dieser Serie."}
               </p>
             )}
 
