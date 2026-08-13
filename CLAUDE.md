@@ -283,6 +283,12 @@ If native upload is not available from the current tool context, provide the
 local screenshot paths and ask the user to attach them manually. Do not use
 releases, prereleases, tags, or Gists as an asset host.
 
+**Sanctioned exception — screenshot orphan branches (`pr-<NR>-screenshots`)**:
+responsive sweeps and other agent-produced QA imagery MAY be hosted on a
+dedicated orphan branch and linked by commit SHA in a `gh pr comment`, as
+prescribed by the `responsive-screenshots` skill. One branch per PR, named
+`pr-<NR>-screenshots`, deleted after merge once the links are no longer needed.
+
 ## Database Schemas
 
 `platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `enrollment` · `suggestions` · `meta` · `audit`
