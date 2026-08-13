@@ -785,6 +785,10 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 	// Should fail because room 2 has no active group
 	// The student checkout from room 1 will succeed, but checkin to room 2 will fail
 	testutil.AssertNotFound(t, rr)
+
+	var persisted active.Visit
+	require.NoError(t, ctx.db.NewSelect().Model(&persisted).Where("id = ?", visit.ID).Scan(t.Context()))
+	assert.NotNil(t, persisted.ExitTime)
 }
 
 // =============================================================================

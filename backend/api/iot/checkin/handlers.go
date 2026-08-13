@@ -352,7 +352,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		CurrentVisit: currentVisit,
 	})
 	if err != nil {
-		if checkedOut {
+		if shouldRollbackDestinationCheckin(checkedOut, err) {
 			tenant.MarkRollback(ctx)
 		}
 		rs.renderCheckinError(w, r, err)
@@ -408,6 +408,15 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	)
 
 	sendCheckinResponse(w, r, response, result.Action)
+}
+
+func shouldRollbackDestinationCheckin(checkedOut bool, err error) bool {
+	if !checkedOut {
+		return false
+	}
+	var roomCapacityErr *checkinSvc.RoomCapacityError
+	var activityCapacityErr *checkinSvc.ActivityCapacityError
+	return errors.As(err, &roomCapacityErr) || errors.As(err, &activityCapacityErr)
 }
 
 // applyCheckoutFlags sets the daily-checkout-available and feedback-enabled
