@@ -161,8 +161,7 @@ export function NotificationPreferencesSection({
       />
 
       <p className="mb-4 text-sm text-gray-600">
-        Wählen Sie, worüber moto Sie informieren soll. Es wird nur verschickt,
-        was Sie hier einschalten.
+        Wählen Sie, worüber moto Sie informieren soll.
       </p>
 
       {error && (
