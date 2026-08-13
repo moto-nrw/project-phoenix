@@ -831,3 +831,13 @@ func (rs *Resource) childrenPerStaffRatio(ctx context.Context) int {
 		rs.getLogger(),
 	)
 }
+
+func (rs *Resource) enforcePlannedEnd(ctx context.Context) bool {
+	return configSvc.ResolveBoolOrDefault(
+		ctx,
+		rs.SettingsService,
+		configModel.KeyTimetableEnforcePlannedEnd,
+		true,
+		rs.getLogger(),
+	)
+}

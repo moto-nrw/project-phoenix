@@ -618,6 +618,11 @@ func TestListInstances_DateValidation(t *testing.T) {
 	}
 }
 
+func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
+	res := NewResource(Dependencies{})
+	assert.True(t, res.enforcePlannedEnd(context.Background()))
+}
+
 func TestListInstances_IsLive(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()
@@ -667,6 +672,7 @@ func TestListInstances_IsLive(t *testing.T) {
 	require.Len(t, got.Instances, 1)
 	assert.True(t, got.Instances[0].IsLive, "instance with active_group_id should be live")
 	assert.Equal(t, schedule.InstanceStatusActive, got.Instances[0].Status)
+	assert.NotEmpty(t, got.Instances[0].CompleteAvailableAt)
 }
 
 func TestListInstances_SortedByDateAndStartTime(t *testing.T) {

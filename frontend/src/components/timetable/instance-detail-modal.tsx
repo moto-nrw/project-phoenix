@@ -40,6 +40,8 @@ import {
 } from "~/lib/tenant-context";
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -465,6 +467,12 @@ export function InstanceDetailModal({
   // /{slug}-Präfix tragen, sonst führt der Link ins Leere.
   const tenantPath = useTenantAwarePath();
   const today = useBerlinToday();
+  const now = useMinuteClock();
+  const completeEnabled = canCompleteInstance(
+    instance?.canComplete === true,
+    instance?.completeAvailableAt ?? "",
+    now,
+  );
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
@@ -691,11 +699,11 @@ export function InstanceDetailModal({
             onClick={() => setPendingConfirm("complete")}
             isLoading={pendingAction === "complete"}
             loadingText="Beende …"
-            disabled={pendingAction !== null}
+            disabled={pendingAction !== null || !completeEnabled}
           >
             <span className="inline-flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              Beenden
+              {completeEnabled ? "Beenden" : `Beenden ab ${instance.endTime}`}
             </span>
           </Button>
         )}

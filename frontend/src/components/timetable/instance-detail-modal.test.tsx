@@ -56,6 +56,7 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     presentStudentsCount: 1,
     requiredStaffCount: 1,
     assignedStaffCount: 1,
+    canComplete: true,
     conflictWarnings: [
       {
         kind: "staff",
@@ -274,6 +275,24 @@ describe("InstanceDetailModal", () => {
     );
 
     expect(screen.getByText("Spontan gestartet")).toBeInTheDocument();
+  });
+
+  it("locks complete until the planned end", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({
+          status: "active",
+          isLive: true,
+          canComplete: false,
+          completeAvailableAt: "2099-05-04T13:00:00+02:00",
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Beenden ab 13:00" });
+    expect(button).toBeDisabled();
   });
 
   it("completes an active instance", async () => {

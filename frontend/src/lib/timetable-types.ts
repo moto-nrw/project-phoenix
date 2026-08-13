@@ -186,6 +186,8 @@ export interface EnrichedInstance {
   requiredStaffOverride?: number;
   conflictWarnings: ConflictWarning[];
   canReopen?: boolean;
+  canComplete?: boolean;
+  completeAvailableAt?: string;
 }
 
 interface EmptyRosterReason {
@@ -274,6 +276,8 @@ export interface BackendEnrichedInstance {
     overlap_end?: string;
   }>;
   can_reopen?: boolean;
+  can_complete?: boolean;
+  complete_available_at?: string;
 }
 
 export interface BackendWeeklyInstancesResponse {

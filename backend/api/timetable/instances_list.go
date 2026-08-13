@@ -131,6 +131,8 @@ type enrichedInstance struct {
 	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
 	CanReopen             bool                                  `json:"can_reopen,omitempty"`
+	CanComplete           bool                                  `json:"can_complete"`
+	CompleteAvailableAt   string                                `json:"complete_available_at"`
 }
 
 type emptyRosterReason struct {
@@ -469,6 +471,9 @@ func (rs *Resource) enrichInstance(
 
 	assignedStaff := len(staffRows) - absentCount
 	childrenCount := attendance.expected + attendance.present
+	availability := scheduleSvc.EvaluateLifecycleAvailability(
+		inst, time.Now(), 0, rs.enforcePlannedEnd(ctx),
+	)
 
 	item := enrichedInstance{
 		ID:                     inst.ID,
@@ -508,6 +513,8 @@ func (rs *Resource) enrichInstance(
 		RequiredStaffOverride:  inst.RequiredStaff,
 		ConflictWarnings:       []scheduleSvc.InstanceConflictWarning{},
 		CanReopen:              reopenEligibility(ctx, inst),
+		CanComplete:            availability.CanComplete,
+		CompleteAvailableAt:    availability.CompleteAvailableAt.Format(time.RFC3339),
 	}
 	return item, staffRows, studentRows, nil
 }
