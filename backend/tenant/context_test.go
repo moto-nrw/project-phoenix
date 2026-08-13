@@ -21,6 +21,10 @@ func TestFromContext_EmptyContext(t *testing.T) {
 	assert.Equal(t, int64(0), got)
 }
 
+func TestIsAdminTx_EmptyContext(t *testing.T) {
+	assert.False(t, tenant.IsAdminTx(context.Background()))
+}
+
 func TestWithOrgID_RoundTrip(t *testing.T) {
 	ctx := context.Background()
 	ctx = tenant.WithOrgID(ctx, 77)

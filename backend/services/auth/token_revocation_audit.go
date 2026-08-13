@@ -218,10 +218,13 @@ func (s *Service) withStaffPushAdminTx(ctx context.Context, fn func(context.Cont
 	if s.db == nil {
 		return fn(ctx)
 	}
-	if tenant.FromContext(ctx) == 0 {
-		if _, ok := modelBase.TxFromContext(ctx); ok {
-			return fn(ctx)
-		}
+	// Reuse an ambient admin transaction (login persist already holds
+	// BYPASSRLS and the account row lock). Opening a second AdminTx
+	// here deadlocks on the 3-conn test pool under concurrent login.
+	// A tenant-scoped request still gets a dedicated admin transaction
+	// so RLS cannot hide other schools.
+	if _, ok := modelBase.TxFromContext(ctx); ok && (tenant.FromContext(ctx) == 0 || tenant.IsAdminTx(ctx)) {
+		return fn(ctx)
 	}
 	return tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
 		return fn(adminCtx)

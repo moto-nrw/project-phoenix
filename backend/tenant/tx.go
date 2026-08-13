@@ -115,6 +115,7 @@ func WithAdminTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, t
 
 		// Store tx in context so GetDB(ctx, r.db) finds it (CRIT-1 bridge)
 		ctx = modelBase.ContextWithTx(ctx, &tx)
+		ctx = withAdminTxFlag(ctx)
 
 		return fn(ctx, tx)
 	})
