@@ -135,7 +135,7 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 	assert.Equal(t, "Betreuung", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
 	assert.Equal(t, "Eva Muster (eva@example.test, 02551 123)", doc.Rows[0].Values[listexport.ColumnGuardianContacts])
 	assert.Empty(t, doc.Rows[1].Values[listexport.ColumnEnrollmentSummary])
-	assert.Equal(t, "nein", doc.Rows[1].Values[listexport.ColumnWeeklyMonday])
+	assert.Equal(t, "—", doc.Rows[1].Values[listexport.ColumnWeeklyMonday])
 	assert.Equal(t, "Stamm Kontakt (02551 456)", doc.Rows[1].Values[listexport.ColumnGuardianContacts])
 }
 
@@ -176,7 +176,7 @@ func TestClassRosterWeeklyCellShowsOnlyPickupTimeForCareDays(t *testing.T) {
 			row: enrollmentService.ClassRosterRow{
 				PickupByDay: map[string]string{"mon": "14:30"},
 			},
-			want: "nein",
+			want: "—",
 		},
 	}
 

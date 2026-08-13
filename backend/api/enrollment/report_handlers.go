@@ -673,7 +673,7 @@ func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []stri
 
 func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
 	if !containsReportDay(row.CareDays, day) {
-		return "nein"
+		return "—"
 	}
 	if pickup := strings.TrimSpace(row.PickupByDay[day]); pickup != "" {
 		return pickup + " Uhr"
