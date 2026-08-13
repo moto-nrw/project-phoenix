@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -232,6 +233,11 @@ type ReportServiceConfig struct {
 	// re-implementations are explicitly forbidden (care_day_resolver.go).
 	// REQUIRED for ClassDay (same fail-fast); unused by the other reports.
 	CareDaySvc scheduleService.CareDayService
+	// Settings supplies enrollment.care_offerings_enabled so the class
+	// roster matches the form: a leftover active catalog must not constrain
+	// pickup times when offerings are turned off. Optional in tests; nil
+	// follows the registry default (enabled).
+	Settings RequestSettingsResolver
 }
 
 type reportService struct {
@@ -570,6 +576,10 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	if err != nil {
 		return nil, err
 	}
+	careOfferingsEnabled, err := s.classRosterCareOfferingsEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	enrollmentsByStudent, approvedChildIDs := classRosterApprovedEnrollments(children, requestByID, studentByID)
 	offeringDate := reportOfferingDate(phase)
@@ -589,7 +599,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 			continue
 		}
 		person := persons[student.PersonID]
-		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas, studentGuardianContacts[student.ID], companions[student.ID])
+		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas, studentGuardianContacts[student.ID], companions[student.ID], careOfferingsEnabled)
 		if err != nil {
 			return nil, err
 		}
@@ -1100,6 +1110,7 @@ func classRosterRow(
 	schemas map[int64]*enrollmentModels.FormSchema,
 	studentGuardians []ClassRosterGuardian,
 	companions []userModels.CompanionLink,
+	careOfferingsEnabled bool,
 ) (ClassRosterRow, error) {
 	studentContactGuardians := classRosterStudentGuardians(student, studentGuardians)
 	row := ClassRosterRow{
@@ -1142,7 +1153,7 @@ func classRosterRow(
 	row.EnrollmentSummary = classRosterEnrollmentSummary(careRow.Offerings)
 	row.Offerings = careRow.Offerings
 	row.OfferingsByDay = classRosterOfferingsByDay(careRow.Offerings)
-	row.CareDays = careRow.EffectiveDays
+	row.CareDays = classRosterCareDays(careRow.EffectiveDays, offeringByID, careOfferingsEnabled)
 	row.PickupByDay = pickupByDay
 	row.ArrivalByDay = arrivalByDay
 	row.Departure = departure
@@ -1151,6 +1162,40 @@ func classRosterRow(
 		row.Guardians = studentContactGuardians
 	}
 	return row, nil
+}
+
+// classRosterCareDays is the roster-side mirror of relevantCareDaysForChild:
+// booked offering days when the phase has an active catalog (or leftover
+// selections), every weekday when it does not. The form only loads offerings
+// when enrollment.care_offerings_enabled is on, and only active rows; leftover
+// active catalog entries after the setting is turned off must not hide pickup
+// times the form treated as unrestricted. EffectiveDays is derived only from
+// booked offerings and stays empty in the unconstrained case.
+func classRosterCareDays(effectiveDays []string, offeringByID map[int64]*enrollmentModels.CareOffering, careOfferingsEnabled bool) []string {
+	if (careOfferingsEnabled && classRosterHasActiveOfferings(offeringByID)) || len(effectiveDays) > 0 {
+		return effectiveDays
+	}
+	return sortedDayCodes([]string{"mon", "tue", "wed", "thu", "fri"})
+}
+
+func (s *reportService) classRosterCareOfferingsEnabled(ctx context.Context) (bool, error) {
+	if s.Settings == nil {
+		return true, nil
+	}
+	enabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
+	if err != nil {
+		return false, fmt.Errorf("class roster report: resolve %s: %w", configModel.KeyEnrollmentCareOfferingsEnabled, err)
+	}
+	return enabled, nil
+}
+
+func classRosterHasActiveOfferings(offeringByID map[int64]*enrollmentModels.CareOffering) bool {
+	for _, offering := range offeringByID {
+		if offering != nil && offering.IsActive {
+			return true
+		}
+	}
+	return false
 }
 
 // classRosterCompanions loads the "läuft mit" links of every listed child, so
