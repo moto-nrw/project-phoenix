@@ -2,6 +2,7 @@ package staff
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"testing"
@@ -87,6 +88,26 @@ func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
 
 	require.NotNil(t, response.EmploymentType)
 	assert.Equal(t, users.EmploymentTypePartTime, *response.EmploymentType)
+}
+
+// The staff screens send person_id back to identify the person they edit. It
+// leaves as a decimal string so a bigint survives the JSON.parse in the Next.js
+// proxy — as a number, an id past 2^53 would be rounded into a valid id for a
+// different person before any mapper could preserve it (#2222).
+func TestStaffResponse_PersonIDIsDecimalString(t *testing.T) {
+	const bigPersonID = int64(9007199254740993) // 2^53 + 1
+
+	encoded, err := json.Marshal(newStaffResponse(&users.Staff{
+		Model:    base.Model{ID: 42},
+		PersonID: bigPersonID,
+	}, false, false, "", "", "", "", ""))
+	require.NoError(t, err)
+
+	assert.Contains(t, string(encoded), `"person_id":"9007199254740993"`)
+
+	var decoded StaffResponse
+	require.NoError(t, json.Unmarshal(encoded, &decoded))
+	assert.Equal(t, bigPersonID, decoded.PersonID)
 }
 
 func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *testing.T) {

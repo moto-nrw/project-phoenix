@@ -108,6 +108,35 @@ func init() {
 	})
 
 	config.Register(config.Definition{
+		Key:             config.KeyTimetableStartLeadMinutes,
+		Label:           "Aktivitäten vor Planbeginn starten (Minuten)",
+		Description:     "Legt fest, wie viele Minuten vor der geplanten Startzeit eine Aktivität gestartet werden kann.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       34,
+		Validation:      config.Range(0, 120),
+		DependsOn:       timetableEnabledDependency,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableEnforcePlannedEnd,
+		Label:           "Aktivitäten nur nach Planende beenden",
+		Description:     "Verhindert, dass eine geplante Aktivität vor ihrer eingetragenen Endzeit beendet wird. Spontane Aktivitäten sind ausgenommen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       35,
+		DependsOn:       timetableEnabledDependency,
+	})
+
+	config.Register(config.Definition{
 		Key:             config.KeyTimetableOverdueThresholdMinutes,
 		Label:           "Als überfällig markieren nach (Minuten)",
 		Description:     "Minuten nach der geplanten Startzeit, ab denen eine Aktivität als überfällig angezeigt wird.",
@@ -117,7 +146,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       34,
+		SortOrder:       36,
 		Validation:      config.Range(1, 30),
 		DependsOn:       timetableEnabledDependency,
 	})
@@ -132,7 +161,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       35,
+		SortOrder:       37,
 		DependsOn:       timetableEnabledDependency,
 	})
 
@@ -146,7 +175,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "stundenplan",
-		SortOrder:       36,
+		SortOrder:       38,
 		Validation:      config.Range(1, 30),
 		DependsOn:       timetableEnabledDependency,
 	})

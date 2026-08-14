@@ -149,6 +149,17 @@ export interface FilterConfig {
   readonly onChange: (value: string | string[]) => void;
   readonly options: FilterOption[];
   readonly multiSelect?: boolean;
+  /**
+   * Trigger text of a multi-select whose selection is empty. Defaults to
+   * `Alle {label}`; set it when that reads wrong ("Alle Stufe").
+   */
+  readonly emptyLabel?: string;
+  /**
+   * Trigger text of a multi-select once more than two values are chosen, so a
+   * long selection does not overflow the trigger. Defaults to
+   * `{n} {label} gewählt`.
+   */
+  readonly summaryLabel?: (count: number) => string;
   readonly className?: string;
   /**
    * For `type: "custom"` — the control rendered in place of the option

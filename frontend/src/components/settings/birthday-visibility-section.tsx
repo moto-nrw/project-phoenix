@@ -76,9 +76,8 @@ export function BirthdayVisibilitySection() {
       </div>
 
       <p className="mb-4 text-sm text-gray-600">
-        Wenn Ihre Schule die Geburtstagsanzeige für das Team eingeschaltet hat,
-        erscheint Ihr Name an Ihrem Geburtstag auf der Startseite. Ihr
-        Geburtsjahr wird dabei nie angezeigt.
+        Ihr Name erscheint an Ihrem Geburtstag auf der Startseite, ohne
+        Geburtsjahr.
       </p>
 
       {error && (

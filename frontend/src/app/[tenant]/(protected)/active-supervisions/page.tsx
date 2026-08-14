@@ -24,6 +24,8 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -48,10 +50,14 @@ import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { toISODate } from "~/lib/date-helpers";
+import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
 import { fetchStudents } from "~/lib/student-api";
-import { timetableOperationsApi } from "~/lib/timetable-operations-api";
+import {
+  isReopenUnavailableError,
+  timetableOperationsApi,
+} from "~/lib/timetable-operations-api";
 import type {
   PlannedTimetableInstance,
   TimetableRoster,
@@ -122,6 +128,50 @@ function formatClock(totalMinutes: number): string {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   return `${padClockPart(hours)}:${padClockPart(minutes)}`;
+}
+
+const REOPEN_STORAGE_KEY = "timetable-reopenable-instance";
+const REOPEN_WINDOW_MS = 5 * 60 * 1000;
+
+function readStoredReopenBanner(): {
+  instanceId: string;
+  expiresAt: number;
+} | null {
+  const raw = window.sessionStorage.getItem(REOPEN_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as {
+      instanceId?: string;
+      expiresAt?: string | number;
+    };
+    if (!parsed.instanceId || parsed.expiresAt == null) {
+      window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+      return null;
+    }
+    const expiresAt =
+      typeof parsed.expiresAt === "number"
+        ? parsed.expiresAt
+        : Date.parse(parsed.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+      return null;
+    }
+    return { instanceId: parsed.instanceId, expiresAt };
+  } catch {
+    window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
+    return null;
+  }
+}
+
+function writeStoredReopenBanner(instanceId: string, expiresAt: number): void {
+  window.sessionStorage.setItem(
+    REOPEN_STORAGE_KEY,
+    JSON.stringify({ instanceId, expiresAt }),
+  );
+}
+
+function clearStoredReopenBanner(): void {
+  window.sessionStorage.removeItem(REOPEN_STORAGE_KEY);
 }
 
 export function spontaneousActivityWindow(now: Date): {
@@ -448,6 +498,12 @@ function TimetableRosterHeader({
   onComplete,
   onConfirmExpected,
 }: TimetableRosterHeaderProps) {
+  const now = useMinuteClock();
+  const completeEnabled = canCompleteInstance(
+    roster.instance.canComplete,
+    roster.instance.completeAvailableAt,
+    now,
+  );
   const handleConfirmExpectedClick = async () => {
     await onConfirmExpected(confirmableExpectedRows);
   };
@@ -474,6 +530,10 @@ function TimetableRosterHeader({
             <h2 className="truncate text-base font-semibold text-gray-900">
               {roster.instance.title}
             </h2>
+            <p className="truncate text-sm text-gray-600">
+              {roster.instance.roomName ?? `Raum ${roster.instance.roomId}`} ·{" "}
+              {roster.instance.startTime}-{roster.instance.endTime}
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -493,11 +553,13 @@ function TimetableRosterHeader({
           {attendanceWebEnabled ? (
             <button
               type="button"
-              disabled={isCompletingInstance}
+              disabled={isCompletingInstance || !completeEnabled}
               onClick={handleCompleteClick}
               className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
-              Beenden
+              {completeEnabled
+                ? "Beenden"
+                : `Beenden ab ${roster.instance.endTime}`}
             </button>
           ) : null}
         </div>
@@ -782,6 +844,32 @@ function MeinRaumPageContent() {
   );
   const [isStartingSpontaneous, setIsStartingSpontaneous] = useState(false);
   const [isCompletingInstance, setIsCompletingInstance] = useState(false);
+  const [showCompleteConfirmation, setShowCompleteConfirmation] =
+    useState(false);
+  const [storedReopen, setStoredReopen] = useState<{
+    instanceId: string;
+    expiresAt: number;
+  } | null>(null);
+  const reopenableInstanceId = storedReopen?.instanceId ?? null;
+
+  useEffect(() => {
+    setStoredReopen(readStoredReopenBanner());
+  }, []);
+
+  useEffect(() => {
+    if (!storedReopen) return;
+    const remainingMs = storedReopen.expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      clearStoredReopenBanner();
+      setStoredReopen(null);
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      clearStoredReopenBanner();
+      setStoredReopen(null);
+    }, remainingMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [storedReopen]);
   const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
   const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
@@ -1691,11 +1779,30 @@ function MeinRaumPageContent() {
     [activeTimetableInstanceId, mutateRoster],
   );
 
-  const handleCompleteTimetableInstance = useCallback(async () => {
+  const confirmCompleteTimetableInstance = useCallback(async () => {
     if (!activeTimetableInstanceId) return;
     try {
       setIsCompletingInstance(true);
-      await timetableOperationsApi.complete(activeTimetableInstanceId);
+      const completed = await timetableOperationsApi.complete(
+        activeTimetableInstanceId,
+        currentTimetableRoster?.rows
+          .filter((row) => row.currentlyPresent)
+          .map((row) => row.studentId) ?? [],
+      );
+      const expiresAt = completed.reopenUntil
+        ? Date.parse(completed.reopenUntil)
+        : Date.now() + REOPEN_WINDOW_MS;
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        clearStoredReopenBanner();
+        setStoredReopen(null);
+      } else {
+        writeStoredReopenBanner(activeTimetableInstanceId, expiresAt);
+        setStoredReopen({
+          instanceId: activeTimetableInstanceId,
+          expiresAt,
+        });
+      }
+      setShowCompleteConfirmation(false);
       setSelectedTimetableInstanceId(null);
       await mutateDashboard();
       setRefreshKey((prev) => prev + 1);
@@ -1708,7 +1815,33 @@ function MeinRaumPageContent() {
     } finally {
       setIsCompletingInstance(false);
     }
-  }, [activeTimetableInstanceId, mutateDashboard]);
+  }, [activeTimetableInstanceId, currentTimetableRoster, mutateDashboard]);
+
+  const handleCompleteTimetableInstance = useCallback(async () => {
+    setShowCompleteConfirmation(true);
+  }, []);
+
+  const handleReopenTimetableInstance = useCallback(async () => {
+    if (!reopenableInstanceId) return;
+    try {
+      const result = await timetableOperationsApi.reopen(reopenableInstanceId);
+      clearStoredReopenBanner();
+      setStoredReopen(null);
+      setSelectedTimetableInstanceId(result.instanceId);
+      await mutateDashboard();
+      setRefreshKey((previous) => previous + 1);
+    } catch (err) {
+      if (isReopenUnavailableError(err)) {
+        clearStoredReopenBanner();
+        setStoredReopen(null);
+      }
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Aktivität konnte nicht wieder geöffnet werden.",
+      );
+    }
+  }, [mutateDashboard, reopenableInstanceId]);
 
   const handleConfirmExpectedStudents = useCallback(
     async (rows: TimetableRosterRow[]) => {
@@ -2049,6 +2182,24 @@ function MeinRaumPageContent() {
       onStart={(payload) => void handleStartSpontaneousActivity(payload)}
     />
   ) : null;
+  const reopenBanner = reopenableInstanceId ? (
+    <div className="mb-4">
+      <Alert
+        type="success"
+        message="Aktivität wurde beendet. Die Rücknahme ist fünf Minuten lang möglich."
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={() => void handleReopenTimetableInstance()}
+          >
+            Rückgängig
+          </Button>
+        }
+      />
+    </div>
+  ) : null;
 
   // Show unclaimed rooms banner when user has no supervised groups and no Schulhof
   // If the Schulhof tab is available, we'll show the main view with just that tab
@@ -2059,6 +2210,7 @@ function MeinRaumPageContent() {
   ) {
     return (
       <div className="w-full">
+        {reopenBanner}
         {spontaneousStartBanner}
         <EmptyRoomsView
           onClaimed={handleRoomClaimed}
@@ -2258,6 +2410,38 @@ function MeinRaumPageContent() {
 
   return (
     <div className="w-full">
+      {reopenBanner}
+      <ConfirmationModal
+        isOpen={showCompleteConfirmation}
+        onClose={() => setShowCompleteConfirmation(false)}
+        onConfirm={() => void confirmCompleteTimetableInstance()}
+        title="Aktivität wirklich beenden?"
+        confirmText="Aktivität beenden"
+        isConfirmLoading={isCompletingInstance}
+        isDismissDisabled={isCompletingInstance}
+      >
+        <div className="space-y-3 text-sm text-gray-700">
+          <p>
+            <strong>{currentTimetableRoster?.instance.title}</strong> endet laut
+            Plan um {currentTimetableRoster?.instance.endTime} Uhr.
+          </p>
+          <p>
+            Aktuell anwesend:{" "}
+            {currentTimetableRoster?.rows.filter((row) => row.currentlyPresent)
+              .length ?? 0}
+          </p>
+          {(currentTimetableRoster?.rows.filter((row) => row.currentlyPresent)
+            .length ?? 0) > 0 ? (
+            <ul className="list-disc space-y-1 pl-5">
+              {currentTimetableRoster?.rows
+                .filter((row) => row.currentlyPresent)
+                .map((row) => (
+                  <li key={row.studentId}>{row.studentName}</li>
+                ))}
+            </ul>
+          ) : null}
+        </div>
+      </ConfirmationModal>
       {/* Unclaimed Rooms Section - Shows rooms available for claiming */}
       <UnclaimedRooms
         onClaimed={handleRoomClaimed}

@@ -264,6 +264,13 @@ func renderAcceptError(w http.ResponseWriter, r *http.Request, err error) bool {
 		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrInvitationNameRequired))
 	case errors.Is(err, authService.ErrInvitationTenantDeleted):
 		common.RenderError(w, r, common.ErrorNotFound(authService.ErrInvitationTenantDeleted))
+	// Accepting an invitation provisions the school identity (#2222), and that
+	// step refuses an account whose person at this school is a child's record —
+	// filing a child as personnel is worse than leaving the account
+	// incomplete. Fixable by a human (the two records have to be separated),
+	// so it belongs in the response as the German message rather than a 500.
+	case authService.IsSchoolIdentityRequestError(err):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderInvitationError(w, r, err):
 		// handled by renderInvitationError
 	default:

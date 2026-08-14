@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -323,17 +324,15 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
-		schoolClass:         strings.TrimSpace(req.Filters.SchoolClass),
+		// Class and group travel comma-separated so an export mirrors a
+		// multi-selection made in the Kindersuche (#2218).
+		schoolClasses: parseMultiValueParam([]string{req.Filters.SchoolClass}),
 		// The birthday-month and search filters run in memory after the fetch,
 		// so pull every SQL-matching row: a paginated page would drop matching
 		// children past the boundary and silently shorten the list.
 		fetchAll: true,
 	}
-	if req.Filters.GroupID != "" {
-		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
-			params.groupID = groupID
-		}
-	}
+	params.groupIDs = parseGroupIDList([]string{req.Filters.GroupID})
 	if req.Filters.RoomID != "" {
 		if roomID, err := strconv.ParseInt(req.Filters.RoomID, 10, 64); err == nil {
 			params.roomID = roomID
@@ -400,6 +399,27 @@ func matchesTimeFilter(planned *string, isException bool, filter string) bool {
 	return planned != nil && *planned == filter
 }
 
+// exportYearFilterValues resolves the school-year ("Stufe") export filter into
+// the set of years an export is restricted to. Several years may be selected at
+// once (#2218) and travel comma-separated; empty and the neutral "all" sentinel
+// both mean "no restriction".
+func exportYearFilterValues(raw string) []string {
+	if !isActiveFilterValue(strings.TrimSpace(raw)) {
+		return nil
+	}
+	return parseMultiValueParam([]string{raw})
+}
+
+// matchesExportYearFilter reports whether a child's class falls into any of the
+// selected school years.
+func matchesExportYearFilter(schoolClass, raw string) bool {
+	years := exportYearFilterValues(raw)
+	if len(years) == 0 {
+		return true
+	}
+	return slices.Contains(years, schoolYear(schoolClass))
+}
+
 func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset listexport.Preset, planningDate timezone.Date) []StudentResponse {
 	// Months were validated when the request was decoded.
 	months, _ := parseExportMonths(filters.Months)
@@ -421,7 +441,7 @@ func exportStudentMatchesFilters(student StudentResponse, filters studentExportF
 	if byBirthday && !birthdayExportMatch(student, months) {
 		return false
 	}
-	if filters.Year != "" && filters.Year != "all" && schoolYear(student.SchoolClass) != filters.Year {
+	if !matchesExportYearFilter(student.SchoolClass, filters.Year) {
 		return false
 	}
 	if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
@@ -905,11 +925,11 @@ func exportIdentityFilterLabels(filters studentExportFilters, planningDate timez
 	if filters.GroupID != "" {
 		labels = append(labels, "Gruppe gefiltert")
 	}
-	if filters.Year != "" && filters.Year != "all" {
-		labels = append(labels, "Stufe: "+filters.Year)
+	if years := exportYearFilterValues(filters.Year); len(years) > 0 {
+		labels = append(labels, "Stufe: "+strings.Join(years, ", "))
 	}
-	if strings.TrimSpace(filters.SchoolClass) != "" {
-		labels = append(labels, "Klasse: "+strings.TrimSpace(filters.SchoolClass))
+	if classes := parseMultiValueParam([]string{filters.SchoolClass}); len(classes) > 0 {
+		labels = append(labels, "Klasse: "+strings.Join(classes, ", "))
 	}
 	if filters.Status != "" && filters.Status != "all" {
 		// Only the location-derived buckets are a snapshot of right now; on a

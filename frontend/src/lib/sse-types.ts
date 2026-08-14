@@ -7,6 +7,9 @@ type SSEEventType =
   // scheduler timeout). One event per topic carries all affected student IDs
   // instead of one student_checkout per student — see backend issue #848.
   | "bulk_student_checkout"
+  // Batched check-in when many visits become live at once (activity reopen).
+  // Same cache contract as bulk_student_checkout; see EventBulkStudentCheckIn.
+  | "bulk_student_checkin"
   | "student_updated"
   // Tenant-wide signal that a child's Laufgemeinschaft ("läuft mit",
   // users.student_companions) may have changed: a submitted companion list, or
@@ -98,11 +101,12 @@ interface SSEEventData {
   school_class?: string;
   group_name?: string; // Student's OGS group
 
-  // Affected students on a bulk_student_checkout event (whole-session end).
+  // Affected students on a bulk_student_checkout or bulk_student_checkin event.
   student_ids?: string[];
 
   // Affected educational (OGS) group ids on dashboard_counts_changed /
-  // student_checkin / student_checkout / bulk_student_checkout (#2057).
+  // student_checkin / student_checkout / bulk_student_checkout /
+  // bulk_student_checkin (#2057).
   // Group ids only — never student identity — so the tenant-wide
   // dashboard_counts_changed stays GDPR-safe. Clients scope their
   // ogs-students-{gid} revalidation to these ids; an ABSENT field means

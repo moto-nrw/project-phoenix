@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -399,6 +401,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
+		RoleRepo:             repos.Role,
 		PersonnelNumberAudit: repos.PersonnelNumberChange,
 
 		// Staff Stammdaten (#1423)
@@ -962,6 +965,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
+	recoveryRepo := scheduleRepo.NewActivityRecoveryRepository(db)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
@@ -981,6 +985,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "instance-lifecycle"),
+		Settings:           settingsService,
+		RecoveryRepo:       recoveryRepo,
+		// E2E fixtures start future weekday instances. Dedicated unit tests
+		// construct the service with EnforceTimePolicy: true.
+		EnforceTimePolicy: os.Getenv("APP_ENV") != "test",
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
@@ -1086,6 +1095,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "timetable-operations"),
+		RecoveryRepo:       recoveryRepo,
 	})
 
 	// Initialize auth service with validated config
@@ -1156,6 +1166,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:        repos.Person,
 		StaffRepo:         repos.Staff,
 		TeacherRepo:       repos.Teacher,
+		StudentRepo:       repos.Student,
 		SchoolRepo:        repos.School,
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
@@ -1814,6 +1825,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		userContextService,
 		pillEmitter,
 		realtimeHub,
+		settingsService,
 		logger.With("service", "excused-requests"),
 		db,
 	)
@@ -1962,6 +1974,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffRepo:             repos.Staff,
 		AccountRepo:           repos.Account,
 		TeacherRepo:           repos.Teacher,
+		StudentRepo:           repos.Student,
 		GroupSupervisorRepo:   repos.GroupSupervisor,
 		ActiveGroupRepo:       repos.ActiveGroup,
 		Settings:              settingsService,
@@ -2121,6 +2134,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		DeviationEventRepo:         repos.DeviationEvent,
 		ConflictAckRepo:            repos.TimetableConflictAck,
+		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "timetable-data"),
 		DB:                         db,

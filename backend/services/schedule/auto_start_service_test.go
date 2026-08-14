@@ -315,6 +315,9 @@ func (s *autoStartInstanceStarter) Start(_ context.Context, instanceID, startedB
 func (s *autoStartInstanceStarter) Complete(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (s *autoStartInstanceStarter) Reopen(context.Context, int64, int64, bool) (*StartInstanceResult, error) {
+	return nil, nil
+}
 func (s *autoStartInstanceStarter) Cancel(context.Context, int64, *string, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }

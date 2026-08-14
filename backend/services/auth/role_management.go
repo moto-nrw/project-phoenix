@@ -161,7 +161,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		// identity fields, so the switch belongs to offboarding plus a fresh
 		// account. Roles that legitimately run without a profile (admin) are
 		// unaffected.
-		if RequiresCaregiverProfile(role) {
+		if RoleNeedsCaregiverProfile(role) {
 			isLehrkraft, roleErr := s.accountHoldsLehrkraftRole(txCtx, int64(accountID))
 			if roleErr != nil {
 				return &AuthError{Op: "assign role", Err: roleErr}
@@ -183,32 +183,62 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 			return &AuthError{Op: "check role assignment", Err: err}
 		}
 
-		if existingRole != nil {
-			// Role already assigned, no action needed
-			return nil
+		if existingRole == nil {
+			accountRole := &auth.AccountRole{
+				AccountID: int64(accountID),
+				RoleID:    int64(roleID),
+			}
+			accountRole.SetTenantID(tenant.FromContext(txCtx))
+
+			if err := s.repos.AccountRole.Create(txCtx, accountRole); err != nil {
+				return &AuthError{Op: "assign role to account", Err: err}
+			}
+
+			tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
+			if err != nil {
+				return &AuthError{Op: "revoke tokens after role assignment", Err: err}
+			}
+			revoked = tokens
 		}
 
-		accountRole := &auth.AccountRole{
-			AccountID: int64(accountID),
-			RoleID:    int64(roleID),
-		}
-		accountRole.SetTenantID(tenant.FromContext(txCtx))
-
-		if err := s.repos.AccountRole.Create(txCtx, accountRole); err != nil {
-			return &AuthError{Op: "assign role to account", Err: err}
-		}
-
-		tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
-		if err != nil {
-			return &AuthError{Op: "revoke tokens after role assignment", Err: err}
-		}
-		revoked = tokens
-		return nil
+		// Handing out a staff-tier role is the same act as inviting one, so it
+		// owes the same identity (#2222). Without this, this endpoint is a
+		// fifth way to produce the broken state: an account that holds the
+		// role, logs in, and is not staff as far as the database is concerned.
+		//
+		// Runs for an already-assigned role too, so a repeated call repairs an
+		// account the old behaviour left half-written.
+		return s.ensureIdentityForAssignedRole(txCtx, int64(accountID), role)
 	})
 	if err != nil {
 		return err
 	}
 	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	return nil
+}
+
+// ensureIdentityForAssignedRole completes the school identity chain for a role
+// that was just assigned, inside the caller's transaction.
+//
+// It never creates the person: this endpoint carries no identity fields, and
+// inventing a name is not something a role assignment may do — the same line
+// the operator role change draws. An account without a person at this school is
+// left to the flows that do have a name (staff creation, invitation), which is
+// also why nothing here fails when there is none.
+func (s *Service) ensureIdentityForAssignedRole(ctx context.Context, accountID int64, role *auth.Role) error {
+	if _, err := EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
+		Persons:  s.repos.Person,
+		Staff:    s.repos.Staff,
+		Teachers: s.repos.Teacher,
+		Students: s.repos.Student,
+	}, SchoolIdentityInput{
+		AccountID:    accountID,
+		TenantID:     tenant.FromContext(ctx),
+		Role:         role,
+		CreatePerson: false,
+	}); err != nil {
+		return &AuthError{Op: "provision school identity", Err: err}
+	}
 	return nil
 }
 

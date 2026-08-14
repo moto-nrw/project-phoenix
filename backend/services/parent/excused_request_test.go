@@ -66,6 +66,7 @@ func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Se
 		nil, // userContext: admin perms in the ctx short-circuit the write gate
 		nil, // emitter: pill is best-effort and nil-safe
 		bc,
+		nil, // settings: nil resolves group mode to fixed_groups (supervisor gate)
 		slog.Default(),
 		db,
 	)

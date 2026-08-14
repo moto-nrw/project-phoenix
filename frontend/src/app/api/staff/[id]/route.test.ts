@@ -149,6 +149,36 @@ describe("GET /api/staff/[id]", () => {
     expect(json.data.name).toBe("John Doe");
   });
 
+  it("keeps a bigint person_id as the exact decimal string", async () => {
+    // 2^53 + 1: the edit screen sends this id back to address the person
+    // record, so rounding it here would edit a different person.
+    const personID = "9007199254740993";
+    mockApiGet.mockResolvedValueOnce({
+      status: "success",
+      data: {
+        id: 1,
+        person_id: personID,
+        is_teacher: false,
+        person: {
+          id: 1,
+          first_name: "John",
+          last_name: "Doe",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    });
+
+    const request = createMockRequest("/api/staff/1");
+    const response = await GET(request, createMockContext({ id: "1" }));
+
+    const json =
+      await parseJsonResponse<ApiResponse<{ person_id: string }>>(response);
+    expect(json.data.person_id).toBe(personID);
+  });
+
   it("throws error when staff member not found", async () => {
     mockApiGet.mockResolvedValueOnce({ data: null });
 

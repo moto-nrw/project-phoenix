@@ -356,7 +356,7 @@ export const setupChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Gruppen und Rechte",
-          body: "Gruppen müssen nur angelegt werden, wenn Ihre OGS mit Gruppen arbeitet. Gruppenleitungen haben Rechte für ihre Kinder, zum Beispiel für Anmeldungen, Krankmeldungen und Stammdatenänderungen. Falls unklar ist, wer diese Rechte bekommen soll, kann das später mit dem moto-Team geklärt oder in den Einstellungen angepasst werden.",
+          body: "Gruppen müssen nur angelegt werden, wenn Ihre OGS mit Gruppen arbeitet. Gruppenleitungen haben Rechte für ihre Kinder, zum Beispiel für Anmeldungen, Krankmeldungen und Stammdatenänderungen. Arbeitet Ihre OGS ohne feste Gruppen (`Einstellungen` -> `Betrieb` -> `Arbeit mit festen Gruppen` auf `Offene Betreuung`), gibt es keine Gruppenleitung, an der diese Rechte hängen: Krank- und Gesundmeldungen sowie geplante Abwesenheiten kann dann jede Person mit der Rolle `Betreuer` für jedes Kind eintragen. Stammdaten wie Adresse, Gesundheitsangaben oder Datenschutz bleiben auch dann den Admins vorbehalten. Falls unklar ist, wer diese Rechte bekommen soll, kann das später mit dem moto-Team geklärt oder in den Einstellungen angepasst werden.",
           tone: "blue",
         },
         screenshot: "Gruppen-Liste in der Datenverwaltung.",
@@ -537,9 +537,9 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Alle Kinder` öffnen.",
           "Namen oder Namensbestandteil in das Suchfeld eingeben.",
-          "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern.",
+          "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern. `Klasse`, `Gruppe` und `Stufe` erlauben mehrere Werte gleichzeitig: einfach mehrere Einträge antippen, etwa `3a` und `4b`, wenn zwei Gruppen zusammen betreut werden. Ohne Auswahl gilt weiterhin `alle`; ein erneuter Klick auf einen Eintrag nimmt ihn wieder heraus, `Zurücksetzen` im Filterfenster leert alle Filter.",
           "Über `Filter` im Abschnitt `Anwesenheit` beim Punkt `Tag` (`Heute`, `Morgen` oder ein frei gewähltes Datum bis zum Sonntag der laufenden Woche) festlegen, für welchen Tag die geplante Anwesenheit gilt. Direkt darunter grenzt der Filter `Kommt` beziehungsweise `Kommt nicht` die Liste auf den gewählten Tag ein; Krankmeldungen, Entschuldigungen und Tagesausnahmen werden für diesen Tag ausgewertet. Bei einem anderen Tag als heute bleiben aktuelle Aufenthaltsorte und Live-Filter ausgeblendet, denn wer gerade im Haus ist, sagt nichts über einen anderen Tag aus. Auch Ergebniszahl und `Exportieren` nutzen den gewählten Tag.",
-          "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Ohne Klassenfilter erzeugt die Option `Nach Klassen getrennt` alle Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
+          "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Bei genau einer gewählten Klasse entsteht eine einzelne Liste. Sind mehrere oder gar keine Klassen gewählt, erzeugt die Option `Nach Klassen getrennt` die Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
           "Die Vorlage `Tagesplanung` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
           "Die Vorlage `Geburtstagsliste` gibt die Geburtstage der gefilterten Kinder nach Kalender sortiert aus, voreingestellt für den aktuellen Monat. Alle Listen der Schule gebündelt findest du unter `Datenverwaltung` -> `Exporte`.",
           "Auf jeder Kinderkarte unter `Heimweg` ablesen, wie das Kind am gewählten Tag nach Hause gehen darf. Sind mehrere Wege erlaubt, werden alle angezeigt. Ein Strich bedeutet, dass keine Regel hinterlegt ist.",
@@ -555,8 +555,19 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Alle Kinder mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
-        image: "/help/screens/kindersuche.webp",
+          "Alle Kinder mit Suchfeld, Status-Badges und Aktivitäts-Indikatoren sowie das Filterfenster mit der Mehrfachauswahl bei Klasse.",
+        gallery: [
+          {
+            image: "/help/screens/kindersuche.webp",
+            caption:
+              "Alle Kinder mit Suchfeld, Status-Badges und den Aktivitäts-Indikatoren Mensa und Hausaufgaben (grüner Haken = heute erledigt, grauer Kreis = ausstehend) rechts auf jeder Karte.",
+          },
+          {
+            image: "/help/screens/kindersuche-mehrfachauswahl.webp",
+            caption:
+              "Filterfenster: „Klasse“ ist aufgeklappt, „Klasse 3a“ und „Klasse 4b“ sind angehakt, das Feld zeigt „2 Klassen“. „Stufe“ und „Gruppe“ funktionieren genauso.",
+          },
+        ],
       },
       {
         id: "kinderdetailansicht",
@@ -1041,7 +1052,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Wenn Sie `Ab jetzt dauerhaft` oder `Alle Termine der Serie` wählen und einzelne Termine der Reihe zuvor per `Nur diese Woche` angepasst wurden (z. B. anderer Raum, andere Uhrzeit, geändertes Personal, andere Kinder oder eine manuell gesetzte Anwesenheit), warnt die App und listet die betroffenen Termine mit Datum auf, bevor diese Einzelanpassungen überschrieben werden. Notieren Sie sich diese Termine, um sie anschließend bei Bedarf erneut anzupassen.",
           "Für Notizen gibt es zwei Ebenen: Die `Wochennotiz` pflegen Sie am Regeltermin (Serie); sie erscheint an jedem Termin der Reihe und bleibt bei Re-Plan und Serienänderungen erhalten (z. B. `Raum erst ab 14 Uhr offen`). Die `Tagesnotiz` gilt nur für einen einzelnen Termin und wird über `Nur diese Woche` gespeichert. An einem Einzeltermin sehen Sie beide getrennt.",
           "Beim Löschen eines Serientermins wählen Sie zwischen `Nur diese Woche` und `Ab jetzt dauerhaft`; frühere Termine bleiben erhalten. Liegt der Termin in der Vergangenheit, entfällt die Auswahl und der Termin wird direkt gelöscht: Ein Regeltermin lässt sich nur ab heute beenden. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
-          "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes` und werden dort mit `Starten` begonnen; das gilt auch für Schulhof-Termine.",
+          "Geplante Termine erscheinen schon vor ihrer Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes`. Die Schaltfläche zeigt die genaue Uhrzeit, ab der der Termin gestartet werden kann; den Vorlauf legen Admins unter `Einstellungen` -> `Betrieb` fest. In einer aktiven Aufsicht stehen Aktivität, Raum und vollständige Planzeit gemeinsam im Kopf.",
+          "`Beenden` zeigt vor der Bestätigung das Planende sowie Anzahl und Namen der noch anwesenden Kinder. Geplante Termine lassen sich standardmäßig erst ab Planende beenden; Admins können diese Grenze unter `Einstellungen` -> `Betrieb` abschalten. Nach dem Beenden kann die Person, die beendet hat, oder ein Admin die Aktivität fünf Minuten lang mit `Rückgängig` wieder öffnen.",
           "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
           "In der Wochenansicht lässt sich über das kleine Menü `Zeilenhöhe` in der Kontextzeile die Zeilenhöhe des Rasters zwischen `Kompakt`, `Normal` und `Komfortabel` umschalten.",
           "Hinterlegte Schließtage sind in Wochen- und Monatsansicht als graue Spalte bzw. Zelle mit dem Vermerk `Schließtag` und dem Grund erkennbar. Ein Termin lässt sich trotzdem darauf legen (z. B. Ferien- oder Notbetreuung): Der Assistent weist im Formular darauf hin und fragt beim Speichern einmal nach. Bei Regelterminen prüft die Rückfrage alle passenden Termine im gewählten Planungszeitraum.",

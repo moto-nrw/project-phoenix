@@ -496,6 +496,21 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 		case "/health":
 			_, _ = fmt.Fprint(w, `"OK"`)
 
+		case "/auth/register":
+			// Mirrors the real endpoint: a staff-tier role provisions the
+			// person and staff record with the account and reports their ids,
+			// as JSON strings because they are bigints (#2222).
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": idCounter,
+					"school_identity": map[string]any{
+						"person_id": fmt.Sprintf("%d", idCounter+2000),
+						"staff_id":  fmt.Sprintf("%d", idCounter+3000),
+					},
+				},
+			})
+
 		case "/operator/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",

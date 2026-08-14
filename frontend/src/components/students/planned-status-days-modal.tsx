@@ -42,6 +42,12 @@ interface PlannedStatusDaysModalProps {
   readonly existingDays?: StudentStatusDay[];
   readonly deletingStatusDayId?: string | null;
   readonly existingPartialAbsences?: StudentPartialAbsence[];
+  /** Whether the caller may plan a partial excusal ("Ab Uhrzeit"). Those rows
+   *  are pickup exceptions: they need users:update plus full care access to
+   *  the child, which the absence permission of a school ohne feste Gruppen
+   *  deliberately does not grant (#2232). False hides the scope switch, so an
+   *  absence-only staffer is not offered a save that would 403. */
+  readonly canPlanPartialExcusal?: boolean;
   readonly onClose: () => void;
   readonly loadExistingDays: (
     from: string,
@@ -86,6 +92,7 @@ export function PlannedStatusDaysModal({
   existingDays = EMPTY_STATUS_DAYS,
   deletingStatusDayId = null,
   existingPartialAbsences = EMPTY_PARTIAL_ABSENCES,
+  canPlanPartialExcusal = true,
   onClose,
   loadExistingDays,
   loadPartialAbsences,
@@ -124,7 +131,10 @@ export function PlannedStatusDaysModal({
   const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
   const isSick = status === "sick";
   const isClassTrip = status === "class_trip";
-  const isPartialExcusal = status === "excused" && excusalScope === "from_time";
+  const isPartialExcusal =
+    canPlanPartialExcusal &&
+    status === "excused" &&
+    excusalScope === "from_time";
   const usesRangeSelection =
     !isPartialExcusal && (isClassTrip || selectionMode === "range");
   const title = isSick
@@ -705,7 +715,7 @@ export function PlannedStatusDaysModal({
           </div>
         </div>
 
-        {status === "excused" ? (
+        {status === "excused" && canPlanPartialExcusal ? (
           <SegmentedControl
             items={EXCUSAL_SCOPE_ITEMS}
             value={excusalScope}

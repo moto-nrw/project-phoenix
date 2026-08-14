@@ -239,3 +239,29 @@ func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testin
 	assert.NotContains(t, calls, "complete",
 		"an instance must not reach 'completed' with unfinalized attendance rows")
 }
+
+func TestTimetableBridgeAllowsSystemCompleteBeforePlannedEnd(t *testing.T) {
+	const activeGroupID int64 = 8810
+	date := timezone.NewDate(2026, 5, 4)
+	inst := &scheduleModel.ActivityInstance{
+		Date:      date,
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC),
+	}
+	inst.ID = 7710
+	calls := make([]string, 0, 3)
+	svc := NewTimetableBridgeService(TimetableBridgeDependencies{
+		Instances: &bridgeInstanceRepoStub{
+			byActiveGroup: map[int64]*scheduleModel.ActivityInstance{activeGroupID: inst},
+			completed:     1,
+			calls:         &calls,
+		},
+		InstanceStudents: &bridgeStudentRepoStub{calls: &calls},
+	})
+
+	now := time.Date(2026, 5, 4, 15, 0, 0, 0, timezone.Berlin)
+	completed, err := svc.CompleteActiveByActiveGroupIDs(context.Background(), []int64{activeGroupID}, now)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), completed)
+	assert.Contains(t, calls, "complete")
+}

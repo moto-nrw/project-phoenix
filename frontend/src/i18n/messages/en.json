@@ -63,7 +63,8 @@
     "childProfile": "Child profile",
     "loading": "Loading...",
     "feedback": "Feedback",
-    "settings": "Settings"
+    "settings": "Settings",
+    "enroll": "New enrollment"
   },
   "parentMealPlan": {
     "title": "Meal plan",

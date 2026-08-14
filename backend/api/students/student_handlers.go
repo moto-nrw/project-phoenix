@@ -235,7 +235,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		if !nonEmpty {
 			return []*users.Student{}, 0, nil
 		}
-	case params.groupID > 0:
+	case len(params.groupIDs) > 0:
 		students, totalCount, done, err := rs.resolveGroupFilter(ctx, params)
 		if err != nil {
 			return nil, 0, err
@@ -273,8 +273,8 @@ func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *stud
 		return false, nil
 	}
 
-	if params.groupID > 0 {
-		ids, err = rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		ids, err = rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -305,8 +305,8 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 	// group_id so the response stays consistent with the active-group chip in the
 	// search UI. group_id lives on the Student row, so a single bulk lookup is
 	// enough.
-	if params.groupID > 0 {
-		filtered, err := rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		filtered, err := rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -316,7 +316,7 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 		ids = filtered
 	}
 
-	// params.groupID is intentionally NOT cleared even though buildBaseFilter
+	// params.groupIDs is intentionally NOT cleared even though buildBaseFilter
 	// ignores it, because the room and group intersection was already computed
 	// above, so re-applying group_id downstream would be redundant.
 	params.studentIDs = ids
@@ -328,14 +328,17 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 // resolves params.studentIDs for the standard query and returns done=false.
 // done=true with an empty slice signals a short-circuit empty page.
 func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListParams) ([]*users.Student, int, bool, error) {
-	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
+	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, params.groupIDs)
 	if err != nil {
 		return nil, 0, false, err
 	}
 
-	// Fast path for true group-only requests keeps existing behavior.
+	// Fast path for true group-only requests: no SQL round trip for the page,
+	// but the requested window still has to be honored, because this path never
+	// reaches the query's LIMIT/OFFSET (#2218 review). The total stays the whole
+	// selection, so the reported count keeps naming every child of the groups.
 	if params.canUseGroupOnlyShortcut() {
-		return students, len(students), true, nil
+		return params.pageOfGroupStudents(students), len(students), true, nil
 	}
 
 	if len(students) == 0 {
@@ -416,14 +419,16 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
 		}),
-		HasFullAccess:        hasFullAccess,
-		HasWriteAccess:       hasWriteAccess,
-		AttendanceLogEnabled: attendanceLogEnabled,
-		FeedbackEnabled:      feedbackEnabled,
+		HasFullAccess:         hasFullAccess,
+		HasWriteAccess:        hasWriteAccess,
+		HasAbsenceWriteAccess: rs.checkStudentAbsenceWriteAccess(r, student),
+		AttendanceLogEnabled:  attendanceLogEnabled,
+		FeedbackEnabled:       feedbackEnabled,
 	}
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
+	attendances := map[int64]*activeService.AttendanceStatus{}
 	if hasFullAccess {
 		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 		if err != nil {
@@ -434,16 +439,19 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		} else {
 			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
 		}
-
-		single := []StudentResponse{response.StudentResponse}
-		if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
-			student.ID: attendanceStatus,
-		}); err != nil {
-			renderError(w, r, common.ErrorInternalServer(err))
-			return
-		}
-		response.StudentResponse = single[0]
+		attendances[student.ID] = attendanceStatus
 	}
+
+	// Runs for a restricted entry too: the day-planning fields stay behind
+	// HasFullAccess inside, but the pending excused-absence note belongs to
+	// whoever decides that request — under open care that person supervises no
+	// group and sees every child restricted (#2232).
+	single := []StudentResponse{response.StudentResponse}
+	if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, attendances); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	response.StudentResponse = single[0]
 
 	// Add supervisor contacts for users without full access
 	if !hasFullAccess && group != nil {
@@ -1129,8 +1137,8 @@ var errSickExcusedConflict = errors.New("sick and excused conflict on locked row
 // concurrent delete.
 var errStudentNotFoundUnderLock = errors.New("student deleted between snapshot and lock")
 
-// In-tx sentinel: the pre-tx canUpdateStudent check ran on student.GroupID from
-// the snapshot. canUpdateStudent decides off group membership, so a concurrent
+// In-tx sentinel: the pre-tx authorizeStudentUpdate check ran on student.GroupID
+// from the snapshot. The gate decides off group membership, so a concurrent
 // admin moving the student into a different group between snapshot and lock can
 // leave the caller without write authority on the locked row. Re-checking
 // against fresh closes that window. Mapped to 403 in the outer switch so the
@@ -1150,8 +1158,10 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 	}
 
 	// Re-check authorisation against the LOCKED row. A concurrent admin
-	// reassignment could otherwise let a non-supervisor mutate the row.
-	if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
+	// reassignment could otherwise let a non-supervisor mutate the row. Uses the
+	// same payload-aware gate as the pre-tx check so an absence-only write that
+	// was authorized by the open-care absence gate is not rejected here (#2232).
+	if _, ok, _ := rs.authorizeStudentUpdate(ctx, userPermissions, fresh, req); !ok {
 		return nil, errStudentReassigned
 	}
 
@@ -1454,17 +1464,16 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Centralized permission check for updating student data
+	// Centralized permission check for updating student data. An absence-only
+	// payload may additionally pass through the action-scoped absence gate
+	// (open care, #2232) — hasFullWriteAccess stays false in that case, so the
+	// response is built for a caller who may NOT read the child's full record.
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	hasFullWriteAccess, authorized, authErr := rs.authorizeStudentUpdate(r.Context(), userPermissions, student, req)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
-
-	// Track whether the user is admin or group supervisor
-	isAdmin := authorize.HasAdminWildcard(userPermissions)
-	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
 
 	// Update person fields using helper function
 	personResult := applyPersonUpdates(req, person)
@@ -1506,9 +1515,57 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Admin users and group supervisors can see full data including detailed location
-	hasFullAccess := isAdmin || isGroupSupervisor
-	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess, companionsChanged)
+	// Admin users and group supervisors can see full data including detailed
+	// location; an absence-only writer under open care cannot.
+	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullWriteAccess, companionsChanged)
+}
+
+// errStudentUpdatePermissionRequired is the 403 for a caller who reached
+// PUT /students/{id} through the users:absence branch of the route gate and
+// then sent something other than a pure absence payload.
+var errStudentUpdatePermissionRequired = errors.New("the users:update permission is required to edit this student's data")
+
+// authorizeStudentUpdate is the PUT /students/{id} gate. It reports the full
+// write verdict separately from the effective one because the two diverge for
+// an absence-only payload: the caller may then be authorized by the
+// action-scoped absence gate (canManageStudentAbsence) without holding write
+// authority on the child's record at all, and the response must not be built as
+// if they did.
+//
+// The absence fallback is only ever consulted for a payload that carries
+// NOTHING but sick/excused (see UpdateStudentRequest.isAbsenceOnly), so it can
+// never let a Stammdaten field through.
+//
+// The full path additionally requires users:update. The route gate admits
+// users:update OR users:absence, but canUpdateStudent decides supervision only
+// and never re-checks the permission — it was written when users:update was
+// the route's sole gate. Without this check a users:absence holder who happens
+// to supervise the child's group would inherit the entire Stammdaten write
+// (address, class, notes) from that supervision, which is exactly the
+// separation the dedicated permission exists to keep.
+func (rs *Resource) authorizeStudentUpdate(
+	ctx context.Context,
+	userPermissions []string,
+	student *users.Student,
+	req *UpdateStudentRequest,
+) (hasFullWriteAccess, authorized bool, authErr error) {
+	if !authorize.HasPermission(permissions.UsersUpdate, userPermissions) {
+		if !req.isAbsenceOnly() {
+			return false, false, errStudentUpdatePermissionRequired
+		}
+		absenceOK, absenceErr := rs.canManageStudentAbsence(ctx, userPermissions, student)
+		return false, absenceOK, absenceErr
+	}
+
+	fullOK, fullErr := canUpdateStudent(ctx, userPermissions, student, rs.UserContextService)
+	if fullOK || !req.isAbsenceOnly() {
+		return fullOK, fullOK, fullErr
+	}
+	// On denial the absence gate reports the supervisor gate's own reason
+	// wherever the tenant is not running open care, so the familiar 403 text
+	// survives unchanged.
+	absenceOK, absenceErr := rs.canManageStudentAbsence(ctx, userPermissions, student)
+	return false, absenceOK, absenceErr
 }
 
 // deleteStudent handles deleting a student and their associated person record

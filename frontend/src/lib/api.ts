@@ -35,6 +35,7 @@ import {
 export { mapRoomResponse } from "./room-helpers";
 import type { BackendRoom } from "./room-helpers";
 import { handleAuthFailure } from "./auth-failure";
+import { encodeMultiValueParam } from "./multi-value-param";
 import {
   ALL_COMPANION_WEEKDAYS,
   notifyStudentCompanionsChanged,
@@ -240,14 +241,48 @@ function parseSchoolClassesResponse(responseData: unknown): string[] {
 }
 
 /**
+ * Append a filter that may name several values at once (#2218). Values travel
+ * comma-separated in a single parameter, escaped so a class name containing a
+ * comma stays one value (see lib/multi-value-param). An empty selection appends
+ * nothing, which is what "no restriction" means on every one of these filters.
+ *
+ * A single string is taken as an already-encoded parameter and passed through:
+ * callers that hand over a raw class name would otherwise have to know the
+ * encoding, and a value that needs escaping never reaches here as a bare string.
+ */
+function appendMultiValueParam(
+  params: URLSearchParams,
+  key: string,
+  value?: string | string[],
+): void {
+  const encoded = Array.isArray(value)
+    ? encodeMultiValueParam(value)
+    : (value ?? "").trim();
+  if (encoded === "") return;
+  params.append(key, encoded);
+}
+
+/**
  * Build query parameters for student API requests
  */
 function buildStudentQueryParams(filters?: {
   search?: string;
   inHouse?: boolean;
-  groupId?: string;
+  /**
+   * Educational group(s) to filter by. Several may be selected at once
+   * (#2218) and travel comma-separated; the backend reads both that form and
+   * a repeated parameter.
+   */
+  groupId?: string | string[];
   roomId?: string;
-  schoolClass?: string;
+  /** School class(es) to filter by — see groupId for the multi-value shape. */
+  schoolClass?: string | string[];
+  /**
+   * School year(s) ("Stufe") to filter by, matched against the first numeric
+   * run in the class name. Server-side so pagination and counts cover the
+   * whole selection (#2218).
+   */
+  gradeLevel?: string | string[];
   locationState?: "present" | "transit";
   dayStatus?: "comes_today" | "not_coming_today";
   /**
@@ -276,8 +311,9 @@ function buildStudentQueryParams(filters?: {
   if (filters?.search) params.append("search", filters.search);
   if (filters?.inHouse !== undefined)
     params.append("in_house", filters.inHouse.toString());
-  if (filters?.groupId) params.append("group_id", filters.groupId);
-  if (filters?.schoolClass) params.append("school_class", filters.schoolClass);
+  appendMultiValueParam(params, "group_id", filters?.groupId);
+  appendMultiValueParam(params, "school_class", filters?.schoolClass);
+  appendMultiValueParam(params, "grade_level", filters?.gradeLevel);
   // room_id narrows the list to students currently checked-in to any
   // active group taking place in this room (#1323). Backend joins via
   // active.visits → active.groups; see api/students/list_helpers.go.
@@ -985,9 +1021,11 @@ export const studentService = {
   getStudents: async (filters?: {
     search?: string;
     inHouse?: boolean;
-    groupId?: string;
+    /** Several groups/classes/years may be selected — see buildStudentQueryParams. */
+    groupId?: string | string[];
     roomId?: string;
-    schoolClass?: string;
+    schoolClass?: string | string[];
+    gradeLevel?: string | string[];
     locationState?: "present" | "transit";
     dayStatus?: "comes_today" | "not_coming_today";
     date?: string;

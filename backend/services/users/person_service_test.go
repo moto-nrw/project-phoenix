@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -1355,4 +1356,223 @@ func TestUsersError_Unwrap(t *testing.T) {
 		assert.Contains(t, msg, "TestOperation")
 		assert.Contains(t, msg, "teacher")
 	})
+}
+
+// =============================================================================
+// CreateStaffWithTeacher — adopting an existing staff record
+// =============================================================================
+
+// A staff record that is adopted rather than created can already carry a live
+// caregiver profile, and the request that adopts it does not necessarily ask
+// for one: since #2222 the account-creating paths provision the chain by role
+// tier, and the follow-up details request only asks for the profile the
+// provisioning actually created.
+//
+// Reporting such a staff member back as "no caregiver profile" was wrong twice
+// over — the caller renders a plain staff record for someone whose caregiver
+// screens work, and createStaff hands out the non-caregiver default permissions
+// on that basis.
+//
+// Not asking for the profile is not the same as asking for it to be gone: the
+// row carries group supervisions, and removing it is what staff offboarding
+// does.
+func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE — a person whose staff record already has a caregiver profile.
+	existing := testpkg.CreateTestTeacher(t, db, "Uebernommen", "Betreuung")
+	defer testpkg.CleanupTeacherFixtures(t, db, existing.ID)
+
+	// ACT — the details request does not ask for a caregiver profile.
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+		PersonID:         existing.Staff.PersonID,
+		StaffNotes:       "Notiz",
+		IsTeacher:        false,
+		ActorPermissions: []string{permissions.UsersCreate, permissions.UsersUpdate},
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.False(t, teacherCreationFailed)
+	require.NotNil(t, staff)
+	assert.Equal(t, existing.Staff.ID, staff.ID, "the live staff record is adopted, not duplicated")
+
+	require.NotNil(t, teacher, "the caregiver profile the staff record carries must be reported")
+	assert.Equal(t, existing.ID, teacher.ID)
+
+	// And it is still there: not asking for a profile never deletes one.
+	count, err := db.NewSelect().
+		TableExpr(`users.teachers`).
+		Where(`staff_id = ?`, existing.Staff.ID).
+		Where(`deleted_at IS NULL`).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
+// =============================================================================
+// CreateStaffWithTeacher — what a create-gated request may not do
+// =============================================================================
+
+// POST /api/staff is gated on users:create alone. Adoption turns that route
+// into an edit of a record that is already in the directory: it overwrites the
+// notes and, with is_teacher, writes the caregiver fields. That belongs to
+// users:update, so a create-only caller is refused and the record is left
+// exactly as it was.
+//
+// The staff form is unaffected — every role that can create staff carries
+// users:update as well (the user role gets both in migration 1.5.3, admin
+// holds the wildcard).
+func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermission(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE — a staff member who is already in the directory.
+	existing := testpkg.CreateTestStaff(t, db, "Vorhandene", "Kraft")
+	defer testpkg.CleanupStaffFixtures(t, db, existing.ID)
+
+	before, err := db.NewSelect().
+		ColumnExpr("staff_notes").
+		TableExpr(`users.staff`).
+		Where(`id = ?`, existing.ID).
+		Rows(ctx)
+	require.NoError(t, err)
+	require.NoError(t, before.Close())
+
+	// ACT — a caller that may only create.
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+		PersonID:         existing.PersonID,
+		StaffNotes:       "Fremde Notiz",
+		IsTeacher:        false,
+		ActorPermissions: []string{permissions.UsersCreate},
+	})
+
+	// ASSERT — refused, and nothing written.
+	require.ErrorIs(t, err, users.ErrStaffAdoptionNotPermitted)
+	assert.Nil(t, staff)
+	assert.Nil(t, teacher)
+	assert.False(t, teacherCreationFailed)
+
+	var notes string
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("COALESCE(staff_notes, '')").
+		TableExpr(`users.staff`).
+		Where(`id = ?`, existing.ID).
+		Scan(ctx, &notes))
+	assert.NotEqual(t, "Fremde Notiz", notes, "a refused adoption must not have written the notes")
+
+	// And no second staff record was created for the person either.
+	count, err := db.NewSelect().
+		TableExpr(`users.staff`).
+		Where(`person_id = ?`, existing.PersonID).
+		Where(`deleted_at IS NULL`).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
+// A Lehrkraft account (#1772) is provisioned with a staff record and
+// deliberately without a caregiver profile: the role is class_day:read only.
+// Every role-assignment path refuses the combination from the other direction,
+// and staff creation was the open side of the same door.
+func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraft(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE — staff with an account that holds the Lehrkraft system role.
+	staffRecord, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Kraft")
+	defer testpkg.CleanupStaffFixtures(t, db, staffRecord.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, 1)
+
+	// ACT — the request asks for a caregiver profile anyway.
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+		PersonID:         staffRecord.PersonID,
+		IsTeacher:        true,
+		Specialization:   "Betreuung",
+		ActorPermissions: []string{permissions.UsersCreate, permissions.UsersUpdate},
+	})
+
+	// ASSERT — refused before anything is written.
+	require.ErrorIs(t, err, users.ErrStaffLehrkraftCaregiverProfile)
+	assert.Nil(t, staff)
+	assert.Nil(t, teacher)
+	assert.False(t, teacherCreationFailed)
+
+	count, err := db.NewSelect().
+		TableExpr(`users.teachers`).
+		Where(`staff_id = ?`, staffRecord.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "no caregiver profile may exist for a Lehrkraft account")
+}
+
+// The edit form must not be the way around the same rule.
+func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraft(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE
+	staffRecord, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", "Aendern")
+	defer testpkg.CleanupStaffFixtures(t, db, staffRecord.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, 1)
+
+	// ACT
+	teacher, action, err := service.UpdateStaffWithTeacher(ctx, staffRecord, true, "Betreuung", "", "")
+
+	// ASSERT
+	require.ErrorIs(t, err, users.ErrStaffLehrkraftCaregiverProfile)
+	assert.Nil(t, teacher)
+	assert.Equal(t, users.TeacherActionNone, action)
+
+	count, err := db.NewSelect().
+		TableExpr(`users.teachers`).
+		Where(`staff_id = ?`, staffRecord.ID).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, count)
+}
+
+// A staff member without an account cannot be a Lehrkraft, so the guard must
+// not stand in the way of the ordinary caregiver creation.
+func TestPersonService_CreateStaffWithTeacher_CreatesCaregiverProfileWithoutAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupPersonService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// ARRANGE — a person with no account and no staff record yet.
+	person := testpkg.CreateTestPerson(t, db, "Ohne", "Konto")
+	defer testpkg.CleanupActivityFixtures(t, db, person.ID)
+
+	// ACT
+	staff, teacher, teacherCreationFailed, err := service.CreateStaffWithTeacher(ctx, users.CreateStaffInput{
+		PersonID:         person.ID,
+		IsTeacher:        true,
+		Specialization:   "Betreuung",
+		ActorPermissions: []string{permissions.UsersCreate},
+	})
+
+	// ASSERT
+	require.NoError(t, err)
+	assert.False(t, teacherCreationFailed)
+	require.NotNil(t, staff)
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	require.NotNil(t, teacher, "a caregiver profile is created for a plain staff member")
+	assert.Equal(t, staff.ID, teacher.StaffID)
 }

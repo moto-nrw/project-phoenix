@@ -98,6 +98,55 @@ describe("PlannedNowSection", () => {
     expect(onStart).toHaveBeenCalledWith(plannedInstance);
   });
 
+  it("keeps an early activity visible but locks start until the backend boundary", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-10T13:00:00+02:00"));
+    try {
+      render(
+        <PlannedNowSection
+          plannedNow={[
+            {
+              ...plannedInstance,
+              canStart: false,
+              startAvailableAt: "2026-05-10T13:45:00+02:00",
+              startExpiresAt: "2026-05-10T15:00:00+02:00",
+            },
+          ]}
+          isStartingInstance={null}
+          onStart={vi.fn()}
+        />,
+      );
+      const button = screen.getByRole("button", { name: "Starten ab 13:45" });
+      expect(button).toBeDisabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hides a planned activity after its start window has closed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-05-10T15:00:00+02:00"));
+    try {
+      render(
+        <PlannedNowSection
+          plannedNow={[
+            {
+              ...plannedInstance,
+              canStart: false,
+              startAvailableAt: "2026-05-10T13:45:00+02:00",
+              startExpiresAt: "2026-05-10T15:00:00+02:00",
+            },
+          ]}
+          isStartingInstance={null}
+          onStart={vi.fn()}
+        />,
+      );
+      expect(screen.queryByText("Hausaufgaben")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders roster planning warnings", () => {
     render(
       <PlannedNowSection
@@ -170,6 +219,7 @@ describe("PlannedNowSection", () => {
             ...plannedInstance,
             isOverdue: false,
             minutesUntilStart: 90,
+            canStart: false,
           },
         ]}
         isStartingInstance={null}
@@ -185,6 +235,30 @@ describe("PlannedNowSection", () => {
     fireEvent.click(toggle);
 
     expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: "Noch nicht verfügbar" }),
+    ).toBeInTheDocument();
+  });
+
+  it("expands a startable slot even when it is more than 15 minutes away", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            isOverdue: false,
+            minutesUntilStart: 30,
+            canStart: true,
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Als Nächstes/ }),
+    ).toHaveAttribute("aria-expanded", "true");
     expect(
       screen.getByRole("button", { name: /^Starten$/i }),
     ).toBeInTheDocument();

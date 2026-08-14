@@ -8,6 +8,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { Loading } from "~/components/ui/loading";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { hasPermission, hasRole } from "~/lib/auth-utils";
+import { canReviewChangeRequests } from "~/lib/change-request-access";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -75,7 +76,7 @@ function ElternContent() {
       body: "Wünsche der Eltern zu Betreuungszeiten und Stammdaten bearbeiten.",
       concept: "changeHistory",
       points: ["Betreuungszeiten anpassen", "Stammdaten aktualisieren"],
-      show: userIsAdmin || hasPermission(session, "users:update"),
+      show: canReviewChangeRequests(session),
     },
     {
       href: "/parent-announcements",
