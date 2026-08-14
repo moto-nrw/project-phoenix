@@ -508,11 +508,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       };
     }
 
-    // Step 2: Enrich supervised groups with room info and fetch visits for first room
-    const firstGroup = supervisedGroups[0];
-    const firstGroupId = firstGroup ? firstGroup.id.toString() : null;
-
-    // Prepare parallel requests for room info (for groups missing room data)
+    // Step 2: Enrich supervised groups with room info.
     const enrichedGroups = await Promise.all(
       supervisedGroups.map(async (group) => {
         // If room info already present, use it
@@ -566,6 +562,15 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         };
       }),
     );
+
+    enrichedGroups.sort(
+      (a, b) =>
+        (a.room?.name ?? a.name ?? "").localeCompare(
+          b.room?.name ?? b.name ?? "",
+          "de",
+        ) || (a.name ?? "").localeCompare(b.name ?? "", "de"),
+    );
+    const firstGroupId = enrichedGroups[0]?.id ?? null;
 
     // Step 3: Fetch visits for first room (pre-load for immediate display)
     let firstRoomVisits: ActiveSupervisionDashboardResponse["firstRoomVisits"] =

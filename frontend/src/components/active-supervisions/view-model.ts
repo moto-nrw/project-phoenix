@@ -90,8 +90,8 @@ export function resolveSupervisionSelection(options: {
   if (options.sessionParam) {
     const found = rooms.find((room) => room.id === options.sessionParam);
     if (found) return sessionTarget(found.id);
-    // Stale link to a session that no longer runs — keep what is selected.
-    return { kind: "none" };
+    // A stale session must not block the saved-room fallback below. This is
+    // common when returning from a detail page after that session ended.
   }
   if (options.roomParam === SCHULHOF_TAB_ID && options.schulhofAvailable) {
     return { kind: "schulhof" };

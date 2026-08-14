@@ -248,14 +248,16 @@ describe("resolveSupervisionSelection (#2265)", () => {
     ).toEqual({ kind: "none" });
   });
 
-  it("keeps the current selection when ?session= is unknown (stale link)", () => {
+  it("falls back to the saved room when ?session= is stale", () => {
     expect(
       resolveSupervisionSelection({
         ...base,
         sessionParam: "gone",
-        currentSessionId: "group-a",
+        savedSessionId: "gone",
+        savedRoomId: "54",
+        currentSessionId: "group-c",
       }),
-    ).toEqual({ kind: "none" });
+    ).toEqual({ kind: "session", sessionId: "group-a" });
   });
 
   it("resolves schulhof from either param when available", () => {

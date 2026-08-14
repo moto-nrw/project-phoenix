@@ -689,6 +689,44 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.firstRoomId).toBe("1");
   });
 
+  it("sorts parallel sessions by session name before preloading visits", async () => {
+    const supervisedGroups = [
+      { id: 2, name: "GT 2", room: { id: 54, name: "Mehrzweckraum" } },
+      { id: 1, name: "GT 1", room: { id: 54, name: "Mehrzweckraum" } },
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: supervisedGroups })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } })
+      .mockResolvedValueOnce(emptyPlannedNowResponse)
+      .mockResolvedValueOnce(emptyActiveSessionsResponse)
+      .mockResolvedValueOnce({ data: [] });
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        supervisedGroups: Array<{ id: string }>;
+        firstRoomId: string | null;
+      }>
+    >(response);
+
+    expect(json.data.supervisedGroups.map((group) => group.id)).toEqual([
+      "1",
+      "2",
+    ]);
+    expect(json.data.firstRoomId).toBe("1");
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/active/groups/1/visits/display",
+      "test-token",
+    );
+  });
+
   it("maps unclaimed groups with room names correctly", async () => {
     const unclaimedGroups = [
       { id: 5, name: "Unclaimed", room: { id: 50, name: "Hof" } },
