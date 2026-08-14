@@ -206,28 +206,41 @@ export function mapSupervisedGroupsToRooms(
       (a, b) =>
         // Same room → order by session name so parallel sessions (#2265)
         // keep a deterministic tab order; fully equal entries keep the
-        // backend order (Array.prototype.sort is stable).
-        (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de") ||
-        a.name.localeCompare(b.name, "de"),
+        // backend order (Array.prototype.sort is stable). The active-group
+        // payload may carry no name at runtime, so compare defensively.
+        (a.room_name ?? a.name ?? "").localeCompare(
+          b.room_name ?? b.name ?? "",
+          "de",
+        ) || (a.name ?? "").localeCompare(b.name ?? "", "de"),
     );
 }
 
+/** Title + plan window of a running timetable session (#2265). */
+export interface SupervisionSessionInfo {
+  readonly title: string;
+  readonly timeRange: string;
+}
+
 /**
- * Tab label for a supervision session: the session/activity name first, then
- * the plan time when known, else the physical room. Room-name-only labels
- * made parallel sessions in one room indistinguishable (#2265).
+ * Tab label for a supervision session: the instance title plus its plan time
+ * when the running timetable session is known, else session/room names.
+ * Room-name-only labels made parallel sessions in one room
+ * indistinguishable (#2265). Defensive against missing names — the live
+ * active-group payload does not always carry one.
  */
 export function supervisionTabLabel(
   room: ActiveSupervisionRoom,
-  planTime?: string | null,
+  liveSession?: SupervisionSessionInfo | null,
 ): string {
-  if (planTime) {
-    return `${room.name} · ${planTime}`;
+  if (liveSession) {
+    return `${liveSession.title} · ${liveSession.timeRange}`;
   }
-  if (room.room_name && room.room_name !== room.name) {
-    return `${room.name} · ${room.room_name}`;
+  const sessionName: string | undefined = room.name;
+  const roomName = room.room_name;
+  if (sessionName && roomName && sessionName !== roomName) {
+    return `${sessionName} · ${roomName}`;
   }
-  return room.name;
+  return sessionName ?? roomName ?? "Aufsicht";
 }
 
 function mapVisitToSupervisionStudent(

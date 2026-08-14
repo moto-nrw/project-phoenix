@@ -104,6 +104,7 @@ import {
 } from "~/components/active-supervisions/view-model";
 import type {
   ActiveSupervisionRoom,
+  SupervisionSessionInfo,
   ActiveSupervisionStudent,
   MinimalActiveGroup,
   SchulhofStatusResponse,
@@ -1186,16 +1187,16 @@ function MeinRaumPageContent() {
     },
   );
 
-  // Plan-time window per running session, so tab labels can show
+  // Title + plan window per running session, so tab labels can show
   // "Aktivitätsname · Planzeit" (#2265). Sessions without a timetable
-  // instance fall back to the room-name suffix.
-  const planTimeByActiveGroup = useMemo(() => {
-    const map = new Map<string, string>();
+  // instance fall back to the session/room name.
+  const sessionInfoByActiveGroup = useMemo(() => {
+    const map = new Map<string, SupervisionSessionInfo>();
     for (const liveSession of dashboardData?.activeSessions ?? []) {
-      map.set(
-        liveSession.activeGroupId,
-        `${liveSession.startTime}–${liveSession.endTime}`,
-      );
+      map.set(liveSession.activeGroupId, {
+        title: liveSession.title,
+        timeRange: `${liveSession.startTime}–${liveSession.endTime}`,
+      });
     }
     return map;
   }, [dashboardData?.activeSessions]);
@@ -2508,7 +2509,7 @@ function MeinRaumPageContent() {
                   : currentRoom
                     ? supervisionTabLabel(
                         currentRoom,
-                        planTimeByActiveGroup.get(currentRoom.id) ?? null,
+                        sessionInfoByActiveGroup.get(currentRoom.id) ?? null,
                       )
                     : "Aktuelle Aufsicht"
                 : ""
@@ -2545,7 +2546,7 @@ function MeinRaumPageContent() {
                         id: room.id,
                         label: supervisionTabLabel(
                           room,
-                          planTimeByActiveGroup.get(room.id) ?? null,
+                          sessionInfoByActiveGroup.get(room.id) ?? null,
                         ),
                       })),
                       // Schulhof permanent tab (only with the spontaneous

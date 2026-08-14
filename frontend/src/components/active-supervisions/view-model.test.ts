@@ -343,13 +343,23 @@ describe("supervision tab identity (#2265)", () => {
     expect(result.map((room) => room.id)).toEqual(["active-1", "active-2"]);
   });
 
-  it("labels a tab with the session name plus the plan time when known", () => {
+  it("labels a tab with the instance title plus the plan time when known", () => {
     expect(
       supervisionTabLabel(
         { id: "active-1", name: "GT 1", room_name: "Mehrzweckraum" },
-        "12:45–13:45",
+        { title: "GT 1", timeRange: "12:45–13:45" },
       ),
     ).toBe("GT 1 · 12:45–13:45");
+  });
+
+  it("falls back to the room name when the live payload carries no session name", () => {
+    expect(
+      supervisionTabLabel({
+        id: "active-3",
+        name: undefined as unknown as string,
+        room_name: "OGS-Raum 1",
+      }),
+    ).toBe("OGS-Raum 1");
   });
 
   it("labels a tab with the session name plus the room", () => {
