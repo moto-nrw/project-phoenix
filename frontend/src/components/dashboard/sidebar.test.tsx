@@ -211,6 +211,10 @@ describe("Sidebar", () => {
         "href",
         "/parents/enroll",
       );
+      expect(
+        screen.queryByText("Bald im Elternportal"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Kontaktdaten")).not.toBeInTheDocument();
     });
   });
 

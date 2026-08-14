@@ -337,21 +337,6 @@ const NFC_ONLY_HREFS = new Set<string>([
 // accordion is gated separately below (it's not in NAV_ITEMS).
 const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
-// `tKey` is the parentNav catalog key; the German `label` is the fallback used
-// only when the preview list is rendered outside an intl context. Mapping on a
-// stable key (not the German label) keeps the translation correct even if the
-// fallback wording changes.
-const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
-  {
-    href: "#",
-    label: "Kontaktdaten",
-    tKey: "contactData",
-    icon: navigationIcons.profile,
-    concept: "accounts",
-    comingSoon: true,
-  },
-];
-
 /**
  * Sidebar nav icon. The nav renders icons as raw `<path d>` strings from
  * `navigationIcons`, so this wraps the identical 8-line `<svg>` every item used
@@ -423,15 +408,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
-  const parentPreviewItems = useMemo(
-    () =>
-      PARENT_PREVIEW_ITEMS.map((item) => ({
-        ...item,
-        label: tParentNav(item.tKey),
-      })),
-    [tParentNav],
-  );
-
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
   // subdomains.
@@ -1194,28 +1170,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   )}
                 </Link>
               ))}
-            <div className="mt-5">
-              <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
-                {tParentNav("comingSoon")}
-              </p>
-              <div className="space-y-1">
-                {parentPreviewItems.map((item) => (
-                  <div
-                    key={item.label}
-                    className={getLinkClasses(item.href, true)}
-                    aria-disabled="true"
-                  >
-                    <NavIcon d={item.icon} muted />
-                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                      <span className="truncate">{item.label}</span>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                        {tParentNav("soon")}
-                      </span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </nav>
 
           {/* Bottom-pinned, like the staff sidebar's Feedback item: this is a

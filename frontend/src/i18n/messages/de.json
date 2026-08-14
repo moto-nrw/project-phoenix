@@ -85,9 +85,9 @@
   "parentDashboard": {
     "eyebrow": "Elternportal",
     "title": "Willkommen im Elternportal",
-    "description": "Was möchten Sie erledigen? Wählen Sie ein Kind und starten Sie direkt die passende Aktion.",
+    "description": "Alles Wichtige zur Betreuung Ihres Kindes, direkt an einem Ort.",
     "childrenEyebrow": "Meine Kinder",
-    "childrenDescription": "Die häufigsten Aufgaben finden Sie direkt beim jeweiligen Kind.",
+    "childrenDescription": "Wählen Sie einfach die passende Aktion.",
     "actions": {
       "sick": "Krank oder entschuldigt melden",
       "pickup": "Abholung ändern",

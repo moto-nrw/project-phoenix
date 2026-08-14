@@ -85,9 +85,9 @@
   "parentDashboard": {
     "eyebrow": "Parent portal",
     "title": "Welcome to the parent portal",
-    "description": "What would you like to do? Choose a child and start the right task directly.",
+    "description": "Everything important about your child's care, all in one place.",
     "childrenEyebrow": "My children",
-    "childrenDescription": "The most common tasks are available directly for each child.",
+    "childrenDescription": "Simply choose the action you need.",
     "actions": {
       "sick": "Report sick or excused",
       "pickup": "Change pickup",

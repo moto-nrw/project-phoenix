@@ -19,7 +19,7 @@ interface UserAvatarProps {
 }
 
 function UserAvatar({ avatarUrl, userName, size = "sm" }: UserAvatarProps) {
-  return <Avatar imageUrl={avatarUrl} name={userName} size={size} />;
+  return <Avatar imageUrl={avatarUrl} name={userName} size={size} decorative />;
 }
 
 /**
@@ -56,7 +56,7 @@ interface ChevronDownIconProps {
 function ChevronDownIcon({ isOpen }: ChevronDownIconProps) {
   return (
     <svg
-      className={`h-4 w-4 text-gray-400 transition-all duration-200 ${isOpen ? "rotate-180 text-gray-600" : ""}`}
+      className={`h-4 w-4 text-gray-400 transition-[color,transform] duration-200 ${isOpen ? "rotate-180 text-gray-600" : ""}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -172,7 +172,7 @@ export function ProfileDropdownMenu({
 
       {/* Dropdown menu */}
       <div
-        className={`absolute top-full right-0 z-50 mt-2 w-72 rounded-2xl border border-gray-200 bg-white shadow-lg transition-all duration-150 ease-out ${
+        className={`absolute top-full right-0 z-50 mt-2 w-72 rounded-2xl border border-gray-200 bg-white shadow-lg transition-[opacity,transform,visibility] duration-150 ease-out ${
           isOpen
             ? "visible translate-y-0 opacity-100"
             : "invisible -translate-y-2 opacity-0"
@@ -203,7 +203,7 @@ export function ProfileDropdownMenu({
             <Link
               href={profileUrl}
               onClick={onClose}
-              className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
+              className="group flex items-center rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 active:bg-gray-900 active:text-white"
             >
               <ProfileIcon />
               {profileLabel ?? t("profile")}
@@ -217,7 +217,7 @@ export function ProfileDropdownMenu({
           <button
             type="button"
             onClick={handleLogoutClick}
-            className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-all duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
+            className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-[background-color,color] duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
           >
             <LogoutIcon className="mr-3 h-4 w-4 transition-colors group-active:text-white" />
             {t("logout")}

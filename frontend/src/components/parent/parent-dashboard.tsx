@@ -231,7 +231,7 @@ export function ParentDashboard() {
             {t("emptyChildren")}
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,24rem),1fr))] gap-3">
             {previewItems.map((item) => (
               <DashboardChildItem
                 key={item.key}
@@ -286,7 +286,7 @@ function DashboardChildItem({
     <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
       <ChildRow item={item} variant="plain" />
       {actions.length > 0 && (
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
           {actions.map((action) => {
             const Icon = action.icon;
             return (

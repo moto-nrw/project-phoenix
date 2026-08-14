@@ -85,9 +85,9 @@
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
     "title": "Mirë se vini në portalin e prindërve",
-    "description": "Çfarë dëshironi të bëni? Zgjidhni një fëmijë dhe hapni direkt veprimin e duhur.",
+    "description": "Gjithçka e rëndësishme për kujdesin e fëmijës suaj, në një vend.",
     "childrenEyebrow": "Fëmijët e mi",
-    "childrenDescription": "Veprimet më të shpeshta gjenden direkt te secili fëmijë.",
+    "childrenDescription": "Zgjidhni veprimin që ju nevojitet.",
     "actions": {
       "sick": "Njofto sëmundje ose mungesë",
       "pickup": "Ndrysho marrjen",

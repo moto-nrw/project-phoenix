@@ -134,7 +134,7 @@ export function ParentLinkAction({
       href={href}
       variant={variant === "primary" ? "primary" : "outline"}
       size="md"
-      className={className}
+      className={`active:scale-[0.96] ${className}`}
     >
       {children}
     </ButtonLink>
