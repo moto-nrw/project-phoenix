@@ -21,6 +21,17 @@ type AuthEventRepository interface {
 	FindByID(ctx context.Context, id interface{}) (*AuthEvent, error)
 	FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*AuthEvent, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
+	ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]PendingAccountWideWipe, error)
+	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]PendingAccountWideWipe, error)
+	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error
+}
+
+// PendingAccountWideWipe is a recorded account-wide revoke that may still
+// need recovery after a failed after-commit wipe.
+type PendingAccountWideWipe struct {
+	AccountID int64     `bun:"account_id"`
+	Reason    string    `bun:"reason"`
+	CreatedAt time.Time `bun:"created_at"`
 }
 
 // DataAccessLogRepository is an insert-only repository for audit.data_access_log.

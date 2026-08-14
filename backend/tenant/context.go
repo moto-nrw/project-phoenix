@@ -6,9 +6,10 @@ import "context"
 type contextKey string
 
 const (
-	tenantKey contextKey = "tenant_id"
-	orgKey    contextKey = "org_id"
-	scopeKey  contextKey = "scope"
+	tenantKey  contextKey = "tenant_id"
+	orgKey     contextKey = "org_id"
+	scopeKey   contextKey = "scope"
+	adminTxKey contextKey = "admin_tx"
 )
 
 // Scope constants for distinguishing token types.
@@ -32,6 +33,18 @@ func WithTenantID(ctx context.Context, id int64) context.Context {
 func FromContext(ctx context.Context) int64 {
 	id, _ := ctx.Value(tenantKey).(int64)
 	return id
+}
+
+// withAdminTxFlag marks ctx as running inside WithAdminTx (BYPASSRLS).
+func withAdminTxFlag(ctx context.Context) context.Context {
+	return context.WithValue(ctx, adminTxKey, true)
+}
+
+// IsAdminTx reports whether ctx is inside a WithAdminTx callback.
+// A leftover tenant_id on the same context does not change this.
+func IsAdminTx(ctx context.Context) bool {
+	ok, _ := ctx.Value(adminTxKey).(bool)
+	return ok
 }
 
 // WithOrgID returns a new context with the organization ID set.

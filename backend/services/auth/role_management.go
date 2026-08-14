@@ -115,7 +115,8 @@ func (s *Service) ListRoles(ctx context.Context, filters map[string]interface{})
 
 // AssignRoleToAccount assigns a role to an account
 func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
+	var revoked []*auth.Token
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		// Serialize assignments with tenant-access revocation, which holds the
 		// same account lock while removing the tenant's roles and mapping.
 		if _, err := s.repos.Account.FindByIDForUpdate(txCtx, int64(accountID)); err != nil {
@@ -193,9 +194,11 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 				return &AuthError{Op: "assign role to account", Err: err}
 			}
 
-			if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", ""); err != nil {
+			tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
+			if err != nil {
 				return &AuthError{Op: "revoke tokens after role assignment", Err: err}
 			}
+			revoked = tokens
 		}
 
 		// Handing out a staff-tier role is the same act as inviting one, so it
@@ -207,6 +210,11 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		// account the old behaviour left half-written.
 		return s.ensureIdentityForAssignedRole(txCtx, int64(accountID), role)
 	})
+	if err != nil {
+		return err
+	}
+	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	return nil
 }
 
 // ensureIdentityForAssignedRole completes the school identity chain for a role
@@ -253,7 +261,8 @@ func (s *Service) accountHoldsLehrkraftRole(ctx context.Context, accountID int64
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
+	var revoked []*auth.Token
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		existingRole, err := s.repos.AccountRole.FindByAccountAndRole(txCtx, int64(accountID), int64(roleID))
 		if err != nil && !strings.Contains(err.Error(), "no rows") {
 			return &AuthError{Op: "check role assignment", Err: err}
@@ -267,12 +276,18 @@ func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID i
 			return &AuthError{Op: "remove role from account", Err: err}
 		}
 
-		if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", ""); err != nil {
+		tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
+		if err != nil {
 			return &AuthError{Op: "revoke tokens after role removal", Err: err}
 		}
-
+		revoked = tokens
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	return nil
 }
 
 // GetAccountRoles retrieves all roles for an account

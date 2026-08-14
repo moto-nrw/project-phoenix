@@ -28,6 +28,13 @@ func (h *afterCommitHooks) drain() []func() {
 	return fns
 }
 
+// HasAfterCommitHooks reports whether ctx is inside WithTenantTx (or a
+// test holder) so RegisterAfterCommit will queue instead of running now.
+func HasAfterCommitHooks(ctx context.Context) bool {
+	h, ok := ctx.Value(afterCommitKey{}).(*afterCommitHooks)
+	return ok && h != nil
+}
+
 // RegisterAfterCommit queues fn to run after the surrounding tenant tx
 // commits. On rollback, queued hooks are dropped. Outside WithTenantTx,
 // fn runs synchronously. A panic in one hook stops subsequent hooks.

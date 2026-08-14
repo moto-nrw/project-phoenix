@@ -105,11 +105,14 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 		repo := &recordingPushRepository{}
 		service := NewPushSubscriptionService(nil, repo, nil, testVAPID(), nil)
 
-		require.NoError(t, service.Subscribe(context.Background(), 42, validPushInput()))
+		input := validPushInput()
+		input.TokenFamilyID = "family-1"
+		require.NoError(t, service.Subscribe(context.Background(), 42, input))
 		require.Len(t, repo.upserted, 1)
 		assert.Equal(t, int64(42), repo.upserted[0].AccountID)
 		assert.Equal(t, iot.PushPortalStaff, repo.upserted[0].Portal)
 		assert.Equal(t, "test-agent", repo.upserted[0].UserAgent)
+		assert.Equal(t, "family-1", repo.upserted[0].TokenFamilyID)
 
 		invalid := validPushInput()
 		invalid.Endpoint = "http://fcm.googleapis.com/fcm/send/device"

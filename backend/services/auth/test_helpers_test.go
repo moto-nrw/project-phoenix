@@ -1173,8 +1173,24 @@ func (noopTokenRepository) DeleteExpiredTokens(context.Context) (int, error) {
 	panic("DeleteExpiredTokens not implemented")
 }
 
+func (noopTokenRepository) ListInactiveAccountIDsWithLiveTokens(context.Context) ([]int64, error) {
+	panic("ListInactiveAccountIDsWithLiveTokens not implemented")
+}
+
+func (noopTokenRepository) HasLiveTokensCreatedAfter(context.Context, int64, time.Time) (bool, error) {
+	panic("HasLiveTokensCreatedAfter not implemented")
+}
+
 func (noopTokenRepository) DeleteByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
 	panic("DeleteByAccountIDReturning not implemented")
+}
+
+func (noopTokenRepository) DeleteAllByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
+	panic("DeleteAllByAccountIDReturning not implemented")
+}
+
+func (noopTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(context.Context, int64, time.Time) ([]*authModel.Token, error) {
+	panic("DeleteByAccountIDCreatedAtOrBeforeReturning not implemented")
 }
 
 func (noopTokenRepository) DeleteByAccountIDAndIdentifier(context.Context, int64, string) error {
@@ -1185,7 +1201,7 @@ func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface
 	panic("FindValidTokens not implemented")
 }
 
-func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, int) ([]*authModel.Token, error) {
+func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, string, int) ([]*authModel.Token, error) {
 	panic("CleanupOldTokensForAccountReturning not implemented")
 }
 
@@ -1324,6 +1340,14 @@ func (r *stubTokenRepository) DeleteByAccountIDReturning(_ context.Context, acco
 	defer r.mu.Unlock()
 	r.deletedAccountIDs = append(r.deletedAccountIDs, accountID)
 	return nil, nil
+}
+
+func (r *stubTokenRepository) DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*authModel.Token, error) {
+	return r.DeleteByAccountIDReturning(ctx, accountID)
+}
+
+func (r *stubTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, _ time.Time) ([]*authModel.Token, error) {
+	return r.DeleteByAccountIDReturning(ctx, accountID)
 }
 
 func (r *stubTokenRepository) DeletedAccountIDs() []int64 {

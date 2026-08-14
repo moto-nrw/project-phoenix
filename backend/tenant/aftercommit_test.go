@@ -8,6 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestHasAfterCommitHooks(t *testing.T) {
+	assert.False(t, tenant.HasAfterCommitHooks(context.Background()))
+	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
+	assert.True(t, tenant.HasAfterCommitHooks(ctx))
+	drain()
+}
+
 // TestRegisterAfterCommit_RunsInlineWithoutTx locks down the contract that
 // callers outside any WithTenantTx (e.g. tests, CLI commands, scheduler init)
 // see fn fire synchronously instead of being silently dropped. The

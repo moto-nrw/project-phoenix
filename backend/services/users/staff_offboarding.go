@@ -96,10 +96,16 @@ func (s *staffOffboardingService) SetBroadcaster(broadcaster realtime.Broadcaste
 // Deleting a non-existent staff member is a no-op (idempotent delete).
 func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string) error {
 	groupAccessChanged := false
+	var deactivatedAccountID int64
 	if err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy, &groupAccessChanged)
+		return s.offboardStaffInTx(txCtx, staffID, deletedByStaffID, deletedBy, &groupAccessChanged, &deactivatedAccountID)
 	}); err != nil {
 		return err
+	}
+	if deactivatedAccountID > 0 {
+		if err := s.AuthService.RevokeAllTokensWithReason(ctx, int(deactivatedAccountID), "account_deactivated"); err != nil {
+			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("revoke tokens after offboarding: %w", err)}
+		}
 	}
 	if groupAccessChanged {
 		// Direct service calls commit in RunInTx above, while HTTP calls reuse
@@ -110,7 +116,7 @@ func (s *staffOffboardingService) OffboardStaff(ctx context.Context, staffID, de
 	return nil
 }
 
-func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string, groupAccessChanged *bool) error {
+func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID, deletedByStaffID int64, deletedBy string, groupAccessChanged *bool, deactivatedAccountID *int64) error {
 	staff, err := s.StaffRepo.FindByID(ctx, staffID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -152,7 +158,7 @@ func (s *staffOffboardingService) offboardStaffInTx(ctx context.Context, staffID
 		return &UsersError{Op: opOffboardStaff, Err: err}
 	}
 
-	if err := s.offboardPersonAndAccount(ctx, staff.PersonID, cleanupCounts); err != nil {
+	if err := s.offboardPersonAndAccount(ctx, staff.PersonID, cleanupCounts, deactivatedAccountID); err != nil {
 		return err
 	}
 
@@ -270,7 +276,7 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 // revokes the account's access for the current tenant. The person row itself
 // is kept so historical records keep resolving the staff member's name.
 // Deletion counts for the audit record are added to counts.
-func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, personID int64, counts map[string]any) error {
+func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, personID int64, counts map[string]any, deactivatedAccountID *int64) error {
 	person, err := s.PersonRepo.FindByID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -378,6 +384,9 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 	if len(remaining) == 0 {
 		if err := s.AuthService.DeactivateAccount(ctx, int(accountID)); err != nil {
 			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("deactivate account: %w", err)}
+		}
+		if deactivatedAccountID != nil {
+			*deactivatedAccountID = accountID
 		}
 	}
 

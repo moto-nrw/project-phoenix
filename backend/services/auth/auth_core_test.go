@@ -622,7 +622,7 @@ func TestAuthService_Logout(t *testing.T) {
 				Auth:      "auth-key",
 			}
 			subscription.SetTenantID(tenantID)
-			_, err = db.NewInsert().Model(subscription).Exec(ctx)
+			_, err = db.NewInsert().Model(subscription).ModelTableExpr("iot.push_subscriptions").Exec(ctx)
 			require.NoError(t, err)
 		}
 
@@ -641,11 +641,12 @@ func TestAuthService_Logout(t *testing.T) {
 
 		staffCount, err := db.NewSelect().
 			Model((*iotModels.PushSubscription)(nil)).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
 			Where("account_id = ?", account.ID).
 			Where("portal = ?", iotModels.PushPortalStaff).
 			Count(ctx)
 		require.NoError(t, err)
-		assert.Zero(t, staffCount, "logout must remove staff subscriptions across all tenants")
+		assert.Equal(t, 1, staffCount, "logout clears unbound staff push at the session school only")
 	})
 
 	t.Run("logout with invalid token returns error", func(t *testing.T) {
