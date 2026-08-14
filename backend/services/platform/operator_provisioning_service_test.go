@@ -303,6 +303,13 @@ func (m *mockAuthService) Register(ctx context.Context, email, username, passwor
 	}
 	return nil, nil
 }
+func (m *mockAuthService) RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, _ *authSvc.SchoolAccountIdentity) (*authModels.Account, *authSvc.SchoolIdentity, error) {
+	account, err := m.Register(ctx, email, username, password, roleID, tenantID)
+	return account, nil, err
+}
+func (m *mockAuthService) LinkSchoolAccount(context.Context, string, *int64, int64, *authSvc.SchoolAccountIdentity) (*authModels.Account, *authSvc.SchoolIdentity, error) {
+	return nil, nil, nil
+}
 func (m *mockAuthService) ValidateToken(context.Context, string) (*authModels.Account, *jwt.AppClaims, error) {
 	return nil, nil, nil
 }

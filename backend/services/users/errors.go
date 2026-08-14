@@ -38,6 +38,24 @@ var (
 	// 500: an account that is not staff here has nothing to configure.
 	ErrStaffNotFound = errors.New("staff not found")
 
+	// ErrStaffAdoptionNotPermitted indicates a staff-creation request landed on
+	// a person who already carries a live staff record, from a caller that may
+	// only create. Adopting that record writes the notes and the caregiver
+	// fields of someone who is already in the directory, which is an edit — and
+	// POST /api/staff is gated on users:create alone.
+	//
+	// Every role that can create staff carries users:update as well (the user
+	// role gets both in migration 1.5.3, admin holds the wildcard), so this
+	// refuses the direct-API case, not the staff form.
+	ErrStaffAdoptionNotPermitted = errors.New("Für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrStaffLehrkraftCaregiverProfile indicates a caregiver profile was
+	// requested for an account holding the Lehrkraft system role (#1772). That
+	// role is class_day:read only and is provisioned without a profile on
+	// purpose; the role-assignment paths refuse the same combination from the
+	// other direction (ErrRoleLehrkraftCaregiverProfile).
+	ErrStaffLehrkraftCaregiverProfile = errors.New("Ein Lehrkraft-Konto kann kein Betreuungsprofil erhalten") //nolint:staticcheck // ST1005: user-facing German message
+
 	// ErrStudentGraduated indicates a write that only makes sense for an
 	// enrolled child targeted a graduated (alumnus) student. Graduation is a
 	// soft delete, so callers render it as the same 404 every other

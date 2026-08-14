@@ -204,6 +204,16 @@ type CreateStaffInput struct {
 	Specialization string
 	Role           string
 	Qualifications string
+
+	// ActorPermissions is the calling account's permission set, needed because
+	// the create route may end up editing: a person that already carries a
+	// staff record adopts it instead of getting a second one, and that write
+	// belongs to users:update, not users:create. Decided inside the same
+	// transaction that finds the record, so the check cannot be raced.
+	//
+	// Empty means "no permissions" and therefore no adoption. There is no
+	// system-caller shortcut here: the HTTP handler is the only caller.
+	ActorPermissions []string
 }
 
 // TeacherAction describes the teacher-record outcome of UpdateStaffWithTeacher.

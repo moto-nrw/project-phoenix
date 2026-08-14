@@ -146,6 +146,7 @@ export const GET = createGetHandler(
         first_name?: string;
         has_full_access?: boolean;
         has_write_access?: boolean;
+        has_absence_write_access?: boolean;
         group_supervisors?: Array<{
           id: number;
           first_name: string;
@@ -166,6 +167,12 @@ export const GET = createGetHandler(
       // Extract access control fields from response data
       const hasFullAccess = studentData.has_full_access ?? false;
       const hasWriteAccess = studentData.has_write_access ?? false;
+      // Absence actions (krank / entschuldigt / Klassenfahrt) have their own
+      // gate: in a school without fixed groups staff may report absences for
+      // children whose Stammdaten they cannot edit (#2232). Falls back to the
+      // Stammdaten flag so an older backend keeps the previous behavior.
+      const hasAbsenceWriteAccess =
+        studentData.has_absence_write_access ?? hasWriteAccess;
       const groupSupervisors = studentData.group_supervisors ?? [];
       const attendanceLogEnabled =
         (studentData.attendance_log_enabled as boolean) ?? false;
@@ -196,6 +203,7 @@ export const GET = createGetHandler(
         ...consentData,
         has_full_access: hasFullAccess,
         has_write_access: hasWriteAccess,
+        has_absence_write_access: hasAbsenceWriteAccess,
         group_supervisors: groupSupervisors,
         attendance_log_enabled: attendanceLogEnabled,
         feedback_enabled: feedbackEnabled,

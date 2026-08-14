@@ -56,6 +56,15 @@ interface StudentDataState {
   hasFullAccess: boolean;
   /** Supervisor/admin only, scope setting deliberately not applied. */
   hasWriteAccess: boolean;
+  /**
+   * WRITE access to this child's absence statuses only (krank / entschuldigt /
+   * Klassenfahrt) — the backend's `has_absence_write_access`. A superset of
+   * `hasWriteAccess`: a school running ohne feste Gruppen
+   * (`operations.group_mode = open_care`) lets staff holding `users:absence`
+   * report absences for children they cannot otherwise edit (#2232).
+   * Gate ONLY the absence actions on it, never a Stammdaten affordance.
+   */
+  hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
@@ -74,6 +83,7 @@ interface UseStudentDataResult extends StudentDataState {
 function mapStudentResponse(
   response: unknown,
   hasAccess: boolean,
+  canManageAbsence: boolean,
 ): ExtendedStudent {
   interface WrappedResponse {
     data?: unknown;
@@ -87,6 +97,8 @@ function mapStudentResponse(
     has_full_access?: boolean;
     group_supervisors?: SupervisorContact[];
   };
+
+  const canSeeAbsenceStatus = hasAccess || canManageAbsence;
 
   // Spread upstream-mapped student so future Student fields propagate without
   // touching this whitelist. Explicit lines below either coerce nullish to a
@@ -117,14 +129,23 @@ function mapStudentResponse(
     supervisor_notes: hasAccess
       ? (mappedStudent.supervisor_notes ?? undefined)
       : undefined,
-    sick: hasAccess ? (mappedStudent.sick ?? false) : false,
-    sick_since: hasAccess ? (mappedStudent.sick_since ?? undefined) : undefined,
-    excused: hasAccess ? (mappedStudent.excused ?? false) : false,
-    excused_since: hasAccess
+    // The absence statuses follow read access OR the absence-write gate: they
+    // are the state the Krank-/Entschuldigt-Aktionen toggle, so blanking them
+    // for a caller who may write them would always render "melden" and turn a
+    // clearing click into a fresh report (#2232). The backend hands these
+    // fields to every authenticated staff member anyway.
+    sick: canSeeAbsenceStatus ? (mappedStudent.sick ?? false) : false,
+    sick_since: canSeeAbsenceStatus
+      ? (mappedStudent.sick_since ?? undefined)
+      : undefined,
+    excused: canSeeAbsenceStatus ? (mappedStudent.excused ?? false) : false,
+    excused_since: canSeeAbsenceStatus
       ? (mappedStudent.excused_since ?? undefined)
       : undefined,
-    class_trip: hasAccess ? (mappedStudent.class_trip ?? false) : false,
-    class_trip_since: hasAccess
+    class_trip: canSeeAbsenceStatus
+      ? (mappedStudent.class_trip ?? false)
+      : false,
+    class_trip_since: canSeeAbsenceStatus
       ? (mappedStudent.class_trip_since ?? undefined)
       : undefined,
     actual_arrival_time: hasAccess
@@ -161,6 +182,7 @@ interface StudentDetailResponse {
   student: ExtendedStudent;
   hasFullAccess: boolean;
   hasWriteAccess: boolean;
+  hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
@@ -212,6 +234,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
       const mappedStudent = rawStudentData as Student & {
         has_full_access?: boolean;
         has_write_access?: boolean;
+        has_absence_write_access?: boolean;
         group_supervisors?: SupervisorContact[];
         attendance_log_enabled?: boolean;
         feedback_enabled?: boolean;
@@ -219,11 +242,19 @@ export function useStudentData(studentId: string): UseStudentDataResult {
 
       const hasAccess = mappedStudent.has_full_access ?? false;
       const hasWriteAccess = mappedStudent.has_write_access ?? false;
+      // Falls back to the Stammdaten flag so an older backend keeps today's
+      // behavior instead of hiding the Krankmeldung action (#2232).
+      const hasAbsenceWriteAccess =
+        mappedStudent.has_absence_write_access ?? hasWriteAccess;
       const attendanceLogEnabled =
         mappedStudent.attendance_log_enabled ?? false;
       const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
       const groupSupervisors = mappedStudent.group_supervisors ?? [];
-      const extendedStudent = mapStudentResponse(studentResponse, hasAccess);
+      const extendedStudent = mapStudentResponse(
+        studentResponse,
+        hasAccess,
+        hasAbsenceWriteAccess,
+      );
 
       const ogsGroupRoomNames = extractRoomNames(groups);
       const groupIds = groups.map((group) => group.id);
@@ -233,6 +264,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
         student: extendedStudent,
         hasFullAccess: hasAccess,
         hasWriteAccess,
+        hasAbsenceWriteAccess,
         attendanceLogEnabled,
         feedbackEnabled,
         supervisors: groupSupervisors,
@@ -271,6 +303,7 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     error,
     hasFullAccess: studentData?.hasFullAccess ?? true,
     hasWriteAccess: studentData?.hasWriteAccess ?? false,
+    hasAbsenceWriteAccess: studentData?.hasAbsenceWriteAccess ?? false,
     attendanceLogEnabled: studentData?.attendanceLogEnabled ?? false,
     feedbackEnabled: studentData?.feedbackEnabled ?? false,
     supervisors: studentData?.supervisors ?? [],

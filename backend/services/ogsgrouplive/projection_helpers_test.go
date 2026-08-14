@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -157,4 +158,36 @@ func TestSelectGroupFallsBackAndMatches(t *testing.T) {
 	assert.Same(t, first, selectGroup(groups, 0), "no request resolves the first sorted group")
 	assert.Same(t, second, selectGroup(groups, 2))
 	assert.Nil(t, selectGroup(groups, 99), "unsupervised group must not resolve")
+}
+
+// applyPlanning attaches the guardian's pending note regardless of read scope:
+// in open care the staffer who decides the request supervises no group, so the
+// child reaches them redacted (#2232). The day plan itself stays full-access.
+func TestApplyPlanningAttachesPendingNoteToRedactedStudent(t *testing.T) {
+	state := &buildState{
+		projected: []Student{
+			{ID: 11, fullAccess: true},
+			{ID: 12, fullAccess: false},
+		},
+		data: &snapshot{locations: &activeService.StudentLocationSnapshot{
+			Attendances: map[int64]*activeService.AttendanceStatus{},
+		}},
+		arrivals:  map[int64]*scheduleService.EffectiveArrivalTime{},
+		pickups:   map[int64]*scheduleService.EffectivePickupTime{},
+		timetable: map[int64]struct{}{},
+	}
+	pending := map[int64]*activeModels.ExcusedAbsenceRequest{
+		11: {Note: "Zahnarzt"},
+		12: {Note: "Arzttermin"},
+	}
+
+	applyPlanning(state, pending)
+
+	require.NotNil(t, state.projected[0].PendingExcusedNote)
+	assert.Equal(t, "Zahnarzt", *state.projected[0].PendingExcusedNote)
+	require.NotNil(t, state.projected[1].PendingExcusedNote, "redacted child must still carry the note its reviewer owns")
+	assert.Equal(t, "Arzttermin", *state.projected[1].PendingExcusedNote)
+
+	assert.NotEmpty(t, state.projected[0].DayPlanningStatus)
+	assert.Empty(t, state.projected[1].DayPlanningStatus, "day plan stays gated on full access")
 }

@@ -122,6 +122,34 @@ describe("useRequirePermission", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("is ready when a predicate accepts the session", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1" } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useRequirePermission(() => true));
+
+    expect(result.current.isReady).toBe(true);
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  // A predicate states the whole rule, including the admin case — the hook must
+  // not widen it with its own admin shortcut, or a page whose gate deliberately
+  // demands a permission pair would open for anyone carrying the wildcard.
+  it("redirects when a predicate refuses, even for an admin", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1" } },
+      status: "authenticated",
+    });
+    mockIsAdmin.mockReturnValue(true);
+
+    const { result } = renderHook(() => useRequirePermission(() => false));
+
+    expect(result.current.isReady).toBe(false);
+    expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
+  });
+
   it("does not redirect while unauthenticated (NextAuth's required:true owns that)", () => {
     mockUseSession.mockReturnValue({
       data: null,
