@@ -461,6 +461,10 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_request_field_disabled"))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
+	case errors.Is(err, parentService.ErrCareExceptionReasonRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_reason_required"))
+	case errors.Is(err, parentService.ErrCareExceptionReasonTooLong):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_reason_too_long"))
 	case errors.Is(err, parentService.ErrPastCareDate):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_past_date"))
 	case errors.Is(err, parentService.ErrCareDateTooFar):

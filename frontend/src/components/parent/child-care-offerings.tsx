@@ -49,7 +49,7 @@ const DISABLED_REASON_KEYS: Record<OfferingChangesDisabledReason, string> = {
 };
 
 /**
- * The child's booked care offerings and activity groups, plus the
+ * The child's booked care offerings, plus the
  * post-enrollment change-request flow (#1665). Sits on the Stammdaten page next
  * to the weekly care times, which is where a guardian already goes to change
  * something permanent.
@@ -231,48 +231,6 @@ export function ChildCareOfferingsSection({
                   <p className="mt-1 text-xs text-gray-500">
                     {t("careOfferings.until", {
                       date: formatDate(offering.valid_until),
-                    })}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <h3 className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-          {t("careOfferings.groupsTitle")}
-        </h3>
-        {data.groups.length === 0 ? (
-          <p className="text-sm text-gray-600">{t("careOfferings.noGroups")}</p>
-        ) : (
-          <ul className="space-y-2">
-            {data.groups.map((group) => (
-              <li
-                key={`${group.id}-${group.valid_from}`}
-                className="rounded-xl bg-gray-50 p-3"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {group.name}
-                  </p>
-                  {group.starts_later && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#3a63ad]">
-                      <CalendarClock className="h-3 w-3" aria-hidden="true" />
-                      {t("careOfferings.startsLater", {
-                        date: formatDate(group.valid_from),
-                      })}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-sm text-gray-700">
-                  {weekdayList(group.weekdays)}
-                </p>
-                {group.valid_until && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    {t("careOfferings.until", {
-                      date: formatDate(group.valid_until),
                     })}
                   </p>
                 )}

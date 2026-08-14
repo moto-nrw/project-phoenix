@@ -1,10 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Newspaper, Plus, Users } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  HeartPulse,
+  MessageCircle,
+  Newspaper,
+  Users,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
+  type ChildFeatures,
   type ChildStatus,
   type EnrollmentChildStatus,
   type EnrollmentRequest,
@@ -12,6 +20,7 @@ import {
   listMyChildren,
   listMyEnrollments,
   listAnnouncements,
+  getChildFeatures,
 } from "~/lib/parent-api";
 import {
   NewsCard,
@@ -23,7 +32,6 @@ import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
-import { EmptyState } from "~/components/ui/empty-state";
 import { ChildRow, type ChildRowItem } from "~/components/parent/child-row";
 import {
   ParentLinkAction,
@@ -91,6 +99,7 @@ function buildChildOverviewItems(
 ): ChildRowItem[] {
   const items: ChildRowItem[] = children.map((child) => ({
     key: `child-${child.tenant_id}-${child.student_id}`,
+    studentId: child.student_id,
     name: `${child.first_name} ${child.last_name}`,
     schoolName: child.school_name,
     detail: child.enrolled_from
@@ -132,6 +141,9 @@ export function ParentDashboard() {
   const locale = useLocale();
   const [requests, setRequests] = useState<EnrollmentRequest[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
+  const [featuresByStudent, setFeaturesByStudent] = useState<
+    Record<string, ChildFeatures>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,6 +157,25 @@ export function ParentDashboard() {
       ]);
       setRequests(enrollmentList);
       setChildren(childList);
+      const featureEntries = await Promise.all(
+        childList.slice(0, CHILDREN_PREVIEW_LIMIT).map(async (child) => {
+          try {
+            return [
+              child.student_id,
+              await getChildFeatures(child.student_id),
+            ] as const;
+          } catch (err) {
+            logger.warn("parent_dashboard_child_features_load_failed", {
+              error: err instanceof Error ? err.message : String(err),
+              student_id: child.student_id,
+            });
+            return null;
+          }
+        }),
+      );
+      setFeaturesByStudent(
+        Object.fromEntries(featureEntries.filter((entry) => entry !== null)),
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : t("unknownError");
       logger.warn("parent_dashboard_load_failed", { error: message });
@@ -180,12 +211,6 @@ export function ParentDashboard() {
         kicker={t("eyebrow")}
         title={t("title")}
         description={t("description")}
-        actions={
-          <ParentLinkAction href="/parents/enroll">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {t("newEnrollment")}
-          </ParentLinkAction>
-        }
       />
 
       <SectionCard
@@ -206,9 +231,15 @@ export function ParentDashboard() {
             {t("emptyChildren")}
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
             {previewItems.map((item) => (
-              <ChildRow key={item.key} item={item} />
+              <DashboardChildItem
+                key={item.key}
+                item={item}
+                features={
+                  item.studentId ? featuresByStudent[item.studentId] : undefined
+                }
+              />
             ))}
           </div>
         )}
@@ -216,6 +247,63 @@ export function ParentDashboard() {
 
       <StartNewsPanel />
     </ParentPage>
+  );
+}
+
+function DashboardChildItem({
+  item,
+  features,
+}: Readonly<{ item: ChildRowItem; features?: ChildFeatures }>) {
+  const t = useTranslations("parentDashboard");
+
+  if (!item.studentId || !features) return <ChildRow item={item} />;
+
+  const actions = [
+    features.sick_note_enabled
+      ? {
+          href: `/parents/children/${item.studentId}?action=sick`,
+          label: t("actions.sick"),
+          icon: HeartPulse,
+        }
+      : null,
+    features.pickup_change_enabled
+      ? {
+          href: `/parents/children/${item.studentId}?action=pickup`,
+          label: t("actions.pickup"),
+          icon: CalendarClock,
+        }
+      : null,
+    features.notes_enabled
+      ? {
+          href: `/parents/messages/${item.studentId}`,
+          label: t("actions.message"),
+          icon: MessageCircle,
+        }
+      : null,
+  ].filter((action) => action !== null);
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+      <ChildRow item={item} variant="plain" />
+      {actions.length > 0 && (
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <ParentLinkAction
+                key={action.href}
+                href={action.href}
+                variant="secondary"
+                className="min-h-11 justify-start px-3"
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="text-left text-pretty">{action.label}</span>
+              </ParentLinkAction>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -281,7 +369,7 @@ function StartNewsPanel() {
     .slice(0, NEWS_PANEL_LIMIT);
   const openItem = items.find((item) => item.id === openId) ?? null;
 
-  if (!newsEnabled) return null;
+  if (!newsEnabled || (loaded && items.length === 0)) return null;
 
   return (
     <SectionCard
@@ -299,22 +387,13 @@ function StartNewsPanel() {
         ) : undefined
       }
     >
-      {loaded && items.length === 0 ? (
-        <EmptyState
-          icon={<Newspaper className="h-8 w-8" aria-hidden="true" />}
-          title={t("noNewsTitle")}
-          description={t("noNewsDescription")}
-          className="py-8"
-        />
-      ) : (
-        <ul className="space-y-2">
-          {visible.map((item) => (
-            <li key={item.id}>
-              <NewsCard item={item} onOpen={(opened) => setOpenId(opened.id)} />
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="space-y-2">
+        {visible.map((item) => (
+          <li key={item.id}>
+            <NewsCard item={item} onOpen={(opened) => setOpenId(opened.id)} />
+          </li>
+        ))}
+      </ul>
 
       {openItem && (
         <NewsDetailModal

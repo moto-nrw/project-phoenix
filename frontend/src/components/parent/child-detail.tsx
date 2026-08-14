@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarClock,
   ClipboardList,
@@ -11,13 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import {
-  type Child,
-  type ThreadSummary,
-  listChildThreads,
-  listMyChildren,
-} from "~/lib/parent-api";
-import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
+import { type Child, listMyChildren } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -34,9 +28,6 @@ import GuardiansPanel from "~/components/parent/guardians-panel";
 import { Button } from "~/components/ui/button";
 import { Avatar } from "~/components/ui/avatar";
 import { SectionCard } from "~/components/ui/section-card";
-import { UnreadBadge } from "~/components/messaging/unread-badge";
-import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
-import { formatChatDateTime } from "~/lib/date-helpers";
 import {
   ParentField,
   ParentFieldGrid,
@@ -64,6 +55,7 @@ const CHILD_ACTIONS = [
 // the conversation rather than opening a modal.
 const SUPPORTED_ACTIONS: Record<string, "sick" | "pickup"> = {
   sick: "sick",
+  pickup: "pickup",
   pickupTime: "pickup",
 };
 
@@ -176,65 +168,9 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
   useSetBreadcrumb({ pageTitle: fullName });
   const care = useChildCare(child.student_id);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openedDashboardAction = useRef<string | null>(null);
   const [modal, setModal] = useState<null | "sick" | "pickup">(null);
-  const [threads, setThreads] = useState<ThreadSummary[]>([]);
-
-  // Monotonic request counter so only the latest in-flight thread fetch may
-  // write state. Navigating between children reuses this component (the route
-  // param changes), so without this guard a late response for child A — or a
-  // failed request for child B after viewing A — could leave A's conversation
-  // preview/unread count rendered on B's page.
-  const threadsRequestRef = useRef(0);
-
-  // The child's conversation (this child only), fetched via the per-child
-  // endpoint so we don't pull the guardian's whole cross-tenant inbox just to
-  // render one child. Chat model: at most one conversation per child.
-  const reloadThreads = useCallback(() => {
-    const requestStudentId = child.student_id;
-    const seq = ++threadsRequestRef.current;
-    listChildThreads(requestStudentId)
-      .then((result) => {
-        // Drop a response that lost the race to a newer request (child switch or
-        // a concurrent SSE-triggered reload) so stale data never renders.
-        if (threadsRequestRef.current !== seq) return;
-        setThreads(result);
-      })
-      .catch((err) => {
-        if (threadsRequestRef.current !== seq) return;
-        logger.warn("child_threads_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          student_id: requestStudentId,
-        });
-      });
-  }, [child.student_id]);
-
-  useEffect(() => {
-    // Reset on child change so child A's preview never shows on child B while B's
-    // request is in flight; the seq guard then keeps a late A response from
-    // overwriting B.
-    setThreads([]);
-    reloadThreads();
-  }, [reloadThreads]);
-
-  // Real-time: the portal-wide ParentRealtimeBridge owns the single parents-app
-  // SSE connection and dispatches `parent-conversation-refresh` (carrying the
-  // affected studentId) on every parent_message. Subscribe via the shared hook,
-  // like OgsConversation and the parent messages list, so this card refreshes its
-  // unread count + last-message preview without a remount. Listen ONLY to the
-  // filtered per-conversation event (not the unfiltered `parent-threads-refresh`
-  // the bridge also fires for the same message): the bridge dispatches both on
-  // every event, so the filtered one already covers all cases — and listening to
-  // both reloaded this child twice per own-child message and once per other-child
-  // message. The hook skips a refetch when the event names a DIFFERENT child.
-  // marksRead: false — reloadThreads only re-reads thread summaries; it never
-  // advances a read cursor (that happens when the conversation itself is opened),
-  // so it should refresh even in a background tab rather than deferring to focus.
-  useMessagesActivity({
-    eventName: "parent-conversation-refresh",
-    studentId: child.student_id,
-    onMatch: reloadThreads,
-    marksRead: false,
-  });
 
   const openAction = useCallback(
     (actionKey: string) => {
@@ -249,9 +185,19 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
     [care, router, child.student_id],
   );
 
-  const openConversation = useCallback(() => {
-    router.push(`/parents/messages/${child.student_id}`);
-  }, [router, child.student_id]);
+  useEffect(() => {
+    const requestedAction = searchParams.get("action");
+    if (
+      care.loading ||
+      !requestedAction ||
+      openedDashboardAction.current === requestedAction
+    ) {
+      return;
+    }
+    openedDashboardAction.current = requestedAction;
+    openAction(requestedAction);
+    router.replace(`/parents/children/${child.student_id}`);
+  }, [care.loading, child.student_id, openAction, router, searchParams]);
 
   const subtitle = useMemo(
     () =>
@@ -286,7 +232,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         description={t("today.description")}
         bodyClassName="mt-4 space-y-4"
       >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <ParentStatusRow icon={HeartPulse} label={t("today.sickLabel")}>
             <SickStatusSummary
               sickDays={care.sickDays}
@@ -297,15 +243,9 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
           <ParentStatusRow icon={CalendarClock} label={t("today.pickupLabel")}>
             <TodayPickupValue pickup={care.todayPickup} t={t} />
           </ParentStatusRow>
-          <ParentStatusRow
-            icon={MessageCircle}
-            label={t("today.messagesLabel")}
-          >
-            <MessagesSummary threads={threads} t={t} />
-          </ParentStatusRow>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {CHILD_ACTIONS.map((action) => (
             <QuickAction
               key={action.key}
@@ -347,13 +287,6 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
           </ParentField>
         </ParentFieldGrid>
       </SectionCard>
-
-      <ChildMessagesPanel
-        studentId={child.student_id}
-        threads={threads}
-        composeDisabled={!care.features.notes_enabled}
-        onCompose={openConversation}
-      />
 
       <GuardiansPanel studentId={child.student_id} />
 
@@ -404,7 +337,7 @@ function QuickAction({
       size="md"
       onClick={onClick}
       disabled={!enabled}
-      className="max-sm:w-full"
+      className="w-full"
       aria-label={enabled ? label : t("comingSoonAria", { label })}
     >
       <Icon className="mr-2 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -438,97 +371,8 @@ function TodayPickupValue({
     case "none":
       return <>{t("today.pickupNone")}</>;
     default:
-      return <>—</>;
+      return <>{t("notSet")}</>;
   }
-}
-
-function MessagesSummary({
-  threads,
-  t,
-}: Readonly<{ threads: ThreadSummary[]; t: ChildDetailTranslator }>) {
-  const unread = threads.reduce((sum, thread) => sum + thread.unread, 0);
-  if (threads.length === 0) return <>{t("today.noConversations")}</>;
-  if (unread > 0) return <>{t("today.unreadCount", { count: unread })}</>;
-  return <>{t("today.conversationsCount", { count: threads.length })}</>;
-}
-
-// Shows this child's OGS conversation (filtered to the child) with an unread
-// pill and last activity. The row opens the thread; "Neue Nachricht" starts a
-// new conversation pre-selected to this child. Mirrors the staff-side
-// ParentMessagesCard.
-function ChildMessagesPanel({
-  studentId,
-  threads,
-  onCompose,
-  composeDisabled = false,
-}: Readonly<{
-  studentId: string;
-  threads: ThreadSummary[];
-  onCompose: () => void;
-  composeDisabled?: boolean;
-}>) {
-  const t = useTranslations("parentChildDetail");
-  const tMsg = useTranslations("parentOgsMessaging");
-  const router = useRouter();
-  // Chat model: at most one conversation per child.
-  const conversation = threads[0];
-  // System-generated bodies (request titles, decision/withdrawal events) are
-  // German on the wire; localize the preview from the structured last-message
-  // fields, falling back to the language-neutral body for plain messages.
-  const previewDescriptor = conversation
-    ? parentThreadPreviewI18nDescriptor({
-        last_message_kind: conversation.last_message_kind,
-        last_event_type: conversation.last_event_type,
-        last_request_type: conversation.last_request_type,
-        last_request_status: conversation.last_request_status,
-      })
-    : null;
-  const previewBody = previewDescriptor
-    ? tMsg(previewDescriptor.key, previewDescriptor.values)
-    : conversation?.last_message_body;
-
-  return (
-    <SectionCard
-      icon={MessageCircle}
-      title={t("messages.title")}
-      description={t("messages.description")}
-      actions={
-        composeDisabled ? undefined : (
-          <Button type="button" variant="primary" size="md" onClick={onCompose}>
-            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden="true" />
-            {t("messages.compose")}
-          </Button>
-        )
-      }
-    >
-      {!conversation || !conversation.last_message_at ? (
-        <p className="text-sm leading-6 text-gray-600">{t("messages.empty")}</p>
-      ) : (
-        <button
-          type="button"
-          onClick={() => router.push(`/parents/messages/${studentId}`)}
-          className="flex w-full items-start justify-between gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left transition-colors hover:border-gray-300 hover:bg-gray-50"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="truncate text-sm font-medium text-gray-900">
-                {conversation.counterpart_name}
-              </span>
-              <UnreadBadge count={conversation.unread} />
-            </span>
-            {previewBody && (
-              <span className="mt-0.5 block truncate text-sm text-gray-600">
-                {previewBody}
-              </span>
-            )}
-          </span>
-          <span className="shrink-0 text-xs whitespace-nowrap text-gray-400">
-            {formatChatDateTime(conversation.last_message_at)}
-          </span>
-        </button>
-      )}
-    </SectionCard>
-  );
 }
 
 // "Anfrage offen" pill for the child overview's Stammdaten entry: a pending

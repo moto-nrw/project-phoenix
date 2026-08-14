@@ -74,6 +74,10 @@ var (
 	// ErrNoCareException means the request carried neither a pickup nor an
 	// arrival time.
 	ErrNoCareException = errors.New("parent: at least one of pickup or arrival time is required")
+	// ErrCareExceptionReasonRequired means the parent API request omitted the
+	// explanation staff need to understand a changed pickup time.
+	ErrCareExceptionReasonRequired = errors.New("parent: care exception reason is required")
+	ErrCareExceptionReasonTooLong  = errors.New("parent: care exception reason exceeds 255 characters")
 	// ErrPastCareDate means the requested date is in the past.
 	ErrPastCareDate = errors.New("parent: care exception date must not be in the past")
 	// ErrCareDateTooFar means the requested date is beyond the window parents may
@@ -761,6 +765,24 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 // SSE broadcast on commit. A staff-authored exception for the date is never
 // clobbered.
 func (s *service) SubmitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, arrivalTime *time.Time) (*CareException, error) {
+	return s.submitCareException(ctx, accountID, studentID, date, pickupTime, arrivalTime, nil)
+}
+
+func (s *service) SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, arrivalTime *time.Time, reason string) (*CareException, error) {
+	trimmedReason := strings.TrimSpace(reason)
+	if pickupTime == nil {
+		return nil, ErrNoCareException
+	}
+	if trimmedReason == "" {
+		return nil, ErrCareExceptionReasonRequired
+	}
+	if utf8.RuneCountInString(trimmedReason) > 255 {
+		return nil, ErrCareExceptionReasonTooLong
+	}
+	return s.submitCareException(ctx, accountID, studentID, date, pickupTime, arrivalTime, &trimmedReason)
+}
+
+func (s *service) submitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, arrivalTime *time.Time, reason *string) (*CareException, error) {
 	if pickupTime == nil && arrivalTime == nil {
 		return nil, ErrNoCareException
 	}
@@ -812,7 +834,7 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		// Apply BOTH legs unconditionally: the submitted set is authoritative for
 		// the day, so a nil leg clears its guardian row rather than leaving a
 		// stale value behind.
-		if err := s.applyGuardianPickupException(txCtx, studentID, child.tenantID, date, pickupTime, guardianID); err != nil {
+		if err := s.applyGuardianPickupException(txCtx, studentID, child.tenantID, date, pickupTime, reason, guardianID); err != nil {
 			return err
 		}
 		if err := s.applyGuardianArrivalException(txCtx, studentID, child.tenantID, date, arrivalTime, guardianID); err != nil {
@@ -888,7 +910,7 @@ func (s *service) dayHasStaffException(ctx context.Context, studentID int64, dat
 // staff-owned days; the per-leg guard here keeps the helper safe on its own and
 // protects against a staff row appearing mid-transaction — a staff leg is never
 // touched (neither overwritten nor deleted).
-func (s *service) applyGuardianPickupException(ctx context.Context, studentID, tenantID int64, date timezone.Date, pickupTime *time.Time, guardianID int64) error {
+func (s *service) applyGuardianPickupException(ctx context.Context, studentID, tenantID int64, date timezone.Date, pickupTime *time.Time, reason *string, guardianID int64) error {
 	return applyGuardianTimeException(ctx, pickupTime,
 		func(ctx context.Context) (*scheduleModels.StudentPickupException, error) {
 			return s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
@@ -899,7 +921,7 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 		},
 		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
 			e.PickupTime = pickupTime
-			e.Reason = nil
+			e.Reason = reason
 			e.Source = scheduleModels.ExceptionSourceGuardian
 			e.CreatedBy = 0
 			e.CreatedByGuardian = &guardianID
@@ -910,6 +932,7 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 				StudentID:         studentID,
 				ExceptionDate:     date,
 				PickupTime:        pickupTime,
+				Reason:            reason,
 				Source:            scheduleModels.ExceptionSourceGuardian,
 				CreatedByGuardian: &guardianID,
 			}
@@ -1001,6 +1024,9 @@ func (s *service) loadCareException(ctx context.Context, studentID int64, date t
 	staffOwned := false
 	if pickup != nil {
 		out.PickupTime = pickup.PickupTime
+		if pickup.Source == scheduleModels.ExceptionSourceGuardian {
+			out.Reason = pickup.Reason
+		}
 		out.UpdatedAt = pickup.UpdatedAt
 		if pickup.Source == scheduleModels.ExceptionSourceStaff {
 			staffOwned = true
@@ -1141,6 +1167,9 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 	for _, p := range pickups {
 		ce := get(p.ExceptionDate)
 		ce.PickupTime = p.PickupTime
+		if p.Source == scheduleModels.ExceptionSourceGuardian {
+			ce.Reason = p.Reason
+		}
 		// A pickup row with no time is an absence marker, not "no override". Carry
 		// that distinction to the parent UI so a staff-set "not coming today" row
 		// resolves to an absence rather than falling through to the base plan.

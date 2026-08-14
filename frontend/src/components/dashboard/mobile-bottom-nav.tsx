@@ -333,6 +333,14 @@ const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
     alwaysShow: true,
   },
   {
+    href: "/parents/messages",
+    label: "Nachrichten",
+    tKey: "messages",
+    iconKey: "chat",
+    concept: "parentConversations",
+    alwaysShow: true,
+  },
+  {
     href: "/parents/calendar",
     label: "Kalender",
     tKey: "calendar",
@@ -345,14 +353,6 @@ const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
 const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
   tKey: string;
 })[] = [
-  {
-    href: "/parents/messages",
-    label: "Nachrichten",
-    tKey: "messages",
-    iconKey: "chat",
-    concept: "parentConversations",
-    alwaysShow: true,
-  },
   // Neuigkeiten — only shown once a linked school broadcasts announcements
   // (gated via useParentNewsEnabled in the parent display filter below).
   {
@@ -383,13 +383,12 @@ const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
     alwaysShow: true,
   },
   {
-    href: "#",
-    label: "Kontaktdaten",
-    tKey: "contactData",
-    iconKey: "profile",
-    concept: "accounts",
+    href: "/parents/enroll",
+    label: "Neue Anmeldung",
+    tKey: "enroll",
+    iconKey: "enrollments",
+    concept: "enrollments",
     alwaysShow: true,
-    comingSoon: true,
   },
 ];
 

@@ -83,9 +83,14 @@
   "parentDashboard": {
     "eyebrow": "Parent portal",
     "title": "Welcome to the parent portal",
-    "description": "Here you can see your children and open the most important areas for care, messages and dates.",
+    "description": "What would you like to do? Choose a child and start the right task directly.",
     "childrenEyebrow": "My children",
-    "childrenDescription": "Go directly to a child view.",
+    "childrenDescription": "The most common tasks are available directly for each child.",
+    "actions": {
+      "sick": "Report sick or excused",
+      "pickup": "Change pickup",
+      "message": "Message the OGS"
+    },
     "emptyChildren": "As soon as a child is activated, they will appear here.",
     "allChildren": "Show all children",
     "open": "Open",
@@ -132,6 +137,21 @@
     "newsPollNeedsAnswer": "Answer required",
     "newsClose": "Close",
     "newEnrollment": "New enrollment"
+  },
+  "parentNotificationSetup": {
+    "title": "Do not miss an important message",
+    "intro": "Turn on notifications. moto will then tell you about new messages and important changes concerning your child.",
+    "enable": "Turn on notifications",
+    "later": "Remind me later",
+    "enableError": "Notifications could not be enabled. Please try again.",
+    "denied": "Notifications are blocked in your browser. Open the browser settings, allow notifications for moto, then try again in Settings.",
+    "installTitle": "Add moto to your Home Screen",
+    "installIntro": "On iPhone and iPad, notifications work after moto has been added to the Home Screen.",
+    "installStep1": "Open moto in Safari and tap the Share icon.",
+    "installStep2": "Choose Add to Home Screen.",
+    "installStep3": "Open moto from the new icon and turn on notifications.",
+    "understood": "Got it",
+    "close": "Close dialog"
   },
   "parentSettings": {
     "eyebrow": "Your account",
@@ -264,11 +284,11 @@
         "description": "Report sick or excused"
       },
       "pickupTime": {
-        "label": "Change arrival & pickup time",
-        "description": "Set pickup/arrival for a day"
+        "label": "Pickup for today",
+        "description": "Change the pickup time for one day"
       },
       "message": {
-        "label": "Write message",
+        "label": "Message the OGS",
         "description": "Directly to care staff"
       },
       "pickupPermission": {
@@ -286,7 +306,7 @@
     },
     "today": {
       "title": "Today",
-      "description": "Current notes for this child.",
+      "description": "The most important information and tasks for today.",
       "sickLabel": "Daily note",
       "noSick": "No absence",
       "pickupLabel": "Pickup",
@@ -345,12 +365,16 @@
       "reasonPrefix": "Reason"
     },
     "pickup": {
-      "title": "Change arrival & pickup time",
-      "intro": "Set a different pickup or arrival time for a single day. The change applies to that day only.",
+      "title": "Change pickup time",
+      "intro": "Enter the new pickup time and a short reason. The change applies only to the selected day.",
       "dateLabel": "Day",
       "pickupLabel": "Pickup time",
       "arrivalLabel": "Arrival time",
-      "noTime": "Please enter at least one time.",
+      "noTime": "Please enter the new pickup time.",
+      "reasonLabel": "Reason (required)",
+      "reasonPlaceholder": "For example, a medical appointment or pickup by grandparents",
+      "reasonRequired": "Please enter a short reason for the change.",
+      "reasonTooLong": "The reason may contain at most 255 characters.",
       "saveError": "The change could not be saved.",
       "loadError": "The currently saved times could not be loaded. Please reload the page and try again.",
       "errorDisabled": "Changing the pickup time is not enabled for this school.",
@@ -971,8 +995,8 @@
     }
   },
   "parentMasterData": {
-    "title": "Master data",
-    "subtitle": "Here you can see the data stored for your child. You can change most fields directly; some changes are reviewed by the team first.",
+    "title": "Details and care",
+    "subtitle": "Review your child's details and booked care offerings. Changes that require approval are clearly marked.",
     "back": "Back",
     "loadError": "The master data could not be loaded. Please refresh the page.",
     "saved": "Saved",
@@ -996,7 +1020,7 @@
       "contact": "Your contact details",
       "departure": "Permanent ways home",
       "careSchedule": "Care times",
-      "careOfferings": "Care offerings"
+      "careOfferings": "Booked care"
     },
     "fields": {
       "firstName": "First name",
@@ -1050,7 +1074,7 @@
       "withdrawConfirmBody": "Do you really want to withdraw your change request? The current schedule stays unchanged."
     },
     "careOfferings": {
-      "hint": "These offerings and clubs are booked for your child. Changes are reviewed by the team before they apply.",
+      "hint": "These care offerings are booked for your child. Changes are reviewed by the team before they apply.",
       "loadError": "The care offerings could not be loaded. Please refresh the page.",
       "period": "Care period {name} ({from} to {until})",
       "offeringsTitle": "Booked care offerings",

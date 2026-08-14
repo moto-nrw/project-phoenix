@@ -126,6 +126,11 @@ type Service interface {
 	// the same date is never overwritten — it yields ErrCareExceptionConflict.
 	SubmitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, arrivalTime *time.Time) (*CareException, error)
 
+	// SubmitCareExceptionWithReason is the parent API variant. It requires a
+	// concrete pickup time and stores the parent's explanation on the pickup
+	// exception so staff see the change and its context together.
+	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, arrivalTime *time.Time, reason string) (*CareException, error)
+
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
 	// child in [from, to], including staff-authored ones (flagged via Source)
 	// so the portal can show what is already set. Authorization only.
@@ -392,6 +397,7 @@ type CareException struct {
 	Date        timezone.Date
 	PickupTime  *time.Time
 	ArrivalTime *time.Time
+	Reason      *string
 	Source      string
 	UpdatedAt   time.Time
 	// PickupAbsent is true when a pickup-exception row exists for the day but

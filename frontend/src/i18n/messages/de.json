@@ -83,9 +83,14 @@
   "parentDashboard": {
     "eyebrow": "Elternportal",
     "title": "Willkommen im Elternportal",
-    "description": "Hier sehen Sie Ihre Kinder und öffnen die wichtigsten Bereiche rund um Betreuung, Nachrichten und Termine.",
+    "description": "Was möchten Sie erledigen? Wählen Sie ein Kind und starten Sie direkt die passende Aktion.",
     "childrenEyebrow": "Meine Kinder",
-    "childrenDescription": "Direkt zur Kind-Ansicht wechseln.",
+    "childrenDescription": "Die häufigsten Aufgaben finden Sie direkt beim jeweiligen Kind.",
+    "actions": {
+      "sick": "Krank oder entschuldigt melden",
+      "pickup": "Abholung ändern",
+      "message": "OGS schreiben"
+    },
     "emptyChildren": "Sobald ein Kind freigeschaltet ist, erscheint es hier.",
     "allChildren": "Alle Kinder anzeigen",
     "open": "Offen",
@@ -132,6 +137,21 @@
     "newsPollNeedsAnswer": "Antwort erforderlich",
     "newsClose": "Schließen",
     "newEnrollment": "Neue Anmeldung"
+  },
+  "parentNotificationSetup": {
+    "title": "Keine wichtige Nachricht verpassen",
+    "intro": "Aktivieren Sie Benachrichtigungen. moto informiert Sie dann über neue Nachrichten und wichtige Änderungen zu Ihrem Kind.",
+    "enable": "Benachrichtigungen aktivieren",
+    "later": "Später erinnern",
+    "enableError": "Die Benachrichtigungen konnten nicht aktiviert werden. Bitte versuchen Sie es erneut.",
+    "denied": "Benachrichtigungen sind im Browser blockiert. Öffnen Sie die Browser-Einstellungen, erlauben Sie Benachrichtigungen für moto und versuchen Sie es anschließend unter Einstellungen erneut.",
+    "installTitle": "moto zum Home-Bildschirm hinzufügen",
+    "installIntro": "Auf iPhone und iPad funktionieren Benachrichtigungen erst, wenn moto auf dem Home-Bildschirm liegt.",
+    "installStep1": "Öffnen Sie moto in Safari und tippen Sie auf das Teilen-Symbol.",
+    "installStep2": "Wählen Sie Zum Home-Bildschirm.",
+    "installStep3": "Öffnen Sie moto danach über das neue Symbol und aktivieren Sie die Benachrichtigungen.",
+    "understood": "Verstanden",
+    "close": "Dialog schließen"
   },
   "parentSettings": {
     "eyebrow": "Ihr Konto",
@@ -260,15 +280,15 @@
     "comingSoonAria": "{label} bald verfügbar",
     "actions": {
       "sick": {
-        "label": "Abmelden",
+        "label": "Krank oder entschuldigt melden",
         "description": "Krank oder entschuldigt melden"
       },
       "pickupTime": {
-        "label": "Ankunfts- und Abholzeit ändern",
-        "description": "Ankunfts-/Abholzeit für einen Tag ändern"
+        "label": "Abholung für heute",
+        "description": "Abholzeit für einen Tag ändern"
       },
       "message": {
-        "label": "Nachricht schreiben",
+        "label": "OGS schreiben",
         "description": "Direkt an die Betreuung"
       },
       "pickupPermission": {
@@ -286,7 +306,7 @@
     },
     "today": {
       "title": "Heute",
-      "description": "Aktuelle Hinweise für dieses Kind.",
+      "description": "Die wichtigsten Informationen und Aufgaben für heute.",
       "sickLabel": "Tagesmeldung",
       "noSick": "Keine Abmeldung",
       "pickupLabel": "Abholung",
@@ -345,12 +365,16 @@
       "reasonPrefix": "Grund"
     },
     "pickup": {
-      "title": "Ankunfts- und Abholzeit ändern",
-      "intro": "Hinterlegen Sie für einen einzelnen Tag eine abweichende Abhol- oder Ankunftszeit. Die Änderung gilt nur für diesen Tag.",
+      "title": "Abholzeit ändern",
+      "intro": "Tragen Sie die neue Abholzeit und einen kurzen Grund ein. Die Änderung gilt nur für den ausgewählten Tag.",
       "dateLabel": "Tag",
       "pickupLabel": "Abholzeit",
       "arrivalLabel": "Ankunftszeit",
-      "noTime": "Bitte geben Sie mindestens eine Uhrzeit an.",
+      "noTime": "Bitte geben Sie die neue Abholzeit an.",
+      "reasonLabel": "Grund (Pflichtfeld)",
+      "reasonPlaceholder": "Zum Beispiel Arzttermin oder Abholung durch die Großeltern",
+      "reasonRequired": "Bitte geben Sie einen kurzen Grund für die Änderung an.",
+      "reasonTooLong": "Der Grund darf höchstens 255 Zeichen lang sein.",
       "saveError": "Die Änderung konnte nicht gespeichert werden.",
       "loadError": "Die aktuell hinterlegten Zeiten konnten nicht geladen werden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
       "errorDisabled": "Das Ändern der Abholzeit ist für diese Einrichtung nicht aktiviert.",
@@ -971,8 +995,8 @@
     }
   },
   "parentMasterData": {
-    "title": "Stammdaten",
-    "subtitle": "Hier sehen Sie die zu Ihrem Kind gespeicherten Angaben. Die meisten Felder können Sie direkt ändern; einige Änderungen prüft das Team vorab.",
+    "title": "Daten und Betreuung",
+    "subtitle": "Prüfen Sie die Angaben zu Ihrem Kind und die gebuchten Betreuungsangebote. Änderungen mit Prüfbedarf werden deutlich gekennzeichnet.",
     "back": "Zurück",
     "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
@@ -996,7 +1020,7 @@
       "contact": "Ihre Kontaktdaten",
       "departure": "Dauerhafte Gehzeiten",
       "careSchedule": "Betreuungszeiten",
-      "careOfferings": "Betreuungsangebote"
+      "careOfferings": "Gebuchte Betreuung"
     },
     "fields": {
       "firstName": "Vorname",
@@ -1050,7 +1074,7 @@
       "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
     },
     "careOfferings": {
-      "hint": "Diese Angebote und AGs sind für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
+      "hint": "Diese Betreuungsangebote sind für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
       "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
       "offeringsTitle": "Gebuchte Betreuungsangebote",

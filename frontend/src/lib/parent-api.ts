@@ -202,6 +202,7 @@ export interface CareException {
   readonly date: string;
   readonly pickup_time?: string;
   readonly arrival_time?: string;
+  readonly reason?: string;
   readonly source: string;
   readonly updated_at: string;
   // True when a pickup-exception row exists for the day but carries no time —
@@ -849,7 +850,12 @@ export async function postChildMessage(
  */
 export async function submitCareException(
   studentId: string,
-  params: { date: string; pickupTime?: string; arrivalTime?: string },
+  params: {
+    date: string;
+    pickupTime: string;
+    arrivalTime?: string;
+    reason: string;
+  },
 ): Promise<CareException> {
   return postJson<CareException>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
@@ -857,6 +863,7 @@ export async function submitCareException(
       date: params.date,
       pickup_time: params.pickupTime ?? null,
       arrival_time: params.arrivalTime ?? null,
+      reason: params.reason,
     },
   );
 }

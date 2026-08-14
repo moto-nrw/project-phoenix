@@ -95,12 +95,10 @@ function renderModal(
   // live outside the render container — query the document instead.
   const dateInput =
     document.querySelector<HTMLInputElement>('input[type="date"]')!;
-  const timeInputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[type="time"]'),
-  );
-  // Field order in the modal is arrival, then pickup.
-  const [arrivalInput, pickupInput] = timeInputs;
-  return { onSubmit, onRemove, onClose, dateInput, arrivalInput, pickupInput };
+  const pickupInput =
+    document.querySelector<HTMLInputElement>('input[type="time"]');
+  const reasonInput = document.querySelector<HTMLTextAreaElement>("textarea");
+  return { onSubmit, onRemove, onClose, dateInput, pickupInput, reasonInput };
 }
 
 describe("PickupTimeModal — failed preload guard", () => {
@@ -120,7 +118,7 @@ describe("PickupTimeModal — failed preload guard", () => {
   });
 
   it("allows saving once the exception list is known", () => {
-    const { onSubmit, pickupInput } = renderModal({
+    const { onSubmit, pickupInput, reasonInput } = renderModal({
       careExceptionsLoaded: true,
     });
 
@@ -128,11 +126,15 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(screen.queryByText(LOAD_ERROR_DE)).not.toBeInTheDocument();
 
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ pickupTime: "14:30" }),
+      expect.objectContaining({
+        pickupTime: "14:30",
+        reason: "Arzttermin",
+      }),
     );
   });
 
@@ -144,6 +146,7 @@ describe("PickupTimeModal — failed preload guard", () => {
       date: "2026-03-17",
       pickup_time: "15:00",
       arrival_time: "08:30",
+      reason: "Termin",
       source: "guardian",
       updated_at: "2026-03-10T09:00:00Z",
     };
@@ -163,7 +166,17 @@ describe("PickupTimeModal — failed preload guard", () => {
       date: "2026-03-17",
       pickupTime: "16:00",
       arrivalTime: "08:30",
+      reason: "Termin",
     });
+  });
+
+  it("requires a reason for a changed pickup time", () => {
+    const { onSubmit, pickupInput } = renderModal();
+
+    fireEvent.change(pickupInput!, { target: { value: "14:30" } });
+
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
 

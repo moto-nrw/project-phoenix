@@ -1047,6 +1047,15 @@ describe("MobileBottomNav", () => {
         screen.queryByRole("link", { name: "Mein Kalender" }),
       ).not.toBeInTheDocument();
     });
+
+    it("keeps messages in the primary parent navigation", () => {
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Nachrichten" })).toHaveAttribute(
+        "href",
+        "/parents/messages",
+      );
+    });
   });
 
   describe("Icon component", () => {

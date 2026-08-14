@@ -39,7 +39,6 @@ import {
   submitMasterDataRequest,
   updateMasterDataField,
 } from "~/lib/parent-api";
-import { ChildCareScheduleSection } from "~/components/parent/child-care-schedule";
 import { ChildCareOfferingsSection } from "~/components/parent/child-care-offerings";
 import { Section } from "~/components/parent/child-detail-section";
 
@@ -272,8 +271,6 @@ function ChildMasterDataContent({
         pending={pendingByField.get("departure/allowed_departure_modes")}
         onApplied={onApplied}
       />
-
-      <ChildCareScheduleSection studentId={studentId} />
 
       <ChildCareOfferingsSection studentId={studentId} />
     </ParentPage>

@@ -15,6 +15,7 @@ import {
  */
 export interface ChildRowItem {
   readonly key: string;
+  readonly studentId?: string;
   readonly name: string;
   readonly schoolName: string;
   /** Secondary line, e.g. class and care period. */
@@ -32,11 +33,13 @@ export interface ChildRowItem {
 export function ChildRow({
   item,
   variant = "row",
-}: Readonly<{ item: ChildRowItem; variant?: "row" | "card" }>) {
+}: Readonly<{ item: ChildRowItem; variant?: "row" | "card" | "plain" }>) {
   const surface =
     variant === "card"
       ? "rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
-      : "rounded-xl border border-gray-200 bg-white p-3";
+      : variant === "plain"
+        ? "rounded-xl p-1"
+        : "rounded-xl border border-gray-200 bg-white p-3";
   const content = (
     <div className="flex min-w-0 items-center gap-3">
       <Avatar

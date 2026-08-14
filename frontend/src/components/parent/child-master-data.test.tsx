@@ -52,6 +52,15 @@ vi.mock("~/lib/parent-api", async (importOriginal) => {
     ...actual,
     getChildFeatures: vi.fn(),
     getChildMasterData: vi.fn(),
+    getChildCareOfferings: vi.fn().mockResolvedValue({
+      period_name: "Schuljahr 2026/27",
+      period_start: "2026-08-01",
+      period_end: "2027-07-31",
+      offerings: [],
+      groups: [],
+      can_request: false,
+      changes_disabled_reason: "no_permission",
+    }),
     submitMasterDataRequest: vi.fn(),
     updateMasterDataField: vi.fn(),
   };
@@ -121,10 +130,13 @@ describe("ChildMasterDataView", () => {
     render(<ChildMasterDataView studentId="42" />);
 
     expect(
-      await screen.findByRole("heading", { name: "Stammdaten" }),
+      await screen.findByRole("heading", { name: "Daten und Betreuung" }),
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue("Lara")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Allergie")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Betreuungszeiten" }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText("Wird abgeholt").length).toBeGreaterThan(0);
     // The matrix IS the saved state — every checked box is a stored mode.
     // Fixture: Mo = pickup, Di = bus + alone, Mi = nothing.

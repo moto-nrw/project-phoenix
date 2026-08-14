@@ -9,6 +9,7 @@ import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { AppShell } from "~/components/dashboard/app-shell";
 import { Loading } from "~/components/ui/loading";
 import { ParentRealtimeBridge } from "~/components/parent/parent-realtime-bridge";
+import { ParentNotificationOnboarding } from "~/components/parent/parent-notification-onboarding";
 
 function FullPageLoading() {
   // Always rendered under the parents-portal NextIntlClientProvider, so the
@@ -74,13 +75,20 @@ export function ParentAuthGuard({
     return <FullPageLoading />;
   }
 
+  if (!session) {
+    return <FullPageLoading />;
+  }
+
   // Locale handling lives in the single ParentLocaleProvider mounted by
   // ParentProviders; it picks up the now-authenticated session on its own.
   return (
     <ParentShellProvider>
       <BreadcrumbProvider>
         <ParentRealtimeBridge />
-        <AppShell>{children}</AppShell>
+        <AppShell>
+          {children}
+          <ParentNotificationOnboarding accountId={session.user.id} />
+        </AppShell>
       </BreadcrumbProvider>
     </ParentShellProvider>
   );

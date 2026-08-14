@@ -267,8 +267,9 @@ export interface ChildCare {
   withdrawExcused(requestId: string): Promise<void>;
   saveCareException(params: {
     date: string;
-    pickupTime?: string;
+    pickupTime: string;
     arrivalTime?: string;
+    reason: string;
   }): Promise<void>;
   removeCareException(date: string): Promise<void>;
 }
@@ -553,8 +554,9 @@ export function useChildCare(studentId: string): ChildCare {
   const saveCareException = useCallback(
     async (params: {
       date: string;
-      pickupTime?: string;
+      pickupTime: string;
       arrivalTime?: string;
+      reason: string;
     }) => {
       const saved = await submitCareException(studentId, params);
       // Bail if we navigated to another child mid-save — A's override must not
@@ -818,8 +820,9 @@ export function PickupTimeModal({
   onClose: () => void;
   onSubmit: (params: {
     date: string;
-    pickupTime?: string;
+    pickupTime: string;
     arrivalTime?: string;
+    reason: string;
   }) => Promise<void>;
   onRemove: (date: string) => Promise<void>;
 }>) {
@@ -843,7 +846,7 @@ export function PickupTimeModal({
   })();
   const [date, setDate] = useState(initial);
   const [pickupTime, setPickupTime] = useState("");
-  const [arrivalTime, setArrivalTime] = useState("");
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -871,6 +874,10 @@ export function PickupTimeModal({
           return t("pickup.errorTooFar");
         case "care_exception_no_time":
           return t("pickup.noTime");
+        case "care_exception_reason_required":
+          return t("pickup.reasonRequired");
+        case "care_exception_reason_too_long":
+          return t("pickup.reasonTooLong");
       }
     }
     return err instanceof Error ? err.message : t("pickup.saveError");
@@ -880,7 +887,7 @@ export function PickupTimeModal({
   // parent edits rather than blindly overwrites.
   useEffect(() => {
     setPickupTime(existing?.pickup_time ?? "");
-    setArrivalTime(existing?.arrival_time ?? "");
+    setReason(existing?.reason ?? "");
     setError(null);
   }, [existing]);
 
@@ -892,8 +899,12 @@ export function PickupTimeModal({
       setError(t("pickup.loadError"));
       return;
     }
-    if (!pickupTime && !arrivalTime) {
+    if (!pickupTime) {
       setError(t("pickup.noTime"));
+      return;
+    }
+    if (!reason.trim()) {
+      setError(t("pickup.reasonRequired"));
       return;
     }
     setSubmitting(true);
@@ -901,8 +912,9 @@ export function PickupTimeModal({
     try {
       await onSubmit({
         date,
-        pickupTime: pickupTime || undefined,
-        arrivalTime: arrivalTime || undefined,
+        pickupTime,
+        arrivalTime: existing?.arrival_time,
+        reason: reason.trim(),
       });
       onClose();
     } catch (err) {
@@ -963,18 +975,7 @@ export function PickupTimeModal({
             })}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {t("pickup.arrivalLabel")}
-              </span>
-              <input
-                type="time"
-                value={arrivalTime}
-                onChange={(e) => setArrivalTime(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
-              />
-            </label>
+          <div className="space-y-4">
             <label className="block">
               <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 {t("pickup.pickupLabel")}
@@ -983,7 +984,22 @@ export function PickupTimeModal({
                 type="time"
                 value={pickupTime}
                 onChange={(e) => setPickupTime(e.target.value)}
+                required
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                {t("pickup.reasonLabel")}
+              </span>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={255}
+                required
+                rows={3}
+                placeholder={t("pickup.reasonPlaceholder")}
+                className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
               />
             </label>
           </div>
@@ -1032,7 +1048,9 @@ export function PickupTimeModal({
                 submitting ||
                 staffOwned ||
                 !pickupChangeEnabled ||
-                !careExceptionsLoaded
+                !careExceptionsLoaded ||
+                !pickupTime ||
+                !reason.trim()
               }
             >
               {submitting && (

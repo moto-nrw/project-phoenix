@@ -83,9 +83,14 @@
   "parentDashboard": {
     "eyebrow": "Родительский портал",
     "title": "Добро пожаловать в родительский портал",
-    "description": "Здесь вы видите своих детей и можете открыть важные разделы по уходу, сообщениям и датам.",
+    "description": "Что вы хотите сделать? Выберите ребёнка и сразу откройте нужное действие.",
     "childrenEyebrow": "Мои дети",
-    "childrenDescription": "Перейти прямо к странице ребенка.",
+    "childrenDescription": "Самые частые действия доступны прямо у каждого ребёнка.",
+    "actions": {
+      "sick": "Сообщить о болезни или отсутствии",
+      "pickup": "Изменить время ухода",
+      "message": "Написать в OGS"
+    },
     "emptyChildren": "Когда ребенок будет активирован, он появится здесь.",
     "allChildren": "Показать всех детей",
     "open": "Открыто",
@@ -132,6 +137,21 @@
     "newsPollNeedsAnswer": "Требуется ответ",
     "newsClose": "Закрыть",
     "newEnrollment": "Новая заявка"
+  },
+  "parentNotificationSetup": {
+    "title": "Не пропускайте важные сообщения",
+    "intro": "Включите уведомления. moto сообщит вам о новых сообщениях и важных изменениях, касающихся вашего ребёнка.",
+    "enable": "Включить уведомления",
+    "later": "Напомнить позже",
+    "enableError": "Не удалось включить уведомления. Попробуйте ещё раз.",
+    "denied": "Уведомления заблокированы в браузере. Откройте настройки браузера, разрешите уведомления для moto и повторите попытку в настройках.",
+    "installTitle": "Добавьте moto на экран Домой",
+    "installIntro": "На iPhone и iPad уведомления работают после добавления moto на экран Домой.",
+    "installStep1": "Откройте moto в Safari и нажмите значок Поделиться.",
+    "installStep2": "Выберите На экран Домой.",
+    "installStep3": "Откройте moto с нового значка и включите уведомления.",
+    "understood": "Понятно",
+    "close": "Закрыть диалог"
   },
   "parentSettings": {
     "eyebrow": "Ваш аккаунт",
@@ -264,11 +284,11 @@
         "description": "Болезнь или уважительная причина"
       },
       "pickupTime": {
-        "label": "Изменить время прихода и ухода",
-        "description": "Время прихода/ухода на день"
+        "label": "Время ухода сегодня",
+        "description": "Изменить время ухода на один день"
       },
       "message": {
-        "label": "Написать сообщение",
+        "label": "Написать в OGS",
         "description": "Напрямую в OGS"
       },
       "pickupPermission": {
@@ -286,7 +306,7 @@
     },
     "today": {
       "title": "Сегодня",
-      "description": "Текущие заметки для этого ребенка.",
+      "description": "Самая важная информация и задачи на сегодня.",
       "sickLabel": "Дневное сообщение",
       "noSick": "Нет сообщения об отсутствии",
       "pickupLabel": "Забор",
@@ -345,12 +365,16 @@
       "reasonPrefix": "Причина"
     },
     "pickup": {
-      "title": "Изменить время прихода и ухода",
-      "intro": "Укажите другое время прихода или ухода на один день. Изменение действует только в этот день.",
+      "title": "Изменить время ухода",
+      "intro": "Укажите новое время ухода и краткую причину. Изменение действует только в выбранный день.",
       "dateLabel": "День",
       "pickupLabel": "Время ухода",
       "arrivalLabel": "Время прихода",
-      "noTime": "Укажите хотя бы одно время.",
+      "noTime": "Укажите новое время ухода.",
+      "reasonLabel": "Причина (обязательно)",
+      "reasonPlaceholder": "Например, приём у врача или ребёнка заберут бабушка с дедушкой",
+      "reasonRequired": "Укажите краткую причину изменения.",
+      "reasonTooLong": "Причина может содержать не более 255 символов.",
       "saveError": "Не удалось сохранить изменение.",
       "loadError": "Не удалось загрузить текущие сохранённые значения времени. Пожалуйста, обновите страницу и попробуйте снова.",
       "errorDisabled": "Изменение времени ухода для этого учреждения не включено.",
@@ -971,8 +995,8 @@
     }
   },
   "parentMasterData": {
-    "title": "Stammdaten",
-    "subtitle": "Hier sehen Sie die zu Ihrem Kind gespeicherten Angaben. Die meisten Felder können Sie direkt ändern; einige Änderungen prüft das Team vorab.",
+    "title": "Данные и уход",
+    "subtitle": "Проверьте данные ребёнка и забронированные услуги по уходу. Изменения, требующие согласования, отмечены отдельно.",
     "back": "Zurück",
     "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
@@ -996,7 +1020,7 @@
       "contact": "Ihre Kontaktdaten",
       "departure": "Dauerhafte Gehzeiten",
       "careSchedule": "Betreuungszeiten",
-      "careOfferings": "Betreuungsangebote"
+      "careOfferings": "Забронированный уход"
     },
     "fields": {
       "firstName": "Vorname",
@@ -1050,7 +1074,7 @@
       "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
     },
     "careOfferings": {
-      "hint": "Diese Angebote und AGs sind für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
+      "hint": "Эти услуги по уходу забронированы для вашего ребёнка. Команда проверит изменения до их вступления в силу.",
       "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
       "offeringsTitle": "Gebuchte Betreuungsangebote",

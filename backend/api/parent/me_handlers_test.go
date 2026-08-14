@@ -170,6 +170,10 @@ func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, t
 	return nil, nil
 }
 
+func (f *fakeParentService) SubmitCareExceptionWithReason(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time, string) (*parentService.CareException, error) {
+	return nil, nil
+}
+
 func (f *fakeParentService) ListCareExceptions(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*parentService.CareException, error) {
 	return nil, nil
 }

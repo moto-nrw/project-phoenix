@@ -58,6 +58,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("next/link", () => ({
@@ -198,14 +199,16 @@ describe("Parent portal components", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the Neue Anmeldung action on the dashboard", async () => {
+  it("keeps the task-focused dashboard free of enrollment administration", async () => {
     mocks.listMyChildren.mockResolvedValueOnce([child()]);
     mocks.listMyEnrollments.mockResolvedValueOnce([]);
 
     render(<ParentDashboard />);
 
-    const link = await screen.findByRole("link", { name: "Neue Anmeldung" });
-    expect(link).toHaveAttribute("href", "/parents/enroll");
+    await screen.findByRole("heading", { name: "Willkommen im Elternportal" });
+    expect(
+      screen.queryByRole("link", { name: "Neue Anmeldung" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows dashboard error state when parent data fails", async () => {
@@ -257,10 +260,10 @@ describe("Parent portal components", () => {
     expect(
       (await screen.findAllByRole("heading", { name: "Lina Muster" })).length,
     ).toBeGreaterThan(0);
-    expect(screen.getAllByText("Abmelden").length).toBeGreaterThan(0);
     expect(
-      screen.getAllByText("Ankunfts- und Abholzeit ändern").length,
+      screen.getAllByText("Krank oder entschuldigt melden").length,
     ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Abholung für heute").length).toBeGreaterThan(0);
     await waitFor(() => {
       expect(mocks.setBreadcrumb).toHaveBeenCalledWith({
         pageTitle: "Lina Muster",
@@ -282,7 +285,9 @@ describe("Parent portal components", () => {
     await screen.findAllByRole("heading", { name: "Lina Muster" });
 
     // Open the "Abmelden" modal from its action button.
-    const abmeldenButtons = screen.getAllByRole("button", { name: "Abmelden" });
+    const abmeldenButtons = screen.getAllByRole("button", {
+      name: "Krank oder entschuldigt melden",
+    });
     const enabled = abmeldenButtons.find(
       (button) => !button.hasAttribute("disabled"),
     );
@@ -351,7 +356,7 @@ describe("Parent portal components", () => {
     const enabledPickupButton = await waitFor(() => {
       const button = screen
         .getAllByRole("button", {
-          name: /Ankunfts- und Abholzeit ändern/,
+          name: /Abholung für heute/,
         })
         .find((candidate) => !candidate.hasAttribute("disabled"));
       if (!button) throw new Error("pickup action is still disabled");
@@ -362,7 +367,7 @@ describe("Parent portal components", () => {
 
     expect(
       await screen.findByRole("dialog", {
-        name: "Ankunfts- und Abholzeit ändern",
+        name: "Abholzeit ändern",
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Zurücksetzen" })).toBeEnabled();

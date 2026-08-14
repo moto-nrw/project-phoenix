@@ -52,6 +52,7 @@ type SubmitCareExceptionRequest struct {
 	Date        string  `json:"date"`         // YYYY-MM-DD
 	PickupTime  *string `json:"pickup_time"`  // HH:MM, optional
 	ArrivalTime *string `json:"arrival_time"` // HH:MM, optional
+	Reason      string  `json:"reason"`
 }
 
 // CareExceptionResponse is one day's merged pickup/arrival override, projected
@@ -60,6 +61,7 @@ type CareExceptionResponse struct {
 	Date        string    `json:"date"`
 	PickupTime  *string   `json:"pickup_time,omitempty"`
 	ArrivalTime *string   `json:"arrival_time,omitempty"`
+	Reason      *string   `json:"reason,omitempty"`
 	Source      string    `json:"source"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	// PickupAbsent marks a staff "not coming today" pickup exception (a pickup
@@ -79,6 +81,7 @@ func toCareExceptionResponse(c *parentService.CareException) CareExceptionRespon
 		Date:          c.Date.String(),
 		PickupTime:    formatCareExceptionTime(c.PickupTime),
 		ArrivalTime:   formatCareExceptionTime(c.ArrivalTime),
+		Reason:        c.Reason,
 		Source:        c.Source,
 		UpdatedAt:     c.UpdatedAt,
 		PickupAbsent:  c.PickupAbsent,
@@ -120,7 +123,7 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	result, err := rs.ParentService.SubmitCareException(r.Context(), accountID, studentID, date, pickup, arrival)
+	result, err := rs.ParentService.SubmitCareExceptionWithReason(r.Context(), accountID, studentID, date, pickup, arrival, req.Reason)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

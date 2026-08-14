@@ -83,9 +83,14 @@
   "parentDashboard": {
     "eyebrow": "Portali i prindërve",
     "title": "Mirë se vini në portalin e prindërve",
-    "description": "Këtu shihni fëmijët tuaj dhe hapni fushat më të rëndësishme për përkujdesjen, njoftimet dhe datat.",
+    "description": "Çfarë dëshironi të bëni? Zgjidhni një fëmijë dhe hapni direkt veprimin e duhur.",
     "childrenEyebrow": "Fëmijët e mi",
-    "childrenDescription": "Kaloni direkt te pamja e fëmijës.",
+    "childrenDescription": "Veprimet më të shpeshta gjenden direkt te secili fëmijë.",
+    "actions": {
+      "sick": "Njofto sëmundje ose mungesë",
+      "pickup": "Ndrysho marrjen",
+      "message": "Shkruaji OGS-së"
+    },
     "emptyChildren": "Sapo një fëmijë të aktivizohet, ai shfaqet këtu.",
     "allChildren": "Shfaq të gjithë fëmijët",
     "open": "Hapur",
@@ -132,6 +137,21 @@
     "newsPollNeedsAnswer": "Kërkohet përgjigje",
     "newsClose": "Mbyll",
     "newEnrollment": "Regjistrim i ri"
+  },
+  "parentNotificationSetup": {
+    "title": "Mos humbisni asnjë mesazh të rëndësishëm",
+    "intro": "Aktivizoni njoftimet. moto do t'ju njoftojë për mesazhe të reja dhe ndryshime të rëndësishme për fëmijën tuaj.",
+    "enable": "Aktivizo njoftimet",
+    "later": "Më kujto më vonë",
+    "enableError": "Njoftimet nuk mund të aktivizoheshin. Provoni përsëri.",
+    "denied": "Njoftimet janë bllokuar në shfletues. Hapni cilësimet e shfletuesit, lejoni njoftimet për moto dhe provoni përsëri te Cilësimet.",
+    "installTitle": "Shto moto në ekranin kryesor",
+    "installIntro": "Në iPhone dhe iPad, njoftimet funksionojnë pasi moto të jetë shtuar në ekranin kryesor.",
+    "installStep1": "Hapni moto në Safari dhe prekni ikonën Shpërndaj.",
+    "installStep2": "Zgjidhni Shto në ekranin kryesor.",
+    "installStep3": "Hapni moto nga ikona e re dhe aktivizoni njoftimet.",
+    "understood": "E kuptova",
+    "close": "Mbyll dialogun"
   },
   "parentSettings": {
     "eyebrow": "Llogaria juaj",
@@ -264,11 +284,11 @@
         "description": "Njofto sëmundje ose justifikim"
       },
       "pickupTime": {
-        "label": "Ndrysho orarin e ardhjes dhe marrjes",
-        "description": "Cakto orarin për një ditë"
+        "label": "Marrja për sot",
+        "description": "Ndrysho orën e marrjes për një ditë"
       },
       "message": {
-        "label": "Shkruaj mesazh",
+        "label": "Shkruaji OGS-së",
         "description": "Direkt te përkujdesja"
       },
       "pickupPermission": {
@@ -286,7 +306,7 @@
     },
     "today": {
       "title": "Sot",
-      "description": "Njoftime aktuale për këtë fëmijë.",
+      "description": "Informacionet dhe detyrat më të rëndësishme për sot.",
       "sickLabel": "Njoftim ditor",
       "noSick": "Nuk ka njoftim mungese",
       "pickupLabel": "Marrja",
@@ -345,12 +365,16 @@
       "reasonPrefix": "Arsyeja"
     },
     "pickup": {
-      "title": "Ndrysho orarin e ardhjes dhe marrjes",
-      "intro": "Caktoni një orar tjetër marrjeje ose ardhjeje për një ditë të vetme. Ndryshimi vlen vetëm për atë ditë.",
+      "title": "Ndrysho orën e marrjes",
+      "intro": "Vendosni orën e re të marrjes dhe një arsye të shkurtër. Ndryshimi vlen vetëm për ditën e zgjedhur.",
       "dateLabel": "Dita",
       "pickupLabel": "Ora e marrjes",
       "arrivalLabel": "Ora e ardhjes",
-      "noTime": "Ju lutemi vendosni të paktën një orar.",
+      "noTime": "Ju lutemi vendosni orën e re të marrjes.",
+      "reasonLabel": "Arsyeja (e detyrueshme)",
+      "reasonPlaceholder": "Për shembull, takim te mjeku ose marrje nga gjyshërit",
+      "reasonRequired": "Ju lutemi vendosni një arsye të shkurtër për ndryshimin.",
+      "reasonTooLong": "Arsyeja mund të ketë maksimumi 255 karaktere.",
       "saveError": "Ndryshimi nuk mund të ruhej.",
       "loadError": "Oraret e ruajtura aktuale nuk mund të ngarkoheshin. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
       "errorDisabled": "Ndryshimi i orarit të marrjes nuk është aktivizuar për këtë institucion.",
@@ -971,8 +995,8 @@
     }
   },
   "parentMasterData": {
-    "title": "Stammdaten",
-    "subtitle": "Hier sehen Sie die zu Ihrem Kind gespeicherten Angaben. Die meisten Felder können Sie direkt ändern; einige Änderungen prüft das Team vorab.",
+    "title": "Të dhënat dhe përkujdesja",
+    "subtitle": "Kontrolloni të dhënat e fëmijës dhe ofertat e rezervuara të përkujdesjes. Ndryshimet që kërkojnë miratim shënohen qartë.",
     "back": "Zurück",
     "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
@@ -996,7 +1020,7 @@
       "contact": "Ihre Kontaktdaten",
       "departure": "Dauerhafte Gehzeiten",
       "careSchedule": "Betreuungszeiten",
-      "careOfferings": "Betreuungsangebote"
+      "careOfferings": "Përkujdesja e rezervuar"
     },
     "fields": {
       "firstName": "Vorname",
@@ -1050,7 +1074,7 @@
       "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
     },
     "careOfferings": {
-      "hint": "Diese Angebote und AGs sind für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
+      "hint": "Këto oferta përkujdesjeje janë rezervuar për fëmijën tuaj. Ekipi i shqyrton ndryshimet para se të hyjnë në fuqi.",
       "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
       "offeringsTitle": "Gebuchte Betreuungsangebote",

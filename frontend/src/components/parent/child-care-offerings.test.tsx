@@ -75,12 +75,12 @@ describe("ChildCareOfferingsSection", () => {
     mockGet.mockResolvedValue(view());
   });
 
-  it("renders the booked offerings and groups", async () => {
+  it("renders booked offerings without internal groups", async () => {
     render(<ChildCareOfferingsSection studentId="42" />);
 
-    expect(await screen.findByText("Betreuungsangebote")).toBeInTheDocument();
+    expect(await screen.findByText("Gebuchte Betreuung")).toBeInTheDocument();
     expect(screen.getByText("Regelbetreuung")).toBeInTheDocument();
-    expect(screen.getByText("Gruppe Sonne")).toBeInTheDocument();
+    expect(screen.queryByText("Gruppe Sonne")).not.toBeInTheDocument();
     // Weekdays render as short labels, not raw ISO numbers.
     expect(screen.getAllByText("Mo, Di, Mi").length).toBeGreaterThan(0);
     expect(
@@ -135,7 +135,7 @@ describe("ChildCareOfferingsSection", () => {
     expect(await screen.findByText("alle Betreuungstage")).toBeInTheDocument();
   });
 
-  it("marks a membership that has not started yet", async () => {
+  it("does not expose a future internal group membership", async () => {
     mockGet.mockResolvedValue(
       view({
         groups: [
@@ -152,8 +152,9 @@ describe("ChildCareOfferingsSection", () => {
     );
     render(<ChildCareOfferingsSection studentId="42" />);
 
-    expect(await screen.findByText("Gruppe Mond")).toBeInTheDocument();
-    expect(screen.getByText("ab 01.02.2027")).toBeInTheDocument();
+    expect(await screen.findByText("Gebuchte Betreuung")).toBeInTheDocument();
+    expect(screen.queryByText("Gruppe Mond")).not.toBeInTheDocument();
+    expect(screen.queryByText("ab 01.02.2027")).not.toBeInTheDocument();
   });
 
   it("shows the pending request with its effective date, diff and withdraw button", async () => {
@@ -204,7 +205,7 @@ describe("ChildCareOfferingsSection", () => {
     );
     render(<ChildCareOfferingsSection studentId="42" />);
 
-    expect(await screen.findByText("Betreuungsangebote")).toBeInTheDocument();
+    expect(await screen.findByText("Gebuchte Betreuung")).toBeInTheDocument();
     expect(screen.queryByText(/keine Berechtigung/)).not.toBeInTheDocument();
   });
 
