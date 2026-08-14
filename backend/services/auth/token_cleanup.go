@@ -73,28 +73,7 @@ func (s *Service) reconcileRevokedSessions(ctx context.Context) error {
 			if !isAccountWideRevocation(reason) {
 				reason = "administrative_revoke"
 			}
-			if reason == "account_deactivated" && s.repos.Account != nil {
-				account, accErr := s.repos.Account.FindByID(adminCtx, wipe.AccountID)
-				if accErr == nil && account.Active {
-					if err := s.markAccountWideWipeCompleted(adminCtx, wipe.AccountID); err != nil {
-						return err
-					}
-					continue
-				}
-			}
-			if s.repos.Token != nil {
-				newer, newerErr := s.repos.Token.HasLiveTokensCreatedAfter(adminCtx, wipe.AccountID, wipe.CreatedAt)
-				if newerErr != nil {
-					return newerErr
-				}
-				if newer {
-					if err := s.markAccountWideWipeCompleted(adminCtx, wipe.AccountID); err != nil {
-						return err
-					}
-					continue
-				}
-			}
-			if err := s.wipeAccountWideIndependently(adminCtx, wipe.AccountID, reason, "", ""); err != nil {
+			if err := s.finishScheduledAccountWideWipe(adminCtx, wipe.AccountID, reason, "", "", true); err != nil {
 				return err
 			}
 		}

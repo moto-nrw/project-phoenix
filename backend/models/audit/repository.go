@@ -22,6 +22,7 @@ type AuthEventRepository interface {
 	FindByAccountID(ctx context.Context, accountID int64, limit int) ([]*AuthEvent, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*AuthEvent, error)
 	ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]PendingAccountWideWipe, error)
+	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]PendingAccountWideWipe, error)
 	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error
 }
 

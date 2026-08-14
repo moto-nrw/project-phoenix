@@ -1143,6 +1143,14 @@ func (noopTokenRepository) DeleteByAccountIDReturning(context.Context, int64) ([
 	panic("DeleteByAccountIDReturning not implemented")
 }
 
+func (noopTokenRepository) DeleteAllByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
+	panic("DeleteAllByAccountIDReturning not implemented")
+}
+
+func (noopTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(context.Context, int64, time.Time) ([]*authModel.Token, error) {
+	panic("DeleteByAccountIDCreatedAtOrBeforeReturning not implemented")
+}
+
 func (noopTokenRepository) DeleteByAccountIDAndIdentifier(context.Context, int64, string) error {
 	panic("DeleteByAccountIDAndIdentifier not implemented")
 }
@@ -1290,6 +1298,14 @@ func (r *stubTokenRepository) DeleteByAccountIDReturning(_ context.Context, acco
 	defer r.mu.Unlock()
 	r.deletedAccountIDs = append(r.deletedAccountIDs, accountID)
 	return nil, nil
+}
+
+func (r *stubTokenRepository) DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*authModel.Token, error) {
+	return r.DeleteByAccountIDReturning(ctx, accountID)
+}
+
+func (r *stubTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, _ time.Time) ([]*authModel.Token, error) {
+	return r.DeleteByAccountIDReturning(ctx, accountID)
 }
 
 func (r *stubTokenRepository) DeletedAccountIDs() []int64 {

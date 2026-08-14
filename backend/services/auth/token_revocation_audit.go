@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -162,6 +163,16 @@ func (s *Service) deleteAccountTokensWithAudit(ctx context.Context, accountID in
 
 func (s *Service) scheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
 	if tenant.IsAdminTx(ctx) || (tenant.FromContext(ctx) == 0 && hasAmbientTx(ctx)) {
+		skip, err := s.shouldSkipAccountWideWipe(ctx, accountID, reason)
+		if err != nil {
+			return err
+		}
+		if skip {
+			if tenant.IsAdminTx(ctx) {
+				return s.markAccountWideWipeCompleted(ctx, accountID)
+			}
+			return nil
+		}
 		if _, err := s.deleteAllAccountTokensInCtx(ctx, accountID, reason, ipAddress, userAgent); err != nil {
 			return err
 		}
@@ -175,8 +186,9 @@ func (s *Service) scheduleAccountWideRevoke(ctx context.Context, accountID int64
 		if err := s.recordPendingAccountWideWipe(ctx, accountID, reason); err != nil {
 			return err
 		}
+		pendingRecorded := tenant.FromContext(ctx) > 0
 		tenant.RegisterAfterCommit(ctx, func() {
-			if err := s.wipeAccountWideIndependently(ctx, accountID, reason, ipAddress, userAgent); err != nil {
+			if err := s.finishScheduledAccountWideWipe(ctx, accountID, reason, ipAddress, userAgent, pendingRecorded); err != nil {
 				s.getLogger().Warn("failed to revoke remaining sessions after commit",
 					slog.Int64("account_id", accountID),
 					slog.String("reason", reason),
@@ -242,6 +254,13 @@ func hasAmbientTx(ctx context.Context) bool {
 
 func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
 	if s.db == nil || tenant.IsAdminTx(ctx) {
+		skip, err := s.shouldSkipAccountWideWipe(ctx, accountID, reason)
+		if err != nil {
+			return err
+		}
+		if skip {
+			return s.markAccountWideWipeCompleted(ctx, accountID)
+		}
 		tokens, err := s.deleteAllAccountTokensInCtx(ctx, accountID, reason, ipAddress, userAgent)
 		if err != nil {
 			return err
@@ -255,7 +274,13 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 	adminCtx = tenant.ContextWithoutAfterCommitHooks(adminCtx)
 	var tokens []*authModels.Token
 	err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		var innerErr error
+		skip, innerErr := s.shouldSkipAccountWideWipe(txCtx, accountID, reason)
+		if innerErr != nil {
+			return innerErr
+		}
+		if skip {
+			return s.markAccountWideWipeCompleted(txCtx, accountID)
+		}
 		tokens, innerErr = s.deleteAllAccountTokensInCtx(txCtx, accountID, reason, ipAddress, userAgent)
 		if innerErr != nil {
 			return innerErr
@@ -268,6 +293,107 @@ func (s *Service) wipeAccountWideIndependently(ctx context.Context, accountID in
 	return s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, reason)
 }
 
+func (s *Service) finishScheduledAccountWideWipe(ctx context.Context, accountID int64, reason, ipAddress, userAgent string, pendingRecorded bool) error {
+	if s.db == nil {
+		return s.wipeAccountWideIndependently(ctx, accountID, reason, ipAddress, userAgent)
+	}
+	var tokens []*authModels.Token
+	pushReason := reason
+	run := func(txCtx context.Context) error {
+		var claimed []auditModels.PendingAccountWideWipe
+		var err error
+		if s.repos.AuthEvent != nil {
+			claimed, err = s.repos.AuthEvent.ClaimPendingAccountWideWipes(txCtx, accountID)
+			if err != nil {
+				return err
+			}
+		}
+		if len(claimed) == 0 && pendingRecorded {
+			// Pending row was recorded and is gone: reactivation or another
+			// worker already claimed it.
+			return nil
+		}
+		cutoff := time.Time{}
+		if len(claimed) > 0 {
+			reason = pendingWipeReason(claimed, reason)
+			cutoff = pendingWipeCutoff(claimed)
+		}
+		skip, err := s.shouldSkipAccountWideWipe(txCtx, accountID, reason)
+		if err != nil {
+			return err
+		}
+		if skip {
+			return nil
+		}
+		if !cutoff.IsZero() {
+			tokens, err = s.repos.Token.DeleteByAccountIDCreatedAtOrBeforeReturning(txCtx, accountID, cutoff)
+			if err != nil {
+				return err
+			}
+			if err := s.auditRevokedTokens(txCtx, tokens, reason, ipAddress, userAgent); err != nil {
+				return err
+			}
+			newer, newerErr := s.repos.Token.HasLiveTokensCreatedAfter(txCtx, accountID, cutoff)
+			if newerErr != nil {
+				return newerErr
+			}
+			if newer {
+				pushReason = "pending_wipe"
+			}
+			return nil
+		}
+		tokens, err = s.deleteAllAccountTokensInCtx(txCtx, accountID, reason, ipAddress, userAgent)
+		return err
+	}
+	if tenant.IsAdminTx(ctx) {
+		if err := run(ctx); err != nil {
+			return err
+		}
+		return s.cleanupPushAfterTokenRevocation(ctx, accountID, tokens, pushReason)
+	}
+	adminCtx := s.independentCleanupCtx(ctx)
+	if err := tenant.WithAdminTx(adminCtx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+		return run(txCtx)
+	}); err != nil {
+		return err
+	}
+	return s.cleanupPushAfterTokenRevocation(adminCtx, accountID, tokens, pushReason)
+}
+
+func pendingWipeReason(claimed []auditModels.PendingAccountWideWipe, fallback string) string {
+	reason := fallback
+	for _, wipe := range claimed {
+		if isAccountWideRevocation(wipe.Reason) {
+			reason = wipe.Reason
+		}
+	}
+	if !isAccountWideRevocation(reason) {
+		return "administrative_revoke"
+	}
+	return reason
+}
+
+func pendingWipeCutoff(claimed []auditModels.PendingAccountWideWipe) time.Time {
+	var cutoff time.Time
+	for _, wipe := range claimed {
+		if cutoff.IsZero() || wipe.CreatedAt.After(cutoff) {
+			cutoff = wipe.CreatedAt
+		}
+	}
+	return cutoff
+}
+
+func (s *Service) shouldSkipAccountWideWipe(ctx context.Context, accountID int64, reason string) (bool, error) {
+	if reason != "account_deactivated" || s.repos.Account == nil {
+		return false, nil
+	}
+	account, err := s.repos.Account.FindByIDForUpdate(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	return account.Active, nil
+}
+
 func (s *Service) markAccountWideWipeCompleted(ctx context.Context, accountID int64) error {
 	if s.repos.AuthEvent == nil {
 		return nil
@@ -276,7 +402,7 @@ func (s *Service) markAccountWideWipeCompleted(ctx context.Context, accountID in
 }
 
 func (s *Service) deleteAllAccountTokensInCtx(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]*authModels.Token, error) {
-	tokens, err := s.repos.Token.DeleteByAccountIDReturning(ctx, accountID)
+	tokens, err := s.repos.Token.DeleteAllByAccountIDReturning(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}

@@ -476,6 +476,52 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/other-school"))
 }
 
+func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("admin-role-other-school")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID, secondaryTenantID)
+	})
+
+	_, _, err = service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	other := &authModels.Token{
+		AccountID:   account.ID,
+		Token:       uniqueTestName("role-other-school"),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: authModels.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+
+	role, err := service.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr(authModels.BaseRoleUser))
+	require.NoError(t, err)
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		return service.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), int(account.ID), int(role.ID))
+	}))
+
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("tenant_id = ?", secondaryTenantID).
+		Where("rotated_at IS NULL").
+		Where("expiry > NOW()").
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
+
 func uniqueTestName(prefix string) string {
 	email, _ := uniqueTestCredentials(prefix)
 	return email

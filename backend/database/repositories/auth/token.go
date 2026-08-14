@@ -196,18 +196,44 @@ func (r *TokenRepository) HasLiveTokensCreatedAfter(ctx context.Context, account
 	return exists, nil
 }
 
-// DeleteByAccountIDReturning atomically deletes and returns every affected
-// token so the service can persist a complete revocation audit in the same
-// transaction; the generic repository cannot express DELETE ... RETURNING.
+// DeleteByAccountIDReturning atomically deletes and returns the account's
+// tokens in the current tenant. An admin transaction must not widen this
+// to other schools; account-wide wipes use DeleteAllByAccountIDReturning.
 func (r *TokenRepository) DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*auth.Token, error) {
+	if tenant.FromContext(ctx) <= 0 {
+		return nil, &modelBase.DatabaseError{
+			Op:  "delete and return by account ID",
+			Err: fmt.Errorf("tenant-scoped token delete requires tenant_id"),
+		}
+	}
+	return r.deleteByAccountIDReturning(ctx, accountID, false, time.Time{})
+}
+
+// DeleteAllByAccountIDReturning deletes every refresh token for the account,
+// ignoring tenant filters. Only account-wide revocations may call this.
+func (r *TokenRepository) DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*auth.Token, error) {
+	return r.deleteByAccountIDReturning(ctx, accountID, true, time.Time{})
+}
+
+// DeleteByAccountIDCreatedAtOrBeforeReturning deletes the account's tokens
+// created at or before cutoff so a pending wipe cannot take sessions minted
+// after the revoke was recorded.
+func (r *TokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, cutoff time.Time) ([]*auth.Token, error) {
+	return r.deleteByAccountIDReturning(ctx, accountID, true, cutoff)
+}
+
+func (r *TokenRepository) deleteByAccountIDReturning(ctx context.Context, accountID int64, accountWide bool, cutoff time.Time) ([]*auth.Token, error) {
 	var deleted []*auth.Token
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*auth.Token)(nil)).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
 		Returning("*")
-	if !tenant.IsAdminTx(ctx) {
+	if !accountWide {
 		query = base.WithTenantFilter(ctx, query, "token")
+	}
+	if !cutoff.IsZero() {
+		query = query.Where(`"token".created_at <= ?`, cutoff)
 	}
 	if err := query.Scan(ctx, &deleted); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "delete and return by account ID", Err: err}

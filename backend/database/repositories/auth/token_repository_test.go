@@ -354,6 +354,69 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 	})
 }
 
+func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	account := testpkg.CreateTestAccount(t, db, "adminTxTenantDelete")
+	defer cleanupAccountRecords(t, db, account.ID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+
+	local := testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
+	other := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err := db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		deleted, delErr := repo.DeleteByAccountIDReturning(adminCtx, account.ID)
+		require.NoError(t, delErr)
+		require.Len(t, deleted, 1)
+		require.Equal(t, local.ID, deleted[0].ID)
+		return nil
+	}))
+
+	_, err = repo.FindByID(testpkg.TenantContext(secondaryTenantID), other.ID)
+	require.NoError(t, err)
+}
+
+func TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	account := testpkg.CreateTestAccount(t, db, "deleteAllAccountTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+
+	_ = testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
+	other := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err := db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+
+	deleted, err := repo.DeleteAllByAccountIDReturning(ctx, account.ID)
+	require.NoError(t, err)
+	require.Len(t, deleted, 2)
+}
+
 // ============================================================================
 // Token Family Tests
 // ============================================================================

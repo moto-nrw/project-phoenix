@@ -244,3 +244,28 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, pending)
 }
+
+func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).AuthEvent
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "claim_wipe@example.com")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	event := audit.NewAuthEvent(account.ID, audit.EventTypeTokenRevoked, true, "0.0.0.0")
+	event.SetMetadata("reason", "account_deactivated")
+	event.SetMetadata("pending_account_wide_wipe", true)
+	require.NoError(t, repo.Create(ctx, event))
+	defer testpkg.CleanupTableRecords(t, db, "audit.auth_events", event.ID)
+
+	claimed, err := repo.ClaimPendingAccountWideWipes(ctx, account.ID)
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	assert.Equal(t, "account_deactivated", claimed[0].Reason)
+
+	again, err := repo.ClaimPendingAccountWideWipes(ctx, account.ID)
+	require.NoError(t, err)
+	assert.Empty(t, again)
+}

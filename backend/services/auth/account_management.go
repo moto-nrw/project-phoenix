@@ -70,8 +70,8 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 	if err != nil {
 		return err
 	}
-	if err := s.scheduleAccountWideRevoke(ctx, int64(accountID), "account_deactivated", "", ""); err != nil {
-		return &AuthError{Op: "revoke tokens during account deactivation", Err: err}
+	if revokeErr := s.scheduleAccountWideRevoke(ctx, int64(accountID), "account_deactivated", "", ""); revokeErr != nil {
+		return &AuthError{Op: "revoke tokens during account deactivation", Err: revokeErr}
 	}
 	return nil
 }
