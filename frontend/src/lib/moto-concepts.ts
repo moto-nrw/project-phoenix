@@ -29,6 +29,7 @@ import {
   EnvelopeIcon,
   EyeIcon,
   FileArrowDownIcon,
+  FingerprintSimpleIcon,
   FirstAidKitIcon,
   ForkKnifeIcon,
   GearIcon,
@@ -60,7 +61,7 @@ import {
   UsersThreeIcon,
   VanIcon,
 } from "@phosphor-icons/react/ssr";
-import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 
 export type MotoConceptKind = "core" | "status" | "function";
@@ -78,6 +79,7 @@ export interface MotoConceptDefinition {
   readonly tone: MotoDuotoneTone;
   readonly kind: MotoConceptKind;
   readonly section: MotoConceptSection;
+  readonly weight: IconProps["weight"];
 }
 
 export const MOTO_CONCEPTS = {
@@ -354,6 +356,14 @@ export const MOTO_CONCEPTS = {
     "function",
     "system",
   ),
+  passkeys: concept(
+    "Passkeys",
+    FingerprintSimpleIcon,
+    "purple",
+    "function",
+    "system",
+    "regular",
+  ),
   exports: concept(
     "Exporte",
     FileArrowDownIcon,
@@ -404,6 +414,7 @@ function concept(
   tone: MotoDuotoneTone,
   kind: MotoConceptKind,
   section: MotoConceptSection,
+  weight: IconProps["weight"] = "duotone",
 ): MotoConceptDefinition {
-  return { label, icon, tone, kind, section };
+  return { label, icon, tone, kind, section, weight };
 }

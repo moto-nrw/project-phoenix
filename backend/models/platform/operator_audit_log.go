@@ -14,6 +14,7 @@ const (
 	ActionStatusChange         = "status_change"
 	ActionPublish              = "publish"
 	ActionLogin                = "login"
+	ActionTokenRevoked         = "token_revoked"
 	ActionAddComment           = "add_comment"
 	ActionDeleteComment        = "delete_comment"
 	ActionRotateAPIKey         = "rotate_api_key"

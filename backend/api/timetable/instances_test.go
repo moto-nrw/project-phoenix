@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -33,33 +34,35 @@ import (
 // -----------------------------------------------------------------------------
 
 type mockInstanceService struct {
-	startResult      *scheduleSvc.StartInstanceResult
-	startErr         error
-	completeRes      *scheduleModel.ActivityInstance
-	completeErr      error
-	cancelRes        *scheduleModel.ActivityInstance
-	cancelErr        error
-	deleteErr        error
-	replanRes        *scheduleSvc.ReplanWeekResult
-	replanErr        error
-	createRes        *scheduleModel.ActivityInstance
-	createErr        error
-	updateRes        *scheduleModel.ActivityInstance
-	updateErr        error
-	ackRes           *scheduleModel.ActivityInstance
-	ackErr           error
-	clearAckErr      error
-	lastCancelReason *string
-	lastAckID        int64
-	lastAckValue     bool
-	lastAckNote      *string
-	lastStartID      int64
-	lastStartedBy    int64
-	lastFrom         timezone.Date
-	lastTo           timezone.Date
-	lastReplanGID    *int64
-	lastCreate       *scheduleSvc.CreateInstanceInput
-	lastUpdate       *scheduleSvc.UpdateInstanceInput
+	startResult         *scheduleSvc.StartInstanceResult
+	startErr            error
+	completeRes         *scheduleModel.ActivityInstance
+	completeErr         error
+	cancelRes           *scheduleModel.ActivityInstance
+	cancelErr           error
+	deleteErr           error
+	replanRes           *scheduleSvc.ReplanWeekResult
+	replanErr           error
+	createRes           *scheduleModel.ActivityInstance
+	createErr           error
+	updateRes           *scheduleModel.ActivityInstance
+	updateErr           error
+	ackRes              *scheduleModel.ActivityInstance
+	ackErr              error
+	clearAckErr         error
+	lastCancelReason    *string
+	lastAckID           int64
+	lastAckValue        bool
+	lastAckNote         *string
+	lastStartID         int64
+	lastStartedBy       int64
+	lastReopenAccountID int64
+	lastReopenIsAdmin   bool
+	lastFrom            timezone.Date
+	lastTo              timezone.Date
+	lastReplanGID       *int64
+	lastCreate          *scheduleSvc.CreateInstanceInput
+	lastUpdate          *scheduleSvc.UpdateInstanceInput
 	// real, when set, receives the deviation writes (#1886) so DB-backed
 	// handler tests keep asserting real row effects.
 	real scheduleSvc.InstanceService
@@ -83,6 +86,15 @@ func (m *mockInstanceService) Complete(_ context.Context, _ int64) (*scheduleMod
 		return nil, m.completeErr
 	}
 	return m.completeRes, nil
+}
+
+func (m *mockInstanceService) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*scheduleSvc.StartInstanceResult, error) {
+	m.lastReopenAccountID = accountID
+	m.lastReopenIsAdmin = isAdmin
+	if m.real != nil {
+		return m.real.Reopen(ctx, instanceID, accountID, isAdmin)
+	}
+	return m.startResult, m.startErr
 }
 
 func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
@@ -317,7 +329,7 @@ func TestCompleteInstance_Success(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/5/complete", nil)
+	w := doPost(t, router, "/instances/5/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var resp map[string]any
@@ -338,7 +350,7 @@ func TestCompleteInstance_NoCompletedAt(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/5/complete", nil)
+	w := doPost(t, router, "/instances/5/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.NotContains(t, w.Body.String(), "completed_at")
@@ -353,11 +365,69 @@ func TestCompleteInstance_InvalidID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestReopenInstance_NilService(t *testing.T) {
+	rs := NewResource(Dependencies{})
+	router := setupLifecycleRouter(rs, "/instances/{id}/reopen", rs.reopenInstance)
+
+	w := doPost(t, router, "/instances/1/reopen", nil)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestReopenInstance_InvalidID(t *testing.T) {
+	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
+	router := setupLifecycleRouter(rs, "/instances/{id}/reopen", rs.reopenInstance)
+
+	w := doPost(t, router, "/instances/bad/reopen", nil)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestReopenInstance_EffectiveAdminScope(t *testing.T) {
+	started := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
+	started.ID = 7
+	mock := &mockInstanceService{
+		startResult: &scheduleSvc.StartInstanceResult{
+			Instance:      started,
+			ActiveGroupID: 42,
+		},
+	}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/reopen", rs.reopenInstance)
+
+	cases := []struct {
+		name        string
+		isAdmin     bool
+		permissions []string
+		wantAdmin   bool
+	}{
+		{name: "wildcard admin without admin role", permissions: []string{"admin:*"}, wantAdmin: true},
+		{name: "full-access wildcard", permissions: []string{"*:*"}, wantAdmin: true},
+		{name: "literal admin role", isAdmin: true, permissions: []string{"schedules:manage"}, wantAdmin: true},
+		{name: "ordinary staff", permissions: []string{"schedules:manage"}, wantAdmin: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock.lastReopenIsAdmin = false
+			req := httptest.NewRequest(http.MethodPost, "/instances/7/reopen", bytes.NewReader(nil))
+			testutil.WithClaims(jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: 1})(req)
+			testutil.WithPermissions(tc.permissions...)(req)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
+			assert.Equal(t, int64(88), mock.lastReopenAccountID)
+			assert.Equal(t, tc.wantAdmin, mock.lastReopenIsAdmin)
+		})
+	}
+}
+
 func TestCompleteInstance_NilService(t *testing.T) {
 	rs := NewResource(Dependencies{})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
@@ -367,9 +437,20 @@ func TestCompleteInstance_NotFound(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestCompleteInstance_StaleConfirmation(t *testing.T) {
+	mock := &mockInstanceService{completeErr: scheduleSvc.ErrCompletionConfirmationStale}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
+
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{7}})
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), "completion_confirmation_stale")
 }
 
 func TestCompleteInstance_InvalidTransition(t *testing.T) {
@@ -377,7 +458,7 @@ func TestCompleteInstance_InvalidTransition(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), "invalid_transition")
@@ -388,7 +469,7 @@ func TestCompleteInstance_InternalError(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
-	w := doPost(t, router, "/instances/1/complete", nil)
+	w := doPost(t, router, "/instances/1/complete", map[string]any{"confirmed_present_student_ids": []int64{}})
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
@@ -936,6 +1017,14 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInstanceMoved)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "instance_moved")
+	})
+
+	t.Run("stale-completion-confirmation", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderInstanceLifecycleError(w, r, scheduleSvc.ErrCompletionConfirmationStale)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "completion_confirmation_stale")
 	})
 
 	t.Run("unknown-error-500", func(t *testing.T) {

@@ -52,11 +52,10 @@ export function ChildRow({
         <p className="truncate text-sm font-semibold text-gray-900">
           {item.name}
         </p>
-        <p className="truncate text-sm text-gray-600">
-          {item.detail
-            ? `${item.schoolName} · ${item.detail}`
-            : item.schoolName}
-        </p>
+        {item.detail && (
+          <p className="truncate text-sm text-gray-600">{item.detail}</p>
+        )}
+        <p className="truncate text-xs text-gray-500">{item.schoolName}</p>
       </div>
       {item.badgeLabel ? (
         <span className="shrink-0">

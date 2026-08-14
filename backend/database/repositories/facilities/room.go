@@ -15,13 +15,29 @@ import (
 // Table name constants (S1192 - avoid duplicate string literals)
 const (
 	tableFacilitiesRooms           = "facilities.rooms"
-	tableExprFacilitiesRoomsAsRoom = "facilities.rooms AS room"
+	tableExprFacilitiesRoomsAsRoom = `facilities.rooms AS "room"`
 )
 
 // RoomRepository implements facilities.RoomRepository interface
 type RoomRepository struct {
 	*base.Repository[*facilities.Room]
 	db *bun.DB
+}
+
+// FindByIDForUpdate retrieves and locks a room for capacity-sensitive writes.
+func (r *RoomRepository) FindByIDForUpdate(ctx context.Context, id int64) (*facilities.Room, error) {
+	room := new(facilities.Room)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(room).
+		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
+		Where(`"room".id = ?`, id).
+		For("UPDATE")
+	query = base.WithTenantFilter(ctx, query, "room")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find room for update", Err: err}
+	}
+	return room, nil
 }
 
 // NewRoomRepository creates a new RoomRepository
@@ -148,7 +164,7 @@ func applyRoomFilter(query *bun.SelectQuery, field string, value interface{}) *b
 	case "category":
 		return applyCaseInsensitiveExactMatch(query, "category", value)
 	case "min_capacity":
-		return query.Where("capacity >= ?", value)
+		return query.Where("capacity IS NULL OR capacity <= 0 OR capacity >= ?", value)
 	case "max_capacity":
 		return query.Where("capacity <= ?", value)
 	default:
@@ -178,7 +194,7 @@ func (r *RoomRepository) FindWithCapacity(ctx context.Context, minCapacity int) 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ModelTableExpr(tableExprFacilitiesRoomsAsRoom).
-		Where("capacity >= ?", minCapacity)
+		Where("capacity IS NULL OR capacity <= 0 OR capacity >= ?", minCapacity)
 
 	query = base.WithTenantFilter(ctx, query, "room")
 

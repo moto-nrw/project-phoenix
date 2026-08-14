@@ -32,8 +32,8 @@ import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
   SEARCH_STUDENTS_ALL_GROUPS_KEY,
-  SEARCH_STUDENTS_GROUP_KEY_PREFIX,
   SEARCH_STUDENTS_KEY_PREFIX,
+  searchStudentsKeyTargetsGroup,
 } from "~/lib/swr/search-students-key";
 import {
   notifyStudentCompanionDisplayChanged,
@@ -440,7 +440,7 @@ export function useGlobalSSE(): SSEHookState {
             (broadSearch ||
               key.includes(SEARCH_STUDENTS_ALL_GROUPS_KEY) ||
               [...scopedEduGroupIds].some((gid) =>
-                keyTargetsId(key, gid, [SEARCH_STUDENTS_GROUP_KEY_PREFIX]),
+                searchStudentsKeyTargetsGroup(key, gid),
               )),
         ).catch((err) => {
           logger.debug("swr_revalidation_failed", {
@@ -901,11 +901,13 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
-        case "bulk_student_checkout": {
-          // Whole-session end (#848): one event per topic carrying every
-          // affected student. Mirror student_checkout — invalidate the
-          // session's group caches plus each student's detail cache — but read
-          // the batched student_ids list instead of a single student_id.
+        case "bulk_student_checkout":
+        case "bulk_student_checkin": {
+          // Whole-session end (#848) or reopen restore: one event per topic
+          // carrying every affected student. Mirror student_checkin/checkout —
+          // invalidate the session's group caches plus each student's detail
+          // cache — but read the batched student_ids list instead of a single
+          // student_id.
           if (event.active_group_id) {
             pendingGroupIds.current.add(event.active_group_id);
           }

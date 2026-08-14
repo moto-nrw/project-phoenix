@@ -542,6 +542,9 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     requiredStaffCount: raw.required_staff_count,
     assignedStaffCount: raw.assigned_staff_count,
     requiredStaffOverride: raw.required_staff_override ?? undefined,
+    canReopen: raw.can_reopen === true,
+    canComplete: raw.can_complete === true,
+    completeAvailableAt: raw.complete_available_at,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
       kind: warning.kind,
       resourceId: String(warning.resource_id),
@@ -771,6 +774,7 @@ export function mapInstanceStatusResult(
     instanceId: String(raw.instance_id),
     status: raw.status,
     completedAt: raw.completed_at,
+    reopenUntil: raw.reopen_until,
   };
 }
 

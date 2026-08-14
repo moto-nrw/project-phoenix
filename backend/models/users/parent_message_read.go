@@ -103,6 +103,9 @@ type ParentMessageReadRepository interface {
 	// advanced, so the read-receipt SSE push can fire only on a real move and not
 	// ping-pong with the refetch it triggers on the counterpart.
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
+	// MarkStaffHandledUpTo advances the team-wide handled boundary to the newest
+	// guardian activity covered by a staff reply. It never moves backward.
+	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error
 	// UnreadMessageCountForStaff counts unread guardian MESSAGES the staff reader
 	// has not seen (sent by the other side), within the given student scope — the
 	// sidebar badge source. Counts messages, not threads, so the badge matches the

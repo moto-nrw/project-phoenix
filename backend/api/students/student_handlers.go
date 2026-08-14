@@ -158,7 +158,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Applied here, before in-memory pagination, so server-side counts and
 	// page boundaries reflect the filtered set (no client-side full-page
 	// fetch needed).
-	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus)
+	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus, planningDate)
 
 	// Apply in-memory pagination if response-derived filters were used.
 	if params.hasInMemoryFilters() {
@@ -180,7 +180,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Projection happens last, after every filter, sort and pagination step has
 	// run on the full responses — the two views differ on the wire only (#2097).
 	if params.slimView {
-		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses), pagination, "Students retrieved successfully")
+		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses, planningDate), pagination, "Students retrieved successfully")
 		return
 	}
 	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
@@ -235,7 +235,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		if !nonEmpty {
 			return []*users.Student{}, 0, nil
 		}
-	case params.groupID > 0:
+	case len(params.groupIDs) > 0:
 		students, totalCount, done, err := rs.resolveGroupFilter(ctx, params)
 		if err != nil {
 			return nil, 0, err
@@ -273,8 +273,8 @@ func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *stud
 		return false, nil
 	}
 
-	if params.groupID > 0 {
-		ids, err = rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		ids, err = rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -305,8 +305,8 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 	// group_id so the response stays consistent with the active-group chip in the
 	// search UI. group_id lives on the Student row, so a single bulk lookup is
 	// enough.
-	if params.groupID > 0 {
-		filtered, err := rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		filtered, err := rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -316,7 +316,7 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 		ids = filtered
 	}
 
-	// params.groupID is intentionally NOT cleared even though buildBaseFilter
+	// params.groupIDs is intentionally NOT cleared even though buildBaseFilter
 	// ignores it, because the room and group intersection was already computed
 	// above, so re-applying group_id downstream would be redundant.
 	params.studentIDs = ids
@@ -328,14 +328,17 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 // resolves params.studentIDs for the standard query and returns done=false.
 // done=true with an empty slice signals a short-circuit empty page.
 func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListParams) ([]*users.Student, int, bool, error) {
-	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
+	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, params.groupIDs)
 	if err != nil {
 		return nil, 0, false, err
 	}
 
-	// Fast path for true group-only requests keeps existing behavior.
+	// Fast path for true group-only requests: no SQL round trip for the page,
+	// but the requested window still has to be honored, because this path never
+	// reaches the query's LIMIT/OFFSET (#2218 review). The total stays the whole
+	// selection, so the reported count keeps naming every child of the groups.
 	if params.canUseGroupOnlyShortcut() {
-		return students, len(students), true, nil
+		return params.pageOfGroupStudents(students), len(students), true, nil
 	}
 
 	if len(students) == 0 {

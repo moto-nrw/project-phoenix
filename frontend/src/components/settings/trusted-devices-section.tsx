@@ -106,9 +106,8 @@ export function TrustedDevicesSection({
           Meine vertrauten Geräte
         </h3>
         <p className="mt-1 text-sm text-gray-600">
-          Geräte, auf denen Sie sich gemerkt haben, müssen den 2FA-Code nicht
-          erneut eingeben. Entfernen Sie hier Geräte, die Sie nicht mehr
-          besitzen oder verloren haben.
+          Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die
+          Sie nicht mehr nutzen.
         </p>
       </div>
 

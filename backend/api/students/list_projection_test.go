@@ -98,6 +98,7 @@ func TestListStudents_SlimProjection(t *testing.T) {
 		"address_street", "address_city", "address_postal_code",
 		"extra_info", "health_info", "supervisor_notes",
 		"bus_days", "pickup_days", "departure_days", "allowed_departure_modes",
+		"pickup_status",
 		"departure_companion_note",
 		"day_planning_reason",
 		"photo_consent_given_at", "photo_consent_given_by",
@@ -112,10 +113,11 @@ func TestListStudents_SlimProjection(t *testing.T) {
 	// Everything the Kindersuche cards, filters and badges do read.
 	for _, required := range []string{
 		"id", "first_name", "last_name", "school_class",
-		"current_location", "sick", "excused", "class_trip", "has_full_access",
+		"current_location", "sick", "excused", "class_trip", "departure_modes", "has_full_access",
 	} {
 		assert.Contains(t, body, required, "slim student list must include %q", required)
 	}
+	assert.Contains(t, body, `"departure_modes":["pickup"]`)
 }
 
 // TestListStudents_FullViewKeepsWideProjection pins the default: only an

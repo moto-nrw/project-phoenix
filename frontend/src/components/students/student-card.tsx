@@ -11,6 +11,7 @@ import {
   LogIn,
   Minus,
   Plus,
+  Route,
 } from "lucide-react";
 import {
   CalendarXIcon,
@@ -276,18 +277,32 @@ export function GroupIcon() {
   return <MotoDuotoneIcon icon={UsersThreeIcon} tone="neutral" size={14} />;
 }
 
+export function DepartureModeIcon() {
+  return <Route className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />;
+}
+
 /** Reusable info row for school class or group */
 export function StudentInfoRow({
   icon,
   children,
+  wrap = false,
 }: Readonly<{
   icon: ReactNode;
   children: ReactNode;
+  wrap?: boolean;
 }>) {
   return (
-    <div className="mt-1 flex items-center gap-1.5">
+    <div
+      className={`mt-1 flex gap-1.5 ${wrap ? "items-start" : "items-center"}`}
+    >
       <span className="flex-shrink-0">{icon}</span>
-      <span className="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-500">
+      <span
+        className={`text-xs font-medium text-gray-500 ${
+          wrap
+            ? "whitespace-normal"
+            : "overflow-hidden text-ellipsis whitespace-nowrap"
+        }`}
+      >
         {children}
       </span>
     </div>

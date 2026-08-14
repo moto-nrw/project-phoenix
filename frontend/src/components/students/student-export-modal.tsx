@@ -17,6 +17,7 @@ import {
   type StudentExportFormat,
   type StudentExportPreset,
 } from "~/lib/student-export-api";
+import { parseMultiValueParam } from "~/lib/multi-value-param";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { Modal } from "~/components/ui/modal";
@@ -60,6 +61,18 @@ const FORMAT_OPTIONS: Array<{
   },
 ];
 
+// A class filter may now name several classes (#2218). Only a selection of
+// exactly ONE class makes per-class separation pointless — with two classes in
+// the list the school wants them apart, which is the same situation as an
+// unfiltered export.
+//
+// The value follows the shared escaping grammar, so it is parsed with the
+// shared parser: a single class literally called "A,B" arrives as "A\,B" and
+// must count as one class, not two (#2218 review).
+function isSingleClassSelection(schoolClass: string | undefined): boolean {
+  return parseMultiValueParam(schoolClass).length === 1;
+}
+
 export function StudentExportModal({
   isOpen,
   filters,
@@ -94,7 +107,10 @@ export function StudentExportModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setGroupByClass(preset === "class_roster" && !filters.school_class);
+    setGroupByClass(
+      preset === "class_roster" &&
+        !isSingleClassSelection(filters.school_class),
+    );
   }, [filters.school_class, isOpen, preset]);
 
   useEffect(() => {
@@ -165,7 +181,7 @@ export function StudentExportModal({
         title,
         filters: {
           ...filters,
-          ...(groupByClass && !filters.school_class
+          ...(groupByClass && !isSingleClassSelection(filters.school_class)
             ? { group_by_class: true }
             : {}),
           // A birthday list is only readable in calendar order, so the preset
@@ -341,7 +357,7 @@ export function StudentExportModal({
           </section>
         )}
 
-        {!lockedPreset && !filters.school_class && (
+        {!lockedPreset && !isSingleClassSelection(filters.school_class) && (
           <section>
             <p className="text-sm font-medium text-gray-900">Gliederung</p>
             <div className="mt-2">

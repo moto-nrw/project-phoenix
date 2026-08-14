@@ -321,10 +321,11 @@ describe("postMessage", () => {
       seenMethod = init?.method ?? "";
       return jsonOk({ data: [] });
     });
-    const msgs = await postMessage("t1", "Guten Morgen!");
+    const msgs = await postMessage("t1", "Guten Morgen!", "17");
     expect(seenURL).toBe("/api/messages/threads/t1");
     expect(seenMethod).toBe("POST");
     expect(seenBody).toContain('"body":"Guten Morgen!"');
+    expect(seenBody).toContain('"handled_up_to_message_id":"17"');
     expect(Array.isArray(msgs)).toBe(true);
   });
 

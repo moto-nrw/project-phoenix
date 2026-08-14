@@ -12,6 +12,7 @@ import {
 } from "@/lib/pickup-schedule-helpers";
 import { Alert } from "~/components/ui/alert";
 import { createLogger } from "~/lib/logger";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "PickupDayEdit" });
 
@@ -39,6 +40,7 @@ export function PickupDayEditModal({
   onUpdateNote,
   onDeleteNote,
 }: PickupDayEditModalProps) {
+  const nfcEnabled = useNFCEnabled();
   // Exception section state
   const [pickupTime, setPickupTime] = useState("");
   const [hasTimeOverride, setHasTimeOverride] = useState(false);
@@ -317,12 +319,14 @@ export function PickupDayEditModal({
             )}
           </div>
 
-          <div className="mb-3">
-            <Alert
-              type="info"
-              message="Diese Notiz wird auch auf den NFC-Tablets angezeigt und ist für Kinder einsehbar."
-            />
-          </div>
+          {nfcEnabled ? (
+            <div className="mb-3">
+              <Alert
+                type="info"
+                message="Diese Notiz wird auch auf den NFC-Tablets angezeigt und ist für Kinder einsehbar."
+              />
+            </div>
+          ) : null}
 
           {/* Existing notes */}
           {day.notes.length > 0 ? (

@@ -148,6 +148,9 @@ const (
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
+	KeyParentCareArrivalRequestEnabled = "operations.parent_care_arrival_request_enabled"
+	KeyParentCarePickupRequestEnabled  = "operations.parent_care_pickup_request_enabled"
+	KeyParentCareModeRequestEnabled    = "operations.parent_care_mode_request_enabled"
 	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
 	KeyParentPickupChangeEnabled       = "operations.parent_pickup_change_enabled"
 	KeyParentGuardianManagementEnabled = "operations.parent_guardian_management_enabled"
@@ -310,6 +313,8 @@ const (
 	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
 	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"
 	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
+	KeyTimetableStartLeadMinutes          = "timetable.start_lead_minutes"
+	KeyTimetableEnforcePlannedEnd         = "timetable.enforce_planned_end"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
 	// KeyTimetableChildrenPerStaffRatio is the Betreuungsschlüssel: the max

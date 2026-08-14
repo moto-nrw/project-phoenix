@@ -1,7 +1,7 @@
 {
   "language": {
     "label": "Sprache",
-    "saveError": "Sprache konnte nicht in deinem Konto gespeichert werden. Die Auswahl gilt auf diesem Gerät."
+    "saveError": "Sprache konnte nicht in Ihrem Konto gespeichert werden. Die Auswahl gilt auf diesem Gerät."
   },
   "datePicker": {
     "placeholder": "Datum auswählen",
@@ -63,7 +63,8 @@
     "childProfile": "Kinderprofil",
     "loading": "Lädt...",
     "feedback": "Feedback",
-    "settings": "Einstellungen"
+    "settings": "Einstellungen",
+    "enroll": "Neue Anmeldung"
   },
   "parentMealPlan": {
     "title": "Essensplan",
@@ -485,11 +486,12 @@
   "guardianInvite": {
     "eyebrow": "Eltern-Portal",
     "title": "Willkommen",
-    "fallbackSchool": "deiner Schule",
-    "subtitle": "Bestätige deine Einladung für {school} und lege dein persönliches Passwort fest.",
-    "errorHelpBefore": "Du kannst eine neue Einladung bei der Schule anfordern oder dich über",
+    "fallbackSchool": "Ihrer Schule",
+    "subtitle": "Bestätigen Sie Ihre Einladung für {school} und legen Sie Ihr persönliches Passwort fest.",
+    "errorHelpBefore": "Sie können eine neue Einladung bei der Schule anfordern oder sich über",
     "startPage": "die Startseite",
     "errorHelpAfter": "anmelden.",
+    "contactOgs": "Kontaktieren Sie bitte Ihre OGS.",
     "errors": {
       "expired": "Diese Einladung ist abgelaufen oder wurde bereits verwendet.",
       "notFound": "Wir konnten diese Einladung nicht finden.",
@@ -498,17 +500,17 @@
       "missingToken": "Kein Einladungstoken angegeben."
     },
     "formErrors": {
-      "expired": "Diese Einladung ist nicht mehr gültig. Bitte fordere eine neue Einladung bei der Schule an.",
+      "expired": "Diese Einladung ist nicht mehr gültig.",
       "notFound": "Einladung wurde nicht gefunden.",
-      "conflict": "Für diese E-Mail existiert bereits ein Konto. Bitte melde dich direkt an oder kontaktiere den Support.",
+      "conflict": "Für diese E-Mail existiert bereits ein Konto. Bitte melden Sie sich direkt an oder kontaktieren Sie den Support.",
       "invalid": "Ungültige Eingaben. Bitte überprüfe das Formular.",
       "generic": "Beim Annehmen der Einladung ist ein Fehler aufgetreten.",
       "passwordRules": "Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.",
       "passwordMismatch": "Die Passwörter stimmen nicht überein.",
-      "offline": "Keine Netzwerkverbindung. Bitte überprüfe deine Internetverbindung und versuche es erneut."
+      "offline": "Keine Netzwerkverbindung. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut."
     },
     "acceptedTitle": "Konto erstellt",
-    "acceptedText": "Bitte melde dich mit deinen neuen Zugangsdaten an.",
+    "acceptedText": "Bitte melden Sie sich mit Ihren neuen Zugangsdaten an.",
     "invitationFor": "Einladung für",
     "passwordLabel": "Passwort",
     "confirmPasswordLabel": "Passwort bestätigen",
@@ -1156,8 +1158,8 @@
   "parentFeedback": {
     "kicker": "Rückmeldung",
     "title": "Feedback",
-    "productTeamNotice": "Dein Feedback geht direkt an das Produktteam von moto, das die App entwickelt. Die OGS deines Kindes sieht diese Beiträge nicht.",
-    "pseudonymNotice": "Du erscheinst für alle nur als „Elternteil“, auch für das Produktteam.",
+    "productTeamNotice": "Ihr Feedback geht direkt an das Produktteam von moto, das die App entwickelt. Die OGS Ihres Kindes sieht diese Beiträge nicht.",
+    "pseudonymNotice": "Sie erscheinen für alle nur als „Elternteil“, auch für das Produktteam.",
     "schoolLabel": "Schule",
     "sortLabel": "Sortierung",
     "sortPopular": "Beliebteste",
@@ -1167,12 +1169,12 @@
     "delete": "Löschen",
     "actions": "Aktionen",
     "emptyTitle": "Noch keine Beiträge",
-    "emptyDescription": "Teile Ideen, melde Probleme oder schlage Verbesserungen an der App vor.",
+    "emptyDescription": "Teilen Sie Ideen, melden Sie Probleme oder schlagen Sie Verbesserungen an der App vor.",
     "noSchoolsTitle": "Noch keine Schule verknüpft",
-    "noSchoolsDescription": "Sobald dein Kind an einer Schule angemeldet ist, kannst du hier Feedback geben.",
+    "noSchoolsDescription": "Sobald Ihr Kind an einer Schule angemeldet ist, können Sie hier Feedback geben.",
     "loadError": "Das Feedback konnte nicht geladen werden.",
     "retry": "Erneut laden",
-    "formHint": "Dieser Beitrag geht an das Produktteam von moto, nicht an die OGS. Andere Eltern deiner Schule können ihn lesen und bewerten.",
+    "formHint": "Dieser Beitrag geht an das Produktteam von moto, nicht an die OGS. Andere Eltern Ihrer Schule können ihn lesen und bewerten.",
     "deleteTitle": "Beitrag löschen?",
     "deleteBody": "Dieser Beitrag und alle Stimmen werden unwiderruflich gelöscht.",
     "deleteSuccess": "Beitrag wurde gelöscht.",
@@ -1184,6 +1186,6 @@
     "statusRejected": "Abgelehnt",
     "statusNeedInfo": "Rückfrage",
     "titlePlaceholder": "z.B. „Erinnerung vor der Abholzeit“",
-    "descriptionPlaceholder": "Beschreibe deine Rückmeldung..."
+    "descriptionPlaceholder": "Beschreiben Sie Ihre Rückmeldung..."
   }
 }

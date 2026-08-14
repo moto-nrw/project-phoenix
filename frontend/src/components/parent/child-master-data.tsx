@@ -212,7 +212,7 @@ function ChildMasterDataContent({
           disabled={!contactEditEnabled}
           onSave={(v) => saveField("guardian_phone", "primary", v)}
         />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <AutoSaveSelect
             label={t("fields.contactMethod")}
             value={data.preferred_contact_method}
@@ -244,7 +244,7 @@ function ChildMasterDataContent({
           disabled={!contactEditEnabled}
           onSave={(v) => saveField("guardian_profile", "address_street", v)}
         />
-        <div className="grid gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
           <AutoSaveField
             label={t("fields.addressPostalCode")}
             value={data.address_postal_code ?? ""}

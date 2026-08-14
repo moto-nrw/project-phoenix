@@ -45,13 +45,14 @@ import {
 } from "~/lib/location-helper";
 import {
   SCHOOL_YEAR_FILTER_OPTIONS,
-  getSchoolYear,
+  type DepartureMode,
 } from "~/lib/student-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   StudentCard,
   SchoolClassIcon,
   GroupIcon,
+  DepartureModeIcon,
   StudentInfoRow,
   PickupTimeRow,
   ArrivalTimeRow,
@@ -76,6 +77,11 @@ import {
   SEARCH_STUDENTS_KEY_PREFIX,
   searchStudentsGroupScope,
 } from "~/lib/swr/search-students-key";
+import {
+  encodeMultiValueParam,
+  normalizeMultiValues,
+  parseMultiValueParam,
+} from "~/lib/multi-value-param";
 import { activeService } from "~/lib/active-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -112,7 +118,6 @@ type StatusFilter =
   | "klassenfahrt"
   | "entschuldigt";
 type BooleanFilter = "all" | "yes" | "no";
-type PickupStatusKind = "self" | "pickedUp" | "other" | "none" | "redacted";
 type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
 type SortMode = "name" | "arrival" | "pickup";
@@ -214,17 +219,53 @@ const FILTER_QUERY_PARAMS = [
 
 type FilterQueryParam = (typeof FILTER_QUERY_PARAMS)[number];
 type PersistedSearchFilters = Partial<Record<FilterQueryParam, string>>;
-type SearchParamReader = Pick<URLSearchParams, "get" | "has">;
+type SearchParamReader = Pick<URLSearchParams, "get" | "getAll" | "has">;
+
+// The multi-value filters (#2218). We write them comma-separated, but a URL may
+// just as well repeat the parameter (`?school_class=3a&school_class=4b`) — the
+// shape a hand-written link or a form submit produces, and the one the backend
+// accepts too. `URLSearchParams.get` returns only the FIRST occurrence, so
+// reading these keys that way silently drops every selection but one.
+const MULTI_VALUE_FILTER_PARAMS = new Set<FilterQueryParam>([
+  "year",
+  "school_class",
+  "group_id",
+]);
+
+// Reads one filter param in the shape the parsers expect: a single string for
+// single-valued filters, every occurrence joined for multi-valued ones. The
+// occurrences are concatenated as they arrive — each one is already an encoded
+// list, so re-encoding here would escape the separators it brought with it.
+function readFilterParam(
+  searchParams: SearchParamReader,
+  key: FilterQueryParam,
+): string | null {
+  if (!MULTI_VALUE_FILTER_PARAMS.has(key)) return searchParams.get(key);
+  const values = searchParams.getAll(key).filter((value) => value !== "");
+  return values.length > 0 ? values.join(",") : null;
+}
 
 const STUDENT_SEARCH_FILTER_STORAGE_PREFIX = "student-search:last-filters";
 const FULL_STUDENT_SEARCH_PAGE_SIZE = 1000;
+// This view shows every match at once — it has no pagination control, and the
+// grouping modes, the counts and the export selection all read the rendered
+// list. The proxy route caps a response at FULL_STUDENT_SEARCH_PAGE_SIZE rows
+// (app/api/students/route.ts), so a selection larger than one page has to be
+// walked here; otherwise every child past the first page is unreachable
+// (#2218 review). The bound stops a bad total from looping forever: 20 pages
+// are 20.000 Kinder, far beyond any OGS, and hitting it is logged rather than
+// silently truncating.
+const MAX_STUDENT_SEARCH_PAGES = 20;
 
-const SCHOOL_YEAR_DROPDOWN_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.map(
-  (option) => ({
-    value: option.value,
-    label: option.value === "all" ? "Alle Stufen" : `Stufe ${option.label}`,
-  }),
-);
+// The "Stufe" filter is a multi-select (#2218): an empty selection already
+// means "alle Stufen", so the neutral pseudo-option would be a second way to
+// say the same thing — and a checkable one at that.
+const SCHOOL_YEAR_MULTI_OPTIONS = SCHOOL_YEAR_FILTER_OPTIONS.filter(
+  (option) => option.value !== "all",
+).map((option) => ({
+  value: option.value,
+  label: `Stufe ${option.label}`,
+}));
 
 const STATUS_GROUP_ORDER = new Map([
   ["Anwesend", 0],
@@ -302,6 +343,40 @@ const STATUS_FILTER_LABELS: Record<
   entschuldigt: "Entschuldigt",
 };
 
+// Keeps only school years the dropdown actually offers, so a hand-edited
+// `?year=7,abc` cannot pin the list to a year that can never be deselected.
+function keepOfferedYears(values: readonly string[]): string[] {
+  const offered = new Set<string>(
+    SCHOOL_YEAR_MULTI_OPTIONS.map((option) => option.value),
+  );
+  return normalizeMultiValues(values).filter((year) => offered.has(year));
+}
+
+function parseYearParam(value: string | null | undefined): string[] {
+  return keepOfferedYears(parseMultiValueParam(value));
+}
+
+// Mirrors the backend's effective group filter for every selected id.
+function keepValidGroupIds(values: readonly string[]): string[] {
+  return normalizeMultiValues(values)
+    .map(normalizeSearchStudentsGroupId)
+    .filter((groupId) => groupId !== "");
+}
+
+function parseGroupIdsParam(value: string | null | undefined): string[] {
+  return keepValidGroupIds(parseMultiValueParam(value));
+}
+
+// The shared filter kit hands a multi-select its values as an array and a
+// single-select as a string; normalize before it reaches the state setters. An
+// array arrives as the raw selected labels — never re-encoded, or a class named
+// "A,B" would be split apart on its way into the state (#2218 review).
+function asFilterValues(value: string | string[]): string[] {
+  return Array.isArray(value)
+    ? normalizeMultiValues(value)
+    : parseMultiValueParam(value);
+}
+
 function validQueryValue<T extends string>(
   value: string | null,
   validValues: readonly T[],
@@ -328,7 +403,7 @@ function filtersFromSearchParams(
 ): PersistedSearchFilters {
   const filters: PersistedSearchFilters = {};
   for (const key of FILTER_QUERY_PARAMS) {
-    const value = searchParams.get(key);
+    const value = readFilterParam(searchParams, key);
     if (value) filters[key] = value;
   }
   return filters;
@@ -345,16 +420,11 @@ function normalizeStoredFilters(
       : "";
 
   return {
-    year:
-      validQueryValue(
-        params.get("year"),
-        SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
-        "all",
-      ) === "all"
-        ? ""
-        : (params.get("year") ?? ""),
-    school_class: params.get("school_class") ?? "",
-    group_id: normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
+    year: encodeMultiValueParam(parseYearParam(params.get("year"))),
+    school_class: encodeMultiValueParam(
+      parseMultiValueParam(params.get("school_class")),
+    ),
+    group_id: encodeMultiValueParam(parseGroupIdsParam(params.get("group_id"))),
     room_id: params.get("room_id") ?? "",
     room_name: params.get("room_id") ? (params.get("room_name") ?? "") : "",
     bus:
@@ -536,45 +606,25 @@ function pickupLabelForStudent(student: Student): string {
   return student.pickup_time ? `${student.pickup_time} Uhr` : "Keine Gehzeit";
 }
 
-function pickupStatusKind(student: Student): PickupStatusKind {
-  if (student.has_full_access === false) return "redacted";
+const DAILY_DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
+  alone: "Geht alleine nach Hause",
+  bus: "Bus",
+  pickup: "Wird abgeholt",
+  accompanied: "Mit anderem Kind",
+};
 
-  const raw = student.pickup_status?.trim();
-  if (!raw) return "none";
-
-  const normalized = raw.toLowerCase();
-  if (
-    normalized.includes("alleine") ||
-    normalized === "selbst" ||
-    normalized === "self" ||
-    normalized === "alone" ||
-    normalized === "walk_home" ||
-    normalized === "geht_alleine"
-  ) {
-    return "self";
-  }
-  if (
-    normalized.includes("abgeholt") ||
-    normalized === "parent" ||
-    normalized === "parents" ||
-    normalized === "guardian" ||
-    normalized === "pickup" ||
-    normalized === "picked_up" ||
-    normalized === "wird_abgeholt"
-  ) {
-    return "pickedUp";
-  }
-
-  return "other";
+function dailyDepartureLabelForStudent(student: Student): string {
+  if (student.has_full_access === false) return "Nicht einsehbar";
+  const legacyLabel = student.departure_label?.trim();
+  if (legacyLabel) return legacyLabel;
+  const modes = student.departure_modes ?? [];
+  if (modes.length === 0) return "-";
+  return modes.map((mode) => DAILY_DEPARTURE_MODE_LABELS[mode]).join(", ");
 }
 
-function pickupStatusLabelForStudent(student: Student): string {
-  const kind = pickupStatusKind(student);
-  if (kind === "redacted") return "Nicht einsehbar";
-  if (kind === "self") return "Geht alleine nach Hause";
-  if (kind === "pickedUp") return "Wird abgeholt";
-  if (kind === "none") return "Keine Abholregelung";
-  return student.pickup_status?.trim() || "Keine Abholregelung";
+function dailyDepartureGroupLabelForStudent(student: Student): string {
+  const label = dailyDepartureLabelForStudent(student);
+  return label === "-" ? "Keine Abholregelung" : label;
 }
 
 function arrivalLabelForStudent(student: Student): string {
@@ -736,7 +786,7 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
             ? arrivalLabelForStudent(student)
             : groupMode === "pickup"
               ? pickupLabelForStudent(student)
-              : pickupStatusLabelForStudent(student);
+              : dailyDepartureGroupLabelForStudent(student);
     const key = companionLabels
       ? (companionGroup?.key ?? NO_COMPANION_GROUP_LABEL)
       : label;
@@ -895,10 +945,8 @@ function SearchPageContent() {
     DAY_STATUS_FILTER_OPTIONS.map((option) => option.value),
     "all",
   );
-  const initialYear = validQueryValue(
-    initialFilterParams.get("year"),
-    SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
-    "all",
+  const initialYears = parseYearParam(
+    readFilterParam(initialFilterParams, "year"),
   );
   const initialTrackingParam = initialFilterParams.get("tracking") ?? "all";
   const initialTrackingFilter =
@@ -925,13 +973,18 @@ function SearchPageContent() {
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(""); // Debounced version for SWR key
-  const [selectedGroup, setSelectedGroup] = useState(
-    normalizeSearchStudentsGroupId(initialFilterParams.get("group_id") ?? ""),
+  // Class, group and school year are multi-selects (#2218): two groups working
+  // together need both their cohorts in one list. An empty array means "alle".
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(() =>
+    parseGroupIdsParam(readFilterParam(initialFilterParams, "group_id")),
   );
-  const [selectedSchoolClass, setSelectedSchoolClass] = useState(
-    initialFilterParams.get("school_class") ?? "",
+  const [selectedSchoolClasses, setSelectedSchoolClasses] = useState<string[]>(
+    () =>
+      parseMultiValueParam(
+        readFilterParam(initialFilterParams, "school_class"),
+      ),
   );
-  const [selectedYear, setSelectedYear] = useState<string>(initialYear);
+  const [selectedYears, setSelectedYears] = useState<string[]>(initialYears);
   const [attendanceFilter, setAttendanceFilter] = useState<StatusFilter>(
     initialAttendanceFilter,
   );
@@ -1025,17 +1078,11 @@ function SearchPageContent() {
         compactStoredFilters(normalizeStoredFilters(filters)),
       );
 
-      setSelectedGroup(
-        normalizeSearchStudentsGroupId(params.get("group_id") ?? ""),
+      setSelectedGroupIds(parseGroupIdsParam(params.get("group_id")));
+      setSelectedSchoolClasses(
+        parseMultiValueParam(params.get("school_class")),
       );
-      setSelectedSchoolClass(params.get("school_class") ?? "");
-      setSelectedYear(
-        validQueryValue(
-          params.get("year"),
-          SCHOOL_YEAR_DROPDOWN_OPTIONS.map((option) => option.value),
-          "all",
-        ),
-      );
+      setSelectedYears(parseYearParam(params.get("year")));
       setAttendanceFilter(
         validQueryValue(
           params.get("status"),
@@ -1352,7 +1399,7 @@ function SearchPageContent() {
   // check-in event names a group this view does not show. It has to sit BEFORE
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
-  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroup)}-${debouncedSearchTerm}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${pickupStatusFilter}`;
+  const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${debouncedSearchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -1363,13 +1410,24 @@ function SearchPageContent() {
     students: Student[];
     requestDate: string;
     requestIsToday: boolean;
+    /**
+     * Number of matching children the backend counted when the page walk could
+     * not load them all, otherwise null. Never silently dropped: the list, the
+     * count badge and the export scope all read the loaded rows, so a partial
+     * result has to say so on screen (#2218 review).
+     */
+    truncatedTotal: number | null;
   }>(
     studentsCacheKey,
     async () => {
       const filters = {
         search: debouncedSearchTerm,
-        groupId: selectedGroup,
-        schoolClass: selectedSchoolClass || undefined,
+        groupId: selectedGroupIds,
+        schoolClass: selectedSchoolClasses,
+        // The school year is filtered server-side (#2218) so the reported
+        // count and any future pagination cover the whole selection instead of
+        // only the rows this page happened to hold.
+        gradeLevel: selectedYears,
         roomId: effectiveRoomId || undefined,
         dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
         // Planning date (#1939): omitted for today so today's requests stay
@@ -1390,8 +1448,12 @@ function SearchPageContent() {
         // 200 cards and shows a truncation notice; this page must show
         // every occupant so the overflow link actually delivers.
         // 1000 covers any realistic combined-group / assembly-room
-        // session well above what backend ParsePagination would return
-        // by default (50). General search keeps the default.
+        // session. General search sends nothing on purpose: the proxy route
+        // (app/api/students/route.ts) already defaults an absent page_size to
+        // its 1000 maximum, so the backend's own ParsePagination default of 50
+        // is never reached from here. A school with more matching children than
+        // one page is picked up by the page walk below, not by a larger
+        // page_size — the proxy caps that at 1000 either way.
         pageSize: effectiveRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
@@ -1406,6 +1468,38 @@ function SearchPageContent() {
       };
 
       const result = await studentService.getStudents(filters);
+      const students = [...result.students];
+
+      // Walk the remaining pages when the selection is larger than one page.
+      // The first request stays untouched (no page parameter), so the common
+      // single-page case is byte-identical with before.
+      //
+      // Separate requests only add up to the whole selection because the list
+      // query carries a total order (repositories/users/student.go orders by id
+      // unless a caller asks for something else). Without one, PostgreSQL may
+      // answer two windows out of two different row orders, and children then
+      // appear twice or not at all (#2218 review).
+      const totalPages = result.pagination?.total_pages ?? 1;
+      const lastPage = Math.min(totalPages, MAX_STUDENT_SEARCH_PAGES);
+      for (let page = 2; page <= lastPage; page++) {
+        const nextPage = await studentService.getStudents({ ...filters, page });
+        students.push(...nextPage.students);
+      }
+      // Past the bound the list is incomplete, and everything downstream — the
+      // count badge, the grouping headers, the export scope — reads exactly the
+      // rows loaded here. Reporting that as a finished result would present a
+      // truncated list as the complete one, so the number the backend counted
+      // travels along and the page says on screen that it is showing a part
+      // (#2218 review). The log line stays for the server-side view.
+      let truncatedTotal: number | null = null;
+      if (totalPages > lastPage) {
+        truncatedTotal = result.pagination?.total_records ?? students.length;
+        logger.warn("student_search_pages_truncated", {
+          total_pages: totalPages,
+          fetched_pages: lastPage,
+        });
+      }
+
       // Tag the response with the date AND today/planning mode it was fetched
       // for so date-sensitive rendering can tell a fresh result apart from
       // keepPreviousData holding the previous request's rows. The mode matters
@@ -1414,9 +1508,10 @@ function SearchPageContent() {
       // to live — the stale planning rows must not be shown under live presence
       // badges and check-in controls (#1939).
       return {
-        students: result.students,
+        students,
         requestDate: selectedDate,
         requestIsToday: isToday,
+        truncatedTotal,
       };
     },
     {
@@ -1447,27 +1542,34 @@ function SearchPageContent() {
     updateRoomFilter("", "");
   }, [updateRoomFilter]);
 
-  const updateSelectedYear = useCallback(
-    (value: string) => {
-      setSelectedYear(value);
-      updateUrlParams({ year: value === "all" ? "" : value });
+  // The three multi-selects share one shape: an empty selection clears the
+  // query parameter, which is what "alle" means on each of them. The dropdown
+  // hands over the selected values themselves, so they are validated as a list
+  // and only encoded on the way into the URL — routing them through the
+  // parameter grammar first would tear a class named "A,B" in two.
+  const updateSelectedYears = useCallback(
+    (values: string[]) => {
+      const years = keepOfferedYears(values);
+      setSelectedYears(years);
+      updateUrlParams({ year: encodeMultiValueParam(years) });
     },
     [updateUrlParams],
   );
 
-  const updateSelectedSchoolClass = useCallback(
-    (value: string) => {
-      setSelectedSchoolClass(value);
-      updateUrlParams({ school_class: value });
+  const updateSelectedSchoolClasses = useCallback(
+    (values: string[]) => {
+      const classes = normalizeMultiValues(values);
+      setSelectedSchoolClasses(classes);
+      updateUrlParams({ school_class: encodeMultiValueParam(classes) });
     },
     [updateUrlParams],
   );
 
-  const updateSelectedGroup = useCallback(
-    (value: string) => {
-      const normalizedGroupId = normalizeSearchStudentsGroupId(value);
-      setSelectedGroup(normalizedGroupId);
-      updateUrlParams({ group_id: normalizedGroupId });
+  const updateSelectedGroupIds = useCallback(
+    (values: string[]) => {
+      const groupIds = keepValidGroupIds(values);
+      setSelectedGroupIds(groupIds);
+      updateUrlParams({ group_id: encodeMultiValueParam(groupIds) });
     },
     [updateUrlParams],
   );
@@ -1554,9 +1656,9 @@ function SearchPageContent() {
 
   const clearAllFilters = useCallback(() => {
     setSearchTerm("");
-    setSelectedGroup("");
-    setSelectedSchoolClass("");
-    setSelectedYear("all");
+    setSelectedGroupIds([]);
+    setSelectedSchoolClasses([]);
+    setSelectedYears([]);
     setAttendanceFilter("all");
     setBusFilter("all");
     setPhotoConsentFilter("all");
@@ -1598,6 +1700,12 @@ function SearchPageContent() {
         : studentsData.students,
     [studentsData, isDateTransition],
   );
+  // Gated on the same staleness check as the rows themselves: a held response
+  // from the previous date must not warn about the new one.
+  const truncatedTotal =
+    studentsData === undefined || isDateTransition
+      ? null
+      : (studentsData.truncatedTotal ?? null);
   const photoConsentDataAvailable =
     photoConsentFeatureAvailable &&
     (students.length === 0 ||
@@ -1736,44 +1844,59 @@ function SearchPageContent() {
 
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
+      // Stufe / Klasse / Gruppe are multi-selects (#2218). None of them carries
+      // an "Alle …" option any more: an empty selection already means that, and
+      // a checkable neutral entry would let a user select "Alle Klassen" AND
+      // "3a" at the same time.
       {
         id: "year",
         label: "Stufe",
         type: "dropdown",
-        value: selectedYear,
-        onChange: (value) => updateSelectedYear(value as string),
-        options: SCHOOL_YEAR_DROPDOWN_OPTIONS,
+        multiSelect: true,
+        emptyLabel: "Alle Stufen",
+        summaryLabel: (count) => `${count} Stufen`,
+        value: selectedYears,
+        onChange: (value) => updateSelectedYears(asFilterValues(value)),
+        options: SCHOOL_YEAR_MULTI_OPTIONS,
       },
       {
         id: "schoolClass",
         label: "Klasse",
         type: "dropdown",
-        value: selectedSchoolClass,
-        onChange: (value) => updateSelectedSchoolClass(value as string),
+        multiSelect: true,
+        emptyLabel: "Alle Klassen",
+        summaryLabel: (count) => `${count} Klassen`,
+        value: selectedSchoolClasses,
+        onChange: (value) => updateSelectedSchoolClasses(asFilterValues(value)),
         options: [
-          { value: "", label: "Alle Klassen" },
           ...schoolClassOptions.map((schoolClass) => ({
             value: schoolClass,
             label: schoolClass,
           })),
-          ...(selectedSchoolClass &&
-          !schoolClassOptions.some(
-            (schoolClass) => schoolClass === selectedSchoolClass,
-          )
-            ? [{ value: selectedSchoolClass, label: selectedSchoolClass }]
-            : []),
+          // A class restored from a link may not be among today's options (it
+          // has no children right now). Keep it selectable so the restriction
+          // stays visible and can be lifted.
+          ...selectedSchoolClasses
+            .filter((schoolClass) => !schoolClassOptions.includes(schoolClass))
+            .map((schoolClass) => ({
+              value: schoolClass,
+              label: schoolClass,
+            })),
         ],
       },
       {
         id: "group",
         label: "Gruppe",
         type: "dropdown",
-        value: selectedGroup,
-        onChange: (value) => updateSelectedGroup(value as string),
-        options: [
-          { value: "", label: "Alle Gruppen" },
-          ...groups.map((group) => ({ value: group.id, label: group.name })),
-        ],
+        multiSelect: true,
+        emptyLabel: "Alle Gruppen",
+        summaryLabel: (count) => `${count} Gruppen`,
+        value: selectedGroupIds,
+        onChange: (value) => updateSelectedGroupIds(asFilterValues(value)),
+        options: groups.map((group) => ({
+          value: group.id,
+          label: group.name,
+        })),
       },
       // The room filter reads current visits — today-only by nature (#1939).
       ...(isToday
@@ -2009,9 +2132,9 @@ function SearchPageContent() {
         : []),
     ],
     [
-      selectedYear,
-      selectedSchoolClass,
-      selectedGroup,
+      selectedYears,
+      selectedSchoolClasses,
+      selectedGroupIds,
       pickupTimeFilter,
       arrivalTimeFilter,
       busFilter,
@@ -2031,9 +2154,9 @@ function SearchPageContent() {
       clearRoomFilter,
       updateRoomFilter,
       sortMode,
-      updateSelectedYear,
-      updateSelectedSchoolClass,
-      updateSelectedGroup,
+      updateSelectedYears,
+      updateSelectedSchoolClasses,
+      updateSelectedGroupIds,
       updateAttendanceFilter,
       updateBusFilter,
       updatePhotoConsentFilter,
@@ -2080,29 +2203,32 @@ function SearchPageContent() {
       });
     }
 
-    if (selectedYear !== "all") {
+    // One chip per filter names every selected value, so a two-class selection
+    // stays readable without turning the chip row into a list of ten pills.
+    if (selectedYears.length > 0) {
       filters.push({
         id: "year",
-        label: `Jahr ${selectedYear}`,
-        onRemove: () => updateSelectedYear("all"),
+        label: `Jahr ${selectedYears.join(", ")}`,
+        onRemove: () => updateSelectedYears([]),
       });
     }
 
-    if (selectedSchoolClass) {
+    if (selectedSchoolClasses.length > 0) {
       filters.push({
         id: "schoolClass",
-        label: `Klasse ${selectedSchoolClass}`,
-        onRemove: () => updateSelectedSchoolClass(""),
+        label: `Klasse ${selectedSchoolClasses.join(", ")}`,
+        onRemove: () => updateSelectedSchoolClasses([]),
       });
     }
 
-    if (selectedGroup) {
-      const groupName =
-        groups.find((g) => g.id === selectedGroup)?.name ?? "Gruppe";
+    if (selectedGroupIds.length > 0) {
+      const groupNames = selectedGroupIds.map(
+        (groupId) => groups.find((g) => g.id === groupId)?.name ?? "Gruppe",
+      );
       filters.push({
         id: "group",
-        label: groupName,
-        onRemove: () => updateSelectedGroup(""),
+        label: groupNames.join(", "),
+        onRemove: () => updateSelectedGroupIds([]),
       });
     }
 
@@ -2235,9 +2361,9 @@ function SearchPageContent() {
     return filters;
   }, [
     searchTerm,
-    selectedYear,
-    selectedSchoolClass,
-    selectedGroup,
+    selectedYears,
+    selectedSchoolClasses,
+    selectedGroupIds,
     busFilter,
     effectivePhotoConsentFilter,
     pickupStatusFilter,
@@ -2250,9 +2376,9 @@ function SearchPageContent() {
     selectedRoomName,
     sortMode,
     clearRoomFilter,
-    updateSelectedYear,
-    updateSelectedSchoolClass,
-    updateSelectedGroup,
+    updateSelectedYears,
+    updateSelectedSchoolClasses,
+    updateSelectedGroupIds,
     updateAttendanceFilter,
     updateBusFilter,
     updatePhotoConsentFilter,
@@ -2276,9 +2402,13 @@ function SearchPageContent() {
   const exportFilters = useMemo(
     () => ({
       search: searchTerm,
-      group_id: selectedGroup,
-      year: selectedYear,
-      school_class: selectedSchoolClass,
+      // Comma-separated so an export mirrors a multi-selection (#2218); the
+      // backend accepts the same shape — and the same escaping — as the list
+      // endpoint, so a class carrying a comma prints as one class.
+      group_id: encodeMultiValueParam(selectedGroupIds),
+      year:
+        selectedYears.length > 0 ? encodeMultiValueParam(selectedYears) : "all",
+      school_class: encodeMultiValueParam(selectedSchoolClasses),
       // The realtime snapshot/room filters are neutral for non-today dates —
       // the export must mirror what the page shows (#1939).
       status: effectiveAttendanceFilter,
@@ -2294,9 +2424,9 @@ function SearchPageContent() {
     }),
     [
       searchTerm,
-      selectedGroup,
-      selectedYear,
-      selectedSchoolClass,
+      selectedGroupIds,
+      selectedYears,
+      selectedSchoolClasses,
       effectiveAttendanceFilter,
       busFilter,
       effectivePhotoConsentFilter,
@@ -2340,13 +2470,9 @@ function SearchPageContent() {
       return false;
     }
 
-    // Apply year filter - extract year from school_class (e.g., "Klasse 3a" → year 3)
-    if (selectedYear !== "all") {
-      const studentYear = getSchoolYear(student.school_class);
-      if (studentYear !== selectedYear) {
-        return false;
-      }
-    }
+    // The school year (#2218), like bus / photo_consent / pickup_status below,
+    // is filtered server-side now, so the fetched page is already the filtered
+    // set and re-filtering here would only risk the two grammars drifting.
 
     // bus / photo_consent / pickup_status (#1492) are filtered server-side now
     // (see api/students applyAdministrativeFilters), so the page no longer
@@ -2510,6 +2636,20 @@ function SearchPageContent() {
         </div>
       )}
 
+      {/* Incomplete-result notice (#2218 review). The page walk stops at
+          MAX_STUDENT_SEARCH_PAGES, and the badge, the grouping headers and the
+          export all describe the rows it loaded. Without this the school would
+          read a truncated list as the complete one, so the shortfall is named
+          here instead of only in the log. */}
+      {truncatedTotal !== null && (
+        <div className="mb-3">
+          <Alert
+            type="warning"
+            message={`Es werden nur die ersten ${students.length} von ${truncatedTotal} Kindern geladen. Anzahl, Gruppierung und Export beziehen sich allein auf diese Kinder; bitte die Filter enger setzen.`}
+          />
+        </div>
+      )}
+
       {/* Mobile Error Display, outside the sticky stack so it doesn't
           push everything down on small screens. */}
       {errorMessage && (
@@ -2600,8 +2740,15 @@ function SearchPageContent() {
               qs.set("room_id", effectiveRoomId);
               if (selectedRoomName) qs.set("room_name", selectedRoomName);
             }
-            if (selectedGroup) qs.set("group_id", selectedGroup);
-            if (selectedYear !== "all") qs.set("year", selectedYear);
+            if (selectedGroupIds.length > 0)
+              qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
+            if (selectedSchoolClasses.length > 0)
+              qs.set(
+                "school_class",
+                encodeMultiValueParam(selectedSchoolClasses),
+              );
+            if (selectedYears.length > 0)
+              qs.set("year", encodeMultiValueParam(selectedYears));
             if (effectiveAttendanceFilter !== "all")
               qs.set("status", effectiveAttendanceFilter);
             if (busFilter !== "all") qs.set("bus", busFilter);
@@ -2694,15 +2841,17 @@ function SearchPageContent() {
                 }
                 extraContent={
                   <>
-                    {/* Fixed four-row skeleton: every card renders Klasse,
-                        Gruppe and the two time slots so names and rows align
-                        across the grid; missing values show a dash. */}
                     <StudentInfoRow icon={<SchoolClassIcon />}>
                       {student.school_class || "—"}
                     </StudentInfoRow>
                     <StudentInfoRow icon={<GroupIcon />}>
                       Gruppe: {student.group_name || "—"}
                     </StudentInfoRow>
+                    {student.has_full_access !== false && (
+                      <StudentInfoRow icon={<DepartureModeIcon />} wrap>
+                        Heimweg: {dailyDepartureLabelForStudent(student)}
+                      </StudentInfoRow>
+                    )}
                     {student.has_full_access !== false &&
                       student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow

@@ -79,6 +79,11 @@ export function PageHeaderWithSearch({
   const hasActiveFilters = useMemo(() => {
     return filters.some((filter) => {
       if (filter.type === "custom") return false;
+      // A multi-select reports its value as an array and treats the empty
+      // selection as its default ("alle"), so the first-option comparison
+      // below would mark it active in every default state — an array is never
+      // equal to an option string.
+      if (Array.isArray(filter.value)) return filter.value.length > 0;
       const defaultValue = filter.options[0]?.value;
       return filter.value !== defaultValue;
     });

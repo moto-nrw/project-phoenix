@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { DatePicker } from "./date-picker";
+import userEvent from "@testing-library/user-event";
+import { DatePicker, ISODateInput } from "./date-picker";
 
 // Mock react-day-picker
 vi.mock("react-day-picker", () => ({
@@ -8,12 +9,18 @@ vi.mock("react-day-picker", () => ({
     selected,
     onSelect,
     required,
+    month,
   }: {
     selected?: Date | Date[];
     onSelect: (date: Date | undefined) => void;
     required?: boolean;
+    month?: Date;
   }) => (
-    <div data-testid="day-picker" data-required={required}>
+    <div
+      data-testid="day-picker"
+      data-required={required}
+      data-month={month?.toISOString()}
+    >
       <button
         type="button"
         onClick={() => onSelect(new Date("2024-01-15T00:00:00Z"))}
@@ -174,6 +181,44 @@ describe("DatePicker", () => {
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
   });
 
+  it("renders an inline calendar below the trigger controls", () => {
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="inline"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+
+    const controls = screen
+      .getByRole("button", { name: /datum auswählen/i })
+      .closest("[data-date-picker-controls]");
+    const panel = screen
+      .getByTestId("day-picker")
+      .closest("[data-date-picker-panel]");
+    expect(controls?.nextElementSibling).toBe(panel);
+  });
+
+  it("keeps compact sizing and legible day buttons in a narrow modal", () => {
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="inline"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /datum auswählen/i }));
+
+    const panel = screen
+      .getByTestId("day-picker")
+      .closest("[data-date-picker-panel]");
+    expect(panel).toHaveClass("w-full", "min-w-[222px]", "max-w-full", "p-3");
+    expect(panel).not.toHaveClass("p-4", "min-w-[304px]");
+  });
+
   it("calls onChange when a date is selected", async () => {
     render(<DatePicker value={null} onChange={mockOnChange} />);
 
@@ -257,32 +302,38 @@ describe("DatePicker", () => {
     expect(mockOnChange).toHaveBeenCalledWith(null);
   });
 
-  it("clears date when Enter key is pressed on clear button", () => {
+  it("uses a native button for keyboard-accessible clearing", () => {
     const testDate = new Date("2024-01-15T00:00:00Z");
     render(<DatePicker value={testDate} onChange={mockOnChange} />);
 
     const clearButton = screen.getByRole("button", { name: /datum löschen/i });
-    fireEvent.keyDown(clearButton, { key: "Enter" });
+    expect(clearButton.tagName).toBe("BUTTON");
+    expect(clearButton).toHaveAttribute("type", "button");
+  });
 
+  it.each([
+    ["Enter", "{Enter}"],
+    ["Space", " "],
+  ])("clears the date when %s activates the button", async (_name, key) => {
+    const user = userEvent.setup();
+    const testDate = new Date("2024-01-15T00:00:00Z");
+    render(<DatePicker value={testDate} onChange={mockOnChange} />);
+
+    const clearButton = screen.getByRole("button", { name: /datum löschen/i });
+    clearButton.focus();
+    await user.keyboard(key);
+
+    expect(mockOnChange).toHaveBeenCalledOnce();
     expect(mockOnChange).toHaveBeenCalledWith(null);
   });
 
-  it("clears date when Space key is pressed on clear button", () => {
+  it("does not clear the date for an unrelated key", async () => {
+    const user = userEvent.setup();
     const testDate = new Date("2024-01-15T00:00:00Z");
     render(<DatePicker value={testDate} onChange={mockOnChange} />);
 
-    const clearButton = screen.getByRole("button", { name: /datum löschen/i });
-    fireEvent.keyDown(clearButton, { key: " " });
-
-    expect(mockOnChange).toHaveBeenCalledWith(null);
-  });
-
-  it("does not clear date on other key presses", () => {
-    const testDate = new Date("2024-01-15T00:00:00Z");
-    render(<DatePicker value={testDate} onChange={mockOnChange} />);
-
-    const clearButton = screen.getByRole("button", { name: /datum löschen/i });
-    fireEvent.keyDown(clearButton, { key: "Tab" });
+    screen.getByRole("button", { name: /datum löschen/i }).focus();
+    await user.keyboard("{ArrowDown}");
 
     expect(mockOnChange).not.toHaveBeenCalled();
   });
@@ -322,6 +373,112 @@ describe("DatePicker", () => {
     await waitFor(() => {
       expect(screen.getByTestId("day-picker")).toBeInTheDocument();
     });
+  });
+
+  it("closes the calendar with Escape and restores trigger focus", () => {
+    const parentKeyDown = vi.fn();
+    render(
+      <div role="group" aria-label="Testgruppe" onKeyDown={parentKeyDown}>
+        <DatePicker value={null} onChange={mockOnChange} />
+      </div>,
+    );
+
+    const trigger = screen.getByRole("button", { name: /datum auswählen/i });
+    fireEvent.click(trigger);
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByTestId("day-picker"), { key: "Escape" });
+
+    expect(screen.queryByTestId("day-picker")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(parentKeyDown).not.toHaveBeenCalled();
+  });
+
+  it("closes an open month listbox before closing the calendar", () => {
+    render(
+      <DatePicker
+        value={new Date("2024-01-15T00:00:00Z")}
+        onChange={mockOnChange}
+        monthYearNavigation
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    const month = screen.getByRole("combobox", { name: "Monat" });
+    fireEvent.click(month);
+    expect(month).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.keyDown(month, { key: "Escape" });
+
+    expect(month).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+  });
+
+  it("constrains a long month label inside a narrow header", () => {
+    render(
+      <DatePicker
+        value={new Date("2024-01-15T00:00:00Z")}
+        onChange={mockOnChange}
+        monthYearNavigation
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+
+    const month = screen.getByRole("combobox", { name: "Monat" });
+    expect(month).toHaveClass("min-w-0", "overflow-hidden");
+    expect(month.querySelector("span")).toHaveClass("min-w-0", "truncate");
+    expect(month.querySelector("svg")).toHaveClass("shrink-0");
+  });
+
+  it("synchronizes the displayed month when the controlled value changes", () => {
+    const { rerender } = render(
+      <DatePicker
+        value={new Date("2024-01-15T00:00:00Z")}
+        onChange={mockOnChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2024-01-15T00:00:00.000Z",
+    );
+
+    rerender(
+      <DatePicker
+        value={new Date("1982-04-17T00:00:00Z")}
+        onChange={mockOnChange}
+      />,
+    );
+
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "1982-04-17T00:00:00.000Z",
+    );
+  });
+
+  it("keeps manual navigation when the controlled day is unchanged", () => {
+    const value = new Date("2024-01-15T00:00:00Z");
+    const { rerender } = render(
+      <DatePicker value={value} onChange={mockOnChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /15\.01\.2024/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2024-02-15T00:00:00.000Z",
+    );
+
+    rerender(
+      <DatePicker value={new Date(value.getTime())} onChange={mockOnChange} />,
+    );
+
+    expect(screen.getByTestId("day-picker")).toHaveAttribute(
+      "data-month",
+      "2024-02-15T00:00:00.000Z",
+    );
   });
 
   it("applies custom className", () => {
@@ -404,7 +561,10 @@ describe("DatePicker", () => {
     const trigger = screen.getByRole("button", { name: /datum auswählen/i });
     // jsdom reports an all-zero rect by default, which would make a top-left
     // render indistinguishable from a correctly positioned one.
-    vi.spyOn(trigger.parentElement!, "getBoundingClientRect").mockReturnValue({
+    vi.spyOn(
+      trigger.parentElement!.parentElement!,
+      "getBoundingClientRect",
+    ).mockReturnValue({
       top: 200,
       bottom: 240,
       left: 120,
@@ -501,5 +661,133 @@ describe("DatePicker", () => {
 
     // Calendar should still be open
     expect(screen.getByTestId("day-picker")).toBeInTheDocument();
+  });
+});
+
+describe("ISODateInput", () => {
+  it("reports an existing date after the configured maximum as invalid", () => {
+    const onValidityChange = vi.fn();
+    render(
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value="2026-08-13"
+        onChange={vi.fn()}
+        onValidityChange={onValidityChange}
+        max="2026-08-12"
+        maxDateError="Das Geburtsdatum darf nicht in der Zukunft liegen."
+      />,
+    );
+
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Das Geburtsdatum darf nicht in der Zukunft liegen.",
+    );
+  });
+
+  it("converts a valid German date to the ISO calendar format", () => {
+    const onChange = vi.fn();
+    render(
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value=""
+        onChange={onChange}
+        max="2026-08-12"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
+      target: { value: "17.04.1982" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith("1982-04-17");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("rejects an impossible calendar date", () => {
+    const onChange = vi.fn();
+    render(
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value=""
+        onChange={onChange}
+      />,
+    );
+
+    const input = screen.getByLabelText("Geburtsdatum");
+    fireEvent.change(input, { target: { value: "31.02.1982" } });
+    fireEvent.blur(input);
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte geben Sie ein gültiges Datum im Format TT.MM.JJJJ ein.",
+    );
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("rejects a date after the configured maximum", () => {
+    const onChange = vi.fn();
+    render(
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value=""
+        onChange={onChange}
+        max="2026-08-12"
+        maxDateError="Das Geburtsdatum darf nicht in der Zukunft liegen."
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
+      target: { value: "13.08.2026" },
+    });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Das Geburtsdatum darf nicht in der Zukunft liegen.",
+    );
+  });
+
+  it("shows and replaces an existing ISO date", () => {
+    const onChange = vi.fn();
+    render(
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value="1982-04-17"
+        onChange={onChange}
+      />,
+    );
+
+    const input = screen.getByLabelText("Geburtsdatum");
+    expect(input).toHaveValue("17.04.1982");
+
+    fireEvent.change(input, { target: { value: "18.04.1982" } });
+
+    expect(onChange).toHaveBeenLastCalledWith("1982-04-18");
+  });
+
+  it("keeps calendar selection on a labeled native button", () => {
+    const onChange = vi.fn();
+    render(
+      <ISODateInput
+        id="birthday"
+        label="Geburtsdatum"
+        value=""
+        onChange={onChange}
+      />,
+    );
+
+    const calendarButton = screen.getByRole("button", {
+      name: "Geburtsdatum im Kalender auswählen",
+    });
+    expect(calendarButton.tagName).toBe("BUTTON");
+    expect(calendarButton).toHaveAttribute("type", "button");
+    fireEvent.click(calendarButton);
+    fireEvent.click(screen.getByTestId("select-date"));
+
+    expect(onChange).toHaveBeenLastCalledWith("2024-01-15");
   });
 });

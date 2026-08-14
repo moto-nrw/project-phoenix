@@ -9,6 +9,7 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
 import { useSession } from "next-auth/react";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 const {
   mockSWRMutate,
@@ -587,6 +588,7 @@ const mockStudentAtHome = {
 describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     mockActionType = "none";
@@ -1202,7 +1204,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows message when no active rooms available", async () => {
+    it("shows the NFC instruction when no active rooms are available for an NFC tenant", async () => {
       mockGetActiveGroups.mockResolvedValue([]);
 
       render(<StudentDetailPage />);
@@ -1212,9 +1214,29 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Keine aktiven Räume verfügbar/i),
+          screen.getByText(
+            "Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive Aufsicht in einem Raum über ein NFC-Tablet.",
+          ),
         ).toBeInTheDocument();
       });
+    });
+
+    it("shows a web instruction when no active rooms are available without NFC", async () => {
+      vi.mocked(useNFCEnabled).mockReturnValue(false);
+      mockGetActiveGroups.mockResolvedValue([]);
+
+      render(<StudentDetailPage />);
+
+      fireEvent.click(screen.getByTestId("checkin-button"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive Aufsicht in einem Raum über die Web-App.",
+          ),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/NFC-Tablet/i)).not.toBeInTheDocument();
     });
   });
 

@@ -521,7 +521,7 @@ function ContactModal({
             {error}
           </div>
         )}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             label={t("guardians.firstName")}
             value={firstName}
@@ -544,7 +544,7 @@ function ContactModal({
           value={street}
           onChange={(e) => setStreet(e.target.value)}
         />
-        <div className="grid gap-4 sm:grid-cols-[8rem_1fr]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
           <Input
             label={t("guardians.postalCode")}
             value={postal}

@@ -6,6 +6,7 @@ package timetable
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -618,6 +619,25 @@ func TestListInstances_DateValidation(t *testing.T) {
 	}
 }
 
+func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
+	res := NewResource(Dependencies{})
+	got, err := res.enforcePlannedEnd(context.Background())
+	require.NoError(t, err)
+	assert.True(t, got)
+}
+
+func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
+	res := NewResource(Dependencies{
+		SettingsService: &configtest.Mock{
+			ResolveBoolFn: func(context.Context, string) (bool, error) {
+				return false, errors.New("settings down")
+			},
+		},
+	})
+	_, err := res.enforcePlannedEnd(context.Background())
+	require.ErrorIs(t, err, scheduleSvc.ErrLifecycleSettings)
+}
+
 func TestListInstances_IsLive(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()
@@ -667,6 +687,7 @@ func TestListInstances_IsLive(t *testing.T) {
 	require.Len(t, got.Instances, 1)
 	assert.True(t, got.Instances[0].IsLive, "instance with active_group_id should be live")
 	assert.Equal(t, schedule.InstanceStatusActive, got.Instances[0].Status)
+	assert.NotEmpty(t, got.Instances[0].CompleteAvailableAt)
 }
 
 func TestListInstances_SortedByDateAndStartTime(t *testing.T) {

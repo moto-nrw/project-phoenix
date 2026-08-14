@@ -86,7 +86,7 @@ export function PushNotificationSection({
         disabled={busy}
         onClick={() => void enable()}
       >
-        Aktivieren
+        Einschalten
       </Button>
     ) : state === "subscribed" ? (
       <Button
@@ -96,7 +96,7 @@ export function PushNotificationSection({
         disabled={busy}
         onClick={() => void disable()}
       >
-        Deaktivieren
+        Ausschalten
       </Button>
     ) : null;
 
@@ -106,7 +106,7 @@ export function PushNotificationSection({
     setMessage(null);
     try {
       await subscribePush(portal);
-      setMessage("Benachrichtigungen sind auf diesem Gerät aktiviert.");
+      setMessage("Benachrichtigungen sind auf diesem Gerät eingeschaltet.");
       await refresh();
     } catch (err) {
       logger.error("push_subscribe_failed", {
@@ -115,7 +115,7 @@ export function PushNotificationSection({
       setError(
         err instanceof Error
           ? err.message
-          : "Benachrichtigungen konnten nicht aktiviert werden.",
+          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
       );
       await refresh();
     } finally {
@@ -129,7 +129,7 @@ export function PushNotificationSection({
     setMessage(null);
     try {
       await unsubscribePush(portal);
-      setMessage("Benachrichtigungen sind auf diesem Gerät deaktiviert.");
+      setMessage("Benachrichtigungen sind auf diesem Gerät ausgeschaltet.");
       await refresh();
     } catch (err) {
       logger.error("push_unsubscribe_failed", {
@@ -138,7 +138,7 @@ export function PushNotificationSection({
       setError(
         err instanceof Error
           ? err.message
-          : "Benachrichtigungen konnten nicht deaktiviert werden.",
+          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
       );
     } finally {
       setBusy(false);
@@ -160,7 +160,7 @@ export function PushNotificationSection({
       setError(
         err instanceof Error
           ? err.message
-          : "Testbenachrichtigung konnte nicht gesendet werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+          : "Das Senden hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
       );
     } finally {
       setTesting(false);
@@ -194,45 +194,44 @@ export function PushNotificationSection({
 
       {state === "needs-install" && (
         <p className="text-sm text-gray-600">
-          Auf iPhone und iPad funktionieren Benachrichtigungen nur, wenn die App
-          zuerst zum Home-Bildschirm hinzugefügt wurde: In Safari das
-          Teilen-Symbol antippen und {"„"}Zum Home-Bildschirm{"“"} wählen.
-          Danach die App vom Home-Bildschirm aus öffnen und Benachrichtigungen
-          hier aktivieren.
+          Auf iPhone und iPad geht das nur, wenn moto auf dem Home-Bildschirm
+          liegt. So geht es: In Safari unten auf das Teilen-Symbol tippen, dann
+          {" „"}Zum Home-Bildschirm{"“"} wählen. Danach moto von dort öffnen und
+          die Benachrichtigungen hier einschalten.
         </p>
       )}
 
       {state === "unsupported" && (
         <p className="text-sm text-gray-600">
-          Dieser Browser unterstützt keine Push-Benachrichtigungen.
+          Dieser Browser kann leider keine Benachrichtigungen anzeigen.
         </p>
       )}
 
       {state === "disabled" && (
         <p className="text-sm text-gray-600">
-          Push-Benachrichtigungen sind auf diesem Server nicht eingerichtet.
+          Benachrichtigungen sind hier zurzeit nicht verfügbar.
         </p>
       )}
 
       {state === "denied" && (
         <p className="text-sm text-gray-600">
-          Benachrichtigungen wurden für diese Seite blockiert. Bitte in den
-          Browser-Einstellungen wieder erlauben, um sie zu aktivieren.
+          Benachrichtigungen sind für moto blockiert. Sie können sie in den
+          Einstellungen Ihres Browsers wieder erlauben.
         </p>
       )}
 
       {state === "unsubscribed" && (
         <p className="text-sm text-gray-600">
-          Erhalten Sie Erinnerungen als Systembenachrichtigung auf diesem Gerät,
-          auch wenn die App geschlossen ist.
+          Bekommen Sie Erinnerungen direkt auf dieses Gerät, auch wenn moto
+          gerade geschlossen ist.
         </p>
       )}
 
       {state === "subscribed" && (
         <div>
           <p className="text-sm text-gray-600">
-            Benachrichtigungen sind auf diesem Gerät aktiv. Erinnerungen kommen
-            auch bei geschlossener App an.
+            Benachrichtigungen sind auf diesem Gerät eingeschaltet. Erinnerungen
+            kommen auch an, wenn moto geschlossen ist.
           </p>
           {portal === "tenant" && (
             <Button

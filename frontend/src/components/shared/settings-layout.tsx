@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -74,6 +80,90 @@ function MobileTabList({
   );
 }
 
+/**
+ * Desktop tab bar: kit Tabs (line variant) in a horizontal scroll container
+ * with fade indicators at the edges when tabs overflow, and the active tab
+ * kept scrolled into view.
+ */
+function DesktopSettingsTabs({
+  tabs,
+  activeTab,
+  onTabChange,
+}: {
+  readonly tabs: Tab[];
+  readonly activeTab: string;
+  readonly onTabChange: (id: string) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      observer.disconnect();
+    };
+  }, [updateScrollState, tabs]);
+
+  // Keep the active tab fully visible when it changes (e.g. deep link).
+  useEffect(() => {
+    const el = scrollRef.current;
+    const tabEl = el?.querySelector<HTMLElement>(`[data-state="active"]`);
+    if (!el || !tabEl) return;
+    const tabLeft = tabEl.offsetLeft;
+    const tabRight = tabLeft + tabEl.offsetWidth;
+    if (tabLeft < el.scrollLeft) {
+      el.scrollTo({ left: tabLeft - 16, behavior: "smooth" });
+    } else if (tabRight > el.scrollLeft + el.clientWidth) {
+      el.scrollTo({
+        left: tabRight - el.clientWidth + 16,
+        behavior: "smooth",
+      });
+    }
+  }, [activeTab]);
+
+  return (
+    <div className="relative mb-6 ml-6">
+      {canScrollLeft && (
+        <div className="pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-gradient-to-r from-gray-50 to-transparent" />
+      )}
+      <div ref={scrollRef} className="scrollbar-hidden overflow-x-auto">
+        <Tabs value={activeTab} onValueChange={onTabChange}>
+          <TabsList variant="line" className="w-max min-w-full justify-start">
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
+                <MotoConceptIcon concept={tab.icon} size={16} />
+                {tab.label}
+                {tab.adminOnly && (
+                  <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-xs">
+                    Admin
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+      {canScrollRight && (
+        <div className="pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l from-gray-50 to-transparent" />
+      )}
+    </div>
+  );
+}
+
 interface SettingsLayoutProps {
   readonly tabs: Tab[];
   readonly renderTab: (tabId: string) => ReactNode;
@@ -124,26 +214,11 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
       )}
 
       {!isMobile && (
-        <div className="mb-6 ml-6">
-          <Tabs
-            value={activeTab ?? tabs[0]?.id ?? ""}
-            onValueChange={setActiveTab}
-          >
-            <TabsList variant="line">
-              {tabs.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id}>
-                  <MotoConceptIcon concept={tab.icon} size={16} />
-                  {tab.label}
-                  {tab.adminOnly && (
-                    <span className="ml-1 rounded bg-gray-200 px-1.5 py-0.5 text-xs">
-                      Admin
-                    </span>
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
+        <DesktopSettingsTabs
+          tabs={tabs}
+          activeTab={activeTab ?? tabs[0]?.id ?? ""}
+          onTabChange={setActiveTab}
+        />
       )}
 
       {isMobile && (

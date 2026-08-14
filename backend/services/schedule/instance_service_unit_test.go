@@ -8,11 +8,278 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type lifecycleSettingsStub struct {
+	intVal  int
+	intErr  error
+	boolVal bool
+	boolErr error
+}
+
+func (s lifecycleSettingsStub) ResolveInt(context.Context, string) (int, error) {
+	return s.intVal, s.intErr
+}
+
+func (s lifecycleSettingsStub) ResolveBool(context.Context, string) (bool, error) {
+	return s.boolVal, s.boolErr
+}
+
+func plannedLifecycleInstance() *scheduleModel.ActivityInstance {
+	return &scheduleModel.ActivityInstance{
+		Date:      timezone.NewDate(2026, 8, 13),
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+	}
+}
+
+func TestValidateStartTime(t *testing.T) {
+	inst := plannedLifecycleInstance()
+	tooEarly := time.Date(2026, 8, 13, 13, 0, 0, 0, timezone.Berlin)
+	inWindow := time.Date(2026, 8, 13, 13, 50, 0, 0, timezone.Berlin)
+	afterEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, timezone.Berlin)
+
+	require.NoError(t, (&instanceService{}).validateStartTime(context.Background(), inst, tooEarly))
+
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		EnforceTimePolicy: true,
+		Settings:          lifecycleSettingsStub{intVal: 15},
+	}}
+	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, tooEarly), ErrInstanceStartTooEarly)
+	require.NoError(t, svc.validateStartTime(context.Background(), inst, inWindow))
+	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, afterEnd), ErrInstanceStartExpired)
+
+	spontaneous := *inst
+	spontaneous.IsSpontaneous = true
+	require.NoError(t, svc.validateStartTime(context.Background(), &spontaneous, tooEarly))
+
+	svc.deps.Settings = lifecycleSettingsStub{intErr: errors.New("settings unavailable")}
+	require.ErrorIs(t, svc.validateStartTime(context.Background(), inst, inWindow), ErrLifecycleSettings)
+}
+
+func TestValidateCompleteTime(t *testing.T) {
+	inst := plannedLifecycleInstance()
+	beforeEnd := time.Date(2026, 8, 13, 14, 30, 0, 0, timezone.Berlin)
+	atEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, timezone.Berlin)
+
+	require.NoError(t, (&instanceService{}).validateCompleteTime(context.Background(), inst, beforeEnd))
+
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		EnforceTimePolicy: true,
+		Settings:          lifecycleSettingsStub{boolVal: true},
+	}}
+	require.ErrorIs(t, svc.validateCompleteTime(context.Background(), inst, beforeEnd), ErrInstanceCompleteEarly)
+	require.NoError(t, svc.validateCompleteTime(context.Background(), inst, atEnd))
+
+	svc.deps.Settings = lifecycleSettingsStub{boolVal: false}
+	require.NoError(t, svc.validateCompleteTime(context.Background(), inst, beforeEnd))
+
+	spontaneous := *inst
+	spontaneous.IsSpontaneous = true
+	svc.deps.Settings = lifecycleSettingsStub{boolVal: true}
+	require.NoError(t, svc.validateCompleteTime(context.Background(), &spontaneous, beforeEnd))
+
+	svc.deps.Settings = lifecycleSettingsStub{boolErr: errors.New("settings unavailable")}
+	require.ErrorIs(t, svc.validateCompleteTime(context.Background(), inst, atEnd), ErrLifecycleSettings)
+}
+
+func TestInstanceNowUsesWallClockWhenUnset(t *testing.T) {
+	got := (&instanceService{}).now()
+	assert.False(t, got.IsZero())
+}
+
+func TestWithCompletionConfirmationStoresClone(t *testing.T) {
+	ids := []int64{42, 41}
+	ctx := WithCompletionConfirmation(context.Background(), ids)
+	ids[0] = 40
+	got, ok := ctx.Value(lifecycleConfirmedStudentsKey).([]int64)
+	require.True(t, ok)
+	assert.Equal(t, []int64{42, 41}, got)
+}
+
+func TestCanReopenInstance(t *testing.T) {
+	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
+	until := now.Add(5 * time.Minute)
+	completedBy := int64(42)
+	snapshot := []byte(`{"active_group_id":1}`)
+
+	base := &scheduleModel.ActivityInstance{
+		Status:             scheduleModel.InstanceStatusCompleted,
+		CompletedBy:        &completedBy,
+		ReopenUntil:        &until,
+		CompletionSnapshot: snapshot,
+	}
+
+	assert.True(t, CanReopenInstance(base, 42, false, now))
+	assert.True(t, CanReopenInstance(base, 41, true, now))
+	assert.False(t, CanReopenInstance(base, 40, false, now))
+	assert.False(t, CanReopenInstance(base, 42, false, until.Add(time.Second)))
+	assert.True(t, CanReopenAsActor(base, 42, false))
+	assert.False(t, CanReopenAsActor(base, 40, false))
+	completedAt := now
+	base.CompletedAt = &completedAt
+	changed := &scheduleModel.InstanceStudent{}
+	changed.UpdatedAt = now.Add(time.Minute)
+	assert.False(t, AttendanceUnchangedSinceCompletion(base, []*scheduleModel.InstanceStudent{changed}))
+	unchanged := &scheduleModel.InstanceStudent{}
+	unchanged.UpdatedAt = now.Add(-time.Minute)
+	assert.True(t, AttendanceUnchangedSinceCompletion(base, []*scheduleModel.InstanceStudent{unchanged}))
+	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
+		Status:             scheduleModel.InstanceStatusCompleted,
+		CompletedBy:        &completedBy,
+		ReopenUntil:        &until,
+		CompletionSnapshot: nil,
+	}, 42, true, now))
+	assert.False(t, CanReopenInstance(&scheduleModel.ActivityInstance{
+		Status:      scheduleModel.InstanceStatusActive,
+		CompletedBy: &completedBy,
+		ReopenUntil: &until,
+	}, 42, true, now))
+}
+
+type studentReadScopeStub struct {
+	usersModel.StudentRepository
+	byID map[int64]*usersModel.Student
+}
+
+func (s studentReadScopeStub) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*usersModel.Student, error) {
+	out := make(map[int64]*usersModel.Student, len(ids))
+	for _, id := range ids {
+		if student, ok := s.byID[id]; ok {
+			out[id] = student
+		}
+	}
+	return out, nil
+}
+
+func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	eduGroupID := int64(70)
+	student := &usersModel.Student{GroupID: &eduGroupID}
+	student.ID = 42
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		Broadcaster: broadcaster,
+		StudentRepo: studentReadScopeStub{byID: map[int64]*usersModel.Student{42: student}},
+	}}
+
+	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, []int64{42})
+
+	groupEvents := broadcaster.EventsOfType(realtime.EventBulkStudentCheckIn)
+	require.Len(t, groupEvents, 2)
+	assert.Equal(t, "99", groupEvents[0].ActiveGroupID)
+	require.NotNil(t, groupEvents[0].Data.StudentIDs)
+	assert.Equal(t, []string{"42"}, *groupEvents[0].Data.StudentIDs)
+	require.NotNil(t, groupEvents[0].Data.GroupIDs)
+	assert.Equal(t, []string{"70"}, *groupEvents[0].Data.GroupIDs)
+
+	eduCalls := broadcaster.GroupCallsForTopic("edu:70")
+	require.Len(t, eduCalls, 1)
+	assert.Equal(t, realtime.EventBulkStudentCheckIn, eduCalls[0].Event.Type)
+	require.NotNil(t, eduCalls[0].Event.Data.StudentIDs)
+	assert.Equal(t, []string{"42"}, *eduCalls[0].Event.Data.StudentIDs)
+
+	dash := broadcaster.EventsOfType(realtime.EventDashboardCountsChanged)
+	require.Len(t, dash, 1)
+	require.NotNil(t, dash[0].Data.GroupIDs)
+	assert.Equal(t, []string{"70"}, *dash[0].Data.GroupIDs)
+	assert.Empty(t, broadcaster.EventsOfType(realtime.EventStudentCheckIn))
+}
+
+type reopenVisitStub struct {
+	activeModel.VisitRepository
+	byGroup map[int64][]*activeModel.Visit
+	current map[int64]*activeModel.Visit
+	findErr error
+}
+
+func (r *reopenVisitStub) FindByActiveGroupID(_ context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	return r.byGroup[activeGroupID], nil
+}
+
+func (r *reopenVisitStub) GetCurrentByStudentID(_ context.Context, studentID int64) (*activeModel.Visit, error) {
+	return r.current[studentID], nil
+}
+
+type reopenStudentLockStub struct {
+	usersModel.StudentRepository
+	locked []int64
+}
+
+func (s *reopenStudentLockStub) FindByIDForUpdate(_ context.Context, id int64) (*usersModel.Student, error) {
+	s.locked = append(s.locked, id)
+	student := &usersModel.Student{}
+	student.ID = id
+	return student, nil
+}
+
+func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
+	visitA := &activeModel.Visit{StudentID: 52}
+	visitA.ID = 20
+	visitB := &activeModel.Visit{StudentID: 41}
+	visitB.ID = 21
+	visitDup := &activeModel.Visit{StudentID: 52}
+	visitDup.ID = 22
+	students := &reopenStudentLockStub{}
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		VisitRepo: &reopenVisitStub{byGroup: map[int64][]*activeModel.Visit{
+			90: {visitA, visitB, visitDup},
+		}},
+		StudentRepo: students,
+	}}
+
+	got, err := svc.lockReopenSnapshotStudents(context.Background(), scheduleModel.ActivityCompletionSnapshot{
+		ActiveGroupID: 90,
+		VisitIDs:      []int64{22, 20, 21},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{41, 52}, got)
+	assert.Equal(t, []int64{41, 52}, students.locked)
+}
+
+func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
+	visit := &activeModel.Visit{StudentID: 52}
+	visit.ID = 20
+	current := &activeModel.Visit{StudentID: 52}
+	current.ID = 99
+	svc := &instanceService{deps: InstanceServiceDependencies{
+		VisitRepo: &reopenVisitStub{
+			byGroup: map[int64][]*activeModel.Visit{90: {visit}},
+			current: map[int64]*activeModel.Visit{52: current},
+		},
+		StudentRepo: &reopenStudentLockStub{},
+	}}
+
+	_, err := svc.lockReopenSnapshotStudents(context.Background(), scheduleModel.ActivityCompletionSnapshot{
+		ActiveGroupID: 90,
+		VisitIDs:      []int64{20},
+	})
+	require.ErrorIs(t, err, ErrTimetableOperationConflict)
+}
+
+func TestLockReopenSnapshotStudents_EmptySnapshot(t *testing.T) {
+	svc := &instanceService{}
+	got, err := svc.lockReopenSnapshotStudents(context.Background(), scheduleModel.ActivityCompletionSnapshot{})
+	require.NoError(t, err)
+	assert.Nil(t, got)
+}
+
+func TestBroadcastRestoredVisits_SkipsEmptyRestore(t *testing.T) {
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
+	svc.broadcastRestoredVisits(tenant.WithTenantID(context.Background(), 1), 99, nil)
+	assert.Empty(t, broadcaster.Calls())
+}
 
 func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
 	saturday := timezone.NewDate(2026, time.May, 9)

@@ -6,8 +6,16 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"time"
 )
+
+// FamilyFingerprint returns a stable, non-reversible identifier suitable for
+// correlating revocation audit rows without persisting the session family ID.
+func FamilyFingerprint(familyID string) string {
+	sum := sha256.Sum256([]byte(familyID))
+	return hex.EncodeToString(sum[:])
+}
 
 const (
 	// RecoveryProofHeader carries an independent, high-entropy secret that is

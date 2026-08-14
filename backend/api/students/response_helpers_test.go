@@ -63,6 +63,15 @@ func TestResponsePickupStatus_UsesDerivedStatusForCanonicalStoredText(t *testing
 
 	assert.Equal(t, users.PickupStatusGoesAlone, resp.PickupStatus)
 	assert.False(t, resp.PickupDays.HasAny())
+	assert.True(t, resp.DepartureRuleConfigured)
+}
+
+func TestPopulatePublicStudentFields_LeavesMissingDepartureRuleUnconfigured(t *testing.T) {
+	resp := StudentResponse{}
+
+	populatePublicStudentFields(&resp, &users.Student{})
+
+	assert.False(t, resp.DepartureRuleConfigured)
 }
 
 // TestPopulatePublicStudentFields_BusAndAccompaniedSameDayKeepsAccompanied is
@@ -105,6 +114,7 @@ func TestPopulateSnapshotPublicFields_BusAndAccompaniedSameDayKeepsAccompanied(t
 	assert.Equal(t, users.PickupStatusAccompanied, resp.PickupStatus,
 		"bus+accompanied on the same day must not be bucketed as a self-goer")
 	assert.True(t, resp.BusDays[users.PickupDayTuesday], "the bus signal must still surface")
+	assert.True(t, resp.DepartureRuleConfigured)
 }
 
 func TestPopulateStudentAddressFields(t *testing.T) {

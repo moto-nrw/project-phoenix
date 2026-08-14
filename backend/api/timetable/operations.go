@@ -3,6 +3,7 @@ package timetable
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -148,6 +150,17 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 			Warnings:      result.Warnings,
 		}, nil
 	}, "Timetable instance started")
+}
+
+func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
+	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
+		claims := jwt.ClaimsFromCtx(r.Context())
+		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), authorize.HasEffectiveAdminScope(r.Context()), instanceID)
+		if err != nil {
+			return nil, err
+		}
+		return startOperationResponse{InstanceID: result.Instance.ID, Status: result.Instance.Status, ActiveGroupID: result.ActiveGroupID, Warnings: result.Warnings}, nil
+	}, "Timetable instance reopened")
 }
 
 func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r *http.Request) {
@@ -405,6 +418,14 @@ func (rs *Resource) webSpontaneousActivitiesEnabled(r *http.Request) bool {
 }
 
 func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ConfirmedPresentStudentIDs []int64 `json:"confirmed_present_student_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("confirmed_present_student_ids is required")))
+		return
+	}
+	r = r.WithContext(scheduleSvc.WithCompletionConfirmation(r.Context(), body.ConfirmedPresentStudentIDs))
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		claims := jwt.ClaimsFromCtx(r.Context())
 		return rs.OperationsService.Complete(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
@@ -553,11 +574,16 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrTimetableOperationConflict), errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
+	case errors.Is(err, scheduleSvc.ErrTimetableOperationConflict), errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition),
+		errors.Is(err, scheduleSvc.ErrInstanceStartTooEarly), errors.Is(err, scheduleSvc.ErrInstanceStartExpired),
+		errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly):
 		common.RenderError(w, r, common.ErrorConflict(err))
+	case errors.Is(err, scheduleSvc.ErrCompletionConfirmationStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
 	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict):
+	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict),
+		errors.Is(err, activeSvc.ErrRoomCapacityExceeded):
 		common.RenderError(w, r, common.ErrorConflict(err))
 	case errors.Is(err, activeSvc.ErrStudentNotFound), errors.Is(err, activeSvc.ErrVisitNotFound),
 		// A graduated (alumnus) student left on a roster is treated like an

@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import { Camera } from "lucide-react";
+import { Camera, Pencil } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
@@ -169,106 +169,123 @@ function ProfileContent() {
               }}
               className="hidden"
             />
-          </div>
-          <button
-            type="button"
-            onClick={() => document.getElementById("avatar-upload")?.click()}
-            className="mt-3 text-xs font-medium text-gray-500 transition-colors hover:text-gray-900"
-          >
-            Profilbild ändern
-          </button>
-        </div>
-
-        {/* Profile Form */}
-        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-          <div className="space-y-4">
-            <Input
-              label="Vorname"
-              name="profile-firstname"
-              type="text"
-              value={formData.firstName}
-              onChange={(e) =>
-                setFormData({ ...formData, firstName: e.target.value })
-              }
-              disabled={!isEditing}
-              maxLength={255}
-            />
-            <Input
-              label="Nachname"
-              name="profile-lastname"
-              type="text"
-              value={formData.lastName}
-              onChange={(e) =>
-                setFormData({ ...formData, lastName: e.target.value })
-              }
-              disabled={!isEditing}
-              maxLength={255}
-            />
-            <Input
-              label="E-Mail"
-              name="profile-email"
-              type="email"
-              value={formData.email}
-              disabled
-              maxLength={255}
-            />
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-3">
-          {isEditing ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setIsEditing(false);
-                  resetFormFromProfile();
-                }}
-              >
-                Abbrechen
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                isLoading={isSaving}
-                loadingText="Speichern..."
-                onClick={() => void handleSaveProfile()}
-              >
-                Speichern
-              </Button>
-            </>
-          ) : (
-            <Button
+            <button
               type="button"
-              variant="primary"
-              size="sm"
-              onClick={() => setIsEditing(true)}
+              aria-label="Profilbild ändern"
+              onClick={() => document.getElementById("avatar-upload")?.click()}
+              className="absolute -right-1 -bottom-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
             >
-              Bearbeiten
-            </Button>
+              <Camera className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Profile Data */}
+        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-gray-900">
+              Persönliche Daten
+            </h3>
+            {!isEditing && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => setIsEditing(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Bearbeiten
+              </Button>
+            )}
+          </div>
+          {isEditing ? (
+            <div className="space-y-4">
+              <Input
+                label="Vorname"
+                name="profile-firstname"
+                type="text"
+                value={formData.firstName}
+                onChange={(e) =>
+                  setFormData({ ...formData, firstName: e.target.value })
+                }
+                maxLength={255}
+              />
+              <Input
+                label="Nachname"
+                name="profile-lastname"
+                type="text"
+                value={formData.lastName}
+                onChange={(e) =>
+                  setFormData({ ...formData, lastName: e.target.value })
+                }
+                maxLength={255}
+              />
+              <div>
+                <span className="text-xs font-medium text-gray-500">
+                  E-Mail
+                </span>
+                <p className="text-sm font-medium text-gray-900">
+                  {formData.email}
+                </p>
+              </div>
+              <div className="flex justify-end gap-3 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => {
+                    setIsEditing(false);
+                    resetFormFromProfile();
+                  }}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  isLoading={isSaving}
+                  loadingText="Speichern..."
+                  onClick={() => void handleSaveProfile()}
+                >
+                  Speichern
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <dl className="space-y-3">
+              <div>
+                <dt className="text-xs font-medium text-gray-500">Vorname</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  {formData.firstName || "–"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-gray-500">Nachname</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  {formData.lastName || "–"}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-gray-500">E-Mail</dt>
+                <dd className="text-sm font-medium text-gray-900">
+                  {formData.email || "–"}
+                </dd>
+              </div>
+            </dl>
           )}
         </div>
 
         {/* Security Section */}
-        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
-          <h3 className="mb-3 text-base font-semibold text-gray-900">
-            Passwort ändern
-          </h3>
-          <p className="mb-4 text-sm text-gray-600">
-            Aktualisieren Sie Ihr Passwort regelmäßig für zusätzliche
-            Sicherheit.
-          </p>
+        <div className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 backdrop-blur-sm md:p-6">
+          <h3 className="text-base font-semibold text-gray-900">Passwort</h3>
           <Button
             type="button"
-            variant="primary"
-            size="sm"
+            variant="outline"
+            size="md"
             onClick={() => setShowPasswordModal(true)}
           >
-            Passwort ändern
+            Ändern
           </Button>
         </div>
 

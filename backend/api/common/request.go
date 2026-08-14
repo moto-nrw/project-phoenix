@@ -14,21 +14,37 @@ const DefaultPage = 1
 // DefaultPageSize is the default page size for pagination
 const DefaultPageSize = 50
 
+// MaxPage and MaxPageSize bound the accepted pagination window. Every consumer
+// turns the pair into an offset via (page-1)*pageSize — in SQL as `OFFSET`, in
+// the in-memory paths as a slice index. Unbounded values overflow that product
+// on the way there (`?page=9223372036854775807&page_size=2` wraps to a negative
+// number), which is a negative OFFSET Postgres rejects and a negative slice
+// index that panics (#2218 review). Capping here fixes every caller at once
+// instead of asking each one to re-derive the bound. Both limits sit far above
+// any real request — 100.000 pages of 10.000 rows outrun every list this API
+// serves, so a legitimate caller never meets the ceiling — and their product
+// still fits a 32-bit int, so the arithmetic downstream holds on every build.
+const (
+	MaxPage     = 100_000
+	MaxPageSize = 10_000
+)
+
 // ParsePagination extracts page and page_size from query parameters.
-// Returns default values (page=1, pageSize=50) if not provided or invalid.
+// Returns default values (page=1, pageSize=50) if not provided or invalid, and
+// clamps out-of-range values to MaxPage / MaxPageSize.
 func ParsePagination(r *http.Request) (page int, pageSize int) {
 	page = DefaultPage
 	pageSize = DefaultPageSize
 
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
+			page = min(p, MaxPage)
 		}
 	}
 
 	if pageSizeStr := r.URL.Query().Get("page_size"); pageSizeStr != "" {
 		if ps, err := strconv.Atoi(pageSizeStr); err == nil && ps > 0 {
-			pageSize = ps
+			pageSize = min(ps, MaxPageSize)
 		}
 	}
 

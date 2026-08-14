@@ -114,6 +114,7 @@ type AuthService interface {
 	CleanupExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error
+	RevokeAllTokensWithReason(ctx context.Context, accountID int, reason string) error
 	RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error)
 	GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error)
 
