@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Account Management Extensions
@@ -20,12 +22,41 @@ func (s *Service) ActivateAccount(ctx context.Context, accountID int) error {
 		return &AuthError{Op: "activate account", Err: err}
 	}
 
+	s.clearPendingAccountWideWipes(ctx, int64(accountID))
 	return nil
+}
+
+func (s *Service) clearPendingAccountWideWipes(ctx context.Context, accountID int64) {
+	run := func() {
+		if err := s.markPendingWipeCompletedIndependently(ctx, accountID); err != nil {
+			s.getLogger().Warn("failed to clear pending account-wide wipe after reactivation",
+				"account_id", accountID,
+				"error", err,
+			)
+		}
+	}
+	if tenant.HasAfterCommitHooks(ctx) {
+		tenant.RegisterAfterCommit(ctx, run)
+		return
+	}
+	if hasAmbientTx(ctx) && !tenant.IsAdminTx(ctx) {
+		return
+	}
+	run()
+}
+
+func (s *Service) markPendingWipeCompletedIndependently(ctx context.Context, accountID int64) error {
+	if tenant.IsAdminTx(ctx) || s.db == nil {
+		return s.markAccountWideWipeCompleted(ctx, accountID)
+	}
+	return tenant.WithAdminTx(s.independentCleanupCtx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		return s.markAccountWideWipeCompleted(adminCtx, accountID)
+	})
 }
 
 // DeactivateAccount deactivates a user account
 func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		account, err := s.repos.Account.FindByID(txCtx, int64(accountID))
 		if err != nil {
 			return &AuthError{Op: "deactivate account", Err: ErrAccountNotFound}
@@ -34,11 +65,15 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 		if err := s.repos.Account.Update(txCtx, account); err != nil {
 			return &AuthError{Op: "deactivate account", Err: err}
 		}
-		if _, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "account_deactivated", "", ""); err != nil {
-			return &AuthError{Op: "revoke tokens during account deactivation", Err: err}
-		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if revokeErr := s.scheduleAccountWideRevoke(ctx, int64(accountID), "account_deactivated", "", ""); revokeErr != nil {
+		return &AuthError{Op: "revoke tokens during account deactivation", Err: revokeErr}
+	}
+	return nil
 }
 
 // UpdateAccount updates account information

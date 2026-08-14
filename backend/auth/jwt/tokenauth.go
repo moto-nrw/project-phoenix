@@ -172,6 +172,9 @@ func ParseStructToMap(c any) (map[string]any, error) {
 		if appClaims.OrgID != 0 {
 			claims["org_id"] = appClaims.OrgID
 		}
+		if appClaims.FamilyID != "" {
+			claims["family_id"] = appClaims.FamilyID
+		}
 
 		// Set common claims manually to ensure they're included
 		claims["exp"] = appClaims.ExpiresAt

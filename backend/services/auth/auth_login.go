@@ -148,79 +148,20 @@ func (s *Service) LoginWithMFAGate(
 		account.Roles[i] = &auth.Role{Name: name}
 	}
 
-	// Branch 1: no MFA service wired or MFA not required for this account.
-	// On infra errors (settings DB blip etc.) IsRequired now returns
-	// ErrMFAStatusUnavailable so we refuse THIS login with 503 instead of
-	// silently dropping to "not required" — that would let an attacker who
-	// can DoS the settings table bypass MFA entirely.
-	mfaRequired := false
-	if s.mfaService != nil {
-		mfaRequired, err = s.mfaService.IsRequired(ctx, account, metadata.tenantID)
-		if err != nil {
-			return nil, &AuthError{Op: "check mfa required", Err: ErrMFAStatusUnavailable}
-		}
-	}
-
-	// Branch 2: account has no MFA enrollment yet. Two cases:
-	// - MFA not required: status quo (enrolment optional)
-	// - MFA required: issue a NARROW enrollment-scoped JWT that only the
-	//   /auth/mfa/enroll/* surface accepts. The previous design returned a
-	//   full session token plus an MFAEnrollmentRequired flag, but the flag
-	//   was advisory only — middleware did not enforce it, so a direct
-	//   API client (curl) got a fully privileged token pair before ever
-	//   setting up a second factor. The enrollment token closes that gap.
-	//
-	// HasEnrollment distinguishes sql.ErrNoRows (legitimate not-enrolled)
-	// from infra errors. On infra errors we refuse this login the same way
-	// as the IsRequired branch above — otherwise an attacker who DoSes the
-	// credentials table could log a victim in without ever facing MFA.
-	enrolled := false
-	if s.mfaService != nil {
-		enrolled, err = s.mfaService.HasEnrollment(ctx, account.ID)
-		if err != nil {
-			return nil, &AuthError{Op: "check mfa enrollment", Err: ErrMFAStatusUnavailable}
-		}
+	mfaRequired, enrolled, err := s.resolveTenantMFAGate(ctx, account, metadata.tenantID)
+	if err != nil {
+		return nil, err
 	}
 
 	if mfaRequired && !enrolled {
-		enrollmentToken, err := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
-			AccountID: account.ID,
-			Scope:     jwt.MFAEnrollmentScopeTenant,
-			TenantID:  metadata.tenantID,
-		}, MFAEnrollmentTokenTTL)
-		if err != nil {
-			return nil, &AuthError{Op: "issue mfa enrollment token", Err: err}
-		}
-		return &LoginResult{
-			Status:                LoginStatusMFAEnrollmentRequired,
-			AccessToken:           enrollmentToken,
-			MaskedEmail:           MaskEmailForUX(account.Email),
-			MFAEnrollmentRequired: true,
-		}, nil
-	}
-
-	// Branch 3: trusted-device cookie short-circuits MFA when verifiable.
-	trustedDeviceVerified := false
-	if mfaRequired && enrolled && trustedDeviceCookie != "" && s.mfaService != nil {
-		ok, _ := s.mfaService.VerifyTrustedDevice(ctx, account.ID, metadata.tenantID, trustedDeviceCookie)
-		trustedDeviceVerified = ok
+		return s.tenantMFAEnrollmentResult(account, metadata.tenantID)
 	}
 
 	// Decision: issue challenge ⇔ MFA required AND user is enrolled AND
 	// no valid trusted-device cookie. Anything else falls through to the
 	// existing token-pair pipeline.
-	if mfaRequired && enrolled && !trustedDeviceVerified {
-		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, metadata.tenantID, jwt.MFAChallengeScopeTenant, ParseClientIP(ipAddress))
-		if chErr != nil {
-			return nil, &AuthError{Op: "start mfa challenge", Err: chErr}
-		}
-		return &LoginResult{
-			Status:               LoginStatusMFARequired,
-			ChallengeToken:       challenge,
-			MaskedEmail:          MaskEmailForUX(account.Email),
-			TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, metadata.tenantID),
-			TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, metadata.tenantID),
-		}, nil
+	if mfaRequired && enrolled && !s.tenantTrustedDeviceVerified(ctx, account.ID, metadata.tenantID, trustedDeviceCookie) {
+		return s.tenantMFAChallengeResult(ctx, account, metadata.tenantID, ipAddress)
 	}
 
 	// Token-pair issuance (regular login or MFA-skipped via trusted device).
@@ -238,6 +179,70 @@ func (s *Service) LoginWithMFAGate(
 		Status:       LoginStatusAuthenticated,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+	}, nil
+}
+
+// resolveTenantMFAGate is the fail-closed MFA inquiry for tenant login.
+// A missing MFA service is "not required / not enrolled". Infra errors from
+// IsRequired or HasEnrollment refuse this login instead of dropping the
+// second factor.
+func (s *Service) resolveTenantMFAGate(ctx context.Context, account *auth.Account, tenantID int64) (required, enrolled bool, err error) {
+	if s.mfaService == nil {
+		return false, false, nil
+	}
+	required, err = s.mfaService.IsRequired(ctx, account, tenantID)
+	if err != nil {
+		return false, false, &AuthError{Op: "check mfa required", Err: ErrMFAStatusUnavailable}
+	}
+	enrolled, err = s.mfaService.HasEnrollment(ctx, account.ID)
+	if err != nil {
+		return false, false, &AuthError{Op: "check mfa enrollment", Err: ErrMFAStatusUnavailable}
+	}
+	return required, enrolled, nil
+}
+
+// tenantMFAEnrollmentResult issues a tenant-scope enrollment JWT that only
+// the /auth/mfa/enroll/* surface accepts. The previous design returned a full
+// session token plus an advisory MFAEnrollmentRequired flag that middleware
+// did not enforce.
+func (s *Service) tenantMFAEnrollmentResult(account *auth.Account, tenantID int64) (*LoginResult, error) {
+	enrollmentToken, err := s.tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+		AccountID: account.ID,
+		Scope:     jwt.MFAEnrollmentScopeTenant,
+		TenantID:  tenantID,
+	}, MFAEnrollmentTokenTTL)
+	if err != nil {
+		return nil, &AuthError{Op: "issue mfa enrollment token", Err: err}
+	}
+	return &LoginResult{
+		Status:                LoginStatusMFAEnrollmentRequired,
+		AccessToken:           enrollmentToken,
+		MaskedEmail:           MaskEmailForUX(account.Email),
+		MFAEnrollmentRequired: true,
+	}, nil
+}
+
+func (s *Service) tenantTrustedDeviceVerified(ctx context.Context, accountID, tenantID int64, cookie string) bool {
+	if cookie == "" || s.mfaService == nil {
+		return false
+	}
+	ok, _ := s.mfaService.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)
+	return ok
+}
+
+// tenantMFAChallengeResult is the "MFA required, factor enrolled" response:
+// an email code plus a tenant-scope challenge token.
+func (s *Service) tenantMFAChallengeResult(ctx context.Context, account *auth.Account, tenantID int64, ipAddress string) (*LoginResult, error) {
+	challenge, err := s.mfaService.StartChallenge(ctx, account.ID, tenantID, jwt.MFAChallengeScopeTenant, ParseClientIP(ipAddress))
+	if err != nil {
+		return nil, &AuthError{Op: "start mfa challenge", Err: err}
+	}
+	return &LoginResult{
+		Status:               LoginStatusMFARequired,
+		ChallengeToken:       challenge,
+		MaskedEmail:          MaskEmailForUX(account.Email),
+		TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, tenantID),
+		TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, tenantID),
 	}, nil
 }
 
@@ -444,11 +449,9 @@ func (s *Service) newRefreshToken(accountID int64, scope string) *auth.Token {
 // guard (optional) re-validates the caller's authorization inside this
 // transaction, before anything is written — see mintGuard.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64, guard mintGuard) error {
-	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		if guard != nil {
-			if err := guard(ctx, account); err != nil {
-				return &mintGuardError{err: err}
-			}
+	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		if err := s.applyMintGuard(ctx, account, guard); err != nil {
+			return err
 		}
 
 		// Updating the account first acquires its row lock for the rest of this
@@ -479,18 +482,41 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 			)
 		}
 
-		// Enforce the cap after insertion so at most five active sessions remain.
-		const maxTokensPerAccount = 5
-		deleted, err := s.repos.Token.CleanupOldTokensForAccountReturning(ctx, account.ID, maxTokensPerAccount)
+		deleted, err := s.enforcePortalSessionCap(ctx, account.ID, token.PortalScope)
 		if err != nil {
-			return fmt.Errorf("enforce active session cap: %w", err)
-		}
-		if err := s.auditRevokedTokens(ctx, deleted, "session_cap", "", ""); err != nil {
 			return err
 		}
-
+		s.queuePushCleanup(ctx, account.ID, deleted, "session_cap")
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) applyMintGuard(ctx context.Context, account *auth.Account, guard mintGuard) error {
+	if guard == nil {
+		return nil
+	}
+	if err := guard(ctx, account); err != nil {
+		return &mintGuardError{err: err}
+	}
+	return nil
+}
+
+// enforcePortalSessionCap keeps at most five active sessions in this portal.
+// Other portals keep their own sessions.
+func (s *Service) enforcePortalSessionCap(ctx context.Context, accountID int64, portalScope string) ([]*auth.Token, error) {
+	const maxActiveSessionsPerPortal = 5
+	deleted, err := s.repos.Token.CleanupOldTokensForAccountReturning(ctx, accountID, portalScope, maxActiveSessionsPerPortal)
+	if err != nil {
+		return nil, fmt.Errorf("enforce active session cap: %w", err)
+	}
+	if err := s.auditRevokedTokens(ctx, deleted, "session_cap", "", ""); err != nil {
+		return nil, err
+	}
+	return deleted, nil
 }
 
 // isTokenFamilyConflict checks if error is due to token family conflict
@@ -798,13 +824,7 @@ func (s *Service) loadPersonNamesFromMappedTenants(ctx context.Context, accountI
 		return "", "", fmt.Errorf("list active tenants of account %d for person lookup: %w", accountID, err)
 	}
 
-	tenantIDs := make([]int64, 0, len(mappings))
-	for _, mapping := range mappings {
-		if mapping.TenantID != excludeTenantID && mapping.TenantID > 0 {
-			tenantIDs = append(tenantIDs, mapping.TenantID)
-		}
-	}
-	slices.Sort(tenantIDs)
+	tenantIDs := mappedTenantIDsExcluding(mappings, excludeTenantID)
 
 	var firstName, lastName string
 	for _, mappedTenantID := range tenantIDs {
@@ -828,6 +848,17 @@ func (s *Service) loadPersonNamesFromMappedTenants(ctx context.Context, accountI
 		}
 	}
 	return firstName, lastName, nil
+}
+
+func mappedTenantIDsExcluding(mappings []auth.AccountTenant, excludeTenantID int64) []int64 {
+	tenantIDs := make([]int64, 0, len(mappings))
+	for _, mapping := range mappings {
+		if mapping.TenantID != excludeTenantID && mapping.TenantID > 0 {
+			tenantIDs = append(tenantIDs, mapping.TenantID)
+		}
+	}
+	slices.Sort(tenantIDs)
+	return tenantIDs
 }
 
 // checkRoleFlags determines if account has admin role
@@ -1011,6 +1042,7 @@ func (s *Service) buildJWTClaims(
 		Scope:       metadata.scope,
 		TenantID:    metadata.tenantID,
 		OrgID:       metadata.orgID,
+		FamilyID:    token.FamilyID,
 	}
 
 	refreshClaims := jwt.RefreshClaims{
@@ -1469,6 +1501,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	var newToken *auth.Token
 	var recovered bool
 	var rejectAfterCommit error
+	var revokedForPush *auth.Token
 
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		var err error
@@ -1522,6 +1555,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			if err := s.deleteFamilyWithAudit(ctx, dbToken, "claim_mismatch", ipAddress, userAgent); err != nil {
 				return fmt.Errorf("revoke mismatched refresh-token family: %w", err)
 			}
+			revokedForPush = dbToken
 			rejectAfterCommit = ErrInvalidToken
 			s.logRefreshDecision("refresh_session_rejected", "claim_mismatch", refreshClaims.ID, refreshClaims.TenantID)
 			return nil
@@ -1531,6 +1565,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			if err := s.deleteFamilyWithAudit(ctx, dbToken, "token_expired", ipAddress, userAgent); err != nil {
 				return fmt.Errorf("delete expired refresh-token family: %w", err)
 			}
+			revokedForPush = dbToken
 			rejectAfterCommit = ErrTokenExpired
 			s.logRefreshDecision("refresh_session_rejected", "token_expired", refreshClaims.ID, refreshClaims.TenantID)
 			return nil
@@ -1542,6 +1577,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 				if revokeErr := s.deleteFamilyWithAudit(ctx, dbToken, "replay_detected", ipAddress, userAgent); revokeErr != nil {
 					return fmt.Errorf("revoke replayed refresh-token family: %w", revokeErr)
 				}
+				revokedForPush = dbToken
 				rejectAfterCommit = ErrInvalidToken
 				s.logRefreshDecision("refresh_session_rejected", "replay_detected", refreshClaims.ID, refreshClaims.TenantID)
 				return nil
@@ -1557,6 +1593,7 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 				if revokeErr := s.deleteFamilyWithAudit(ctx, dbToken, "lineage_mismatch", ipAddress, userAgent); revokeErr != nil {
 					return fmt.Errorf("revoke inconsistent refresh-token family: %w", revokeErr)
 				}
+				revokedForPush = dbToken
 				rejectAfterCommit = ErrInvalidToken
 				s.logRefreshDecision("refresh_session_rejected", "lineage_mismatch", refreshClaims.ID, refreshClaims.TenantID)
 				return nil
@@ -1592,6 +1629,9 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 
 	if err != nil {
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
+	}
+	if revokedForPush != nil {
+		s.queuePushCleanup(ctx, revokedForPush.AccountID, []*auth.Token{revokedForPush}, "family")
 	}
 	if rejectAfterCommit != nil {
 		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: rejectAfterCommit}
@@ -1983,7 +2023,8 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 	return nil
 }
 
-// LogoutWithAudit invalidates a refresh token with audit logging.
+// LogoutWithAudit invalidates the presented refresh-token family with audit
+// logging. Other devices and other portals keep their sessions.
 //
 // Uses WithAdminTx (BYPASSRLS) because logout is a pre-deauthentication flow.
 // auth.tokens has RLS enabled — without setting app.current_tenant_id, the
@@ -2006,10 +2047,8 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 		return &AuthError{Op: "parse refresh claims", Err: ErrInvalidToken}
 	}
 
-	var accountID int64
 	// Use WithAdminTx to bypass RLS on auth.tokens (same pattern as refreshTokenInTransaction).
-	// Token revocation commits independently so a later push-cleanup failure
-	// cannot leave the authenticated session valid.
+	var revoked *auth.Token
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Get token from database to find the account ID
 		dbToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
@@ -2017,17 +2056,13 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			// Token not found, consider logout successful
 			return nil
 		}
-		accountID = dbToken.AccountID
 
-		// Delete ALL tokens for this account to ensure complete logout
-		// This ensures that all sessions (access and refresh tokens) are invalidated
-		_, err = s.deleteAccountTokensWithAudit(ctx, dbToken.AccountID, "logout", ipAddress, userAgent)
-		if err != nil {
-			s.getLogger().Warn("failed to delete all tokens during logout",
+		if err := s.deleteFamilyWithAudit(ctx, dbToken, "logout", ipAddress, userAgent); err != nil {
+			s.getLogger().Warn("failed to delete refresh-token family during logout",
 				slog.Int64("account_id", dbToken.AccountID),
 				slog.Any("error", err),
 			)
-			return &AuthError{Op: "delete tokens with audit", Err: err}
+			return &AuthError{Op: "delete token family with audit", Err: err}
 		}
 
 		// Log successful logout against the school the session actually
@@ -2050,22 +2085,13 @@ func (s *Service) LogoutWithAudit(ctx context.Context, refreshTokenStr, ipAddres
 			s.logAuthEvent(auditCtx, dbToken.AccountID, audit.EventTypeLogout, true, ipAddress, userAgent, "")
 		}
 
+		revoked = dbToken
 		return nil
 	})
-	if err != nil || accountID == 0 {
-		return err
+	if err == nil && revoked != nil {
+		s.queuePushCleanup(ctx, revoked.AccountID, []*auth.Token{revoked}, "family")
 	}
-
-	// Staff subscriptions are tenant-specific, but logout is account-wide.
-	// Remove every staff row server-side so subscriptions registered on other
-	// school subdomains cannot keep receiving notifications.
-	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		return s.repos.PushSubscription.DeleteStaffByAccountID(txCtx, accountID)
-	})
-	if err != nil {
-		return &AuthError{Op: "delete staff push subscriptions", Err: err}
-	}
-	return nil
+	return err
 }
 
 // ChangePassword updates an account's password

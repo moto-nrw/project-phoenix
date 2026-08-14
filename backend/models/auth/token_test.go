@@ -217,3 +217,28 @@ func TestToken_GetUpdatedAt(t *testing.T) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }
+
+func TestCapPortalScopes(t *testing.T) {
+	tests := []struct {
+		in   string
+		want []string
+	}{
+		{PortalScopeTenant, []string{PortalScopeTenant, PortalScopeOrg}},
+		{PortalScopeOrg, []string{PortalScopeTenant, PortalScopeOrg}},
+		{PortalScopeParent, []string{PortalScopeParent}},
+		{PortalScopeSchool, []string{PortalScopeSchool}},
+		{PortalScopeUnknown, []string{PortalScopeUnknown}},
+		{"", []string{PortalScopeUnknown}},
+	}
+	for _, tt := range tests {
+		got := CapPortalScopes(tt.in)
+		if len(got) != len(tt.want) {
+			t.Fatalf("CapPortalScopes(%q) = %v, want %v", tt.in, got, tt.want)
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Fatalf("CapPortalScopes(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		}
+	}
+}

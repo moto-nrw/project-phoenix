@@ -37,6 +37,24 @@ const (
 	PortalScopeUnknown = "unknown"
 )
 
+// CapPortalScopes returns the portal_scope values that share one session cap.
+// Tenant and org share the staff portal. Unknown legacy rows stay in their
+// own bucket so a staff login cannot evict a legacy parent session.
+func CapPortalScopes(portalScope string) []string {
+	switch portalScope {
+	case PortalScopeTenant, PortalScopeOrg:
+		return []string{PortalScopeTenant, PortalScopeOrg}
+	case PortalScopeParent:
+		return []string{PortalScopeParent}
+	case PortalScopeSchool:
+		return []string{PortalScopeSchool}
+	case "", PortalScopeUnknown:
+		return []string{PortalScopeUnknown}
+	default:
+		return []string{portalScope}
+	}
+}
+
 // Validate ensures token data is valid. It performs pure field validation only.
 // The expiry/validity decision is wall-clock policy enforced by the read paths'
 // SQL expiry filters, per issue #586 (Rule 12: models hold data, not

@@ -600,6 +600,19 @@ func TestGetOptionalInt64(t *testing.T) {
 	})
 }
 
+func TestAppClaims_ParseClaims_WithFamilyID(t *testing.T) {
+	claims := map[string]any{
+		"id":        float64(7),
+		"sub":       "user@example.com",
+		"roles":     []any{"user"},
+		"family_id": "family-abc",
+	}
+
+	var c AppClaims
+	require.NoError(t, c.ParseClaims(claims))
+	assert.Equal(t, "family-abc", c.FamilyID)
+}
+
 func TestAppClaims_ParseClaims_WithTenantFields(t *testing.T) {
 	claims := map[string]any{
 		"id":        float64(1),

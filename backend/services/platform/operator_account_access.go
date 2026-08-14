@@ -275,7 +275,7 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 			}
 			removed = append(removed, existing.Name)
 		}
-		if err := s.AuthService.RevokeAllTokensWithReason(adminCtx, int(accountID), "role_changed"); err != nil {
+		if err := s.AuthService.RevokeAllTokensWithReason(tenantCtx, int(accountID), "role_changed"); err != nil {
 			return fmt.Errorf("revoke tokens after role change: %w", err)
 		}
 
@@ -359,7 +359,7 @@ func (s *operatorProvisioningService) RevokeAccountTenantAccess(
 		if _, err := s.AccountPermissionRepo.DeleteByAccountID(tenant.WithTenantID(adminCtx, schoolID), accountID); err != nil {
 			return fmt.Errorf("delete direct account permissions: %w", err)
 		}
-		if err := s.AuthService.RevokeAllTokensWithReason(adminCtx, int(accountID), "tenant_access_revoked"); err != nil {
+		if err := s.AuthService.RevokeAllTokensWithReason(tenant.WithTenantID(adminCtx, schoolID), int(accountID), "tenant_access_revoked"); err != nil {
 			return fmt.Errorf("revoke tokens after access revocation: %w", err)
 		}
 

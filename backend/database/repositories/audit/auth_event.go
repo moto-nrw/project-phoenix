@@ -123,3 +123,56 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 
 	return events, nil
 }
+
+// ListPendingAccountWideWipes returns the newest pending wipe per account.
+// A zero since value lists every still-pending wipe so a failed after-commit
+// revoke is retried for as long as the flag remains.
+func (r *AuthEventRepository) ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]audit.PendingAccountWideWipe, error) {
+	var rows []audit.PendingAccountWideWipe
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ColumnExpr("DISTINCT ON (account_id) account_id").
+		ColumnExpr("COALESCE(metadata->>'reason', '') AS reason").
+		ColumnExpr("created_at").
+		TableExpr("audit.auth_events").
+		Where("event_type = ?", audit.EventTypeTokenRevoked).
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`)
+	if !since.IsZero() {
+		query = query.Where("created_at >= ?", since)
+	}
+	err := query.
+		OrderExpr("account_id ASC, created_at DESC").
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// ClaimPendingAccountWideWipes clears pending wipe flags for the account and
+// returns the rows that were still pending. Zero rows means another writer
+// already claimed or cleared them.
+func (r *AuthEventRepository) ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]audit.PendingAccountWideWipe, error) {
+	var rows []audit.PendingAccountWideWipe
+	err := base.GetDB(ctx, r.db).NewUpdate().
+		TableExpr("audit.auth_events").
+		Set(`metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{pending_account_wide_wipe}', 'false')`).
+		Where("account_id = ?", accountID).
+		Where("event_type = ?", audit.EventTypeTokenRevoked).
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
+		Returning("account_id, COALESCE(metadata->>'reason', '') AS reason, created_at").
+		Scan(ctx, &rows)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return rows, nil
+}
+
+// MarkAccountWideWipeCompleted clears pending wipe flags so a later
+// reactivation is not selected for another account-wide delete.
+func (r *AuthEventRepository) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error {
+	_, err := r.ClaimPendingAccountWideWipes(ctx, accountID)
+	return err
+}

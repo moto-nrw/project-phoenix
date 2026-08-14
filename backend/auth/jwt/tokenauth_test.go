@@ -315,6 +315,19 @@ func TestParseStructToMap_AppClaims(t *testing.T) {
 	assert.Equal(t, int64(1234567800), result["iat"])
 }
 
+func TestParseStructToMap_AppClaimsFamilyID(t *testing.T) {
+	claims := AppClaims{
+		ID:       42,
+		Sub:      "test@test.com",
+		Roles:    []string{"user"},
+		FamilyID: "family-xyz",
+	}
+
+	result, err := ParseStructToMap(claims)
+	require.NoError(t, err)
+	assert.Equal(t, "family-xyz", result["family_id"])
+}
+
 func TestParseStructToMap_RefreshClaims(t *testing.T) {
 	claims := RefreshClaims{
 		ID:    42,

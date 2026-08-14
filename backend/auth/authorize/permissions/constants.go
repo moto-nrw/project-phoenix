@@ -62,7 +62,7 @@ const (
 	// page stay gated on UsersRead alone.
 	//
 	// Admins match via AdminWildcard; other roles are granted explicitly
-	// (migration 1.15.292 grants it to the default `user`/Betreuer role, which
+	// (migration 1.15.295 grants it to the default `user`/Betreuer role, which
 	// already holds users:read).
 	UsersAbsence = ResourceUsers + ":absence"
 )

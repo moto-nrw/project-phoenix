@@ -1437,7 +1437,12 @@ func TestAccountRoleAssignment(t *testing.T) {
 		guardianRole := testpkg.CreateTestRole(t, tc.db, "guardian-assignment")
 		guardianBaseRole := authModel.BaseRoleGuardian
 		guardianRole.BaseRole = &guardianBaseRole
-		_, err := tc.db.NewUpdate().Model(guardianRole).Column("base_role").WherePK().Exec(context.Background())
+		_, err := tc.db.NewUpdate().
+			Model(guardianRole).
+			ModelTableExpr(`auth.roles AS "role"`).
+			Column("base_role").
+			WherePK().
+			Exec(context.Background())
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			testpkg.CleanupActivityFixtures(t, tc.db, account.ID)

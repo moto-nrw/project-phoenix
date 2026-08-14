@@ -169,8 +169,12 @@ type TokenRepository interface {
 	DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
+	ListInactiveAccountIDsWithLiveTokens(ctx context.Context) ([]int64, error)
+	HasLiveTokensCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error)
 	DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
-	CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, keepCount int) ([]*Token, error)
+	DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
+	DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, cutoff time.Time) ([]*Token, error)
+	CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*Token, error)
 
 	// Bulk deletion
 	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)

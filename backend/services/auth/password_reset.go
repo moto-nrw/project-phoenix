@@ -262,14 +262,12 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		if _, err := s.deleteAccountTokensWithAudit(ctx, resetToken.AccountID, "password_reset", "", ""); err != nil {
 			return fmt.Errorf("revoke tokens during password reset: %w", err)
 		}
-
 		return nil
 	})
 
 	if err != nil {
 		return &AuthError{Op: "reset password transaction", Err: err}
 	}
-
 	return nil
 }
 
