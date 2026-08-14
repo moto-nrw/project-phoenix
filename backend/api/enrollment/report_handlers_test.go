@@ -132,14 +132,14 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnGroup])
 	assert.Empty(t, doc.Rows[0].Values[listexport.ColumnCareDays])
 	assert.Equal(t, "14:30 Uhr", doc.Rows[0].Values[listexport.ColumnWeeklyMonday])
-	assert.Equal(t, "Keine Abholzeit", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
+	assert.Equal(t, "Ganztag", doc.Rows[0].Values[listexport.ColumnWeeklyWednesday])
 	assert.Equal(t, "Eva Muster (eva@example.test, 02551 123)", doc.Rows[0].Values[listexport.ColumnGuardianContacts])
 	assert.Empty(t, doc.Rows[1].Values[listexport.ColumnEnrollmentSummary])
 	assert.Equal(t, "—", doc.Rows[1].Values[listexport.ColumnWeeklyMonday])
 	assert.Equal(t, "Stamm Kontakt (02551 456)", doc.Rows[1].Values[listexport.ColumnGuardianContacts])
 }
 
-func TestClassRosterWeeklyCellShowsOnlyPickupTimeForCareDays(t *testing.T) {
+func TestClassRosterWeeklyCellPickupTimeWithOfferingFallback(t *testing.T) {
 	tests := []struct {
 		name string
 		row  enrollmentService.ClassRosterRow
@@ -155,10 +155,36 @@ func TestClassRosterWeeklyCellShowsOnlyPickupTimeForCareDays(t *testing.T) {
 			want: "14:30 Uhr",
 		},
 		{
-			name: "care without pickup time",
+			name: "care without pickup time falls back to offering names",
 			row: enrollmentService.ClassRosterRow{
 				CareDays:       []string{"mon"},
 				OfferingsByDay: map[string][]string{"mon": {"Randstunde"}},
+			},
+			want: "Randstunde",
+		},
+		{
+			name: "care without pickup time joins deduped sorted offerings",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:       []string{"mon"},
+				OfferingsByDay: map[string][]string{"mon": {"Randstunde", "Ganztag", " Randstunde "}},
+			},
+			want: "Ganztag; Randstunde",
+		},
+		{
+			name: "care without pickup time falls back to offering days",
+			row: enrollmentService.ClassRosterRow{
+				CareDays: []string{"mon"},
+				Offerings: []enrollmentService.CareUsageRowOffering{
+					{Name: "Betreuung bis 14:30 Uhr", Days: []string{"mon", "tue"}},
+					{Name: "Randstunde", Days: []string{"thu"}},
+				},
+			},
+			want: "Betreuung bis 14:30 Uhr",
+		},
+		{
+			name: "care without pickup time or offerings",
+			row: enrollmentService.ClassRosterRow{
+				CareDays: []string{"mon"},
 			},
 			want: "Keine Abholzeit",
 		},

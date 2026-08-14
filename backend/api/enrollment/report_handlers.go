@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -678,7 +679,59 @@ func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) str
 	if pickup := strings.TrimSpace(row.PickupByDay[day]); pickup != "" {
 		return pickup + " Uhr"
 	}
+	// Schools without a pickup-time form field encode the care window in the
+	// offering name ("Betreuung bis 14:30 Uhr") — fall back to it instead of
+	// printing "Keine Abholzeit" across the whole roster.
+	if offerings := classRosterDailyOfferings(row, day); len(offerings) > 0 {
+		return strings.Join(offerings, "; ")
+	}
 	return "Keine Abholzeit"
+}
+
+func classRosterDailyOfferings(row enrollmentService.ClassRosterRow, day string) []string {
+	normalizedDay := strings.ToLower(strings.TrimSpace(day))
+	if normalizedDay == "" {
+		return nil
+	}
+	if names := normalizedClassRosterOfferingNames(row.OfferingsByDay[normalizedDay]); len(names) > 0 {
+		return names
+	}
+	if len(row.Offerings) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	names := []string{}
+	for _, offering := range row.Offerings {
+		if !containsReportDay(offering.Days, normalizedDay) {
+			continue
+		}
+		name := strings.TrimSpace(offering.Name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func normalizedClassRosterOfferingNames(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func classRosterGuardianContactsLabel(guardians []enrollmentService.ClassRosterGuardian) string {
