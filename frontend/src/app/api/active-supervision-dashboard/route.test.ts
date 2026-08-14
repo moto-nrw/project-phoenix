@@ -371,7 +371,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockRejectedValueOnce(new Error("Staff error"))
       .mockRejectedValueOnce(new Error("Educational groups error"))
       .mockRejectedValueOnce(new Error("Schulhof status error"))
-      .mockResolvedValueOnce(emptyPlannedNowResponse);
+      .mockResolvedValueOnce(emptyPlannedNowResponse)
+      .mockResolvedValueOnce(emptyActiveSessionsResponse);
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
