@@ -326,6 +326,11 @@ func (s *Service) finishScheduledAccountWideWipe(ctx context.Context, accountID 
 			return nil
 		}
 		if !cutoff.IsZero() {
+			if s.repos.Account != nil && reason != "account_deactivated" {
+				if _, lockErr := s.repos.Account.FindByIDForUpdate(txCtx, accountID); lockErr != nil {
+					return lockErr
+				}
+			}
 			tokens, err = s.repos.Token.DeleteByAccountIDCreatedAtOrBeforeReturning(txCtx, accountID, cutoff)
 			if err != nil {
 				return err

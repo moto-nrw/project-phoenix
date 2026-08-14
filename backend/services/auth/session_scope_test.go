@@ -951,6 +951,45 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 	require.Equal(t, 1, count)
 }
 
+func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("pending-refresh-successor")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	familyID := uniqueTestName("pre-revoke-family")
+	cutoff := time.Now().Add(-time.Minute)
+	_, err = db.NewRaw(`
+		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, generation, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+	`, account.ID, uniqueTestName("pre-revoke-succ"), time.Now().Add(14*24*time.Hour),
+		tenantID, authModels.PortalScopeTenant, familyID, time.Now()).
+		Exec(context.Background())
+	require.NoError(t, err)
+	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "administrative_revoke", cutoff)
+
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > NOW()").
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
 func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

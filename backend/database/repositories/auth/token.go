@@ -215,9 +215,10 @@ func (r *TokenRepository) DeleteAllByAccountIDReturning(ctx context.Context, acc
 	return r.deleteByAccountIDReturning(ctx, accountID, true, time.Time{})
 }
 
-// DeleteByAccountIDCreatedAtOrBeforeReturning deletes the account's tokens
-// created at or before cutoff so a pending wipe cannot take sessions minted
-// after the revoke was recorded.
+// DeleteByAccountIDCreatedAtOrBeforeReturning deletes sessions that already
+// existed at cutoff: tokens created then, later refresh successors of those
+// families, and empty-family legacy rows. New logins after cutoff keep a new
+// family id and are left alone.
 func (r *TokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, cutoff time.Time) ([]*auth.Token, error) {
 	return r.deleteByAccountIDReturning(ctx, accountID, true, cutoff)
 }
@@ -233,7 +234,29 @@ func (r *TokenRepository) deleteByAccountIDReturning(ctx context.Context, accoun
 		query = base.WithTenantFilter(ctx, query, "token")
 	}
 	if !cutoff.IsZero() {
-		query = query.Where(`"token".created_at <= ?`, cutoff)
+		query = query.Where(`(
+			"token".created_at <= ?
+			OR "token".family_id = ?
+			OR "token".family_id IN (
+				SELECT preexisting.family_id
+				FROM auth.tokens AS preexisting
+				WHERE preexisting.account_id = ?
+					AND preexisting.family_id <> ?
+					AND preexisting.created_at <= ?
+			)
+			OR (
+				"token".family_id <> ?
+				AND "token".generation > 0
+				AND NOT EXISTS (
+					SELECT 1
+					FROM auth.tokens AS origin
+					WHERE origin.account_id = "token".account_id
+						AND origin.family_id = "token".family_id
+						AND origin.generation = 0
+						AND origin.created_at > ?
+				)
+			)
+		)`, cutoff, "", accountID, "", cutoff, "", cutoff)
 	}
 	if err := query.Scan(ctx, &deleted); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "delete and return by account ID", Err: err}

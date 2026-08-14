@@ -417,6 +417,43 @@ func TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant(t *testing.T
 	require.Len(t, deleted, 2)
 }
 
+func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cutoffRefreshSuccessor")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	familyID := uuid.Must(uuid.NewV4()).String()
+	newFamilyID := uuid.Must(uuid.NewV4()).String()
+	cutoff := time.Now().Add(-time.Minute)
+	_, err := db.NewRaw(`
+		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, generation, created_at)
+		VALUES
+			(?, ?, ?, 1, ?, ?, 0, ?),
+			(?, ?, ?, 1, ?, ?, 1, ?),
+			(?, ?, ?, 1, ?, ?, 1, ?),
+			(?, ?, ?, 1, ?, ?, 0, ?)
+	`,
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, familyID, cutoff.Add(-time.Minute),
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, familyID, cutoff.Add(time.Minute),
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, uuid.Must(uuid.NewV4()).String(), cutoff.Add(time.Minute),
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, newFamilyID, cutoff.Add(time.Minute),
+	).Exec(ctx)
+	require.NoError(t, err)
+
+	deleted, err := repo.DeleteByAccountIDCreatedAtOrBeforeReturning(ctx, account.ID, cutoff)
+	require.NoError(t, err)
+	require.Len(t, deleted, 3)
+
+	remaining, err := repo.FindByFamilyID(ctx, newFamilyID)
+	require.NoError(t, err)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, 0, remaining[0].Generation)
+}
+
 // ============================================================================
 // Token Family Tests
 // ============================================================================
