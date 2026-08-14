@@ -951,6 +951,76 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 	require.Equal(t, 1, count)
 }
 
+func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("old-pending-wipe")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	tokenCreatedAt := time.Now().Add(-9 * 24 * time.Hour)
+	wipeAt := time.Now().Add(-8 * 24 * time.Hour)
+	_, err = db.NewRaw(`
+		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, account.ID, uniqueTestName("old-pre-revoke"), time.Now().Add(14*24*time.Hour),
+		tenantID, authModels.PortalScopeTenant, uniqueTestName("old-family"), tokenCreatedAt).
+		Exec(context.Background())
+	require.NoError(t, err)
+	insertPendingAccountWideWipe(t, db, account.ID, tenantID, "password_reset", wipeAt)
+
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+
+	count, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > NOW()").
+		Count(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
+func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	service := setupAuthService(t, db)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("unknown-parent-push")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	t.Cleanup(func() {
+		testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.CleanupTestTenant(t, db, tenantID)
+	})
+
+	legacy := &authModels.Token{
+		AccountID:   account.ID,
+		Token:       uniqueTestName("legacy-parent-session"),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: authModels.PortalScopeUnknown,
+	}
+	legacy.SetTenantID(tenantID)
+	_, err = db.NewInsert().Model(legacy).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+	insertParentPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/legacy-parent", "")
+
+	_, err = service.CleanupExpiredTokens(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, countParentPush(t, db, account.ID, "https://fcm.googleapis.com/legacy-parent"))
+}
+
 func insertPendingAccountWideWipe(t *testing.T, db *bun.DB, accountID, tenantID int64, reason string, createdAt time.Time) {
 	t.Helper()
 	_, err := db.NewRaw(`

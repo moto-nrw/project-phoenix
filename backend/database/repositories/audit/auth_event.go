@@ -125,16 +125,21 @@ func (r *AuthEventRepository) List(ctx context.Context, filters map[string]inter
 }
 
 // ListPendingAccountWideWipes returns the newest pending wipe per account.
+// A zero since value lists every still-pending wipe so a failed after-commit
+// revoke is retried for as long as the flag remains.
 func (r *AuthEventRepository) ListPendingAccountWideWipes(ctx context.Context, since time.Time) ([]audit.PendingAccountWideWipe, error) {
 	var rows []audit.PendingAccountWideWipe
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		ColumnExpr("DISTINCT ON (account_id) account_id").
 		ColumnExpr("COALESCE(metadata->>'reason', '') AS reason").
 		ColumnExpr("created_at").
 		TableExpr("audit.auth_events").
 		Where("event_type = ?", audit.EventTypeTokenRevoked).
-		Where("created_at >= ?", since).
-		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`).
+		Where(`metadata @> ?`, `{"pending_account_wide_wipe":true}`)
+	if !since.IsZero() {
+		query = query.Where("created_at >= ?", since)
+	}
+	err := query.
 		OrderExpr("account_id ASC, created_at DESC").
 		Scan(ctx, &rows)
 	if err != nil {

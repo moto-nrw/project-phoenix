@@ -237,16 +237,16 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 				AND "token".rotated_at IS NULL
 				AND "token".expiry > NOW()
 				AND (
-					("push_subscription".portal = ? AND "token".portal_scope = ?)
+					("push_subscription".portal = ? AND "token".portal_scope IN (?, ?, ?))
 					OR (
 						"push_subscription".portal = ?
 						AND "token".tenant_id = "push_subscription".tenant_id
-						AND "token".portal_scope IN (?, ?, ?, ?)
+						AND "token".portal_scope IN (?, ?, ?, ?, ?)
 					)
 				)
-		)`, iot.PushPortalParent, authModels.PortalScopeParent,
+		)`, iot.PushPortalParent, authModels.PortalScopeParent, authModels.PortalScopeUnknown, "",
 			iot.PushPortalStaff, authModels.PortalScopeTenant, authModels.PortalScopeOrg,
-			authModels.PortalScopeSchool, authModels.PortalScopeUnknown).
+			authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "delete orphaned unbound push subscriptions", Err: err}

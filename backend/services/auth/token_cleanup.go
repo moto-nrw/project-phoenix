@@ -61,7 +61,7 @@ func (s *Service) reconcileRevokedSessions(ctx context.Context) error {
 			}
 			return s.repos.PushSubscription.DeleteOrphanedSubscriptions(adminCtx)
 		}
-		pending, err := s.repos.AuthEvent.ListPendingAccountWideWipes(adminCtx, time.Now().Add(-7*24*time.Hour))
+		pending, err := s.repos.AuthEvent.ListPendingAccountWideWipes(adminCtx, time.Time{})
 		if err != nil {
 			return err
 		}
