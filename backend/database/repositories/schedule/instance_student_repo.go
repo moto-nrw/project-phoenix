@@ -242,6 +242,7 @@ func (r *InstanceStudentRepository) FindPresentInOtherActiveInstances(ctx contex
 		Where(`"instance_student".instance_id != ?`, excludeInstanceID).
 		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"instance_student".status = ?`, schedule.AttendanceStatusPresent).
+		Where(`"instance_student".checked_out_at IS NULL`).
 		Where(`"activity_instance".date = ?`, date).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusActive).
 		OrderExpr(`"activity_instance".start_time DESC, "activity_instance".id DESC`)

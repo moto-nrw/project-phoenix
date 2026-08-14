@@ -1400,6 +1400,7 @@ function MeinRaumPageContent() {
       if (isSchulhofTabSelected) {
         setIsSchulhofTabSelected(false);
       }
+      localStorage.setItem("supervision-last-session", target.sessionId);
       void switchToRoom(target.sessionId);
       return;
     }

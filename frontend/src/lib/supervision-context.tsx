@@ -382,14 +382,18 @@ export function SupervisionProvider({
           }
 
           setState((prev) => {
-            // Only update if values actually changed (compare room IDs, not just length)
-            const prevRoomIds = prev.supervisedRooms.map((r) => r.id).join(",");
-            const newRoomIds = newSupervisedRooms.map((r) => r.id).join(",");
+            // Active groups can change while the physical room stays the same.
+            const prevRoomKeys = prev.supervisedRooms
+              .map((r) => `${r.id}:${r.groupId}`)
+              .join(",");
+            const newRoomKeys = newSupervisedRooms
+              .map((r) => `${r.id}:${r.groupId}`)
+              .join(",");
             if (
               prev.isSupervising &&
               prev.supervisedRoomId === newRoomId &&
               prev.supervisedRoomName === newRoomName &&
-              prevRoomIds === newRoomIds &&
+              prevRoomKeys === newRoomKeys &&
               !prev.isLoadingSupervision
             ) {
               return prev;
