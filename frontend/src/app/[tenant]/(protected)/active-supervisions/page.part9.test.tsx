@@ -21,6 +21,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
+  sessionParam: null as string | null,
 }));
 
 // Mock auth-utils with hasRole that reads session roles
@@ -50,8 +51,11 @@ const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
   useSearchParams: () => ({
-    get: (key: string) =>
-      key === "room" ? navigationMockState.roomParam : null,
+    get: (key: string) => {
+      if (key === "room") return navigationMockState.roomParam;
+      if (key === "session") return navigationMockState.sessionParam;
+      return null;
+    },
   }),
   redirect: (url: string) => mockRedirect(url),
 }));
@@ -287,6 +291,7 @@ describe("ID-based selection coverage: first room visit enrichment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -465,6 +470,7 @@ describe("ID-based selection coverage: stale room reset", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -587,7 +593,10 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    navigationMockState.sessionParam = null;
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
 
@@ -1146,7 +1155,10 @@ describe("ID-based selection coverage: localStorage room restore", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    navigationMockState.roomParam = null;
+    navigationMockState.sessionParam = null;
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
 
@@ -1301,6 +1313,56 @@ describe("ID-based selection coverage: localStorage room restore", () => {
       expect(localStorage.getItem("sidebar-last-room")).toBe("r1");
     });
   });
+
+  it("persists a session selected by the URL", async () => {
+    navigationMockState.sessionParam = "room-2";
+    localStorage.setItem("supervision-last-session", "room-1");
+
+    const dashboardData = {
+      supervisedGroups: [
+        {
+          id: "room-1",
+          name: "Raum A",
+          room_id: "r1",
+          room: { id: "r1", name: "Raum A" },
+        },
+        {
+          id: "room-2",
+          name: "Raum B",
+          room_id: "r2",
+          room: { id: "r2", name: "Raum B" },
+        },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "room-1",
+      schulhofStatus: null,
+    };
+    const swrNull = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never;
+    vi.mocked(useSWRAuth)
+      .mockReturnValueOnce({
+        data: dashboardData,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      } as never)
+      .mockReturnValue(swrNull);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(localStorage.getItem("supervision-last-session")).toBe("room-2");
+    });
+  });
 });
 
 describe("ID-based selection coverage: Schulhof skip guard", () => {
@@ -1309,6 +1371,7 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -1450,6 +1513,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -1585,6 +1649,7 @@ describe("ID-based selection coverage: loadRoomVisits 403 handling", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
 

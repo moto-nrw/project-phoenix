@@ -70,6 +70,19 @@ export interface TimetableRosterRow {
    * isCareDayExpected, never against a single value.
    */
   careDayStatus: CareDayStatus;
+  /**
+   * Names the other running instance where this child is currently recorded
+   * present (#2265). Null when no parallel block holds the child as present;
+   * older backends omit the field entirely.
+   */
+  parallelPresentIn?: TimetableParallelPresence | null;
+}
+
+interface TimetableParallelPresence {
+  instanceId: string;
+  title: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface TimetableRosterWarning {
@@ -161,6 +174,12 @@ interface BackendRosterRow {
   visit_entry_time?: string | null;
   warnings?: BackendRosterWarning[];
   care_day_status?: TimetableRosterRow["careDayStatus"];
+  parallel_present_in?: {
+    instance_id: number;
+    title: string;
+    start_time: string;
+    end_time: string;
+  } | null;
 }
 
 interface BackendRosterWarning {
@@ -230,6 +249,14 @@ function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
     checkedOutAt: row.checked_out_at ?? null,
     visitEntryTime: row.visit_entry_time ?? null,
     careDayStatus: row.care_day_status ?? "unknown",
+    parallelPresentIn: row.parallel_present_in
+      ? {
+          instanceId: row.parallel_present_in.instance_id.toString(),
+          title: row.parallel_present_in.title,
+          startTime: row.parallel_present_in.start_time,
+          endTime: row.parallel_present_in.end_time,
+        }
+      : null,
     warnings: (row.warnings ?? []).map((warning) => ({
       kind: warning.kind,
       message: warning.message,

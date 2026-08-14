@@ -834,6 +834,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 
 type fakeOperationsService struct {
 	planned  []scheduleSvc.OperationPlannedInstance
+	sessions []scheduleSvc.OperationActiveSession
 	roster   *scheduleSvc.OperationRoster
 	start    *scheduleSvc.StartInstanceResult
 	complete *schedule.ActivityInstance
@@ -1056,6 +1057,11 @@ func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, i
 	s.lastDate = date
 	s.lastPlannedOptions = opts
 	return s.planned, s.err
+}
+
+func (s *fakeOperationsService) ActiveSessions(_ context.Context, date timezone.Date) ([]scheduleSvc.OperationActiveSession, error) {
+	s.lastDate = date
+	return s.sessions, s.err
 }
 
 func (s *fakeOperationsService) Start(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.StartInstanceResult, error) {

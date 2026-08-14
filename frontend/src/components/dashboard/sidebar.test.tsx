@@ -814,7 +814,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?session=1",
       );
     });
 
@@ -1356,7 +1356,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=20",
+        "/test-tenant/active-supervisions?session=2",
       );
     });
 
@@ -1426,7 +1426,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?session=1",
       );
     });
   });
@@ -1535,7 +1535,7 @@ describe("Sidebar", () => {
       const schulhofLink = screen.getByText("Schulhof").closest("a");
       expect(schulhofLink).toHaveAttribute(
         "href",
-        "/active-supervisions?room=schulhof",
+        "/active-supervisions?session=schulhof",
       );
     });
 

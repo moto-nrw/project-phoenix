@@ -54,6 +54,21 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// operationsActiveSessions lists today's running instances with their plan
+// windows so the supervision UI can label session tabs (#2265).
+func (rs *Resource) operationsActiveSessions(w http.ResponseWriter, r *http.Request) {
+	if rs.OperationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
+	result, err := rs.OperationsService.ActiveSessions(r.Context(), timezone.TodayDate())
+	if err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]any{"sessions": result}, "Active timetable sessions retrieved")
+}
+
 func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request) {
 	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))

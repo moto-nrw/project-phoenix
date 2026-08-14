@@ -310,6 +310,8 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/active-sessions", rs.operationsActiveSessions)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/instances/{id}/roster", rs.operationsRoster)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/active-groups/{id}/roster", rs.operationsRosterByActiveGroup)

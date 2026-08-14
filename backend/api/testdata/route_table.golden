@@ -395,6 +395,7 @@ GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/offering-sources
 GET /api/timetable/offering-sources/combined-counts
 GET /api/timetable/operations/active-groups/{id}/roster
+GET /api/timetable/operations/active-sessions
 GET /api/timetable/operations/capabilities
 GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
