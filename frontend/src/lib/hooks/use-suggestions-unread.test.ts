@@ -55,6 +55,19 @@ describe("useSuggestionsUnread", () => {
     expect(mockFetchUnreadCount).not.toHaveBeenCalled();
   });
 
+  it("does not fetch when the caller disables the hook", async () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+
+    const { result } = renderHook(() => useSuggestionsUnread(false));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.unreadCount).toBe(0);
+    expect(mockFetchUnreadCount).not.toHaveBeenCalled();
+  });
+
   it("fetches unread count when authenticated", async () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockFetchUnreadCount.mockResolvedValueOnce(5);

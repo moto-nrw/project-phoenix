@@ -451,7 +451,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   } = useOptionalSupervision();
 
   // Get unread suggestions count for badge (teacher mode)
-  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
+  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread(
+    mode === "teacher",
+  );
   // Pending staff absence requests badge (Mitarbeiter; vacation:approve, #1419)
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Get unread suggestions count for badge (operator mode)

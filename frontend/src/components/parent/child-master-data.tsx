@@ -565,59 +565,41 @@ function DepartureSection({
       title={t("sections.departure")}
       hint={t("requestHint")}
     >
-      {/* The saved state used to be repeated twice: a five-tile summary of the
-          current modes AND the editable matrix directly below it, saying the
-          same thing in two shapes. The matrix IS the summary — every checked
-          box is the saved value — so only the matrix remains. */}
       {pending && (
         <p className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
           <Clock className="h-3 w-3" aria-hidden="true" />
           {t("pendingBadge")}
         </p>
       )}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[26rem] border-separate border-spacing-0 text-sm">
-          <thead>
-            <tr>
-              <th className="w-16 py-2 pr-3 text-left text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-                {t("fields.day")}
-              </th>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {DEPARTURE_DAYS.map((day) => (
+          <fieldset
+            key={day}
+            className="rounded-xl border border-gray-200 bg-gray-50/70 p-3"
+          >
+            <legend className="px-1 text-sm font-semibold text-gray-900">
+              {t(`departureDays.${day}`)}
+            </legend>
+            <div className="mt-1 space-y-1">
               {DEPARTURE_REQUEST_MODES.map((mode) => (
-                <th
+                <label
                   key={mode}
-                  className="px-2 py-2 text-left text-[11px] font-medium tracking-wide text-gray-500 uppercase"
+                  htmlFor={`departure-${day}-${mode}`}
+                  className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-2 text-sm text-gray-700 hover:bg-white"
                 >
-                  {t(`departureModes.${mode}`)}
-                </th>
+                  <Checkbox
+                    id={`departure-${day}-${mode}`}
+                    aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
+                    checked={(modes[day] ?? []).includes(mode)}
+                    disabled={!requestable}
+                    onChange={() => toggle(day, mode)}
+                  />
+                  <span>{t(`departureModes.${mode}`)}</span>
+                </label>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {DEPARTURE_DAYS.map((day) => (
-              <tr key={day}>
-                <th className="py-2 pr-3 text-left font-medium text-gray-900">
-                  {t(`departureDays.${day}`)}
-                </th>
-                {DEPARTURE_REQUEST_MODES.map((mode) => (
-                  <td key={mode} className="px-2 py-2">
-                    <label
-                      htmlFor={`departure-${day}-${mode}`}
-                      className="inline-flex cursor-pointer items-center"
-                    >
-                      <Checkbox
-                        id={`departure-${day}-${mode}`}
-                        aria-label={`${t(`departureDays.${day}`)} ${t(`departureModes.${mode}`)}`}
-                        checked={(modes[day] ?? []).includes(mode)}
-                        disabled={!requestable}
-                        onChange={() => toggle(day, mode)}
-                      />
-                    </label>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </div>
+          </fieldset>
+        ))}
       </div>
       {features.master_data_request_enabled ? (
         <div className="flex items-center gap-3">
@@ -625,6 +607,7 @@ function DepartureSection({
             type="button"
             variant="primary"
             size="md"
+            className="min-h-11"
             disabled={!changed || !requestable || status === "saving"}
             onClick={() => void submit()}
           >

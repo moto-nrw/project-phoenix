@@ -426,7 +426,11 @@ export function DatePicker({
                 props.onChange(null);
               }
             }}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className={`flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              !isMultiple && props.controlSize === "lg"
+                ? "h-11 w-11"
+                : "h-8 w-8"
+            }`}
             aria-label={labels.clear}
           >
             <svg
