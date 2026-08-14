@@ -287,6 +287,7 @@ describe("ID-based selection coverage: first room visit enrichment", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -465,6 +466,7 @@ describe("ID-based selection coverage: stale room reset", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -588,6 +590,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
 
@@ -1147,6 +1150,7 @@ describe("ID-based selection coverage: localStorage room restore", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
 
@@ -1309,6 +1313,7 @@ describe("ID-based selection coverage: Schulhof skip guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -1450,6 +1455,7 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
   });
@@ -1585,6 +1591,7 @@ describe("ID-based selection coverage: loadRoomVisits 403 handling", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     localStorage.removeItem("sidebar-last-room");
+    localStorage.removeItem("supervision-last-session");
     localStorage.removeItem("sidebar-last-room-name");
     global.fetch = vi.fn();
 

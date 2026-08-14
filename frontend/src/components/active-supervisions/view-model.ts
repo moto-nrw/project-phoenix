@@ -42,6 +42,80 @@ export interface SchulhofStatusResponse {
   }>;
 }
 
+export type SupervisionSelectionTarget =
+  | { kind: "schulhof" }
+  | { kind: "session"; sessionId: string }
+  | { kind: "persist-first" }
+  | { kind: "none" };
+
+/**
+ * Resolves which supervision session (active group) the page should select.
+ *
+ * Sessions are keyed by active-group ID (`?session=`), never by physical room:
+ * several parallel sessions can share one room (#2265), so a room-keyed URL is
+ * ambiguous. The legacy `?room=` entry point (sidebar, old links) still
+ * resolves — but never switches away from a session already selected in that
+ * room, which was the silent-switch bug behind contradictory attendance views.
+ */
+export function resolveSupervisionSelection(options: {
+  readonly sessionParam: string | null;
+  readonly roomParam: string | null;
+  readonly savedSessionId: string | null;
+  readonly savedRoomId: string | null;
+  readonly rooms: readonly ActiveSupervisionRoom[];
+  readonly currentSessionId: string | null;
+  readonly schulhofAvailable: boolean;
+}): SupervisionSelectionTarget {
+  const { rooms, currentSessionId } = options;
+
+  const sessionTarget = (sessionId: string): SupervisionSelectionTarget => {
+    if (sessionId === currentSessionId) return { kind: "none" };
+    return { kind: "session", sessionId };
+  };
+  const roomTarget = (roomId: string): SupervisionSelectionTarget | null => {
+    const inRoom = rooms.filter((room) => room.room_id === roomId);
+    if (inRoom.length === 0) return null;
+    if (inRoom.some((room) => room.id === currentSessionId)) {
+      // A session in this room is already selected — never silently switch
+      // to a sibling session just because the URL names the shared room.
+      return { kind: "none" };
+    }
+    const first = inRoom[0];
+    return first ? { kind: "session", sessionId: first.id } : null;
+  };
+
+  if (options.sessionParam === SCHULHOF_TAB_ID && options.schulhofAvailable) {
+    return { kind: "schulhof" };
+  }
+  if (options.sessionParam) {
+    const found = rooms.find((room) => room.id === options.sessionParam);
+    if (found) return sessionTarget(found.id);
+    // Stale link to a session that no longer runs — keep what is selected.
+    return { kind: "none" };
+  }
+  if (options.roomParam === SCHULHOF_TAB_ID && options.schulhofAvailable) {
+    return { kind: "schulhof" };
+  }
+  if (options.roomParam) {
+    return roomTarget(options.roomParam) ?? { kind: "none" };
+  }
+  if (options.savedSessionId === SCHULHOF_TAB_ID && options.schulhofAvailable) {
+    return { kind: "schulhof" };
+  }
+  if (options.savedSessionId) {
+    const found = rooms.find((room) => room.id === options.savedSessionId);
+    if (found) return sessionTarget(found.id);
+  }
+  if (options.savedRoomId === SCHULHOF_TAB_ID && options.schulhofAvailable) {
+    return { kind: "schulhof" };
+  }
+  if (options.savedRoomId) {
+    const target = roomTarget(options.savedRoomId);
+    if (target) return target;
+  }
+  return { kind: "persist-first" };
+}
+
 export function activeSupervisionRosterKey(options: {
   readonly selectedTimetableInstanceId: string | null;
   readonly currentRoomId: string | null | undefined;
@@ -128,9 +202,32 @@ export function mapSupervisedGroupsToRooms(
       student_count: undefined,
       supervisor_name: undefined,
     }))
-    .sort((a, b) =>
-      (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de"),
+    .sort(
+      (a, b) =>
+        // Same room → order by session name so parallel sessions (#2265)
+        // keep a deterministic tab order; fully equal entries keep the
+        // backend order (Array.prototype.sort is stable).
+        (a.room_name ?? a.name).localeCompare(b.room_name ?? b.name, "de") ||
+        a.name.localeCompare(b.name, "de"),
     );
+}
+
+/**
+ * Tab label for a supervision session: the session/activity name first, then
+ * the plan time when known, else the physical room. Room-name-only labels
+ * made parallel sessions in one room indistinguishable (#2265).
+ */
+export function supervisionTabLabel(
+  room: ActiveSupervisionRoom,
+  planTime?: string | null,
+): string {
+  if (planTime) {
+    return `${room.name} · ${planTime}`;
+  }
+  if (room.room_name && room.room_name !== room.name) {
+    return `${room.name} · ${room.room_name}`;
+  }
+  return room.name;
 }
 
 function mapVisitToSupervisionStudent(

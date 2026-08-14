@@ -5,7 +5,9 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  resolveSupervisionSelection,
   roomsOutsideSchulhofStatus,
+  supervisionTabLabel,
   withActiveSupervisionPresence,
 } from "./view-model";
 
@@ -211,5 +213,155 @@ describe("active-supervisions view model", () => {
       day_planning_reason: undefined,
       day_planning_label: undefined,
     });
+  });
+});
+
+describe("resolveSupervisionSelection (#2265)", () => {
+  const rooms = [
+    { id: "group-a", name: "GT 1", room_name: "Raum 54", room_id: "54" },
+    { id: "group-b", name: "GT 2", room_name: "Raum 54", room_id: "54" },
+    { id: "group-c", name: "Kreativ", room_name: "Atelier", room_id: "55" },
+  ];
+  const base = {
+    sessionParam: null,
+    roomParam: null,
+    savedSessionId: null,
+    savedRoomId: null,
+    rooms,
+    currentSessionId: null,
+    schulhofAvailable: false,
+  };
+
+  it("selects the session named by ?session=", () => {
+    expect(
+      resolveSupervisionSelection({ ...base, sessionParam: "group-b" }),
+    ).toEqual({ kind: "session", sessionId: "group-b" });
+  });
+
+  it("keeps the current selection when ?session= already matches", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        sessionParam: "group-b",
+        currentSessionId: "group-b",
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("keeps the current selection when ?session= is unknown (stale link)", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        sessionParam: "gone",
+        currentSessionId: "group-a",
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("resolves schulhof from either param when available", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        sessionParam: "schulhof",
+        schulhofAvailable: true,
+      }),
+    ).toEqual({ kind: "schulhof" });
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        roomParam: "schulhof",
+        schulhofAvailable: true,
+      }),
+    ).toEqual({ kind: "schulhof" });
+  });
+
+  it("does NOT switch sessions when a legacy ?room= names the room the current session already runs in", () => {
+    // The #2265 bug: four parallel sessions in room 54, a room-keyed URL
+    // re-resolved to the FIRST session in that room on every refresh.
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        roomParam: "54",
+        currentSessionId: "group-b",
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("enters via legacy ?room= when no session in that room is selected", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        roomParam: "54",
+        currentSessionId: "group-c",
+      }),
+    ).toEqual({ kind: "session", sessionId: "group-a" });
+  });
+
+  it("restores the saved session when no URL param is present", () => {
+    expect(
+      resolveSupervisionSelection({ ...base, savedSessionId: "group-c" }),
+    ).toEqual({ kind: "session", sessionId: "group-c" });
+  });
+
+  it("falls back to the saved legacy room without switching within the room", () => {
+    expect(
+      resolveSupervisionSelection({
+        ...base,
+        savedRoomId: "54",
+        currentSessionId: "group-b",
+      }),
+    ).toEqual({ kind: "none" });
+    expect(resolveSupervisionSelection({ ...base, savedRoomId: "54" })).toEqual(
+      { kind: "session", sessionId: "group-a" },
+    );
+  });
+
+  it("asks to persist the first session when nothing is saved", () => {
+    expect(resolveSupervisionSelection({ ...base })).toEqual({
+      kind: "persist-first",
+    });
+  });
+});
+
+describe("supervision tab identity (#2265)", () => {
+  it("orders parallel sessions in the same room stably by session name", () => {
+    const result = mapSupervisedGroupsToRooms([
+      {
+        id: "active-2",
+        name: "GT 2",
+        room_id: "54",
+        room: { id: "54", name: "Mehrzweckraum" },
+      },
+      {
+        id: "active-1",
+        name: "GT 1",
+        room_id: "54",
+        room: { id: "54", name: "Mehrzweckraum" },
+      },
+    ]);
+
+    expect(result.map((room) => room.id)).toEqual(["active-1", "active-2"]);
+  });
+
+  it("labels a tab with the session name plus the plan time when known", () => {
+    expect(
+      supervisionTabLabel(
+        { id: "active-1", name: "GT 1", room_name: "Mehrzweckraum" },
+        "12:45–13:45",
+      ),
+    ).toBe("GT 1 · 12:45–13:45");
+  });
+
+  it("labels a tab with the session name plus the room", () => {
+    expect(
+      supervisionTabLabel({
+        id: "active-1",
+        name: "GT 1",
+        room_name: "Mehrzweckraum",
+      }),
+    ).toBe("GT 1 · Mehrzweckraum");
+    expect(supervisionTabLabel({ id: "active-2", name: "Schulhof" })).toBe(
+      "Schulhof",
+    );
   });
 });

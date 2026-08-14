@@ -368,6 +368,128 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	assert.Equal(t, "OGS Blau", roster.Rows[1].GroupName)
 }
 
+// A child recorded present in another running block of the same day gets a
+// parallel-presence marker on their roster row, so two supervisors working
+// consecutive blocks of the same lane see the overlap instead of a seemingly
+// contradictory attendance state (#2265). Rows without such an overlap stay
+// unmarked, and rosters of non-active instances never query for it.
+func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
+	instanceID := int64(368)
+	activeGroupID := int64(268)
+	otherInstanceID := int64(369)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 660, 480, 250, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 540, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 541, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.studentRepo.parallelPresence = []scheduleModel.ParallelPresence{
+		{
+			StudentID:  540,
+			InstanceID: otherInstanceID,
+			Title:      "GT 1",
+			StartTime:  time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
+			EndTime:    time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC),
+		},
+	}
+	deps.students.byID[540] = &usersModel.Student{PersonID: 481, SchoolClass: "1a"}
+	deps.students.byID[541] = &usersModel.Student{PersonID: 482, SchoolClass: "1a"}
+	deps.personService.people[481] = &usersModel.Person{FirstName: "Mia", LastName: "Muster"}
+	deps.personService.people[482] = &usersModel.Person{FirstName: "Tom", LastName: "Test"}
+
+	roster, err := deps.service.Roster(context.Background(), 660, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	rowsByStudent := map[int64]OperationRosterRow{}
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	flagged := rowsByStudent[540]
+	require.NotNil(t, flagged.ParallelPresentIn)
+	assert.Equal(t, otherInstanceID, flagged.ParallelPresentIn.InstanceID)
+	assert.Equal(t, "GT 1", flagged.ParallelPresentIn.Title)
+	assert.Equal(t, "12:45", flagged.ParallelPresentIn.StartTime)
+	assert.Equal(t, "13:45", flagged.ParallelPresentIn.EndTime)
+	assert.Nil(t, rowsByStudent[541].ParallelPresentIn)
+}
+
+func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *testing.T) {
+	instanceID := int64(371)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 483, 251, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 545, Status: scheduleModel.AttendanceStatusPresent},
+	}
+	deps.students.byID[545] = &usersModel.Student{PersonID: 484, SchoolClass: "2b"}
+	deps.personService.people[484] = &usersModel.Person{FirstName: "Lea", LastName: "Lang"}
+
+	roster, err := deps.service.Roster(context.Background(), 661, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Nil(t, roster.Rows[0].ParallelPresentIn)
+	assert.Zero(t, deps.studentRepo.parallelPresenceCall)
+}
+
+func TestTimetableOperationsRosterParallelPresenceLookupErrorFails(t *testing.T) {
+	instanceID := int64(372)
+	activeGroupID := int64(272)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 662, 485, 252, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 546, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[546] = &usersModel.Student{PersonID: 486, SchoolClass: "2b"}
+	deps.personService.people[486] = &usersModel.Person{FirstName: "Ben", LastName: "Berg"}
+	deps.studentRepo.parallelPresenceErr = errors.New("boom")
+
+	_, err := deps.service.Roster(context.Background(), 662, false, instanceID)
+
+	require.Error(t, err)
+}
+
+// Two independent reads of the same instance after an attendance write must
+// return the same roster state — the backend truth two parallel clients
+// converge on via SSE-triggered refetches (#2265 acceptance criterion).
+func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
+	instanceID := int64(373)
+	activeGroupID := int64(273)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 663, 487, 253, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	row := &scheduleModel.InstanceStudent{StudentID: 547, Status: scheduleModel.AttendanceStatusExpected}
+	row.ID = 900
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 547}] = row
+	deps.students.byID[547] = &usersModel.Student{PersonID: 488, SchoolClass: "3c"}
+	deps.personService.people[488] = &usersModel.Person{FirstName: "Ida", LastName: "Igel"}
+
+	status := scheduleModel.AttendanceStatusAbsent
+	_, err := deps.service.PatchAttendance(context.Background(), 663, false, instanceID, 547, scheduleModel.AttendanceFieldPatch{Status: &status})
+	require.NoError(t, err)
+	// The fake stores patches in `updates` without mutating the row; apply it
+	// the way the real repository would so both reads see the written state.
+	require.Len(t, deps.studentRepo.updates, 1)
+	row.Status = status
+
+	first, err := deps.service.Roster(context.Background(), 663, false, instanceID)
+	require.NoError(t, err)
+	second, err := deps.service.Roster(context.Background(), 663, false, instanceID)
+	require.NoError(t, err)
+
+	assert.Equal(t, first.Rows, second.Rows)
+	require.Len(t, first.Rows, 1)
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, first.Rows[0].Status)
+}
+
 // A completed block's verdict is frozen in the stored marker: the care plan may
 // have been edited or deleted since, and reading it here would relabel a
 // historical row while the weekly list, parent calendar, and attendance history
@@ -1509,6 +1631,27 @@ type fakeOpsInstanceStudentRepo struct {
 		rowID int64
 		patch scheduleModel.AttendanceFieldPatch
 	}
+	parallelPresence     []scheduleModel.ParallelPresence
+	parallelPresenceErr  error
+	parallelPresenceCall int
+}
+
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ timezone.Date, studentIDs []int64) ([]scheduleModel.ParallelPresence, error) {
+	r.parallelPresenceCall++
+	if r.parallelPresenceErr != nil {
+		return nil, r.parallelPresenceErr
+	}
+	requested := map[int64]bool{}
+	for _, id := range studentIDs {
+		requested[id] = true
+	}
+	rows := make([]scheduleModel.ParallelPresence, 0, len(r.parallelPresence))
+	for _, row := range r.parallelPresence {
+		if row.InstanceID != excludeInstanceID && requested[row.StudentID] {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func (r *fakeOpsInstanceStudentRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {
@@ -1771,4 +1914,43 @@ func (s *fakeOpsSettings) ResolveInt(_ context.Context, _ string) (int, error) {
 		return s.leadMinutes, s.err
 	}
 	return 15, s.err
+}
+
+// ActiveSessions lists today's running instances with their plan windows so
+// the supervision UI can label session tabs "Aktivitätsname · Planzeit"
+// (#2265). Planned and completed instances stay out; so do active rows
+// without a live session.
+func TestTimetableOperationsActiveSessions(t *testing.T) {
+	deps := newTimetableOpsDeps()
+	now := time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC)
+
+	running := instanceWithTimes(910, scheduleModel.InstanceStatusActive,
+		time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC))
+	running.ID = 910
+	running.Title = "GT 1"
+	runningGroup := int64(310)
+	running.ActiveGroupID = &runningGroup
+
+	planned := instanceWithTimes(911, scheduleModel.InstanceStatusPlanned,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	planned.ID = 911
+
+	orphan := instanceWithTimes(912, scheduleModel.InstanceStatusActive,
+		time.Date(2026, time.May, 10, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC))
+	orphan.ID = 912
+
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{running, planned, orphan}
+
+	sessions, err := deps.service.ActiveSessions(context.Background(), timezone.DateFromTime(now))
+
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, runningGroup, sessions[0].ActiveGroupID)
+	assert.Equal(t, int64(910), sessions[0].InstanceID)
+	assert.Equal(t, "GT 1", sessions[0].Title)
+	assert.Equal(t, "12:45", sessions[0].StartTime)
+	assert.Equal(t, "13:45", sessions[0].EndTime)
 }

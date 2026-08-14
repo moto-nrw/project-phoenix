@@ -347,16 +347,33 @@ export function SupervisionProvider({
 
           // Map all supervised groups to rooms, sorted by name
           // Filter out Schulhof from regular rooms (it's handled separately)
-          let newSupervisedRooms: SupervisedRoom[] = supervisedGroups
-            .filter(
-              (g) => g.room_id && g.room && g.room.name !== SCHULHOF_ROOM_NAME,
-            )
-            .map((g) => ({
-              id: g.room_id!.toString(),
-              name: g.room?.name ?? `Room ${g.room_id}`,
-              groupId: g.id.toString(),
-              groupName: g.actual_group?.name,
-            }))
+          const eligibleGroups = supervisedGroups.filter(
+            (g) => g.room_id && g.room && g.room.name !== SCHULHOF_ROOM_NAME,
+          );
+          // Parallel sessions can share one room (#2265) — a room-name-only
+          // label would render indistinguishable entries, so suffix the
+          // activity name whenever a room appears more than once.
+          const roomUseCount = new Map<number, number>();
+          for (const g of eligibleGroups) {
+            roomUseCount.set(
+              g.room_id!,
+              (roomUseCount.get(g.room_id!) ?? 0) + 1,
+            );
+          }
+          let newSupervisedRooms: SupervisedRoom[] = eligibleGroups
+            .map((g) => {
+              const roomName = g.room?.name ?? `Room ${g.room_id}`;
+              const shared = (roomUseCount.get(g.room_id!) ?? 0) > 1;
+              return {
+                id: g.room_id!.toString(),
+                name:
+                  shared && g.actual_group?.name
+                    ? `${g.actual_group.name} · ${roomName}`
+                    : roomName,
+                groupId: g.id.toString(),
+                groupName: g.actual_group?.name,
+              };
+            })
             .sort((a, b) => a.name.localeCompare(b.name, "de"));
 
           // Always add Schulhof at the end if it exists

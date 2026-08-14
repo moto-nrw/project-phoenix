@@ -161,10 +161,30 @@ func (p AttendanceFieldPatch) HasChanges() bool {
 		p.Note != nil || p.NoteClear
 }
 
+// ParallelPresence reports that a student is recorded status='present' in
+// another activity instance that is currently running on the same day. It
+// exists so a roster can surface the overlap when consecutive blocks of the
+// same lane run in parallel (#2265).
+type ParallelPresence struct {
+	StudentID  int64
+	InstanceID int64
+	Title      string
+	StartTime  time.Time
+	EndTime    time.Time
+}
+
 // InstanceStudentRepository defines operations for managing expected/actual
 // attendance on materialized activity instances.
 type InstanceStudentRepository interface {
 	base.Repository[*InstanceStudent]
+
+	// FindPresentInOtherActiveInstances returns, for the given students, rows
+	// where the student is recorded status='present' in another instance
+	// (id != excludeInstanceID) with status='active' on the given date,
+	// tenant-scoped. Ordered by the other instance's start_time DESC, id DESC
+	// so callers taking the first row per student get the latest running
+	// block. Empty studentIDs returns an empty slice without hitting the DB.
+	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date timezone.Date, studentIDs []int64) ([]ParallelPresence, error)
 
 	// FindByInstanceID returns all attendance rows for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStudent, error)
