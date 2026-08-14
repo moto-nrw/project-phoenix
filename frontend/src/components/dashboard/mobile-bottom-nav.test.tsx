@@ -1055,6 +1055,10 @@ describe("MobileBottomNav", () => {
         "href",
         "/parents/messages",
       );
+      expect(screen.getByText("Nachrichten")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Mehr" })).toHaveTextContent(
+        "Mehr",
+      );
     });
   });
 

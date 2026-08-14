@@ -679,7 +679,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     () =>
       PARENT_MAIN_ITEMS.map((item) => ({
         ...item,
-        label: tParentNav(item.tKey),
+        label:
+          item.href === "/parents/children"
+            ? tParentNav("childrenShort")
+            : tParentNav(item.tKey),
       })),
     [tParentNav],
   );
@@ -898,6 +901,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     return () => clearTimeout(timer);
   }, [displayMainItems, isActiveRoute]);
 
+  const isParentBottomNav = mode === "parent";
+  const moreLabel = isParentBottomNav ? tParentNav("more") : "Mehr";
+
   return (
     <>
       {/* Spacer to prevent content from being hidden behind fixed nav */}
@@ -985,9 +991,25 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         className={`fixed right-0 bottom-0 left-0 z-30 translate-y-0 transition-transform duration-150 ease-in-out lg:hidden ${className} `}
       >
         {/* Pill container with margins */}
-        <div className="px-4 pb-4">
-          <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
-            <div className="relative flex items-center justify-around gap-1">
+        <div
+          className={
+            isParentBottomNav ? "px-2 pb-3 sm:px-4 sm:pb-4" : "px-4 pb-4"
+          }
+        >
+          <div
+            className={`border border-gray-200/50 bg-white/95 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md ${
+              isParentBottomNav
+                ? "rounded-2xl px-1 py-1.5 sm:rounded-full sm:px-2 sm:py-2"
+                : "rounded-full px-3 py-2"
+            }`}
+          >
+            <div
+              className={`relative flex ${
+                isParentBottomNav
+                  ? "items-stretch"
+                  : "items-center justify-around gap-1"
+              }`}
+            >
               {/* Sliding background indicator */}
               {indicatorVisible && (
                 <div
@@ -1018,7 +1040,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       }}
                       type="button"
                       disabled
-                      className="relative z-10 flex min-h-[44px] cursor-not-allowed items-center justify-center gap-2.5 rounded-full px-3 py-2.5 text-gray-300 transition-colors duration-200"
+                      className={`relative z-10 flex cursor-not-allowed items-center justify-center text-gray-300 transition-colors duration-200 ${
+                        isParentBottomNav
+                          ? "min-h-12 min-w-0 flex-1 flex-col gap-0.5 rounded-xl px-1 py-1.5 sm:rounded-full"
+                          : "min-h-[44px] gap-2.5 rounded-full px-3 py-2.5"
+                      }`}
                       aria-label={`${item.label} bald verfügbar`}
                     >
                       <MobileNavIcon
@@ -1038,7 +1064,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       navRefs.current[index] = el;
                     }}
                     aria-label={item.label}
-                    className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
+                    className={`relative z-10 flex items-center justify-center transition-colors duration-200 ${
+                      isParentBottomNav
+                        ? "min-h-12 min-w-0 flex-1 flex-col gap-0.5 rounded-xl px-1 py-1.5 sm:rounded-full"
+                        : "min-h-[44px] gap-2.5 rounded-full px-3 py-2.5"
+                    } ${
                       isActive
                         ? "bg-gray-100 text-gray-900"
                         : "text-gray-400 hover:text-gray-600"
@@ -1051,9 +1081,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       className="h-5 w-5 flex-shrink-0"
                     />
 
-                    {/* Label - ONLY show when active */}
-                    {isActive && (
-                      <span className="text-sm font-semibold whitespace-nowrap">
+                    {(isParentBottomNav || isActive) && (
+                      <span
+                        className={
+                          isParentBottomNav
+                            ? "max-w-full truncate text-[10px] leading-tight font-semibold"
+                            : "text-sm font-semibold whitespace-nowrap"
+                        }
+                      >
                         {item.label}
                       </span>
                     )}
@@ -1067,8 +1102,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   ref={moreButtonRef}
                   type="button"
                   onClick={() => setIsOverflowMenuOpen(true)}
-                  aria-label="Mehr"
-                  className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
+                  aria-label={moreLabel}
+                  className={`relative z-10 flex items-center justify-center transition-colors duration-200 ${
+                    isParentBottomNav
+                      ? "min-h-12 min-w-0 flex-1 flex-col gap-0.5 rounded-xl px-1 py-1.5 sm:rounded-full"
+                      : "min-h-[44px] gap-2.5 rounded-full px-3 py-2.5"
+                  } ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
                       ? "bg-gray-100 text-gray-900"
                       : "text-gray-400 hover:text-gray-600"
@@ -1080,10 +1119,17 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     className="h-5 w-5 flex-shrink-0"
                   />
 
-                  {/* Label - ONLY show when active */}
-                  {(isOverflowMenuOpen || isAnyAdditionalNavActive) && (
-                    <span className="text-sm font-semibold whitespace-nowrap">
-                      Mehr
+                  {(isParentBottomNav ||
+                    isOverflowMenuOpen ||
+                    isAnyAdditionalNavActive) && (
+                    <span
+                      className={
+                        isParentBottomNav
+                          ? "max-w-full truncate text-[10px] leading-tight font-semibold"
+                          : "text-sm font-semibold whitespace-nowrap"
+                      }
+                    >
+                      {moreLabel}
                     </span>
                   )}
                 </button>

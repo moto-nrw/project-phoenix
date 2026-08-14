@@ -46,8 +46,8 @@ func formatCareExceptionTime(t *time.Time) *string {
 }
 
 // SubmitCareExceptionRequest is the wire shape for POST
-// /parent/me/children/{studentId}/care-exception. At least one of the two
-// times must be present.
+// /parent/me/children/{studentId}/care-exception. Parent requests require a
+// pickup time and a short explanation for the school team.
 type SubmitCareExceptionRequest struct {
 	Date        string  `json:"date"`         // YYYY-MM-DD
 	PickupTime  *string `json:"pickup_time"`  // HH:MM, optional

@@ -47,6 +47,7 @@
   "parentNav": {
     "start": "Start",
     "children": "Meine Kinder",
+    "childrenShort": "Kinder",
     "mealPlan": "Essensplan",
     "comingSoon": "Bald im Elternportal",
     "calendar": "Kalender",
@@ -64,7 +65,8 @@
     "loading": "Lädt...",
     "feedback": "Feedback",
     "settings": "Einstellungen",
-    "enroll": "Neue Anmeldung"
+    "enroll": "Neue Anmeldung",
+    "more": "Mehr"
   },
   "parentMealPlan": {
     "title": "Essensplan",

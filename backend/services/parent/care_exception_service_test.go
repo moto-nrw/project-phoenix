@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -886,4 +887,62 @@ func TestDeleteCareException_NotOwnedChild(t *testing.T) {
 	err := svc.DeleteCareException(context.Background(), chain.AccountID, other.ID,
 		timezone.TodayDate().AddDays(1))
 	assert.ErrorIs(t, err, parentService.ErrChildNotLinked)
+}
+
+func TestSubmitCareExceptionWithReasonPersistsReason(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	date := timezone.TodayDate().AddDays(1)
+	result, err := svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		wallClock(14, 30),
+		nil,
+		"  Arzttermin  ",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result.Reason)
+	assert.Equal(t, "Arzttermin", *result.Reason)
+
+	var reason string
+	require.NoError(t, db.NewSelect().
+		Column("reason").
+		TableExpr("schedule.student_pickup_exceptions").
+		Where("student_id = ?", chain.StudentID).
+		Where("exception_date = ?", date).
+		Scan(context.Background(), &reason))
+	assert.Equal(t, "Arzttermin", reason)
+}
+
+func TestSubmitCareExceptionWithReasonValidatesInput(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	date := timezone.TodayDate().AddDays(1)
+	_, err := svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		wallClock(14, 30),
+		nil,
+		"   ",
+	)
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionReasonRequired)
+
+	_, err = svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		wallClock(14, 30),
+		nil,
+		strings.Repeat("a", 256),
+	)
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionReasonTooLong)
 }

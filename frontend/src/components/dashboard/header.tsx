@@ -253,7 +253,7 @@ export function Header() {
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
-              <RefreshButton />
+              {mode !== "parent" && <RefreshButton />}
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}
@@ -266,6 +266,7 @@ export function Header() {
                 displayAvatar={displayAvatar}
                 userRole={userRole}
                 isOpen={isProfileMenuOpen}
+                compactOnTablet={mode === "parent"}
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
               />
               <ProfileDropdownMenu

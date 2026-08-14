@@ -47,6 +47,7 @@
   "parentNav": {
     "start": "Home",
     "children": "My children",
+    "childrenShort": "Children",
     "mealPlan": "Meal plan",
     "comingSoon": "Coming soon",
     "calendar": "Calendar",
@@ -64,7 +65,8 @@
     "loading": "Loading...",
     "feedback": "Feedback",
     "settings": "Settings",
-    "enroll": "New enrollment"
+    "enroll": "New enrollment",
+    "more": "More"
   },
   "parentMealPlan": {
     "title": "Meal plan",

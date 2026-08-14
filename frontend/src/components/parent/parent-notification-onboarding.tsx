@@ -87,6 +87,7 @@ export function ParentNotificationOnboarding({
           syncExistingPushSubscription("parent"),
         ]);
         if (!active) return;
+        if (!preferences.tenant_enabled) return;
         setTypes(preferences.types);
         const hasEnabledType = preferences.types.some(
           (type) => type.available && type.enabled,

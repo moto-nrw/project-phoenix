@@ -47,6 +47,7 @@
   "parentNav": {
     "start": "Главная",
     "children": "Мои дети",
+    "childrenShort": "Дети",
     "mealPlan": "Меню питания",
     "comingSoon": "Скоро в родительском портале",
     "calendar": "Календарь",
@@ -64,7 +65,8 @@
     "loading": "Загрузка...",
     "feedback": "Обратная связь",
     "settings": "Настройки",
-    "enroll": "Новая заявка"
+    "enroll": "Новая заявка",
+    "more": "Ещё"
   },
   "parentMealPlan": {
     "title": "Меню питания",

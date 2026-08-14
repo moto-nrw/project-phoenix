@@ -49,7 +49,7 @@ interface BrandLinkProps {
   readonly isScrolled?: boolean;
   readonly href?: string;
   readonly label?: string | null;
-  /** Unterhalb md nur das Logo zeigen (Elternportal: Platz für den Seitentitel). */
+  /** Unterhalb lg nur das Logo zeigen (Elternportal: Platz für Seitentitel und Aktionen). */
   readonly hideLabelOnMobile?: boolean;
 }
 
@@ -71,7 +71,7 @@ export function BrandLink({
 
       <div
         className={`min-w-0 items-center space-x-3 ${
-          hideLabelOnMobile ? "hidden md:flex" : "flex"
+          hideLabelOnMobile ? "hidden lg:flex" : "flex"
         }`}
       >
         <span className={brandLabelClass(isScrolled, usesTenantLabel)}>

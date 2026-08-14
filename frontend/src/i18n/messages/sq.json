@@ -47,6 +47,7 @@
   "parentNav": {
     "start": "Fillimi",
     "children": "Fëmijët e mi",
+    "childrenShort": "Fëmijët",
     "mealPlan": "Plani i ushqimit",
     "comingSoon": "Së shpejti në portalin e prindërve",
     "calendar": "Kalendari",
@@ -64,7 +65,8 @@
     "loading": "Po ngarkohet...",
     "feedback": "Reagime",
     "settings": "Cilësimet",
-    "enroll": "Regjistrim i ri"
+    "enroll": "Regjistrim i ri",
+    "more": "Më shumë"
   },
   "parentMealPlan": {
     "title": "Plani i ushqimit",

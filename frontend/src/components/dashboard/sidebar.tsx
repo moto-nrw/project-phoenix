@@ -1164,6 +1164,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
         icon: navigationIcons.utensils,
         visible: parentMealPlanEnabled,
       },
+      {
+        href: "/parents/enroll",
+        label: tParentNav("enroll"),
+        icon: navigationIcons.enrollments,
+      },
     ];
 
     return (

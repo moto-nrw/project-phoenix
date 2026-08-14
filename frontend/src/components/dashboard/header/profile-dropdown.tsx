@@ -93,6 +93,7 @@ interface ProfileTriggerProps {
   readonly userRole: string;
   readonly isOpen: boolean;
   readonly onClick: () => void;
+  readonly compactOnTablet?: boolean;
 }
 
 export function ProfileTrigger({
@@ -101,6 +102,7 @@ export function ProfileTrigger({
   userRole,
   isOpen,
   onClick,
+  compactOnTablet = false,
 }: ProfileTriggerProps) {
   return (
     <button
@@ -110,7 +112,9 @@ export function ProfileTrigger({
     >
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="sm" />
 
-      <div className="hidden text-left md:block">
+      <div
+        className={`hidden text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
+      >
         <div className="text-sm font-medium text-gray-900">{displayName}</div>
         <div className="text-xs text-gray-500">{userRole}</div>
       </div>

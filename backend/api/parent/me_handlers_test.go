@@ -55,6 +55,14 @@ type fakeParentService struct {
 	submitStatus     *parentModels.GuardianSubmitStatus
 	gotDeletePostID  int64
 	gotDeleteComment int64
+	careException    *parentService.CareException
+	careExceptionErr error
+	gotCareAccount   int64
+	gotCareStudent   int64
+	gotCareDate      timezone.Date
+	gotCarePickup    *time.Time
+	gotCareArrival   *time.Time
+	gotCareReason    string
 }
 
 func (f *fakeParentService) GetProfile(_ context.Context, _ int64) (*parentService.Profile, error) {
@@ -170,8 +178,14 @@ func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, t
 	return nil, nil
 }
 
-func (f *fakeParentService) SubmitCareExceptionWithReason(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time, string) (*parentService.CareException, error) {
-	return nil, nil
+func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, accountID, studentID int64, date timezone.Date, pickup, arrival *time.Time, reason string) (*parentService.CareException, error) {
+	f.gotCareAccount = accountID
+	f.gotCareStudent = studentID
+	f.gotCareDate = date
+	f.gotCarePickup = pickup
+	f.gotCareArrival = arrival
+	f.gotCareReason = reason
+	return f.careException, f.careExceptionErr
 }
 
 func (f *fakeParentService) ListCareExceptions(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*parentService.CareException, error) {
@@ -341,6 +355,52 @@ func TestDeleteFeedbackComment_PassesPostIDToService(t *testing.T) {
 func withClaims(r *http.Request, accountID int) *http.Request {
 	ctx := context.WithValue(r.Context(), jwt.CtxClaims, jwt.AppClaims{ID: accountID})
 	return r.WithContext(ctx)
+}
+
+func careExceptionRequest(body string) *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodPost,
+		"/me/children/77/care-exception", strings.NewReader(body)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
+	reason := "Abholung durch die Großeltern"
+	pickup := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
+	date, err := timezone.ParseDate("2026-08-18")
+	require.NoError(t, err)
+	service := &fakeParentService{careException: &parentService.CareException{
+		Date:       date,
+		PickupTime: &pickup,
+		Reason:     &reason,
+		Source:     "guardian",
+		UpdatedAt:  time.Date(2026, time.August, 14, 10, 0, 0, 0, time.UTC),
+	}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"14:30","reason":"Abholung durch die Großeltern"}`))
+
+	require.Equal(t, http.StatusCreated, w.Code)
+	assert.Equal(t, int64(1234), service.gotCareAccount)
+	assert.Equal(t, int64(77), service.gotCareStudent)
+	assert.Equal(t, "2026-08-18", service.gotCareDate.String())
+	require.NotNil(t, service.gotCarePickup)
+	assert.Equal(t, "14:30", service.gotCarePickup.Format("15:04"))
+	assert.Equal(t, reason, service.gotCareReason)
+	assert.Contains(t, w.Body.String(), `"reason":"Abholung durch die Großeltern"`)
+}
+
+func TestSubmitCareException_MapsMissingReasonToStableCode(t *testing.T) {
+	service := &fakeParentService{careExceptionErr: parentService.ErrCareExceptionReasonRequired}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"14:30"}`))
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"care_exception_reason_required"`)
 }
 
 func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {

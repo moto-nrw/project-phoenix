@@ -89,4 +89,30 @@ describe("ParentNotificationOnboarding", () => {
     expect(screen.getByText(/Teilen-Symbol/)).toBeInTheDocument();
     expect(mocks.subscribePush).not.toHaveBeenCalled();
   });
+
+  it("does not promise notifications when the school disabled them", async () => {
+    mocks.fetchPreferences.mockResolvedValue({
+      tenant_enabled: false,
+      types: [
+        {
+          key: "parent_message",
+          label: "Neue Nachricht",
+          description: "Neue Nachricht der OGS",
+          group: "mitteilungen",
+          enabled: false,
+          available: true,
+        },
+      ],
+    });
+
+    renderOnboarding();
+
+    await waitFor(() => expect(mocks.fetchPreferences).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("button", {
+        name: "Benachrichtigungen aktivieren",
+      }),
+    ).not.toBeInTheDocument();
+    expect(mocks.subscribePush).not.toHaveBeenCalled();
+  });
 });

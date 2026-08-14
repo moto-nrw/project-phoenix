@@ -191,6 +191,27 @@ describe("Sidebar", () => {
       expect(nav).toBeInTheDocument();
       expect(nav?.closest("aside")).toBeInTheDocument();
     });
+
+    it("keeps new enrollment reachable in the parent desktop sidebar", () => {
+      mockUseShellAuth.mockReturnValue({
+        user: { name: "Parent", email: "parent@example.com", roles: [] },
+        profile: { firstName: "Parent" },
+        status: "authenticated",
+        isSessionExpired: false,
+        logout: vi.fn(),
+        mode: "parent",
+        homeUrl: "/parents",
+        profileUrl: "/parents/profile",
+      });
+      mockUsePathname.mockReturnValue("/parents");
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Neue Anmeldung").closest("a")).toHaveAttribute(
+        "href",
+        "/parents/enroll",
+      );
+    });
   });
 
   describe("admin navigation", () => {

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -849,6 +850,12 @@ export function PickupTimeModal({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invalidField, setInvalidField] = useState<
+    "pickupTime" | "reason" | null
+  >(null);
+  const pickupTimeRef = useRef<HTMLInputElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const errorId = useId();
 
   const existing = useMemo(
     () => careExceptions.find((e) => e.date === date),
@@ -889,6 +896,7 @@ export function PickupTimeModal({
     setPickupTime(existing?.pickup_time ?? "");
     setReason(existing?.reason ?? "");
     setError(null);
+    setInvalidField(null);
   }, [existing]);
 
   const handleSubmit = async () => {
@@ -901,14 +909,19 @@ export function PickupTimeModal({
     }
     if (!pickupTime) {
       setError(t("pickup.noTime"));
+      setInvalidField("pickupTime");
+      pickupTimeRef.current?.focus();
       return;
     }
     if (!reason.trim()) {
       setError(t("pickup.reasonRequired"));
+      setInvalidField("reason");
+      reasonRef.current?.focus();
       return;
     }
     setSubmitting(true);
     setError(null);
+    setInvalidField(null);
     try {
       await onSubmit({
         date,
@@ -981,11 +994,22 @@ export function PickupTimeModal({
                 {t("pickup.pickupLabel")}
               </span>
               <input
+                ref={pickupTimeRef}
                 type="time"
                 value={pickupTime}
-                onChange={(e) => setPickupTime(e.target.value)}
+                onChange={(e) => {
+                  setPickupTime(e.target.value);
+                  if (invalidField === "pickupTime") {
+                    setInvalidField(null);
+                    setError(null);
+                  }
+                }}
                 required
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+                aria-invalid={invalidField === "pickupTime"}
+                aria-describedby={
+                  invalidField === "pickupTime" ? errorId : undefined
+                }
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none sm:text-sm"
               />
             </label>
             <label className="block">
@@ -993,13 +1017,24 @@ export function PickupTimeModal({
                 {t("pickup.reasonLabel")}
               </span>
               <textarea
+                ref={reasonRef}
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  if (invalidField === "reason") {
+                    setInvalidField(null);
+                    setError(null);
+                  }
+                }}
                 maxLength={255}
                 required
                 rows={3}
                 placeholder={t("pickup.reasonPlaceholder")}
-                className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+                aria-invalid={invalidField === "reason"}
+                aria-describedby={
+                  invalidField === "reason" ? errorId : undefined
+                }
+                className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-base focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none sm:text-sm"
               />
             </label>
           </div>
@@ -1014,7 +1049,11 @@ export function PickupTimeModal({
         )}
 
         {error && (
-          <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
+          <p
+            id={errorId}
+            role="alert"
+            className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm"
+          >
             {error}
           </p>
         )}
@@ -1048,9 +1087,7 @@ export function PickupTimeModal({
                 submitting ||
                 staffOwned ||
                 !pickupChangeEnabled ||
-                !careExceptionsLoaded ||
-                !pickupTime ||
-                !reason.trim()
+                !careExceptionsLoaded
               }
             >
               {submitting && (

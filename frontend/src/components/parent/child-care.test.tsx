@@ -171,11 +171,18 @@ describe("PickupTimeModal — failed preload guard", () => {
   });
 
   it("requires a reason for a changed pickup time", () => {
-    const { onSubmit, pickupInput } = renderModal();
+    const { onSubmit, pickupInput, reasonInput } = renderModal();
 
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Bitte geben Sie einen kurzen Grund für die Änderung an.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(reasonInput).toHaveAttribute("aria-invalid", "true");
+    expect(reasonInput).toHaveFocus();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 });

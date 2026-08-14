@@ -294,7 +294,7 @@ function DashboardChildItem({
                 key={action.href}
                 href={action.href}
                 variant="secondary"
-                className="min-h-11 justify-start px-3"
+                className="min-h-11 justify-start gap-2 px-3"
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="text-left text-pretty">{action.label}</span>
