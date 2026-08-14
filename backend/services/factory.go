@@ -401,6 +401,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
+		RoleRepo:             repos.Role,
 		PersonnelNumberAudit: repos.PersonnelNumberChange,
 
 		// Staff Stammdaten (#1423)
@@ -1165,6 +1166,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:        repos.Person,
 		StaffRepo:         repos.Staff,
 		TeacherRepo:       repos.Teacher,
+		StudentRepo:       repos.Student,
 		SchoolRepo:        repos.School,
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
@@ -1972,6 +1974,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffRepo:             repos.Staff,
 		AccountRepo:           repos.Account,
 		TeacherRepo:           repos.Teacher,
+		StudentRepo:           repos.Student,
 		GroupSupervisorRepo:   repos.GroupSupervisor,
 		ActiveGroupRepo:       repos.ActiveGroup,
 		Settings:              settingsService,

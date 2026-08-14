@@ -7,6 +7,8 @@ import {
   createDeleteHandler,
 } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
+import type { WireID } from "~/lib/wire-id";
+import { toIdString } from "~/lib/wire-id";
 
 const logger = createLogger({ component: "StaffDetailRoute" });
 
@@ -15,7 +17,8 @@ const logger = createLogger({ component: "StaffDetailRoute" });
  */
 interface BackendStaffResponse {
   id: number;
-  person_id: number;
+  // Decimal string since #2222 — see the note on the mapping below.
+  person_id: WireID;
   staff_notes?: string;
   is_teacher: boolean;
   teacher_id?: number;
@@ -43,9 +46,14 @@ interface BackendStaffResponse {
 
 /**
  * Type definition for staff update request
+ *
+ * person_id arrives as the decimal string the edit screen loaded and is
+ * forwarded unchanged; the backend field takes a number or a string
+ * (common.JSONID). Narrowing it to a JS number here would undo the precaution,
+ * because this route parses the body and re-serializes it (#2222).
  */
 interface StaffUpdateRequest {
-  person_id?: number;
+  person_id?: WireID;
   staff_notes?: string | null;
   is_teacher?: boolean;
   specialization?: string | null;
@@ -110,8 +118,9 @@ export const GET = createGetHandler(
         staff_notes: staff.staff_notes ?? null,
         created_at: staff.created_at,
         updated_at: staff.updated_at,
-        // Include person_id for updates
-        person_id: staff.person_id,
+        // Include person_id for updates — as the decimal string it arrived as,
+        // so a bigint id still addresses the intended person (#2222).
+        person_id: toIdString(staff.person_id),
         // Include account_id from person object
         account_id: staff.person?.account_id,
         // Include both IDs for debugging
@@ -157,7 +166,7 @@ interface TeacherResponse {
   staff_notes: string | null;
   created_at: string;
   updated_at: string;
-  person_id?: number;
+  person_id?: string;
   account_id?: number;
   staff_id?: string;
   teacher_id?: string;
@@ -211,7 +220,7 @@ function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
     created_at: response.created_at,
     updated_at: response.updated_at,
     account_id: response.person?.account_id,
-    person_id: response.person_id,
+    person_id: toIdString(response.person_id),
     person: response.person,
   };
 }

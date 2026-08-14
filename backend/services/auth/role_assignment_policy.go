@@ -31,23 +31,8 @@ func IsLehrkraftSystemRole(role *authModels.Role) bool {
 		strings.EqualFold(strings.TrimSpace(role.Name), lehrkraftRoleName)
 }
 
-// RequiresCaregiverProfile reports whether a role only works on an account
-// that also carries a caregiver profile (users.teachers). These are the roles
-// whose whole surface — GetMyGroups, group supervision, the caregiver landing
-// page — reads through that profile; without it the account holds the
-// permissions but every caregiver screen is empty. Same name set the
-// invitation flow provisions a teacher record for.
-func RequiresCaregiverProfile(role *authModels.Role) bool {
-	if role == nil || !role.IsSystem {
-		return false
-	}
-	switch strings.ToLower(strings.TrimSpace(role.Name)) {
-	case authModels.BaseRoleUser, legacyTeacherRoleName:
-		return true
-	default:
-		return false
-	}
-}
+// Which roles need a caregiver profile is decided by RoleNeedsCaregiverProfile
+// in school_identity.go, next to the provisioning that creates one.
 
 // Which roles may be handed out when an account is attached to a school. Shared
 // by every path that grants school access — operator provisioning, the

@@ -360,7 +360,9 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *test
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.roles WHERE id = ?`, role.ID)
 	})
 
-	err := service.persistAccountWithRole(ctx, account, &role.ID, 1)
+	// nil identity: this test covers the account/mapping/role writes; the
+	// identity provisioning has its own coverage in school_identity_test.go.
+	_, err := service.persistAccountWithRole(ctx, account, role, &role.ID, 1, nil)
 	require.NoError(t, err)
 	assert.NotZero(t, account.ID)
 

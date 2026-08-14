@@ -27,11 +27,22 @@ func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
 
 	email := fmt.Sprintf("link-perm-%d@example.com", time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, email, "SecurePass123!")
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	// The accepted request provisions the person → staff chain in the same
+	// transaction as the role (#2222), so the account is no longer the only row
+	// to clean up.
+	defer testpkg.CleanupAccountWithIdentity(t, tc.db, account.ID)
 
 	adminRole := testpkg.GetOrCreateTestRole(t, tc.db, "admin")
 
-	body := map[string]interface{}{"email": email, "role_id": adminRole.ID}
+	// first_name/last_name are required for a staff-tier role (#2222); without
+	// them the request is refused before the permission check is reached, which
+	// would make this test pass for the wrong reason.
+	body := map[string]interface{}{
+		"email":      email,
+		"role_id":    adminRole.ID,
+		"first_name": "Link",
+		"last_name":  "Permission",
+	}
 	claims := jwtPkg.AppClaims{
 		ID:       int(account.ID),
 		TenantID: 1,

@@ -1053,43 +1053,69 @@ func (s *Service) logFailedLogin(ctx context.Context, accountID int64, ipAddress
 	}
 }
 
-// Register creates a new user account
+// Register creates a new user account without provisioning a school identity.
+// Callers that provision the person/staff chain themselves (operator account
+// creation) use this; everything that creates staff should use
+// RegisterSchoolAccount so account and identity land in one transaction.
 func (s *Service) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error) {
+	account, _, err := s.RegisterSchoolAccount(ctx, email, username, password, roleID, tenantID, nil)
+	return account, err
+}
+
+// RegisterSchoolAccount creates an account, maps it to the school, assigns the
+// role and provisions the school identity (person → staff → caregiver profile)
+// in ONE transaction.
+//
+// identity is optional. With it, the account is staff at the school the moment
+// the transaction commits; without it, only the account is created and the
+// caller owns the identity. Splitting those two across separate requests is
+// what leaves accounts that hold a role and are not staff (#2222).
+func (s *Service) RegisterSchoolAccount(
+	ctx context.Context,
+	email, username, password string,
+	roleID *int64,
+	tenantID int64,
+	identity *SchoolAccountIdentity,
+) (*auth.Account, *SchoolIdentity, error) {
 	// Validate and normalize registration inputs
 	if err := s.validateRegistrationInputs(ctx, email, username, password); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if roleID != nil && *roleID > 0 && tenantID <= 0 {
-		return nil, &AuthError{Op: "register", Err: ErrTenantRequiredForRoleAssignment}
+		return nil, nil, &AuthError{Op: "register", Err: ErrTenantRequiredForRoleAssignment}
 	}
+	var role *auth.Role
 	if roleID != nil && *roleID > 0 {
 		var roleErr error
 		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 			// System roles have tenant_id NULL. Clear only the Go context tenant
 			// for this lookup; the surrounding transaction and its RLS context stay
-			// intact for the subsequent account creation.
+			// intact for the subsequent account creation. The resolved role is
+			// also what the identity provisioning below is decided on — inside the
+			// tenant transaction a system role would be invisible.
 			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
-			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
+			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
 			return roleErr
 		})
 		if err != nil {
-			return nil, &AuthError{Op: "register", Err: err}
+			return nil, nil, &AuthError{Op: "register", Err: err}
 		}
 	}
 
 	// Create account object with hashed password
 	account, err := s.createAccountObject(email, username, password)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Persist account and assign role in transaction
-	if err := s.persistAccountWithRole(ctx, account, roleID, tenantID); err != nil {
-		return nil, err
+	// Persist account, assign role and provision the identity in one transaction
+	schoolIdentity, err := s.persistAccountWithRole(ctx, account, role, roleID, tenantID, identity)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return account, nil
+	return account, schoolIdentity, nil
 }
 
 // validateRegistrationInputs validates registration data and checks for conflicts
@@ -1143,15 +1169,23 @@ func (s *Service) createAccountObject(email, username, password string) (*auth.A
 // The WITH CHECK policy on auth.account_roles guarantees the inserted tenant_id
 // matches the transaction's app.current_tenant_id — a code bug cannot silently
 // create cross-tenant role assignments.
-func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
+func (s *Service) persistAccountWithRole(
+	ctx context.Context,
+	account *auth.Account,
+	role *auth.Role,
+	roleID *int64,
+	tenantID int64,
+	identity *SchoolAccountIdentity,
+) (*SchoolIdentity, error) {
 	if tenantID <= 0 {
 		// No tenant context (e.g. tests) — fall back to admin tx for the account insert only.
-		return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
+		return nil, tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 			return s.repos.Account.Create(ctx, account)
 		})
 	}
 
-	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+	var schoolIdentity *SchoolIdentity
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 
 		// Create account (auth.accounts has no tenant_id, no RLS — plain INSERT)
 		if err := s.repos.Account.Create(ctx, account); err != nil {
@@ -1182,8 +1216,57 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 			}
 		}
 
+		provisioned, err := s.provisionSchoolIdentity(ctx, account.ID, tenantID, role, identity)
+		if err != nil {
+			return err
+		}
+		schoolIdentity = provisioned
+
 		return nil
 	})
+	return schoolIdentity, err
+}
+
+// SchoolAccountIdentity carries the person fields needed to make an account
+// staff at a school. There is no other source for them: an account holds an
+// email and a username, never a person's name.
+type SchoolAccountIdentity struct {
+	FirstName string
+	LastName  string
+	TagID     *string
+}
+
+// provisionSchoolIdentity gives the account the person/staff chain its role
+// requires. Runs inside the caller's tenant transaction, so the account, its
+// role and its identity commit together or not at all.
+func (s *Service) provisionSchoolIdentity(
+	ctx context.Context,
+	accountID, tenantID int64,
+	role *auth.Role,
+	identity *SchoolAccountIdentity,
+) (*SchoolIdentity, error) {
+	if identity == nil || role == nil {
+		return nil, nil
+	}
+	provisioned, err := EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
+		Persons:   s.repos.Person,
+		Staff:     s.repos.Staff,
+		Teachers:  s.repos.Teacher,
+		Students:  s.repos.Student,
+		RFIDCards: s.repos.RFIDCard,
+	}, SchoolIdentityInput{
+		AccountID:    accountID,
+		TenantID:     tenantID,
+		Role:         role,
+		FirstName:    identity.FirstName,
+		LastName:     identity.LastName,
+		TagID:        identity.TagID,
+		CreatePerson: true,
+	})
+	if err != nil {
+		return nil, &AuthError{Op: "provision school identity", Err: err}
+	}
+	return provisioned, nil
 }
 
 // LinkAccountToTenant links an existing account to a tenant with an optional role assignment.
@@ -1191,16 +1274,33 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 // Returns ErrAccountNotFound if no account exists with the given email.
 // Returns ErrAccountInactive if the account is deactivated.
 func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error) {
+	account, _, err := s.LinkSchoolAccount(ctx, email, roleID, tenantID, nil)
+	return account, err
+}
+
+// LinkSchoolAccount links an existing account to a school and provisions the
+// school identity its role requires, in one transaction. identity is optional
+// with the same meaning as in RegisterSchoolAccount: without it the account is
+// linked but not made staff, which only makes sense when the caller provisions
+// the chain itself.
+func (s *Service) LinkSchoolAccount(
+	ctx context.Context,
+	email string,
+	roleID *int64,
+	tenantID int64,
+	identity *SchoolAccountIdentity,
+) (*auth.Account, *SchoolIdentity, error) {
 	const op = "link-to-tenant"
 	email = strings.TrimSpace(strings.ToLower(email))
 
 	if tenantID <= 0 {
-		return nil, &AuthError{Op: op, Err: ErrTenantRequiredForRoleAssignment}
+		return nil, nil, &AuthError{Op: op, Err: ErrTenantRequiredForRoleAssignment}
 	}
 
 	// Same role policy as operator-led school access: no guardian (that is the
 	// guardian invitation flow), no retired teacher role, and no role belonging
 	// to a different school (issue #1021).
+	var role *auth.Role
 	if roleID != nil && *roleID > 0 {
 		var roleErr error
 		// System roles have tenant_id NULL. Clear only the Go context tenant for
@@ -1208,45 +1308,86 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 		// in force.
 		err := tenant.WithAdminTxOrDirect(ctx, s.db, func(adminCtx context.Context) error {
 			roleLookupCtx := tenant.WithTenantID(adminCtx, 0)
-			_, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
+			role, roleErr = ValidateAssignableSchoolRole(roleLookupCtx, s.repos.Role, *roleID, tenantID)
 			return roleErr
 		})
 		if err != nil {
-			return nil, &AuthError{Op: op, Err: err}
+			return nil, nil, &AuthError{Op: op, Err: err}
 		}
 	}
 
 	// Find existing account
 	account, err := s.repos.Account.FindByEmail(ctx, email)
 	if err != nil {
-		return nil, &AuthError{Op: op, Err: ErrAccountNotFound}
+		return nil, nil, &AuthError{Op: op, Err: ErrAccountNotFound}
 	}
 
 	if !account.Active {
-		return nil, &AuthError{Op: op, Err: ErrAccountInactive}
+		return nil, nil, &AuthError{Op: op, Err: ErrAccountInactive}
 	}
 
 	// Link to tenant (idempotent — handles already-linked case)
-	if err := s.performAccountTenantLink(ctx, account, roleID, tenantID); err != nil {
-		return nil, &AuthError{Op: op, Err: fmt.Errorf("link failed: %w", err)}
+	schoolIdentity, err := s.performAccountTenantLink(ctx, account, role, roleID, tenantID, identity)
+	if err != nil {
+		// Reported as the caller's own error, unwrapped: prefixing "link failed"
+		// onto a German sentence the operator is meant to read makes it noise.
+		if IsSchoolIdentityRequestError(err) || errors.Is(err, ErrRoleLehrkraftCaregiverProfile) {
+			return nil, nil, &AuthError{Op: op, Err: err}
+		}
+		return nil, nil, &AuthError{Op: op, Err: fmt.Errorf("link failed: %w", err)}
 	}
 
 	s.getLogger().Info("account linked to tenant",
 		slog.Int64("account_id", account.ID),
 		slog.Int64("tenant_id", tenantID))
 
-	return account, nil
+	return account, schoolIdentity, nil
 }
 
-// performAccountTenantLink creates a tenant mapping and role assignment for an existing account.
-func (s *Service) performAccountTenantLink(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
-	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
+// performAccountTenantLink creates a tenant mapping, role assignment and school
+// identity for an existing account.
+func (s *Service) performAccountTenantLink(
+	ctx context.Context,
+	account *auth.Account,
+	role *auth.Role,
+	roleID *int64,
+	tenantID int64,
+	identity *SchoolAccountIdentity,
+) (*SchoolIdentity, error) {
+	var schoolIdentity *SchoolIdentity
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 
 		if err := s.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
 			return err
 		}
-		return s.ensureRoleAssignment(ctx, account.ID, roleID, tenantID)
+		// Unlike /auth/register this account already exists, and it may already
+		// carry an identity at this school — from an earlier link, or from a
+		// revoke that deliberately left person/staff/teacher behind. Handing it
+		// the Lehrkraft role while that identity holds a live caregiver profile
+		// strands users.teachers and its group supervisions under a JWT that
+		// only carries class_day permissions (#1772). The same rule the tenant
+		// RBAC endpoint and both operator paths apply, so this endpoint cannot
+		// be the way around them.
+		if IsLehrkraftSystemRole(role) {
+			hasProfile, profErr := HasLiveCaregiverProfile(ctx, s.repos.Person, s.repos.Staff, s.repos.Teacher, account.ID)
+			if profErr != nil {
+				return profErr
+			}
+			if hasProfile {
+				return ErrRoleLehrkraftCaregiverProfile
+			}
+		}
+		if err := s.ensureRoleAssignment(ctx, account.ID, roleID, tenantID); err != nil {
+			return err
+		}
+		provisioned, err := s.provisionSchoolIdentity(ctx, account.ID, tenantID, role, identity)
+		if err != nil {
+			return err
+		}
+		schoolIdentity = provisioned
+		return nil
 	})
+	return schoolIdentity, err
 }
 
 // ensureTenantMapping creates an account-tenant mapping if one does not already exist.

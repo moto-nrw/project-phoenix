@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/render"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const headerUserAgent = "User-Agent"
@@ -142,14 +144,53 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err := rs.AuthService.Register(r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID)
+	account, schoolIdentity, err := rs.AuthService.RegisterSchoolAccount(
+		r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID,
+		schoolIdentityFrom(req.FirstName, req.LastName, req.TagID))
 	if err != nil {
+		markProvisioningRollback(r)
 		rs.handleRegistrationError(w, r, err)
 		return
 	}
 
 	resp := buildAccountResponse(account)
+	resp.SchoolIdentity = buildSchoolIdentityResponse(schoolIdentity)
 	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
+}
+
+// schoolIdentityFrom packages the request's identity fields for provisioning.
+//
+// Always non-nil, and deliberately without a name check: whether a name is
+// needed is not a question the HTTP layer can answer. An account that already
+// carries a person at this school is completed without one — reusing that
+// person is the whole point of the link endpoint, and it is the only person the
+// partial unique index on (tenant_id, account_id) allows. Only creating a
+// person needs a name, and there the provisioning itself refuses with
+// ErrSchoolIdentityNamesRequired, which both handlers render as 400. Deciding
+// it here refused the reuse case for a name it never needed.
+//
+// Guardian-tier roles provision nothing; EnsureSchoolIdentity returns early for
+// them whatever this carries.
+func schoolIdentityFrom(firstName, lastName string, tagID *string) *authService.SchoolAccountIdentity {
+	return &authService.SchoolAccountIdentity{
+		FirstName: strings.TrimSpace(firstName),
+		LastName:  strings.TrimSpace(lastName),
+		TagID:     tagID,
+	}
+}
+
+// markProvisioningRollback tells the tenant middleware to roll back after a
+// refused account provisioning.
+//
+// The account, its school mapping and its role are written before the identity
+// step runs, all in the request's tenant transaction — which TenantTxMiddleware
+// commits for every response below 500. Without this a 400 leaves behind
+// exactly the half-written account #2222 is about: school access and a role,
+// no person, no staff record. The rollback marker is the established way to
+// refuse a request that has already touched the database (see
+// tenant.MarkRollback).
+func markProvisioningRollback(r *http.Request) {
+	tenant.MarkRollback(r.Context())
 }
 
 // linkToTenant links an existing account to the caller's tenant.
@@ -167,8 +208,12 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, err := rs.AuthService.LinkAccountToTenant(r.Context(), req.Email, roleID, callerTenantID)
+	account, schoolIdentity, err := rs.AuthService.LinkSchoolAccount(
+		r.Context(), req.Email, roleID, callerTenantID,
+		schoolIdentityFrom(req.FirstName, req.LastName, req.TagID))
 	if err != nil {
+		markProvisioningRollback(r)
+
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
 			switch {
@@ -179,7 +224,13 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
 				errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
 				errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
-				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable):
+				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
+				// Linking an existing account can meet an identity it already has
+				// at this school: a caregiver profile the Lehrkraft role must not
+				// be put on top of (#1772), or a transponder that is not this
+				// school's / not free.
+				errors.Is(authErr.Err, authService.ErrRoleLehrkraftCaregiverProfile),
+				authService.IsSchoolIdentityRequestError(authErr.Err):
 				common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -190,17 +241,20 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return ONLY id and email — never leak roles, username, or active status from other tenants
+	// Return ONLY id, email and what was provisioned at THIS school — never leak
+	// roles, username, or active status from other tenants
 	common.Respond(w, r, http.StatusOK, map[string]any{
-		"id":    account.ID,
-		"email": account.Email,
+		"id":              account.ID,
+		"email":           account.Email,
+		"school_identity": buildSchoolIdentityResponse(schoolIdentity),
 	}, "Account linked to tenant successfully")
 }
 
-// authorizeRoleAssignment validates the role_id from the request and returns it along with the
-// caller's tenant ID. Auth and permission checks are handled by middleware (Authenticator +
-// TenantMiddleware + RequiresPermission). Returns the role ID, tenant ID, and whether the
-// handler should return early (true = error rendered).
+// authorizeRoleAssignment validates the role_id from the request and returns it
+// along with the caller's tenant ID. Auth and permission checks are handled by
+// middleware (Authenticator + TenantMiddleware + RequiresPermission). Returns
+// the role ID, the tenant ID, and whether the handler should return early
+// (true = error rendered).
 func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Request, requestedRoleID *int64) (*int64, int64, bool) {
 	claims := jwt.ClaimsFromCtx(r.Context())
 
@@ -282,7 +336,12 @@ func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Reque
 	case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
 		errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
 		errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
-		errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable):
+		errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
+		// Everything provisioning refuses on the request's own terms: a nameless
+		// staff-tier request (schoolIdentityFor already catches it, so this is
+		// defense in depth), an account linked to a child's person record, and a
+		// transponder that is unknown here or already taken by this person.
+		authService.IsSchoolIdentityRequestError(authErr.Err):
 		common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -307,6 +366,22 @@ func buildAccountResponse(account *authModel.Account) *AccountResponse {
 	}
 	resp.Roles = roleNames
 
+	return resp
+}
+
+// buildSchoolIdentityResponse exposes the provisioned ids, or nil when nothing
+// was provisioned.
+func buildSchoolIdentityResponse(identity *authService.SchoolIdentity) *SchoolIdentityResponse {
+	if identity == nil || identity.Person == nil || identity.Staff == nil {
+		return nil
+	}
+	resp := &SchoolIdentityResponse{
+		PersonID: identity.Person.ID,
+		StaffID:  identity.Staff.ID,
+	}
+	if identity.Teacher != nil {
+		resp.TeacherID = identity.Teacher.ID
+	}
 	return resp
 }
 

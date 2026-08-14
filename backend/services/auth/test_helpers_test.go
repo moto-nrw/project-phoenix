@@ -1069,6 +1069,48 @@ func (r *stubPersonRepository) LinkToAccount(_ context.Context, personID, accoun
 	return fmt.Errorf("person %d not found", personID)
 }
 
+// LinkToRFIDCard records the transponder on the person, so the identity
+// provisioning's reuse path can be asserted on (#2222).
+func (r *stubPersonRepository) LinkToRFIDCard(_ context.Context, personID int64, tagID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	person, ok := r.people[personID]
+	if !ok {
+		return fmt.Errorf("person %d not found", personID)
+	}
+	person.TagID = &tagID
+	return nil
+}
+
+// FindByTagID mirrors the real repository: no wearer is a clean (nil, nil).
+// The identity provisioning asks before it assigns a transponder, so a bracelet
+// somebody else is already wearing is refused instead of reaching the per-school
+// unique constraint and coming back as a 500 (#2222).
+func (r *stubPersonRepository) FindByTagID(_ context.Context, tagID string) (*userModel.Person, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, person := range r.people {
+		if person.TagID != nil && *person.TagID == tagID {
+			return person, nil
+		}
+	}
+	return nil, nil
+}
+
+// FindByAccountID mirrors the real repository: no match is a clean (nil, nil),
+// not an error. The identity provisioning walks this first to reuse an existing
+// person instead of creating a second one (#2222).
+func (r *stubPersonRepository) FindByAccountID(_ context.Context, accountID int64) (*userModel.Person, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, person := range r.people {
+		if person.AccountID != nil && *person.AccountID == accountID {
+			return person, nil
+		}
+	}
+	return nil, nil
+}
+
 func (r *stubPersonRepository) FindByID(_ context.Context, id interface{}) (*userModel.Person, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1314,10 +1356,22 @@ func newStubStaffRepository() (*testpkg.StaffRepoMock, func() []*userModel.Staff
 			staff[s.ID] = s
 			return nil
 		},
-		FindByIDFn:       func(context.Context, any) (*userModel.Staff, error) { panic("FindByID not implemented") },
-		FindByPersonIDFn: func(context.Context, int64) (*userModel.Staff, error) { panic("FindByPersonID not implemented") },
-		UpdateFn:         func(context.Context, *userModel.Staff) error { panic("Update not implemented") },
-		DeleteFn:         func(context.Context, any) error { panic("Delete not implemented") },
+		FindByIDFn: func(context.Context, any) (*userModel.Staff, error) { panic("FindByID not implemented") },
+		// Mirrors the real repository, which reports "no staff" as
+		// sql.ErrNoRows. The identity provisioning looks a live staff row up
+		// before creating one so a re-grant reuses it (#2222).
+		FindByPersonIDFn: func(_ context.Context, personID int64) (*userModel.Staff, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			for _, s := range staff {
+				if s.PersonID == personID {
+					return s, nil
+				}
+			}
+			return nil, sql.ErrNoRows
+		},
+		UpdateFn: func(context.Context, *userModel.Staff) error { panic("Update not implemented") },
+		DeleteFn: func(context.Context, any) error { panic("Delete not implemented") },
 		ListFn: func(context.Context, map[string]any) ([]*userModel.Staff, error) {
 			panic("List not implemented")
 		},
@@ -1352,6 +1406,41 @@ func newStubStaffRepository() (*testpkg.StaffRepoMock, func() []*userModel.Staff
 func staffRepoOnly() *testpkg.StaffRepoMock {
 	mock, _ := newStubStaffRepository()
 	return mock
+}
+
+// stubStudentRepository answers the one question the identity provisioning
+// asks of users.students: is this person a child's record (#2222)? The
+// embedded interface leaves everything else unimplemented on purpose — a new
+// read would panic here rather than pass silently against a stub that invented
+// an answer.
+type stubStudentRepository struct {
+	userModel.StudentRepository
+	mu               sync.Mutex
+	studentPersonIDs map[int64]bool
+}
+
+func newStubStudentRepository() *stubStudentRepository {
+	return &stubStudentRepository{studentPersonIDs: make(map[int64]bool)}
+}
+
+// markStudent makes the given person read as a child's record.
+func (r *stubStudentRepository) markStudent(personID int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.studentPersonIDs[personID] = true
+}
+
+// FindByPersonID mirrors the real repository, including how it reports a miss:
+// sql.ErrNoRows wrapped in a DatabaseError, never a nil result.
+func (r *stubStudentRepository) FindByPersonID(_ context.Context, personID int64) (*userModel.Student, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.studentPersonIDs[personID] {
+		student := &userModel.Student{}
+		student.PersonID = personID
+		return student, nil
+	}
+	return nil, &base.DatabaseError{Op: "find by person ID", Err: sql.ErrNoRows}
 }
 
 // stubTeacherRepository provides a minimal test implementation.
@@ -1392,8 +1481,18 @@ func (r *stubTeacherRepository) FindByID(context.Context, interface{}) (*userMod
 	panic("FindByID not implemented")
 }
 
-func (r *stubTeacherRepository) FindByStaffID(context.Context, int64) (*userModel.Teacher, error) {
-	panic("FindByStaffID not implemented")
+// FindByStaffID mirrors the real repository: no match is a clean (nil, nil).
+// The identity provisioning checks for a live caregiver profile before
+// creating one (#2222).
+func (r *stubTeacherRepository) FindByStaffID(_ context.Context, staffID int64) (*userModel.Teacher, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, teacher := range r.teachers {
+		if teacher.StaffID == staffID {
+			return teacher, nil
+		}
+	}
+	return nil, nil
 }
 
 func (r *stubTeacherRepository) FindByStaffIDs(context.Context, []int64) (map[int64]*userModel.Teacher, error) {
@@ -1502,5 +1601,39 @@ func (r *stubTeacherRepository) ListActiveCaregivers(context.Context) ([]*userMo
 }
 
 func (r *stubTeacherRepository) FindActiveCaregiverByAccountID(context.Context, int64) (*userModel.ActiveCaregiver, error) {
+	return nil, nil
+}
+
+// stubRFIDCardRepository holds the transponders that exist at the school, so the
+// identity provisioning can refuse one that does not (#2222).
+type stubRFIDCardRepository struct {
+	mu    sync.Mutex
+	cards map[string]bool
+}
+
+func newStubRFIDCardRepository(ids ...string) *stubRFIDCardRepository {
+	cards := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		cards[id] = true
+	}
+	return &stubRFIDCardRepository{cards: cards}
+}
+
+// FindByID mirrors the real repository, which reports an unknown card as a clean
+// (nil, nil) rather than an error.
+func (r *stubRFIDCardRepository) FindByID(_ context.Context, id string) (*userModel.RFIDCard, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if !r.cards[id] {
+		return nil, nil
+	}
+	return &userModel.RFIDCard{StringIDModel: base.StringIDModel{ID: id}}, nil
+}
+
+func (r *stubRFIDCardRepository) Create(context.Context, *userModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Update(context.Context, *userModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Delete(context.Context, string) error              { return nil }
+func (r *stubRFIDCardRepository) Deactivate(context.Context, string) error          { return nil }
+func (r *stubRFIDCardRepository) List(context.Context, map[string]interface{}) ([]*userModel.RFIDCard, error) {
 	return nil, nil
 }
