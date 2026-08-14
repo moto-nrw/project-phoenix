@@ -25,6 +25,24 @@ func canDeleteStudent(ctx context.Context, userPermissions []string, student *us
 	return authorize.CanDeleteStudent(ctx, userPermissions, student, ucs)
 }
 
+// canManageStudentAbsence is the action-scoped write gate for the absence
+// statuses (krank, entschuldigt, Klassenfahrt). It is CanUpdateStudent plus the
+// open-care fallback — a school without fixed groups has no supervision to
+// derive authority from, so staff holding users:absence decide absences there
+// (#2232). Every other student write keeps using canUpdateStudent.
+func (rs *Resource) canManageStudentAbsence(ctx context.Context, userPermissions []string, student *users.Student) (bool, error) {
+	return authorize.CanManageStudentAbsence(ctx, userPermissions, student, rs.UserContextService, rs.SettingsService, rs.getLogger())
+}
+
+// checkStudentAbsenceWriteAccess is the boolean form for the detail response's
+// has_absence_write_access flag, which the frontend uses to show or hide the
+// Krankmeldung / Entschuldigung / Klassenfahrt actions independently of the
+// Stammdaten edit affordances (has_write_access).
+func (rs *Resource) checkStudentAbsenceWriteAccess(r *http.Request, student *users.Student) bool {
+	ok, _ := rs.canManageStudentAbsence(r.Context(), jwt.PermissionsFromCtx(r.Context()), student)
+	return ok
+}
+
 func isGroupSupervisor(ctx context.Context, groupID int64, ucs userContextService.UserContextService) bool {
 	return authorize.IsGroupSupervisor(ctx, groupID, ucs)
 }

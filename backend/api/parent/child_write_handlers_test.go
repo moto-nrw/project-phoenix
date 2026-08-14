@@ -80,7 +80,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
-		nil, nil, nil,
+		nil, nil, nil, nil,
 		slog.Default(),
 		db,
 	)

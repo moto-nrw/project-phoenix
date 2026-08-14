@@ -1823,6 +1823,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		userContextService,
 		pillEmitter,
 		realtimeHub,
+		settingsService,
 		logger.With("service", "excused-requests"),
 		db,
 	)

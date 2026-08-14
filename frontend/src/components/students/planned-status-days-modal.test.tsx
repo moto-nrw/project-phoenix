@@ -1160,4 +1160,34 @@ describe("PlannedStatusDaysModal", () => {
       ]);
     });
   });
+
+  // A partial excusal is a pickup exception behind users:update + full care
+  // access. Staff who only hold the absence permission of a school ohne feste
+  // Gruppen must not be offered it (#2232).
+  it("hides the scope switch when partial excusals are not permitted", () => {
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="excused"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        canPlanPartialExcusal={false}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Ab Uhrzeit" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Ganzer Tag" }),
+    ).not.toBeInTheDocument();
+    // The full-day planning surface stays intact.
+    expect(
+      screen.getByRole("button", { name: "Einzelne Tage" }),
+    ).toBeInTheDocument();
+  });
 });

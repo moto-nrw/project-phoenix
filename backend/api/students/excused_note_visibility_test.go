@@ -79,3 +79,44 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	require.NotNil(t, shown, "a users:update caller should receive the pending excused note")
 	assert.Equal(t, note, *shown)
 }
+
+// TestPendingExcusedNote_ShownToAbsenceReviewer is the counterpart for #2232:
+// users:absence decides exactly these requests, so the badge announcing one
+// must reach its reviewer. A note withheld from the person who decides it
+// hides work they own — the same drift as the leak above, mirrored.
+func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AbsenceNote", "Supervisor")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceNoteGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "AbsenceNote", "Kind", "AN1")
+	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "AbsenceNote", "Submitter")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, submitter.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	const note = "Familienfeier, kommt später"
+	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := tc.services.ExcusedRequests.CreateRequest(
+			txCtx, student.ID, submitterAccount.ID,
+			[]timezone.Date{timezone.TodayDate()}, note,
+		)
+		return e
+	}))
+
+	rr := authExec(t, tc,
+		testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil),
+		testutil.TeacherTestClaims(int(account.ID)),
+		[]string{"users:read", "users:absence"},
+	)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var resp struct {
+		Data struct {
+			PendingExcusedNote *string `json:"pending_excused_note"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.NotNil(t, resp.Data.PendingExcusedNote, "an absence reviewer must receive the pending excused note")
+	assert.Equal(t, note, *resp.Data.PendingExcusedNote)
+}

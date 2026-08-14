@@ -148,7 +148,7 @@ func (r *fakeStatusRepo) UpsertReported(ctx context.Context, e *activeModels.Stu
 // newFakeService builds the service over the supplied fakes with no emitter,
 // broadcaster or DB — every path is deterministic.
 func newFakeService(req *fakeReqRepo, status *fakeStatusRepo, student *fakeStudentRepo, person *fakePersonRepo) absenceSvc.ExcusedAbsenceRequestService {
-	return absenceSvc.NewExcusedAbsenceRequestService(req, status, student, person, nil, nil, nil, nil)
+	return absenceSvc.NewExcusedAbsenceRequestService(req, status, student, person, nil, nil, nil, nil, nil)
 }
 
 // okStatusRepo returns a status repo whose writes all succeed.
