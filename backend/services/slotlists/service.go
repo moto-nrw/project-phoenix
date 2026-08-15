@@ -180,7 +180,7 @@ type Dependencies struct {
 	ArrivalService      arrivalTimeReader
 	ListExport          *listexport.RendererService
 	Settings            settingsReader
-	UserContext         authorize.StudentReadUserContext
+	UserContext         authorize.StudentAccessUserContext
 	Logger              *slog.Logger
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
@@ -204,7 +204,7 @@ type service struct {
 	arrivalService      arrivalTimeReader
 	listExport          *listexport.RendererService
 	settings            settingsReader
-	userContext         authorize.StudentReadUserContext
+	userContext         authorize.StudentAccessUserContext
 	logger              *slog.Logger
 	// now is the clock the service reads "today" and "has this slot started
 	// yet" from. Production leaves it nil (→ time.Now); tests inject a fixed
@@ -371,55 +371,7 @@ func (s *service) resolveStudentReadAccess(ctx context.Context) (studentReadAcce
 	if staff == nil {
 		return studentReadAccess{groupIDs: map[int64]struct{}{}}, nil
 	}
-
-	scope, err := s.resolveStringSetting(
-		ctx,
-		configModel.KeyStudentDataScope,
-		configModel.StudentDataScopeGroupSupervisorsOnly,
-	)
-	if err != nil {
-		return studentReadAccess{}, err
-	}
-	if scope == configModel.StudentDataScopeAllStaff {
-		return studentReadAccess{unrestricted: true}, nil
-	}
-
-	educationGroups, err := s.userContext.GetMyGroups(ctx)
-	if err != nil {
-		return studentReadAccess{}, fmt.Errorf("resolve supervised groups: %w", err)
-	}
-	groupIDs := make(map[int64]struct{}, len(educationGroups))
-	for _, group := range educationGroups {
-		groupIDs[group.ID] = struct{}{}
-	}
-	return studentReadAccess{groupIDs: groupIDs}, nil
-}
-
-// resolveStringSetting returns the tenant override for key, or fallback when no
-// override exists (or the override is empty). A settings lookup FAILURE is not a
-// fallback: it propagates so the caller fails loudly. For the GDPR read scope a
-// silent fallback to the narrower group_supervisors_only would emit a
-// preview/export that omits every unsupervised child while looking like a valid,
-// authoritative daily list (#1565 review).
-func (s *service) resolveStringSetting(ctx context.Context, key, fallback string) (string, error) {
-	if s.settings == nil {
-		return fallback, nil
-	}
-	has, err := s.settings.HasTenantOverride(ctx, key)
-	if err != nil {
-		return "", fmt.Errorf("check tenant override for %s: %w", key, err)
-	}
-	if !has {
-		return fallback, nil
-	}
-	val, err := s.settings.ResolveString(ctx, key)
-	if err != nil {
-		return "", fmt.Errorf("resolve setting %s: %w", key, err)
-	}
-	if val == "" {
-		return fallback, nil
-	}
-	return val, nil
+	return studentReadAccess{unrestricted: true}, nil
 }
 
 func normalizeHHMM(value string) (string, error) {

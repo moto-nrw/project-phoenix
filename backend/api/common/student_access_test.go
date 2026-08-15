@@ -8,69 +8,37 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-func TestStudentAccessContext_HasFullAccessByGroupID(t *testing.T) {
-	supervised := int64(100)
-	other := int64(200)
-
+func TestStudentAccessContext_HasFullAccess(t *testing.T) {
 	cases := []struct {
-		name    string
-		access  *StudentAccessContext
-		groupID *int64
-		want    bool
+		name   string
+		access *StudentAccessContext
+		want   bool
 	}{
 		{
-			name:    "nil context never grants access",
-			access:  nil,
-			groupID: &supervised,
-			want:    false,
+			name:   "nil context never grants access",
+			access: nil,
+			want:   false,
 		},
 		{
-			name:    "admin sees every student (group-less included)",
-			access:  &StudentAccessContext{IsAdmin: true},
-			groupID: nil,
-			want:    true,
+			name:   "admin sees every student",
+			access: &StudentAccessContext{IsAdmin: true},
+			want:   true,
 		},
 		{
-			name:    "all_staff scope sees every student (group-less included)",
-			access:  &StudentAccessContext{AllStaffScope: true},
-			groupID: nil,
-			want:    true,
+			name:   "any verified staff member sees every student",
+			access: &StudentAccessContext{IsStaff: true},
+			want:   true,
 		},
 		{
-			name: "group supervisor sees only their group",
-			access: &StudentAccessContext{
-				MyGroupIDs: map[int64]struct{}{supervised: {}},
-			},
-			groupID: &supervised,
-			want:    true,
-		},
-		{
-			name: "group supervisor blocked from other groups",
-			access: &StudentAccessContext{
-				MyGroupIDs: map[int64]struct{}{supervised: {}},
-			},
-			groupID: &other,
-			want:    false,
-		},
-		{
-			name: "group supervisor blocked from group-less students",
-			access: &StudentAccessContext{
-				MyGroupIDs: map[int64]struct{}{supervised: {}},
-			},
-			groupID: nil,
-			want:    false,
-		},
-		{
-			name:    "supervisor with no groups always blocked",
-			access:  &StudentAccessContext{},
-			groupID: &supervised,
-			want:    false,
+			name:   "neither admin nor staff (guest, guardian) stays redacted",
+			access: &StudentAccessContext{},
+			want:   false,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, tc.access.HasFullAccessByGroupID(tc.groupID))
+			assert.Equal(t, tc.want, tc.access.HasFullAccess())
 		})
 	}
 }
@@ -86,4 +54,11 @@ func TestStudentAccessContext_HasFullAccessToStudent_NilGuards(t *testing.T) {
 	student := &users.Student{GroupID: &groupID}
 	assert.True(t, access.HasFullAccessToStudent(student),
 		"admin always sees concrete students")
+
+	// #2329: group membership is irrelevant — staff see group-less children too.
+	staff := &StudentAccessContext{IsStaff: true}
+	assert.True(t, staff.HasFullAccessToStudent(&users.Student{}))
+
+	var nilAccess *StudentAccessContext
+	assert.False(t, nilAccess.HasFullAccessToStudent(student))
 }

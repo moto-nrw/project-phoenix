@@ -39,8 +39,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.attendance_log_enabled",
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
-		"gdpr.attendance_log_scope",
-		"gdpr.student_data_scope",
 		// Per-child change-history retention (issue #1455).
 		"gdpr.student_change_log_retention_days",
 		"feedback.enabled",
@@ -77,7 +75,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.presence_mode",
 		"attendance.web_enabled",
 		"attendance.nfc_enabled",
-		"attendance.web_checkin_access",
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
 		"operations.care_concept",
@@ -270,15 +267,17 @@ func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
 	assert.Equal(t, true, def.DependsOn.Value)
 }
 
-func TestWebCheckinAccessSetting(t *testing.T) {
-	def := config.GetDefinition(config.KeyWebCheckinAccess)
-	require.NotNil(t, def, "attendance.web_checkin_access should be registered")
-	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.WebCheckinAccessGroupSupervisors, def.Default, "default must be the restrictive option (group supervisors only)")
-	assert.Equal(t, config.AccessShared, def.AccessPolicy, "web_checkin_access is a tenant-admin decision, not operator-only")
-	assert.Equal(t, "operations", def.Tab)
-	require.NotNil(t, def.Options)
-	require.Len(t, def.Options.Static, 2)
+// TestRemovedStudentGroupScopeSettings pins the #2329 deletion: per-child
+// access no longer depends on a tenant scope setting, so re-registering one of
+// these keys would silently reintroduce a policy the code no longer reads.
+func TestRemovedStudentGroupScopeSettings(t *testing.T) {
+	for _, key := range []string{
+		"gdpr.student_data_scope",
+		"gdpr.attendance_log_scope",
+		"attendance.web_checkin_access",
+	} {
+		assert.Nilf(t, config.GetDefinition(key), "setting %q was removed in #2329 and must stay unregistered", key)
+	}
 }
 
 func TestWebSpontaneousActivitiesSetting(t *testing.T) {
@@ -1010,8 +1009,6 @@ func TestGDPRSettings_Types(t *testing.T) {
 		{"gdpr.attendance_log_enabled", config.FieldBoolean},
 		{"gdpr.attendance_visible_days", config.FieldNumber},
 		{"gdpr.room_detail_visible_days", config.FieldNumber},
-		{"gdpr.attendance_log_scope", config.FieldSelect},
-		{"gdpr.student_data_scope", config.FieldSelect},
 		{"feedback.enabled", config.FieldBoolean},
 		{"feedback.data_retention_days", config.FieldNumber},
 	}
@@ -1175,7 +1172,6 @@ func TestDependsOn_AttendanceLogGroup(t *testing.T) {
 	dependentKeys := []string{
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
-		"gdpr.attendance_log_scope",
 	}
 	for _, key := range dependentKeys {
 		def := config.GetDefinition(key)
@@ -1204,33 +1200,6 @@ func TestFeedbackSettings(t *testing.T) {
 	assert.Equal(t, "feedback", def.Category)
 	assert.Equal(t, false, def.Default, "feedback should default to false (opt-in)")
 	assert.Equal(t, "config:manage", def.WritePermission)
-}
-
-func TestAttendanceLogScope_Options(t *testing.T) {
-	def := config.GetDefinition("gdpr.attendance_log_scope")
-	require.NotNil(t, def)
-	require.NotNil(t, def.Options)
-	require.Len(t, def.Options.Static, 2)
-	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
-	assert.Contains(t, values, config.AttendanceLogScopeGroupSupervisorsOnly)
-	assert.Contains(t, values, config.AttendanceLogScopeAllStaff)
-}
-
-func TestStudentDataScope_Options(t *testing.T) {
-	def := config.GetDefinition("gdpr.student_data_scope")
-	require.NotNil(t, def)
-	assert.Equal(t, "gdpr", def.Tab)
-	assert.Equal(t, "schülerdaten", def.Category)
-	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.StudentDataScopeGroupSupervisorsOnly, def.Default)
-	assert.Equal(t, "config:manage", def.WritePermission)
-	assert.Nil(t, def.DependsOn, "student_data_scope should stand alone, no DependsOn")
-
-	require.NotNil(t, def.Options)
-	require.Len(t, def.Options.Static, 2)
-	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
-	assert.Contains(t, values, config.StudentDataScopeGroupSupervisorsOnly)
-	assert.Contains(t, values, config.StudentDataScopeAllStaff)
 }
 
 func TestDevicesSettings(t *testing.T) {
@@ -1351,8 +1320,6 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.attendance_log_enabled", false},
 		{"gdpr.attendance_visible_days", 30},
 		{"gdpr.room_detail_visible_days", 7},
-		{"gdpr.attendance_log_scope", config.AttendanceLogScopeGroupSupervisorsOnly},
-		{"gdpr.student_data_scope", config.StudentDataScopeGroupSupervisorsOnly},
 		{"feedback.enabled", false},
 		{"feedback.data_retention_days", 90},
 		{"security.ogs_device_pin", "1234"},

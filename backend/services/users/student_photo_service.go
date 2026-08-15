@@ -34,10 +34,9 @@ type PhotoSettings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// PhotoUserContext combines the read- and modify-side gates.
+// PhotoUserContext is the caller-identity surface the photo gates need.
 type PhotoUserContext interface {
-	authorize.StudentReadUserContext
-	authorize.StudentModifyUserContext
+	authorize.StudentAccessUserContext
 }
 
 // CommitUploadRequest carries an already-stored upload into the commit path.
@@ -281,8 +280,6 @@ func (s *studentPhotoService) LookupForRead(ctx context.Context, studentID int64
 			jwt.PermissionsFromCtx(ctx),
 			student,
 			s.UserContext,
-			s.Settings,
-			s.Logger,
 		) {
 			return ErrPhotoStudentForbidden
 		}

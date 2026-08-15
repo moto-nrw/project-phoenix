@@ -204,9 +204,6 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 	if err != nil {
 		return nil, err
 	}
-	if err := s.authorizeMoveStudents(ctx, op, auth, supervisedGroups, uniqueIDs, openAttendance, currentVisits, true); err != nil {
-		return nil, err
-	}
 	if err := s.ensureCapacityForStudentMove(ctx, targetGroup, uniqueIDs, openAttendance, currentVisits); err != nil {
 		return nil, err
 	}
@@ -328,14 +325,6 @@ func (s *service) moveStudentsToTransit(ctx context.Context, studentIDs []int64,
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	var supervisedGroups map[int64]struct{}
-	var err error
-	if auth != nil && !auth.BypassResourceChecks {
-		supervisedGroups, err = s.loadMoveSupervisedGroupIDs(ctx, auth.StaffID, op)
-		if err != nil {
-			return nil, err
-		}
-	}
 	if s.GetPresenceMode(ctx) == "binary" {
 		result := newStudentMoveResult(nil, nil)
 		result.Unchanged = append(result.Unchanged, uniqueIDs...)
@@ -344,9 +333,6 @@ func (s *service) moveStudentsToTransit(ctx context.Context, studentIDs []int64,
 
 	openAttendance, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.authorizeMoveStudents(ctx, op, auth, supervisedGroups, uniqueIDs, openAttendance, currentVisits, false); err != nil {
 		return nil, err
 	}
 
@@ -439,47 +425,6 @@ func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64,
 		ids[supervision.GroupID] = struct{}{}
 	}
 	return ids, nil
-}
-
-func (s *service) authorizeMoveStudents(
-	ctx context.Context,
-	op string,
-	auth *StudentMoveAuthorization,
-	supervisedGroups map[int64]struct{},
-	studentIDs []int64,
-	openAttendance map[int64]*active.Attendance,
-	currentVisits map[int64]*active.Visit,
-	allowOpenTransit bool,
-) error {
-	if auth == nil || auth.BypassResourceChecks {
-		return nil
-	}
-
-	for _, studentID := range studentIDs {
-		hasTeacherAccess, err := s.CheckTeacherStudentAccess(ctx, auth.StaffID, studentID)
-		if err != nil {
-			return err
-		}
-		if hasTeacherAccess {
-			continue
-		}
-
-		currentVisit := currentVisits[studentID]
-		if currentVisit != nil {
-			if _, ok := supervisedGroups[currentVisit.ActiveGroupID]; ok {
-				continue
-			}
-			return studentMoveForbidden(op)
-		}
-
-		if allowOpenTransit && studentHasOpenAttendance(openAttendance, studentID) {
-			continue
-		}
-
-		return studentMoveForbidden(op)
-	}
-
-	return nil
 }
 
 func studentMoveForbidden(op string) error {

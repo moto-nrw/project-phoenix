@@ -247,7 +247,6 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	r = r.WithContext(common.PrefetchSettings(r.Context(), rs.SettingsService,
 		configModel.KeyAdminSupervisionOverview,
 		configModel.KeyGroupMode,
-		configModel.KeyStudentDataScope,
 		configModel.KeyStudentPhotosEnabled,
 	))
 
@@ -276,7 +275,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	// caller who can't see a student's planned schedule (because they
 	// don't supervise the student's education group) must not see the
 	// real check-in/out clock either.
-	access := common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.getLogger())
+	access := common.DetermineStudentAccess(r, rs.UserContextService)
 
 	attendanceStatuses, err := rs.fetchAttendanceStatusesForVisits(r, results, access)
 	if err != nil {
@@ -386,9 +385,9 @@ func (rs *Resource) fetchAttendanceStatusesForVisits(r *http.Request, results []
 }
 
 // collectAuthorizedVisitStudentIDs returns the unique student IDs from results
-// for which the caller has full data access (admin, all_staff scope, or group
-// supervisor). Used to scope the bulk attendance lookup so unauthorized rows
-// never leave the DB.
+// for which the caller has full data access (admin or verified staff, #2329).
+// Used to scope the bulk attendance lookup so unauthorized rows never leave
+// the DB.
 func collectAuthorizedVisitStudentIDs(results []visitWithStudent, access *common.StudentAccessContext) []int64 {
 	studentIDs := make([]int64, 0, len(results))
 	seen := make(map[int64]struct{}, len(results))
@@ -397,7 +396,7 @@ func collectAuthorizedVisitStudentIDs(results []visitWithStudent, access *common
 		if _, ok := seen[result.StudentID]; ok {
 			continue
 		}
-		if !access.HasFullAccessByGroupID(result.GroupID) {
+		if !access.HasFullAccess() {
 			continue
 		}
 		seen[result.StudentID] = struct{}{}
@@ -432,7 +431,7 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, atten
 
 		var actualArrival *string
 		var actualPickup *string
-		if access.HasFullAccessByGroupID(result.GroupID) {
+		if access.HasFullAccess() {
 			if attendanceStatus, ok := attendanceStatuses[result.StudentID]; ok && attendanceStatus != nil {
 				actualArrival = timezone.FormatBerlinClock(attendanceStatus.CheckInTime)
 				actualPickup = timezone.FormatBerlinClock(attendanceStatus.CheckOutTime)
@@ -448,7 +447,7 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, atten
 		// student response shaper uses, so a path-format change in one
 		// place can't desync the two response payloads.
 		//
-		// Gate on access.HasFullAccessByGroupID(result.GroupID) — the same
+		// Gate on access.HasFullAccess() — the same
 		// predicate the actualArrival/actualPickup branch above uses, and
 		// the same predicate serveStudentPhoto checks via
 		// authorize.CanReadStudent. A caregiver may supervise this active
@@ -458,7 +457,7 @@ func (rs *Resource) buildVisitDisplayResponses(results []visitWithStudent, atten
 		// leaving the UI with broken-image placeholders.
 		photoURL := ""
 		if photosEnabled && result.PhotoPath != nil &&
-			access.HasFullAccessByGroupID(result.GroupID) {
+			access.HasFullAccess() {
 			photoURL = common.BuildStudentPhotoServeURL(result.StudentID, *result.PhotoPath)
 		}
 

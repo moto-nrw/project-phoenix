@@ -168,8 +168,8 @@ func populateStudentAddressFields(response *StudentResponse, student *users.Stud
 // populatePhotoFields fills the response with photo URL + consent metadata.
 //
 // hasFullAccess MUST mirror the predicate serveStudentPhoto uses internally
-// (authorize.CanReadStudent — i.e. admin OR all_staff scope OR caller
-// supervises the student's group): the byte-serving route 403s callers that
+// (authorize.CanReadStudent — i.e. admin or verified staff, #2329): the
+// byte-serving route 403s callers that
 // fail it, so emitting photo_url for rows the same session is forbidden to
 // fetch would let list/search responses hand out URLs that immediately bounce
 // to a broken-image fetch. The boolean PhotoConsentGiven flag is fine to

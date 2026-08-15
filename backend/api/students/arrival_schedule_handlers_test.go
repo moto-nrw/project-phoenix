@@ -118,6 +118,20 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 	})
 
 	t.Run("forbidden_without_read_access", func(t *testing.T) {
+		// #2329: every verified staff member reads the care plan, so the
+		// remaining denial is an account without a staff record (guest,
+		// guardian) that merely holds users:read.
+		guest := testpkg.CreateTestAccount(t, tc.db, "arrival-schedule-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, guest.ID)
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/arrival-schedules", student.ID), nil)
+		claims := testutil.TeacherTestClaims(int(guest.ID))
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
+
+		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("staff_outside_the_group_may_read", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
@@ -125,7 +139,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		claims := testutil.TeacherTestClaims(int(account.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		assert.Equal(t, http.StatusForbidden, rr.Code, "Non-supervisor should be forbidden. Body: %s", rr.Body.String())
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	})
 }
 
@@ -245,10 +259,12 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalForbidden", "Test", "AF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrUpdateStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "arrupdatestaff-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -256,7 +272,7 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -530,10 +546,12 @@ func TestCreateStudentArrivalException(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcForbidden", "Test", "AEF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrExcStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "arrexcstaff-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
@@ -541,7 +559,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 			"reason":           "Test reason",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-exceptions", student.ID), body)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -681,10 +699,12 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcUpdateForbid", "Test", "AEUF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrUpdateExcStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "arrupdateexcstaff-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"exception_date":   "2026-02-15",
@@ -692,7 +712,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 			"reason":           "Updated reason",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-exceptions/1", student.ID), body)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -792,13 +812,15 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDeleteForbid", "Test", "AEDF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrDeleteExcStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "arrdeleteexcstaff-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/arrival-exceptions/1", student.ID), nil)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -900,17 +922,19 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "content cannot exceed 500 characters")
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteForbidden", "Test", "ANF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ArrNoteStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "arrnotestaff-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]any{
 			"note_date": "2026-03-15",
 			"content":   "Test note",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/arrival-notes", student.ID), body)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)

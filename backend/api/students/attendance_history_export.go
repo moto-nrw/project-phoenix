@@ -81,8 +81,7 @@ func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.R
 		renderError(w, r, common.ErrorForbidden(errors.New("feature_disabled")))
 		return false
 	}
-	scope := config.ResolveStringOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
-	if !rs.attendanceHistoryScopeAllows(r, student, scope) {
+	if !rs.attendanceHistoryScopeAllows(r, student) {
 		renderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
 		return false
 	}

@@ -123,7 +123,7 @@ const (
 	// Carries NO child identity (#2085), for the same reason
 	// arrival_schedule_changed and pickup_schedule_changed are id-less: it
 	// reaches every staff client of the school, so a student id would let a
-	// colleague outside gdpr.student_data_scope = group_supervisors_only read
+	// client without student read access (guest/guardian, #2329) read
 	// off the raw SSE stream which child had just moved — the very thing the
 	// API responses redact for that person. It may carry the active_group_id,
 	// instance_id and a reason: room/session/instance scope, never who.
@@ -237,7 +237,7 @@ type EventData struct {
 	// dashboard_counts_changed / student_checkin / student_checkout /
 	// bulk_student_checkout / bulk_student_checkin (#2057). Group ids only — NEVER student identity —
 	// so the tenant-wide dashboard_counts_changed stays GDPR-safe under
-	// gdpr.student_data_scope: it reveals "counts in group X changed", nothing
+	// student read access: it reveals "counts in group X changed", nothing
 	// about who. Clients scope their ogs-students-{gid} revalidation to these
 	// ids. Contract: absence of the field means "scope unknown → refresh
 	// broadly"; emitters MUST omit the field entirely (nil) instead of sending
@@ -274,7 +274,7 @@ type EventData struct {
 	// NOTE: ThreadID, StudentID, and Source (guardian account id) are all cleared
 	// for the staff fan-out by staffSafeParentMessage so an unauthorized staffer
 	// cannot observe which child/guardian — or which specific conversation — a
-	// thread concerns from raw SSE traffic (gdpr.student_data_scope =
+	// thread concerns from raw SSE traffic (student read access,
 	// group_supervisors_only). ThreadID is opaque, but a staffer who once opened a
 	// thread (or otherwise knows its URL) and later loses access to that child
 	// could still correlate future parent_message events to that conversation, so

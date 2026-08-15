@@ -501,8 +501,9 @@ func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
 
-	// Normal toggle with valid student - exercises lookupStudent, getStaffIDFromContext
-	// Will fail at ToggleStudentAttendance since no active session exists
+	// Normal toggle with valid student - exercises lookupStudent, getStaffIDFromContext.
+	// Since #2329 the web toggle path no longer requires teacher-group access,
+	// so the toggle succeeds and checks the student in.
 	body := map[string]interface{}{
 		"rfid":   rfidCard.ID,
 		"action": "confirm",
@@ -514,9 +515,8 @@ func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Service will return an error since no activity session is running
-	// This still tests the lookupStudent and getStaffIDFromContext paths
-	assert.True(t, rr.Code >= 400, "Expected error response, got %d: %s", rr.Code, rr.Body.String())
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected successful toggle, got %d: %s", rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"action":"checked_in"`)
 }
 
 func TestToggleAttendance_NormalToggleWithStaffContext(t *testing.T) {
@@ -533,7 +533,9 @@ func TestToggleAttendance_NormalToggleWithStaffContext(t *testing.T) {
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
 
-	// Normal toggle with staff context - tests getStaffIDFromContext branch
+	// Normal toggle with staff context - tests getStaffIDFromContext branch.
+	// Since #2329 any staff member may toggle any student, so the toggle
+	// succeeds and the check-in is attributed to the staff member.
 	body := map[string]interface{}{
 		"rfid":   rfidCard.ID,
 		"action": "confirm",
@@ -546,8 +548,8 @@ func TestToggleAttendance_NormalToggleWithStaffContext(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 
-	// Will fail at ToggleStudentAttendance but tests staff context extraction
-	assert.True(t, rr.Code >= 400, "Expected error response, got %d: %s", rr.Code, rr.Body.String())
+	assert.Equal(t, http.StatusOK, rr.Code, "Expected successful toggle, got %d: %s", rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"checked_in_by":"TestStaff ForToggle"`)
 }
 
 func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {

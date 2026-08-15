@@ -72,7 +72,7 @@ type masterDataReviewService struct {
 	changeRequestRepo userModels.StudentDataChangeRequestRepository
 	studentRepo       userModels.StudentRepository
 	personRepo        userModels.PersonRepository
-	userCtx           authorize.StudentModifyUserContext
+	userCtx           authorize.StudentAccessUserContext
 	broadcaster       realtime.Broadcaster
 	emitter           *parentmessaging.Emitter
 	studentAudit      StudentChangeRecorder
@@ -88,7 +88,7 @@ func NewMasterDataReviewService(
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
-	userCtx authorize.StudentModifyUserContext,
+	userCtx authorize.StudentAccessUserContext,
 	emitter *parentmessaging.Emitter,
 	logger *slog.Logger,
 	broadcasters ...realtime.Broadcaster,
@@ -102,7 +102,7 @@ func NewMasterDataReviewServiceWithAudit(
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
-	userCtx authorize.StudentModifyUserContext,
+	userCtx authorize.StudentAccessUserContext,
 	emitter *parentmessaging.Emitter,
 	studentAudit StudentChangeRecorder,
 	logger *slog.Logger,
@@ -115,7 +115,7 @@ func newMasterDataReviewService(
 	changeRequestRepo userModels.StudentDataChangeRequestRepository,
 	studentRepo userModels.StudentRepository,
 	personRepo userModels.PersonRepository,
-	userCtx authorize.StudentModifyUserContext,
+	userCtx authorize.StudentAccessUserContext,
 	emitter *parentmessaging.Emitter,
 	studentAudit StudentChangeRecorder,
 	logger *slog.Logger,

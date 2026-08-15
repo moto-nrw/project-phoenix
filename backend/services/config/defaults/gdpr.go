@@ -94,26 +94,6 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceLogEnabled, true),
 	})
 
-	config.Register(config.Definition{
-		Key:             config.KeyAttendanceLogScope,
-		Label:           "Zugriffsumfang",
-		Description:     "Legt fest, welche Mitarbeitenden das Anwesenheitsprotokoll eines Kindes einsehen dürfen.",
-		Type:            config.FieldSelect,
-		Default:         config.AttendanceLogScopeGroupSupervisorsOnly,
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "gdpr",
-		Category:        "bewegungsdaten",
-		SortOrder:       13,
-		Options: &config.SelectOptions{
-			Static: []config.SelectOption{
-				{Label: "Nur Gruppenbetreuer des Kindes", Value: config.AttendanceLogScopeGroupSupervisorsOnly},
-				{Label: "Alle berechtigten Mitarbeitenden", Value: config.AttendanceLogScopeAllStaff},
-			},
-		},
-		DependsOn: config.DependsOnEq(config.KeyAttendanceLogEnabled, true),
-	})
-
 	// --- Zeiterfassung Aufbewahrung (ArbZG + DSGVO retention window) ---
 	//
 	// §16 Abs. 2 ArbZG mandates at least 2 years for working-time records.
@@ -197,24 +177,4 @@ func init() {
 		},
 	})
 
-	// --- Kinderdaten-Zugriff (who can read full student profile data) ---
-
-	config.Register(config.Definition{
-		Key:             config.KeyStudentDataScope,
-		Label:           "Kinderdaten-Zugriff",
-		Description:     "Legt fest, welche Mitarbeitenden vollständige Kinderdaten (Profil, aktueller Aufenthaltsort, Besuchsinformationen, Datenschutzangaben und Abholpläne) einsehen dürfen. Schreiboperationen bleiben stets auf die Gruppenbetreuer des Kindes beschränkt.",
-		Type:            config.FieldSelect,
-		Default:         config.StudentDataScopeGroupSupervisorsOnly,
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "gdpr",
-		Category:        "schülerdaten",
-		SortOrder:       20,
-		Options: &config.SelectOptions{
-			Static: []config.SelectOption{
-				{Label: "Nur Gruppenbetreuer des Kindes", Value: config.StudentDataScopeGroupSupervisorsOnly},
-				{Label: "Alle berechtigten Mitarbeitenden", Value: config.StudentDataScopeAllStaff},
-			},
-		},
-	})
 }
