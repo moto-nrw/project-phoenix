@@ -893,33 +893,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
       item.href !== "/substitutions",
   );
 
-  // Leseansicht (#2283): Nicht-Admins bekommen die sichtbaren Planungsseiten
-  // als flache Einträge direkt hinter "Mein Kalender" (beides Ansichtsseiten
-  // des eigenen Arbeitsalltags). Aktiv-Zustand über den rohen Pfad (pathname
-  // trägt keinen Tenant-Präfix), Navigation über tenantPath — dieselbe
-  // Trennung wie bei den Akkordeon-Sub-Items.
-  const hasCalendarEntry = middleItems.some(
-    (item) => item.href === "/calendar",
-  );
-  const planningFlatItems =
-    !userIsAdmin && planningSubPages.length > 0
-      ? planningSubPages.map((page) => (
-          <Link
-            key={page.href}
-            href={tenantPath(page.href)}
-            className={getLinkClasses(page.href)}
-          >
-            {renderNavIcon({
-              href: page.href,
-              label: page.label,
-              icon: navigationIcons.betreuungsplan,
-              concept: "carePlan",
-            })}
-            <span>{page.label}</span>
-          </Link>
-        ))
-      : null;
-
   // Gruppenzugriff (admin only, flat) — nur bei festen Gruppen relevant
   const substitutionsItem = mainNavItems.find(
     (item) => item.href === "/substitutions",
@@ -1435,14 +1408,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
             .filter((item) => item.href === "/students/search")
             .map(renderNavItem)}
 
-          {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter. Für
-              Nicht-Admins hängt die Betreuungsplan-Leseansicht (#2283) als
-              flacher Eintrag direkt hinter "Mein Kalender". */}
-          {middleItems.flatMap((item) =>
-            item.href === "/calendar" && planningFlatItems
-              ? [renderNavItem(item), ...planningFlatItems]
-              : [renderNavItem(item)],
-          )}
+          {/* Flat middle items: Aktivitaten, Raume, Mitarbeiter */}
+          {middleItems.map(renderNavItem)}
 
           {/* Gruppenzugriff (admin, flat) — nur bei festen Gruppen (#1940) */}
           {substitutionsItem &&
@@ -1525,11 +1492,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
               ausgeschaltetem timetable.enabled bleiben für Admins
               Kalenderzeiträume und Abrechnung übrig.
 
-              Nicht-Admins (#2283): flache Einträge statt Akkordeon, direkt
-              hinter "Mein Kalender" (siehe middleItems-Schleife oben); hier
-              nur der Fallback, falls "Mein Kalender" fehlt. */}
-          {!hasCalendarEntry && planningFlatItems}
-          {planningSubPages.length > 0 && userIsAdmin && (
+              Nicht-Admins erreichen die Betreuungsplan-Leseansicht (#2283)
+              als Tab in "Mein Kalender"; das Akkordeon zeigt ihnen nur
+              Seiten mit gehaltener nonAdminPermission (heute: Abrechnung
+              über config:manage). */}
+          {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
               concept="carePlan"

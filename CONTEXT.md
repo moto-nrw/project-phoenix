@@ -76,11 +76,12 @@ sie nicht ausdrücklich mit anderen Sorgeberechtigten teilt.
 ## Leseansicht (Betreuungsplan)
 
 Die **Leseansicht** ist der Betreuungsplan, wie ihn Teammitglieder ohne
-Admin-Rechte sehen: der vollständige Wochenplan der ganzen Schule (wer macht
-was, wann, wo, mit wem), aber ohne jede Editier-Kontrolle. Editier-Elemente
-werden ausgeblendet, nicht deaktiviert; ein Hinweis im Seitenkopf benennt die
-Ansicht. Kindernamen erscheinen darin nur in der Teilnehmerliste eines
-Termin-Details, nicht in Planungswerkzeugen wie Konflikt-Warnungen.
+Admin-Rechte sehen: der Wochenplan der ganzen Schule (wer macht was, wann,
+wo, mit wem), ohne jede Editier-Kontrolle und ohne Planungswerkzeuge
+(Monats-/Serienansicht, Lücken- und Konflikthinweise, Export). Sie lebt als
+Tab „Betreuungsplan" in „Mein Kalender" — der einen Kalenderfläche neben dem
+Tab „Meine Termine" — und trägt den Hinweis „Nur ansehen". Kindernamen
+erscheinen nur in der Teilnehmerliste eines Termin-Details.
 
 ## Familienschutz
 
