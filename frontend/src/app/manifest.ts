@@ -8,6 +8,28 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+/**
+ * Eltern-spezifische Angaben für das Manifest.
+ *
+ * Das Manifest MUSS hier entstehen und nicht als eigene Route unter
+ * /parents: der Proxy bildet den Eltern-Host auf /parents/* ab, öffentliche
+ * URLs beginnen dort also ohne /parents. Eine Route unter /parents wäre für
+ * den Browser nur über eine 307-Umleitung erreichbar, und ein Manifest hinter
+ * einer Umleitung macht die App nicht installierbar.
+ *
+ * Ohne eigenständige Installation gibt es auf iOS keine
+ * Web-Push-Benachrichtigungen, deshalb hängt daran mehr als nur der Name auf
+ * dem Home-Bildschirm.
+ */
+const PARENTS_MANIFEST = {
+  name: "moto Eltern",
+  short_name: "moto",
+  description:
+    "Die Betreuung Ihres Kindes im Blick: Tagesstatus, Nachrichten an die OGS, Krankmeldung und Termine.",
+  orientation: "portrait-primary",
+  lang: "de",
+} satisfies Partial<MetadataRoute.Manifest>;
+
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const requestHeaders = await headers();
   const host =
@@ -18,5 +40,13 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     tenantDomain: requiredEnv("TENANT_DOMAIN"),
   });
 
-  return faviconManifest(variant);
+  const base = faviconManifest(variant);
+
+  // Die Icons kommen weiterhin aus der host-aufgelösten Variante, nur Name,
+  // Beschreibung und Ausrichtung sind für Eltern eigene.
+  if (variant === "eltern" || variant === "eltern-staging") {
+    return { ...base, ...PARENTS_MANIFEST };
+  }
+
+  return base;
 }

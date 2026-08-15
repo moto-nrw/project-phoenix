@@ -4,18 +4,19 @@ import { ParentProviders } from "./providers";
 import { ParentAuthGuard } from "./auth-guard";
 
 /**
- * Verweist die Eltern-App auf ihr eigenes Manifest und erlaubt iOS den Start
- * ausserhalb des Browser-Rahmens.
+ * Erlaubt iOS, die Eltern-App ausserhalb des Browser-Rahmens zu starten.
  *
- * Die Wurzel (app/layout.tsx) verlinkt /manifest.webmanifest mit dem Namen
- * "MOTO". Diese Angaben ueberschreiben das nur unterhalb von /parents, das
- * Personal- und das Operator-Portal bleiben unberuehrt.
+ * Das Manifest selbst wird NICHT hier verlinkt: der Proxy bildet den
+ * Eltern-Host auf /parents/* ab, oeffentliche URLs beginnen dort also ohne
+ * /parents. Ein Verweis auf /parents/manifest.webmanifest liefe in eine
+ * 307-Umleitung, und hinter einer Umleitung ist eine App nicht installierbar.
+ * Stattdessen erkennt app/manifest.ts den Eltern-Host und liefert unter dem
+ * bereits verlinkten /manifest.webmanifest die eltern-spezifischen Angaben.
  *
  * Ohne appleWebApp oeffnet iOS die Seite trotz Manifest im Browser-Rahmen, und
  * ohne eigenstaendigen Start gibt es dort keine Web-Push-Benachrichtigungen.
  */
 export const metadata: Metadata = {
-  manifest: "/parents/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
