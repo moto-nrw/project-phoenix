@@ -17,6 +17,7 @@ export function ParentSection({
   actions,
   children,
   bare = false,
+  level = 2,
 }: Readonly<{
   title: string;
   description?: string;
@@ -24,14 +25,23 @@ export function ParentSection({
   children: React.ReactNode;
   /** Ohne eigene Kartenflaeche, wenn der Inhalt selbst schon Karten sind. */
   bare?: boolean;
+  /** 3 fuer Bloecke, die unter einem anderen Abschnitt haengen. */
+  level?: 2 | 3;
 }>) {
+  const Heading = level === 3 ? "h3" : "h2";
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <h2 className="text-[20px] leading-tight font-semibold text-gray-900">
+          <Heading
+            className={
+              level === 3
+                ? "text-[17px] leading-tight font-semibold text-gray-900"
+                : "text-[20px] leading-tight font-semibold text-gray-900"
+            }
+          >
             {title}
-          </h2>
+          </Heading>
           {description && (
             <p className="mt-1 text-[15px] text-gray-600">{description}</p>
           )}

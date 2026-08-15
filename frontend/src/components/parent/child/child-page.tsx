@@ -114,6 +114,9 @@ export function ChildPage({
 
   return (
     <div className="space-y-6">
+      <h1 className="text-[28px] leading-tight font-bold text-balance text-gray-900">
+        {`${active.first_name} ${active.last_name}`}
+      </h1>
       <ChildSwitcher
         items={switcherItems}
         activeId={active.student_id}
@@ -184,6 +187,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
               schoolClass: child.school_class,
             }}
             today={today}
+            hideIdentity
             features={care.loading ? undefined : care.features}
             onSick={
               care.features.sick_note_enabled

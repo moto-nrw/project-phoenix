@@ -76,11 +76,15 @@ describe("ParentHeader", () => {
     );
   });
 
-  it("carries no second title and no eyebrow", () => {
+  // Die Kopfzeile sagt, wo man ist; die Ueberschrift der Seite gehoert der
+  // Seite. Zwei h1 waeren fuer die Sprachausgabe zwei Titel, deshalb traegt
+  // die Kopfzeile gar keine Ueberschriftsebene.
+  it("carries no heading and no eyebrow", () => {
     pathnameMock.mockReturnValue("/parents/calendar");
     const { container } = renderHeader();
 
-    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(container.querySelectorAll("h1, h2, h3")).toHaveLength(0);
+    expect(screen.getByText("Kalender")).toBeVisible();
     expect(container.querySelector(".moto-eyebrow")).not.toBeInTheDocument();
   });
 });

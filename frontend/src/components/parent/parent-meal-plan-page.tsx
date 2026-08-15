@@ -257,7 +257,7 @@ export function ParentMealPlanPage() {
           <section className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-start">
             {schools.length > 1 && (
               <div className="flex w-full flex-col gap-1.5 sm:w-64">
-                <span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+                <span className="text-[15px] font-medium text-gray-600">
                   {t("school")}
                 </span>
                 <CustomSelect
@@ -273,7 +273,7 @@ export function ParentMealPlanPage() {
             )}
 
             <div className="flex w-full flex-col gap-1.5 sm:w-56">
-              <span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+              <span className="text-[15px] font-medium text-gray-600">
                 {t("week")}
               </span>
               <CustomSelect
@@ -329,7 +329,7 @@ export function ParentMealPlanPage() {
                   })()}
 
                 <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-                  <div className="border-b border-gray-200 px-4 py-2.5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  <div className="border-b border-gray-200 px-4 py-2.5 text-[15px] font-medium text-gray-700">
                     {weekOffset === 0 ? t("weekHeading") : t("nextWeek")}
                   </div>
                   <div className="divide-y divide-gray-100">

@@ -1065,6 +1065,7 @@ export function PickupTimeModal({
               }}
               label={t("pickup.pickupLabel")}
               hint={t("timeFormatHint")}
+              placeholder={t("timeExample")}
               required
               invalid={invalidField === "pickupTime"}
               describedBy={invalidField === "pickupTime" ? errorId : undefined}

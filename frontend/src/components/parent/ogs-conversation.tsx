@@ -412,7 +412,7 @@ function QuickActions({
   loading: boolean;
   onPick: (key: OgsActionKey) => void;
 }>) {
-  if (loading) return <div className="mb-3 h-9" aria-hidden="true" />;
+  if (loading) return <div className="mb-3 h-12" aria-hidden="true" />;
   const actions = getOgsActions(features).filter((action) => action.enabled);
   if (actions.length === 0) return null;
   return (
@@ -437,7 +437,7 @@ function QuickActionPill({
       type="button"
       onClick={() => onPick(action.key)}
       title={t(`actions.${action.key}.hint`)}
-      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-[17px] font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[#5080D8] focus-visible:outline-none"
     >
       <MotoConceptIcon concept={action.concept} size={18} />
       {t(`actions.${action.key}.shortLabel`)}

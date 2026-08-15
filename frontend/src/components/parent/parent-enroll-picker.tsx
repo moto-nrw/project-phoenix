@@ -135,7 +135,7 @@ function SchoolSection({
 }: Readonly<{ label: string; groups: SchoolGroup[]; locale: string }>) {
   return (
     <section className="space-y-3">
-      <h2 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+      <h2 className="text-[15px] font-medium text-gray-700">
         {label}
       </h2>
       <div className="space-y-4">

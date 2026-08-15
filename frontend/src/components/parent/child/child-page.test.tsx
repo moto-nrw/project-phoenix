@@ -91,8 +91,17 @@ beforeEach(() => {
 describe("ChildPage", () => {
   it("zeigt bei einem Kind weder Liste noch Umschalter", async () => {
     renderPage();
-    expect(await screen.findByText("Felix Schneider")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Felix Schneider" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+  });
+
+  // Der Name steht als Seitentitel; die Tageskarte darunter wiederholt ihn nicht.
+  it("nennt das Kind genau einmal", async () => {
+    renderPage();
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
+    expect(screen.getAllByText("Felix Schneider")).toHaveLength(1);
   });
 
   it("zeigt bei mehreren Kindern einen Umschalter und wechselt den Inhalt", async () => {
@@ -109,7 +118,7 @@ describe("ChildPage", () => {
 
   it("stellt die vier Abschnitte in der festgelegten Reihenfolge", async () => {
     renderPage();
-    await screen.findByText("Felix Schneider");
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((node) => node.textContent);
@@ -138,14 +147,14 @@ describe("ChildPage", () => {
 
   it("kennt weder Betreuungszeiten noch AGs", async () => {
     renderPage();
-    await screen.findByText("Felix Schneider");
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
     expect(screen.queryByText(/Betreuungszeiten/)).not.toBeInTheDocument();
     expect(screen.queryByText(/AGs/)).not.toBeInTheDocument();
   });
 
   it("bietet keine Eingabefelder im Kinderbereich ausserhalb der Datenabschnitte", async () => {
     renderPage();
-    await screen.findByText("Felix Schneider");
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
     await waitFor(() =>
       expect(document.querySelectorAll("input")).toHaveLength(0),
     );

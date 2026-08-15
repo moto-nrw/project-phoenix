@@ -135,6 +135,7 @@ export function ChildDayCard({
   features,
   onSick,
   onPickup,
+  hideIdentity = false,
 }: Readonly<{
   child: ChildDayCardChild;
   today: ChildToday;
@@ -144,6 +145,11 @@ export function ChildDayCard({
   onSick?: () => void;
   /** Gesetzt, wenn die Seite den Abhol-Dialog selbst fuehrt. */
   onPickup?: () => void;
+  /**
+   * Ohne Name und Initialen. Im Kinderbereich steht der Name schon als
+   * Seitentitel darueber; ihn direkt darunter zu wiederholen ist Fuellstoff.
+   */
+  hideIdentity?: boolean;
 }>) {
   const t = useTranslations("parentToday");
   const look = STATE_LOOK[today.state] ?? NEUTRAL;
@@ -161,27 +167,29 @@ export function ChildDayCard({
       />
 
       <div className="space-y-4 py-4 pr-4 pl-5 sm:py-5 sm:pr-5 sm:pl-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar
-            name={fullName}
-            shape="rounded"
-            decorative
-            className="size-11 text-[15px]"
-          />
-          <div className="min-w-0">
-            <p className="truncate text-[20px] leading-tight font-semibold text-gray-900">
-              {fullName}
-            </p>
-            {/* Der Wert kommt so, wie die Schule ihre Gruppe benennt, meist
+        {!hideIdentity && (
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar
+              name={fullName}
+              shape="rounded"
+              decorative
+              className="size-11 text-[15px]"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-[20px] leading-tight font-semibold text-gray-900">
+                {fullName}
+              </p>
+              {/* Der Wert kommt so, wie die Schule ihre Gruppe benennt, meist
                 bereits als "Klasse 1b". Ein zusaetzliches "Klasse" davor
                 ergaebe "Klasse Klasse 1b". Also unveraendert ausgeben. */}
-            {child.schoolClass && (
-              <p className="truncate text-[15px] text-gray-600">
-                {child.schoolClass}
-              </p>
-            )}
+              {child.schoolClass && (
+                <p className="truncate text-[15px] text-gray-600">
+                  {child.schoolClass}
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center gap-3">
           <span

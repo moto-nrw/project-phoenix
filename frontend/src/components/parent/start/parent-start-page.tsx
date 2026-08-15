@@ -136,35 +136,42 @@ export function ParentStartPage() {
         {greeting}
       </h1>
 
-      <StartTodoSection />
-
-      {failed && <Alert type="error" message={t("loadError")} />}
-
-      {loading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-56 w-full rounded-2xl" />
+      {/* Ab 1024 px zwei Spalten: links, was zu tun ist, rechts die Kinder.
+          Sonst bliebe die rechte Bildschirmhaelfte leer, und das offene
+          Zeug rutschte auf breiten Schirmen weit nach oben weg. */}
+      <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0">
+        <div className="space-y-5">
+          <StartTodoSection />
         </div>
-      ) : data.children.length === 0 && !failed ? (
-        <p className="rounded-2xl border border-gray-200 bg-white p-5 text-[17px] text-gray-600 shadow-sm">
-          {t("noChildren")}
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-2">
-          {data.children.map((child) => (
-            <ChildDayCard
-              key={child.student_id}
-              child={{
-                studentId: child.student_id,
-                firstName: child.first_name,
-                lastName: child.last_name,
-                schoolClass: child.school_class,
-              }}
-              today={data.today[child.student_id] ?? UNKNOWN_CHILD_TODAY}
-              features={data.features[child.student_id]}
-            />
-          ))}
+
+        <div className="space-y-4">
+          {failed && <Alert type="error" message={t("loadError")} />}
+
+          {loading ? (
+            <Skeleton className="h-56 w-full rounded-2xl" />
+          ) : data.children.length === 0 && !failed ? (
+            <p className="rounded-2xl border border-gray-200 bg-white p-5 text-[17px] text-gray-600 shadow-sm">
+              {t("noChildren")}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              {data.children.map((child) => (
+                <ChildDayCard
+                  key={child.student_id}
+                  child={{
+                    studentId: child.student_id,
+                    firstName: child.first_name,
+                    lastName: child.last_name,
+                    schoolClass: child.school_class,
+                  }}
+                  today={data.today[child.student_id] ?? UNKNOWN_CHILD_TODAY}
+                  features={data.features[child.student_id]}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

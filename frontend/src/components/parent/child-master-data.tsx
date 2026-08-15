@@ -163,6 +163,7 @@ function ChildMasterDataContent({
 
       {/* Track A — health (direct edit) */}
       <ParentSection
+        level={3}
         title={t("sections.health")}
         description={t("editableHint")}
       >
@@ -176,6 +177,7 @@ function ChildMasterDataContent({
 
       {/* Track A — guardian contact (direct edit) */}
       <ParentSection
+        level={3}
         title={t("sections.contact")}
         description={t("editableHint")}
       >
@@ -252,7 +254,6 @@ function ChildMasterDataContent({
         pending={pendingByField.get("departure/allowed_departure_modes")}
         onApplied={onApplied}
       />
-
     </div>
   );
 }
@@ -383,6 +384,7 @@ function IdentitySection({
 
   return (
     <ParentSection
+      level={3}
       title={t("sections.child")}
       description={t("requestHint")}
     >
@@ -540,6 +542,7 @@ function DepartureSection({
 
   return (
     <ParentSection
+      level={3}
       title={t("sections.departure")}
       description={t("requestHint")}
     >
@@ -715,9 +718,7 @@ function AutoSaveField({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {label}
-        </span>
+        <span className="text-[15px] font-medium text-gray-700">{label}</span>
         <SaveIndicator status={status} />
       </div>
       <div className="mt-1">
@@ -822,9 +823,7 @@ function AutoSaveSelect({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {label}
-        </span>
+        <span className="text-[15px] font-medium text-gray-700">{label}</span>
         <SaveIndicator status={status} />
       </div>
       <div className="mt-1">
@@ -860,9 +859,7 @@ function RequestField({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {label}
-        </span>
+        <span className="text-[15px] font-medium text-gray-700">{label}</span>
         {pending && (
           <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
             <Clock className="h-3 w-3" aria-hidden="true" />
@@ -910,9 +907,7 @@ function ReadField({
   const t = useTranslations("parentMasterData");
   return (
     <div className="min-w-0">
-      <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {label}
-      </span>
+      <span className="text-[15px] font-medium text-gray-700">{label}</span>
       <p className="mt-1 text-sm font-medium text-gray-900">
         {value || t("notSet")}
       </p>

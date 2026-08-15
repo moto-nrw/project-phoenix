@@ -51,7 +51,7 @@
     "comingSoon": "Coming soon",
     "calendar": "Calendar",
     "messages": "Messages",
-    "news": "News",
+    "news": "From the OGS",
     "notifications": "Notifications",
     "language": "Language",
     "contactData": "Contact details",
@@ -371,7 +371,8 @@
       "sendError": "The request could not be sent."
     },
     "requiredHint": "Fields marked with * are required.",
-    "timeFormatHint": "Time in the format 15:30"
+    "timeFormatHint": "Time in the format 15:30",
+    "timeExample": "e.g. 15:30"
   },
   "parentLogin": {
     "eyebrow": "Parent portal",
@@ -1070,6 +1071,12 @@
       "5": "Fri",
       "6": "Sat",
       "7": "Sun"
+    },
+    "careSchedule": {
+      "arrival": "Drop-off time",
+      "pickup": "Pick-up time",
+      "modes": "Way home",
+      "loadError": "The care times could not be loaded. Please refresh the page."
     }
   },
   "parentOgsMessaging": {

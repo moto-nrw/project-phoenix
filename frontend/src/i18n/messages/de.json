@@ -51,7 +51,7 @@
     "comingSoon": "Bald im Elternportal",
     "calendar": "Kalender",
     "messages": "Nachrichten",
-    "news": "Neuigkeiten",
+    "news": "Aus der OGS",
     "notifications": "Benachrichtigungen",
     "language": "Sprache",
     "contactData": "Kontaktdaten",
@@ -371,7 +371,8 @@
       "sendError": "Die Anfrage konnte nicht gesendet werden."
     },
     "requiredHint": "Felder mit * müssen ausgefüllt werden.",
-    "timeFormatHint": "Uhrzeit im Format 15:30"
+    "timeFormatHint": "Uhrzeit im Format 15:30",
+    "timeExample": "z. B. 15:30"
   },
   "parentLogin": {
     "eyebrow": "Elternportal",
@@ -1070,6 +1071,12 @@
       "5": "Fr",
       "6": "Sa",
       "7": "So"
+    },
+    "careSchedule": {
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite."
     }
   },
   "parentOgsMessaging": {

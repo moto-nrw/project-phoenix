@@ -63,9 +63,12 @@ export function ParentHeader() {
 
         <span aria-hidden="true" className="h-6 w-px shrink-0 bg-gray-200" />
 
-        <h1 className="min-w-0 flex-1 truncate text-[17px] font-semibold text-gray-900">
+        {/* Kein h1: die Kopfzeile sagt, wo man ist, die Seite selbst traegt
+            ihre Ueberschrift. Zwei h1 auf einer Seite waeren fuer die
+            Sprachausgabe zwei Titel. */}
+        <p className="min-w-0 flex-1 truncate text-[17px] font-semibold text-gray-900">
           {t(titleKey)}
-        </h1>
+        </p>
 
         <LanguageSwitcher compact />
 

@@ -18,6 +18,7 @@ export function TimeField({
   onChange,
   label,
   hint,
+  placeholder,
   required = false,
   invalid = false,
   describedBy,
@@ -28,6 +29,8 @@ export function TimeField({
   label: string;
   /** Sichtbarer Formathinweis, z. B. "Uhrzeit im Format 15:30". */
   hint: string;
+  /** Beispielzeit im leeren Feld. Nie das rohe native "--:--". */
+  placeholder: string;
   required?: boolean;
   invalid?: boolean;
   describedBy?: string;
@@ -55,7 +58,7 @@ export function TimeField({
         inputMode="numeric"
         autoComplete="off"
         value={value}
-        placeholder="--:--"
+        placeholder={placeholder}
         maxLength={5}
         required={required}
         aria-required={required}

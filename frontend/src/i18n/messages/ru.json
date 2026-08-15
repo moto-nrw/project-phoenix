@@ -51,7 +51,7 @@
     "comingSoon": "Скоро в родительском портале",
     "calendar": "Календарь",
     "messages": "Сообщения",
-    "news": "Новости",
+    "news": "Из продлёнки",
     "notifications": "Уведомления",
     "language": "Язык",
     "contactData": "Контактные данные",
@@ -371,7 +371,8 @@
       "sendError": "Не удалось отправить запрос."
     },
     "requiredHint": "Поля со * нужно заполнить.",
-    "timeFormatHint": "Время в формате 15:30"
+    "timeFormatHint": "Время в формате 15:30",
+    "timeExample": "например 15:30"
   },
   "parentLogin": {
     "eyebrow": "Родительский портал",
@@ -1070,6 +1071,12 @@
       "5": "Пт",
       "6": "Сб",
       "7": "Вс"
+    },
+    "careSchedule": {
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite."
     }
   },
   "parentOgsMessaging": {

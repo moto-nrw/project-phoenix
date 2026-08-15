@@ -75,7 +75,7 @@ export function ParentPageHeader({
           {media}
           <div className="min-w-0">
             {kicker && (
-              <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+              <p className="text-[15px] font-semibold text-[#5080D8]">
                 {kicker}
               </p>
             )}

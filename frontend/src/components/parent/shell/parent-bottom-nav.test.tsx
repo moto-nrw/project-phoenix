@@ -129,19 +129,19 @@ describe("ParentBottomNav", () => {
 
     fireEvent.click(screen.getByText("Mehr"));
 
-    expect(screen.getByText("Neuigkeiten")).toBeVisible();
+    expect(screen.getByText("Aus der OGS")).toBeVisible();
     expect(screen.getByText("Essensplan")).toBeVisible();
     expect(screen.getByText("Benachrichtigungen")).toBeVisible();
     expect(screen.getByText("Neue Anmeldung")).toBeVisible();
     expect(screen.getByText("Abmelden")).toBeVisible();
   });
 
-  it("hides Neuigkeiten and Essensplan when no school offers them", () => {
+  it("hides Aus der OGS and Essensplan when no school offers them", () => {
     renderNav({ gates: { news: false, mealPlan: false } });
 
     fireEvent.click(screen.getByText("Mehr"));
 
-    expect(screen.queryByText("Neuigkeiten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aus der OGS")).not.toBeInTheDocument();
     expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
     expect(screen.getByText("Benachrichtigungen")).toBeVisible();
   });

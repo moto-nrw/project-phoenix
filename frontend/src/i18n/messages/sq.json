@@ -51,7 +51,7 @@
     "comingSoon": "Së shpejti në portalin e prindërve",
     "calendar": "Kalendari",
     "messages": "Mesazhe",
-    "news": "Lajme",
+    "news": "Nga OGS",
     "notifications": "Njoftimet",
     "language": "Gjuha",
     "contactData": "Të dhënat e kontaktit",
@@ -371,7 +371,8 @@
       "sendError": "Kërkesa nuk mund të dërgohej."
     },
     "requiredHint": "Fushat me * duhen plotësuar.",
-    "timeFormatHint": "Ora në formatin 15:30"
+    "timeFormatHint": "Ora në formatin 15:30",
+    "timeExample": "p.sh. 15:30"
   },
   "parentLogin": {
     "eyebrow": "Portali i prindërve",
@@ -1070,6 +1071,12 @@
       "5": "Pre",
       "6": "Sht",
       "7": "Die"
+    },
+    "careSchedule": {
+      "arrival": "Bringzeit",
+      "pickup": "Abholzeit",
+      "modes": "Abholart",
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite."
     }
   },
   "parentOgsMessaging": {
