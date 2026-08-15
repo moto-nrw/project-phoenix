@@ -63,6 +63,26 @@ type fakeParentService struct {
 	gotCarePickup    *time.Time
 	gotCareArrival   *time.Time
 	gotCareReason    string
+
+	todayStatus     *parentService.TodayStatus
+	todayStatusErr  error
+	gotTodayAccount int64
+	gotTodayStudent int64
+}
+
+// GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
+// Rueckgabewert liefert es den neutralen unbekannten Zustand, damit
+// bestehende Tests, die den Tagesstatus nicht betreffen, unveraendert laufen.
+func (f *fakeParentService) GetChildTodayStatus(_ context.Context, accountID, studentID int64) (*parentService.TodayStatus, error) {
+	f.gotTodayAccount = accountID
+	f.gotTodayStudent = studentID
+	if f.todayStatusErr != nil {
+		return nil, f.todayStatusErr
+	}
+	if f.todayStatus != nil {
+		return f.todayStatus, nil
+	}
+	return &parentService.TodayStatus{State: parentService.DayStateUnknown}, nil
 }
 
 func (f *fakeParentService) GetProfile(_ context.Context, _ int64) (*parentService.Profile, error) {

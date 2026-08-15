@@ -49,6 +49,13 @@ type Service interface {
 	// tenant mapping. Sorted by school then by name.
 	ListChildrenForAccount(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error)
 
+	// GetChildTodayStatus liefert den auf Elternsicht reduzierten
+	// Betreuungsstatus des laufenden Berliner Kalendertages: eine
+	// Ja/Nein-Aussage "in der OGS" plus einen erklaerenden Zustand. Die
+	// Antwort enthaelt niemals Raeume, Besuchshistorie, Rohereignisse oder
+	// Mitarbeitendennamen.
+	GetChildTodayStatus(ctx context.Context, accountID, studentID int64) (*TodayStatus, error)
+
 	// ListEnrollableForAccount returns every (school, open phase)
 	// pair the parent could enroll a new child at, with a flag for
 	// schools they're already linked to. Sorted with linked schools
@@ -432,6 +439,13 @@ type ServiceConfig struct {
 	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
+
+	// AttendanceRepo liefert die schulweite Anwesenheit des Kindes. Sie ist
+	// die einzige Praesenzquelle fuer Eltern; active.visits wird nie gelesen,
+	// damit kein Raumbezug nach aussen gelangt. Gefuellt wird die Tabelle
+	// sowohl vom Kiosk-Scan als auch von der manuellen Erfassung im
+	// Personal-Portal, der Tagesstatus funktioniert also mit und ohne NFC.
+	AttendanceRepo activeModels.AttendanceRepository
 
 	// Per-child write features (sick notes + care exceptions).
 	StatusDayRepo        activeModels.StudentStatusDayRepository

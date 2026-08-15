@@ -1914,6 +1914,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollablePhaseRepo:      repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo:    repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:      repos.GuardianProfile,
+		AttendanceRepo:           repos.Attendance,
 		StatusDayRepo:            repos.StudentStatusDay,
 		MealPlanRepo:             repos.MealPlanEntry,
 		StudentRepo:              repos.Student,
