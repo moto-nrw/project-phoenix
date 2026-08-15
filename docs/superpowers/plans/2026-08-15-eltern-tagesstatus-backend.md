@@ -27,15 +27,64 @@
 - Sprache ist OGS-Sprache, wie Eltern und Team miteinander reden. Kein
   Verwaltungsvokabular, keine Systembegriffe.
 
-**Verhältnis zum Oberflächen-Neubau:** Abschnitt 4a der Spezifikation erteilt
-für die Oberfläche freie Hand für einen Neubau von Grund auf. Dieser Plan nimmt
-davon bewusst **nichts** vorweg: Aufgabe 5 setzt den Status nur in das heute
+## Mandat für die Oberfläche: Neubau, keine Renovierung
+
+Übernommen aus Abschnitt 4a der Spezifikation. Verbindlich für diesen und jeden
+weiteren Etappenplan dieses Vorhabens.
+
+Für alles oberhalb der Datenschicht gilt ausdrücklich freie Hand. Die
+Oberfläche der Eltern-App wird **von Grund auf neu gebaut**, nicht am Bestand
+entlang verbessert. Maßstab ist eine gute Kita-Eltern-App, nicht das heutige
+Elternportal.
+
+**Was "von Grund auf" ausdrücklich erlaubt:**
+
+- Bestehende Eltern-Komponenten **löschen und ersetzen**, statt sie zu
+  erweitern. `child-detail.tsx`, `parent-dashboard.tsx`, `parent-page.tsx`,
+  `child-care.tsx` und die Eltern-Zweige in Sidebar und Bottom-Nav sind
+  Ausgangsmaterial, kein Bestandsschutz.
+- **Neue Seitenstrukturen** erfinden, die es heute nicht gibt.
+- **Bestehende Texte komplett neu schreiben** statt sie zu glätten.
+- Karten, Abstände, Typografie und Dichte neu festlegen, solange die Bausteine
+  im geteilten UI-Kit landen.
+
+**Die Leitlinien:**
+
+- **Layout nach Kita-App-Mustern:** eine Sache pro Bildschirm, große Flächen,
+  klare Reihenfolge, nichts Dekoratives. Kein Dashboard-Gefühl, keine
+  Kachelwände, keine Marketing-Hero-Karten. Der wichtigste Inhalt steht ohne
+  Scrollen da.
+- **Farbe trägt Bedeutung, nicht Schmuck.** Aus der moto-Palette, aber deutlich
+  wärmer und zugänglicher eingesetzt als im Personal-Portal. Farbe nie als
+  einziger Träger einer Information.
+- **Sprache ist OGS- und Kita-Sprache**, so wie Eltern und Team tatsächlich
+  miteinander reden. "Ist Ihr Kind heute krank?" statt "Abwesenheitsmeldung
+  erfassen". Keine Systembegriffe, keine Verwaltungswörter, keine Anglizismen.
+  Das gilt für alle vier Sprachkataloge, nicht nur für Deutsch.
+- **Mobile, Tablet und Desktop werden jeweils eigenständig entworfen**, nicht
+  ein Entwurf dreimal gestreckt. Mobile ist der Leitfall, Desktop bekommt eine
+  eigene Aufteilung statt einer breiten leeren Spalte.
+- **Bedienbar mit wenig digitaler Erfahrung:** Icons immer mit Textlabel, große
+  Touchflächen, Folgen vor dem Absenden benennen, nur eine Hauptaktion je
+  Bildschirm.
+
+**Die einzigen Grenzen:** neue Bausteine ins geteilte UI-Kit
+(`frontend/src/components/ui/`), Farben aus der moto-Palette über
+`moto-*`-Utilities, Kalenderdaten als `timezone.Date` bzw. `"YYYY-MM-DD"`,
+`pnpm run check` ohne Warnung, jede sichtbare Änderung mit Vorher/Nachher-
+Aufnahmen in Mobile, Tablet und Desktop belegt.
+
+Im Zweifel gilt: die für Eltern verständlichere Lösung schlägt die zum Bestand
+ähnlichere.
+
+**Geltung in diesem Plan:** Dieser Plan ist der Backend-Teil und nimmt vom
+Neubau bewusst **nichts** vorweg. Aufgabe 5 setzt den Status nur in das heute
 bestehende Kinderprofil, weil #2252 genau das verlangt ("Die aktuelle
 vollständige Elternansicht zeigt den neuen Status bereits unabhängig vom
-späteren kompakten Layout"). Der eigentliche Neubau von Navigation, Startseite
-und Kinderprofil ist Gegenstand der Etappen 2 bis 5 und bekommt eigene Pläne,
-die an das hier festgelegte zweistufige Modell anschließen, sonst aber frei
-sind.
+späteren kompakten Layout"). Wer Aufgabe 5 ausführt, baut dort also **nicht**
+das Kinderprofil um. Der Neubau von Navigation, Startseite und Kinderprofil ist
+Gegenstand der Etappen 2 bis 5 mit eigenen Plänen, die dieses Mandat erneut
+wortgleich tragen.
 
 ## Vorbereitung der Testdatenbank
 

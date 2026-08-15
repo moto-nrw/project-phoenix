@@ -163,25 +163,57 @@ kommt ausdrücklich nicht.
 
 ## 4a. Mandat für die Oberfläche: Neubau, keine Renovierung
 
-Für alles unterhalb der Datenschicht gilt ausdrücklich freie Hand. Die
+**Dieser Abschnitt ist verbindlich und wird wortgleich in jeden Umsetzungsplan
+dieses Vorhabens übernommen.** Wer einen Etappenplan ausführt, liest ihn dort,
+nicht als Querverweis.
+
+Für alles oberhalb der Datenschicht gilt ausdrücklich freie Hand. Die
 Oberfläche der Eltern-App wird **von Grund auf neu gebaut**, nicht am Bestand
-entlang verbessert. Bestehende Seitenaufbauten, Kartenformen, Abstände,
-Typografie und Texte sind Ausgangsmaterial, keine Vorgabe.
+entlang verbessert. Maßstab ist eine gute Kita-Eltern-App, nicht das heutige
+Elternportal.
 
-Maßstab ist eine gute Kita-Eltern-App, nicht das heutige Elternportal:
+### Was "von Grund auf" ausdrücklich erlaubt
 
-- **Layout** nach den Mustern, die Eltern aus Kita-Apps kennen: eine Sache pro
-  Bildschirm, große Flächen, klare Reihenfolge, nichts Dekoratives.
-- **Farbe** trägt Bedeutung statt Schmuck, in der moto-Palette, damit die App
-  erkennbar zu moto gehört und trotzdem warm und zugänglich wirkt.
-- **Sprache** ist OGS- und Kita-Sprache, so wie Eltern und Team miteinander
-  reden. Kein Verwaltungsvokabular, keine Systembegriffe.
-- **Mobile, Tablet und Desktop** werden jeweils eigenständig entworfen, nicht
-  ein Entwurf dreimal gestreckt.
+- Bestehende Eltern-Komponenten **löschen und ersetzen**, statt sie zu
+  erweitern. `child-detail.tsx`, `parent-dashboard.tsx`, `parent-page.tsx`,
+  `child-care.tsx` und die Eltern-Zweige in Sidebar und Bottom-Nav sind
+  Ausgangsmaterial, kein Bestandsschutz.
+- **Neue Seitenstrukturen** erfinden, die es heute nicht gibt, wenn sie die
+  Aufgabe besser abbilden.
+- **Bestehende Texte komplett neu schreiben** statt sie zu glätten.
+- Karten, Abstände, Typografie und Dichte neu festlegen, solange die Bausteine
+  im geteilten UI-Kit landen.
 
-Die einzigen Grenzen sind die Projektregeln in Abschnitt 13: neue Bausteine
-gehören ins geteilte UI-Kit, Farben kommen aus der Palette, Kalenderdaten aus
-`timezone.Date`. Innerhalb dieser Grenzen ist alles verhandelbar.
+### Die Leitlinien
+
+- **Layout nach Kita-App-Mustern:** eine Sache pro Bildschirm, große Flächen,
+  klare Reihenfolge, nichts Dekoratives. Kein Dashboard-Gefühl, keine
+  Kachelwände, keine Marketing-Hero-Karten. Der wichtigste Inhalt steht ohne
+  Scrollen da.
+- **Farbe trägt Bedeutung, nicht Schmuck.** Aus der moto-Palette, damit die App
+  erkennbar zu moto gehört, aber deutlich wärmer und zugänglicher eingesetzt
+  als im Personal-Portal. Farbe nie als einziger Träger einer Information.
+- **Sprache ist OGS- und Kita-Sprache**, so wie Eltern und Team tatsächlich
+  miteinander reden. "Ist Ihr Kind heute krank?" statt "Abwesenheitsmeldung
+  erfassen". Keine Systembegriffe, keine Verwaltungswörter, keine Anglizismen.
+  Das gilt für alle vier Sprachkataloge, nicht nur für Deutsch.
+- **Mobile, Tablet und Desktop werden jeweils eigenständig entworfen**, nicht
+  ein Entwurf dreimal gestreckt. Mobile ist der Leitfall, Desktop bekommt eine
+  eigene Aufteilung statt einer breiten leeren Spalte.
+- **Bedienbar mit wenig digitaler Erfahrung:** Icons immer mit Textlabel, große
+  Touchflächen, Folgen vor dem Absenden benennen, nur eine Hauptaktion je
+  Bildschirm.
+
+### Die einzigen Grenzen
+
+Die Projektregeln aus Abschnitt 13: neue Bausteine gehören ins geteilte UI-Kit
+(`frontend/src/components/ui/`), Farben kommen aus der moto-Palette über
+`moto-*`-Utilities, Kalenderdaten sind `timezone.Date` bzw. `"YYYY-MM-DD"`,
+`pnpm run check` läuft ohne Warnung durch, und jede sichtbare Änderung wird mit
+Vorher/Nachher-Aufnahmen in Mobile, Tablet und Desktop belegt.
+
+Innerhalb dieser Grenzen ist alles verhandelbar. Im Zweifel gilt: die für
+Eltern verständlichere Lösung schlägt die zum Bestand ähnlichere.
 
 ## 5. Zielbild: Informationsarchitektur
 
