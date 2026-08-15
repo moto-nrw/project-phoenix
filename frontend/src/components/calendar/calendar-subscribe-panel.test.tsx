@@ -76,7 +76,7 @@ describe("CalendarSubscribePanel", () => {
       screen.queryByRole("link", { name: /Im Kalender abonnieren/ }),
     ).toBeNull();
     const regenerate = await screen.findByRole("button", {
-      name: /Neuen Abo-Link erzeugen/,
+      name: /Neuen Abo-Link erstellen/,
     });
 
     fireEvent.click(regenerate);
@@ -102,7 +102,7 @@ describe("CalendarSubscribePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
     await screen.findByRole("link", { name: /Im Kalender abonnieren/ });
 
-    fireEvent.click(screen.getByRole("button", { name: /Link neu generieren/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Link neu erstellen/ }));
     await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(

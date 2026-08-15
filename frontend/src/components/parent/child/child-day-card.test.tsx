@@ -13,7 +13,7 @@ const child: ChildDayCardChild = {
   studentId: "42",
   firstName: "Felix",
   lastName: "Schneider",
-  schoolClass: "1a",
+  schoolClass: "Klasse 1a",
 };
 
 const allFeatures = {

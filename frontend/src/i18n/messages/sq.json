@@ -1344,5 +1344,56 @@
     "writingDisabled": "Për këtë fëmijë nuk mund të shkruani. Historikun mund ta lexoni ende.",
     "emptyThreadTitle": "Ende asnjë mesazh",
     "emptyThreadDescription": "Shkruani mesazhin e parë për OGS-në."
+  },
+  "parentCalendar": {
+    "title": "Kalendari",
+    "loadError": "Takimet nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
+    "empty": "Në tre muajt e ardhshëm nuk ka asnjë takim.",
+    "groups": {
+      "thisWeek": "Këtë javë",
+      "nextWeek": "Javën e ardhshme",
+      "later": "Më vonë"
+    },
+    "when": "{date} në orën {time}",
+    "whenAllDay": "{date}, gjithë ditën",
+    "forChild": "Për {name}",
+    "accept": "Pranoni",
+    "decline": "Refuzoni",
+    "accepted": "Takimi u pranua.",
+    "declined": "Takimi u refuzua.",
+    "answeredAccepted": "Pranuar",
+    "answeredDeclined": "Refuzuar",
+    "respondError": "Përgjigja juaj nuk u ruajt dot. Ju lutemi provoni sërish.",
+    "cancelledByOgs": "Anuluar nga OGS",
+    "monthHint": "Një pikë do të thotë se atë ditë ka diçka.",
+    "weekdayShort": {
+      "1": "Hën",
+      "2": "Mar",
+      "3": "Mër",
+      "4": "Enj",
+      "5": "Pre",
+      "6": "Sht",
+      "7": "Die"
+    }
+  },
+  "parentCalendarSubscribe": {
+    "title": "Abononi kalendarin",
+    "description": "Abononi takimet një herë në kalendarin e telefonit tuaj. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht, pa i shtuar një nga një.",
+    "showLink": "Shfaqni lidhjen e abonimit",
+    "subscribe": "Abononi në kalendar",
+    "linkLabel": "Lidhja e abonimit (për kopjim)",
+    "copy": "Kopjo",
+    "copied": "Lidhja u kopjua.",
+    "copyFailed": "Kopjimi nuk është i mundur. Ju lutemi shënoni lidhjen me dorë.",
+    "linkOnce": "Për arsye sigurie e shihni këtë lidhje vetëm tani. Kopjojeni menjëherë në kalendarin tuaj.",
+    "howToTitle": "Si bëhet:",
+    "howToApple": "iPhone/iPad: Cilësimet, Kalendari, Llogaritë, Shto llogari, Tjetër, Shto kalendar me abonim, pastaj ngjisni lidhjen.",
+    "howToAndroid": "Android: Në Google Calendar në kompjuter, Kalendarë të tjerë, Nga URL, pastaj ngjisni lidhjen. Kalendari shfaqet më pas edhe në telefon.",
+    "regenerate": "Krijoni lidhje të re",
+    "regenerated": "U krijua një lidhje e re abonimi. E vjetra nuk vlen më.",
+    "loadError": "Lidhja e abonimit nuk u ngarkua dot.",
+    "rotateError": "Lidhja e abonimit nuk u rinovua dot.",
+    "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
+    "createNew": "Krijoni lidhje të re abonimi"
   }
 }

@@ -1344,5 +1344,56 @@
     "writingDisabled": "You cannot write for this child. You can still read the history.",
     "emptyThreadTitle": "No messages yet",
     "emptyThreadDescription": "Write the first message to the OGS."
+  },
+  "parentCalendar": {
+    "title": "Calendar",
+    "loadError": "The appointments could not be loaded right now. Please try again later.",
+    "empty": "There is no appointment in the next three months.",
+    "groups": {
+      "thisWeek": "This week",
+      "nextWeek": "Next week",
+      "later": "Later"
+    },
+    "when": "{date} at {time}",
+    "whenAllDay": "{date}, all day",
+    "forChild": "For {name}",
+    "accept": "Accept",
+    "decline": "Decline",
+    "accepted": "Appointment accepted.",
+    "declined": "Appointment declined.",
+    "answeredAccepted": "Accepted",
+    "answeredDeclined": "Declined",
+    "respondError": "Your answer could not be saved. Please try again.",
+    "cancelledByOgs": "Cancelled by the OGS",
+    "monthHint": "A dot means something is happening on that day.",
+    "weekdayShort": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat",
+      "7": "Sun"
+    }
+  },
+  "parentCalendarSubscribe": {
+    "title": "Subscribe to the calendar",
+    "description": "Subscribe to the appointments once in your phone calendar. New, changed and cancelled appointments then appear automatically, without adding each one by hand.",
+    "showLink": "Show subscription link",
+    "subscribe": "Subscribe in the calendar",
+    "linkLabel": "Subscription link (to copy)",
+    "copy": "Copy",
+    "copied": "Link copied.",
+    "copyFailed": "Copying is not possible. Please select the link by hand.",
+    "linkOnce": "For security reasons you only see this link now. Copy it into your calendar right away.",
+    "howToTitle": "How it works:",
+    "howToApple": "iPhone/iPad: Settings, Calendar, Accounts, Add account, Other, Add subscribed calendar, then paste the link.",
+    "howToAndroid": "Android: In Google Calendar on a computer, Other calendars, From URL, then paste the link. The calendar then also shows on the phone.",
+    "regenerate": "Create a new link",
+    "regenerated": "New subscription link created. The old link no longer works.",
+    "loadError": "The subscription link could not be loaded.",
+    "rotateError": "The subscription link could not be renewed.",
+    "alreadyActive": "Your subscription link is already active. For security reasons it is not shown again. If you no longer have it, create a new link; the old one then stops working.",
+    "createNew": "Create a new subscription link"
   }
 }

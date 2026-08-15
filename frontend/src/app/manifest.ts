@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
-import { faviconManifest, resolveFaviconVariant } from "~/lib/favicon-variants";
+import {
+  faviconManifest,
+  isParentsHost,
+  resolveFaviconVariant,
+} from "~/lib/favicon-variants";
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -34,17 +38,19 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const requestHeaders = await headers();
   const host =
     requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
-  const variant = resolveFaviconVariant(host, {
+  const config = {
     operatorHostname: requiredEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME"),
     parentsHostname: requiredEnv("NEXT_PUBLIC_PARENTS_HOSTNAME"),
     tenantDomain: requiredEnv("TENANT_DOMAIN"),
-  });
+  };
 
-  const base = faviconManifest(variant);
+  const base = faviconManifest(resolveFaviconVariant(host, config));
 
-  // Die Icons kommen weiterhin aus der host-aufgelösten Variante, nur Name,
-  // Beschreibung und Ausrichtung sind für Eltern eigene.
-  if (variant === "eltern" || variant === "eltern-staging") {
+  // Die Symbole kommen weiterhin aus der host-aufgelösten Favicon-Variante,
+  // nur Name, Beschreibung und Ausrichtung sind für Eltern eigene. Der
+  // Eltern-Host wird direkt erkannt, nicht über die Favicon-Variante: die ist
+  // dort bewusst "normal".
+  if (isParentsHost(host, config)) {
     return { ...base, ...PARENTS_MANIFEST };
   }
 

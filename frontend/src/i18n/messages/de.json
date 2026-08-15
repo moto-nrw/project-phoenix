@@ -1344,5 +1344,56 @@
     "writingDisabled": "Für dieses Kind können Sie nicht schreiben. Den Verlauf können Sie weiterhin lesen.",
     "emptyThreadTitle": "Noch keine Nachrichten",
     "emptyThreadDescription": "Schreiben Sie die erste Nachricht an die OGS."
+  },
+  "parentCalendar": {
+    "title": "Kalender",
+    "loadError": "Die Termine konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
+    "empty": "In den nächsten drei Monaten steht kein Termin an.",
+    "groups": {
+      "thisWeek": "Diese Woche",
+      "nextWeek": "Nächste Woche",
+      "later": "Später"
+    },
+    "when": "{date} um {time} Uhr",
+    "whenAllDay": "{date}, ganztägig",
+    "forChild": "Für {name}",
+    "accept": "Zusagen",
+    "decline": "Absagen",
+    "accepted": "Termin zugesagt.",
+    "declined": "Termin abgesagt.",
+    "answeredAccepted": "Zugesagt",
+    "answeredDeclined": "Abgesagt",
+    "respondError": "Ihre Antwort konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal.",
+    "cancelledByOgs": "Von der OGS abgesagt",
+    "monthHint": "Ein Punkt bedeutet: an diesem Tag steht etwas an.",
+    "weekdayShort": {
+      "1": "Mo",
+      "2": "Di",
+      "3": "Mi",
+      "4": "Do",
+      "5": "Fr",
+      "6": "Sa",
+      "7": "So"
+    }
+  },
+  "parentCalendarSubscribe": {
+    "title": "Kalender abonnieren",
+    "description": "Abonnieren Sie die Termine einmalig in Ihrem Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch, ohne jeden Termin einzeln hinzuzufügen.",
+    "showLink": "Abo-Link anzeigen",
+    "subscribe": "Im Kalender abonnieren",
+    "linkLabel": "Abo-Link (zum Kopieren)",
+    "copy": "Kopieren",
+    "copied": "Link kopiert.",
+    "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
+    "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
+    "howToTitle": "So geht es:",
+    "howToApple": "iPhone/iPad: Einstellungen, Kalender, Accounts, Account hinzufügen, Andere, Kalenderabo hinzufügen, dann den Link einfügen.",
+    "howToAndroid": "Android: In Google Kalender am Computer, Weitere Kalender, Per URL, dann den Link einfügen. Der Kalender wird danach auch auf dem Handy angezeigt.",
+    "regenerate": "Link neu erstellen",
+    "regenerated": "Neuer Abo-Link erstellt. Der alte Link gilt nicht mehr.",
+    "loadError": "Der Abo-Link konnte nicht geladen werden.",
+    "rotateError": "Der Abo-Link konnte nicht erneuert werden.",
+    "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
+    "createNew": "Neuen Abo-Link erstellen"
   }
 }
