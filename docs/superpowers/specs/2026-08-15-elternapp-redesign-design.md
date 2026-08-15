@@ -781,6 +781,9 @@ entschieden und hier protokolliert, statt die Umsetzung anzuhalten.
 | 2026-08-15 | Phosphor nur in der Eltern-App, Personal- und Operator-Portal bleiben bei lucide | Eine flächendeckende Umstellung wäre ein eigenes Vorhaben mit eigenem Nutzen-Nachweis und war 2026-07 bereits einmal abgelehnt. |
 | 2026-08-15 | Website-Rot `#DC3545` nur in der Eltern-App, `--color-moto-red` bleibt für das Personal-Portal | Eine app-weite Farbangleichung berührt jede Fläche im Personal-Portal und gehört nicht nebenbei in dieses Vorhaben. |
 | 2026-08-15 | Eigenes Eltern-Manifest statt des geteilten `public/site.webmanifest` | Eltern installieren "moto Eltern" mit eigenem Startpunkt, nicht das generische "MOTO" mit `start_url: "/"`. |
+| 2026-08-15 | Ein unlesbarer Betreuungsplan entwertet die Anwesenheit nicht mehr (`CareDayResolved`) | Beim Prüfen gegen die laufende Anwendung fiel auf: an einem Samstag antwortet `GetStudentArrivalScheduleForWeekday` mit `invalid weekday`, der Fehler brach die ganze Transaktion ab und verwarf die bereits geladene Anwesenheit. Wer nachweislich da ist, ist da, auch wenn sein Plan nicht lesbar ist. Ohne gelesenen Plan gilt `unknown` statt `no_care`. |
+| 2026-08-15 | Wochenenden fragen den Wochenplan gar nicht erst ab | Der Plan kennt nur Montag bis Freitag. Eine Ferienbetreuung am Wochenende fällt trotzdem nicht durchs Raster, weil eine vorhandene Anwesenheit vor dem Betreuungstag geprüft wird. |
+| 2026-08-15 | Sorgeberechtigte werden über den vorhandenen `parentmessaging.Emitter` geweckt, nicht über einen neuen Pfad | Der Ereignistyp `parent_child_updated` und die Zustellung an Sorgeberechtigte existierten bereits; `services/active` bekommt nur ein schmales `GuardianWaker`-Interface, damit es nichts über das Eltern-Messaging wissen muss. |
 
 ---
 
