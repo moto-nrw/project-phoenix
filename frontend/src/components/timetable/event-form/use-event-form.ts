@@ -250,6 +250,7 @@ export function useEventForm({
       defaultEndTime,
     ),
   );
+  const initialFormSnapshot = useRef<EventFormState | null>(null);
   const [initialStudentIDsSnapshot, setInitialStudentIDsSnapshot] = useState(
     () => initialStudentIDs(initialInstance, initialSeries, convertInstance),
   );
@@ -384,6 +385,34 @@ export function useEventForm({
     () => calendarPeriods.find((item) => item.id === form.calendarPeriodId),
     [calendarPeriods, form.calendarPeriodId],
   );
+  // #2226: a stored series that has not started yet may be pulled forward to
+  // an earlier start date. Only the direct series editor offers it — scoped
+  // occurrence edits keep the stored envelope. `original` is the stored
+  // Serienbeginn (the upper bound), `min` the earliest pickable date (today,
+  // clamped to the period start). The predecessor bound of a split successor
+  // is not known here; the backend rejects an overlap with a German message.
+  const seriesStartEdit = useMemo(() => {
+    const storedSeriesStart = initialSeries?.schedules[0]?.validFrom ?? "";
+    if (initialSeries === null || storedSeriesStart <= berlinTodayISO()) {
+      return null;
+    }
+    return {
+      original: storedSeriesStart,
+      min: latestISODate(
+        berlinTodayISO(),
+        selectedCalendarPeriod?.startDate ?? "",
+      ),
+    };
+  }, [initialSeries, selectedCalendarPeriod?.startDate]);
+  // The pull actually requested by the form: an earlier date than stored.
+  // Unchanged (or cleared) sends nothing, keeping the PUT idempotent for
+  // clients that never touch the field.
+  const pulledSeriesStart =
+    seriesStartEdit !== null &&
+    form.seriesStartDate !== "" &&
+    form.seriesStartDate < seriesStartEdit.original
+      ? form.seriesStartDate
+      : null;
   const abWeekCycleSlot = useMemo(
     () => weekCycleSlotForDate(selectedCalendarPeriod, form.date),
     [selectedCalendarPeriod, form.date],
@@ -497,6 +526,7 @@ export function useEventForm({
     listKindTouched.current = false;
     manualWeekPattern.current = null;
     setForm(nextForm);
+    initialFormSnapshot.current = nextForm;
     setValidationError(null);
     setFieldErrors({});
     setDeleteConfirmOpen(false);
@@ -699,7 +729,9 @@ export function useEventForm({
       ? latestISODate(
           period.startDate,
           today,
-          effectiveSeries.schedules[0]?.validFrom ?? "",
+          // #2226: a pulled-forward start widens the probed window — the new
+          // days in front of the stored validFrom will materialize too.
+          pulledSeriesStart ?? effectiveSeries.schedules[0]?.validFrom ?? "",
         )
       : latestISODate(period.startDate, form.date || "");
     const shared = {
@@ -744,6 +776,7 @@ export function useEventForm({
     form,
     initialInstance?.id,
     isSeriesFlow,
+    pulledSeriesStart,
     staffIDsForSave,
   ]);
   const coverageProbeKey = JSON.stringify(coverageProbes);
@@ -1208,6 +1241,26 @@ export function useEventForm({
       }
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
+      }
+      // #2226: the pulled-forward Serienbeginn may only move earlier, never
+      // into the past and never out of the period. An unchanged value passes.
+      if (seriesStartEdit !== null && form.seriesStartDate !== "") {
+        if (form.seriesStartDate > seriesStartEdit.original) {
+          errors.seriesStartDate =
+            "Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden.";
+        } else if (
+          form.seriesStartDate !== seriesStartEdit.original &&
+          form.seriesStartDate < berlinTodayISO()
+        ) {
+          errors.seriesStartDate =
+            "Das Datum darf nicht in der Vergangenheit liegen.";
+        } else if (
+          form.seriesStartDate !== seriesStartEdit.original &&
+          form.seriesStartDate < seriesStartEdit.min
+        ) {
+          errors.seriesStartDate =
+            "Das Datum muss im gewählten Planungszeitraum liegen.";
+        }
       }
       // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored
       // two-week period. Otherwise the A/B week_pattern either fires weekly or
@@ -1831,6 +1884,35 @@ export function useEventForm({
     return true;
   };
 
+  /** Materializes only dates exposed by a pull-forward, preserving existing instances. */
+  const materializePulledForwardWindow = async (
+    fromISO: string,
+    storedStartISO: string,
+  ): Promise<boolean> => {
+    for (const chunk of chunkDateRange(
+      fromISO,
+      storedStartISO,
+      MATERIALIZE_CHUNK_DAYS,
+    )) {
+      try {
+        const result = await timetableService.materialize(chunk.from, chunk.to);
+        if (
+          result.warnings.some((warning) => warning.code === "no_active_period")
+        ) {
+          break;
+        }
+      } catch (err) {
+        logger.error("series_materialize_chunk_failed", {
+          from: chunk.from,
+          to: chunk.to,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
   /**
    * Creates the template materializing the whole selected period (US-1
    * Phase 3). The backend caps one materialization window at 56 days, so
@@ -1998,12 +2080,29 @@ export function useEventForm({
       if (initialSeries) {
         const seriesId = initialSeries.id;
         const categoryId = parsed.categoryId;
+        const { seriesStartDate: _currentStart, ...currentWithoutStart } = form;
+        const { seriesStartDate: _initialStart, ...initialWithoutStart } =
+          initialFormSnapshot.current ?? form;
+        const isStartDateOnlyPull =
+          pulledSeriesStart !== null &&
+          JSON.stringify(currentWithoutStart) ===
+            JSON.stringify(initialWithoutStart);
         const runSeriesEdit = async () => {
-          await timetableService.updateTemplate(
-            seriesId,
-            seriesBody(parsed.roomId, categoryId),
-          );
-          if (await replanTemplateFuture(seriesId)) {
+          await timetableService.updateTemplate(seriesId, {
+            ...seriesBody(parsed.roomId, categoryId),
+            // #2226: pull the Serienbeginn forward when the user picked an
+            // earlier date; unchanged keeps the stored envelope untouched.
+            ...(pulledSeriesStart !== null
+              ? { start_date: pulledSeriesStart }
+              : {}),
+          });
+          const followUpOk = isStartDateOnlyPull
+            ? await materializePulledForwardWindow(
+                pulledSeriesStart,
+                seriesStartEdit!.original,
+              )
+            : await replanTemplateFuture(seriesId);
+          if (followUpOk) {
             toastSuccess("Regeltermin gespeichert");
           } else {
             toastWarning(FOLLOW_UP_WARNING);
@@ -2011,26 +2110,28 @@ export function useEventForm({
           onSaved({ kind: "series", seriesId });
         };
 
-        // #1875: a direct Regeltermin edit runs the same destructive re-plan as
-        // the "Alle Termine" scope, so it needs the same lost-edits warning.
-        // replanTemplateFuture re-plans [today, period end]; probe that window.
-        const editsTo =
-          findPeriod(form.calendarPeriodId)?.endDate ??
-          weekTo ??
-          berlinTodayISO();
+        // #1875: edits that rebuild existing instances need the same warning
+        // as "Alle Termine". A start-only pull only inserts the opened gap and
+        // therefore preserves individual adjustments without a probe.
         let lost: EditedInWindowResult | null = null;
-        try {
-          const probe = await timetableService.countEditedInWindow(
-            seriesId,
-            berlinTodayISO(),
-            editsTo,
-          );
-          if (probe.count > 0) lost = probe;
-        } catch (probeErr) {
-          logger.warn("edited_in_window_probe_failed", {
-            error:
-              probeErr instanceof Error ? probeErr.message : String(probeErr),
-          });
+        if (!isStartDateOnlyPull) {
+          const editsTo =
+            findPeriod(form.calendarPeriodId)?.endDate ??
+            weekTo ??
+            berlinTodayISO();
+          try {
+            const probe = await timetableService.countEditedInWindow(
+              seriesId,
+              berlinTodayISO(),
+              editsTo,
+            );
+            if (probe.count > 0) lost = probe;
+          } catch (probeErr) {
+            logger.warn("edited_in_window_probe_failed", {
+              error:
+                probeErr instanceof Error ? probeErr.message : String(probeErr),
+            });
+          }
         }
         if (lost) {
           setLostEdits({
@@ -3336,6 +3437,7 @@ export function useEventForm({
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
+    seriesStartEdit,
     canDeleteSeries,
     gradeLevelMax,
     targetGradeOptions,

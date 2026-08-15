@@ -264,6 +264,13 @@ export function hasPerWeekdayStaffDeviation(form: EventFormState): boolean {
 export interface EventFormState {
   title: string;
   date: string;
+  /**
+   * Serienbeginn of a stored, not-yet-started series (#2226). Prefilled with
+   * the schedules' validFrom when editing such a series; the user may move it
+   * to an earlier date (never later, never into the past). "" everywhere
+   * else — creates and instance edits use `date` instead.
+   */
+  seriesStartDate: string;
   startTime: string;
   endTime: string;
   roomId: string;
@@ -364,6 +371,7 @@ export function emptyForm(
   return {
     title: "",
     date: defaultDate,
+    seriesStartDate: "",
     startTime: defaultStartTime,
     endTime: defaultEndTime,
     roomId: "",
@@ -405,6 +413,7 @@ export function formFromInstance(
   return {
     title: instance.title,
     date: instance.date,
+    seriesStartDate: "",
     startTime: instance.startTime,
     endTime: instance.endTime,
     roomId: instance.roomId,
@@ -463,6 +472,7 @@ export function formFromSeries(
   return {
     title: series.name,
     date: defaultDate,
+    seriesStartDate: firstSchedule?.validFrom ?? "",
     startTime: firstSchedule?.startTime ?? "12:00",
     endTime: firstSchedule?.endTime ?? "13:00",
     roomId: series.roomId ?? "",
