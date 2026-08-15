@@ -37,6 +37,10 @@ export {
   FirstAidIcon as FirstAid,
   CalendarCheckIcon as CalendarCheck,
   CaretRightIcon as CaretRight,
+  ListChecksIcon as ListChecks,
+  ExportIcon as Export,
+  PlusIcon as Plus,
+  CircleNotchIcon as CircleNotch,
 } from "@phosphor-icons/react";
 
 export type { Icon, IconWeight } from "@phosphor-icons/react";

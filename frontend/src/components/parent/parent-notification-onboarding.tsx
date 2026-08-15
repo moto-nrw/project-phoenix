@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Loader2, Share } from "lucide-react";
 import { useTranslations } from "next-intl";
+import {
+  Bell,
+  CircleNotch,
+  Export,
+  Plus,
+  type Icon,
+} from "~/components/parent/shell/parent-icons";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
@@ -24,6 +30,15 @@ const logger = createLogger({ component: "ParentNotificationOnboarding" });
 const REMIND_LATER_MS = 7 * 24 * 60 * 60 * 1000;
 
 type SetupMode = "enable" | "install" | "denied";
+
+/**
+ * Die drei Schritte zum Home-Bildschirm. Das Symbol steht neben dem Schritt,
+ * der es meint: Eltern suchen in Safari nach einem Bild, nicht nach einem Wort.
+ */
+const INSTALL_STEPS: readonly {
+  readonly step: 1 | 2 | 3;
+  readonly icon?: Icon;
+}[] = [{ step: 1, icon: Export }, { step: 2 }, { step: 3, icon: Plus }];
 
 interface StoredDecision {
   readonly done?: boolean;
@@ -113,8 +128,12 @@ export function ParentNotificationOnboarding({
     setMode(null);
   };
 
+  // "Verstanden" schliesst die Anleitung endgueltig, "Spaeter erinnern" holt sie
+  // in sieben Tagen zurueck. Endgueltig ist gefahrlos: iOS gibt einer App auf
+  // dem Home-Bildschirm einen eigenen Speicher, die installierte App fragt also
+  // ohnehin neu nach den Benachrichtigungen.
   const finishInstallGuide = () => {
-    writeDecision(storageKey, { remindAfter: Date.now() + REMIND_LATER_MS });
+    writeDecision(storageKey, { done: true });
     setMode(null);
   };
 
@@ -154,7 +173,7 @@ export function ParentNotificationOnboarding({
       <div className="space-y-5">
         <div className="bg-moto-blue/10 text-moto-blue-strong flex h-12 w-12 items-center justify-center rounded-2xl">
           {mode === "install" ? (
-            <Share className="h-6 w-6" aria-hidden="true" />
+            <Export className="h-6 w-6" aria-hidden="true" />
           ) : (
             <Bell className="h-6 w-6" aria-hidden="true" />
           )}
@@ -162,34 +181,45 @@ export function ParentNotificationOnboarding({
 
         {mode === "install" ? (
           <div className="space-y-4">
-            <p className="text-sm leading-6 text-gray-700">
+            <p className="text-[17px] leading-7 text-gray-700">
               {t("installIntro")}
             </p>
             <ol className="space-y-3">
-              {[1, 2, 3].map((step) => (
-                <li key={step} className="flex gap-3 text-sm text-gray-700">
-                  <span className="bg-moto-blue/10 text-moto-blue-strong flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-semibold">
+              {INSTALL_STEPS.map(({ step, icon: StepIcon }) => (
+                <li key={step} className="flex gap-3">
+                  <span className="bg-moto-blue/10 text-moto-blue-strong flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold">
                     {step}
                   </span>
-                  <span>{t(`installStep${step}`)}</span>
+                  <span className="text-[17px] leading-7 text-gray-700">
+                    {t(`installStep${step}`)}
+                    {StepIcon && (
+                      <StepIcon
+                        className="ml-1 inline h-5 w-5 align-text-bottom text-gray-500"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </span>
                 </li>
               ))}
             </ol>
+            <p className="text-[17px] leading-7 text-gray-700">
+              {t("installOutro")}
+            </p>
           </div>
         ) : mode === "denied" ? (
-          <p className="text-sm leading-6 text-gray-700">{t("denied")}</p>
+          <p className="text-[17px] leading-7 text-gray-700">{t("denied")}</p>
         ) : (
-          <p className="text-sm leading-6 text-gray-700">{t("intro")}</p>
+          <p className="text-[17px] leading-7 text-gray-700">{t("intro")}</p>
         )}
 
         {error && <Alert type="error" message={error} />}
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          {mode === "enable" && (
+          {mode !== "denied" && (
             <Button
               type="button"
               variant="outline"
-              size="md"
+              size="touch"
               disabled={busy}
               onClick={remindLater}
             >
@@ -199,20 +229,24 @@ export function ParentNotificationOnboarding({
           {mode === "enable" ? (
             <Button
               type="button"
-              size="md"
+              size="touch"
               disabled={busy}
               onClick={() => void enable()}
             >
               {busy && (
-                <Loader2
-                  className="mr-2 h-4 w-4 animate-spin"
+                <CircleNotch
+                  className="mr-2 h-5 w-5 animate-spin"
                   aria-hidden="true"
                 />
               )}
               {t("enable")}
             </Button>
           ) : (
-            <Button type="button" size="md" onClick={finishInstallGuide}>
+            <Button
+              type="button"
+              size="touch"
+              onClick={mode === "install" ? finishInstallGuide : remindLater}
+            >
               {t("understood")}
             </Button>
           )}

@@ -90,6 +90,53 @@ describe("ParentNotificationOnboarding", () => {
     expect(mocks.subscribePush).not.toHaveBeenCalled();
   });
 
+  it("führt in nummerierten Schritten zum Home-Bildschirm", async () => {
+    mocks.needsIOSInstall.mockReturnValue(true);
+    renderOnboarding();
+
+    const steps = await screen.findAllByRole("listitem");
+    expect(steps).toHaveLength(3);
+    expect(steps[0]).toHaveTextContent("1");
+    expect(steps[0]).toHaveTextContent(/Teilen-Symbol/);
+    expect(steps[1]).toHaveTextContent("2");
+    expect(steps[1]).toHaveTextContent(/Zum Home-Bildschirm/);
+    expect(steps[2]).toHaveTextContent("3");
+    expect(steps[2]).toHaveTextContent(/Hinzufügen/);
+  });
+
+  it("bietet im Anleitungsmodus eine Hauptaktion und eine Später-Möglichkeit", async () => {
+    mocks.needsIOSInstall.mockReturnValue(true);
+    renderOnboarding();
+
+    expect(
+      await screen.findByRole("button", { name: "Verstanden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Später erinnern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Benachrichtigungen aktivieren" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("erinnert später erneut, wenn die Anleitung vertagt wird", async () => {
+    mocks.needsIOSInstall.mockReturnValue(true);
+    renderOnboarding();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Später erinnern" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    const stored = JSON.parse(
+      localStorage.getItem("moto.parent.notification-setup.v1.42") ?? "{}",
+    ) as { remindAfter?: number; done?: boolean };
+    expect(stored.remindAfter).toBeGreaterThan(Date.now());
+    expect(stored.done).toBeUndefined();
+  });
+
   it("does not promise notifications when the school disabled them", async () => {
     mocks.fetchPreferences.mockResolvedValue({
       tenant_enabled: false,

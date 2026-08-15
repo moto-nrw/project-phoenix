@@ -168,9 +168,10 @@
     "denied": "Njoftimet janë bllokuar në shfletues. Hapni cilësimet e shfletuesit, lejoni njoftimet për moto dhe provoni përsëri te Cilësimet.",
     "installTitle": "Shto moto në ekranin kryesor",
     "installIntro": "Në iPhone dhe iPad, njoftimet funksionojnë pasi moto të jetë shtuar në ekranin kryesor.",
-    "installStep1": "Hapni moto në Safari dhe prekni ikonën Shpërndaj.",
-    "installStep2": "Zgjidhni Shto në ekranin kryesor.",
-    "installStep3": "Hapni moto nga ikona e re dhe aktivizoni njoftimet.",
+    "installStep1": "Në Safari prekni poshtë ikonën e ndarjes.",
+    "installStep2": "Zgjidhni „Shto në ekranin kryesor“.",
+    "installStep3": "Prekni „Shto“.",
+    "installOutro": "Pas kësaj moto hapet si një aplikacion dhe ne mund t'ju dërgojmë mesazhet e OGS-së si njoftime.",
     "understood": "E kuptova",
     "close": "Mbyll dialogun"
   },
