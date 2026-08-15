@@ -19,6 +19,26 @@ Minuten kontrolliert wieder. Sie stellt die aktive Raumaufsicht und die beim
 Beenden noch anwesenden Kinder wieder her; eine Aktivität zu einem späteren
 Zeitpunkt neu anzulegen ist keine Rücknahme.
 
+## Gehzeit
+
+Die **Gehzeit** ist die geplante Uhrzeit, zu der ein Kind an einem Betreuungstag
+nach Hause geht. Sie ist eine Planungsangabe pro Kind und Wochentag; die
+tatsächliche Abholung kann davon abweichen.
+
+## Angebots-Gehzeit
+
+Die **Angebots-Gehzeit** ist eine je Wochentag am Betreuungsangebot hinterlegte
+Gehzeit. Sie ist optional und dient als Vorgabe für die Gehzeiten der Kinder,
+die das Angebot an diesem Wochentag gebucht haben. Eine für ein einzelnes Kind
+gepflegte Gehzeit geht der Angebots-Gehzeit vor.
+
+## Ausrollen
+
+Das **Ausrollen** überträgt die Angebots-Gehzeit eines Betreuungsangebots auf
+die Gehzeiten aller Kinder, die das Angebot am jeweiligen Wochentag gebucht
+haben. Es geschieht nach ausdrücklicher Bestätigung; danach steht die Gehzeit
+am Kind selbst und trägt ihre Herkunft aus dem Angebot.
+
 ## Elternänderung
 
 Eine **Elternänderung** ist eine von einer sorgeberechtigten Person gewünschte
