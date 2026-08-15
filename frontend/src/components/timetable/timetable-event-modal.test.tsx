@@ -5516,4 +5516,82 @@ describe("TimetableEventModal", () => {
       ).toBeInTheDocument();
     });
   });
+
+  describe("Maximale Teilnehmerzahl (#2233)", () => {
+    it("sends the entered limit when creating a series", async () => {
+      renderModal({ variant: "quick" });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(2);
+      await chooseFromSelect(
+        screen.getByLabelText("Wiederholt sich"),
+        "Wöchentlich am Montag",
+      );
+      await goToStep(3);
+      fireEvent.change(screen.getByLabelText("Maximale Teilnehmerzahl"), {
+        target: { value: "43" },
+      });
+      await clickSave();
+
+      await waitFor(() =>
+        expect(mockCreateTemplate).toHaveBeenCalledWith(
+          expect.objectContaining({ max_participants: 43 }),
+        ),
+      );
+    });
+
+    it("shows the stored limit and writes a change to the series", async () => {
+      renderModal({ initialSeries: template, defaultDate: "2026-05-04" });
+
+      await screen.findByText("Regeltermin bearbeiten");
+      await goToStep(3);
+      const input = screen.getByLabelText("Maximale Teilnehmerzahl");
+      expect(input).toHaveValue(12);
+      fireEvent.change(input, { target: { value: "43" } });
+      await clickSave();
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "7",
+          expect.objectContaining({ max_participants: 43 }),
+        ),
+      );
+    });
+
+    it("clears the limit with an explicit null when the field is emptied", async () => {
+      renderModal({ initialSeries: template, defaultDate: "2026-05-04" });
+
+      await screen.findByText("Regeltermin bearbeiten");
+      await goToStep(3);
+      fireEvent.change(screen.getByLabelText("Maximale Teilnehmerzahl"), {
+        target: { value: "" },
+      });
+      await clickSave();
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "7",
+          expect.objectContaining({ max_participants: null }),
+        ),
+      );
+    });
+
+    it("rejects zero with an inline error and blocks the save", async () => {
+      renderModal({ initialSeries: template, defaultDate: "2026-05-04" });
+
+      await screen.findByText("Regeltermin bearbeiten");
+      await goToStep(3);
+      fireEvent.change(screen.getByLabelText("Maximale Teilnehmerzahl"), {
+        target: { value: "0" },
+      });
+      await clickSave();
+
+      expect(
+        await screen.findByText(
+          "Bitte eine ganze Zahl größer als 0 angeben oder das Feld leer lassen.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockUpdateTemplate).not.toHaveBeenCalled();
+    });
+  });
 });

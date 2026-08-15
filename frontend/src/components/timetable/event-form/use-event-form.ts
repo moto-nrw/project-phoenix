@@ -56,6 +56,7 @@ import {
   initialStaffIDs,
   initialStudentIDs,
   isoWeekday,
+  parseMaxParticipants,
   parseRequiredStaffOverride,
   rosterForWeekday,
   rosterSeedForWeekday,
@@ -1242,6 +1243,15 @@ export function useEventForm({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
+      // #2233: leer = unbegrenzt; alles andere muss eine ganze Zahl ≥ 1 sein
+      // (deckt sich mit dem Backend: "greater than zero when set").
+      if (
+        form.maxParticipants.trim() !== "" &&
+        parseMaxParticipants(form.maxParticipants) === null
+      ) {
+        errors.maxParticipants =
+          "Bitte eine ganze Zahl größer als 0 angeben oder das Feld leer lassen.";
+      }
       // #2226: the pulled-forward Serienbeginn may only move earlier, never
       // into the past and never out of the period. An unchanged value passes.
       if (seriesStartEdit !== null && form.seriesStartDate !== "") {
@@ -1462,6 +1472,11 @@ export function useEventForm({
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: form.weekPattern,
     required_staff: parseRequiredStaffOverride(form.requiredStaff),
+    // #2233: explicit value or explicit null ("unbegrenzt"). The update
+    // endpoint is presence-aware, so clearing the field must send null; the
+    // form is always seeded from the stored series (formFromSeries, also on
+    // the scoped all/following path), so an untouched value round-trips.
+    max_participants: parseMaxParticipants(form.maxParticipants),
     // A sourced roster is server-managed — the backend rejects student_ids
     // next to a source.
     student_ids:
@@ -1807,6 +1822,10 @@ export function useEventForm({
           ? Number(target.educationGroupId)
           : undefined,
       })),
+      // The occurrence editor never shows the Teilnehmergrenze (#2233), so a
+      // scope save must echo the stored series value — null included, the
+      // update endpoint is presence-aware and an omitted field would also
+      // keep it, but the explicit echo keeps this builder self-describing.
       max_participants: template.maxParticipants,
       // An occurrence form starts from the occurrence's own pin, which is
       // blank when it inherits from the series. Preserve the fetched template
