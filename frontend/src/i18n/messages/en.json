@@ -88,43 +88,16 @@
     "eyebrow": "Parent portal",
     "title": "Welcome",
     "description": "Here is what matters today.",
-    "childrenEyebrow": "My children",
     "childrenDescription": "Choose the action you need.",
     "actions": {
       "sick": "Report an absence",
       "pickup": "Change pickup",
       "message": "Write a message"
     },
-    "emptyChildren": "As soon as a child is activated, they will appear here.",
-    "allChildren": "Show all children",
     "open": "In progress",
-    "updatesTitle": "Updates",
-    "updatesDescription": "Messages and requests from the OGS at a glance.",
-    "updatesLoading": "Loading updates",
-    "updatesEmptyTitle": "All done",
-    "updatesEmptyDescription": "There is nothing new for you right now.",
-    "updatesLoadError": "Some updates could not be loaded. Please refresh the page.",
-    "messageNewOne": "New message",
-    "messageNewMany": "{count} new messages",
-    "messageAboutChild": "About {name}",
-    "messageRead": "Read message",
-    "appointmentResponsePending": "Reply pending",
-    "appointmentForChild": "For {name}",
-    "appointmentRespond": "Accept or decline",
-    "newsEyebrow": "Updates",
-    "newsTitle": "News",
-    "newsDescription": "Messages from care and the parent portal appear here.",
-    "noNewsTitle": "No news yet",
-    "noNewsDescription": "New notices will appear directly on the start page.",
-    "newsShowAll": "Show all news",
-    "noNewsPageDescription": "As soon as your care team publishes an announcement, it will appear here.",
     "loadError": "The overview could not be loaded. Please refresh the page or try again later.",
     "unknownError": "Unknown error",
     "notSet": "Not set",
-    "rangeOpen": "Period still open",
-    "careRecorded": "Care recorded",
-    "careRange": "Care {range}",
-    "pendingDescription": "Waiting for confirmation or feedback",
     "status": {
       "submitted": "Submitted",
       "under_review": "Under review",
@@ -133,10 +106,8 @@
       "rejected": "Rejected",
       "withdrawn": "Withdrawn"
     },
-    "dateRangeConnector": "to",
     "newsNew": "New announcement",
     "newsImportant": "Important",
-    "newsMarkRead": "Mark as read",
     "newsAcknowledge": "Read and confirmed",
     "newsAcknowledged": "Confirmed",
     "newsRead": "Read",
@@ -156,8 +127,7 @@
     "newsAnswer": "Answer",
     "newsReadAndConfirm": "Confirm as read",
     "newsReadAnnouncement": "Read",
-    "newsClose": "Close",
-    "newEnrollment": "New enrollment"
+    "newsClose": "Close"
   },
   "parentNotificationSetup": {
     "title": "Do not miss an important message",
@@ -199,17 +169,6 @@
     "rangeConnector": "to",
     "openPhase": "Open enrollment"
   },
-  "parentChildren": {
-    "eyebrow": "My children",
-    "title": "Children overview",
-    "description": "Select a child to open care, pickup permissions and news.",
-    "loadError": "The children overview could not be loaded. Please refresh the page or try again later.",
-    "emptyTitle": "No children yet",
-    "emptyDescription": "As soon as a child is confirmed, they will appear here.",
-    "openRange": "Period open",
-    "careRange": "Care {range}",
-    "dateRangeConnector": "to"
-  },
   "parentChildDetail": {
     "unknownError": "Unknown error",
     "loadError": "The child data could not be loaded. Please refresh the page or try again later.",
@@ -219,13 +178,7 @@
     "notSet": "Not recorded yet",
     "schoolLabel": "School",
     "classLabel": "Class",
-    "careLabel": "Care",
     "periodLabel": "Period",
-    "childEyebrow": "Child",
-    "careRecorded": "Care recorded",
-    "masterDataEyebrow": "Child data",
-    "masterDataTitle": "Master data",
-    "masterDataDescription": "The most important details about child and care.",
     "guardians": {
       "title": "Parents and pick-up contacts",
       "description": "Who belongs to your child, who may collect them, and who has access to the app.",
@@ -317,39 +270,7 @@
         }
       }
     },
-    "newsEyebrow": "Updates",
-    "newsTitle": "News",
-    "newsDescription": "Messages about the group and care.",
-    "noNewsTitle": "No news available",
-    "noNewsDescription": "Group messages will appear here.",
     "back": "Back to My children",
-    "comingSoonAria": "{label} coming soon",
-    "actions": {
-      "sick": {
-        "label": "Report absence",
-        "description": "Report sick or excused"
-      },
-      "pickupTime": {
-        "label": "Pickup for today",
-        "description": "Change the pickup time for one day"
-      },
-      "message": {
-        "label": "Message the OGS",
-        "description": "Directly to care staff"
-      },
-      "pickupPermission": {
-        "label": "Pickup permission",
-        "description": "Manage approvals"
-      },
-      "people": {
-        "label": "People",
-        "description": "Contacts and parents"
-      },
-      "news": {
-        "label": "News",
-        "description": "Group information"
-      }
-    },
     "today": {
       "title": "Today",
       "description": "The most important information and tasks for today.",
@@ -447,28 +368,7 @@
     },
     "request": {
       "submit": "Send request",
-      "sendError": "The request could not be sent.",
-      "careSchedule": {
-        "title": "Change care times",
-        "intro": "Weekly schedule Mon–Fri as a request to the school. Only filled-in entries are changed, empty fields stay as before.",
-        "noChange": "Please adjust at least one day.",
-        "arrival": "Arrival time",
-        "pickup": "Pickup time",
-        "modeAria": "Departure mode {day}"
-      },
-      "weekday": {
-        "1": "Monday",
-        "2": "Tuesday",
-        "3": "Wednesday",
-        "4": "Thursday",
-        "5": "Friday"
-      },
-      "careMode": {
-        "unchanged": "Unchanged",
-        "alone": "Goes alone",
-        "bus": "Takes the bus",
-        "pickup": "Is picked up"
-      }
+      "sendError": "The request could not be sent."
     },
     "requiredHint": "Fields marked with * are required.",
     "timeFormatHint": "Time in the format 15:30"
@@ -1049,14 +949,11 @@
     "loadError": "The master data could not be loaded. Please refresh the page.",
     "saved": "Saved",
     "saveError": "The change could not be saved.",
-    "openLink": "View & change master data",
     "editableHint": "Changes are saved automatically.",
-    "readonlyHint": "This information is maintained by the OGS.",
     "requestHint": "These changes are reviewed by the team before they are applied.",
     "requestButton": "Request change",
     "requestSubmitted": "Request sent. The team will review your change.",
     "requestError": "The request could not be sent.",
-    "noChanges": "There are no changes to submit.",
     "pendingBadge": "Under review",
     "pendingNotice": "A change to this field is awaiting confirmation by the team.",
     "editDisabled": "Editing master data is disabled for this OGS.",
@@ -1067,7 +964,6 @@
       "health": "Health",
       "contact": "Your contact details",
       "departure": "Permanent ways home",
-      "careSchedule": "Care times",
       "careOfferings": "Booked care"
     },
     "fields": {
@@ -1107,28 +1003,12 @@
       "thu": "Thu",
       "fri": "Fri"
     },
-    "careSchedule": {
-      "hint": "Your current weekly schedule. Permanent changes are reviewed by the team before they apply.",
-      "arrival": "Drop-off time",
-      "pickup": "Pick-up time",
-      "modes": "Way home",
-      "loadError": "The care times could not be loaded. Please refresh the page.",
-      "pendingBadge": "Under review",
-      "pendingNotice": "Your request is being reviewed by the team. The current schedule applies until it is confirmed.",
-      "requestedAt": "Requested on {date}",
-      "withdraw": "Withdraw",
-      "withdrawError": "The request could not be withdrawn.",
-      "withdrawConfirmTitle": "Withdraw request?",
-      "withdrawConfirmBody": "Do you really want to withdraw your change request? The current schedule stays unchanged."
-    },
     "careOfferings": {
       "hint": "These care offerings are booked for your child. Changes are reviewed by the team before they apply.",
       "loadError": "The care offerings could not be loaded. Please refresh the page.",
       "period": "Care period {name} ({from} to {until})",
       "offeringsTitle": "Booked care offerings",
-      "groupsTitle": "Clubs and groups",
       "noOfferings": "No care offerings are currently booked for your child.",
-      "noGroups": "Your child is not currently assigned to a club or group.",
       "allDays": "all care days",
       "notBooked": "not booked",
       "removed": "cancelled",
@@ -1137,7 +1017,6 @@
       "price": "{amount} per month",
       "startsLater": "from {date}",
       "until": "until {date}",
-      "fromOffering": "from the enrolment",
       "pendingBadge": "Under review",
       "requestedAt": "Requested on {date}",
       "pendingEffectiveFrom": "Requested from {date}",
@@ -1211,19 +1090,6 @@
     "eventRequestRejected": "Request rejected",
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",
-    "diffHeading": "Your requested changes",
-    "diffCareArrival": "Arrival time",
-    "diffCarePickup": "Pickup time",
-    "diffCareDepartureMode": "Departure type",
-    "diffWeekday1": "Monday",
-    "diffWeekday2": "Tuesday",
-    "diffWeekday3": "Wednesday",
-    "diffWeekday4": "Thursday",
-    "diffWeekday5": "Friday",
-    "diffModeAlone": "Goes alone",
-    "diffModeBus": "Takes the bus",
-    "diffModePickup": "Is picked up",
-    "diffModeAccompanied": "With another child",
     "eventRequestCreatedCareOffering": "Care offering change requested",
     "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched"
   },
@@ -1263,7 +1129,6 @@
   "parentToday": {
     "atOgs": "At the OGS",
     "notAtOgs": "Not at the OGS",
-    "schoolClass": "Class {class}",
     "state": {
       "present": "Here since {time}",
       "presentNoTime": "Here today",

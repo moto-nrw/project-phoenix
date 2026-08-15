@@ -133,31 +133,6 @@ export function parentRequestTypeI18nKey(requestType?: string): string {
   );
 }
 
-/**
- * next-intl keys (parentOgsMessaging namespace) for a care-schedule diff entry's
- * label on the localized parents portal, keyed by the backend's `care_kind`
- * discriminator so the German `label` is never shown to a non-German guardian.
- * Care-schedule rows compose a weekday key (`diffWeekday{1..5}`) with one of these.
- */
-export const PARENT_DIFF_CARE_KIND_I18N_KEYS: Record<string, string> = {
-  arrival: "diffCareArrival",
-  pickup: "diffCarePickup",
-  departure_mode: "diffCareDepartureMode",
-};
-
-/**
- * next-intl keys (parentOgsMessaging namespace) for a departure-mode value on a
- * departure_mode diff row, keyed by the backend's raw mode key (`old_modes` /
- * `new_mode`) so the German `old`/`new` strings are never shown to a non-German
- * guardian. Unknown keys → fall back to the raw German `old`/`new`.
- */
-export const PARENT_DEPARTURE_MODE_I18N_KEYS: Record<string, string> = {
-  alone: "diffModeAlone",
-  bus: "diffModeBus",
-  pickup: "diffModePickup",
-  accompanied: "diffModeAccompanied",
-};
-
 const PARENT_REQUEST_CREATED_I18N_KEYS: Readonly<Record<string, string>> = {
   care_schedule: "eventRequestCreatedCareSchedule",
   master_data: "eventRequestCreatedMasterData",

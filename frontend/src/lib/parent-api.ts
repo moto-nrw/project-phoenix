@@ -20,7 +20,7 @@ import type {
 
 const logger = createLogger({ component: "ParentAPI" });
 
-export type ChildStatus = "pending" | "active" | "inactive" | "alumnus";
+type ChildStatus = "pending" | "active" | "inactive" | "alumnus";
 
 export interface Child {
   readonly student_id: string;
@@ -37,7 +37,7 @@ export interface Child {
 
 // Per-child status values exposed on the enrollment-requests list.
 // Mirrors models/enrollment ChildStatus* constants.
-export type EnrollmentChildStatus =
+type EnrollmentChildStatus =
   | "submitted"
   | "under_review"
   | "approved"
@@ -608,7 +608,7 @@ export async function getChildFeatures(
  * Frontend leitet Ebene 1 NIE aus `state` ab; eine Ja/Nein-Aussage ohne Beleg
  * waere schlimmer als zu schweigen.
  */
-export type ChildTodayState =
+type ChildTodayState =
   | "present"
   | "left"
   | "expected"
@@ -1089,36 +1089,6 @@ export async function getChildCareSchedule(
 ): Promise<ChildCareSchedule> {
   return getJson<ChildCareSchedule>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule`,
-  );
-}
-
-/**
- * Submits a permanent weekly-plan change request. `payload` carries only the
- * aspects that differ from the current plan (empty string = unchanged); it is
- * wrapped in the backend's `{ payload }` envelope. Returns the refreshed view
- * (now carrying the pending request).
- */
-export async function submitCareScheduleRequest(
-  studentId: string,
-  payload: Record<string, unknown>,
-): Promise<ChildCareSchedule> {
-  return postJson<ChildCareSchedule>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
-    { payload },
-  );
-}
-
-/**
- * Withdraws the guardian's own still-open change request and returns the
- * refreshed view (pending request cleared).
- */
-export async function withdrawCareScheduleRequest(
-  studentId: string,
-  requestId: string,
-): Promise<ChildCareSchedule> {
-  return postJson<ChildCareSchedule>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests/${encodeURIComponent(requestId)}/withdraw`,
-    {},
   );
 }
 

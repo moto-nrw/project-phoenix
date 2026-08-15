@@ -650,12 +650,13 @@ export const appChapters: readonly GuideChapter[] = [
           "Eltern pflegen viele Stammdaten ihres Kindes im Elternportal selbst. Sensible Angaben (Name, Geburtsdatum, Gehzeiten), die dauerhaften Betreuungszeiten und die gebuchten Betreuungsangebote ändern sie nur auf Anfrage – diese geben Sie hier zentral frei.",
         steps: [
           "Die meisten Felder (z. B. Gesundheitshinweise, eigene Kontaktdaten der Eltern) ändern Eltern direkt; die Änderung wird sofort übernommen und protokolliert.",
-          "Für Name, Geburtsdatum und Gehzeiten sowie für die dauerhaften Bring- und Abholzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Für Name, Geburtsdatum und Gehzeiten reichen Eltern über `Änderung anfragen` einen Vorschlag ein, statt direkt zu ändern.",
+          "Die dauerhaften Bring- und Abholzeiten ändern Eltern seit dem Umbau der Eltern-App nicht mehr selbst: Die Rubrik `Betreuungszeiten` gibt es dort nicht mehr, der Wochenplan steht nur noch als Anzeige. Die Bringzeit folgt dem Stundenplan; Änderungswünsche kommen jetzt als Nachricht. Ältere, noch offene Anfragen bleiben in der Warteschlange und lassen sich normal entscheiden.",
           "Offene Anfragen finden Sie als Admin in der Seitenleiste unter `Eltern` > `Änderungsanfragen`, getrennt nach `Stammdaten`, `Betreuungszeiten`, `Betreuungsangebote und AGs` und – falls aktiviert – `Entschuldigte Abmeldungen`.",
           "Pro Anfrage sehen Sie das Kind und die Änderung (alter → neuer Wert); bei Betreuungszeiten den Wochenplan-Vergleich je Wochentag (Bringzeit, Abholzeit, Abholart); bei Betreuungsangeboten das gewünschte Startdatum und welche Angebote dazukommen oder wegfallen; bei entschuldigten Abmeldungen die betroffenen Tage und die Begründung der Eltern.",
           "Mit `Freigeben` wird der neue Wert übernommen – bei Betreuungszeiten direkt in den Wochenplan des Kindes, bei einer entschuldigten Abmeldung wird das Kind für die Tage als entschuldigt eingetragen. Mit `Ablehnen` bleibt der bisherige Stand erhalten; bei Betreuungszeiten, Betreuungsangeboten und entschuldigten Abmeldungen ist dafür eine Begründung erforderlich, bei Stammdaten optional.",
           "Anfragen zu Betreuungsangeboten gelten ab dem gewünschten Datum: Das bisherige Angebot endet an diesem Tag, das neue beginnt dann. Vergangene Wochen bleiben unverändert, damit Anwesenheiten und Listen weiterhin stimmen. Ist ein gewünschtes Angebot inzwischen voll, meldet die App das beim Freigeben und die Anfrage bleibt offen.",
-          "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf. Bei Betreuungsangeboten steht das Ergebnis zusätzlich zwei Wochen lang unter `Betreuungsangebote` im Kinderprofil der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
+          "Die Eltern sehen die Entscheidung als Hinweis in ihrem Nachrichten-Verlauf. Bei Betreuungsangeboten steht das Ergebnis zusätzlich zwei Wochen lang unter `Gebuchte Betreuung` im Kinderbereich der Eltern-App, bei einer Ablehnung mit Ihrer Begründung.",
           "Ob Eltern Stammdaten direkt ändern bzw. Änderungen anfragen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal`. Anfragen zu Betreuungsangeboten schalten Sie unter `Einstellungen` > `Anmeldung` frei; dort legen Sie auch fest, wie viele Tage Vorlauf eine Umstellung mindestens braucht.",
         ],
         callout: {
@@ -1525,6 +1526,29 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/anmeldeformulare.webp",
       },
       {
+        id: "eltern-app-ueberblick",
+        title: "Was Eltern in ihrer App sehen",
+        icon: Users,
+        summary:
+          "Die Eltern-App wurde auf die Aufgaben ausgerichtet, die Familien täglich haben. Wer weiß, was Eltern sehen, beantwortet Rückfragen am Telefon in einem Satz.",
+        steps: [
+          "Unten führen fünf Ziele durch die App: `Start`, `Kinder`, `Nachrichten`, `Kalender` und `Mehr`. Auf dem Computer stehen dieselben Ziele in einer Seitenleiste.",
+          "`Start` zeigt oben nur, was offen ist (ungelesene Nachrichten und Aushänge, unbeantwortete Umfragen und Termineinladungen), darunter je Kind eine Tageskarte. Ist nichts offen, steht dort `Alles erledigt`.",
+          "Die Tageskarte beantwortet zuerst eine Frage: `In der OGS` oder `Nicht in der OGS`. Darunter erklärt eine Zeile den Zeitpunkt, etwa `Seit 12:38 Uhr da` oder `Heute abgemeldet`. Pflegt eine Schule keine Anwesenheit, macht die Karte bewusst keine Ja/Nein-Aussage, sondern schreibt `Status derzeit nicht verfügbar`.",
+          "Von der Tageskarte aus melden Eltern ihr Kind krank, ändern die Abholung für einen Tag oder schreiben der OGS.",
+          "`Kinder` zeigt bei einem Kind direkt dieses Kind, bei mehreren einen Umschalter oben. Der Bereich hat vier Abschnitte: `Heute`, `Gebuchte Betreuung`, `Daten von {Name}` und `Eltern und Abholberechtigte`.",
+          "`Kalender` ist eine Terminliste nach `Diese Woche`, `Nächste Woche` und `Später`. Zusagen und Absagen stehen direkt in der Zeile.",
+          "Hinter `Mehr` liegen `Aus der OGS` (früher Neuigkeiten), Essensplan, Benachrichtigungen, Sprache, eine neue Anmeldung und das Abmelden. Ein ungelesener Aushang wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Aushang erscheint zusätzlich auf der Startseite.",
+        ],
+        callout: {
+          title: "Was es nicht mehr gibt",
+          body: "Die Rubriken `Betreuungszeiten` und `AGs und Gruppen` sind aus der Eltern-App entfernt; Eltern konnten dort ohnehin nichts anmelden. Der Wochenplan steht nur noch als Anzeige unter `Gebuchte Betreuung`, weil eine frei änderbare Bringzeit zu falschen Elternangaben geführt hat. Produktfeedback gibt es in der Eltern-App nicht mehr.",
+          tone: "orange",
+        },
+        screenshot:
+          "Startseite der Eltern-App: Begrüßung, Bereich Zu erledigen und darunter die Tageskarte eines Kindes mit den drei Hauptaktionen.",
+      },
+      {
         id: "nachrichten",
         title: "Nachrichten",
         icon: MessageSquare,
@@ -1553,18 +1577,18 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Anfragen der Eltern bearbeiten",
         icon: ClipboardCheck,
         summary:
-          "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an den dauerhaften Betreuungszeiten. Anfragen entstehen im Elternportal auf der Stammdaten-Seite des Kindes und werden zentral auf der Seite `Änderungsanfragen` entschieden.",
+          "Bezugspersonen können über die Eltern-App strukturierte Anfragen stellen: Änderungen an den Stammdaten (Name, Geburtsdatum, Gehzeiten) und an der gebuchten Betreuung. Anfragen entstehen im Kinderbereich der Eltern-App und werden zentral auf der Seite `Änderungsanfragen` entschieden.",
         steps: [
-          "Eltern sehen im Elternportal die aktuellen Betreuungszeiten ihres Kindes (Bringzeit, Abholzeit, Abholart je Wochentag) und reichen dort über `Änderung anfragen` einen Vorschlag ein.",
+          "Eltern sehen im Kinderbereich unter `Gebuchte Betreuung`, was für ihr Kind gebucht ist, und daneben ihren Wochenplan (Bringzeit, Abholzeit, Abholart je Wochentag). Der Wochenplan ist reine Anzeige: Die Bringzeit folgt dem Stundenplan der Schule, deshalb ändern Eltern sie nicht mehr selbst. Eine Änderung des gebuchten Angebots reichen sie über `Änderung anfragen` ein.",
           "Neue Anfragen erscheinen im Nachrichten-Verlauf des Kindes als Hinweis, sind dort aber nicht bedienbar.",
-          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Änderungsanfragen` öffnen. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten` und `Betreuungszeiten`, jeweils mit dem Vergleich `aktuell -> gewünscht`.",
+          "In der Seitenleiste den Bereich `Eltern` aufklappen und `Änderungsanfragen` öffnen. Dort stehen alle offenen Anfragen, getrennt nach `Stammdaten`, `Betreuungszeiten` und `Betreuungsangebote`, jeweils mit dem Vergleich `aktuell -> gewünscht`. Der Bereich `Betreuungszeiten` bekommt keine neuen Anfragen mehr; noch offene Altfälle lassen sich dort weiterhin entscheiden.",
           "Mit `Freigeben` wird die Änderung übernommen: Bei Betreuungszeiten wird der Wochenplan des Kindes direkt aktualisiert.",
           "Passt die Anfrage nicht, eine kurze `Begründung` eintragen und auf `Ablehnen` tippen. Der Grund wird der Bezugsperson angezeigt.",
-          "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status auf der Stammdaten-Seite).",
+          "Nach der Entscheidung wird die Bezugsperson in ihrer App über das Ergebnis informiert (Hinweis im Nachrichten-Verlauf und Status im Kinderbereich).",
         ],
         callout: {
           title: "Wer darf entscheiden",
-          body: "Die Seite `Änderungsanfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie auf der Stammdaten-Seite zurückziehen.",
+          body: "Die Seite `Änderungsanfragen` steht Admins sowie Mitarbeitenden mit Bearbeitungsrecht für die Kinderdaten zur Verfügung. Die für die Gruppe eines Kindes zuständige Aufsicht sieht dabei nur Anfragen zu Kindern aus ihren eigenen Gruppen. Solange eine Anfrage offen ist, können Eltern sie im Kinderbereich zurückziehen.",
           tone: "orange",
         },
         screenshot:
@@ -1576,7 +1600,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Elternmitteilungen",
         icon: Megaphone,
         summary:
-          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie als Neuigkeiten im Elternportal. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
+          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie in ihrer App unter `Aus der OGS`. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail enthält nur den Titel und einen Link ins Elternportal.",

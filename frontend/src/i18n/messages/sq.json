@@ -88,43 +88,16 @@
     "eyebrow": "Portali i prindërve",
     "title": "Mirë se vini",
     "description": "Këtu shihni çfarë është e rëndësishme sot.",
-    "childrenEyebrow": "Fëmijët e mi",
     "childrenDescription": "Zgjidhni drejtpërdrejt veprimin që ju nevojitet.",
     "actions": {
       "sick": "Njofto mungesën",
       "pickup": "Ndrysho marrjen",
       "message": "Shkruaj një mesazh"
     },
-    "emptyChildren": "Sapo një fëmijë të aktivizohet, ai shfaqet këtu.",
-    "allChildren": "Shfaq të gjithë fëmijët",
     "open": "Në përpunim",
-    "updatesTitle": "Aktuale",
-    "updatesDescription": "Mesazhet dhe kërkesat nga OGS në një vend.",
-    "updatesLoading": "Po ngarkohen të rejat",
-    "updatesEmptyTitle": "Gjithçka u krye",
-    "updatesEmptyDescription": "Për momentin nuk ka asgjë të re për ju.",
-    "updatesLoadError": "Një pjesë e të rejave nuk u ngarkua. Rifreskoni faqen.",
-    "messageNewOne": "Mesazh i ri",
-    "messageNewMany": "{count} mesazhe të reja",
-    "messageAboutChild": "Për {name}",
-    "messageRead": "Lexo mesazhin",
-    "appointmentResponsePending": "Përgjigje në pritje",
-    "appointmentForChild": "Për {name}",
-    "appointmentRespond": "Prano ose refuzo",
-    "newsEyebrow": "Aktuale",
-    "newsTitle": "Lajme",
-    "newsDescription": "Këtu shfaqen njoftime nga përkujdesja dhe portali i prindërve.",
-    "noNewsTitle": "Nuk ka lajme",
-    "noNewsDescription": "Njoftimet e reja do t'i shihni direkt në faqen kryesore.",
-    "newsShowAll": "Shfaq të gjitha lajmet",
-    "noNewsPageDescription": "Sapo kujdestaria të publikojë një njoftim, ai do të shfaqet këtu.",
     "loadError": "Pamja e përgjithshme nuk u ngarkua. Rifreskoni faqen ose provoni më vonë.",
     "unknownError": "Gabim i panjohur",
     "notSet": "Nuk është vendosur",
-    "rangeOpen": "Periudha ende e hapur",
-    "careRecorded": "Përkujdesja është regjistruar",
-    "careRange": "Përkujdesje {range}",
-    "pendingDescription": "Në pritje të konfirmimit ose përgjigjes",
     "status": {
       "submitted": "Dorëzuar",
       "under_review": "Në shqyrtim",
@@ -133,10 +106,8 @@
       "rejected": "Refuzuar",
       "withdrawn": "Tërhequr"
     },
-    "dateRangeConnector": "deri",
     "newsNew": "Njoftim i ri",
     "newsImportant": "E rëndësishme",
-    "newsMarkRead": "Shëno si të lexuar",
     "newsAcknowledge": "Lexuar dhe konfirmuar",
     "newsAcknowledged": "Konfirmuar",
     "newsRead": "Lexuar",
@@ -156,8 +127,7 @@
     "newsAnswer": "Përgjigjuni",
     "newsReadAndConfirm": "Konfirmoni si të lexuar",
     "newsReadAnnouncement": "Lexoni",
-    "newsClose": "Mbyll",
-    "newEnrollment": "Regjistrim i ri"
+    "newsClose": "Mbyll"
   },
   "parentNotificationSetup": {
     "title": "Mos humbisni asnjë mesazh të rëndësishëm",
@@ -199,17 +169,6 @@
     "rangeConnector": "deri",
     "openPhase": "Hap regjistrimin"
   },
-  "parentChildren": {
-    "eyebrow": "Fëmijët e mi",
-    "title": "Përmbledhje e fëmijëve",
-    "description": "Zgjidhni një fëmijë për të hapur përkujdesjen, personat e autorizuar për marrje dhe lajmet.",
-    "loadError": "Përmbledhja e fëmijëve nuk u ngarkua. Rifreskoni faqen ose provoni më vonë.",
-    "emptyTitle": "Ende nuk ka fëmijë",
-    "emptyDescription": "Sapo një fëmijë të konfirmohet, ai shfaqet këtu.",
-    "openRange": "Periudha e hapur",
-    "careRange": "Përkujdesje {range}",
-    "dateRangeConnector": "deri"
-  },
   "parentChildDetail": {
     "unknownError": "Gabim i panjohur",
     "loadError": "Të dhënat e fëmijës nuk mund të ngarkoheshin. Rifreskoni faqen ose provoni më vonë.",
@@ -219,13 +178,7 @@
     "notSet": "Ende nuk është vendosur",
     "schoolLabel": "Shkolla",
     "classLabel": "Klasa",
-    "careLabel": "Përkujdesja",
     "periodLabel": "Periudha",
-    "childEyebrow": "Fëmijë",
-    "careRecorded": "Përkujdesja është regjistruar",
-    "masterDataEyebrow": "Të dhënat e fëmijës",
-    "masterDataTitle": "Të dhënat bazë",
-    "masterDataDescription": "Të dhënat më të rëndësishme për fëmijën dhe përkujdesjen.",
     "guardians": {
       "title": "Prindërit dhe personat që marrin fëmijën",
       "description": "Kush i përket fëmijës suaj, kush mund ta marrë dhe kush ka qasje në aplikacion.",
@@ -317,39 +270,7 @@
         }
       }
     },
-    "newsEyebrow": "Aktuale",
-    "newsTitle": "Lajme",
-    "newsDescription": "Njoftime për grupin dhe përkujdesjen.",
-    "noNewsTitle": "Nuk ka lajme",
-    "noNewsDescription": "Njoftimet e grupit shfaqen këtu.",
     "back": "Kthehu te Fëmijët e mi",
-    "comingSoonAria": "{label} së shpejti",
-    "actions": {
-      "sick": {
-        "label": "Njofto mungesë",
-        "description": "Njofto sëmundje ose justifikim"
-      },
-      "pickupTime": {
-        "label": "Marrja për sot",
-        "description": "Ndrysho orën e marrjes për një ditë"
-      },
-      "message": {
-        "label": "Shkruaji OGS-së",
-        "description": "Direkt te përkujdesja"
-      },
-      "pickupPermission": {
-        "label": "E drejta e marrjes",
-        "description": "Menaxho autorizimet"
-      },
-      "people": {
-        "label": "Persona",
-        "description": "Kontakte dhe prindër"
-      },
-      "news": {
-        "label": "Lajme",
-        "description": "Informacione për grupin"
-      }
-    },
     "today": {
       "title": "Sot",
       "description": "Informacionet dhe detyrat më të rëndësishme për sot.",
@@ -447,28 +368,7 @@
     },
     "request": {
       "submit": "Dërgo kërkesën",
-      "sendError": "Kërkesa nuk mund të dërgohej.",
-      "careSchedule": {
-        "title": "Ndrysho oraret e kujdesit",
-        "intro": "Plani javor Hën–Pre si kërkesë drejt institucionit. Ndryshohen vetëm fushat e plotësuara, fushat bosh mbeten si më parë.",
-        "noChange": "Ju lutemi përshtatni të paktën një ditë.",
-        "arrival": "Ora e ardhjes",
-        "pickup": "Ora e marrjes",
-        "modeAria": "Mënyra e largimit {day}"
-      },
-      "weekday": {
-        "1": "E hënë",
-        "2": "E martë",
-        "3": "E mërkurë",
-        "4": "E enjte",
-        "5": "E premte"
-      },
-      "careMode": {
-        "unchanged": "Pa ndryshim",
-        "alone": "Largohet vetë",
-        "bus": "Udhëton me autobus",
-        "pickup": "Merret"
-      }
+      "sendError": "Kërkesa nuk mund të dërgohej."
     },
     "requiredHint": "Fushat me * duhen plotësuar.",
     "timeFormatHint": "Ora në formatin 15:30"
@@ -1049,14 +949,11 @@
     "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
     "saveError": "Die Änderung konnte nicht gespeichert werden.",
-    "openLink": "Stammdaten ansehen & ändern",
     "editableHint": "Änderungen werden automatisch gespeichert.",
-    "readonlyHint": "Diese Angaben pflegt die OGS.",
     "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestError": "Die Anfrage konnte nicht gesendet werden.",
-    "noChanges": "Es gibt keine Änderungen zum Senden.",
     "pendingBadge": "In Prüfung",
     "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
     "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
@@ -1067,7 +964,6 @@
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
       "departure": "Dauerhafte Gehzeiten",
-      "careSchedule": "Betreuungszeiten",
       "careOfferings": "Përkujdesja e rezervuar"
     },
     "fields": {
@@ -1107,28 +1003,12 @@
       "thu": "Do",
       "fri": "Fr"
     },
-    "careSchedule": {
-      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
-      "arrival": "Bringzeit",
-      "pickup": "Abholzeit",
-      "modes": "Abholart",
-      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
-      "pendingBadge": "In Prüfung",
-      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
-      "requestedAt": "Angefragt am {date}",
-      "withdraw": "Zurückziehen",
-      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
-      "withdrawConfirmTitle": "Anfrage zurückziehen?",
-      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
-    },
     "careOfferings": {
       "hint": "Këto oferta përkujdesjeje janë rezervuar për fëmijën tuaj. Ekipi i shqyrton ndryshimet para se të hyjnë në fuqi.",
       "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
       "offeringsTitle": "Gebuchte Betreuungsangebote",
-      "groupsTitle": "AGs und Gruppen",
       "noOfferings": "Für Ihr Kind sind derzeit keine Betreuungsangebote gebucht.",
-      "noGroups": "Ihr Kind ist derzeit keiner AG oder Gruppe zugeordnet.",
       "allDays": "të gjitha ditët e kujdesit",
       "notBooked": "nuk është rezervuar",
       "removed": "anuluar",
@@ -1137,7 +1017,6 @@
       "price": "{amount} pro Monat",
       "startsLater": "ab {date}",
       "until": "bis {date}",
-      "fromOffering": "aus der Anmeldung",
       "pendingBadge": "In Prüfung",
       "requestedAt": "Angefragt am {date}",
       "pendingEffectiveFrom": "Gewünscht ab {date}",
@@ -1211,19 +1090,6 @@
     "eventRequestRejected": "Kërkesa u refuzua",
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",
-    "diffHeading": "Ndryshimet tuaja të kërkuara",
-    "diffCareArrival": "Ora e ardhjes",
-    "diffCarePickup": "Ora e marrjes",
-    "diffCareDepartureMode": "Mënyra e largimit",
-    "diffWeekday1": "E hënë",
-    "diffWeekday2": "E martë",
-    "diffWeekday3": "E mërkurë",
-    "diffWeekday4": "E enjte",
-    "diffWeekday5": "E premte",
-    "diffModeAlone": "Largohet vetë",
-    "diffModeBus": "Udhëton me autobus",
-    "diffModePickup": "Merret",
-    "diffModeAccompanied": "Me një fëmijë tjetër",
     "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
     "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
   },
@@ -1263,7 +1129,6 @@
   "parentToday": {
     "atOgs": "Në OGS",
     "notAtOgs": "Jo në OGS",
-    "schoolClass": "Klasa {class}",
     "state": {
       "present": "Këtu që nga ora {time}",
       "presentNoTime": "Sot këtu",

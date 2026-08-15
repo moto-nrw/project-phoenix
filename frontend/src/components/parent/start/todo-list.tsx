@@ -21,7 +21,7 @@ import {
  * Farbe steckt nur im Icon-Feld, nicht in der Flaeche.
  */
 
-export type TodoTone = "blue" | "orange";
+type TodoTone = "blue" | "orange";
 
 export interface TodoItem {
   readonly key: string;

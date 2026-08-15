@@ -3,9 +3,6 @@
 import type React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
-import { ButtonLink } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 
 /**
@@ -117,107 +114,6 @@ function ParentBackLink({
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       {label}
     </Link>
-  );
-}
-
-/**
- * Primary page action rendered as a link. Matches `Button` `variant="primary"`
- * `size="md"` so a link and a button can sit next to each other without a
- * height or weight mismatch.
- */
-export function ParentLinkAction({
-  href,
-  children,
-  variant = "primary",
-  className = "",
-}: Readonly<{
-  href: string;
-  children: React.ReactNode;
-  variant?: "primary" | "secondary";
-  className?: string;
-}>) {
-  return (
-    <ButtonLink
-      href={href}
-      variant={variant === "primary" ? "primary" : "outline"}
-      size="md"
-      className={`active:scale-[0.96] ${className}`}
-    >
-      {children}
-    </ButtonLink>
-  );
-}
-
-/**
- * A labelled fact inside a section. Replaces the three different `InfoRow` /
- * `CompactInfoRow` implementations the portal used to carry, and reads the same
- * at every breakpoint (label above value, no desktop-only two-column split).
- */
-export function ParentField({
-  label,
-  children,
-}: Readonly<{ label: string; children: React.ReactNode }>) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-        {children}
-      </dd>
-    </div>
-  );
-}
-
-/** Grid of `ParentField`s. */
-export function ParentFieldGrid({
-  children,
-  className = "",
-}: Readonly<{ children: React.ReactNode; className?: string }>) {
-  return (
-    <dl className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${className}`}>
-      {children}
-    </dl>
-  );
-}
-
-/**
- * Compact status line inside a section: neutral icon tile, label, value.
- * Used for the child page's "Heute" facts, where a colored badge per row would
- * turn three quiet statements into an alarm.
- */
-export function ParentStatusRow({
-  icon: Icon,
-  label,
-  children,
-}: Readonly<{
-  icon: LucideIcon;
-  label: string;
-  children: React.ReactNode;
-}>) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl bg-gray-50 px-3 py-2.5">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm">
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-          {label}
-        </p>
-        <div className="mt-0.5 text-sm font-medium break-words text-gray-900">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Shared load-failure block. */
-export function ParentLoadError({ message }: Readonly<{ message: string }>) {
-  return (
-    <ParentPage>
-      <Alert type="error" message={message} />
-    </ParentPage>
   );
 }
 

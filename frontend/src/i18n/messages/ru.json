@@ -88,43 +88,16 @@
     "eyebrow": "Родительский портал",
     "title": "Добро пожаловать",
     "description": "Здесь вы видите, что важно сегодня.",
-    "childrenEyebrow": "Мои дети",
     "childrenDescription": "Сразу выберите нужное действие.",
     "actions": {
       "sick": "Сообщить об отсутствии",
       "pickup": "Изменить время ухода",
       "message": "Написать сообщение"
     },
-    "emptyChildren": "Когда ребенок будет активирован, он появится здесь.",
-    "allChildren": "Показать всех детей",
     "open": "В обработке",
-    "updatesTitle": "Актуальное",
-    "updatesDescription": "Сообщения и запросы от OGS в одном месте.",
-    "updatesLoading": "Загружается актуальная информация",
-    "updatesEmptyTitle": "Всё готово",
-    "updatesEmptyDescription": "Сейчас для вас нет ничего нового.",
-    "updatesLoadError": "Часть актуальной информации не загрузилась. Обновите страницу.",
-    "messageNewOne": "Новое сообщение",
-    "messageNewMany": "Новых сообщений: {count}",
-    "messageAboutChild": "О ребёнке: {name}",
-    "messageRead": "Прочитать сообщение",
-    "appointmentResponsePending": "Ожидается ответ",
-    "appointmentForChild": "Для ребёнка: {name}",
-    "appointmentRespond": "Принять или отклонить",
-    "newsEyebrow": "Актуально",
-    "newsTitle": "Новости",
-    "newsDescription": "Здесь появляются сообщения от OGS и родительского портала.",
-    "noNewsTitle": "Новостей пока нет",
-    "noNewsDescription": "Новые уведомления появятся прямо на стартовой странице.",
-    "newsShowAll": "Показать все новости",
-    "noNewsPageDescription": "Как только группа продлённого дня опубликует объявление, оно появится здесь.",
     "loadError": "Не удалось загрузить обзор. Обновите страницу или попробуйте позже.",
     "unknownError": "Неизвестная ошибка",
     "notSet": "Не указано",
-    "rangeOpen": "Период еще открыт",
-    "careRecorded": "Уход сохранен",
-    "careRange": "Уход {range}",
-    "pendingDescription": "Ожидает подтверждения или ответа",
     "status": {
       "submitted": "Отправлено",
       "under_review": "На проверке",
@@ -133,10 +106,8 @@
       "rejected": "Отклонено",
       "withdrawn": "Отозвано"
     },
-    "dateRangeConnector": "до",
     "newsNew": "Новое объявление",
     "newsImportant": "Важно",
-    "newsMarkRead": "Отметить как прочитанное",
     "newsAcknowledge": "Прочитано и подтверждено",
     "newsAcknowledged": "Подтверждено",
     "newsRead": "Прочитано",
@@ -156,8 +127,7 @@
     "newsAnswer": "Ответить",
     "newsReadAndConfirm": "Подтвердить прочтение",
     "newsReadAnnouncement": "Читать",
-    "newsClose": "Закрыть",
-    "newEnrollment": "Новая заявка"
+    "newsClose": "Закрыть"
   },
   "parentNotificationSetup": {
     "title": "Не пропускайте важные сообщения",
@@ -199,17 +169,6 @@
     "rangeConnector": "по",
     "openPhase": "Открыть приём"
   },
-  "parentChildren": {
-    "eyebrow": "Мои дети",
-    "title": "Обзор детей",
-    "description": "Выберите ребенка, чтобы открыть уход, разрешения на забор и новости.",
-    "loadError": "Не удалось загрузить обзор детей. Обновите страницу или попробуйте позже.",
-    "emptyTitle": "Детей пока нет",
-    "emptyDescription": "Когда ребенок будет подтвержден, он появится здесь.",
-    "openRange": "Период открыт",
-    "careRange": "Уход {range}",
-    "dateRangeConnector": "до"
-  },
   "parentChildDetail": {
     "unknownError": "Неизвестная ошибка",
     "loadError": "Не удалось загрузить данные ребенка. Обновите страницу или попробуйте позже.",
@@ -219,13 +178,7 @@
     "notSet": "Еще не указано",
     "schoolLabel": "Школа",
     "classLabel": "Класс",
-    "careLabel": "Уход",
     "periodLabel": "Период",
-    "childEyebrow": "Ребенок",
-    "careRecorded": "Уход сохранен",
-    "masterDataEyebrow": "Данные ребенка",
-    "masterDataTitle": "Основные данные",
-    "masterDataDescription": "Самая важная информация о ребенке и уходе.",
     "guardians": {
       "title": "Родители и те, кто забирает",
       "description": "Кто относится к вашему ребёнку, кто может его забирать и у кого есть доступ к приложению.",
@@ -317,39 +270,7 @@
         }
       }
     },
-    "newsEyebrow": "Актуально",
-    "newsTitle": "Новости",
-    "newsDescription": "Сообщения о группе и уходе.",
-    "noNewsTitle": "Новостей нет",
-    "noNewsDescription": "Сообщения группы появятся здесь.",
     "back": "Назад к Моим детям",
-    "comingSoonAria": "{label} скоро будет доступно",
-    "actions": {
-      "sick": {
-        "label": "Сообщить об отсутствии",
-        "description": "Болезнь или уважительная причина"
-      },
-      "pickupTime": {
-        "label": "Время ухода сегодня",
-        "description": "Изменить время ухода на один день"
-      },
-      "message": {
-        "label": "Написать в OGS",
-        "description": "Напрямую в OGS"
-      },
-      "pickupPermission": {
-        "label": "Право забора",
-        "description": "Управлять разрешениями"
-      },
-      "people": {
-        "label": "Люди",
-        "description": "Контакты и родители"
-      },
-      "news": {
-        "label": "Новости",
-        "description": "Информация о группе"
-      }
-    },
     "today": {
       "title": "Сегодня",
       "description": "Самая важная информация и задачи на сегодня.",
@@ -447,28 +368,7 @@
     },
     "request": {
       "submit": "Отправить запрос",
-      "sendError": "Не удалось отправить запрос.",
-      "careSchedule": {
-        "title": "Изменить время пребывания",
-        "intro": "Расписание Пн–Пт как запрос в учреждение. Изменяются только заполненные данные, пустые поля остаются как прежде.",
-        "noChange": "Пожалуйста, измените хотя бы один день.",
-        "arrival": "Время прихода",
-        "pickup": "Время ухода",
-        "modeAria": "Способ ухода {day}"
-      },
-      "weekday": {
-        "1": "Понедельник",
-        "2": "Вторник",
-        "3": "Среда",
-        "4": "Четверг",
-        "5": "Пятница"
-      },
-      "careMode": {
-        "unchanged": "Без изменений",
-        "alone": "Уходит самостоятельно",
-        "bus": "Едет на автобусе",
-        "pickup": "Забирают"
-      }
+      "sendError": "Не удалось отправить запрос."
     },
     "requiredHint": "Поля со * нужно заполнить.",
     "timeFormatHint": "Время в формате 15:30"
@@ -1049,14 +949,11 @@
     "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
     "saveError": "Die Änderung konnte nicht gespeichert werden.",
-    "openLink": "Stammdaten ansehen & ändern",
     "editableHint": "Änderungen werden automatisch gespeichert.",
-    "readonlyHint": "Diese Angaben pflegt die OGS.",
     "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestError": "Die Anfrage konnte nicht gesendet werden.",
-    "noChanges": "Es gibt keine Änderungen zum Senden.",
     "pendingBadge": "In Prüfung",
     "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
     "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
@@ -1067,7 +964,6 @@
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
       "departure": "Dauerhafte Gehzeiten",
-      "careSchedule": "Betreuungszeiten",
       "careOfferings": "Забронированный уход"
     },
     "fields": {
@@ -1107,28 +1003,12 @@
       "thu": "Do",
       "fri": "Fr"
     },
-    "careSchedule": {
-      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
-      "arrival": "Bringzeit",
-      "pickup": "Abholzeit",
-      "modes": "Abholart",
-      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
-      "pendingBadge": "In Prüfung",
-      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
-      "requestedAt": "Angefragt am {date}",
-      "withdraw": "Zurückziehen",
-      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
-      "withdrawConfirmTitle": "Anfrage zurückziehen?",
-      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
-    },
     "careOfferings": {
       "hint": "Эти услуги по уходу забронированы для вашего ребёнка. Команда проверит изменения до их вступления в силу.",
       "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
       "offeringsTitle": "Gebuchte Betreuungsangebote",
-      "groupsTitle": "AGs und Gruppen",
       "noOfferings": "Für Ihr Kind sind derzeit keine Betreuungsangebote gebucht.",
-      "noGroups": "Ihr Kind ist derzeit keiner AG oder Gruppe zugeordnet.",
       "allDays": "все дни присмотра",
       "notBooked": "не забронировано",
       "removed": "отменено",
@@ -1137,7 +1017,6 @@
       "price": "{amount} pro Monat",
       "startsLater": "ab {date}",
       "until": "bis {date}",
-      "fromOffering": "aus der Anmeldung",
       "pendingBadge": "In Prüfung",
       "requestedAt": "Angefragt am {date}",
       "pendingEffectiveFrom": "Gewünscht ab {date}",
@@ -1211,19 +1090,6 @@
     "eventRequestRejected": "Запрос отклонён",
     "eventRequestRejectedReason": "Запрос отклонён: {reason}",
     "eventRequestWithdrawn": "Запрос отозван",
-    "diffHeading": "Ваши запрошенные изменения",
-    "diffCareArrival": "Время прихода",
-    "diffCarePickup": "Время ухода",
-    "diffCareDepartureMode": "Способ ухода",
-    "diffWeekday1": "Понедельник",
-    "diffWeekday2": "Вторник",
-    "diffWeekday3": "Среда",
-    "diffWeekday4": "Четверг",
-    "diffWeekday5": "Пятница",
-    "diffModeAlone": "Уходит самостоятельно",
-    "diffModeBus": "Едет на автобусе",
-    "diffModePickup": "Забирают",
-    "diffModeAccompanied": "С другим ребёнком",
     "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
     "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
   },
@@ -1263,7 +1129,6 @@
   "parentToday": {
     "atOgs": "В продлёнке",
     "notAtOgs": "Не в продлёнке",
-    "schoolClass": "Класс {class}",
     "state": {
       "present": "Здесь с {time}",
       "presentNoTime": "Сегодня здесь",

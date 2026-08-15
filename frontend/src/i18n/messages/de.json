@@ -88,43 +88,16 @@
     "eyebrow": "Elternportal",
     "title": "Willkommen",
     "description": "Hier sehen Sie, was heute wichtig ist.",
-    "childrenEyebrow": "Meine Kinder",
     "childrenDescription": "Wählen Sie direkt die passende Aktion.",
     "actions": {
       "sick": "Abwesenheit melden",
       "pickup": "Abholung ändern",
       "message": "Nachricht schreiben"
     },
-    "emptyChildren": "Sobald ein Kind freigeschaltet ist, erscheint es hier.",
-    "allChildren": "Alle Kinder anzeigen",
     "open": "In Bearbeitung",
-    "updatesTitle": "Aktuelles",
-    "updatesDescription": "Nachrichten und Rückmeldungen der OGS auf einen Blick.",
-    "updatesLoading": "Aktuelles wird geladen",
-    "updatesEmptyTitle": "Alles erledigt",
-    "updatesEmptyDescription": "Es gibt gerade nichts Neues für Sie.",
-    "updatesLoadError": "Ein Teil der aktuellen Informationen konnte nicht geladen werden. Bitte aktualisieren Sie die Seite.",
-    "messageNewOne": "Neue Nachricht",
-    "messageNewMany": "{count} neue Nachrichten",
-    "messageAboutChild": "Zu {name}",
-    "messageRead": "Nachricht lesen",
-    "appointmentResponsePending": "Rückmeldung offen",
-    "appointmentForChild": "Für {name}",
-    "appointmentRespond": "Zu- oder absagen",
-    "newsEyebrow": "Aktuelles",
-    "newsTitle": "Neuigkeiten",
-    "newsDescription": "Meldungen aus Betreuung und Elternportal erscheinen hier.",
-    "noNewsTitle": "Keine Neuigkeiten vorhanden",
-    "noNewsDescription": "Sobald es neue Hinweise gibt, sehen Sie diese direkt auf der Startseite.",
-    "newsShowAll": "Alle Neuigkeiten anzeigen",
-    "noNewsPageDescription": "Sobald Ihre Betreuung eine Mitteilung veröffentlicht, erscheint sie hier.",
     "loadError": "Die Übersicht konnte nicht geladen werden. Bitte aktualisieren Sie die Seite oder versuchen Sie es später erneut.",
     "unknownError": "Unbekannter Fehler",
     "notSet": "Nicht gesetzt",
-    "rangeOpen": "Zeitraum noch offen",
-    "careRecorded": "Betreuung hinterlegt",
-    "careRange": "Betreuung {range}",
-    "pendingDescription": "Wartet auf Bestätigung oder Rückmeldung",
     "status": {
       "submitted": "Eingereicht",
       "under_review": "In Prüfung",
@@ -133,10 +106,8 @@
       "rejected": "Abgelehnt",
       "withdrawn": "Zurückgezogen"
     },
-    "dateRangeConnector": "bis",
     "newsNew": "Neue Mitteilung",
     "newsImportant": "Wichtig",
-    "newsMarkRead": "Als gelesen markieren",
     "newsAcknowledge": "Gelesen und bestätigt",
     "newsAcknowledged": "Bestätigt",
     "newsRead": "Gelesen",
@@ -156,8 +127,7 @@
     "newsAnswer": "Antworten",
     "newsReadAndConfirm": "Gelesen bestätigen",
     "newsReadAnnouncement": "Lesen",
-    "newsClose": "Schließen",
-    "newEnrollment": "Neue Anmeldung"
+    "newsClose": "Schließen"
   },
   "parentNotificationSetup": {
     "title": "Keine wichtige Nachricht verpassen",
@@ -199,17 +169,6 @@
     "rangeConnector": "bis",
     "openPhase": "Anmeldung öffnen"
   },
-  "parentChildren": {
-    "eyebrow": "Meine Kinder",
-    "title": "Kinderübersicht",
-    "description": "Wählen Sie ein Kind aus, um Betreuung, Abholberechtigte und Neuigkeiten zu öffnen.",
-    "loadError": "Die Kinderübersicht konnte nicht geladen werden. Bitte aktualisieren Sie die Seite oder versuchen Sie es später erneut.",
-    "emptyTitle": "Noch keine Kinder",
-    "emptyDescription": "Sobald ein Kind bestätigt ist, erscheint es hier.",
-    "openRange": "Zeitraum offen",
-    "careRange": "Betreuung {range}",
-    "dateRangeConnector": "bis"
-  },
   "parentChildDetail": {
     "unknownError": "Unbekannter Fehler",
     "loadError": "Die Kinderdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite oder versuchen Sie es später erneut.",
@@ -219,13 +178,7 @@
     "notSet": "Noch nicht hinterlegt",
     "schoolLabel": "Schule",
     "classLabel": "Klasse",
-    "careLabel": "Betreuung",
     "periodLabel": "Zeitraum",
-    "childEyebrow": "Kind",
-    "careRecorded": "Betreuung hinterlegt",
-    "masterDataEyebrow": "Kinderdaten",
-    "masterDataTitle": "Stammdaten",
-    "masterDataDescription": "Die wichtigsten Angaben zu Kind und Betreuung.",
     "guardians": {
       "title": "Eltern und Abholberechtigte",
       "description": "Wer zu Ihrem Kind gehört, wer es abholen darf und wer Zugang zur App hat.",
@@ -317,39 +270,7 @@
         }
       }
     },
-    "newsEyebrow": "Aktuelles",
-    "newsTitle": "Neuigkeiten",
-    "newsDescription": "Meldungen zur Gruppe und zur Betreuung.",
-    "noNewsTitle": "Keine Neuigkeiten vorhanden",
-    "noNewsDescription": "Meldungen zur Gruppe erscheinen hier.",
     "back": "Zurück zu Meine Kinder",
-    "comingSoonAria": "{label} bald verfügbar",
-    "actions": {
-      "sick": {
-        "label": "Krank oder entschuldigt melden",
-        "description": "Krank oder entschuldigt melden"
-      },
-      "pickupTime": {
-        "label": "Abholung für heute",
-        "description": "Abholzeit für einen Tag ändern"
-      },
-      "message": {
-        "label": "OGS schreiben",
-        "description": "Direkt an die Betreuung"
-      },
-      "pickupPermission": {
-        "label": "Abholrecht",
-        "description": "Freigaben verwalten"
-      },
-      "people": {
-        "label": "Personen",
-        "description": "Kontakte und Eltern"
-      },
-      "news": {
-        "label": "Neuigkeiten",
-        "description": "Infos zur Gruppe"
-      }
-    },
     "today": {
       "title": "Heute",
       "description": "Die wichtigsten Informationen und Aufgaben für heute.",
@@ -447,28 +368,7 @@
     },
     "request": {
       "submit": "Anfrage senden",
-      "sendError": "Die Anfrage konnte nicht gesendet werden.",
-      "careSchedule": {
-        "title": "Betreuungszeiten ändern",
-        "intro": "Wochenplan Mo–Fr als Anfrage an die OGS. Nur ausgefüllte Angaben werden geändert, leere Felder bleiben wie bisher.",
-        "noChange": "Bitte mindestens einen Tag anpassen.",
-        "arrival": "Bringzeit",
-        "pickup": "Abholzeit",
-        "modeAria": "Abholart {day}"
-      },
-      "weekday": {
-        "1": "Montag",
-        "2": "Dienstag",
-        "3": "Mittwoch",
-        "4": "Donnerstag",
-        "5": "Freitag"
-      },
-      "careMode": {
-        "unchanged": "Unverändert",
-        "alone": "Geht alleine",
-        "bus": "Fährt Bus",
-        "pickup": "Wird abgeholt"
-      }
+      "sendError": "Die Anfrage konnte nicht gesendet werden."
     },
     "requiredHint": "Felder mit * müssen ausgefüllt werden.",
     "timeFormatHint": "Uhrzeit im Format 15:30"
@@ -1049,14 +949,11 @@
     "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
     "saveError": "Die Änderung konnte nicht gespeichert werden.",
-    "openLink": "Stammdaten ansehen & ändern",
     "editableHint": "Änderungen werden automatisch gespeichert.",
-    "readonlyHint": "Diese Angaben pflegt die OGS.",
     "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestError": "Die Anfrage konnte nicht gesendet werden.",
-    "noChanges": "Es gibt keine Änderungen zum Senden.",
     "pendingBadge": "In Prüfung",
     "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
     "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
@@ -1067,7 +964,6 @@
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
       "departure": "Dauerhafte Gehzeiten",
-      "careSchedule": "Betreuungszeiten",
       "careOfferings": "Gebuchte Betreuung"
     },
     "fields": {
@@ -1107,28 +1003,12 @@
       "thu": "Do",
       "fri": "Fr"
     },
-    "careSchedule": {
-      "hint": "Ihr aktueller Wochenplan. Dauerhafte Änderungen prüft das Team, bevor sie gelten.",
-      "arrival": "Bringzeit",
-      "pickup": "Abholzeit",
-      "modes": "Abholart",
-      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
-      "pendingBadge": "In Prüfung",
-      "pendingNotice": "Ihre Anfrage wird vom Team geprüft. Bis zur Bestätigung gilt der bisherige Plan.",
-      "requestedAt": "Angefragt am {date}",
-      "withdraw": "Zurückziehen",
-      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
-      "withdrawConfirmTitle": "Anfrage zurückziehen?",
-      "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Der bisherige Plan bleibt unverändert."
-    },
     "careOfferings": {
       "hint": "Diese Betreuungsangebote sind für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
       "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
       "offeringsTitle": "Gebuchte Betreuungsangebote",
-      "groupsTitle": "AGs und Gruppen",
       "noOfferings": "Für Ihr Kind sind derzeit keine Betreuungsangebote gebucht.",
-      "noGroups": "Ihr Kind ist derzeit keiner AG oder Gruppe zugeordnet.",
       "allDays": "alle Betreuungstage",
       "notBooked": "nicht gebucht",
       "removed": "abgemeldet",
@@ -1137,7 +1017,6 @@
       "price": "{amount} pro Monat",
       "startsLater": "ab {date}",
       "until": "bis {date}",
-      "fromOffering": "aus der Anmeldung",
       "pendingBadge": "In Prüfung",
       "requestedAt": "Angefragt am {date}",
       "pendingEffectiveFrom": "Gewünscht ab {date}",
@@ -1211,19 +1090,6 @@
     "eventRequestRejected": "Anfrage abgelehnt",
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
-    "diffHeading": "Ihre Änderungswünsche",
-    "diffCareArrival": "Bringzeit",
-    "diffCarePickup": "Abholzeit",
-    "diffCareDepartureMode": "Abholart",
-    "diffWeekday1": "Montag",
-    "diffWeekday2": "Dienstag",
-    "diffWeekday3": "Mittwoch",
-    "diffWeekday4": "Donnerstag",
-    "diffWeekday5": "Freitag",
-    "diffModeAlone": "Geht alleine",
-    "diffModeBus": "Fährt Bus",
-    "diffModePickup": "Wird abgeholt",
-    "diffModeAccompanied": "Geht mit anderem Kind/Person",
     "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
     "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
   },
@@ -1263,7 +1129,6 @@
   "parentToday": {
     "atOgs": "In der OGS",
     "notAtOgs": "Nicht in der OGS",
-    "schoolClass": "Klasse {class}",
     "state": {
       "present": "Seit {time} Uhr da",
       "presentNoTime": "Heute da",
