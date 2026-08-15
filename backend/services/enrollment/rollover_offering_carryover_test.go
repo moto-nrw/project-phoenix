@@ -288,6 +288,98 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 	assert.False(t, exists)
 }
 
+// The parent-status page must be able to reopen the rolled request: before
+// #2249 the carried booking pointed at a source-phase offering, which the
+// edit-draft loader rejects with ErrEditNotAllowed.
+func TestRolloverService_CreatePhaseFromSource_RolledRequestIsEditableInParentStatus(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	child := seedApprovedChild(t, env, env.sourcePhase.ID,
+		"Elena", "Edit", "elena.edit@example.com",
+		"Emil", "Edit", int16(2))
+	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+		Name:           "Editierbar",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		IsActive:       true,
+	})
+	linkChildOffering(t, env, &enrollmentModels.RequestChildOffering{
+		RequestChildID: child.ID,
+		CareOfferingID: offering.ID,
+		SelectedDays:   []string{"tue"},
+	})
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
+		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+	require.NoError(t, err)
+
+	rolled, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+		ctx, result.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+	require.NoError(t, err)
+	require.Len(t, rolled, 1)
+	newRequest, err := env.repos.Request.FindByID(ctx, rolled[0].RequestID)
+	require.NoError(t, err)
+
+	draft, err := env.requestSvc.GetEditDraft(ctx, newRequest.StatusToken)
+	require.NoError(t, err,
+		"the rolled request must open in the parent status page without a phase-foreign rejection")
+	require.NotNil(t, draft)
+	links := draft.OfferingsByChild[rolled[0].ID]
+	require.Len(t, links, 1)
+	assert.NotEqual(t, offering.ID, links[0].CareOfferingID)
+	assert.Equal(t, []string{"tue"}, links[0].SelectedDays)
+	offeredIDs := make(map[int64]bool, len(draft.OpenOfferings))
+	for _, open := range draft.OpenOfferings {
+		offeredIDs[open.ID] = true
+	}
+	assert.True(t, offeredIDs[links[0].CareOfferingID],
+		"the carried clone must be part of the target phase's offered catalog")
+}
+
+// Re-running the rollover must not duplicate target requests, bookings, or
+// cloned offerings — the second execution fails up front and atomically.
+func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplicates(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	child := seedApprovedChild(t, env, env.sourcePhase.ID,
+		"Rita", "Repeat", "rita.repeat@example.com",
+		"Rio", "Repeat", int16(2))
+	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
+		Name:           "Wiederholung",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon"},
+		IsActive:       true,
+	})
+	linkChildOffering(t, env, &enrollmentModels.RequestChildOffering{
+		RequestChildID: child.ID,
+		CareOfferingID: offering.ID,
+	})
+
+	first, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
+		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
+	require.NoError(t, err)
+
+	secondReq := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
+	secondReq.Name = "rollover-target-second-run"
+	_, err = env.rolloverSvc.CreatePhaseFromSource(ctx, secondReq)
+	require.ErrorIs(t, err, enrollmentService.ErrRolloverSourceAlreadyRolled)
+
+	rolled, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+		ctx, first.Phase.ID, []string{enrollmentModels.ChildStatusAutoRenewed})
+	require.NoError(t, err)
+	require.Len(t, rolled, 1, "repeated execution must not duplicate target enrollments")
+	links, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, rolled[0].ID)
+	require.NoError(t, err)
+	assert.Len(t, links, 1, "repeated execution must not duplicate bookings")
+	clones, err := env.repos.CareOffering.ListByPhase(ctx, first.Phase.ID)
+	require.NoError(t, err)
+	assert.Len(t, clones, 1, "repeated execution must not duplicate cloned offerings")
+}
+
 // TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate is
 // the #2249 acceptance test: a parent-choice offering with several selected
 // weekdays and a linked timetable template travels from rollover through
