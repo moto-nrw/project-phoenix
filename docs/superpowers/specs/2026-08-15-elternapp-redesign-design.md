@@ -161,6 +161,28 @@ kommt ausdrücklich nicht.
 
 ---
 
+## 4a. Mandat für die Oberfläche: Neubau, keine Renovierung
+
+Für alles unterhalb der Datenschicht gilt ausdrücklich freie Hand. Die
+Oberfläche der Eltern-App wird **von Grund auf neu gebaut**, nicht am Bestand
+entlang verbessert. Bestehende Seitenaufbauten, Kartenformen, Abstände,
+Typografie und Texte sind Ausgangsmaterial, keine Vorgabe.
+
+Maßstab ist eine gute Kita-Eltern-App, nicht das heutige Elternportal:
+
+- **Layout** nach den Mustern, die Eltern aus Kita-Apps kennen: eine Sache pro
+  Bildschirm, große Flächen, klare Reihenfolge, nichts Dekoratives.
+- **Farbe** trägt Bedeutung statt Schmuck, in der moto-Palette, damit die App
+  erkennbar zu moto gehört und trotzdem warm und zugänglich wirkt.
+- **Sprache** ist OGS- und Kita-Sprache, so wie Eltern und Team miteinander
+  reden. Kein Verwaltungsvokabular, keine Systembegriffe.
+- **Mobile, Tablet und Desktop** werden jeweils eigenständig entworfen, nicht
+  ein Entwurf dreimal gestreckt.
+
+Die einzigen Grenzen sind die Projektregeln in Abschnitt 13: neue Bausteine
+gehören ins geteilte UI-Kit, Farben kommen aus der Palette, Kalenderdaten aus
+`timezone.Date`. Innerhalb dieser Grenzen ist alles verhandelbar.
+
 ## 5. Zielbild: Informationsarchitektur
 
 ### Navigation
@@ -230,17 +252,37 @@ Ursache des Vorfalls mit der Ankunftszeit.
 
 ## 6. Tagesstatus: fachlicher Kontrakt (#2252)
 
+### Zweistufig, nicht siebenstufig
+
+Die Anzeige beantwortet zuerst **eine** Frage, und zwar in einer Sekunde
+erfassbar: **Ist mein Kind in der OGS?** Das ist eine Ja/Nein-Aussage, groß und
+farbig. Erst darunter steht eine erklärende Zeile, die sagt, warum bzw. wann.
+
+```
+┌────────────────────────────────┐
+│  ●  In der OGS                 │   Ebene 1: binär, groß, farbig
+│     Seit 12:38 Uhr da          │   Ebene 2: erklärt Zeitpunkt und Plan
+└────────────────────────────────┘
+```
+
+Sieben Zustände bleiben fachlich bestehen, sie sind aber die zweite Ebene. Wer
+nur hinschaut, sieht "In der OGS" oder "Nicht in der OGS". Wer liest, erfährt
+den Rest.
+
 ### Zustände
 
-| Zustand | Anzeige | Herleitung | Farbe |
-|---|---|---|---|
-| `expected` | "Heute ab 12:30 Uhr erwartet" | Betreuungstag, erwartete Zeit noch nicht erreicht, keine offene Anwesenheit | Blau |
-| `not_arrived` | "Noch nicht im Ganztag angekommen" | erwartete Zeit überschritten, keine offene Anwesenheit | Blau |
-| `present` | "Seit 12:38 Uhr im Ganztag" | offene Anwesenheit (`check_out_time IS NULL`) | Grün |
-| `left` | "Um 15:12 Uhr abgeholt" | Anwesenheit heute vorhanden und geschlossen | Grün |
-| `absent` | "Heute abgemeldet" | wirksamer Eintrag in `active.student_status_days` | Rot |
-| `no_care` | "Heute keine Betreuung" | kein Betreuungstag laut Betreuungsplan | Grau |
-| `unknown` | "Status derzeit nicht verfügbar" | Daten nicht belastbar ladbar oder Schule pflegt keine Anwesenheit | Grau |
+| Zustand | Ebene 1 | Ebene 2 | Herleitung | Farbe |
+|---|---|---|---|---|
+| `present` | **In der OGS** | "Seit 12:38 Uhr da" | offene Anwesenheit (`check_out_time IS NULL`) | Grün |
+| `left` | Nicht in der OGS | "Um 15:12 Uhr nach Hause gegangen" | Anwesenheit heute vorhanden und geschlossen | Grau |
+| `expected` | Nicht in der OGS | "Kommt heute um 12:30 Uhr" | Betreuungstag, erwartete Zeit noch nicht erreicht | Blau |
+| `not_arrived` | Nicht in der OGS | "Wird seit 12:30 Uhr erwartet" | erwartete Zeit überschritten, keine Anwesenheit | Blau |
+| `absent` | Nicht in der OGS | "Heute abgemeldet" | wirksamer Eintrag in `active.student_status_days` | Rot |
+| `no_care` | Nicht in der OGS | "Heute keine Betreuung" | kein Betreuungstag laut Betreuungsplan | Grau |
+| `unknown` | *(keine Aussage)* | "Status derzeit nicht verfügbar" | Daten nicht belastbar oder Schule pflegt keine Anwesenheit | Grau |
+
+`unknown` ist der einzige Zustand **ohne** Ebene-1-Aussage. Eine Ja/Nein-Aussage
+zu treffen, die wir nicht belegen können, wäre schlimmer als zu schweigen.
 
 ### Datenquellen
 
