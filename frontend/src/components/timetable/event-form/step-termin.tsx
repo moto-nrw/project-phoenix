@@ -84,6 +84,8 @@ export interface StepTerminProps {
  * collide with a real category id (those are numeric strings).
  */
 export const CREATE_CATEGORY_OPTION = "__create_category__";
+
+const isWeekendDay = (date: Date) => date.getDay() === 0 || date.getDay() === 6;
 const EMPTY_PLANNING_TRACKS: PlanningTrack[] = [];
 const NOOP_PLANNING_TRACKS_CHANGED = () => undefined;
 
@@ -316,7 +318,7 @@ export function StepTermin({
             value={form.date}
             error={fieldErrors.date}
             calendarLayout="popover"
-            disabledDay={(date) => date.getDay() === 0 || date.getDay() === 6}
+            disabledDay={isWeekendDay}
             onChange={(nextDate) => {
               const nextWeekday = isoWeekday(nextDate);
               update("date", nextDate);
@@ -382,7 +384,7 @@ export function StepTermin({
             max={seriesStartEdit.original}
             invalid={Boolean(fieldErrors.seriesStartDate)}
             calendarLayout="popover"
-            disabledDay={(date) => date.getDay() === 0 || date.getDay() === 6}
+            disabledDay={isWeekendDay}
             onChange={(next) => update("seriesStartDate", next)}
           />
           <p className="mt-1 text-[11px] leading-4 text-gray-500">

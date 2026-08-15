@@ -532,6 +532,13 @@ func (s *TimetableDataService) resolvePulledForwardStart(
 		if seg.ValidFrom != nil && !seg.ValidFrom.Before(*seg.ValidUntil) {
 			continue // empty window, nothing to overlap
 		}
+		// Only segments that begin BEFORE the edited segment are its
+		// predecessors (same ordering rule as segmentIsReconcilablePredecessor).
+		// The editable segment is the chain's open tail, so anything else
+		// should satisfy this anyway — the filter guards against anomalies.
+		if seg.ValidFrom != nil && !seg.ValidFrom.Before(*storedFrom) {
+			continue
+		}
 		// valid_until is exclusive: a new start ON the predecessor's end is
 		// contiguous, anything before it overlaps.
 		if seg.ValidUntil.After(newStart) {

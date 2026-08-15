@@ -390,17 +390,19 @@ export function useEventForm({
   // Serienbeginn (the upper bound), `min` the earliest pickable date (today,
   // clamped to the period start). The predecessor bound of a split successor
   // is not known here; the backend rejects an overlap with a German message.
-  const storedSeriesStart = initialSeries?.schedules[0]?.validFrom ?? "";
-  const seriesStartEdit =
-    initialSeries !== null && storedSeriesStart > berlinTodayISO()
-      ? {
-          original: storedSeriesStart,
-          min: latestISODate(
-            berlinTodayISO(),
-            selectedCalendarPeriod?.startDate ?? "",
-          ),
-        }
-      : null;
+  const seriesStartEdit = useMemo(() => {
+    const storedSeriesStart = initialSeries?.schedules[0]?.validFrom ?? "";
+    if (initialSeries === null || storedSeriesStart <= berlinTodayISO()) {
+      return null;
+    }
+    return {
+      original: storedSeriesStart,
+      min: latestISODate(
+        berlinTodayISO(),
+        selectedCalendarPeriod?.startDate ?? "",
+      ),
+    };
+  }, [initialSeries, selectedCalendarPeriod?.startDate]);
   // The pull actually requested by the form: an earlier date than stored.
   // Unchanged (or cleared) sends nothing, keeping the PUT idempotent for
   // clients that never touch the field.

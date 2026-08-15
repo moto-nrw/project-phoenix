@@ -141,6 +141,79 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 	}
 }
 
+// AC 4 (#2226): weekday-scoped roster rows (per-weekday staffing, #2129)
+// follow the pulled-forward start exactly like the shared roster.
+func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing.T) {
+	newStart := futureMondayForStartPull(t)
+	oldStart := newStart.AddDays(7)
+
+	s := makeWeekdayRosterScenario(t, newStart)
+	defer s.teardown(t)
+
+	name := fmt.Sprintf("PullForwardWeekday-%d", time.Now().UnixNano())
+	weekdays := []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayTuesday}
+	assignments := []scheduleSvc.WeekdayRosterAssignment{
+		{
+			Weekday:        activitiesModels.WeekdayMonday,
+			StaffIDs:       []int64{s.staffA},
+			PrimaryStaffID: &s.staffA,
+			StudentIDs:     []int64{s.studentA},
+		},
+		{
+			Weekday:        activitiesModels.WeekdayTuesday,
+			StaffIDs:       []int64{s.staffB},
+			PrimaryStaffID: &s.staffB,
+			StudentIDs:     []int64{s.studentB},
+		},
+	}
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:               name,
+		Type:               activitiesModels.GroupTypeCare,
+		Weekdays:           weekdays,
+		StartTime:          clockTime(14, 0),
+		EndTime:            clockTime(15, 0),
+		RoomID:             s.roomID,
+		CategoryID:         s.categoryID,
+		MaxParticipants:    20,
+		RosterValidFrom:    oldStart,
+		GradeLevelMax:      4,
+		WeekdayAssignments: assignments,
+		ScheduleValidFrom:  &oldStart,
+	})
+	require.NoError(t, err)
+	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
+
+	in := startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &newStart)
+	in.StaffIDs = nil
+	in.PrimaryStaffID = nil
+	in.StudentIDs = nil
+	in.WeekdayAssignments = assignments
+	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, in))
+
+	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
+		require.NotNil(t, row.Weekday, "per-weekday mode keeps weekday-scoped staff rows")
+		assert.Equal(t, newStart, row.ValidFrom,
+			"weekday-scoped supervisor rows must follow the new start")
+	}
+	openEnrollments := 0
+	for _, row := range s.enrollmentRows(t, result.TemplateID) {
+		if row.ValidUntil != nil {
+			continue
+		}
+		openEnrollments++
+		require.NotNil(t, row.Weekday)
+		assert.Equal(t, newStart, row.ValidFrom,
+			"weekday-scoped enrollment rows must follow the new start")
+	}
+	require.Equal(t, 2, openEnrollments)
+
+	// The pulled-forward week materializes each weekday with its own people.
+	_, err = s.materialize.MaterializeForTenant(s.ctx, newStart, newStart.AddDays(1), scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{s.staffA}, s.instanceStaffIDs(t, s.singleInstance(t, result.TemplateID, newStart)))
+	assert.Equal(t, []int64{s.staffB}, s.instanceStaffIDs(t, s.singleInstance(t, result.TemplateID, newStart.AddDays(1))))
+}
+
 func TestUpdateTemplate_StartDatePullForward_MidweekDateStartsAtNextMatchingWeekday(t *testing.T) {
 	newStart := futureMondayForStartPull(t) // a Monday
 	oldStart := newStart.AddDays(8)         // Tuesday one week later
