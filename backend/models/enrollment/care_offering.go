@@ -335,10 +335,14 @@ func normalizePickupTimes(times map[string]string, availableDays []string) (map[
 		if !available[key] {
 			return nil, fmt.Errorf("pickup_times day %q is not in available_days", key)
 		}
-		if _, err := time.Parse("15:04", value); err != nil {
+		parsed, err := time.Parse("15:04", value)
+		if err != nil {
 			return nil, fmt.Errorf("pickup_times value for %q must be HH:MM, got %q", key, hhmm)
 		}
-		out[key] = value
+		// Store canonically zero-padded: the Gehzeit reconciler's
+		// latest-wins rule compares these strings lexicographically, so
+		// "9:30" must become "09:30".
+		out[key] = parsed.Format("15:04")
 	}
 	if len(out) == 0 {
 		return nil, nil

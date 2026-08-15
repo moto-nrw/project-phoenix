@@ -537,9 +537,10 @@ func (s *decisionService) ReconcileOfferingPickupForStudentsByAccount(ctx contex
 }
 
 // hasOfferingPickupDependencies guards the reconciler against partial
-// wirings (the rollover worker builds a slim decision service without the
-// pickup repositories). A missing repo means "this wiring does not
-// materialize Gehzeiten", not an error.
+// wirings. Production always injects the full repository set (factory.go
+// wires one decision service everywhere, including the rollover worker);
+// only slim test wirings omit the pickup repositories. A missing repo means
+// "this wiring does not materialize Gehzeiten", not an error.
 func (s *decisionService) hasOfferingPickupDependencies() bool {
 	return s.PickupScheduleRepo != nil &&
 		s.RequestChildOfferingRepo != nil &&

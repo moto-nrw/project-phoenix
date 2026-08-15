@@ -522,6 +522,19 @@ func (r *RequestChildOfferingRepository) ListApprovedChildrenByCareOfferingIDs(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list approved children for care offerings: %w", err)
 	}
+	return r.resolveApprovedOfferingChildren(ctx, links)
+}
+
+// resolveApprovedOfferingChildren maps offering links onto their resolved
+// students (id + school class) via the approved request child. Alumni are
+// excluded by status; users.students has no soft-delete column (graduation
+// flips status to 'alumnus' instead). Shared by the by-offering and
+// by-student listings.
+func (r *RequestChildOfferingRepository) resolveApprovedOfferingChildren(
+	ctx context.Context,
+	links []*enrollment.RequestChildOffering,
+) ([]*enrollment.ApprovedOfferingChild, error) {
+	result := make([]*enrollment.ApprovedOfferingChild, 0, len(links))
 	if len(links) == 0 {
 		return result, nil
 	}
@@ -535,14 +548,12 @@ func (r *RequestChildOfferingRepository) ListApprovedChildrenByCareOfferingIDs(
 		}
 	}
 
-	// Alumni are excluded by status; users.students has no soft-delete
-	// column (graduation flips status to 'alumnus' instead).
 	var studentRows []struct {
 		ChildID     int64  `bun:"child_id"`
 		StudentID   int64  `bun:"student_id"`
 		SchoolClass string `bun:"school_class"`
 	}
-	err = base.GetDB(ctx, r.db).NewRaw(`
+	err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT
 			"child".id AS child_id,
 			"student".id AS student_id,
@@ -609,55 +620,5 @@ func (r *RequestChildOfferingRepository) ListApprovedByStudentIDsOnDate(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list approved offering links for students: %w", err)
 	}
-	if len(links) == 0 {
-		return result, nil
-	}
-	// A second lookup resolves each link's student id + class; bun cannot
-	// scan joined extra columns into the model slice above.
-	childIDs := make([]int64, 0, len(links))
-	seen := make(map[int64]bool, len(links))
-	for _, link := range links {
-		if !seen[link.RequestChildID] {
-			seen[link.RequestChildID] = true
-			childIDs = append(childIDs, link.RequestChildID)
-		}
-	}
-	var studentRows []struct {
-		ChildID     int64  `bun:"child_id"`
-		StudentID   int64  `bun:"student_id"`
-		SchoolClass string `bun:"school_class"`
-	}
-	err = base.GetDB(ctx, r.db).NewRaw(`
-		SELECT
-			"child".id AS child_id,
-			"student".id AS student_id,
-			"student".school_class
-		FROM enrollment.request_children AS "child"
-		INNER JOIN users.students AS "student"
-			ON "student".id = COALESCE("child".created_student_id, "child".matched_student_id)
-		WHERE "child".id IN (?)
-	`, bun.List(childIDs)).Scan(ctx, &studentRows)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve students for approved offering links: %w", err)
-	}
-	type studentInfo struct {
-		id          int64
-		schoolClass string
-	}
-	students := make(map[int64]studentInfo, len(studentRows))
-	for _, row := range studentRows {
-		students[row.ChildID] = studentInfo{id: row.StudentID, schoolClass: row.SchoolClass}
-	}
-	for _, link := range links {
-		info, ok := students[link.RequestChildID]
-		if !ok {
-			continue
-		}
-		result = append(result, &enrollment.ApprovedOfferingChild{
-			Link:        link,
-			StudentID:   info.id,
-			SchoolClass: info.schoolClass,
-		})
-	}
-	return result, nil
+	return r.resolveApprovedOfferingChildren(ctx, links)
 }

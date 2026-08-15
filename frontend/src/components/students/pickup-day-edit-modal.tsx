@@ -11,6 +11,7 @@ import {
   formatShortDate,
 } from "@/lib/pickup-schedule-helpers";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { createLogger } from "~/lib/logger";
 import { useNFCEnabled } from "~/lib/tenant-context";
 
@@ -269,16 +270,18 @@ export function PickupDayEditModal({
           {onResetToOffering &&
           day.baseSchedule &&
           day.baseSchedule.source !== "care_offering" ? (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="compact"
               onClick={() => void handleResetToOffering()}
               disabled={isResetting}
-              className="mb-2 text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 disabled:opacity-50"
+              className="mb-2"
             >
               {isResetting
                 ? "Setzt zurück…"
                 : "Auf Angebots-Gehzeit zurücksetzen"}
-            </button>
+            </Button>
           ) : null}
 
           {hasTimeOverride ? (
