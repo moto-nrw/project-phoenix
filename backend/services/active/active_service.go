@@ -138,6 +138,11 @@ type service struct {
 	// When nil, auto-clear falls back to the registry default behavior.
 	// Injected post-construction via SetSettingsService.
 	settings SettingsResolver
+
+	// Optional: weckt die Sorgeberechtigten eines Kindes nach einer
+	// Anwesenheitsaenderung, damit die Eltern-App ihren Tagesstatus (#2252)
+	// live nachlaedt. Injiziert via SetGuardianWaker; nil ist ein No-op.
+	guardianWaker GuardianWaker
 }
 
 // SetSettingsService injects the tenant-scoped settings resolver.

@@ -1777,6 +1777,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "parent-events"),
 	)
 
+	// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der Tagesstatus
+	// in der Eltern-App (#2252) live nachlaedt. Die Injektion passiert erst
+	// hier, weil der Emitter nach dem Active-Service gebaut wird.
+	if waker, ok := activeService.(interface {
+		SetGuardianWaker(active.GuardianWaker)
+	}); ok {
+		waker.SetGuardianWaker(pillEmitter)
+	}
+
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.

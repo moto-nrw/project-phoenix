@@ -560,6 +560,10 @@ func (s *service) registerCheckoutBroadcast(
 	snapshot *AttendanceSnapshot,
 	checkoutType string,
 ) {
+	// Siehe registerCheckinBroadcast: die Eltern-Weckung haengt an der
+	// Anwesenheit, nicht am Personal-Broadcaster.
+	s.wakeGuardiansAfterCommit(ctx, studentID)
+
 	if s.Broadcaster == nil {
 		return
 	}
@@ -597,6 +601,10 @@ func (s *service) registerCheckoutBroadcast(
 // broadcastVisitCreated. The two call sets are disjoint, so no request can emit
 // both.
 func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64, checkinType string) {
+	// Die Sorgeberechtigten werden unabhaengig vom Broadcaster geweckt: ihr
+	// Tagesstatus haengt an der Anwesenheit, nicht an den Personal-Topics.
+	s.wakeGuardiansAfterCommit(ctx, studentID)
+
 	if s.Broadcaster == nil {
 		return
 	}
