@@ -3238,7 +3238,11 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 	assert.Empty(t, rows[0].SelectedWeekdays)
 }
 
-func TestDecisionService_Decide_RolloverApprovalMaterializesSourcePhaseOffering(t *testing.T) {
+// Since #2249 the rollover clones the offering catalog into the target
+// phase and remaps the carried booking onto the clone — including a
+// historical non-template activity-group link, which the clone carries
+// verbatim so Decide keeps materializing it for the target window.
+func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.TenantContext(1)
@@ -3318,11 +3322,20 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesSourcePhaseOffering(
 	require.NotNil(t, rolled.RolloverSourceChildID)
 	assert.Equal(t, submitted.Children[0].ID, *rolled.RolloverSourceChildID)
 
+	clones, err := env.repos.CareOffering.ListByPhase(ctx, result.Phase.ID)
+	require.NoError(t, err)
+	require.Len(t, clones, 1)
+	clone := clones[0]
+	assert.NotEqual(t, offering.ID, clone.ID)
+	require.NotNil(t, clone.ActivityGroupID)
+	assert.Equal(t, group.ID, *clone.ActivityGroupID,
+		"a historical non-template link is carried verbatim onto the clone")
+
 	rolledLinks, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, rolled.ID)
 	require.NoError(t, err)
 	require.Len(t, rolledLinks, 1)
-	assert.Equal(t, offering.ID, rolledLinks[0].CareOfferingID,
-		"rollover intentionally copies the source-phase offering id")
+	assert.Equal(t, clone.ID, rolledLinks[0].CareOfferingID,
+		"the carried booking must reference the target-phase clone (#2249)")
 
 	rolloverOutcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 		RequestID:  rolled.RequestID,
@@ -3353,15 +3366,15 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesSourcePhaseOffering(
 		ActorRole:      "admin",
 		Reason:         "Rollover-Angebot unverändert gespeichert",
 		Offerings: []enrollmentService.OfferingAdjustmentSelection{
-			{OfferingID: offering.ID},
+			{OfferingID: clone.ID},
 		},
 	})
 	require.NoError(t, err)
 	rolledLinks, err = env.repos.RequestChildOffering.ListByRequestChildID(ctx, rolled.ID)
 	require.NoError(t, err)
 	require.Len(t, rolledLinks, 1)
-	assert.Equal(t, offering.ID, rolledLinks[0].CareOfferingID,
-		"adjustment save must preserve existing source-phase offering ids")
+	assert.Equal(t, clone.ID, rolledLinks[0].CareOfferingID,
+		"adjustment save must keep the target-phase clone reference")
 }
 
 func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {

@@ -1751,11 +1751,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Rollover service depends on DecisionService for the
 	// rollover_auto_approve=true deadline path.
+	enrollmentRolloverCatalogCloner, ok := enrollmentCareOfferingService.(enrollment.RolloverOfferingCatalogCloner)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement rollover catalog cloning")
+	}
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
 		PhaseRepo:                repos.Phase,
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
+		OfferingCatalogCloner:    enrollmentRolloverCatalogCloner,
 		SchoolRepo:               repos.School,
 		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
