@@ -1,0 +1,29 @@
+{{define "parent-message-notification.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>Neue Nachricht von der OGS</h1>
+
+    <p>Guten Tag{{if .GuardianFirstName}} {{.GuardianFirstName}} {{.GuardianLastName}}{{end}},</p>
+
+    <p>{{if .SchoolName}}die OGS {{.SchoolName}} hat{{else}}die OGS hat{{end}} Ihnen{{if .ChildName}} eine Nachricht zu {{.ChildName}}{{else}} eine Nachricht{{end}} geschrieben:</p>
+
+    <div class="link-box" style="margin-top: 16px;">
+        „{{.Preview}}“
+    </div>
+
+    <div class="button-wrapper" style="text-align: center; margin-top: 24px;">
+        <a class="button" href="{{.MessagesURL}}">Antworten</a>
+    </div>
+
+    <p style="margin-top: 16px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.MessagesURL}}">{{.MessagesURL}}</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Sie erhalten diese E-Mail, weil Sie in moto als Sorgeberechtigte hinterlegt sind. In der App können Sie unter „Benachrichtigungen“ einstellen, worüber wir Sie informieren.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

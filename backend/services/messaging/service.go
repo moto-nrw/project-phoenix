@@ -22,6 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -94,6 +95,18 @@ type Config struct {
 	// sent past consent.
 	Notifier    notifications.Service
 	Preferences notifications.PreferenceService
+
+	// Dispatcher, GuardianProfiles, Schools, DefaultFrom and ParentsURL send the
+	// guardian an e-mail about a new OGS message (#2307) — the fallback for the
+	// guardians push never reaches. All optional: without Dispatcher or
+	// GuardianProfiles nothing is mailed, which keeps bare-constructed services
+	// (unit tests) silent. LoginImages only decorates the mail header.
+	Dispatcher       *email.Dispatcher
+	GuardianProfiles GuardianProfileFinder
+	Schools          SchoolFinder
+	LoginImages      LoginImageResolver
+	DefaultFrom      email.Email
+	ParentsURL       string
 }
 
 // NewService wires a staff messaging service.
@@ -409,6 +422,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread)
+	s.notifyGuardianEmail(ctx, thread, body)
 	return messages, nil
 }
 
@@ -464,6 +478,7 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	}
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread)
+	s.notifyGuardianEmail(ctx, thread, body)
 	s.Logger.Info("staff sent parent message",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),

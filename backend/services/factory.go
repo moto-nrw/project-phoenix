@@ -1883,6 +1883,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "messaging"),
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
+		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307): der
+		// Rueckfall fuer alle, die Push nicht eingerichtet haben.
+		Dispatcher:       dispatcher,
+		GuardianProfiles: repos.GuardianProfile,
+		Schools:          repos.School,
+		LoginImages:      settingsService,
+		DefaultFrom:      defaultFrom,
+		ParentsURL:       parentsURL,
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
