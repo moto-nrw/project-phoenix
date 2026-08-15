@@ -172,9 +172,12 @@ export function ChildDayCard({
             <p className="truncate text-[20px] leading-tight font-semibold text-gray-900">
               {fullName}
             </p>
+            {/* Der Wert kommt so, wie die Schule ihre Gruppe benennt, meist
+                bereits als "Klasse 1b". Ein zusaetzliches "Klasse" davor
+                ergaebe "Klasse Klasse 1b". Also unveraendert ausgeben. */}
             {child.schoolClass && (
               <p className="truncate text-[15px] text-gray-600">
-                {t("schoolClass", { class: child.schoolClass })}
+                {child.schoolClass}
               </p>
             )}
           </div>
