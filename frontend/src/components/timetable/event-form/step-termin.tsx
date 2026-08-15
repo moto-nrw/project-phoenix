@@ -388,10 +388,8 @@ export function StepTermin({
             onChange={(next) => update("seriesStartDate", next)}
           />
           <p className="mt-1 text-[11px] leading-4 text-gray-500">
-            Die Serie hat noch nicht begonnen. Sie können den Beginn auf ein
-            früheres Datum vorziehen; neue Termine entstehen dann ab diesem
-            Datum an den gewählten Wochentagen. Ein späterer Beginn ist nicht
-            möglich.
+            Zieht den Beginn der noch nicht gestarteten Serie auf ein früheres
+            Datum vor; ein späterer Beginn ist nicht möglich.
           </p>
         </Field>
       )}
