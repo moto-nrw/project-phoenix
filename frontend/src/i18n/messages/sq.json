@@ -1232,5 +1232,28 @@
     "statusNeedInfo": "Pyetje",
     "titlePlaceholder": "p.sh. „Kujtesë para orës së marrjes“",
     "descriptionPlaceholder": "Përshkruaj reagimin tënd..."
+  },
+  "parentToday": {
+    "atOgs": "Në OGS",
+    "notAtOgs": "Jo në OGS",
+    "schoolClass": "Klasa {class}",
+    "state": {
+      "present": "Këtu që nga ora {time}",
+      "presentNoTime": "Sot këtu",
+      "left": "Shkoi në shtëpi në orën {time}",
+      "leftNoTime": "Sot shkoi në shtëpi",
+      "expected": "Vjen sot në orën {time}",
+      "expectedNoTime": "Vjen sot",
+      "notArrived": "Pritet që nga ora {time}",
+      "notArrivedNoTime": "Pritet sot",
+      "absent": "Sot i çregjistruar",
+      "noCare": "Sot pa kujdes",
+      "unknown": "Statusi nuk është i disponueshëm për momentin"
+    },
+    "actions": {
+      "sick": "Njoftoni sëmundje",
+      "pickup": "Ndryshoni marrjen",
+      "message": "Shkruani OGS-së"
+    }
   }
 }

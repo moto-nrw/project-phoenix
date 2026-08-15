@@ -1232,5 +1232,28 @@
     "statusNeedInfo": "Question",
     "titlePlaceholder": "e.g. “Reminder before pickup time”",
     "descriptionPlaceholder": "Describe your feedback..."
+  },
+  "parentToday": {
+    "atOgs": "At the OGS",
+    "notAtOgs": "Not at the OGS",
+    "schoolClass": "Class {class}",
+    "state": {
+      "present": "Here since {time}",
+      "presentNoTime": "Here today",
+      "left": "Went home at {time}",
+      "leftNoTime": "Went home today",
+      "expected": "Arriving today at {time}",
+      "expectedNoTime": "Arriving today",
+      "notArrived": "Expected since {time}",
+      "notArrivedNoTime": "Expected today",
+      "absent": "Reported absent today",
+      "noCare": "No care today",
+      "unknown": "Status not available right now"
+    },
+    "actions": {
+      "sick": "Report sick",
+      "pickup": "Change pick-up",
+      "message": "Message the OGS"
+    }
   }
 }

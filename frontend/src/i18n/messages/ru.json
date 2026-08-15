@@ -1232,5 +1232,28 @@
     "statusNeedInfo": "Уточнение",
     "titlePlaceholder": "например, «Напоминание перед временем ухода»",
     "descriptionPlaceholder": "Опишите ваш отзыв..."
+  },
+  "parentToday": {
+    "atOgs": "В продлёнке",
+    "notAtOgs": "Не в продлёнке",
+    "schoolClass": "Класс {class}",
+    "state": {
+      "present": "Здесь с {time}",
+      "presentNoTime": "Сегодня здесь",
+      "left": "Ушёл домой в {time}",
+      "leftNoTime": "Сегодня ушёл домой",
+      "expected": "Придёт сегодня в {time}",
+      "expectedNoTime": "Придёт сегодня",
+      "notArrived": "Ожидается с {time}",
+      "notArrivedNoTime": "Ожидается сегодня",
+      "absent": "Сегодня отсутствует",
+      "noCare": "Сегодня без продлёнки",
+      "unknown": "Статус сейчас недоступен"
+    },
+    "actions": {
+      "sick": "Сообщить о болезни",
+      "pickup": "Изменить время ухода",
+      "message": "Написать в продлёнку"
+    }
   }
 }

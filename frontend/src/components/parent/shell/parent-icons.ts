@@ -29,6 +29,14 @@ export {
   SignOutIcon as SignOut,
   UserPlusIcon as UserPlus,
   UserCircleIcon as UserCircle,
+  CheckCircleIcon as CheckCircle,
+  ClockIcon as Clock,
+  ProhibitIcon as Prohibit,
+  CalendarXIcon as CalendarX,
+  QuestionIcon as Question,
+  FirstAidIcon as FirstAid,
+  CalendarCheckIcon as CalendarCheck,
+  CaretRightIcon as CaretRight,
 } from "@phosphor-icons/react";
 
 export type { Icon, IconWeight } from "@phosphor-icons/react";

@@ -601,6 +601,66 @@ export async function getChildFeatures(
 }
 
 /**
+ * Der Tagesstatus eines Kindes (#2252). Zweistufig: `at_ogs` beantwortet die
+ * eine Frage ("Ist mein Kind in der OGS?"), `state` erklaert sie.
+ *
+ * `at_ogs` ist `null`, wenn die Frage nicht belastbar zu beantworten ist. Das
+ * Frontend leitet Ebene 1 NIE aus `state` ab; eine Ja/Nein-Aussage ohne Beleg
+ * waere schlimmer als zu schweigen.
+ */
+export type ChildTodayState =
+  | "present"
+  | "left"
+  | "expected"
+  | "not_arrived"
+  | "absent"
+  | "no_care"
+  | "unknown";
+
+export interface ChildToday {
+  readonly at_ogs: boolean | null;
+  readonly state: ChildTodayState;
+  /** "HH:MM", nur bei present. */
+  readonly since?: string;
+  /** "HH:MM", nur bei left. */
+  readonly until?: string;
+  /** "HH:MM", nur bei expected und not_arrived. */
+  readonly expected_from?: string;
+}
+
+/** Was angezeigt wird, solange oder falls der Endpunkt nichts liefert. */
+export const UNKNOWN_CHILD_TODAY: ChildToday = {
+  at_ogs: null,
+  state: "unknown",
+};
+
+/**
+ * Holt den Tagesstatus des Kindes.
+ *
+ * Faellt auf `unknown` zurueck, statt zu werfen: der Endpunkt kann fehlen
+ * (404, waehrend das Backend nachzieht) oder die Schule fuehrt keine
+ * Anwesenheit. Beides ist "wir wissen es nicht", kein Fehlerzustand, den ein
+ * Elternteil sehen muesste. 401 laesst throwResponseError weiterhin zur
+ * Anmeldung umleiten, deshalb wird nur ab 403 abgefangen.
+ */
+export async function getChildToday(studentId: string): Promise<ChildToday> {
+  try {
+    return await getJson<ChildToday>(
+      `/api/parent/me/children/${encodeURIComponent(studentId)}/today`,
+    );
+  } catch (err) {
+    if (err instanceof ParentApiError && err.status >= 403) {
+      logger.warn("parent_child_today_unavailable", {
+        status: err.status,
+        student_id: studentId,
+      });
+      return UNKNOWN_CHILD_TODAY;
+    }
+    throw err;
+  }
+}
+
+/**
  * Fetches the Monday-Friday meal plan for the child's school for the week
  * containing weekStart (YYYY-MM-DD). Returns 403 (meal_plan_disabled) when the
  * school does not run a meal plan; callers gate on meal_plan_enabled first.

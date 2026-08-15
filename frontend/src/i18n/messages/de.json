@@ -1232,5 +1232,28 @@
     "statusNeedInfo": "Rückfrage",
     "titlePlaceholder": "z.B. „Erinnerung vor der Abholzeit“",
     "descriptionPlaceholder": "Beschreiben Sie Ihre Rückmeldung..."
+  },
+  "parentToday": {
+    "atOgs": "In der OGS",
+    "notAtOgs": "Nicht in der OGS",
+    "schoolClass": "Klasse {class}",
+    "state": {
+      "present": "Seit {time} Uhr da",
+      "presentNoTime": "Heute da",
+      "left": "Um {time} Uhr nach Hause gegangen",
+      "leftNoTime": "Heute nach Hause gegangen",
+      "expected": "Kommt heute um {time} Uhr",
+      "expectedNoTime": "Kommt heute",
+      "notArrived": "Wird seit {time} Uhr erwartet",
+      "notArrivedNoTime": "Wird erwartet",
+      "absent": "Heute abgemeldet",
+      "noCare": "Heute keine Betreuung",
+      "unknown": "Status derzeit nicht verfügbar"
+    },
+    "actions": {
+      "sick": "Krank melden",
+      "pickup": "Abholung ändern",
+      "message": "OGS schreiben"
+    }
   }
 }
