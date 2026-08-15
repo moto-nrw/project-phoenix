@@ -1327,5 +1327,22 @@
       "weekTitle": "Java juaj",
       "arrivalReadOnly": "Ora e ardhjes rrjedh nga orari i shkollës. Nëse diçka nuk përputhet, ju lutemi shkruani OGS-së."
     }
+  },
+  "parentMessages": {
+    "title": "Mesazhet",
+    "loadError": "Mesazhet nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
+    "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. Sapo të lidhet një fëmijë, mund t'i shkruani OGS-së këtu.",
+    "noMessagesYet": "Ende asnjë mesazh. Prekni për të shkruar.",
+    "previewFromOgs": "OGS: {text}",
+    "previewFromYou": "Ju: {text}",
+    "aboutChild": "Për {name}",
+    "back": "Kthehu",
+    "composerPlaceholder": "Shkruani një mesazh për OGS-në",
+    "composerLabel": "Mesazh",
+    "send": "Dërgo",
+    "sending": "Po dërgohet",
+    "writingDisabled": "Për këtë fëmijë nuk mund të shkruani. Historikun mund ta lexoni ende.",
+    "emptyThreadTitle": "Ende asnjë mesazh",
+    "emptyThreadDescription": "Shkruani mesazhin e parë për OGS-në."
   }
 }

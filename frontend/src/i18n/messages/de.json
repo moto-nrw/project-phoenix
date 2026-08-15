@@ -1327,5 +1327,22 @@
       "weekTitle": "Ihre Woche",
       "arrivalReadOnly": "Die Bringzeit ergibt sich aus dem Stundenplan der Schule. Wenn etwas nicht stimmt, schreiben Sie bitte der OGS."
     }
+  },
+  "parentMessages": {
+    "title": "Nachrichten",
+    "loadError": "Die Nachrichten konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
+    "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Sobald ein Kind verknüpft ist, können Sie hier mit der OGS schreiben.",
+    "noMessagesYet": "Noch keine Nachrichten. Tippen Sie, um zu schreiben.",
+    "previewFromOgs": "OGS: {text}",
+    "previewFromYou": "Sie: {text}",
+    "aboutChild": "Zu {name}",
+    "back": "Zurück",
+    "composerPlaceholder": "Nachricht an die OGS schreiben",
+    "composerLabel": "Nachricht",
+    "send": "Senden",
+    "sending": "Wird gesendet",
+    "writingDisabled": "Für dieses Kind können Sie nicht schreiben. Den Verlauf können Sie weiterhin lesen.",
+    "emptyThreadTitle": "Noch keine Nachrichten",
+    "emptyThreadDescription": "Schreiben Sie die erste Nachricht an die OGS."
   }
 }

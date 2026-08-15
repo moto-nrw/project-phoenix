@@ -46,6 +46,7 @@ export {
   ShieldCheckIcon as ShieldCheck,
   CheckIcon as Check,
   XIcon as X,
+  ArrowLeftIcon as ArrowLeft,
   ExportIcon as Export,
   PlusIcon as Plus,
   CircleNotchIcon as CircleNotch,

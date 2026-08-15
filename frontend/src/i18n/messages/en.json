@@ -1327,5 +1327,22 @@
       "weekTitle": "Your week",
       "arrivalReadOnly": "The arrival time follows the school timetable. If something is wrong, please write to the OGS."
     }
+  },
+  "parentMessages": {
+    "title": "Messages",
+    "loadError": "The messages could not be loaded right now. Please try again later.",
+    "noChildren": "No child is linked to your account yet. Once a child is linked you can write to the OGS here.",
+    "noMessagesYet": "No messages yet. Tap to write.",
+    "previewFromOgs": "OGS: {text}",
+    "previewFromYou": "You: {text}",
+    "aboutChild": "About {name}",
+    "back": "Back",
+    "composerPlaceholder": "Write a message to the OGS",
+    "composerLabel": "Message",
+    "send": "Send",
+    "sending": "Sending",
+    "writingDisabled": "You cannot write for this child. You can still read the history.",
+    "emptyThreadTitle": "No messages yet",
+    "emptyThreadDescription": "Write the first message to the OGS."
   }
 }

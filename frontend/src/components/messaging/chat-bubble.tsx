@@ -22,11 +22,18 @@ export function ChatBubble({
   createdAt,
   readReceiptLabel,
   showOwnSenderName = true,
+  tone = "staff",
 }: Readonly<{
   body: string;
   own: boolean;
   senderName: string;
   createdAt: string;
+  /**
+   * "parent" ist die Sprechblasenform der Eltern-App: die OGS links weiss mit
+   * Rand, die eigenen Nachrichten rechts in blasser Gruenfuellung, dazu 17 px
+   * Schrift. "staff" bleibt der bisherige Look des Personal-Portals.
+   */
+  tone?: "staff" | "parent";
   // Shown after the timestamp on an own message the other side has read, e.g.
   // "Gelesen". Omit to show no read receipt.
   readReceiptLabel?: string;
@@ -39,16 +46,26 @@ export function ChatBubble({
   showOwnSenderName?: boolean;
 }>) {
   const hideName = own && !showOwnSenderName;
+  const parent = tone === "parent";
+  const surface = parent
+    ? own
+      ? "bg-moto-green-soft text-gray-900"
+      : "border border-gray-200 bg-white text-gray-900"
+    : own
+      ? "bg-gray-900 text-white"
+      : "bg-gray-100 text-gray-900";
   return (
     <div className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-5 break-words whitespace-pre-wrap ${
-          own ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-900"
-        }`}
+        className={`max-w-[85%] rounded-2xl px-4 py-2.5 break-words whitespace-pre-wrap ${
+          parent ? "text-[17px] leading-6" : "text-sm leading-5"
+        } ${surface}`}
       >
         {body}
       </div>
-      <p className="mt-1 px-1 text-xs text-gray-400">
+      <p
+        className={`mt-1 px-1 text-gray-500 ${parent ? "text-[15px]" : "text-xs text-gray-400"}`}
+      >
         {hideName ? "" : `${senderName} · `}
         {formatChatTime(createdAt)}
         {readReceiptLabel ? ` · ${readReceiptLabel}` : ""}

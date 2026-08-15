@@ -30,6 +30,10 @@ export function MessageComposer({
   sending,
   placeholder = "Nachricht schreiben...",
   disabled: externallyDisabled = false,
+  tone = "staff",
+  sendLabel = "Senden",
+  sendingLabel = "Senden...",
+  fieldLabel = "Nachricht",
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -37,6 +41,15 @@ export function MessageComposer({
   readonly sending: boolean;
   readonly placeholder?: string;
   readonly disabled?: boolean;
+  /**
+   * "parent" ist das Mass der Eltern-App: Feld und Schaltflaeche mindestens
+   * 48 px hoch, 17 px Schrift, und die Schaltflaeche steht auch auf dem Handy
+   * daneben statt darunter. "staff" bleibt der bisherige Look.
+   */
+  readonly tone?: "staff" | "parent";
+  readonly sendLabel?: string;
+  readonly sendingLabel?: string;
+  readonly fieldLabel?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
@@ -52,11 +65,19 @@ export function MessageComposer({
 
   const disabled = externallyDisabled || sending || value.trim().length === 0;
 
+  const parent = tone === "parent";
+
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+    <div
+      className={
+        parent
+          ? "flex flex-row items-end gap-2"
+          : "flex flex-col gap-2 sm:flex-row sm:items-end"
+      }
+    >
       <div className="flex w-full min-w-0 flex-col gap-1">
         <label htmlFor="message-composer" className="sr-only">
-          Nachricht
+          {fieldLabel}
         </label>
         <textarea
           id="message-composer"
@@ -82,11 +103,15 @@ export function MessageComposer({
           }}
           disabled={externallyDisabled || sending}
           placeholder={placeholder}
-          className="moto-content-surface max-h-40 min-h-[46px] w-full resize-none overflow-hidden rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 transition-shadow focus:border-gray-400 focus:ring-1 focus:ring-gray-300 focus:outline-none disabled:opacity-60"
+          className={`moto-content-surface w-full resize-none overflow-hidden rounded-lg border border-gray-300 px-4 py-3 text-gray-900 transition-shadow focus:border-gray-400 focus:ring-1 focus:ring-gray-300 focus:outline-none disabled:opacity-60 ${
+            parent
+              ? "max-h-40 min-h-12 text-[17px]"
+              : "max-h-40 min-h-[46px] text-sm"
+          }`}
         />
         {value.length >= COUNTER_VISIBLE_FROM ? (
           <span
-            className={`self-end text-xs ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}
+            className={`self-end ${parent ? "text-[15px]" : "text-xs"} ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}
           >
             {value.length}/{MAX_MESSAGE_LEN}
           </span>
@@ -95,14 +120,14 @@ export function MessageComposer({
       <Button
         type="button"
         variant="primary"
-        size="md"
+        size={parent ? "touch" : "md"}
         onClick={onSend}
         isLoading={sending}
-        loadingText="Senden..."
+        loadingText={sendingLabel}
         disabled={disabled}
-        className="h-[46px] sm:flex-shrink-0"
+        className={parent ? "shrink-0" : "h-[46px] sm:flex-shrink-0"}
       >
-        Senden
+        {sendLabel}
       </Button>
     </div>
   );

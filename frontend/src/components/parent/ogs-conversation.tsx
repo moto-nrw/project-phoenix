@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "~/components/parent/shell/parent-icons";
+import { parentPath } from "~/lib/parent-url";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -69,6 +70,7 @@ export function OgsConversation({
   readonly showChild?: boolean;
 }) {
   const t = useTranslations("parentOgsMessaging");
+  const tm = useTranslations("parentMessages");
   const [thread, setThread] = useState<ThreadView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -213,15 +215,14 @@ export function OgsConversation({
       {showBack ? <BackBar /> : null}
 
       <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-4 sm:px-6">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Austausch mit der OGS
-          </p>
-          <h1 className="mt-0.5 text-lg font-semibold break-words text-gray-900">
+        <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
+          <h1 className="text-[20px] leading-tight font-semibold break-words text-gray-900">
             {counterpart}
           </h1>
           {showChild && thread?.student_name ? (
-            <p className="text-sm text-gray-500">zu {thread.student_name}</p>
+            <p className="mt-0.5 text-[15px] text-gray-600">
+              {tm("aboutChild", { name: thread.student_name })}
+            </p>
           ) : null}
         </div>
 
@@ -267,6 +268,7 @@ export function OgsConversation({
                   // (one guardian account per thread), so drop the redundant name
                   // and keep just the time. Staff bubbles still show "Vorname N.".
                   showOwnSenderName={false}
+                  tone="parent"
                   readReceiptLabel={
                     message.sender_kind === "guardian" && message.read_by_staff
                       ? t("readByStaff")
@@ -276,16 +278,15 @@ export function OgsConversation({
               );
             })
           ) : loadError ? (
-            <Alert
-              type="error"
-              message="Die Nachrichten konnten nicht geladen werden."
-            />
+            <Alert type="error" message={tm("loadError")} />
           ) : (
             <EmptyThread />
           )}
         </div>
 
-        <div className="border-t border-gray-100 px-5 py-4 sm:px-6">
+        {/* Angeheftet am unteren Rand, mit Sicherheitsbereich des Geraets:
+            auf dem Handy darf nichts unter dem Home-Indikator kleben. */}
+        <div className="border-t border-gray-100 px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
           {sendError ? (
             <div className="mb-3">
               <Alert type="error" message={sendError} />
@@ -312,12 +313,15 @@ export function OgsConversation({
               onChange={setDraft}
               onSend={() => void handleSend()}
               sending={sending}
-              placeholder="Nachricht an die OGS schreiben..."
+              placeholder={tm("composerPlaceholder")}
+              tone="parent"
+              sendLabel={tm("send")}
+              sendingLabel={tm("sending")}
+              fieldLabel={tm("composerLabel")}
             />
           ) : (
-            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Das Schreiben von Nachrichten ist für dieses Kind nicht aktiviert.
-              Sie können den Verlauf weiterhin lesen.
+            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+              {tm("writingDisabled")}
             </p>
           )}
         </div>
@@ -442,13 +446,14 @@ function QuickActionPill({
 }
 
 function EmptyThread() {
+  const tm = useTranslations("parentMessages");
   return (
     <div className="flex h-full flex-col items-center justify-center py-10 text-center">
-      <h2 className="text-sm font-semibold text-gray-900">
-        Noch keine Nachrichten
+      <h2 className="text-[17px] font-semibold text-gray-900">
+        {tm("emptyThreadTitle")}
       </h2>
-      <p className="mt-1 text-sm leading-6 text-gray-600">
-        Schreiben Sie die erste Nachricht an die OGS.
+      <p className="mt-1 text-[15px] leading-6 text-gray-600">
+        {tm("emptyThreadDescription")}
       </p>
     </div>
   );
@@ -470,13 +475,14 @@ function ThreadSkeleton() {
 // the parents portal too. A plain Link to the portal-absolute path is the correct
 // primitive; the kit has no desktop, portal-agnostic back component to reuse.
 function BackBar() {
+  const tm = useTranslations("parentMessages");
   return (
     <Link
-      href="/parents/messages"
-      className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      href={parentPath("/parents/messages")}
+      className="inline-flex min-h-12 w-fit items-center gap-2 rounded-lg px-2 text-[17px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-[#5080D8] focus-visible:outline-none"
     >
-      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-      Zurück
+      <ArrowLeft size={20} aria-hidden="true" />
+      {tm("back")}
     </Link>
   );
 }
