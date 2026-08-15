@@ -148,6 +148,16 @@ vi.mock("~/lib/care-offering-api", () => ({
   deleteCareOffering: mocks.deleteCareOffering,
   listCareOfferings: mocks.listCareOfferings,
   updateCareOffering: mocks.updateCareOffering,
+  // Gehzeit rollout (#2290): the save flow previews after every save; an
+  // all-zero preview keeps the dialog closed, matching the pre-#2290 flow.
+  previewCareOfferingPickupRollout: vi.fn().mockResolvedValue({
+    affected_students: 0,
+    new_rows: 0,
+    updated_rows: 0,
+    removed_rows: 0,
+    conflicts: [],
+  }),
+  rolloutCareOfferingPickupTimes: vi.fn(),
   // Real const consumed by CareOfferingForm's selection-rule dropdown.
   SELECTION_RULE_LABELS: {
     optional: "Optional (frei wählbar)",

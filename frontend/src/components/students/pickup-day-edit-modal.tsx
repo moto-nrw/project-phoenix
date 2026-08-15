@@ -25,6 +25,9 @@ interface PickupDayEditModalProps {
     reason?: string;
   }) => Promise<void>;
   readonly onDeleteException: () => Promise<void>;
+  /** Setzt die reguläre Gehzeit des Wochentags auf die Angebots-Gehzeit
+   * zurück (#2290); nur angeboten, wenn der Tag von Hand gepflegt ist. */
+  readonly onResetToOffering?: () => Promise<void>;
   readonly onCreateNote: (content: string) => Promise<void>;
   readonly onUpdateNote: (noteId: string, content: string) => Promise<void>;
   readonly onDeleteNote: (noteId: string) => Promise<void>;
@@ -36,6 +39,7 @@ export function PickupDayEditModal({
   day,
   onSaveException,
   onDeleteException,
+  onResetToOffering,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
@@ -56,6 +60,7 @@ export function PickupDayEditModal({
   const [isDeletingException, setIsDeletingException] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errorRef = useScrollToError(error);
 
@@ -191,6 +196,26 @@ export function PickupDayEditModal({
     [onDeleteNote],
   );
 
+  const handleResetToOffering = useCallback(async () => {
+    if (!onResetToOffering) return;
+    setIsResetting(true);
+    setError(null);
+    try {
+      await onResetToOffering();
+    } catch (err) {
+      logger.error("pickup_reset_offering_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Fehler beim Zurücksetzen der Gehzeit",
+      );
+    } finally {
+      setIsResetting(false);
+    }
+  }, [onResetToOffering]);
+
   const startEditNote = (note: PickupNote) => {
     setEditingNoteId(note.id);
     setEditingNoteContent(note.content);
@@ -236,8 +261,25 @@ export function PickupDayEditModal({
           {baseTime && (
             <p className="mb-2 text-xs text-gray-500">
               Reguläre Zeit: {baseTime} Uhr
+              {day.baseSchedule?.source === "care_offering"
+                ? " (aus Betreuungsangebot)"
+                : null}
             </p>
           )}
+          {onResetToOffering &&
+          day.baseSchedule &&
+          day.baseSchedule.source !== "care_offering" ? (
+            <button
+              type="button"
+              onClick={() => void handleResetToOffering()}
+              disabled={isResetting}
+              className="mb-2 text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 disabled:opacity-50"
+            >
+              {isResetting
+                ? "Setzt zurück…"
+                : "Auf Angebots-Gehzeit zurücksetzen"}
+            </button>
+          ) : null}
 
           {hasTimeOverride ? (
             <div className="flex items-center gap-2">
