@@ -253,15 +253,17 @@ func (s *TimetableDataService) updateTemplateLocked(
 	if err := s.propagateListKindToInstances(ctx, in.TemplateID, previousListKind, in.Fields.ListKind); err != nil {
 		return err
 	}
-	// Resync BEFORE the roster replacement: sourced rows are protected there
+	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
+		return err
+	}
+	// Resync AFTER the schedule replacement so a pulled-forward sourced series
+	// sees the widened envelope, but BEFORE the roster replacement: sourced rows
+	// are protected there
 	// (EnrollmentRequestChildID != nil), so a removed source must clear its
 	// rows first or a manually re-picked child would end up with no row at
 	// all (the protected row suppresses the manual create, then a later
 	// cleanup would delete it).
 	if err := s.resyncUpdatedTemplateOfferingRoster(ctx, in, previousSourceOfferingIDs, validFrom); err != nil {
-		return err
-	}
-	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
 		return err
 	}
 	if err := s.deleteRemovedLegacyWeekendInstances(ctx, in.TemplateID, previousSchedules, in.Weekdays); err != nil {

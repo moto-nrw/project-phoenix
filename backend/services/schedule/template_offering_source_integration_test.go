@@ -227,6 +227,66 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
 }
 
+func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
+	newStart := futureMonday(1)
+	oldStart := newStart.AddDays(7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, newStart)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
+	name := fmt.Sprintf("Angebots-Pull-Forward-%d", time.Now().UnixNano())
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		RosterValidFrom:       oldStart,
+		ScheduleValidFrom:     &oldStart,
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: result.TemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:                  name,
+			Type:                  activitiesModels.GroupTypeCare,
+			CategoryID:            s.categoryID,
+			RoomID:                s.roomID,
+			MaxParticipants:       20,
+			CalendarPeriodID:      &s.period.ID,
+			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: []int64{offering.ID},
+		},
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		TimeframeID:      result.TimeframeID,
+		CalendarPeriodID: &s.period.ID,
+		RosterValidFrom:  oldStart,
+		StartDate:        &newStart,
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
+	}))
+
+	var sourced []activitiesModels.StudentEnrollment
+	require.NoError(t, s.db.NewSelect().
+		Model(&sourced).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".activity_group_id = ?`, result.TemplateID).
+		Where(`"student_enrollment".enrollment_request_child_id IS NOT NULL`).
+		Scan(s.ctx))
+	require.Len(t, sourced, 1)
+	assert.Equal(t, newStart, sourced[0].ValidFrom,
+		"offering-derived roster must follow the pulled-forward schedule boundary")
+}
+
 func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testing.T) {
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)

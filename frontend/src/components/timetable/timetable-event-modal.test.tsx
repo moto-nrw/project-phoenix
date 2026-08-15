@@ -5369,6 +5369,10 @@ describe("TimetableEventModal", () => {
     };
 
     it("prefills the stored Serienbeginn and sends start_date when pulled earlier", async () => {
+      mockCountEditedInWindow.mockResolvedValue({
+        count: 1,
+        occurrences: [],
+      });
       renderModal({
         initialSeries: futureSeries,
         calendarPeriods: widePeriods,
@@ -5390,6 +5394,49 @@ describe("TimetableEventModal", () => {
       );
       expect(mockReplanWeek).not.toHaveBeenCalled();
       expect(mockMaterialize).toHaveBeenCalledWith(newStart, oldStart);
+      expect(mockCountEditedInWindow).not.toHaveBeenCalled();
+      expect(
+        screen.queryByText("Einzelanpassungen gehen verloren"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("allows the unchanged stored start when selecting a later period", async () => {
+      const laterPeriod: CalendarPeriod = {
+        ...widePeriods[0]!,
+        id: "9",
+        name: "Späterer Zeitraum",
+        startDate: isoAddDays(oldStart, 1),
+        endDate: isoAddDays(oldStart, 365),
+        periodType: "school_year",
+        weekCycleLength: 1,
+        isActive: true,
+      };
+      renderModal({
+        initialSeries: futureSeries,
+        calendarPeriods: [...widePeriods, laterPeriod],
+        showPeriodField: true,
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await goToStep(2);
+      await chooseFromSelect(
+        screen.getByLabelText("Planungszeitraum*"),
+        "Späterer Zeitraum",
+      );
+      await goToStep(3);
+      await clickSave();
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "7",
+          expect.objectContaining({ calendar_period_id: 9 }),
+        ),
+      );
+      expect(
+        screen.queryByText(
+          "Das Datum muss im gewählten Planungszeitraum liegen.",
+        ),
+      ).not.toBeInTheDocument();
     });
 
     it("warns about a closing day introduced by the earlier Serienbeginn", async () => {

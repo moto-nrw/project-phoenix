@@ -1248,10 +1248,16 @@ export function useEventForm({
         if (form.seriesStartDate > seriesStartEdit.original) {
           errors.seriesStartDate =
             "Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden.";
-        } else if (form.seriesStartDate < berlinTodayISO()) {
+        } else if (
+          form.seriesStartDate !== seriesStartEdit.original &&
+          form.seriesStartDate < berlinTodayISO()
+        ) {
           errors.seriesStartDate =
             "Das Datum darf nicht in der Vergangenheit liegen.";
-        } else if (form.seriesStartDate < seriesStartEdit.min) {
+        } else if (
+          form.seriesStartDate !== seriesStartEdit.original &&
+          form.seriesStartDate < seriesStartEdit.min
+        ) {
           errors.seriesStartDate =
             "Das Datum muss im gewählten Planungszeitraum liegen.";
         }
@@ -2104,26 +2110,28 @@ export function useEventForm({
           onSaved({ kind: "series", seriesId });
         };
 
-        // #1875: a direct Regeltermin edit runs the same destructive re-plan as
-        // the "Alle Termine" scope, so it needs the same lost-edits warning.
-        // replanTemplateFuture re-plans [today, period end]; probe that window.
-        const editsTo =
-          findPeriod(form.calendarPeriodId)?.endDate ??
-          weekTo ??
-          berlinTodayISO();
+        // #1875: edits that rebuild existing instances need the same warning
+        // as "Alle Termine". A start-only pull only inserts the opened gap and
+        // therefore preserves individual adjustments without a probe.
         let lost: EditedInWindowResult | null = null;
-        try {
-          const probe = await timetableService.countEditedInWindow(
-            seriesId,
-            berlinTodayISO(),
-            editsTo,
-          );
-          if (probe.count > 0) lost = probe;
-        } catch (probeErr) {
-          logger.warn("edited_in_window_probe_failed", {
-            error:
-              probeErr instanceof Error ? probeErr.message : String(probeErr),
-          });
+        if (!isStartDateOnlyPull) {
+          const editsTo =
+            findPeriod(form.calendarPeriodId)?.endDate ??
+            weekTo ??
+            berlinTodayISO();
+          try {
+            const probe = await timetableService.countEditedInWindow(
+              seriesId,
+              berlinTodayISO(),
+              editsTo,
+            );
+            if (probe.count > 0) lost = probe;
+          } catch (probeErr) {
+            logger.warn("edited_in_window_probe_failed", {
+              error:
+                probeErr instanceof Error ? probeErr.message : String(probeErr),
+            });
+          }
         }
         if (lost) {
           setLostEdits({
