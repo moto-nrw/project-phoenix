@@ -776,7 +776,17 @@ describe("BetreuungsplanView", () => {
     // die Leseansicht hat eigene Tests weiter unten.
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:manage", "users:read"] } },
+      data: {
+        user: {
+          permissions: [
+            "schedules:read",
+            "schedules:manage",
+            "schedules:create",
+            "users:read",
+            "config:read",
+          ],
+        },
+      },
     });
     mockTenantMutate.mockResolvedValue(undefined);
     mockMaterialize.mockResolvedValue({

@@ -44,6 +44,7 @@ import { useMinuteClock } from "~/lib/pickup-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
+import type { InstanceParticipantNames } from "~/lib/timetable-api";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -395,12 +396,21 @@ function ParticipantNamesLoader({
   children,
 }: Readonly<{
   instanceId: string;
-  children: (names: Map<string, string>) => React.ReactNode;
+  children: (names: InstanceParticipantNames) => React.ReactNode;
 }>) {
   const { data } = useSWRAuth(`timetable-participants-${instanceId}`, () =>
     timetableService.getInstanceParticipants(instanceId),
   );
-  return <>{children(data ?? EMPTY_STUDENT_NAMES)}</>;
+  return (
+    <>
+      {children(
+        data ?? {
+          studentNames: EMPTY_STUDENT_NAMES,
+          staffNames: EMPTY_STAFF_NAMES,
+        },
+      )}
+    </>
+  );
 }
 
 function InstanceStudentsSection({
@@ -955,37 +965,46 @@ export function InstanceDetailModal({
             )}
           </Section>
 
-          <AssignedStaffSection
-            instance={instance}
-            staffNames={staffNames}
-            onOpenPool={poolAvailable ? onOpenPool : undefined}
-            canManageStaffPool={canManageStaffPool}
-          />
-
           {fetchParticipantNames ? (
             <ParticipantNamesLoader instanceId={instance.id}>
-              {(participantNames) => (
-                <InstanceStudentsSection
-                  groupedStudents={groupedStudents}
-                  handleAttendancePatch={handleAttendancePatch}
-                  instance={instance}
-                  onAttendancePatch={attendancePatch}
-                  pendingStudentId={pendingStudentId}
-                  studentNames={participantNames}
-                  students={students}
-                />
+              {(names) => (
+                <>
+                  <AssignedStaffSection
+                    instance={instance}
+                    staffNames={names.staffNames}
+                    onOpenPool={poolAvailable ? onOpenPool : undefined}
+                    canManageStaffPool={canManageStaffPool}
+                  />
+                  <InstanceStudentsSection
+                    groupedStudents={groupedStudents}
+                    handleAttendancePatch={handleAttendancePatch}
+                    instance={instance}
+                    onAttendancePatch={attendancePatch}
+                    pendingStudentId={pendingStudentId}
+                    studentNames={names.studentNames}
+                    students={students}
+                  />
+                </>
               )}
             </ParticipantNamesLoader>
           ) : (
-            <InstanceStudentsSection
-              groupedStudents={groupedStudents}
-              handleAttendancePatch={handleAttendancePatch}
-              instance={instance}
-              onAttendancePatch={attendancePatch}
-              pendingStudentId={pendingStudentId}
-              studentNames={studentNames}
-              students={students}
-            />
+            <>
+              <AssignedStaffSection
+                instance={instance}
+                staffNames={staffNames}
+                onOpenPool={poolAvailable ? onOpenPool : undefined}
+                canManageStaffPool={canManageStaffPool}
+              />
+              <InstanceStudentsSection
+                groupedStudents={groupedStudents}
+                handleAttendancePatch={handleAttendancePatch}
+                instance={instance}
+                onAttendancePatch={attendancePatch}
+                pendingStudentId={pendingStudentId}
+                studentNames={studentNames}
+                students={students}
+              />
+            </>
           )}
         </div>
       </Modal>

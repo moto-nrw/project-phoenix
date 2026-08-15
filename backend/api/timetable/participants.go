@@ -12,6 +12,7 @@
 package timetable
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"sort"
@@ -30,10 +31,20 @@ type InstanceParticipantResponse struct {
 	DisplayName string `json:"display_name"`
 }
 
+// InstanceStaffNameResponse is one assigned staff member's display name.
+type InstanceStaffNameResponse struct {
+	StaffID     int64  `json:"staff_id"`
+	DisplayName string `json:"display_name"`
+}
+
 // InstanceParticipantsResponse is the wire shape of the participants list.
+// Staff names are included unfiltered: within a team, who supervises which
+// block is exactly the overview the Leseansicht exists for; only child names
+// run through the CanReadStudent scope filter.
 type InstanceParticipantsResponse struct {
 	InstanceID   int64                         `json:"instance_id"`
 	Participants []InstanceParticipantResponse `json:"participants"`
+	Staff        []InstanceStaffNameResponse   `json:"staff"`
 }
 
 // getInstanceParticipants handles GET /instances/{id}/participants.
@@ -71,8 +82,50 @@ func (rs *Resource) getInstanceParticipants(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	resp := InstanceParticipantsResponse{InstanceID: instanceID, Participants: participants}
+	staffNames, err := rs.instanceStaffNames(ctx, instanceID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load staff names failed", err))
+		return
+	}
+
+	resp := InstanceParticipantsResponse{
+		InstanceID:   instanceID,
+		Participants: participants,
+		Staff:        staffNames,
+	}
 	common.Respond(w, r, http.StatusOK, resp, "Instance participants retrieved")
+}
+
+// instanceStaffNames resolves the display names of the staff assigned to the
+// instance. Deliberately unfiltered (see InstanceParticipantsResponse).
+func (rs *Resource) instanceStaffNames(ctx context.Context, instanceID int64) ([]InstanceStaffNameResponse, error) {
+	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	staffIDs := make([]int64, 0, len(staffRows))
+	for _, row := range staffRows {
+		staffIDs = append(staffIDs, row.StaffID)
+	}
+	staffByID, err := rs.PersonService.GetStaffWithPersonByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]InstanceStaffNameResponse, 0, len(staffIDs))
+	for _, id := range staffIDs {
+		staff := staffByID[id]
+		if staff == nil || staff.Person == nil {
+			continue
+		}
+		names = append(names, InstanceStaffNameResponse{
+			StaffID:     id,
+			DisplayName: staff.Person.GetFullName(),
+		})
+	}
+	sort.Slice(names, func(i, j int) bool {
+		return names[i].DisplayName < names[j].DisplayName
+	})
+	return names, nil
 }
 
 // visibleParticipants maps enrolled-student rows to named entries, keeping

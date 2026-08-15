@@ -27,13 +27,15 @@ import (
 )
 
 type participantsSetup struct {
-	res        *Resource
-	db         *bun.DB
-	ctx        context.Context
-	instanceID int64
-	students   []*participantFixture
-	roomID     int64
-	activityID int64
+	res           *Resource
+	db            *bun.DB
+	ctx           context.Context
+	instanceID    int64
+	students      []*participantFixture
+	staffID       int64
+	staffFullName string
+	roomID        int64
+	activityID    int64
 }
 
 type participantFixture struct {
@@ -73,6 +75,15 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		roomID:     room.ID,
 		activityID: activity.ID,
 	}
+	staff := testpkg.CreateTestStaff(t, db, "Sara", fmt.Sprintf("Staffel-%d", suffix))
+	staffRow := testpkg.CreateTestInstanceStaff(t, db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", staffRow.ID)
+		testpkg.CleanupActivityFixtures(t, db, staff.ID)
+	})
+	setup.staffID = staff.ID
+	setup.staffFullName = fmt.Sprintf("Sara Staffel-%d", suffix)
+
 	for i, name := range []struct{ first, last string }{{"Anna", "Alpha"}, {"Ben", "Beta"}} {
 		student := testpkg.CreateTestStudent(t, db, name.first, fmt.Sprintf("%s-%d", name.last, suffix), fmt.Sprintf("%da", i+1))
 		row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID, schedule.AttendanceStatusExpected)
@@ -94,6 +105,7 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			StudentRepo: studentRepo,
 			PersonRepo:  personRepo,
+			StaffRepo:   usersRepo.NewStaffRepository(db),
 		}),
 		// UserContextService + SettingsService intentionally nil: the
 		// admin-perm path short-circuits CanReadStudent; the non-admin test
@@ -149,6 +161,11 @@ func TestGetInstanceParticipants_NonAdminWithoutScopeSeesNone(t *testing.T) {
 	decodeEnvelope(t, w, &got)
 	assert.Equal(t, s.instanceID, got.InstanceID)
 	assert.Empty(t, got.Participants)
+	// Staff names are deliberately unfiltered — the team overview ("wer ist
+	// wo eingesetzt") must work even when no child is readable.
+	require.Len(t, got.Staff, 1)
+	assert.Equal(t, s.staffID, got.Staff[0].StaffID)
+	assert.Equal(t, s.staffFullName, got.Staff[0].DisplayName)
 }
 
 func TestGetInstanceParticipants_AlumnusExcluded(t *testing.T) {

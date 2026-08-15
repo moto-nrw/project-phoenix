@@ -228,10 +228,14 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
-  // Leseansicht (#2283): ohne users:read darf die tenantweite Kinderliste
-  // nicht geladen werden (403) — Namen kommen dann pro Termin über den
-  // Teilnehmer-Endpunkt ins Detail-Modal.
-  const canReadStudentRoster = hasPermission(session, "users:read");
+  // Leseansicht (#2283): ohne users:read dürfen die tenantweiten Kinder- und
+  // Personallisten nicht geladen werden (403) — Namen kommen dann pro Termin
+  // über den Teilnehmer-Endpunkt ins Detail-Modal.
+  const canReadTenantRosters = hasPermission(session, "users:read");
+  // Anmeldephasen (Bedarf-Chip) hängen am echten Endpunkt-Gate config:read,
+  // Perioden-Bootstrap an schedules:create — keine Proxy-Permissions.
+  const canReadEnrollmentPhases = hasPermission(session, "config:read");
+  const canBootstrapPeriods = hasPermission(session, "schedules:create");
   const canManageCategories = hasPermission(
     session,
     "activities:manage_categories",
@@ -439,11 +443,13 @@ function TimetablesContent() {
     () => timetableService.getGaps(gapsFromISO, fetchToISO),
   );
   const { data: staffData } = useSWRAuth(
-    status === "authenticated" ? "timetable-staff-list" : null,
+    status === "authenticated" && canReadTenantRosters
+      ? "timetable-staff-list"
+      : null,
     () => staffService.getAllStaff(),
   );
   const { data: studentData } = useSWRAuth(
-    status === "authenticated" && canReadStudentRoster
+    status === "authenticated" && canReadTenantRosters
       ? "timetable-student-list"
       : null,
     () => fetchStudents({ page_size: 500 }),
@@ -453,7 +459,9 @@ function TimetablesContent() {
   const { data: phasesData, error: phasesError } = useSWRAuth(
     // Leseansicht (#2283): Anmeldephasen sind admin-gegated; ohne
     // schedules:manage würde der Abruf nur 403-Rauschen erzeugen.
-    status === "authenticated" && canManageSchedules ? PHASES_SWR_KEY : null,
+    status === "authenticated" && canReadEnrollmentPhases
+      ? PHASES_SWR_KEY
+      : null,
     () => listPhases(),
     { revalidateOnFocus: false },
   );
@@ -516,9 +524,9 @@ function TimetablesContent() {
     if (periodsLoading || periodsError || periods === undefined) return;
     if (periods.length > 0) return;
     if (settingsSchemaLoading || timetableDisabled) return;
-    // Leseansicht (#2283): ohne schedules:manage würde der Bootstrap ohnehin
+    // Leseansicht (#2283): ohne schedules:create würde der Bootstrap ohnehin
     // mit 403 abgewiesen — gar nicht erst versuchen.
-    if (!canManageSchedules) return;
+    if (!canBootstrapPeriods) return;
     if (bootstrapAttemptedRef.current) return;
     bootstrapAttemptedRef.current = true;
     void calendarPeriodService
@@ -542,7 +550,7 @@ function TimetablesContent() {
         }
       });
   }, [
-    canManageSchedules,
+    canBootstrapPeriods,
     periods,
     periodsError,
     periodsLoading,
@@ -1186,7 +1194,7 @@ function TimetablesContent() {
   // Zeile. Als Link bleibt sie unterstrichen bei Hover, sonst reiner Text.
   const originChipClassName = "border-transparent bg-transparent px-0";
   const demandOriginChip =
-    !canManageSchedules ? null : phasesError ? null : phasesData ===
+    !canReadEnrollmentPhases || phasesError ? null : phasesData ===
       undefined ? (
       <OriginChip
         label="Bedarf wird ermittelt …"
@@ -1494,7 +1502,7 @@ function TimetablesContent() {
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
         canManage={canManageSchedules}
-        fetchParticipantNames={!canReadStudentRoster}
+        fetchParticipantNames={!canReadTenantRosters}
         onDeleteCancelled={
           canManageSchedules ? handleDeleteCancelledInstance : undefined
         }
