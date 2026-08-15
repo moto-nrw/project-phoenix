@@ -147,6 +147,18 @@ deckt sich das mit dem vorhandenen `operations.presence_mode`: Eltern bekommen
 immer die binäre Sicht, unabhängig vom Modus der Schule. `active.visits` wird
 für Eltern nie gelesen.
 
+### E6 bis E11: Produktentscheidungen vom 2026-08-15
+
+| # | Entscheidung | Konsequenz |
+|---|---|---|
+| **E6** | **Optik: erkennbar moto, mit mehr bedeutungsvoller Farbe.** Präzisiert am selben Tag: Farbe erscheint als **Akzent** (farbige Kante, Icon-Feld, Statuspille), **nicht** als ganzflächige Einfärbung und **nie** als Verlauf. Verständlichkeit kommt aus Größe und Kontrast der Typografie, nicht aus Buntheit. | Wer die moto-Website kennt, erkennt die Eltern-App sofort. Es darf nicht nach KI-Generat aussehen. Einzelheiten in Abschnitt 7. |
+| **E6b** | **Icons: `@phosphor-icons/react`**, wie auf der Website. Ersetzt die Festlegung vom 25.07.2026. Umfang: nur die Eltern-App. | Paket ist bereits installiert (`^2.1.10`). Personal- und Operator-Portal bleiben bei `lucide-react`. Kein `duotone`. |
+| **E7** | **Anrede: "Sie".** | Bestehende Texte behalten die Anredeform, nur Wortwahl und Ton werden auf OGS-Sprache umgestellt. |
+| **E8** | **Mobile Navigation: Start · Kinder · Nachrichten · Kalender · Mehr.** | Neuigkeiten liegen unter "Mehr" und tragen ihren Ungelesen-Zähler auf das "Mehr"-Symbol. Die Startseite bleibt der Ort, an dem offene Aushänge und Umfragen erscheinen. |
+| **E9** | **Kind-zentriert mit Umschalter.** Bei einem Kind entfällt die Liste, die App zeigt direkt dieses Kind. Bei mehreren steht oben ein Umschalter mit Initialen. | Der Navigationspunkt heißt weiterhin "Kinder", führt bei einem Kind aber ohne Zwischenschritt auf dessen Seite. |
+| **E10** | **Kalender wird eine eigene Elternansicht** als chronologische Terminliste mit Zu- und Absage in der Zeile. Monatsraster nur auf Tablet und Desktop als Zusatz. | `PersonalCalendar` wird im Elternportal nicht mehr verwendet. |
+| **E11** | **PWA-Installation wird vorgezogen** (#2306, #2297) direkt hinter das Designsystem. | Ohne Home-Bildschirm-Installation gibt es auf iOS weder App-Charakter noch Push. |
+
 ### E5: Der Abmelde- und Abhol-Ablauf bleibt fachlich unverändert
 
 Was Eltern dürfen, ändert sich in diesem Vorhaben nicht. Krankmeldung bleibt
@@ -190,9 +202,16 @@ Elternportal.
   klare Reihenfolge, nichts Dekoratives. Kein Dashboard-Gefühl, keine
   Kachelwände, keine Marketing-Hero-Karten. Der wichtigste Inhalt steht ohne
   Scrollen da.
+- **Keine neue Designsprache.** Verbindliche Vorlage ist `moto-nrw/website`,
+  `src/app/globals.css` (Abschnitt 7). Farben, Typo-Stufen, Schatten, Easing
+  und das Punkte-Muster werden von dort übernommen, nicht neu erfunden. Icons
+  bleiben `lucide-react`, Breakpoints bleiben Tailwind-Standard.
 - **Farbe trägt Bedeutung, nicht Schmuck.** Aus der moto-Palette, damit die App
-  erkennbar zu moto gehört, aber deutlich wärmer und zugänglicher eingesetzt
-  als im Personal-Portal. Farbe nie als einziger Träger einer Information.
+  erkennbar zu moto gehört, aber deutlich beherzter eingesetzt als im
+  Personal-Portal. Farbe nie als einziger Träger einer Information.
+- **Der Punkte-Hintergrund wird zum Gestaltungsmittel**, nicht nur zum
+  Seitengrund: maskiert auslaufend auf der Seite, als feine Textur in
+  hervorgehobenen Karten.
 - **Sprache ist OGS- und Kita-Sprache**, so wie Eltern und Team tatsächlich
   miteinander reden. "Ist Ihr Kind heute krank?" statt "Abwesenheitsmeldung
   erfassen". Keine Systembegriffe, keine Verwaltungswörter, keine Anglizismen.
@@ -419,6 +438,166 @@ Check-in-, Checkout- und Abwesenheitsereignissen.
 ---
 
 ## 7. Gestaltung
+
+### Quelle der Designsprache: das Website-Repo, sonst nichts
+
+**`moto-nrw/website` ist die einzige verbindliche Quelle** für Farben, Maße,
+Effekte, Icons und Assets. Konkret:
+
+| Was | Wo |
+|---|---|
+| Farben, Typo-Stufen, Radien, Schatten, Easing, Breakpoint-Werte | `src/app/globals.css`, Block `@theme inline` |
+| Flächen, Punkte-Muster, Eyebrow, Fokus | `src/app/globals.css`, Block `@layer components` und die Basisregeln |
+| Logo, Wortmarke, Favicon | `public/moto_transparent.webp`, `public/moto-logo-wordmark.webp`, `public/favicon-v2.png` |
+| PWA-Vorlage | `public/site.webmanifest` |
+| Icons | `@phosphor-icons/react` |
+
+**Das npm-Paket `@moto-nrw/design-system` wird vollständig ignoriert.**
+Entscheidung vom 2026-08-15. Es ist keine Gestaltungsvorgabe, weder für Farben
+noch für Maße noch für Komponenten. Sein `@theme` liefert eine
+`steel`/`sage`/`warm`-Palette mit einem fremden Grün (`#7BA05B`), das im
+Produkt nirgends vorkommt.
+
+Praktische Folgen:
+
+- Kein Wert der Eltern-App wird aus dem Paket bezogen. Jeder Token, den die
+  Eltern-App braucht, steht entweder schon in `frontend/src/styles/globals.css`
+  oder wird dort aus der Website-CSS ergänzt.
+- `bg-sage-*`, `bg-steel-*`, `--color-brand-primary` und Komponenten aus dem
+  Paket werden nicht verwendet. Das entspricht der bestehenden Regel in
+  `.claude/rules/frontend-ui-kit.md`.
+- Die App importiert `@moto-nrw/design-system/tailwind` heute noch in
+  `globals.css`. Diesen Import zu entfernen ist eine eigene Aufräumaufgabe mit
+  Blast Radius ins Personal-Portal und **nicht Teil dieses Vorhabens**; die
+  Eltern-App darf sich nur nicht darauf stützen.
+
+*Randnotiz zur Versionslage:* project-phoenix liegt auf `^0.5.2`, die Website
+auf `0.2.2`. "Veraltet" meint also nicht die Versionsnummer, sondern dass das
+Paket als Autorität nicht gilt. Maßgeblich ist ausschließlich die Website.
+
+#### Bekannte Abweichungen, die anzugleichen sind
+
+Die App spiegelt die Website heute größtenteils schon (ihr eigener Kommentar in
+`frontend/src/styles/globals.css` sagt das ausdrücklich). Blau, Grün und Orange
+stimmen in allen Abstufungen überein. Es fehlen bzw. weichen ab:
+
+| Token | Website | project-phoenix | Maßnahme |
+|---|---|---|---|
+| Rot | `#DC3545` | `#DC2626` | **Echter Konflikt.** Die Eltern-App übernimmt den Website-Wert. Eine app-weite Angleichung berührt das Personal-Portal und wird getrennt vorgeschlagen, nicht nebenbei gemacht. |
+| Rot dunkel | `#D42220` | `#B91C1C` | wie oben |
+| Grau 150 | `#EEF0F3` | fehlt | ergänzen |
+| Dunkel | `#030712` | fehlt als Token | ergänzen |
+
+#### Farben, wörtlich aus der Website
+
+| Rolle | Token | Hex |
+|---|---|---|
+| Primär (Blau) | `--color-primary` | `#5080D8` |
+| Primär dunkel / hell | `--color-primary-dark` / `-light` | `#3B68C0` / `#6B95E0` |
+| Akzent (Grün) | `--color-accent` | `#83CD2D` |
+| Akzent dunkel / heller / dunkler | `--color-accent-dark` / `-light` / `-darker` | `#74B825` / `#92D63C` / `#6DB118` |
+| Orange | `--color-orange` / `-dark` | `#F78C10` / `#E07400` |
+| Rot | `--color-red` / `-dark` / `-light` | `#DC3545` / `#D42220` / `#FF3130` |
+| Dunkel | `--color-dark` / `-secondary` | `#030712` / `#111827` |
+| Grau 150 (Zwischenton) | `--color-gray-150` | `#EEF0F3` |
+
+`LOCATION_COLORS` in der App bleibt die Quelle für **fachliche** Semantik
+(Raum, Status, Ort). Die Website-Tokens liefern die **gestalterischen**
+Abstufungen, die dort fehlen: hellere und dunklere Varianten für getönte
+Flächen, Hover- und Aktivzustände.
+
+#### Typografie, wörtlich aus der Website
+
+12 · 14 · 16 · 18 · 20 · 24 · 28 · 36 · 42 px. Gewichte 400 / 500 / 600 / 700 /
+800. Zeilenhöhen 1.2 (eng), 1.5 (normal), 1.6 (entspannt).
+
+Für die Eltern-App gilt daraus: Fließtext 16-18 px statt 14, Statuszeile 20 px,
+Seitentitel 24-28 px. Die Website nutzt 800 als stärkstes Gewicht; das
+übernehmen wir für die eine große Statusaussage.
+
+#### Schatten und Bewegung, wörtlich aus der Website
+
+- `--shadow-sm: 0 1px 2px rgba(3,7,18,0.06)` für Flächen
+- `--shadow-md: 0 8px 24px rgba(3,7,18,0.08)` für angehobene Karten
+- `--shadow-card: 0 10px 30px rgba(0,0,0,0.08)` und `--shadow-card-hover`
+- `--shadow-success: 0 2px 8px rgba(131,205,45,0.2)` für den Grün-Zustand
+- Haus-Easing: `cubic-bezier(0.22, 1, 0.36, 1)`, Dauern 240-680 ms
+- Fokus: 2 px `--color-primary` Outline, 2 px Offset, dazu
+  `0 0 0 4px rgba(80,128,216,0.2)`
+
+#### Der Punkte-Hintergrund: mehr damit spielen
+
+Beide Projekte haben ihn bereits im 14-px-Raster. Die Website geht weiter und
+setzt ihn an drei Stellen unterschiedlich ein:
+
+1. **Als Seitengrund** (`.moto-dot-field`, `rgba(156,163,175,0.42)`, 1.15 px,
+   Deckkraft 0.58) — das hat die App als `.moto-dotted-background` schon.
+2. **Maskiert**, damit er zum Rand hin ausläuft statt hart zu enden:
+   `--center` (radial), `--top` (nach unten), `--start-panel` (nach beiden
+   Seiten). Die App hat Entsprechungen, nutzt sie im Elternportal aber nicht.
+3. **Als Textur *innerhalb* von Flächen** (`.navigation-menu-featured`,
+   `.product-system-header`: feinere Punkte mit `rgba(156,163,175,0.16-0.32)`
+   bei 0.85-0.9 px). **Das fehlt der App vollständig** und ist der größte
+   ungenutzte Hebel: hervorgehobene Karten bekommen eine spürbare Textur,
+   statt nur weiß auf grau zu sein.
+
+Für die Eltern-App heißt das konkret: Der Bereich "Zu erledigen" und die
+Kinder-Tageskarte bekommen die feine Punkt-Textur als Flächenmerkmal, der
+Seitengrund bleibt maskiert und läuft weich aus.
+
+#### Icons: Phosphor, wie auf der Website
+
+Die Eltern-App nutzt **`@phosphor-icons/react`**, dieselbe Bibliothek wie die
+Website. Das Paket ist in `frontend/package.json` bereits vorhanden (`^2.1.10`,
+identisch zur Website), es kommt also keine Abhängigkeit hinzu.
+
+Das ersetzt die frühere Festlegung vom 25.07.2026, mit der eine
+Phosphor-Migration verworfen wurde. Umfang jetzt: **nur die Eltern-App.** Das
+Personal- und Operator-Portal bleiben bei `lucide-react`; sie flächendeckend
+umzustellen wäre ein eigenes Vorhaben mit eigenem Nutzen-Nachweis.
+
+Gewicht: `regular` als Standard, `fill` für aktive Navigationspunkte und den
+Anwesend-Zustand. **Kein `duotone`** — der Look wurde bereits einmal abgelehnt.
+
+#### Was wir NICHT von der Website übernehmen
+
+- **Breakpoints.** Die Website nutzt 480/576/768/900/1200/1440. Die App bleibt
+  bei den Tailwind-Standardwerten, sonst verschieben sich alle bestehenden
+  Layouts im Personal-Portal.
+- **Die Kalam-Schrift** aus dem Website-Header. Marketing-Handschrift gehört
+  nicht in ein Betreuungswerkzeug.
+- **`@tabler/icons-react`.** Eine Icon-Bibliothek genügt.
+
+### Zurückhaltung: es darf nicht nach KI aussehen
+
+Die Eltern-App muss für jemanden, der die moto-Website kennt, sofort als moto
+erkennbar sein. Das erreicht man mit denselben Bauteilen, nicht mit mehr
+Effekten. Ausdrücklich verboten:
+
+- **Ganzflächig eingefärbte Container.** Eine Karte wird nicht orange oder grün
+  ausgefüllt. Farbe erscheint als **Akzent**: farbige Kante links, farbiges
+  Icon-Feld, kleine getönte Statuspille. Die Fläche selbst bleibt weiß.
+- **Verläufe.** Keine Gradienten auf Karten, Kacheln oder Schaltflächen. Die
+  Website hat keine, die App bekommt keine.
+- **Bunte Farbe ohne Bedeutung.** Jede Farbe steht für einen Zustand. Wo kein
+  Zustand ist, ist keine Farbe.
+- **Dekoratives Glühen, Neon, Glasmorphismus, übergroße Emoji.** Nichts davon
+  existiert auf der Website.
+
+"Etwas mehr Farbe" heißt: mehr Stellen tragen eine **bedeutungsvolle** Farbe
+als heute, nicht dass die Flächen bunt werden.
+
+### Größe und Kontrast statt Buntheit
+
+Die Verständlichkeit soll aus der Typografie kommen, nicht aus Farbe:
+
+- **Deutlichere Sprünge zwischen den Ebenen.** Heute liegen Überschrift und
+  Fließtext oft nur eine Stufe auseinander. Künftig: Seitentitel 28 px / 700,
+  Abschnittstitel 20 px / 600, Fließtext 17 px / 400, Sekundärtext 15 px. Der
+  Statuswert des Kindes 24 px / 800, die stärkste Stelle der ganzen App.
+- **Alles eine Stufe größer** als im Personal-Portal.
+- **Keine Versalien-Mikrolabels.** Die heutigen 11-px-Beschriftungen in
+  Großbuchstaben entfallen ersatzlos; ihre Information steht im Klartext.
 
 ### Farbe bekommt Bedeutung
 

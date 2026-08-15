@@ -54,9 +54,31 @@ Elternportal.
   klare Reihenfolge, nichts Dekoratives. Kein Dashboard-Gefühl, keine
   Kachelwände, keine Marketing-Hero-Karten. Der wichtigste Inhalt steht ohne
   Scrollen da.
-- **Farbe trägt Bedeutung, nicht Schmuck.** Aus der moto-Palette, aber deutlich
-  wärmer und zugänglicher eingesetzt als im Personal-Portal. Farbe nie als
-  einziger Träger einer Information.
+- **Keine neue Designsprache. Einzige Quelle ist `moto-nrw/website`**,
+  `src/app/globals.css` (Blöcke `@theme inline` und `@layer components`) samt
+  den Assets unter `public/`. Farben, Typo-Stufen, Schatten, Haus-Easing
+  `cubic-bezier(0.22, 1, 0.36, 1)` und das Punkte-Muster im 14-px-Raster werden
+  von dort übernommen, nicht neu erfunden.
+- **Das Paket `@moto-nrw/design-system` wird vollständig ignoriert**, weder
+  Farben noch Maße noch Komponenten. Kein `bg-sage-*`, `bg-steel-*` oder
+  `--color-brand-primary`.
+- **Icons: `@phosphor-icons/react`** wie auf der Website, bereits installiert
+  (`^2.1.10`). Gewicht `regular`, `fill` für aktive Zustände, **kein
+  `duotone`**. Nur in der Eltern-App; Personal- und Operator-Portal bleiben bei
+  `lucide-react`.
+- **Es darf nicht nach KI aussehen.** Keine ganzflächig eingefärbten Container,
+  keine Verläufe, kein Glühen, kein Glasmorphismus, keine übergroßen Emoji.
+  Farbe erscheint als Akzent (farbige Kante, Icon-Feld, Statuspille), die
+  Kartenfläche bleibt weiß. Jede Farbe steht für einen Zustand; wo kein Zustand
+  ist, ist keine Farbe.
+- **Verständlichkeit kommt aus Größe und Kontrast**, nicht aus Buntheit:
+  Seitentitel 28/700, Abschnittstitel 20/600, Fließtext 17/400, Sekundärtext
+  15, Statuswert des Kindes 24/800. Keine Versalien-Mikrolabels.
+- **Der Punkte-Hintergrund wird zum Gestaltungsmittel**, nicht nur zum
+  Seitengrund: maskiert auslaufend auf der Seite, als feine Textur in
+  hervorgehobenen Karten (das fehlt der App heute vollständig).
+- Breakpoints bleiben Tailwind-Standard, die Kalam-Schrift der Website kommt
+  nicht mit. Einzelheiten in Abschnitt 7 der Spezifikation.
 - **Sprache ist OGS- und Kita-Sprache**, so wie Eltern und Team tatsächlich
   miteinander reden. "Ist Ihr Kind heute krank?" statt "Abwesenheitsmeldung
   erfassen". Keine Systembegriffe, keine Verwaltungswörter, keine Anglizismen.
