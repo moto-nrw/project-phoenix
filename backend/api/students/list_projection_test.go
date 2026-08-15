@@ -82,6 +82,10 @@ func listStudentIDs(t *testing.T, body []byte) []int64 {
 // full record separately.
 func TestListStudents_SlimProjection(t *testing.T) {
 	tc := setupTestContext(t)
+	// Pin the clock to a fixed Monday: departure_modes exist for mon-fri only
+	// (departureDayKey has no weekend mapping), so a real-today run fails on
+	// every Saturday/Sunday CI run.
+	tc.resource.Now = func() time.Time { return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC) }
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Slim", "Kind", "SL1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
