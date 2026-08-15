@@ -159,6 +159,37 @@ für Eltern nie gelesen.
 | **E10** | **Kalender wird eine eigene Elternansicht** als chronologische Terminliste mit Zu- und Absage in der Zeile. Monatsraster nur auf Tablet und Desktop als Zusatz. | `PersonalCalendar` wird im Elternportal nicht mehr verwendet. |
 | **E11** | **PWA-Installation wird vorgezogen** (#2306, #2297) direkt hinter das Designsystem. | Ohne Home-Bildschirm-Installation gibt es auf iOS weder App-Charakter noch Push. |
 
+### E12: Rückmeldungen einer Schule dürfen nicht für alle Schulen gelten
+
+Das Feedback in Abschnitt 3 stammt von **einer** Schule. Das Produkt bedient
+alle. Daraus folgen drei Regeln, die bei jeder Umsetzung gelten:
+
+1. **Keine Behauptung über einen Mechanismus, den nicht jede Schule nutzt.**
+   Texte dürfen nicht sagen, woher ein Wert stammt, wenn die Quelle
+   konfigurierbar ist. Beispiel: "Die Bringzeit ergibt sich aus dem
+   Stundenplan der Schule" war falsch, weil `timetable.enabled` abschaltbar ist
+   und Zeiten auch von Hand oder aus der Anmeldung stammen können. Korrekt ist
+   die Aussage über die **Zuständigkeit**: "Diese Zeiten pflegt die OGS."
+   Abgesichert durch einen Test, der das Wort "Stundenplan" im Kinderbereich
+   verbietet.
+2. **Anzeige entfernen ist erlaubt, Fähigkeit entfernen nicht.** Betreuungszeiten
+   (#2302) und AGs (#2303) sind aus der **Eltern-Oberfläche** verschwunden. Die
+   Backend-Endpunkte, das Datenmodell und die Personal-Seite sind unangetastet.
+   Meldet eine andere Schule, dass sie die Anzeige will, ist es eine
+   Oberflächenfrage, keine Wiederherstellung verlorener Funktion.
+3. **Was eine Schule abschalten kann, bleibt abgeschaltet sichtbar.** Alle
+   Alltagsaktionen hängen weiter an `getChildFeatures`; Neuigkeiten und
+   Essensplan hängen an ihren Gates. Keine Aktion wird angeboten, die das
+   Backend mit 403 abweisen würde, und keine wird entfernt, nur weil eine
+   Schule sie nicht mag.
+
+**Was bewusst NICHT unter diese Regel fällt:** Der Pflichtgrund bei
+Abholänderungen (#2304, bereits vor diesem Vorhaben umgesetzt) ändert das
+Verhalten für alle Schulen. Er ist als allgemeine Verbesserung vertretbar, weil
+jede OGS wissen muss, warum eine Abholzeit abweicht. Sollte eine Schule
+widersprechen, ist das der Fall, in dem nach E1 erstmals eine Einstellung
+gerechtfertigt wäre.
+
 ### E5: Der Abmelde- und Abhol-Ablauf bleibt fachlich unverändert
 
 Was Eltern dürfen, ändert sich in diesem Vorhaben nicht. Krankmeldung bleibt
