@@ -1874,6 +1874,27 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Abrechnung")).not.toBeInTheDocument();
     });
 
+    it("places Betreuungsplan directly after Mein Kalender for non-admins", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "schedules:read" || permission === "calendar:own",
+      );
+
+      render(<Sidebar />);
+
+      const labels = screen
+        .getAllByRole("link")
+        .map((link) => link.textContent ?? "");
+      const kalenderIndex = labels.findIndex((l) =>
+        l.includes("Mein Kalender"),
+      );
+      const planIndex = labels.findIndex((l) => l.includes("Betreuungsplan"));
+      expect(kalenderIndex).toBeGreaterThanOrEqual(0);
+      expect(planIndex).toBe(kalenderIndex + 1);
+    });
+
     it("hides Betreuungsplan for non-admins without schedules:read", () => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSession.mockReturnValue(createMockSession(false));

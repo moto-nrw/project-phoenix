@@ -251,7 +251,11 @@ function TimetablesContent() {
   const rawDay = params.d;
   const requestedDayISO =
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
-  const view: TimetableView = parseViewParam(params.view);
+  // Leseansicht (#2283): Nicht-Planende sehen nur die Wochenansicht — ein
+  // ?v=monat/serien-Deeplink fällt still auf die Woche zurück.
+  const view: TimetableView = canManageSchedules
+    ? parseViewParam(params.view)
+    : "week";
   // The monthly calendar and series period lookup retain their requested
   // calendar date. Only the workweek view snaps weekend anchors to Monday.
   const dayISO =
@@ -432,7 +436,9 @@ function TimetablesContent() {
   // the week view deliberately does not expose.
   const gapsFromISO =
     fetchFromISO < todayTargetISO ? todayTargetISO : fetchFromISO;
-  const shouldLoadGaps = view === "week" && fetchToISO >= todayTargetISO;
+  // Lücken sind Planungswerkzeug — in der Leseansicht weder Chip noch Fetch.
+  const shouldLoadGaps =
+    canManageSchedules && view === "week" && fetchToISO >= todayTargetISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
@@ -657,7 +663,9 @@ function TimetablesContent() {
   // nach Fingerprint (beide beteiligten Termine tragen denselben). Die
   // Quittierung ist Nutzerdatenzustand und kommt pro Konto vom Backend.
   const { data: ackData } = useSWRAuth(
-    status === "authenticated" ? CONFLICT_ACKS_SWR_KEY : null,
+    status === "authenticated" && canManageSchedules
+      ? CONFLICT_ACKS_SWR_KEY
+      : null,
     () => timetableService.getConflictAcks(),
   );
   const ackedFingerprints = useMemo(() => new Set(ackData ?? []), [ackData]);
@@ -1266,20 +1274,23 @@ function TimetablesContent() {
         }
         onToday={showTodayButton ? goToToday : undefined}
         viewSwitcher={
-          <Tabs
-            value={viewToTab(view)}
-            onValueChange={(v) => setViewParam(v as ViewParam)}
-          >
-            <TabsList variant="default">
-              <TabsTrigger value="woche">Woche</TabsTrigger>
-              <TabsTrigger value="monat">Monat</TabsTrigger>
-              <TabsTrigger value="serien">Serien</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          // Leseansicht (#2283): nur die Woche — kein Umschalter.
+          canManageSchedules ? (
+            <Tabs
+              value={viewToTab(view)}
+              onValueChange={(v) => setViewParam(v as ViewParam)}
+            >
+              <TabsList variant="default">
+                <TabsTrigger value="woche">Woche</TabsTrigger>
+                <TabsTrigger value="monat">Monat</TabsTrigger>
+                <TabsTrigger value="serien">Serien</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : undefined
         }
         actions={
           <>
-            {hiddenConflictsMenuItems.length > 0 ? (
+            {canManageSchedules && hiddenConflictsMenuItems.length > 0 ? (
               // Mit ausgeblendeten Konflikten trägt das Menü den Wieder-
               // einstieg und muss überall erreichbar sein (auch mobil und in
               // der Monatsansicht); die Zeilenhöhe bleibt an die Wochenansicht
@@ -1292,6 +1303,7 @@ function TimetablesContent() {
                 ]}
               />
             ) : (
+              canManageSchedules &&
               view === "week" && (
                 // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
                 // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
@@ -1309,7 +1321,7 @@ function TimetablesContent() {
                 Export die Woche meint, die gerade zu sehen ist. Unter sm nur
                 das Symbol — die Kopfzeile trägt hier schon drei Ansichts-Tabs
                 und "Neu". */}
-            {canExportBetreuungsplan && (
+            {canManageSchedules && canExportBetreuungsplan && (
               <Button
                 type="button"
                 variant="outline"
@@ -1395,7 +1407,7 @@ function TimetablesContent() {
         </div>
       ) : (
         <>
-          {shouldLoadInstances && (
+          {canManageSchedules && shouldLoadInstances && (
             <ConflictWarningsBanner
               openConflicts={openConflicts}
               hiddenConflicts={hiddenConflicts}

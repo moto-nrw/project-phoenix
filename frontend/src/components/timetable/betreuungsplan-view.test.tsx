@@ -939,6 +939,43 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it("forces the week view and hides the view switcher for read-only staff", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    setUrl("view=monat");
+    render(<BetreuungsplanView />);
+
+    // ?view=monat fällt still auf die Woche zurück, der Umschalter fehlt.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(screen.queryByText("Monat")).not.toBeInTheDocument();
+    expect(screen.queryByText("Serien")).not.toBeInTheDocument();
+  });
+
+  it("hides print and skips gaps/conflict-acks fetches for read-only staff", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      // users:read allein schaltet den Druck-Export nicht mehr frei (#2283
+      // Feedback: die Leseansicht zeigt nur die Woche, sonst nichts).
+      data: { user: { permissions: ["schedules:read", "users:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "Betreuungsplan drucken oder exportieren",
+      }),
+    ).not.toBeInTheDocument();
+    const swrKeys = mockUseSWRAuth.mock.calls.map((call) => call[0]);
+    expect(
+      swrKeys.some(
+        (key) => typeof key === "string" && key.startsWith("timetable-gaps"),
+      ),
+    ).toBe(false);
+    expect(swrKeys).not.toContain("timetable-conflict-acks");
+  });
+
   it("passes read-only props to the detail modal", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
