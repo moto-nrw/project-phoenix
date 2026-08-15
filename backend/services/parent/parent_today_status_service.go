@@ -66,10 +66,19 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 		}
 		facts.SchoolTracksAttendance = len(history) > 0
 
+		// Ein nicht lesbarer Betreuungsplan darf die bereits geladene
+		// Anwesenheit nicht entwerten: wer nachweislich da ist, ist da, auch
+		// wenn wir seinen Plan nicht kennen. Deshalb ist dieser Fehler nicht
+		// fatal, er laesst nur CareDayResolved auf false.
 		expected, expErr := s.resolveExpectedArrival(txCtx, studentID, today)
 		if expErr != nil {
-			return expErr
+			s.Logger.Warn("parent_today_status_care_plan_unreadable",
+				"student_id", studentID,
+				"error", expErr.Error(),
+			)
+			return nil
 		}
+		facts.CareDayResolved = true
 		facts.IsCareDay = expected.isCareDay
 		facts.ExpectedArrival = expected.hhmm
 		return nil
@@ -102,6 +111,15 @@ func (s *service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 		return expectedArrival{}, nil
 	}
 
+	// Wochenenden sind nie Betreuungstage, und der Wochenplan kennt nur Montag
+	// bis Freitag: eine Anfrage mit Weekday 6 oder 7 quittiert er mit
+	// "invalid weekday". Also gar nicht erst fragen. Eine Ferienbetreuung am
+	// Wochenende faellt trotzdem nicht durchs Raster, weil eine vorhandene
+	// Anwesenheit in deriveTodayStatus vor dem Betreuungstag geprueft wird.
+	if isWeekend(today) {
+		return expectedArrival{isCareDay: false}, nil
+	}
+
 	exception, err := s.ArrivalSchedules.GetStudentArrivalExceptionForDate(ctx, studentID, today)
 	if err != nil {
 		return expectedArrival{}, err
@@ -127,7 +145,13 @@ func (s *service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 func isoWeekdayOf(date timezone.Date) int {
 	weekday := int(date.Weekday())
 	if weekday == 0 {
-		return int(scheduleModels.WeekdaySunday)
+		return scheduleModels.WeekdaySunday
 	}
 	return weekday
+}
+
+// isWeekend meldet Samstag und Sonntag. Der Wochenplan kennt sie nicht.
+func isWeekend(date timezone.Date) bool {
+	weekday := isoWeekdayOf(date)
+	return weekday == scheduleModels.WeekdaySaturday || weekday == scheduleModels.WeekdaySunday
 }

@@ -50,12 +50,16 @@ type todayStatusFacts struct {
 	// beunruhigen.
 	SchoolTracksAttendance bool
 	HasAbsence             bool
-	IsCareDay              bool
-	HasAttendanceToday     bool
-	CheckIn                string
-	CheckOut               string
-	ExpectedArrival        string
-	NowHHMM                string
+	// CareDayResolved ist false, wenn der Betreuungsplan nicht gelesen werden
+	// konnte. Dann duerfen wir weder "keine Betreuung" noch "nicht angekommen"
+	// behaupten, denn beides waere eine Aussage ohne Beleg.
+	CareDayResolved    bool
+	IsCareDay          bool
+	HasAttendanceToday bool
+	CheckIn            string
+	CheckOut           string
+	ExpectedArrival    string
+	NowHHMM            string
 }
 
 // deriveTodayStatus bildet die Fakten auf genau einen Zustand ab. Die
@@ -73,6 +77,12 @@ func deriveTodayStatus(f todayStatusFacts) TodayStatus {
 			return TodayStatus{AtOgs: atOgsFlag(true), State: DayStatePresent, Since: f.CheckIn}
 		}
 		return TodayStatus{AtOgs: atOgsFlag(false), State: DayStateLeft, Until: f.CheckOut}
+	}
+	// Ohne gelesenen Betreuungsplan schweigen wir, statt "keine Betreuung"
+	// oder "nicht angekommen" zu behaupten. Die Anwesenheit oben hat da schon
+	// entschieden, falls es eine gab.
+	if !f.CareDayResolved {
+		return TodayStatus{State: DayStateUnknown}
 	}
 	if !f.IsCareDay {
 		return TodayStatus{AtOgs: atOgsFlag(false), State: DayStateNoCare}

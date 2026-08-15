@@ -41,7 +41,7 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "Schule fuehrt keine Anwesenheit ergibt unbekannt",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: false,
+				AttendanceLoaded: true, SchoolTracksAttendance: false, CareDayResolved: true,
 				IsCareDay: true, ExpectedArrival: "12:30", NowHHMM: "13:00",
 			},
 			wantState: DayStateUnknown,
@@ -50,7 +50,7 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "geplante Abwesenheit schlaegt alles andere",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				HasAbsence: true, IsCareDay: true, ExpectedArrival: "12:30", NowHHMM: "13:00",
 			},
 			wantState: DayStateAbsent,
@@ -59,7 +59,7 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "offene Anwesenheit ergibt anwesend",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				HasAttendanceToday: true, CheckIn: "12:38", CheckOut: "",
 				IsCareDay: true, NowHHMM: "13:00",
 			},
@@ -70,7 +70,7 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "geschlossene Anwesenheit ergibt abgeholt",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				HasAttendanceToday: true, CheckIn: "12:38", CheckOut: "15:12",
 				IsCareDay: true, NowHHMM: "16:00",
 			},
@@ -81,7 +81,7 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "kein Betreuungstag ergibt keine Betreuung",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				IsCareDay: false, NowHHMM: "13:00",
 			},
 			wantState: DayStateNoCare,
@@ -90,7 +90,7 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "vor der erwarteten Zeit ergibt erwartet",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				IsCareDay: true, ExpectedArrival: "12:30", NowHHMM: "11:00",
 			},
 			wantState: DayStateExpected,
@@ -100,7 +100,7 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "nach der erwarteten Zeit ohne Anwesenheit ergibt nicht angekommen",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				IsCareDay: true, ExpectedArrival: "12:30", NowHHMM: "13:00",
 			},
 			wantState: DayStateNotArrived,
@@ -110,16 +110,39 @@ func TestDeriveTodayStatus(t *testing.T) {
 		{
 			name: "Betreuungstag ohne bekannte Ankunftszeit ergibt unbekannt",
 			facts: todayStatusFacts{
-				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				IsCareDay: true, ExpectedArrival: "", NowHHMM: "13:00",
 			},
 			wantState: DayStateUnknown,
 			wantAtOgs: nil,
 		},
 		{
-			name: "geschlossene Anwesenheit an einem Nicht-Betreuungstag bleibt abgeholt",
+			name: "unlesbarer Betreuungsplan ergibt unbekannt statt keine Betreuung",
 			facts: todayStatusFacts{
 				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				CareDayResolved: false, NowHHMM: "13:00",
+			},
+			wantState: DayStateUnknown,
+			wantAtOgs: nil,
+		},
+		{
+			name: "unlesbarer Betreuungsplan entwertet eine vorhandene Anwesenheit nicht",
+			facts: todayStatusFacts{
+				AttendanceLoaded: true, SchoolTracksAttendance: true,
+				CareDayResolved: false,
+				// Am Wochenende oder bei kaputtem Plan zaehlt weiter, was
+				// tatsaechlich passiert ist.
+				HasAttendanceToday: true, CheckIn: "09:15", CheckOut: "",
+				NowHHMM: "10:00",
+			},
+			wantState: DayStatePresent,
+			wantAtOgs: atOgsFlag(true),
+			wantSince: "09:15",
+		},
+		{
+			name: "geschlossene Anwesenheit an einem Nicht-Betreuungstag bleibt abgeholt",
+			facts: todayStatusFacts{
+				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				HasAttendanceToday: true, CheckIn: "08:05", CheckOut: "11:40",
 				IsCareDay: false, NowHHMM: "12:00",
 			},
