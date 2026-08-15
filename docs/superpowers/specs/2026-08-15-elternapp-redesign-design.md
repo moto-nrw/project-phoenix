@@ -740,18 +740,38 @@ Eltern-Anteil aus Navigation und Oberfläche; der vollständige Rückbau bleibt
 
 ## 12. Umsetzung in Etappen
 
-| Etappe | Inhalt | Issues |
-|---|---|---|
-| 1 | Tagesstatus im Backend: Projektion, Endpunkt, Echtzeit, Tests | #2252 |
-| 2 | Eltern-Hülle: eigene Navigation, Ablösung von Sidebar und Bottom-Nav | #2308 |
-| 3 | Startseite: Zu erledigen, Tageskarten, Zero State | #2308, #2250 |
-| 4 | Kinderprofil in vier Abschnitten, Entfernung Betreuungszeiten und AGs | #2302, #2303 |
-| 5 | Formulare und Dialoge: Buttons, Pflichtfelder, Fehlertexte, Zeitfeld | — |
-| 6 | Familienkalender als eigene Elternansicht, Mehrsprachigkeit vervollständigt | — |
-| 7 | Benachrichtigungen: Erstlogin-Dialog, Home-Bildschirm, E-Mail-Rückfall | #2305, #2306, #2307, #2297 |
+Vier Etappen mit je einem eigenen Umsetzungsplan unter
+`docs/superpowers/plans/`. Die ursprünglich sieben Etappen wurden
+zusammengefasst, weil Formulare, Kalender und Mehrsprachigkeit sich nicht
+sinnvoll von den Seiten trennen lassen, an denen sie hängen.
+
+| Etappe | Inhalt | Plan | Issues |
+|---|---|---|---|
+| 1 | Tagesstatus im Backend: Projektion, Endpunkt, Echtzeit, Anzeige in der bestehenden Ansicht | `2026-08-15-eltern-tagesstatus-backend.md` | #2252 |
+| 2 | Eltern-Hülle: Designgrundlage, Phosphor-Icons, eigene Navigation, Ablösung von Sidebar und Bottom-Nav | `2026-08-15-etappe2-eltern-huelle.md` | #2308 |
+| 3 | Die Seiten: Startseite, Kinderbereich, Nachrichten, Kalender, Neuigkeiten, Dialoge, Entfernungen | `2026-08-15-etappe3-eltern-seiten.md` | #2308, #2250, #2302, #2303, Teil von #2326 |
+| 4 | Installierbarkeit und Benachrichtigungen | `2026-08-15-etappe4-pwa-benachrichtigungen.md` | #2306, #2297, #2305, #2307 |
+
+**Reihenfolge:** Etappe 1 und 2 laufen parallel (Backend und Frontend berühren
+sich nicht). Etappe 3 setzt auf beiden auf. Etappe 4 hängt nur an Etappe 2 und
+kann daneben laufen.
 
 Jede Etappe endet mit `pnpm run check`, Tests und Vorher/Nachher-Aufnahmen in
 Mobile, Tablet und Desktop.
+
+### Entscheidungen während der Umsetzung
+
+Nach Vorgabe vom 2026-08-15 werden Zweifelsfälle unterwegs nach bestem Urteil
+entschieden und hier protokolliert, statt die Umsetzung anzuhalten.
+
+| Datum | Entscheidung | Begründung |
+|---|---|---|
+| 2026-08-15 | Sieben Etappen auf vier zusammengefasst | Formulare, Kalender und Mehrsprachigkeit hängen an den Seiten und lassen sich nicht getrennt liefern, ohne dieselben Dateien zweimal anzufassen. |
+| 2026-08-15 | `pickup_today` und `pickup_changed` **nicht** im Tagesstatus-Endpunkt | Gehören nicht zu #2252 und werden im Frontend bereits aus vorhandenen Betreuungsdaten abgeleitet. Eine zweite Ableitung derselben Information wäre eine Fehlerquelle. |
+| 2026-08-15 | Erkennung "Schule pflegt keine Anwesenheit" über einen 14-Tage-Rückblick auf die Anwesenheit des Kindes | Braucht keine neue Repository-Methode und ist ehrlich: ein Kind ohne jede Anwesenheit in 14 Tagen liefert `unknown` statt eines beunruhigenden `not_arrived`. |
+| 2026-08-15 | Phosphor nur in der Eltern-App, Personal- und Operator-Portal bleiben bei lucide | Eine flächendeckende Umstellung wäre ein eigenes Vorhaben mit eigenem Nutzen-Nachweis und war 2026-07 bereits einmal abgelehnt. |
+| 2026-08-15 | Website-Rot `#DC3545` nur in der Eltern-App, `--color-moto-red` bleibt für das Personal-Portal | Eine app-weite Farbangleichung berührt jede Fläche im Personal-Portal und gehört nicht nebenbei in dieses Vorhaben. |
+| 2026-08-15 | Eigenes Eltern-Manifest statt des geteilten `public/site.webmanifest` | Eltern installieren "moto Eltern" mit eigenem Startpunkt, nicht das generische "MOTO" mit `start_url: "/"`. |
 
 ---
 
