@@ -80,8 +80,18 @@ describe("BookedCareSection", () => {
     renderSection();
     expect(await screen.findByText("08:00")).toBeInTheDocument();
     expect(document.querySelectorAll("input")).toHaveLength(0);
-    expect(
-      screen.getByText(/Die Bringzeit ergibt sich aus dem Stundenplan/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Diese Zeiten pflegt die OGS/)).toBeInTheDocument();
+  });
+
+  // Der Hinweis darf keinen Mechanismus behaupten, den nicht jede Schule
+  // nutzt. Der Stundenplan ist per timetable.enabled abschaltbar, und die
+  // Zeiten koennen auch von Hand oder aus der Anmeldung stammen. Wer hier
+  // wieder "Stundenplan" schreibt, sagt einem Teil der Schulen etwas
+  // Falsches.
+  it("behauptet keinen schulspezifischen Mechanismus fuer die Bringzeit", async () => {
+    renderSection();
+    await screen.findByText("08:00");
+
+    expect(document.body.textContent).not.toMatch(/Stundenplan|Betreuungsplan/);
   });
 });

@@ -1199,7 +1199,7 @@
     },
     "care": {
       "weekTitle": "Your week",
-      "arrivalReadOnly": "The arrival time follows the school timetable. If something is wrong, please write to the OGS."
+      "arrivalReadOnly": "These times are maintained by the OGS. If something is wrong, please write to the OGS."
     }
   },
   "parentMessages": {

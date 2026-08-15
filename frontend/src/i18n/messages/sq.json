@@ -1199,7 +1199,7 @@
     },
     "care": {
       "weekTitle": "Java juaj",
-      "arrivalReadOnly": "Ora e ardhjes rrjedh nga orari i shkollës. Nëse diçka nuk përputhet, ju lutemi shkruani OGS-së."
+      "arrivalReadOnly": "Këto orare i mban OGS-ja. Nëse diçka nuk përputhet, ju lutemi shkruani OGS-së."
     }
   },
   "parentMessages": {

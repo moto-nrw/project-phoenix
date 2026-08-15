@@ -1199,7 +1199,7 @@
     },
     "care": {
       "weekTitle": "Ihre Woche",
-      "arrivalReadOnly": "Die Bringzeit ergibt sich aus dem Stundenplan der Schule. Wenn etwas nicht stimmt, schreiben Sie bitte der OGS."
+      "arrivalReadOnly": "Diese Zeiten pflegt die OGS. Wenn etwas nicht stimmt, schreiben Sie bitte der OGS."
     }
   },
   "parentMessages": {
