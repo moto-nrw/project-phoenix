@@ -168,9 +168,10 @@
     "denied": "Notifications are blocked in your browser. Open the browser settings, allow notifications for moto, then try again in Settings.",
     "installTitle": "Add moto to your Home Screen",
     "installIntro": "On iPhone and iPad, notifications work after moto has been added to the Home Screen.",
-    "installStep1": "Open moto in Safari and tap the Share icon.",
-    "installStep2": "Choose Add to Home Screen.",
-    "installStep3": "Open moto from the new icon and turn on notifications.",
+    "installStep1": "In Safari, tap the Share icon at the bottom.",
+    "installStep2": "Choose “Add to Home Screen”.",
+    "installStep3": "Tap “Add”.",
+    "installOutro": "moto then opens like an app, and we can send you messages from the OGS as notifications.",
     "understood": "Got it",
     "close": "Close dialog"
   },
@@ -1255,5 +1256,29 @@
       "pickup": "Change pick-up",
       "message": "Message the OGS"
     }
+  },
+  "parentStart": {
+    "greeting": {
+      "morning": "Good morning, {name}",
+      "morningPlain": "Good morning",
+      "day": "Hello, {name}",
+      "dayPlain": "Hello",
+      "evening": "Good evening, {name}",
+      "eveningPlain": "Good evening"
+    },
+    "todo": {
+      "title": "To do",
+      "emptyTitle": "All done",
+      "emptyDescription": "There is nothing to do right now.",
+      "messageTitle": "New message from the OGS",
+      "messageContext": "About {name}",
+      "pollContext": "Survey · {school}",
+      "newsContext": "From the OGS · {school}",
+      "appointmentContext": "{name} · {date}",
+      "appointmentContextPlain": "Appointment on {date}",
+      "partialLoadError": "Some entries could not be loaded right now."
+    },
+    "loadError": "Your overview could not be loaded right now. Please try again later.",
+    "noChildren": "No child is linked to your account yet. Your school's OGS can set this up."
   }
 }

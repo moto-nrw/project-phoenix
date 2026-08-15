@@ -1,5 +1,5 @@
-import { ParentDashboard } from "~/components/parent/parent-dashboard";
+import { ParentStartPage } from "~/components/parent/start/parent-start-page";
 
-export default function ParentDashboardPage() {
-  return <ParentDashboard />;
+export default function ParentsStartPage() {
+  return <ParentStartPage />;
 }

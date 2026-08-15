@@ -1255,5 +1255,29 @@
       "pickup": "Ndryshoni marrjen",
       "message": "Shkruani OGS-së"
     }
+  },
+  "parentStart": {
+    "greeting": {
+      "morning": "Mirëmëngjes, {name}",
+      "morningPlain": "Mirëmëngjes",
+      "day": "Mirëdita, {name}",
+      "dayPlain": "Mirëdita",
+      "evening": "Mirëmbrëma, {name}",
+      "eveningPlain": "Mirëmbrëma"
+    },
+    "todo": {
+      "title": "Për t'u bërë",
+      "emptyTitle": "Gjithçka e kryer",
+      "emptyDescription": "Për momentin nuk ka asgjë për të bërë.",
+      "messageTitle": "Mesazh i ri nga OGS",
+      "messageContext": "Për {name}",
+      "pollContext": "Sondazh · {school}",
+      "newsContext": "Nga OGS · {school}",
+      "appointmentContext": "{name} · {date}",
+      "appointmentContextPlain": "Takim më {date}",
+      "partialLoadError": "Disa zëra nuk u ngarkuan dot për momentin."
+    },
+    "loadError": "Përmbledhja juaj nuk u ngarkua dot për momentin. Ju lutemi provoni më vonë.",
+    "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë."
   }
 }

@@ -1255,5 +1255,29 @@
       "pickup": "Изменить время ухода",
       "message": "Написать в продлёнку"
     }
+  },
+  "parentStart": {
+    "greeting": {
+      "morning": "Доброе утро, {name}",
+      "morningPlain": "Доброе утро",
+      "day": "Добрый день, {name}",
+      "dayPlain": "Добрый день",
+      "evening": "Добрый вечер, {name}",
+      "eveningPlain": "Добрый вечер"
+    },
+    "todo": {
+      "title": "Нужно сделать",
+      "emptyTitle": "Всё сделано",
+      "emptyDescription": "Сейчас ничего делать не нужно.",
+      "messageTitle": "Новое сообщение из продлёнки",
+      "messageContext": "О {name}",
+      "pollContext": "Опрос · {school}",
+      "newsContext": "Из продлёнки · {school}",
+      "appointmentContext": "{name} · {date}",
+      "appointmentContextPlain": "Встреча {date}",
+      "partialLoadError": "Некоторые пункты сейчас не удалось загрузить."
+    },
+    "loadError": "Обзор сейчас не удалось загрузить. Пожалуйста, попробуйте позже.",
+    "noChildren": "К вашему аккаунту ещё не привязан ребёнок. Продлёнка вашей школы может это настроить."
   }
 }

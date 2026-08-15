@@ -168,9 +168,10 @@
     "denied": "Benachrichtigungen sind im Browser blockiert. Öffnen Sie die Browser-Einstellungen, erlauben Sie Benachrichtigungen für moto und versuchen Sie es anschließend unter Einstellungen erneut.",
     "installTitle": "moto zum Home-Bildschirm hinzufügen",
     "installIntro": "Auf iPhone und iPad funktionieren Benachrichtigungen erst, wenn moto auf dem Home-Bildschirm liegt.",
-    "installStep1": "Öffnen Sie moto in Safari und tippen Sie auf das Teilen-Symbol.",
-    "installStep2": "Wählen Sie Zum Home-Bildschirm.",
-    "installStep3": "Öffnen Sie moto danach über das neue Symbol und aktivieren Sie die Benachrichtigungen.",
+    "installStep1": "Tippen Sie unten in Safari auf das Teilen-Symbol.",
+    "installStep2": "Wählen Sie „Zum Home-Bildschirm“.",
+    "installStep3": "Tippen Sie auf „Hinzufügen“.",
+    "installOutro": "Danach öffnen Sie moto wie eine App, und wir können Ihnen Nachrichten der OGS als Mitteilung schicken.",
     "understood": "Verstanden",
     "close": "Dialog schließen"
   },
@@ -1255,5 +1256,29 @@
       "pickup": "Abholung ändern",
       "message": "OGS schreiben"
     }
+  },
+  "parentStart": {
+    "greeting": {
+      "morning": "Guten Morgen, {name}",
+      "morningPlain": "Guten Morgen",
+      "day": "Guten Tag, {name}",
+      "dayPlain": "Guten Tag",
+      "evening": "Guten Abend, {name}",
+      "eveningPlain": "Guten Abend"
+    },
+    "todo": {
+      "title": "Zu erledigen",
+      "emptyTitle": "Alles erledigt",
+      "emptyDescription": "Es gibt gerade nichts zu tun.",
+      "messageTitle": "Neue Nachricht der OGS",
+      "messageContext": "Zu {name}",
+      "pollContext": "Umfrage · {school}",
+      "newsContext": "Aus der OGS · {school}",
+      "appointmentContext": "{name} · {date}",
+      "appointmentContextPlain": "Termin am {date}",
+      "partialLoadError": "Einige Punkte konnten gerade nicht geladen werden."
+    },
+    "loadError": "Ihre Übersicht konnte gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
+    "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten."
   }
 }
