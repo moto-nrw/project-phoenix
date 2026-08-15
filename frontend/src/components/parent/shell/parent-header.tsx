@@ -46,10 +46,14 @@ export function ParentHeader() {
   return (
     <header className="sticky top-0 z-40 h-16 border-b border-gray-200 bg-white">
       <div className="flex h-16 items-center gap-3 px-4 sm:px-6">
+        {/* Unter 400 px reicht der Platz nicht fuer Wortmarke UND Seitentitel:
+            der Titel wurde zu "Nachrich..." beschnitten. Der Titel sagt, wo man
+            ist, die Wortmarke ist dort Dekoration, also weicht die Wortmarke.
+            Ab sm ist sie wieder da. */}
         <Link
           href={homeUrl}
           aria-label="moto"
-          className="flex shrink-0 items-center"
+          className="hidden shrink-0 items-center sm:flex"
         >
           <Image
             src="/moto-logo-wordmark.webp"
@@ -61,7 +65,10 @@ export function ParentHeader() {
           />
         </Link>
 
-        <span aria-hidden="true" className="h-6 w-px shrink-0 bg-gray-200" />
+        <span
+          aria-hidden="true"
+          className="hidden h-6 w-px shrink-0 bg-gray-200 sm:block"
+        />
 
         {/* Kein h1: die Kopfzeile sagt, wo man ist, die Seite selbst traegt
             ihre Ueberschrift. Zwei h1 auf einer Seite waeren fuer die

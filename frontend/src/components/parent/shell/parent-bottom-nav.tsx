@@ -78,6 +78,15 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
     (item) => item.kind === "action" || !item.gate || gates[item.gate],
   );
 
+  // "Mehr" leuchtet auch, wenn eine seiner Unterseiten offen ist. Ohne das
+  // steht ein Elternteil auf "Aus der OGS" oder dem Essensplan vor einer
+  // Navigation, in der nichts markiert ist, und weiss nicht mehr, wo es ist.
+  const moreActive =
+    moreOpen ||
+    moreItems.some(
+      (item) => item.kind === "link" && isParentNavActive(item.href, pathname),
+    );
+
   return (
     <>
       <nav
@@ -134,7 +143,7 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
               type="button"
               onClick={() => setMoreOpen(true)}
               data-parent-nav-item={PARENT_MORE_ENTRY.key}
-              data-active={moreOpen ? "true" : "false"}
+              data-active={moreActive ? "true" : "false"}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               className="relative flex min-h-14 w-full flex-col items-center justify-center gap-1 px-1 pt-1.5 pb-1"
@@ -142,23 +151,23 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
               <span
                 aria-hidden="true"
                 className={`absolute inset-x-3 top-0 h-[3px] rounded-b-full ${
-                  moreOpen ? "bg-moto-green" : "bg-transparent"
+                  moreActive ? "bg-moto-green" : "bg-transparent"
                 }`}
               />
               <span className="relative">
                 <PARENT_MORE_ENTRY.icon
                   size={26}
                   weight={
-                    moreOpen ? PARENT_ICON_WEIGHT_ACTIVE : PARENT_ICON_WEIGHT
+                    moreActive ? PARENT_ICON_WEIGHT_ACTIVE : PARENT_ICON_WEIGHT
                   }
-                  className={moreOpen ? ICON_ACTIVE : ICON_IDLE}
+                  className={moreActive ? ICON_ACTIVE : ICON_IDLE}
                   aria-hidden="true"
                 />
                 <NavBadge count={moreCount} />
               </span>
               <span
                 className={`text-center text-[12px] leading-4 ${
-                  moreOpen
+                  moreActive
                     ? "font-semibold text-gray-900"
                     : "font-normal text-gray-600"
                 }`}
