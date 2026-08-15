@@ -716,12 +716,31 @@ und sq.
 
 ## 8. Responsive
 
+### Die zwei Regeln, die überall gelten
+
+Korrigiert am 2026-08-15, nachdem die frühere Vorgabe (Desktop zweispaltig mit
+unterschiedlich breiten Blöcken) in der laufenden Anwendung schlecht aussah.
+
+1. **Abschnitte stehen untereinander und nehmen die volle Inhaltsbreite ein.**
+   Auf jeder Breite, auf jeder Seite. Ein Abschnitt, der nur die halbe Breite
+   füllt, während der darüber die ganze nimmt, liest sich als Fehler.
+2. **Nebeneinander nur bei gleicher Breite.** Zwei Blöcke dürfen sich eine
+   Zeile teilen, aber dann exakt hälftig. Ungleiche Spaltenbreiten sind
+   verboten.
+
+Innerhalb eines Abschnitts gilt das nicht: Kinderkarten, Wochentagskarten und
+Terminzeilen liegen in einem `auto-fit`-Raster und füllen die Breite
+gemeinsam.
+
 | Breite | Muster |
 |---|---|
 | ab 320 px | eine Spalte, Bottom-Nav mit fünf Zielen, Aktionen volle Breite |
-| ab 640 px (Tablet hoch) | Kinderkarten zweispaltig, Aktionen nebeneinander |
-| ab 1024 px (Tablet quer, Desktop) | Sidebar links, Inhalt zweispaltig: "Zu erledigen" links, Kinderkarten rechts, damit die rechte Bildschirmhälfte nicht leer bleibt |
-| ab 1440 px | Inhaltsbreite begrenzt, Karten wachsen mit statt zu strecken |
+| ab 640 px (Tablet hoch) | Abschnitte weiter untereinander, volle Breite; innerhalb der Abschnitte füllen Karten das Raster |
+| ab 1024 px (Tablet quer, Desktop) | Seitennavigation links, Inhalt **einspaltig**: Abschnitte untereinander über die volle Inhaltsbreite |
+| ab 1440 px | Inhaltsbreite begrenzt und zentriert, damit Zeilen nicht überlang werden; Abschnitte füllen diese Breite weiterhin ganz |
+
+Auf der Startseite heißt das konkret: "Zu erledigen" und die Kinderkarten
+stehen **übereinander**, nicht nebeneinander.
 
 Prüfkriterien aus #2308: Kernaufgaben funktionieren bei 320 px Breite, 200 %
 Zoom und vollständig per Tastatur.
