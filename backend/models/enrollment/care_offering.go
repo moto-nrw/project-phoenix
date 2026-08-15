@@ -510,6 +510,14 @@ type RequestChildOfferingRepository interface {
 	// (approval not yet materialized) and alumni are excluded. Empty input
 	// returns an empty slice without a query.
 	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
+
+	// ListApprovedByStudentIDsOnDate returns every offering link of an
+	// APPROVED request child resolved to one of the given students that is
+	// current or scheduled as of onDate (valid_until > onDate; future
+	// valid_from included, mirroring ListApprovedChildrenByCareOfferingIDs).
+	// Alumni are excluded. The Gehzeit reconciler (#2290) uses it to compute
+	// a student's desired offering-sourced pickup times.
+	ListApprovedByStudentIDsOnDate(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*ApprovedOfferingChild, error)
 }
 
 // ApprovedOfferingChild is one approved, still-relevant offering selection
