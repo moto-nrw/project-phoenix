@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import {
-  CaretRight,
-  CheckCircle,
-  type Icon,
-} from "~/components/parent/shell/parent-icons";
+import { ChevronRight } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 /**
  * Der Bereich "Zu erledigen" der Startseite.
@@ -17,16 +15,13 @@ import {
  * die Ueberschrift entfaellt mit: eine Ueberschrift ueber nichts ist eine
  * Aufgabe, die keine ist.
  *
- * Die Flaeche traegt die feine Punkt-Textur der Website als Flaechenmerkmal.
- * Farbe steckt nur im Icon-Feld, nicht in der Flaeche.
+ * Die Flaeche bleibt schlicht weiss. Farbe traegt allein das Duotone-Symbol
+ * des Konzepts, das die Zeile meint.
  */
-
-type TodoTone = "blue" | "orange";
 
 export interface TodoItem {
   readonly key: string;
-  readonly tone: TodoTone;
-  readonly icon: Icon;
+  readonly concept: MotoConceptKey;
   readonly title: string;
   readonly context: string;
   /** Entweder ein Ziel oder eine Handlung, nie beides. */
@@ -34,24 +29,19 @@ export interface TodoItem {
   readonly onSelect?: () => void;
 }
 
-const TONE_FIELD: Record<TodoTone, string> = {
-  blue: "bg-moto-blue-soft text-moto-blue-strong",
-  orange: "bg-moto-orange-soft text-moto-orange-strong",
-};
-
 export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
   const t = useTranslations("parentStart");
 
   if (items.length === 0) {
     return (
-      <section className="moto-dot-texture--soft rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
-        <span className="bg-moto-green-soft text-moto-green-strong mx-auto flex size-12 items-center justify-center rounded-full">
-          <CheckCircle size={28} weight="fill" aria-hidden="true" />
+      <section className="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+        <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-gray-100">
+          <MotoConceptIcon concept="dayReport" size={30} />
         </span>
-        <p className="mt-3 text-[20px] font-semibold text-gray-900">
+        <p className="mt-3 text-[22px] font-bold text-gray-900">
           {t("todo.emptyTitle")}
         </p>
-        <p className="mt-1 text-[15px] text-gray-600">
+        <p className="mt-1 text-[15px] text-gray-500">
           {t("todo.emptyDescription")}
         </p>
       </section>
@@ -62,11 +52,11 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
     <section aria-labelledby="parent-todo-heading">
       <h2
         id="parent-todo-heading"
-        className="mb-2 text-[20px] font-semibold text-gray-900"
+        className="mb-2 text-[22px] font-bold text-gray-900"
       >
         {t("todo.title")}
       </h2>
-      <ul className="moto-dot-texture--soft divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <ul className="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         {items.map((item) => (
           <li key={item.key}>
             <TodoRow item={item} />
@@ -79,25 +69,21 @@ export function TodoList({ items }: Readonly<{ items: readonly TodoItem[] }>) {
 
 /** Eine Zeile, mindestens 72 px hoch und auf ganzer Breite anklickbar. */
 function TodoRow({ item }: Readonly<{ item: TodoItem }>) {
-  const Icon = item.icon;
   const inner = (
     <>
-      <span
-        className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${TONE_FIELD[item.tone]}`}
-      >
-        <Icon size={24} aria-hidden="true" />
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+        <MotoConceptIcon concept={item.concept} size={24} />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[17px] font-semibold text-gray-900">
           {item.title}
         </span>
-        <span className="mt-0.5 block truncate text-[15px] text-gray-600">
+        <span className="mt-0.5 block truncate text-[15px] text-gray-500">
           {item.context}
         </span>
       </span>
-      <CaretRight
-        size={20}
-        className="shrink-0 text-gray-400"
+      <ChevronRight
+        className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
     </>

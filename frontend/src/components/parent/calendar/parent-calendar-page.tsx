@@ -7,10 +7,9 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
-import {
-  CheckCircle,
-  Prohibit,
-} from "~/components/parent/shell/parent-icons";
+import { Ban, CheckCircle2 } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -52,12 +51,14 @@ function eventState(event: CalendarEvent): EventState {
   return "info";
 }
 
-const STATE_EDGE: Record<EventState, string> = {
-  cancelled: "bg-parent-red",
-  needsResponse: "bg-moto-orange",
-  accepted: "bg-moto-green",
-  declined: "bg-gray-300",
-  info: "bg-moto-blue",
+// Kein farbiger Rand mehr: der Zustand steht im Symbol links und im Satz
+// darunter. "info" ist der schlichte Termin ohne Rueckfrage.
+const STATE_CONCEPT: Record<EventState, MotoConceptKey> = {
+  cancelled: "closingDays",
+  needsResponse: "announcements",
+  accepted: "dayReport",
+  declined: "notArrival",
+  info: "calendar",
 };
 
 const STATE_TEXT: Record<EventState, string> = {
@@ -275,13 +276,13 @@ function EventRow({
         highlighted ? "border-moto-blue" : "border-gray-200"
       }`}
     >
-      <span
-        className={`absolute inset-y-0 left-0 w-1 ${STATE_EDGE[state]}`}
-        aria-hidden="true"
-      />
-      <div className="py-4 pr-4 pl-5 sm:pl-6">
+      <div className="flex items-start gap-3 p-4">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+          <MotoConceptIcon concept={STATE_CONCEPT[state]} size={24} />
+        </span>
+        <div className="min-w-0 flex-1">
         <p className={`text-[15px] font-medium ${STATE_TEXT[state]}`}>{when}</p>
-        <p className="mt-0.5 text-[17px] font-semibold text-gray-900">
+        <p className="mt-0.5 text-[19px] leading-tight font-bold text-gray-900">
           {event.title}
         </p>
         {event.student_name && (
@@ -295,7 +296,7 @@ function EventRow({
 
         {state === "cancelled" && (
           <p className="text-parent-red-strong mt-2 flex items-center gap-1.5 text-[15px] font-medium">
-            <Prohibit size={18} aria-hidden="true" />
+            <Ban className="h-[18px] w-[18px]" aria-hidden="true" />
             {t("cancelledByOgs")}
           </p>
         )}
@@ -327,16 +328,17 @@ function EventRow({
 
         {state === "accepted" && (
           <p className="text-moto-green-strong mt-2 flex items-center gap-1.5 text-[15px] font-medium">
-            <CheckCircle size={18} weight="fill" aria-hidden="true" />
+            <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden="true" />
             {t("answeredAccepted")}
           </p>
         )}
         {state === "declined" && (
           <p className="mt-2 flex items-center gap-1.5 text-[15px] font-medium text-gray-600">
-            <Prohibit size={18} aria-hidden="true" />
+            <Ban className="h-[18px] w-[18px]" aria-hidden="true" />
             {t("answeredDeclined")}
           </p>
         )}
+        </div>
       </div>
     </article>
   );

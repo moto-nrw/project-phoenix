@@ -10,12 +10,6 @@ import {
   isOpenPoll,
 } from "~/components/parent/news/news-components";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
-import {
-  CalendarBlank,
-  ChatCircleText,
-  ListChecks,
-  Megaphone,
-} from "~/components/parent/shell/parent-icons";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
@@ -132,7 +126,7 @@ export function ParentStartPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-[28px] leading-tight font-bold text-balance text-gray-900">
+      <h1 className="text-[30px] leading-tight font-extrabold tracking-tight text-balance text-gray-900">
         {greeting}
       </h1>
 
@@ -150,7 +144,7 @@ export function ParentStartPage() {
           {loading ? (
             <Skeleton className="h-56 w-full rounded-2xl" />
           ) : data.children.length === 0 && !failed ? (
-            <p className="rounded-2xl border border-gray-200 bg-white p-5 text-[17px] text-gray-600 shadow-sm">
+            <p className="rounded-2xl border border-gray-200 bg-white p-5 text-[17px] text-gray-500 shadow-sm">
               {t("noChildren")}
             </p>
           ) : (
@@ -365,8 +359,10 @@ function todoFromAnnouncement(
 ): TodoItem {
   return {
     key: `announcement-${item.id}`,
-    tone: poll ? "orange" : "blue",
-    icon: poll ? ListChecks : Megaphone,
+    // Eine offene Umfrage wartet auf eine Antwort und traegt deshalb den
+    // Aufmerksamkeits-Ton von "announcements"; ein gelesener Aushang ist
+    // reine Information und traegt den blauen Ton von "news".
+    concept: poll ? "announcements" : "news",
     title: item.title,
     context: poll
       ? t("todo.pollContext", { school: item.school_name })
@@ -385,8 +381,7 @@ function todoFromAppointment(
   const date = formatLocalizedDate(event.start_date, locale);
   return {
     key: `appointment-${event.id}`,
-    tone: "orange",
-    icon: CalendarBlank,
+    concept: "calendar",
     title: event.title,
     context: event.student_name
       ? t("todo.appointmentContext", { name: event.student_name, date })
@@ -400,8 +395,7 @@ function todoFromAppointment(
 function todoFromThread(thread: ThreadSummary, t: StartTranslator): TodoItem {
   return {
     key: `thread-${thread.thread_id}`,
-    tone: "blue",
-    icon: ChatCircleText,
+    concept: "parentConversations",
     title: t("todo.messageTitle"),
     context: t("todo.messageContext", { name: thread.student_name }),
     href: parentPath(`/parents/messages/${thread.student_id}`),

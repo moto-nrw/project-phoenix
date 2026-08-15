@@ -3,19 +3,8 @@
 import { useTranslations } from "next-intl";
 import { Avatar } from "~/components/ui/avatar";
 import { Button, ButtonLink } from "~/components/ui/button";
-import {
-  CalendarCheck,
-  CalendarX,
-  ChatCircleText,
-  CheckCircle,
-  Clock,
-  FirstAid,
-  House,
-  Prohibit,
-  Question,
-  type Icon,
-  type IconWeight,
-} from "~/components/parent/shell/parent-icons";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 import type { ChildFeatures, ChildToday } from "~/lib/parent-api";
 import { parentPath } from "~/lib/parent-url";
 
@@ -29,9 +18,9 @@ import { parentPath } from "~/lib/parent-url";
  * entfaellt Ebene 1 ersatzlos: eine Ja/Nein-Aussage zu treffen, die wir nicht
  * belegen koennen, waere schlimmer als zu schweigen.
  *
- * Gestaltung: die Flaeche bleibt weiss. Farbe erscheint nur an der linken
- * Kante und im Icon-Feld, und sie traegt nie allein, weil jeder Zustand ein
- * eigenes Icon und einen eigenen Satz hat.
+ * Gestaltung: die Flaeche bleibt weiss und ohne farbige Kante. Farbe traegt
+ * allein das Duotone-Symbol des Zustands, und sie traegt nie allein, weil
+ * jeder Zustand ein eigenes Symbol und einen eigenen Satz hat.
  */
 
 export interface ChildDayCardChild {
@@ -41,59 +30,23 @@ export interface ChildDayCardChild {
   readonly schoolClass?: string;
 }
 
-/** Kante, Icon-Feld und Icon je Zustand. Eine Farbe steht fuer einen Zustand. */
-interface StateLook {
-  readonly edge: string;
-  readonly field: string;
-  readonly icon: Icon;
-  readonly weight: IconWeight;
-}
-
-const NEUTRAL: StateLook = {
-  edge: "bg-gray-300",
-  field: "bg-gray-100 text-gray-600",
-  icon: Question,
-  weight: "regular",
-};
-
-const STATE_LOOK: Record<ChildToday["state"], StateLook> = {
-  present: {
-    edge: "bg-moto-green",
-    field: "bg-moto-green-soft text-moto-green-strong",
-    icon: CheckCircle,
-    weight: "fill",
-  },
-  left: {
-    edge: "bg-gray-300",
-    field: "bg-gray-100 text-gray-600",
-    icon: House,
-    weight: "regular",
-  },
-  expected: {
-    edge: "bg-moto-blue",
-    field: "bg-moto-blue-soft text-moto-blue-strong",
-    icon: Clock,
-    weight: "regular",
-  },
-  not_arrived: {
-    edge: "bg-moto-blue",
-    field: "bg-moto-blue-soft text-moto-blue-strong",
-    icon: Clock,
-    weight: "regular",
-  },
-  absent: {
-    edge: "bg-parent-red",
-    field: "bg-parent-red-soft text-parent-red-strong",
-    icon: Prohibit,
-    weight: "regular",
-  },
-  no_care: {
-    edge: "bg-gray-300",
-    field: "bg-gray-100 text-gray-600",
-    icon: CalendarX,
-    weight: "regular",
-  },
-  unknown: NEUTRAL,
+/**
+ * Das Konzept je Zustand. Glyph und Ton kommen aus `MOTO_CONCEPTS`, damit
+ * dieselbe Aussage in Eltern- und Personal-App dasselbe Bild ergibt.
+ *
+ * "Heute keine Betreuung" laeuft auf `closingDays` statt auf `calendar`:
+ * `calendar` traegt denselben Indigo-Ton wie `careTimes` (erwartet / noch
+ * nicht da), und beide Zustaende stehen auf der Startseite nebeneinander,
+ * sobald ein Elternteil mehrere Kinder hat.
+ */
+const STATE_CONCEPT: Record<ChildToday["state"], MotoConceptKey> = {
+  present: "present",
+  left: "home",
+  expected: "careTimes",
+  not_arrived: "careTimes",
+  absent: "notArrival",
+  no_care: "closingDays",
+  unknown: "unknown",
 };
 
 type TodayTranslator = ReturnType<typeof useTranslations<"parentToday">>;
@@ -152,8 +105,7 @@ export function ChildDayCard({
   hideIdentity?: boolean;
 }>) {
   const t = useTranslations("parentToday");
-  const look = STATE_LOOK[today.state] ?? NEUTRAL;
-  const StateIcon = look.icon;
+  const concept = STATE_CONCEPT[today.state] ?? "unknown";
   const fullName = `${child.firstName} ${child.lastName}`;
   const level1 =
     today.at_ogs === null ? null : today.at_ogs ? t("atOgs") : t("notAtOgs");
@@ -166,12 +118,7 @@ export function ChildDayCard({
        Breakpoint auf das Fenster hat die Beschriftungen deshalb je nach Fall
        umbrechen lassen, obwohl auf dem Schirm Platz war. */
     <article className="@container relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <span
-        className={`absolute inset-y-0 left-0 w-1 ${look.edge}`}
-        aria-hidden="true"
-      />
-
-      <div className="space-y-4 py-4 pr-4 pl-5 sm:py-5 sm:pr-5 sm:pl-6">
+      <div className="space-y-4 p-4 sm:p-5">
         {!hideIdentity && (
           <div className="flex min-w-0 items-center gap-3">
             <Avatar
@@ -181,7 +128,7 @@ export function ChildDayCard({
               className="size-11 text-[15px]"
             />
             <div className="min-w-0">
-              <p className="truncate text-[20px] leading-tight font-semibold text-gray-900">
+              <p className="truncate text-[19px] leading-tight font-bold text-gray-900">
                 {fullName}
               </p>
               {/* Der Wert kommt so, wie die Schule ihre Gruppe benennt, meist
@@ -196,25 +143,27 @@ export function ChildDayCard({
           </div>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3.5">
           <span
             data-testid="child-day-state-icon"
-            className={`flex size-12 shrink-0 items-center justify-center rounded-xl ${look.field}`}
+            className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gray-100"
           >
-            <StateIcon size={26} weight={look.weight} aria-hidden="true" />
+            <MotoConceptIcon concept={concept} size={32} />
           </span>
           <div className="min-w-0">
             {level1 ? (
               <>
-                <p className="text-[24px] leading-tight font-extrabold text-gray-900">
+                {/* Der Statuswert ist die Aussage der Seite und deshalb mehr
+                    als eine Stufe groesser als alles darunter. */}
+                <p className="text-[32px] leading-none font-extrabold tracking-tight text-gray-900">
                   {level1}
                 </p>
-                <p className="mt-0.5 text-[15px] text-gray-600">{level2}</p>
+                <p className="mt-1.5 text-[15px] text-gray-500">{level2}</p>
               </>
             ) : (
               /* Ohne Ebene 1 traegt die Erklaerung die Aussage allein und
                  bekommt deshalb das Gewicht einer Ueberschrift. */
-              <p className="text-[17px] leading-snug font-semibold text-gray-900">
+              <p className="text-[22px] leading-snug font-bold text-gray-900">
                 {level2}
               </p>
             )}
@@ -269,7 +218,7 @@ function ChildDayActions({
             className="w-full"
             onClick={onSick}
           >
-            <FirstAid size={20} className="mr-2 shrink-0" aria-hidden="true" />
+            <MotoConceptIcon concept="sick" size={20} className="mr-2" />
             {t("actions.sick")}
           </Button>
         ) : (
@@ -279,7 +228,7 @@ function ChildDayActions({
             size="touch"
             className="w-full"
           >
-            <FirstAid size={20} className="mr-2 shrink-0" aria-hidden="true" />
+            <MotoConceptIcon concept="sick" size={20} className="mr-2" />
             {t("actions.sick")}
           </ButtonLink>
         ))}
@@ -293,11 +242,7 @@ function ChildDayActions({
             className="w-full"
             onClick={onPickup}
           >
-            <CalendarCheck
-              size={20}
-              className="mr-2 shrink-0"
-              aria-hidden="true"
-            />
+            <MotoConceptIcon concept="pickup" size={20} className="mr-2" />
             {t("actions.pickup")}
           </Button>
         ) : (
@@ -307,11 +252,7 @@ function ChildDayActions({
             size="touch"
             className="w-full"
           >
-            <CalendarCheck
-              size={20}
-              className="mr-2 shrink-0"
-              aria-hidden="true"
-            />
+            <MotoConceptIcon concept="pickup" size={20} className="mr-2" />
             {t("actions.pickup")}
           </ButtonLink>
         ))}
@@ -323,10 +264,10 @@ function ChildDayActions({
           size="touch"
           className="w-full"
         >
-          <ChatCircleText
+          <MotoConceptIcon
+            concept="parentConversations"
             size={20}
-            className="mr-2 shrink-0"
-            aria-hidden="true"
+            className="mr-2"
           />
           {t("actions.message")}
         </ButtonLink>

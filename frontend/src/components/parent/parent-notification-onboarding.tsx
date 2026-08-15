@@ -2,13 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import {
-  Bell,
-  CircleNotch,
-  Export,
-  Plus,
-  type Icon,
-} from "~/components/parent/shell/parent-icons";
+import { Loader2, Plus, Share, type LucideIcon } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
@@ -37,8 +32,8 @@ type SetupMode = "enable" | "install" | "denied";
  */
 const INSTALL_STEPS: readonly {
   readonly step: 1 | 2 | 3;
-  readonly icon?: Icon;
-}[] = [{ step: 1, icon: Export }, { step: 2 }, { step: 3, icon: Plus }];
+  readonly icon?: LucideIcon;
+}[] = [{ step: 1, icon: Share }, { step: 2 }, { step: 3, icon: Plus }];
 
 interface StoredDecision {
   readonly done?: boolean;
@@ -171,12 +166,11 @@ export function ParentNotificationOnboarding({
       isDismissDisabled={busy}
     >
       <div className="space-y-5">
-        <div className="bg-moto-blue/10 text-moto-blue-strong flex h-12 w-12 items-center justify-center rounded-2xl">
-          {mode === "install" ? (
-            <Export className="h-6 w-6" aria-hidden="true" />
-          ) : (
-            <Bell className="h-6 w-6" aria-hidden="true" />
-          )}
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
+          <MotoConceptIcon
+            concept={mode === "install" ? "devices" : "notifications"}
+            size={30}
+          />
         </div>
 
         {mode === "install" ? (
@@ -187,7 +181,7 @@ export function ParentNotificationOnboarding({
             <ol className="space-y-3">
               {INSTALL_STEPS.map(({ step, icon: StepIcon }) => (
                 <li key={step} className="flex gap-3">
-                  <span className="bg-moto-blue/10 text-moto-blue-strong flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
                     {step}
                   </span>
                   <span className="text-[17px] leading-7 text-gray-700">
@@ -234,7 +228,7 @@ export function ParentNotificationOnboarding({
               onClick={() => void enable()}
             >
               {busy && (
-                <CircleNotch
+                <Loader2
                   className="mr-2 h-5 w-5 animate-spin"
                   aria-hidden="true"
                 />

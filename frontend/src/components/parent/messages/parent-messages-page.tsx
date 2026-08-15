@@ -8,7 +8,7 @@ import { Avatar } from "~/components/ui/avatar";
 import { Skeleton } from "~/components/ui/skeleton";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
-import { CaretRight } from "~/components/parent/shell/parent-icons";
+import { ChevronRight } from "lucide-react";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   type Child,
@@ -234,9 +234,8 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
           <UnreadBadge count={row.unread} />
         </span>
       </span>
-      <CaretRight
-        size={20}
-        className="shrink-0 text-gray-400"
+      <ChevronRight
+        className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
     </Link>

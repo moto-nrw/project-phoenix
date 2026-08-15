@@ -13,6 +13,7 @@ import { Check, ChevronRight, ExternalLink, ListChecks } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Modal } from "~/components/ui/modal";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
@@ -344,9 +345,10 @@ export function NewsCard({
   const t = useTranslations("parentDashboard");
   const poll = isOpenPoll(item);
   const needsAck = item.requires_acknowledgement && !item.acknowledged;
-  // Eine Kante, eine Bedeutung: orange heisst "hier wartet eine Handlung",
-  // blau heisst "ungelesen", nichts heisst erledigt. Die Flaeche bleibt weiss.
-  const edge = poll || needsAck ? "bg-moto-orange" : item.read ? "" : "bg-moto-blue";
+  // Statt einer farbigen Kante traegt das Symbol die Bedeutung: die
+  // Megafon-Ankuendigung heisst "hier wartet eine Handlung", die Zeitung
+  // heisst "reine Information". Die Flaeche bleibt weiss.
+  const concept = poll || needsAck ? "announcements" : "news";
   const action = poll
     ? t("newsAnswer")
     : needsAck
@@ -357,14 +359,11 @@ export function NewsCard({
     <button
       type="button"
       onClick={() => onOpen(item)}
-      className="relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-gray-200 bg-white py-4 pr-4 pl-5 text-left shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100 sm:pl-6"
+      className="relative flex w-full items-start gap-3 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100"
     >
-      {edge && (
-        <span
-          className={`absolute inset-y-0 left-0 w-1 ${edge}`}
-          aria-hidden="true"
-        />
-      )}
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gray-100">
+        <MotoConceptIcon concept={concept} size={24} />
+      </span>
       <span className="min-w-0 flex-1">
         <span
           className={`block text-[17px] text-gray-900 ${item.read ? "font-medium" : "font-semibold"}`}
@@ -386,7 +385,7 @@ export function NewsCard({
         </span>
       </span>
       <ChevronRight
-        className="h-5 w-5 shrink-0 text-gray-400"
+        className="mt-3 h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
     </button>

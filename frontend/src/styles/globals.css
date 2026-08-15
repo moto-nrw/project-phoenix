@@ -494,28 +494,6 @@
   z-index: 60;
 }
 
-/* Feine Punkt-Textur INNERHALB einer Flaeche, nach dem Vorbild von
-   .navigation-menu-featured und .product-system-header auf der Website.
-   Gleiches 14px-Raster wie der Seitengrund, nur feiner und blasser, damit
-   eine hervorgehobene Karte Textur bekommt statt nur weiss zu sein. */
-.moto-dot-texture {
-  background-image: radial-gradient(
-    circle,
-    rgba(156, 163, 175, 0.32) 0.9px,
-    transparent 1px
-  );
-  background-size: 14px 14px;
-}
-
-.moto-dot-texture--soft {
-  background-image: radial-gradient(
-    circle,
-    rgba(156, 163, 175, 0.16) 0.85px,
-    transparent 0.95px
-  );
-  background-size: 14px 14px;
-}
-
 /* Print rules reset unlayered page styles that Tailwind print utilities cannot
    override, then add a dedicated guide background for PDF exports. */
 @media print {

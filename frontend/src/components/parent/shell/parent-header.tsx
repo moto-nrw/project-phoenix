@@ -7,13 +7,9 @@ import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { parentPath } from "~/lib/parent-url";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { UserCircle } from "./parent-icons";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { isParentNavActive } from "./parent-nav-active";
-import {
-  PARENT_ICON_WEIGHT,
-  PARENT_MORE_NAV,
-  PARENT_PRIMARY_NAV,
-} from "./parent-nav-items";
+import { PARENT_MORE_NAV, PARENT_PRIMARY_NAV } from "./parent-nav-items";
 
 /**
  * Der Seitentitel kommt aus der einen Navigationsliste. Damit steht der Titel
@@ -73,7 +69,7 @@ export function ParentHeader() {
         {/* Kein h1: die Kopfzeile sagt, wo man ist, die Seite selbst traegt
             ihre Ueberschrift. Zwei h1 auf einer Seite waeren fuer die
             Sprachausgabe zwei Titel. */}
-        <p className="min-w-0 flex-1 truncate text-[17px] font-semibold text-gray-900">
+        <p className="min-w-0 flex-1 truncate text-[19px] font-bold text-gray-900">
           {t(titleKey)}
         </p>
 
@@ -84,11 +80,7 @@ export function ParentHeader() {
           aria-label={t("settings")}
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         >
-          <UserCircle
-            size={26}
-            weight={PARENT_ICON_WEIGHT}
-            aria-hidden="true"
-          />
+          <MotoConceptIcon concept="accounts" size={26} />
         </Link>
       </div>
     </header>

@@ -26,6 +26,7 @@ import {
   DevicesIcon,
   DoorIcon,
   DoorOpenIcon,
+  DotsThreeIcon,
   EnvelopeIcon,
   EyeIcon,
   FileArrowDownIcon,
@@ -48,7 +49,9 @@ import {
   QuestionIcon,
   ShieldCheckIcon,
   ShieldWarningIcon,
+  SignOutIcon,
   SunIcon,
+  TranslateIcon,
   TrendUpIcon,
   UserCheckIcon,
   UserCircleGearIcon,
@@ -404,6 +407,11 @@ export const MOTO_CONCEPTS = {
     "function",
     "system",
   ),
+  // Die drei Huellen-Konzepte der Eltern-App. Sie stehen in der Navigation
+  // neben den Zielen und muessen deshalb dieselbe Duotone-Sprache sprechen.
+  language: concept("Sprache", TranslateIcon, "petrol", "function", "system"),
+  logout: concept("Abmelden", SignOutIcon, "neutral", "function", "system"),
+  more: concept("Mehr", DotsThreeIcon, "stone", "function", "system"),
 } as const satisfies Record<string, MotoConceptDefinition>;
 
 export type MotoConceptKey = keyof typeof MOTO_CONCEPTS;

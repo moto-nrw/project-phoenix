@@ -16,11 +16,10 @@ import { NotificationBadge } from "~/components/ui/notification-badge";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { CaretRight } from "./parent-icons";
+import { ChevronRight } from "lucide-react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { isParentNavActive } from "./parent-nav-active";
 import {
-  PARENT_ICON_WEIGHT,
-  PARENT_ICON_WEIGHT_ACTIVE,
   PARENT_MORE_BADGE_SOURCES,
   PARENT_MORE_ENTRY,
   PARENT_MORE_NAV,
@@ -34,12 +33,11 @@ export interface ParentNavCounts {
   readonly gates: Readonly<Record<ParentNavGate, boolean>>;
 }
 
-// Aktiv: gefuelltes Icon, gruener Balken ueber dem Ziel, halbfette Beschriftung.
-// Das Gruen ist moto-green-vivid (#5F9F1B) statt #83CD2D: die helle Marken-
-// stufe erreicht auf Weiss nur 1,9:1 und verschwindet auf einem Handy in der
-// Sonne. Der Balken darueber traegt das reine Markengruen.
-const ICON_ACTIVE = "text-moto-green-vivid";
-const ICON_IDLE = "text-gray-500";
+// Aktiv ist eine hinterlegte graue Pille hinter dem Symbol, wie der
+// Schiebe-Indikator der Personal-Navigation (dashboard/mobile-bottom-nav.tsx).
+// Kein gruener Balken: Farbe traegt allein das Duotone-Symbol.
+const PILL = "flex items-center justify-center rounded-full px-4 py-1";
+const PILL_ACTIVE = "bg-gray-100";
 
 function NavBadge({ count }: { readonly count: number }) {
   return (
@@ -96,7 +94,6 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
         <ul className="mx-auto flex max-w-2xl">
           {PARENT_PRIMARY_NAV.map((item) => {
             const active = isParentNavActive(item.href, pathname);
-            const Icon = item.icon;
             const count = item.badge ? (badges[item.badge] ?? 0) : 0;
             return (
               <li key={item.key} className="flex-1">
@@ -107,21 +104,8 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                   aria-current={active ? "page" : undefined}
                   className="relative flex min-h-14 flex-col items-center justify-center gap-1 px-1 pt-1.5 pb-1"
                 >
-                  <span
-                    aria-hidden="true"
-                    className={`absolute inset-x-3 top-0 h-[3px] rounded-b-full ${
-                      active ? "bg-moto-green" : "bg-transparent"
-                    }`}
-                  />
-                  <span className="relative">
-                    <Icon
-                      size={26}
-                      weight={
-                        active ? PARENT_ICON_WEIGHT_ACTIVE : PARENT_ICON_WEIGHT
-                      }
-                      className={active ? ICON_ACTIVE : ICON_IDLE}
-                      aria-hidden="true"
-                    />
+                  <span className={`relative ${PILL} ${active ? PILL_ACTIVE : ""}`}>
+                    <MotoConceptIcon concept={item.concept} size={26} />
                     <NavBadge count={count} />
                   </span>
                   <span
@@ -149,20 +133,9 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
               className="relative flex min-h-14 w-full flex-col items-center justify-center gap-1 px-1 pt-1.5 pb-1"
             >
               <span
-                aria-hidden="true"
-                className={`absolute inset-x-3 top-0 h-[3px] rounded-b-full ${
-                  moreActive ? "bg-moto-green" : "bg-transparent"
-                }`}
-              />
-              <span className="relative">
-                <PARENT_MORE_ENTRY.icon
-                  size={26}
-                  weight={
-                    moreActive ? PARENT_ICON_WEIGHT_ACTIVE : PARENT_ICON_WEIGHT
-                  }
-                  className={moreActive ? ICON_ACTIVE : ICON_IDLE}
-                  aria-hidden="true"
-                />
+                className={`relative ${PILL} ${moreActive ? PILL_ACTIVE : ""}`}
+              >
+                <MotoConceptIcon concept={PARENT_MORE_ENTRY.concept} size={26} />
                 <NavBadge count={moreCount} />
               </span>
               <span
@@ -187,7 +160,6 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
           </DrawerHeader>
           <ul className="space-y-1 px-4 pt-2 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             {moreItems.map((item) => {
-              const Icon = item.icon;
               if (item.kind === "action" && item.action === "language") {
                 return (
                   <li
@@ -196,7 +168,7 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                     className="flex min-h-14 items-center justify-between gap-3 rounded-xl px-3"
                   >
                     <span className="flex items-center gap-3 text-[17px] text-gray-900">
-                      <Icon size={22} weight={PARENT_ICON_WEIGHT} />
+                      <MotoConceptIcon concept={item.concept} size={22} />
                       {t(item.tKey)}
                     </span>
                     <LanguageSwitcher compact />
@@ -213,12 +185,7 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                       onClick={() => void logout()}
                       className="flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-left text-[17px] text-gray-900 active:bg-gray-100"
                     >
-                      <Icon
-                        size={22}
-                        weight={PARENT_ICON_WEIGHT}
-                        className="text-gray-500"
-                        aria-hidden="true"
-                      />
+                      <MotoConceptIcon concept={item.concept} size={22} />
                       {t(item.tKey)}
                     </button>
                   </li>
@@ -240,14 +207,7 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                         : "text-gray-900"
                     }`}
                   >
-                    <Icon
-                      size={22}
-                      weight={
-                        active ? PARENT_ICON_WEIGHT_ACTIVE : PARENT_ICON_WEIGHT
-                      }
-                      className={active ? ICON_ACTIVE : "text-gray-500"}
-                      aria-hidden="true"
-                    />
+                    <MotoConceptIcon concept={item.concept} size={22} />
                     <span className="flex-1">{t(item.tKey)}</span>
                     {count > 0 && (
                       <NotificationBadge
@@ -256,9 +216,8 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                         ariaLabel={`${count} ungelesen`}
                       />
                     )}
-                    <CaretRight
-                      size={20}
-                      className="shrink-0 text-gray-400"
+                    <ChevronRight
+                      className="h-5 w-5 shrink-0 text-gray-400"
                       aria-hidden="true"
                     />
                   </Link>

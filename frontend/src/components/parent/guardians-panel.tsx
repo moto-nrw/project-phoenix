@@ -2,18 +2,15 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Plus } from "lucide-react";
+import { Check, Pencil, Plus, X } from "lucide-react";
 import {
-  Check,
-  EnvelopeSimple,
-  MapPin,
-  Note,
-  PencilSimple,
-  Phone,
-  ShieldCheck,
-  UserPlus,
-  X,
-} from "~/components/parent/shell/parent-icons";
+  EnvelopeSimpleIcon,
+  MapPinIcon,
+  NoteIcon,
+  PhoneIcon,
+} from "@phosphor-icons/react";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
   type ChildGuardian,
   type GuardianContactPayload,
@@ -287,7 +284,7 @@ export default function GuardiansPanel({
               setMessage(null);
             }}
           >
-            <UserPlus size={20} className="mr-2 shrink-0" aria-hidden="true" />
+            <MotoConceptIcon concept="enrollments" size={20} className="mr-2" />
             {t("guardians.access.invite")}
           </Button>
         ) : undefined
@@ -317,7 +314,7 @@ export default function GuardiansPanel({
             onClick={() => void handleInvite(inviteEmail)}
             disabled={busy || !inviteEmail.trim()}
           >
-            <Check size={20} className="mr-2 shrink-0" aria-hidden="true" />
+            <Check className="mr-2 h-5 w-5 shrink-0" aria-hidden="true" />
             {t("guardians.access.send")}
           </Button>
         </div>
@@ -533,7 +530,13 @@ function GuardianRow({
                   {g.phones.map((p) => (
                     <ContactLine
                       key={`${p.phone_number}-${p.phone_type}`}
-                      icon={<Phone size={16} aria-hidden="true" />}
+                      icon={
+                        <MotoDuotoneIcon
+                          icon={PhoneIcon}
+                          tone="neutral"
+                          size={16}
+                        />
+                      }
                       text={[
                         p.phone_number,
                         p.label,
@@ -549,7 +552,13 @@ function GuardianRow({
                   ))}
                   {g.email && (
                     <ContactLine
-                      icon={<EnvelopeSimple size={16} aria-hidden="true" />}
+                      icon={
+                        <MotoDuotoneIcon
+                          icon={EnvelopeSimpleIcon}
+                          tone="neutral"
+                          size={16}
+                        />
+                      }
                       text={g.email}
                     />
                   )}
@@ -557,7 +566,13 @@ function GuardianRow({
                     g.address_city ??
                     g.address_postal_code) && (
                     <ContactLine
-                      icon={<MapPin size={16} aria-hidden="true" />}
+                      icon={
+                        <MotoDuotoneIcon
+                          icon={MapPinIcon}
+                          tone="neutral"
+                          size={16}
+                        />
+                      }
                       text={[
                         g.address_street,
                         [g.address_postal_code, g.address_city]
@@ -572,7 +587,7 @@ function GuardianRow({
               )}
               {g.pickup_notes && (
                 <ContactLine
-                  icon={<ShieldCheck size={16} aria-hidden="true" />}
+                  icon={<MotoConceptIcon concept="permissions" size={16} />}
                   text={g.pickup_notes}
                 />
               )}
@@ -591,7 +606,7 @@ function GuardianRow({
                 aria-label={t("guardians.editContact")}
                 className="text-gray-400"
               >
-                <PencilSimple size={20} aria-hidden="true" />
+                <Pencil className="h-5 w-5" aria-hidden="true" />
               </Button>
             )}
             {/* The pickup/relationship modal carries two capabilities: the
@@ -621,9 +636,9 @@ function GuardianRow({
                 className="text-gray-400"
               >
                 {g.can_manage_pickup ? (
-                  <ShieldCheck size={20} aria-hidden="true" />
+                  <MotoConceptIcon concept="permissions" size={20} />
                 ) : (
-                  <Note size={20} aria-hidden="true" />
+                  <MotoDuotoneIcon icon={NoteIcon} tone="neutral" size={20} />
                 )}
               </Button>
             )}
@@ -674,7 +689,7 @@ function GuardianRow({
                 size="touch"
                 onClick={onAskRemove}
               >
-                <X size={20} className="mr-2 shrink-0" aria-hidden="true" />
+                <X className="mr-2 h-5 w-5 shrink-0" aria-hidden="true" />
                 {t("guardians.access.remove")}
               </Button>
             ))}

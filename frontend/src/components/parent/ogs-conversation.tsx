@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ArrowLeft } from "~/components/parent/shell/parent-icons";
+import { ArrowLeft } from "lucide-react";
 import { parentPath } from "~/lib/parent-url";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -481,7 +481,7 @@ function BackBar() {
       href={parentPath("/parents/messages")}
       className="inline-flex min-h-12 w-fit items-center gap-2 rounded-lg px-2 text-[17px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-[#5080D8] focus-visible:outline-none"
     >
-      <ArrowLeft size={20} aria-hidden="true" />
+      <ArrowLeft className="h-5 w-5" aria-hidden="true" />
       {tm("back")}
     </Link>
   );

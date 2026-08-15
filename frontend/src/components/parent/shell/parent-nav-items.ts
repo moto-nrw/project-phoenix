@@ -6,26 +6,12 @@
  *
  * Reihenfolge nach Entscheidung E8 der Spezifikation: Start, Kinder,
  * Nachrichten, Kalender, Mehr.
+ *
+ * Ein Eintrag nennt sein Konzept, nicht sein Icon. Glyph, Ton und Gewicht
+ * kommen aus `MOTO_CONCEPTS`, damit die Eltern-App dieselbe Bildsprache
+ * spricht wie das uebrige Produkt.
  */
-import {
-  Bell,
-  CalendarBlank,
-  ChatCircleText,
-  DotsThree,
-  ForkKnife,
-  House,
-  Megaphone,
-  SignOut,
-  Translate,
-  UserPlus,
-  Users,
-  type Icon,
-  type IconWeight,
-} from "./parent-icons";
-
-/** Standardgewicht der Eltern-App. "fill" markiert den aktiven Zustand. */
-export const PARENT_ICON_WEIGHT: IconWeight = "regular";
-export const PARENT_ICON_WEIGHT_ACTIVE: IconWeight = "fill";
+import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 /**
  * Woher ein Zaehler kommt. Die Huelle loest das zu einer Zahl auf, damit diese
@@ -45,7 +31,7 @@ export interface ParentNavItem {
   readonly href: string;
   /** Schluessel im Katalog "parentNav", identisch in de, en, ru und sq. */
   readonly tKey: string;
-  readonly icon: Icon;
+  readonly concept: MotoConceptKey;
   readonly badge?: ParentNavBadgeSource;
   readonly gate?: ParentNavGate;
 }
@@ -58,7 +44,7 @@ export type ParentMoreItem =
       readonly key: string;
       readonly action: "language" | "logout";
       readonly tKey: string;
-      readonly icon: Icon;
+      readonly concept: MotoConceptKey;
     };
 
 /** Die vier Alltagsziele. Das fuenfte Feld der Bottom-Navigation ist "Mehr". */
@@ -67,26 +53,26 @@ export const PARENT_PRIMARY_NAV: readonly ParentNavItem[] = [
     key: "start",
     href: "/parents",
     tKey: "start",
-    icon: House,
+    concept: "dashboard",
   },
   {
     key: "children",
     href: "/parents/children",
     tKey: "children",
-    icon: Users,
+    concept: "children",
   },
   {
     key: "messages",
     href: "/parents/messages",
     tKey: "messages",
-    icon: ChatCircleText,
+    concept: "parentConversations",
     badge: "messages",
   },
   {
     key: "calendar",
     href: "/parents/calendar",
     tKey: "calendar",
-    icon: CalendarBlank,
+    concept: "calendar",
   },
 ];
 
@@ -103,7 +89,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "news",
     href: "/parents/news",
     tKey: "news",
-    icon: Megaphone,
+    concept: "news",
     badge: "news",
     gate: "news",
   },
@@ -112,7 +98,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "mealPlan",
     href: "/parents/meal-plan",
     tKey: "mealPlan",
-    icon: ForkKnife,
+    concept: "mealPlan",
     gate: "mealPlan",
   },
   {
@@ -120,28 +106,28 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "notifications",
     href: "/parents/settings",
     tKey: "notifications",
-    icon: Bell,
+    concept: "notifications",
   },
   {
     kind: "action",
     key: "language",
     action: "language",
     tKey: "language",
-    icon: Translate,
+    concept: "language",
   },
   {
     kind: "link",
     key: "enroll",
     href: "/parents/enroll",
     tKey: "enroll",
-    icon: UserPlus,
+    concept: "enrollments",
   },
   {
     kind: "action",
     key: "logout",
     action: "logout",
     tKey: "logout",
-    icon: SignOut,
+    concept: "logout",
   },
 ];
 
@@ -149,8 +135,8 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
 export const PARENT_MORE_ENTRY = {
   key: "more",
   tKey: "more",
-  icon: DotsThree,
-} as const;
+  concept: "more",
+} as const satisfies { key: string; tKey: string; concept: MotoConceptKey };
 
 /** Zaehler, die auf das "Mehr"-Symbol aufaddiert werden. */
 export const PARENT_MORE_BADGE_SOURCES: readonly ParentNavBadgeSource[] = [

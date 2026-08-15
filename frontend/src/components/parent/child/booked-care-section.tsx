@@ -8,11 +8,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { ParentSection } from "~/components/parent/shell/parent-section";
-import {
-  CheckCircle,
-  Clock,
-  Prohibit,
-} from "~/components/parent/shell/parent-icons";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
@@ -206,7 +202,7 @@ export function BookedCareSection({
       description={periodLabel ?? undefined}
     >
       <div className="space-y-3">
-        <h3 className="text-[17px] font-semibold text-gray-900">
+        <h3 className="text-[19px] font-bold text-gray-900">
           {t("careOfferings.offeringsTitle")}
         </h3>
         {offerings.offerings.length === 0 ? (
@@ -256,7 +252,7 @@ export function BookedCareSection({
 
       {schedule && (
         <div className="space-y-3 border-t border-gray-100 pt-4">
-          <h3 className="text-[17px] font-semibold text-gray-900">
+          <h3 className="text-[19px] font-bold text-gray-900">
             {tc("care.weekTitle")}
           </h3>
           {/* Mobil eine Karte je Wochentag statt einer Tabelle. Alle Werte sind
@@ -300,17 +296,17 @@ export function BookedCareSection({
       )}
 
       <div className="space-y-3 border-t border-gray-100 pt-4">
-        <h3 className="text-[17px] font-semibold text-gray-900">
+        <h3 className="text-[19px] font-bold text-gray-900">
           {t("careOfferings.requestsTitle")}
         </h3>
 
         {pending && (
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="bg-moto-orange-soft text-moto-orange-strong inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[15px] font-semibold">
-                <Clock size={16} aria-hidden="true" />
-                {t("careOfferings.pendingBadge")}
-              </p>
+              <StatusBadge
+                label={t("careOfferings.pendingBadge")}
+                tone="orange"
+              />
               <p className="text-[15px] text-gray-500">
                 {t("careOfferings.requestedAt", {
                   date: formatDate(pending.created_at),
@@ -375,15 +371,15 @@ export function BookedCareSection({
           <div className="rounded-xl border border-gray-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               {decision.status === "approved" ? (
-                <p className="bg-moto-green-soft text-moto-green-strong inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[15px] font-semibold">
-                  <CheckCircle size={16} weight="fill" aria-hidden="true" />
-                  {t("careOfferings.decisionApproved")}
-                </p>
+                <StatusBadge
+                  label={t("careOfferings.decisionApproved")}
+                  tone="green"
+                />
               ) : (
-                <p className="bg-parent-red-soft text-parent-red-strong inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[15px] font-semibold">
-                  <Prohibit size={16} aria-hidden="true" />
-                  {t("careOfferings.decisionRejected")}
-                </p>
+                <StatusBadge
+                  label={t("careOfferings.decisionRejected")}
+                  tone="red"
+                />
               )}
               <p className="text-[15px] text-gray-500">
                 {t("careOfferings.decisionDecidedAt", {

@@ -45,14 +45,15 @@ describe("ParentNewsPage", () => {
     expect(screen.queryByText("Neuigkeiten")).not.toBeInTheDocument();
   });
 
-  it("gibt einer ungelesenen Meldung eine blaue Kante", async () => {
+  it("hebt eine ungelesene Meldung im Titelgewicht hervor", async () => {
     mocked.mockResolvedValue([announcement({ read: false })]);
     render(<ParentNewsPage />);
     const card = await screen.findByRole("button", { name: /Sommerfest/ });
-    expect(card.querySelector(".bg-moto-blue")).not.toBeNull();
+    expect(screen.getByText("Sommerfest").className).toContain("font-semibold");
+    expect(card.querySelector('[data-moto-duotone-tone="blue"]')).not.toBeNull();
   });
 
-  it("gibt einer offenen Umfrage eine orange Kante und die Schaltflaeche Antworten", async () => {
+  it("markiert eine offene Umfrage als Ankuendigung und bietet Antworten", async () => {
     mocked.mockResolvedValue([
       announcement({
         response_type: "single_choice",
@@ -69,7 +70,9 @@ describe("ParentNewsPage", () => {
     ]);
     render(<ParentNewsPage />);
     const card = await screen.findByRole("button", { name: /Sommerfest/ });
-    expect(card.querySelector(".bg-moto-orange")).not.toBeNull();
+    expect(
+      card.querySelector('[data-moto-duotone-tone="amber"]'),
+    ).not.toBeNull();
     expect(screen.getByText("Antworten")).toBeInTheDocument();
   });
 

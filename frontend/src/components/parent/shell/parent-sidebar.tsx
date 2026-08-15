@@ -7,19 +7,22 @@ import { NotificationBadge } from "~/components/ui/notification-badge";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { SignOut, UserCircle } from "./parent-icons";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { isParentNavActive } from "./parent-nav-active";
 import type { ParentNavCounts } from "./parent-bottom-nav";
 import {
-  PARENT_ICON_WEIGHT,
-  PARENT_ICON_WEIGHT_ACTIVE,
   PARENT_MORE_NAV,
   PARENT_PRIMARY_NAV,
   type ParentNavItem,
 } from "./parent-nav-items";
 
+// Aktiv ist eine graue Pille, genau wie in der Personal-Navigation
+// (dashboard/sidebar.tsx, getLinkClasses). Kein Gruen, kein Balken: die
+// Markenfarbe steckt im Duotone-Symbol, nicht in der Flaeche.
 const ROW =
-  "flex min-h-12 items-center gap-3 rounded-xl px-3 text-[17px] transition-colors";
+  "flex min-h-12 items-center gap-3 rounded-lg px-3 text-[17px] transition-colors";
+const ROW_ACTIVE = "bg-gray-100 font-semibold text-gray-900";
+const ROW_IDLE = "font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900";
 
 /**
  * Die dauerhafte Seitennavigation ab 1024 px.
@@ -44,7 +47,6 @@ export function ParentSidebar({ badges, gates }: ParentNavCounts) {
 
   const renderItem = (item: ParentNavItem) => {
     const active = isParentNavActive(item.href, pathname);
-    const Icon = item.icon;
     const count = item.badge ? (badges[item.badge] ?? 0) : 0;
     return (
       <li key={item.key}>
@@ -53,18 +55,9 @@ export function ParentSidebar({ badges, gates }: ParentNavCounts) {
           data-parent-nav-item={item.key}
           data-active={active ? "true" : "false"}
           aria-current={active ? "page" : undefined}
-          className={`${ROW} ${
-            active
-              ? "bg-gray-100 font-semibold text-gray-900"
-              : "text-gray-700 hover:bg-gray-50"
-          }`}
+          className={`${ROW} ${active ? ROW_ACTIVE : ROW_IDLE}`}
         >
-          <Icon
-            size={22}
-            weight={active ? PARENT_ICON_WEIGHT_ACTIVE : PARENT_ICON_WEIGHT}
-            className={active ? "text-moto-green-vivid" : "text-gray-500"}
-            aria-hidden="true"
-          />
+          <MotoConceptIcon concept={item.concept} size={22} />
           <span className="flex-1">{t(item.tKey)}</span>
           {count > 0 && (
             <NotificationBadge
@@ -94,28 +87,18 @@ export function ParentSidebar({ badges, gates }: ParentNavCounts) {
           {profileUrl && (
             <Link
               href={profileUrl}
-              className={`${ROW} text-gray-700 hover:bg-gray-50`}
+              className={`${ROW} ${ROW_IDLE}`}
             >
-              <UserCircle
-                size={22}
-                weight={PARENT_ICON_WEIGHT}
-                className="text-gray-500"
-                aria-hidden="true"
-              />
+              <MotoConceptIcon concept="accounts" size={22} />
               <span>{t("settings")}</span>
             </Link>
           )}
           <button
             type="button"
             onClick={() => void logout()}
-            className={`${ROW} w-full text-left text-gray-700 hover:bg-gray-50`}
+            className={`${ROW} ${ROW_IDLE} w-full text-left`}
           >
-            <SignOut
-              size={22}
-              weight={PARENT_ICON_WEIGHT}
-              className="text-gray-500"
-              aria-hidden="true"
-            />
+            <MotoConceptIcon concept="logout" size={22} />
             <span>{t("logout")}</span>
           </button>
         </div>
