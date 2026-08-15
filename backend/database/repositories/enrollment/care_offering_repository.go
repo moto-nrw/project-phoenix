@@ -94,6 +94,7 @@ func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollmen
 		Set("availability_rule = ?", offering.AvailabilityRule).
 		Set("selection_group = ?", offering.SelectionGroup).
 		Set("selection_rule = ?", offering.SelectionRule).
+		Set("pickup_times = ?", offering.PickupTimes).
 		Set("sort_order = ?", offering.SortOrder).
 		Set("updated_at = NOW()").
 		Where(`"care_offering".id = ?`, offering.ID).

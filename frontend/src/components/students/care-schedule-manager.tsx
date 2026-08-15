@@ -45,6 +45,7 @@ import {
   deleteStudentPickupException,
   deleteStudentPickupNote,
   fetchStudentPickupData,
+  resetStudentPickupToOffering,
   updateStudentPickupException,
   updateStudentPickupNote,
   updateStudentPickupSchedules,
@@ -677,6 +678,16 @@ export function CareScheduleManager({
     [studentId, refreshCareData],
   );
 
+  const handleResetPickupToOffering = useCallback(
+    async (weekday: number) => {
+      await resetStudentPickupToOffering(studentId, weekday);
+      await refreshCareData();
+      invalidatePickupCaches();
+      onUpdate?.();
+    },
+    [studentId, refreshCareData, onUpdate],
+  );
+
   const handleDeleteStatusDay = useCallback(
     async (statusDayId: string) => {
       if (!onDeleteStatusDay) return;
@@ -842,6 +853,9 @@ export function CareScheduleManager({
         onCreatePickupNote={handleCreatePickupNote}
         onUpdatePickupNote={handleUpdatePickupNote}
         onDeletePickupNote={handleDeletePickupNote}
+        onResetPickupToOffering={
+          readOnly ? undefined : handleResetPickupToOffering
+        }
       />
       <ConfirmationModal
         isOpen={statusDayToDelete !== null}
@@ -1362,6 +1376,7 @@ function getArrivalMarker(day: ArrivalDayData): string | null {
 
 function getPickupMarker(day: PickupDayData): string | null {
   if (day.isException) return "Ausnahme";
+  if (day.baseSchedule?.source === "care_offering") return "aus Angebot";
   return null;
 }
 
