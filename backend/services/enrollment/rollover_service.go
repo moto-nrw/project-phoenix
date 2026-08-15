@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -314,7 +315,11 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		return err
 	}
 	result.SourceChildCount = len(sourceChildren)
-	offeringIDMap, err := s.cloneOfferingCatalog(ctx, source.ID, newPhase.ID)
+	carriedOfferingIDs, err := s.listCarriedOfferingIDs(ctx, source, sourceChildren)
+	if err != nil {
+		return err
+	}
+	offeringIDMap, err := s.cloneOfferingCatalog(ctx, source.ID, newPhase.ID, carriedOfferingIDs)
 	if err != nil {
 		return err
 	}
@@ -335,15 +340,34 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 // yields an empty map — copyRolloverOfferings then rejects any booking
 // it cannot remap, so a mis-wired production setup fails loudly instead
 // of carrying source-phase offering references (#2249).
-func (s *rolloverService) cloneOfferingCatalog(ctx context.Context, sourcePhaseID, targetPhaseID int64) (map[int64]int64, error) {
+func (s *rolloverService) cloneOfferingCatalog(ctx context.Context, sourcePhaseID, targetPhaseID int64, carriedOfferingIDs []int64) (map[int64]int64, error) {
 	if s.OfferingCatalogCloner == nil {
 		return map[int64]int64{}, nil
 	}
-	mapping, err := s.OfferingCatalogCloner.CloneCatalogForRollover(ctx, sourcePhaseID, targetPhaseID)
+	mapping, err := s.OfferingCatalogCloner.CloneCatalogForRollover(ctx, sourcePhaseID, targetPhaseID, carriedOfferingIDs)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: clone offering catalog: %w", err)
 	}
 	return mapping, nil
+}
+
+func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollmentModels.Phase, children []*enrollmentModels.RequestChild) ([]int64, error) {
+	ids := make(map[int64]struct{})
+	for _, child := range children {
+		offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, sourcePhase.ServiceEndDate)
+		if err != nil {
+			return nil, fmt.Errorf("rollover: list source offerings for child %d: %w", child.ID, err)
+		}
+		for _, offering := range offerings {
+			ids[offering.CareOfferingID] = struct{}{}
+		}
+	}
+	result := make([]int64, 0, len(ids))
+	for id := range ids {
+		result = append(result, id)
+	}
+	slices.Sort(result)
+	return result, nil
 }
 
 func (s *rolloverService) loadRolloverSourcePhase(ctx context.Context, tenantID, sourcePhaseID int64) (*enrollmentModels.Phase, error) {
