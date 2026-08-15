@@ -22,6 +22,9 @@ import (
 type PickupScheduleService interface {
 	GetStudentPickupSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentPickupSchedule, error)
 	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error)
+	// GetWeeklySchedulesByStudentIDs returns every weekday row for the given
+	// students in one query (class-roster export, #2290).
+	GetWeeklySchedulesByStudentIDs(ctx context.Context, studentIDs []int64) ([]*schedule.StudentPickupSchedule, error)
 	GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error
 	UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error
@@ -281,6 +284,13 @@ func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 	weekday int,
 ) ([]*schedule.StudentPickupSchedule, error) {
 	return s.core.WeeklySchedulesByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+}
+
+func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDs(
+	ctx context.Context,
+	studentIDs []int64,
+) ([]*schedule.StudentPickupSchedule, error) {
+	return s.core.WeeklySchedulesByStudentIDs(ctx, studentIDs)
 }
 
 func (s *pickupScheduleService) GetStudentPickupScheduleForWeekday(

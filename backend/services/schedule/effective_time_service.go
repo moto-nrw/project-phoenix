@@ -27,6 +27,7 @@ type effectiveScheduleRepository[S effectiveTimeEntity] interface {
 	FindByStudentID(context.Context, int64) ([]S, error)
 	FindByStudentIDAndWeekday(context.Context, int64, int) (S, error)
 	FindByStudentIDsAndWeekday(context.Context, []int64, int) ([]S, error)
+	FindByStudentIDs(context.Context, []int64) ([]S, error)
 	UpsertSchedule(context.Context, S) error
 	Create(context.Context, S) error
 	Delete(context.Context, any) error
@@ -948,6 +949,13 @@ func (c *effectiveTimeCore[S, E, N, D]) WeeklySchedulesByStudentIDsAndWeekday(
 	weekday int,
 ) ([]S, error) {
 	return c.schedules.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+}
+
+func (c *effectiveTimeCore[S, E, N, D]) WeeklySchedulesByStudentIDs(
+	ctx context.Context,
+	studentIDs []int64,
+) ([]S, error) {
+	return c.schedules.FindByStudentIDs(ctx, studentIDs)
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) scheduleNotes(schedule S) string {
