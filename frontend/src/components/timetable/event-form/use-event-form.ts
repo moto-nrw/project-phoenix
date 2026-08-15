@@ -250,6 +250,7 @@ export function useEventForm({
       defaultEndTime,
     ),
   );
+  const initialFormSnapshot = useRef<EventFormState | null>(null);
   const [initialStudentIDsSnapshot, setInitialStudentIDsSnapshot] = useState(
     () => initialStudentIDs(initialInstance, initialSeries, convertInstance),
   );
@@ -525,6 +526,7 @@ export function useEventForm({
     listKindTouched.current = false;
     manualWeekPattern.current = null;
     setForm(nextForm);
+    initialFormSnapshot.current = nextForm;
     setValidationError(null);
     setFieldErrors({});
     setDeleteConfirmOpen(false);
@@ -1876,6 +1878,35 @@ export function useEventForm({
     return true;
   };
 
+  /** Materializes only dates exposed by a pull-forward, preserving existing instances. */
+  const materializePulledForwardWindow = async (
+    fromISO: string,
+    storedStartISO: string,
+  ): Promise<boolean> => {
+    for (const chunk of chunkDateRange(
+      fromISO,
+      storedStartISO,
+      MATERIALIZE_CHUNK_DAYS,
+    )) {
+      try {
+        const result = await timetableService.materialize(chunk.from, chunk.to);
+        if (
+          result.warnings.some((warning) => warning.code === "no_active_period")
+        ) {
+          break;
+        }
+      } catch (err) {
+        logger.error("series_materialize_chunk_failed", {
+          from: chunk.from,
+          to: chunk.to,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
   /**
    * Creates the template materializing the whole selected period (US-1
    * Phase 3). The backend caps one materialization window at 56 days, so
@@ -2043,6 +2074,13 @@ export function useEventForm({
       if (initialSeries) {
         const seriesId = initialSeries.id;
         const categoryId = parsed.categoryId;
+        const { seriesStartDate: _currentStart, ...currentWithoutStart } = form;
+        const { seriesStartDate: _initialStart, ...initialWithoutStart } =
+          initialFormSnapshot.current ?? form;
+        const isStartDateOnlyPull =
+          pulledSeriesStart !== null &&
+          JSON.stringify(currentWithoutStart) ===
+            JSON.stringify(initialWithoutStart);
         const runSeriesEdit = async () => {
           await timetableService.updateTemplate(seriesId, {
             ...seriesBody(parsed.roomId, categoryId),
@@ -2052,7 +2090,13 @@ export function useEventForm({
               ? { start_date: pulledSeriesStart }
               : {}),
           });
-          if (await replanTemplateFuture(seriesId)) {
+          const followUpOk = isStartDateOnlyPull
+            ? await materializePulledForwardWindow(
+                pulledSeriesStart,
+                seriesStartEdit!.original,
+              )
+            : await replanTemplateFuture(seriesId);
+          if (followUpOk) {
             toastSuccess("Regeltermin gespeichert");
           } else {
             toastWarning(FOLLOW_UP_WARNING);

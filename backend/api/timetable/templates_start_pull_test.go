@@ -81,7 +81,9 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "Vergangenheit")
 
 	// Outside the pinned period → the shared create/update preflight rejects.
-	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(timezone.NewDate(newStart.Year-1, 12, 31).String()))
+	outsideWithoutPeriod := updateBody(timezone.NewDate(newStart.Year-1, 12, 31).String())
+	delete(outsideWithoutPeriod, "calendar_period_id")
+	w = doTemplateJSON(t, router, http.MethodPut, putPath, outsideWithoutPeriod)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "start_date must lie within the calendar period")
 
@@ -91,9 +93,13 @@ func TestTemplateUpdateStartDatePullForward(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "invalid start_date format")
 
 	// An earlier date within the period pulls the envelope forward.
-	w = doTemplateJSON(t, router, http.MethodPut, putPath, updateBody(newStart.String()))
+	pullWithoutPeriod := updateBody(newStart.String())
+	delete(pullWithoutPeriod, "calendar_period_id")
+	w = doTemplateJSON(t, router, http.MethodPut, putPath, pullWithoutPeriod)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	updated := decodeTemplateData[templateResponse](t, w)
+	require.NotNil(t, updated.CalendarPeriodID)
+	assert.Equal(t, period.ID, *updated.CalendarPeriodID, "omitted period must keep the stored pin")
 	require.NotEmpty(t, updated.Schedules)
 	for _, sched := range updated.Schedules {
 		assert.Equal(t, newStart.String(), sched.ValidFrom, "schedule must carry the pulled-forward start")

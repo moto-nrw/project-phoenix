@@ -326,6 +326,15 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	// A pull-forward without an explicit period keeps using the template's
+	// stored pin. Besides enforcing its bounds, carrying the pin prevents the
+	// full-replacement update below from clearing it.
+	if parsed.startDate != nil && parsed.req.CalendarPeriodID == nil {
+		parsed.req.CalendarPeriodID = templates[0].CalendarPeriodID
+		if len(templates[0].Schedules) > 0 && templates[0].Schedules[0].CalendarPeriodID != nil {
+			parsed.req.CalendarPeriodID = templates[0].Schedules[0].CalendarPeriodID
+		}
+	}
 	applyOfferingSourcePresence(parsed.req, templates[0])
 	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, parsed.startDate)
 	if !ok {

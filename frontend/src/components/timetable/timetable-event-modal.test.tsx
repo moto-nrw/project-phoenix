@@ -5388,6 +5388,32 @@ describe("TimetableEventModal", () => {
           expect.objectContaining({ start_date: newStart }),
         ),
       );
+      expect(mockReplanWeek).not.toHaveBeenCalled();
+      expect(mockMaterialize).toHaveBeenCalledWith(newStart, oldStart);
+    });
+
+    it("warns about a closing day introduced by the earlier Serienbeginn", async () => {
+      renderModal({
+        initialSeries: futureSeries,
+        calendarPeriods: widePeriods,
+        showPeriodField: true,
+        closingDayRanges: [
+          { startDate: newStart, endDate: newStart, reason: "Konzeptionstag" },
+        ],
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      fireEvent.change(screen.getByLabelText("Serienbeginn"), {
+        target: { value: newStart },
+      });
+      await clickSave();
+
+      expect(
+        await screen.findByRole("dialog", {
+          name: "An einem Schließtag planen?",
+        }),
+      ).toBeInTheDocument();
+      expect(mockUpdateTemplate).not.toHaveBeenCalled();
     });
 
     it("omits start_date when the Serienbeginn stays untouched", async () => {
