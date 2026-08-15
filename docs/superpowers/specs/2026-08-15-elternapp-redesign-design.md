@@ -97,9 +97,9 @@ Rückmeldungen der Ganztagskoordinatorin von Schule am Berg, August 2026:
 | #2250 | Kompakte Betreuungsübersicht |
 | #2302 | Betreuungszeiten vollständig entfernen |
 | #2303 | AGs und Gruppen vollständig entfernen |
-| #2292 | Kurzfristige Abmeldungen einschränken, Krankmeldung bleibt direkt |
-| #2293 | Abmeldung muss den Abholzeitpunkt eindeutig machen |
-| #2304 | Abholänderung braucht konkrete Uhrzeit und Pflichtgrund |
+| #2292 | Kurzfristige Abmeldungen einschränken — **nicht in diesem Umfang**, siehe E5 |
+| #2293 | Abholzeitpunkt eindeutig machen — **nicht in diesem Umfang**, siehe E5 |
+| #2304 | Abholänderung braucht konkrete Uhrzeit und Pflichtgrund (bereits umgesetzt) |
 | #2297 | Push-Aktivierung sichtbar machen |
 | #2305 | Benachrichtigungen beim ersten Login einrichten |
 | #2306 | Anleitung zum Home-Bildschirm integrieren |
@@ -146,6 +146,18 @@ historie, Rohereignisse und Mitarbeitendennamen werden nie ausgeliefert. Fachlic
 deckt sich das mit dem vorhandenen `operations.presence_mode`: Eltern bekommen
 immer die binäre Sicht, unabhängig vom Modus der Schule. `active.visits` wird
 für Eltern nie gelesen.
+
+### E5: Der Abmelde- und Abhol-Ablauf bleibt fachlich unverändert
+
+Was Eltern dürfen, ändert sich in diesem Vorhaben nicht. Krankmeldung bleibt
+direkt, die Abholzeit-Änderung bleibt mit freier Uhrzeit und Pflichtgrund
+bestehen (#2304 ist bereits umgesetzt). #2292 und #2293 werden hier nicht
+angefasst; wir warten weiteres Feedback ab, bevor wir Eltern eine Funktion
+wegnehmen, die nur eine Schule bemängelt hat.
+
+Die **Bedienbarkeit** des Dialogs verbessern wir trotzdem: größere Flächen,
+Alltagssprache, Fehler am Feld. Die Auswahl aus Betreuungsbausteinen aus #2293
+kommt ausdrücklich nicht.
 
 ---
 
@@ -322,9 +334,10 @@ Feld stehen ("TAGESMELDUNG", "GRUND (PFLICHTFELD)").
   die Zielgruppe nicht.
 - **Fehler stehen direkt am Feld**, in Alltagssprache, mit dem nächsten Schritt.
   Nicht "Validierungsfehler", sondern "Bitte tragen Sie eine Uhrzeit ein".
-- **Keine nativen Zeit- und Datumsfelder** mehr für Eltern. Uhrzeiten kommen als
-  Auswahl aus den Betreuungsbausteinen des Kindes (#2293), Datumsangaben über
-  den Kit-Datumswähler mit Schnellwahl "Heute" und "Morgen".
+- **Kein rohes natives `--:--`-Zeitfeld** mehr. Die Uhrzeit bleibt frei
+  eingebbar (E5), wird aber über das Kit-Zeitfeld mit 48 px Höhe und sichtbarem
+  Format erfasst. Datumsangaben über den Kit-Datumswähler mit Schnellwahl
+  "Heute" und "Morgen".
 - **Folgen vor dem Absenden benennen:** "Die OGS wird darüber informiert." statt
   eines stummen Speicherns.
 
@@ -397,18 +410,12 @@ Nach Kundenfeedback der wichtigste ungelöste Punkt: Eine Elterninfo kam nicht a
 
 ## 11. Offene Fragen
 
-**F1 (#2292): Dürfen Eltern ihr Kind weiterhin selbst für den Tag abmelden?**
-Die Schule will Krankmeldungen direkt lassen, aber spontane Tagesabmeldungen
-unterbinden, weil unklar bleibt, ob das Kind nach dem Unterricht oder nach der
-Randstunde geht. Das Issue schlägt eine dreistufige Einstellung vor, die nach
-Entscheidung E1 entfällt. Der restriktive Weg ohne Einstellung: Abholzeit-
-Änderung nur noch über eindeutige Auswahl aus den Betreuungsbausteinen (#2293),
-freie Uhrzeit als dritte Option, Krankmeldung unverändert direkt.
-**Entscheidung steht aus.**
+**F1 (#2292/#2293): entschieden am 2026-08-15.** Der Ablauf bleibt fachlich
+unverändert, siehe E5.
 
-**F2: Reihenfolge Backend und Frontend.** Der Tagesstatus (#2252) ist die
-Voraussetzung für die Tageskarte. Vorschlag: Backend-Endpunkt zuerst, danach
-die Oberfläche, damit die Karte nie eine Attrappe ist.
+**F2: Reihenfolge, entschieden am 2026-08-15.** Backend zuerst: der
+Tagesstatus (#2252) entsteht vollständig, bevor die Oberfläche darauf aufsetzt.
+Damit ist die Tageskarte nie eine Attrappe.
 
 **F3: Umfang der Feedback-Entfernung.** #2326 entfernt Feedback aus allen drei
 Portalen, dem Kiosk und dem Backend. In diesem Vorhaben entfernen wir nur den
@@ -425,7 +432,7 @@ Eltern-Anteil aus Navigation und Oberfläche; der vollständige Rückbau bleibt
 | 2 | Eltern-Hülle: eigene Navigation, Ablösung von Sidebar und Bottom-Nav | #2308 |
 | 3 | Startseite: Zu erledigen, Tageskarten, Zero State | #2308, #2250 |
 | 4 | Kinderprofil in vier Abschnitten, Entfernung Betreuungszeiten und AGs | #2302, #2303 |
-| 5 | Formulare und Dialoge: Buttons, Pflichtfelder, eindeutige Abholzeit | #2293, #2304 |
+| 5 | Formulare und Dialoge: Buttons, Pflichtfelder, Fehlertexte, Zeitfeld | — |
 | 6 | Familienkalender als eigene Elternansicht, Mehrsprachigkeit vervollständigt | — |
 | 7 | Benachrichtigungen: Erstlogin-Dialog, Home-Bildschirm, E-Mail-Rückfall | #2305, #2306, #2307, #2297 |
 
