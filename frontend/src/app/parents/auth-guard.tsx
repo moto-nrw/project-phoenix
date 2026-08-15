@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { parentPath } from "~/lib/parent-url";
 import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
-import { AppShell } from "~/components/dashboard/app-shell";
+import { ParentShell } from "~/components/parent/shell/parent-shell";
 import { Loading } from "~/components/ui/loading";
 import { ParentRealtimeBridge } from "~/components/parent/parent-realtime-bridge";
 import { ParentNotificationOnboarding } from "~/components/parent/parent-notification-onboarding";
@@ -85,10 +85,10 @@ export function ParentAuthGuard({
     <ParentShellProvider>
       <BreadcrumbProvider>
         <ParentRealtimeBridge />
-        <AppShell>
+        <ParentShell>
           {children}
           <ParentNotificationOnboarding accountId={session.user.id} />
-        </AppShell>
+        </ParentShell>
       </BreadcrumbProvider>
     </ParentShellProvider>
   );

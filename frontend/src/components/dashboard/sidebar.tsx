@@ -33,11 +33,6 @@ import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending"
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
-import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
-import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
-import { useParentFeedbackUnread } from "~/lib/hooks/use-parent-feedback-unread";
-import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
-import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -414,26 +409,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
-  // Unread OGS messages badge (parents portal) — only fetches in parent mode.
-  const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
-    mode === "parent",
-  );
-  // Unread announcements badge for the parents-portal Neuigkeiten item (#1669).
-  const { unreadCount: parentNewsUnread } = useParentNewsUnread(
-    mode === "parent",
-  );
-  // Only advertise Essensplan in the parents portal once a linked school runs
-  // a meal plan; otherwise the link leads to an empty/unavailable page.
-  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
-  // Only advertise Neuigkeiten in the parents portal once a linked school
-  // broadcasts announcements; otherwise the feed is empty (the backend excludes
-  // disabled tenants) and the link dead-ends. Distinct from the staff-side
-  // parentNewsEnabled below, which reads the tenant settings schema.
-  const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
-  // Unread product-team replies on the guardian's feedback board (#1678).
-  const { unreadCount: parentFeedbackUnread } = useParentFeedbackUnread(
-    mode === "parent",
-  );
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -1064,112 +1039,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 </div>
               </div>
             ))}
-          </nav>
-        </div>
-      </aside>
-    );
-  }
-
-  if (mode === "parent") {
-    // One item list instead of eight near-identical hand-written <Link> blocks
-    // with inline <svg><path d={...}> — every item differed only in href, icon
-    // and badge, so a change to the row markup had to be made eight times.
-    const parentNavItems: readonly (NavItem & {
-      badge?: number;
-      visible?: boolean;
-    })[] = [
-      {
-        href: "/parents",
-        label: tParentNav("start"),
-        icon: navigationIcons.home,
-        concept: "dashboard",
-      },
-      {
-        href: "/parents/children",
-        label: tParentNav("children"),
-        icon: navigationIcons.group,
-        concept: "children",
-      },
-      {
-        href: "/parents/messages",
-        label: tParentNav("messages"),
-        icon: navigationIcons.chat,
-        concept: "parentConversations",
-        badge: parentMessagesUnread,
-      },
-      {
-        href: "/parents/calendar",
-        label: tParentNav("calendar"),
-        icon: navigationIcons.calendar,
-        concept: "calendar",
-      },
-      {
-        href: "/parents/news",
-        label: tParentNav("news"),
-        icon: navigationIcons.newspaper,
-        concept: "news",
-        badge: parentNewsUnread,
-        visible: parentPortalNewsEnabled,
-      },
-      {
-        href: "/parents/meal-plan",
-        label: tParentNav("mealPlan"),
-        icon: navigationIcons.utensils,
-        concept: "mealPlan",
-        visible: parentMealPlanEnabled,
-      },
-      {
-        href: "/parents/enroll",
-        label: tParentNav("enroll"),
-        icon: navigationIcons.enrollments,
-        concept: "enrollments",
-      },
-    ];
-
-    return (
-      <aside
-        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
-      >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          <nav className="flex-1 p-3 lg:p-4 xl:p-3">
-            {parentNavItems
-              .filter((item) => item.visible !== false)
-              .map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={getLinkClasses(item.href)}
-                >
-                  {renderNavIcon(item)}
-                  <span>{item.label}</span>
-                  {item.badge !== undefined && (
-                    <UnreadBadge count={item.badge} className="ml-auto" />
-                  )}
-                </Link>
-              ))}
-          </nav>
-
-          {/* Bottom-pinned, like the staff sidebar's Feedback item: this is a
-              channel to the moto product team, not a daily-use area, so it must
-              not compete with the child's own pages above. */}
-          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-            <Link
-              href="/parents/feedback"
-              className={getLinkClasses("/parents/feedback")}
-            >
-              {renderNavIcon({
-                href: "/parents/feedback",
-                label: tParentNav("feedback"),
-                icon: navigationIcons.feedback,
-                concept: "feedback",
-              })}
-              <span>{tParentNav("feedback")}</span>
-              <UnreadBadge
-                count={parentFeedbackUnread}
-                tone="feedback"
-                className="ml-auto"
-              />
-            </Link>
           </nav>
         </div>
       </aside>

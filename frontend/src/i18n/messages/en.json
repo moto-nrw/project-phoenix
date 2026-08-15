@@ -47,7 +47,6 @@
   "parentNav": {
     "start": "Home",
     "children": "Children",
-    "childrenShort": "Children",
     "mealPlan": "Meal plan",
     "comingSoon": "Coming soon",
     "calendar": "Calendar",

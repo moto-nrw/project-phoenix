@@ -47,7 +47,6 @@
   "parentNav": {
     "start": "Главная",
     "children": "Дети",
-    "childrenShort": "Дети",
     "mealPlan": "Меню питания",
     "comingSoon": "Скоро в родительском портале",
     "calendar": "Календарь",

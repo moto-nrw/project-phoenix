@@ -1015,53 +1015,6 @@ describe("MobileBottomNav", () => {
     });
   });
 
-  describe("parent mode navigation", () => {
-    beforeEach(() => {
-      mockUseShellAuth.mockReturnValue({
-        user: { name: "Parent", email: "parent@example.com", roles: [] },
-        profile: { firstName: "Parent" },
-        status: "authenticated",
-        isSessionExpired: false,
-        logout: vi.fn(),
-        mode: "parent",
-        homeUrl: "/parents",
-
-        profileUrl: "/parents/profile",
-      });
-      mockUsePathname.mockReturnValue("/parents/calendar");
-    });
-
-    it("keeps the parents calendar entry labelled 'Kalender'", () => {
-      // Bewusst NICHT umbenannt: der Eltern-Eintrag kommt aus dem eigenen
-      // Übersetzungsschlüssel parentNav.calendar. Nur der Staff-Eintrag auf
-      // /calendar heißt jetzt "Mein Kalender".
-      render(<MobileBottomNav />);
-
-      // Haupteinträge tragen ihr Label immer als aria-label (sichtbar nur,
-      // wenn aktiv), deshalb per Rolle+Name gesucht.
-      expect(screen.getByRole("link", { name: "Kalender" })).toHaveAttribute(
-        "href",
-        "/parents/calendar",
-      );
-      expect(
-        screen.queryByRole("link", { name: "Mein Kalender" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("keeps messages in the primary parent navigation", () => {
-      render(<MobileBottomNav />);
-
-      expect(screen.getByRole("link", { name: "Nachrichten" })).toHaveAttribute(
-        "href",
-        "/parents/messages",
-      );
-      expect(screen.getByText("Nachrichten")).toBeVisible();
-      expect(screen.getByRole("button", { name: "Mehr" })).toHaveTextContent(
-        "Mehr",
-      );
-    });
-  });
-
   describe("Icon component", () => {
     it("renders SVG icons correctly", () => {
       render(<MobileBottomNav />);

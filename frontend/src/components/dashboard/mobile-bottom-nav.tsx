@@ -12,7 +12,6 @@ import React, {
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
@@ -25,8 +24,6 @@ import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
-import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
-import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useNFCEnabled,
@@ -311,87 +308,6 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
   },
 ];
 
-// `tKey` is the parentNav catalog key; the German `label` is the fallback used
-// only when rendered outside an intl context. Mapping on a stable key (not the
-// German label or href, which are "#" for coming-soon items) keeps the
-// translation correct even if the fallback wording changes.
-const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
-  {
-    href: "/parents",
-    label: "Start",
-    tKey: "start",
-    iconKey: "home",
-    concept: "dashboard",
-    alwaysShow: true,
-  },
-  {
-    href: "/parents/children",
-    label: "Meine Kinder",
-    tKey: "children",
-    iconKey: "group",
-    concept: "children",
-    alwaysShow: true,
-  },
-  {
-    href: "/parents/messages",
-    label: "Nachrichten",
-    tKey: "messages",
-    iconKey: "chat",
-    concept: "parentConversations",
-    alwaysShow: true,
-  },
-  {
-    href: "/parents/calendar",
-    label: "Kalender",
-    tKey: "calendar",
-    iconKey: "calendar",
-    concept: "calendar",
-    alwaysShow: true,
-  },
-];
-
-const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
-  tKey: string;
-})[] = [
-  // Neuigkeiten — only shown once a linked school broadcasts announcements
-  // (gated via useParentNewsEnabled in the parent display filter below).
-  {
-    href: "/parents/news",
-    label: "Neuigkeiten",
-    tKey: "news",
-    iconKey: "newspaper",
-    concept: "news",
-  },
-  // Essensplan — only shown once a linked school runs a meal plan (gated via
-  // useParentMealPlanEnabled in the parent display filter below).
-  {
-    href: "/parents/meal-plan",
-    label: "Essensplan",
-    tKey: "mealPlan",
-    iconKey: "utensils",
-    concept: "mealPlan",
-  },
-  // Feedback ans Produktteam (#1678) — last of the real entries, mirroring the
-  // desktop sidebar where it sits pinned below the daily-use areas. It is a
-  // channel to moto, not to the school, so no per-school gate applies.
-  {
-    href: "/parents/feedback",
-    label: "Feedback",
-    tKey: "feedback",
-    iconKey: "feedback",
-    concept: "feedback",
-    alwaysShow: true,
-  },
-  {
-    href: "/parents/enroll",
-    label: "Neue Anmeldung",
-    tKey: "enroll",
-    iconKey: "enrollments",
-    concept: "enrollments",
-    alwaysShow: true,
-  },
-];
-
 const PLANNING_ICON_KEYS: Record<
   PlanningPageHref,
   keyof typeof navigationIcons
@@ -560,7 +476,6 @@ interface MobileBottomNavProps {
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
-  const tParentNav = useTranslations("parentNav");
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -675,39 +590,18 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       })),
     [],
   );
-  const parentMainItems = useMemo(
-    () =>
-      PARENT_MAIN_ITEMS.map((item) => ({
-        ...item,
-        label:
-          item.href === "/parents/children"
-            ? tParentNav("childrenShort")
-            : tParentNav(item.tKey),
-      })),
-    [tParentNav],
-  );
-  const parentAdditionalItems = useMemo(
-    () =>
-      PARENT_ADDITIONAL_ITEMS.map((item) => ({
-        ...item,
-        label: tParentNav(item.tKey),
-      })),
-    [tParentNav],
-  );
   // Reines Lehrkraft-Konto (#1772): geteiltes Prädikat aus auth-utils.
   const lehrkraftOnly = isLehrkraftOnly(session);
   const baseMain =
-    mode === "parent"
-      ? parentMainItems
-      : mode === "operator"
-        ? resolvedOperatorMainItems
-        : lehrkraftOnly
-          ? LEHRKRAFT_MAIN_ITEMS
-          : isCaregiver(session)
-            ? STAFF_MAIN_ITEMS
-            : hasRole(session, "admin")
-              ? ADMIN_MAIN_ITEMS
-              : STAFF_MAIN_ITEMS;
+    mode === "operator"
+      ? resolvedOperatorMainItems
+      : lehrkraftOnly
+        ? LEHRKRAFT_MAIN_ITEMS
+        : isCaregiver(session)
+          ? STAFF_MAIN_ITEMS
+          : hasRole(session, "admin")
+            ? ADMIN_MAIN_ITEMS
+            : STAFF_MAIN_ITEMS;
   // Admins with supervision overview: inject "Aufsicht" tab dynamically.
   // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
   // than just isSupervising so a synthetic Schulhof entry does not surface
@@ -743,12 +637,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
-  // Only advertise Essensplan in the parents portal once a linked school runs
-  // a meal plan; otherwise the overflow link leads to an empty page.
-  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
-  // Same gate for Neuigkeiten: hidden until a linked school broadcasts
-  // announcements, otherwise the overflow link dead-ends on an empty feed.
-  const parentNewsEnabled = useParentNewsEnabled(mode === "parent");
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
@@ -826,16 +714,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     displayMainItems.filter((i) => i.href !== "#").map((i) => i.href),
   );
   const displayAdditionalItems =
-    mode === "parent"
-      ? parentAdditionalItems.filter(
-          (i) =>
-            !mainHrefs.has(i.href) &&
-            (i.href !== "/parents/meal-plan" || parentMealPlanEnabled) &&
-            (i.href !== "/parents/news" || parentNewsEnabled),
-        )
-      : mode === "operator"
-        ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
-        : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
+    mode === "operator"
+      ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
+      : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some((item) =>
@@ -901,8 +782,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     return () => clearTimeout(timer);
   }, [displayMainItems, isActiveRoute]);
 
-  const isParentBottomNav = mode === "parent";
-  const moreLabel = isParentBottomNav ? tParentNav("more") : "Mehr";
+  const moreLabel = "Mehr";
 
   return (
     <>
@@ -991,25 +871,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         className={`fixed right-0 bottom-0 left-0 z-30 translate-y-0 transition-transform duration-150 ease-in-out lg:hidden ${className} `}
       >
         {/* Pill container with margins */}
-        <div
-          className={
-            isParentBottomNav ? "px-2 pb-3 sm:px-4 sm:pb-4" : "px-4 pb-4"
-          }
-        >
-          <div
-            className={`border border-gray-200/50 bg-white/95 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md ${
-              isParentBottomNav
-                ? "rounded-2xl px-1 py-1.5 sm:rounded-full sm:px-2 sm:py-2"
-                : "rounded-full px-3 py-2"
-            }`}
-          >
-            <div
-              className={`relative flex ${
-                isParentBottomNav
-                  ? "items-stretch"
-                  : "items-center justify-around gap-1"
-              }`}
-            >
+        <div className="px-4 pb-4">
+          <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
+            <div className="relative flex items-center justify-around gap-1">
               {/* Sliding background indicator */}
               {indicatorVisible && (
                 <div
@@ -1040,11 +904,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       }}
                       type="button"
                       disabled
-                      className={`relative z-10 flex cursor-not-allowed items-center justify-center text-gray-300 transition-colors duration-200 ${
-                        isParentBottomNav
-                          ? "min-h-12 min-w-0 flex-1 flex-col gap-0.5 rounded-xl px-1 py-1.5 sm:rounded-full"
-                          : "min-h-[44px] gap-2.5 rounded-full px-3 py-2.5"
-                      }`}
+                      className="relative z-10 flex min-h-[44px] cursor-not-allowed items-center justify-center gap-2.5 rounded-full px-3 py-2.5 text-gray-300 transition-colors duration-200"
                       aria-label={`${item.label} bald verfügbar`}
                     >
                       <MobileNavIcon
@@ -1064,11 +924,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       navRefs.current[index] = el;
                     }}
                     aria-label={item.label}
-                    className={`relative z-10 flex items-center justify-center transition-colors duration-200 ${
-                      isParentBottomNav
-                        ? "min-h-12 min-w-0 flex-1 flex-col gap-0.5 rounded-xl px-1 py-1.5 sm:rounded-full"
-                        : "min-h-[44px] gap-2.5 rounded-full px-3 py-2.5"
-                    } ${
+                    className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                       isActive
                         ? "bg-gray-100 text-gray-900"
                         : "text-gray-400 hover:text-gray-600"
@@ -1081,14 +937,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       className="h-5 w-5 flex-shrink-0"
                     />
 
-                    {(isParentBottomNav || isActive) && (
-                      <span
-                        className={
-                          isParentBottomNav
-                            ? "max-w-full truncate text-[10px] leading-tight font-semibold"
-                            : "text-sm font-semibold whitespace-nowrap"
-                        }
-                      >
+                    {isActive && (
+                      <span className="text-sm font-semibold whitespace-nowrap">
                         {item.label}
                       </span>
                     )}
@@ -1103,11 +953,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   type="button"
                   onClick={() => setIsOverflowMenuOpen(true)}
                   aria-label={moreLabel}
-                  className={`relative z-10 flex items-center justify-center transition-colors duration-200 ${
-                    isParentBottomNav
-                      ? "min-h-12 min-w-0 flex-1 flex-col gap-0.5 rounded-xl px-1 py-1.5 sm:rounded-full"
-                      : "min-h-[44px] gap-2.5 rounded-full px-3 py-2.5"
-                  } ${
+                  className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
                       ? "bg-gray-100 text-gray-900"
                       : "text-gray-400 hover:text-gray-600"
@@ -1119,16 +965,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     className="h-5 w-5 flex-shrink-0"
                   />
 
-                  {(isParentBottomNav ||
-                    isOverflowMenuOpen ||
-                    isAnyAdditionalNavActive) && (
-                    <span
-                      className={
-                        isParentBottomNav
-                          ? "max-w-full truncate text-[10px] leading-tight font-semibold"
-                          : "text-sm font-semibold whitespace-nowrap"
-                      }
-                    >
+                  {(isOverflowMenuOpen || isAnyAdditionalNavActive) && (
+                    <span className="text-sm font-semibold whitespace-nowrap">
                       {moreLabel}
                     </span>
                   )}

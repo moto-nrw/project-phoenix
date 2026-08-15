@@ -192,35 +192,6 @@ describe("Sidebar", () => {
       expect(nav?.closest("aside")).toBeInTheDocument();
     });
 
-    it("keeps new enrollment reachable in the parent desktop sidebar", () => {
-      mockUseShellAuth.mockReturnValue({
-        user: { name: "Parent", email: "parent@example.com", roles: [] },
-        profile: { firstName: "Parent" },
-        status: "authenticated",
-        isSessionExpired: false,
-        logout: vi.fn(),
-        mode: "parent",
-        homeUrl: "/parents",
-        profileUrl: "/parents/profile",
-      });
-      mockUsePathname.mockReturnValue("/parents/children");
-
-      render(<Sidebar />);
-
-      expect(screen.getByText("Neue Anmeldung").closest("a")).toHaveAttribute(
-        "href",
-        "/parents/enroll",
-      );
-      expect(
-        screen.queryByText("Bald im Elternportal"),
-      ).not.toBeInTheDocument();
-      expect(screen.queryByText("Kontaktdaten")).not.toBeInTheDocument();
-      const childrenLink = screen.getByText("Meine Kinder").closest("a");
-      expect(childrenLink).toHaveClass("bg-gray-100");
-      expect(
-        childrenLink?.querySelector('[data-moto-duotone-tone="greenVivid"]'),
-      ).toBeInTheDocument();
-    });
   });
 
   describe("admin navigation", () => {
