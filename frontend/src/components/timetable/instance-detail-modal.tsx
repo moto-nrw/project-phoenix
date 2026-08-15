@@ -42,6 +42,8 @@ import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
+import { useSWRAuth } from "~/lib/swr";
+import { timetableService } from "~/lib/timetable-api";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -142,6 +144,20 @@ interface InstanceDetailModalProps {
    * Defaults false so a missing permission prop never exposes mutation chrome.
    */
   canManageStaffPool?: boolean;
+  /**
+   * Leseansicht (#2283): false blendet sämtliche Termin-Aktionen im Footer
+   * aus (Lebenszyklus, Vertretungs-Link, Löschen). Default true, damit
+   * bestehende Admin-Aufrufer unverändert bleiben; die Callback-gebundenen
+   * Aktionen (Bearbeiten, Wiederholen, Anwesenheit) steuert weiterhin der
+   * Aufrufer über die Props.
+   */
+  canManage?: boolean;
+  /**
+   * Leseansicht (#2283): true lädt die Kindernamen über den schmalen
+   * Teilnehmer-Endpunkt (schedules:read) statt über die users:read-gegatete
+   * studentNames-Map des Aufrufers.
+   */
+  fetchParticipantNames?: boolean;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -367,6 +383,26 @@ function AssignedStaffSection({
   );
 }
 
+/**
+ * Leseansicht (#2283): lädt die Kindernamen pro Termin über den schmalen
+ * Teilnehmer-Endpunkt (schedules:read). Eigene Komponente statt Hook im
+ * Modal, damit der Session-abhängige SWR-Aufruf nur gemountet wird, wenn
+ * die Leseansicht ihn wirklich braucht; gefilterte Kinder fallen in der
+ * Anzeige auf "Kind #ID" zurück.
+ */
+function ParticipantNamesLoader({
+  instanceId,
+  children,
+}: Readonly<{
+  instanceId: string;
+  children: (names: Map<string, string>) => React.ReactNode;
+}>) {
+  const { data } = useSWRAuth(`timetable-participants-${instanceId}`, () =>
+    timetableService.getInstanceParticipants(instanceId),
+  );
+  return <>{children(data ?? EMPTY_STUDENT_NAMES)}</>;
+}
+
 function InstanceStudentsSection({
   groupedStudents,
   handleAttendancePatch,
@@ -462,6 +498,8 @@ export function InstanceDetailModal({
   suspended = false,
   onOpenPool,
   canManageStaffPool = false,
+  canManage = true,
+  fetchParticipantNames = false,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -649,7 +687,8 @@ export function InstanceDetailModal({
                   (offene Lücke oder eingetragene Abwesenheit) —
                   docs/planung-redesign/docs/07-vertretung.md Abschnitt 6. Nutzt
                   nur bereits geladene Instanzdaten, kein zusätzlicher Abruf. */}
-        {(instance.status === "planned" || instance.status === "active") &&
+        {canManage &&
+          (instance.status === "planned" || instance.status === "active") &&
           (instance.staff.some((row) => row.isAbsent) ||
             (instance.requiredStaffCount > 0 &&
               instance.assignedStaffCount < instance.requiredStaffCount)) && (
@@ -693,7 +732,7 @@ export function InstanceDetailModal({
               </span>
             </Button>
           )}
-        {instance.status === "active" && attendanceWebEnabled && (
+        {canManage && instance.status === "active" && attendanceWebEnabled && (
           <Button
             variant="primary"
             size="md"
@@ -709,23 +748,24 @@ export function InstanceDetailModal({
             </span>
           </Button>
         )}
-        {(instance.status === "planned" ||
-          (instance.status === "active" && attendanceWebEnabled)) && (
-          <Button
-            variant="outline_danger"
-            size="md"
-            type="button"
-            onClick={() => setPendingConfirm("cancel")}
-            isLoading={pendingAction === "cancel"}
-            loadingText="Sage ab …"
-            disabled={pendingAction !== null}
-          >
-            <span className="inline-flex items-center gap-2">
-              <CircleX className="h-4 w-4" />
-              Absagen
-            </span>
-          </Button>
-        )}
+        {canManage &&
+          (instance.status === "planned" ||
+            (instance.status === "active" && attendanceWebEnabled)) && (
+            <Button
+              variant="outline_danger"
+              size="md"
+              type="button"
+              onClick={() => setPendingConfirm("cancel")}
+              isLoading={pendingAction === "cancel"}
+              loadingText="Sage ab …"
+              disabled={pendingAction !== null}
+            >
+              <span className="inline-flex items-center gap-2">
+                <CircleX className="h-4 w-4" />
+                Absagen
+              </span>
+            </Button>
+          )}
         {instance.status === "planned" && onDeleteCancelled && (
           <Button
             variant="outline_danger"
@@ -748,7 +788,7 @@ export function InstanceDetailModal({
               <CheckCircle2 className="h-4 w-4" />
               Diese Aktivität ist bereits abgeschlossen.
             </span>
-            {instance.canReopen && (
+            {canManage && instance.canReopen && (
               <Button
                 variant="outline"
                 size="md"
@@ -922,15 +962,31 @@ export function InstanceDetailModal({
             canManageStaffPool={canManageStaffPool}
           />
 
-          <InstanceStudentsSection
-            groupedStudents={groupedStudents}
-            handleAttendancePatch={handleAttendancePatch}
-            instance={instance}
-            onAttendancePatch={attendancePatch}
-            pendingStudentId={pendingStudentId}
-            studentNames={studentNames}
-            students={students}
-          />
+          {fetchParticipantNames ? (
+            <ParticipantNamesLoader instanceId={instance.id}>
+              {(participantNames) => (
+                <InstanceStudentsSection
+                  groupedStudents={groupedStudents}
+                  handleAttendancePatch={handleAttendancePatch}
+                  instance={instance}
+                  onAttendancePatch={attendancePatch}
+                  pendingStudentId={pendingStudentId}
+                  studentNames={participantNames}
+                  students={students}
+                />
+              )}
+            </ParticipantNamesLoader>
+          ) : (
+            <InstanceStudentsSection
+              groupedStudents={groupedStudents}
+              handleAttendancePatch={handleAttendancePatch}
+              instance={instance}
+              onAttendancePatch={attendancePatch}
+              pendingStudentId={pendingStudentId}
+              studentNames={studentNames}
+              students={students}
+            />
+          )}
         </div>
       </Modal>
       {pendingConfirm && (

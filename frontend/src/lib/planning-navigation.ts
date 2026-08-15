@@ -34,6 +34,10 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Betreuungsplan",
     legacyPrefixes: ["/timetables"],
     showInMobileNav: true,
+    // Leseansicht (#2283): jede Mitarbeiterin mit schedules:read sieht den
+    // Wochenplan; Bearbeiten bleibt über schedules:manage den Admins
+    // vorbehalten (die Seite blendet Editier-Kontrollen aus).
+    nonAdminPermission: "schedules:read",
   },
   {
     href: "/dienstplan",

@@ -353,6 +353,8 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     onRepeat,
     onAttendancePatch,
     canManageStaffPool,
+    canManage,
+    fetchParticipantNames,
   }: {
     instance: { id: string } | null;
     onClose: () => void;
@@ -373,11 +375,17 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
       body: { status: "present" },
     ) => Promise<void>;
     canManageStaffPool: boolean;
+    canManage?: boolean;
+    fetchParticipantNames?: boolean;
   }) =>
     instance ? (
       <div>
         <span data-testid="detail-can-manage-pool">
           {String(canManageStaffPool)}
+        </span>
+        <span data-testid="detail-can-manage">{String(canManage)}</span>
+        <span data-testid="detail-fetch-participants">
+          {String(fetchParticipantNames)}
         </span>
         <button type="button" onClick={onClose}>
           detail-close
@@ -762,7 +770,14 @@ describe("BetreuungsplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.setSystemTime(new Date("2026-05-06T12:00:00"));
-    mockUseSession.mockReturnValue({ status: "authenticated" });
+    // Leseansicht (#2283): Editier-Kontrollen hängen jetzt an
+    // schedules:manage, die Kinderliste an users:read. Die Bestands-Tests
+    // beschreiben Planer-Flows, also ist die Default-Session ein Admin;
+    // die Leseansicht hat eigene Tests weiter unten.
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:manage", "users:read"] } },
+    });
     mockTenantMutate.mockResolvedValue(undefined);
     mockMaterialize.mockResolvedValue({
       instancesCreated: 2,
@@ -875,6 +890,57 @@ describe("BetreuungsplanView", () => {
         name: "Betreuungsplan drucken oder exportieren",
       }),
     ).not.toBeInTheDocument();
+  });
+
+  // --- Leseansicht (#2283): schedules:read ohne schedules:manage ---
+
+  it("hides the add menu and shows the read-only badge without schedules:manage", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    expect(screen.queryByText("add-instance")).not.toBeInTheDocument();
+    expect(screen.getByText("Nur ansehen")).toBeInTheDocument();
+  });
+
+  it("does not bootstrap periods for read-only staff", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    setupSWR({ periods: [] });
+    render(<BetreuungsplanView />);
+
+    expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  it("skips the tenant student roster without users:read", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    expect(mockUseSWRAuth).not.toHaveBeenCalledWith(
+      "timetable-student-list",
+      expect.anything(),
+    );
+  });
+
+  it("passes read-only props to the detail modal", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "week-grid" }));
+    expect(screen.getByTestId("detail-can-manage")).toHaveTextContent("false");
+    expect(screen.getByTestId("detail-fetch-participants")).toHaveTextContent(
+      "true",
+    );
   });
 
   it("falls back to the week for an unknown view value", () => {
@@ -1452,9 +1518,11 @@ describe("BetreuungsplanView", () => {
   });
 
   it("passes the closing-day loading state to the event modal", () => {
+    // Der Termin-Editor öffnet sich nur noch für Planende (#2283); die
+    // Schließtage lädt der Hook weiterhin über schedules:read.
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
     });
     setupSWR({ closingDaysLoading: true });
     render(<BetreuungsplanView />);

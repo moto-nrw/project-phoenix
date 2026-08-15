@@ -41,6 +41,7 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
@@ -227,6 +228,10 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
+  // Leseansicht (#2283): ohne users:read darf die tenantweite Kinderliste
+  // nicht geladen werden (403) — Namen kommen dann pro Termin über den
+  // Teilnehmer-Endpunkt ins Detail-Modal.
+  const canReadStudentRoster = hasPermission(session, "users:read");
   const canManageCategories = hasPermission(
     session,
     "activities:manage_categories",
@@ -438,13 +443,17 @@ function TimetablesContent() {
     () => staffService.getAllStaff(),
   );
   const { data: studentData } = useSWRAuth(
-    status === "authenticated" ? "timetable-student-list" : null,
+    status === "authenticated" && canReadStudentRoster
+      ? "timetable-student-list"
+      : null,
     () => fetchStudents({ page_size: 500 }),
   );
   // Bedarfsquellen-Chip (06 §3.2): die Anmeldephasen für die clientseitige
   // Zuordnung.
   const { data: phasesData, error: phasesError } = useSWRAuth(
-    status === "authenticated" ? PHASES_SWR_KEY : null,
+    // Leseansicht (#2283): Anmeldephasen sind admin-gegated; ohne
+    // schedules:manage würde der Abruf nur 403-Rauschen erzeugen.
+    status === "authenticated" && canManageSchedules ? PHASES_SWR_KEY : null,
     () => listPhases(),
     { revalidateOnFocus: false },
   );
@@ -507,6 +516,9 @@ function TimetablesContent() {
     if (periodsLoading || periodsError || periods === undefined) return;
     if (periods.length > 0) return;
     if (settingsSchemaLoading || timetableDisabled) return;
+    // Leseansicht (#2283): ohne schedules:manage würde der Bootstrap ohnehin
+    // mit 403 abgewiesen — gar nicht erst versuchen.
+    if (!canManageSchedules) return;
     if (bootstrapAttemptedRef.current) return;
     bootstrapAttemptedRef.current = true;
     void calendarPeriodService
@@ -530,6 +542,7 @@ function TimetablesContent() {
         }
       });
   }, [
+    canManageSchedules,
     periods,
     periodsError,
     periodsLoading,
@@ -1172,21 +1185,26 @@ function TimetablesContent() {
   // Text, eine gerahmte Pille daneben wäre das dritte Formvokabular in einer
   // Zeile. Als Link bleibt sie unterstrichen bei Hover, sonst reiner Text.
   const originChipClassName = "border-transparent bg-transparent px-0";
-  const demandOriginChip = phasesError ? null : phasesData === undefined ? (
-    <OriginChip
-      label="Bedarf wird ermittelt …"
-      className={originChipClassName}
-    />
-  ) : demandOrigin.href ? (
-    <Link
-      href={tenantPath(demandOrigin.href)}
-      className="inline-flex hover:underline"
-    >
+  const demandOriginChip =
+    !canManageSchedules ? null : phasesError ? null : phasesData ===
+      undefined ? (
+      <OriginChip
+        label="Bedarf wird ermittelt …"
+        className={originChipClassName}
+      />
+    ) : demandOrigin.href ? (
+      <Link
+        href={tenantPath(demandOrigin.href)}
+        className="inline-flex hover:underline"
+      >
+        <OriginChip
+          label={demandOrigin.label}
+          className={originChipClassName}
+        />
+      </Link>
+    ) : (
       <OriginChip label={demandOrigin.label} className={originChipClassName} />
-    </Link>
-  ) : (
-    <OriginChip label={demandOrigin.label} className={originChipClassName} />
-  );
+    );
 
   // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der
   // Wochenansicht, weil nur das Wochenraster Zeilenhöhen kennt). Reiner
@@ -1298,10 +1316,20 @@ function TimetablesContent() {
                 </span>
               </Button>
             )}
-            <TimetableAddMenu
-              onAddInstance={openEventCreate}
-              onAddSeries={openSeriesCreate}
-            />
+            {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
+                das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
+            {canManageSchedules ? (
+              <TimetableAddMenu
+                onAddInstance={openEventCreate}
+                onAddSeries={openSeriesCreate}
+              />
+            ) : (
+              <StatusBadge
+                label="Nur ansehen"
+                tone="gray"
+                title="Du kannst den Betreuungsplan ansehen. Ändern können ihn nur Admins."
+              />
+            )}
           </>
         }
       >
@@ -1315,6 +1343,7 @@ function TimetablesContent() {
             onCreate={openPeriodCreate}
             onEdit={openPeriodEdit}
             onSelect={jumpToPeriod}
+            canManage={canManageSchedules}
           />
         )}
         {demandOriginChip}
@@ -1340,14 +1369,21 @@ function TimetablesContent() {
             Noch kein Planungszeitraum
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-            Lege einen Planungszeitraum an, um Angebote und Termine im
-            Betreuungsplan zu planen.
+            {canManageSchedules
+              ? "Lege einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
+              : "Es gibt noch keinen Planungszeitraum. Ein Admin muss ihn zuerst anlegen."}
           </p>
-          <div className="mt-4 flex justify-center">
-            <Button type="button" variant="primary" onClick={openPeriodCreate}>
-              Planungszeitraum anlegen
-            </Button>
-          </div>
+          {canManageSchedules && (
+            <div className="mt-4 flex justify-center">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={openPeriodCreate}
+              >
+                Planungszeitraum anlegen
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -1399,7 +1435,7 @@ function TimetablesContent() {
                   instances={visibleInstances}
                   selectedId={selectedInstanceId}
                   onInstanceClick={handleSelectInstance}
-                  onSlotClick={openQuickCreate}
+                  onSlotClick={canManageSchedules ? openQuickCreate : undefined}
                   gapInstanceIds={gapInstanceIds}
                   closingDays={closingDays}
                   todayISO={todayISO}
@@ -1413,9 +1449,13 @@ function TimetablesContent() {
                           title: weekHasFullPeriodCoverage
                             ? "Diese Woche hat noch keine Termine"
                             : "Diese Woche hat keinen Planungszeitraum",
-                          description: weekHasFullPeriodCoverage
-                            ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
-                            : "Lege zuerst einen aktiven Planungszeitraum an.",
+                          // Leseansicht (#2283): keine Handlungsaufforderung
+                          // an Leute, die nicht planen dürfen.
+                          description: canManageSchedules
+                            ? weekHasFullPeriodCoverage
+                              ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
+                              : "Lege zuerst einen aktiven Planungszeitraum an."
+                            : "Für diese Woche ist noch nichts geplant.",
                         }
                       : undefined
                   }
@@ -1431,6 +1471,7 @@ function TimetablesContent() {
               ) : (
                 <TemplateList
                   templates={templates}
+                  canManage={canManageSchedules}
                   onCreate={openSeriesCreate}
                   onEdit={(template) => {
                     setEditingInstance(null);
@@ -1452,32 +1493,48 @@ function TimetablesContent() {
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
-        onDeleteCancelled={handleDeleteCancelledInstance}
-        onDeleteFollowing={handleDeleteFollowingInstances}
-        onEdit={(instance) => {
-          setEditingInstance(instance);
-          setEditingTemplate(null);
-          setConvertingInstance(null);
-          setEventDefaultRepeat("none");
-          setEventModalOpen(true);
-        }}
-        onRepeat={(instance) => {
-          if (assignedPeriods.length === 0) {
-            toast.warning(
-              "Lege zuerst einen Planungszeitraum für diese Woche an.",
-            );
-            openPeriodCreate();
-            return;
-          }
-          setEditingInstance(null);
-          setEditingTemplate(null);
-          setConvertingInstance(instance);
-          setEventDefaultRepeat("weekly");
-          setEventModalOpen(true);
-        }}
+        canManage={canManageSchedules}
+        fetchParticipantNames={!canReadStudentRoster}
+        onDeleteCancelled={
+          canManageSchedules ? handleDeleteCancelledInstance : undefined
+        }
+        onDeleteFollowing={
+          canManageSchedules ? handleDeleteFollowingInstances : undefined
+        }
+        onEdit={
+          canManageSchedules
+            ? (instance) => {
+                setEditingInstance(instance);
+                setEditingTemplate(null);
+                setConvertingInstance(null);
+                setEventDefaultRepeat("none");
+                setEventModalOpen(true);
+              }
+            : undefined
+        }
+        onRepeat={
+          canManageSchedules
+            ? (instance) => {
+                if (assignedPeriods.length === 0) {
+                  toast.warning(
+                    "Lege zuerst einen Planungszeitraum für diese Woche an.",
+                  );
+                  openPeriodCreate();
+                  return;
+                }
+                setEditingInstance(null);
+                setEditingTemplate(null);
+                setConvertingInstance(instance);
+                setEventDefaultRepeat("weekly");
+                setEventModalOpen(true);
+              }
+            : undefined
+        }
         staffNames={staffNames}
         studentNames={studentNames}
-        onAttendancePatch={handleAttendancePatch}
+        onAttendancePatch={
+          canManageSchedules ? handleAttendancePatch : undefined
+        }
         editDeferred={false}
         suspended={eventModalOpen || poolInstance !== null}
         onOpenPool={setPoolInstance}

@@ -1845,11 +1845,43 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Planung")).toBeInTheDocument();
+      // Nicht-Admins bekommen flache Einträge statt des Akkordeons (#2283) —
+      // der Bereichs-Header "Planung" existiert für sie nicht mehr.
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.getByText("Abrechnung").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/payroll",
       );
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+    });
+
+    // Leseansicht (#2283): schedules:read schaltet den Betreuungsplan als
+    // flachen Eintrag frei; ohne die Permission bleibt er verborgen.
+    it("shows Betreuungsplan as a flat entry for non-admins with schedules:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      const link = screen.getByText("Betreuungsplan").closest("a");
+      expect(link).toHaveAttribute("href", "/test-tenant/betreuungsplan");
+      // Flacher Eintrag: keine Sub-Item-Einrückung, eigenes Icon.
+      expect(link).not.toHaveClass("pl-10");
+      expect(screen.queryByText("Abrechnung")).not.toBeInTheDocument();
+    });
+
+    it("hides Betreuungsplan for non-admins without schedules:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockReturnValue(false);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
   });

@@ -73,6 +73,15 @@ Kindes, die allen dafür berechtigten Sorgeberechtigten angezeigt werden.
 sind nur für die einreichende Person und die OGS sichtbar, solange die Person
 sie nicht ausdrücklich mit anderen Sorgeberechtigten teilt.
 
+## Leseansicht (Betreuungsplan)
+
+Die **Leseansicht** ist der Betreuungsplan, wie ihn Teammitglieder ohne
+Admin-Rechte sehen: der vollständige Wochenplan der ganzen Schule (wer macht
+was, wann, wo, mit wem), aber ohne jede Editier-Kontrolle. Editier-Elemente
+werden ausgeblendet, nicht deaktiviert; ein Hinweis im Seitenkopf benennt die
+Ansicht. Kindernamen erscheinen darin nur in der Teilnehmerliste eines
+Termin-Details, nicht in Planungswerkzeugen wie Konflikt-Warnungen.
+
 ## Familienschutz
 
 Der **Familienschutz** ist eine von der OGS verwaltete Regel für ein Kind, die

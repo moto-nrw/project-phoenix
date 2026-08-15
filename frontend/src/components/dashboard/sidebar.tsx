@@ -553,9 +553,18 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // geschützt.
   const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
     if (!userIsAdmin) {
+      if (
+        page.nonAdminPermission === undefined ||
+        !hasPermission(session, page.nonAdminPermission)
+      ) {
+        return false;
+      }
+      // Gleiches timetable.enabled-Gate wie für Admins: die Leseansicht
+      // (#2283) darf bei abgeschaltetem Planungsbereich nicht auftauchen.
       return (
-        page.nonAdminPermission !== undefined &&
-        hasPermission(session, page.nonAdminPermission)
+        timetableEnabled ||
+        page.href === "/calendar-periods" ||
+        page.href === "/payroll"
       );
     }
     return (
@@ -1485,11 +1494,34 @@ function SidebarContent({ className = "" }: SidebarProps) {
           )}
 
           {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
-              Vertretung und Kalenderzeiträume für Admins. Berechtigte
-              Nicht-Admins behalten Abrechnung als einzigen Unterpunkt. Bei
-              explizit ausgeschaltetem timetable.enabled bleiben für Admins
-              Kalenderzeiträume und Abrechnung übrig. */}
-          {planningSubPages.length > 0 && (
+              Vertretung und Kalenderzeiträume für Admins. Bei explizit
+              ausgeschaltetem timetable.enabled bleiben für Admins
+              Kalenderzeiträume und Abrechnung übrig.
+
+              Nicht-Admins (#2283): flache Einträge statt Akkordeon — meist
+              nur die Betreuungsplan-Leseansicht; ein Ein-Punkt-Akkordeon
+              wäre reine Chrome. */}
+          {planningSubPages.length > 0 &&
+            !userIsAdmin &&
+            planningSubPages.map((page) => (
+              <Link
+                key={page.href}
+                // Aktiv-Zustand über den rohen Pfad (pathname trägt keinen
+                // Tenant-Präfix), Navigation über tenantPath — dieselbe
+                // Trennung wie bei den Akkordeon-Sub-Items.
+                href={tenantPath(page.href)}
+                className={getLinkClasses(page.href)}
+              >
+                {renderNavIcon({
+                  href: page.href,
+                  label: page.label,
+                  icon: navigationIcons.betreuungsplan,
+                  concept: "carePlan",
+                })}
+                <span>{page.label}</span>
+              </Link>
+            ))}
+          {planningSubPages.length > 0 && userIsAdmin && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}
               concept="carePlan"

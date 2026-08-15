@@ -53,6 +53,11 @@ interface PeriodSwitcherDropdownProps {
   onEdit: (period: CalendarPeriod) => void;
   /** Jump the calendar view to the given period's start. */
   onSelect: (period: CalendarPeriod) => void;
+  /**
+   * Leseansicht (#2283): false blendet Anlegen/Bearbeiten und den
+   * Verwaltungslink aus — der Umschalter bleibt reine Navigation.
+   */
+  canManage?: boolean;
 }
 
 interface PeriodGroup {
@@ -69,6 +74,7 @@ export function PeriodSwitcherDropdown({
   onCreate,
   onEdit,
   onSelect,
+  canManage = true,
 }: PeriodSwitcherDropdownProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -143,6 +149,7 @@ export function PeriodSwitcherDropdown({
 
   // Empty state: no periods exist at all.
   if (periods.length === 0) {
+    if (!canManage) return null;
     return (
       <Button
         type="button"
@@ -290,18 +297,20 @@ export function PeriodSwitcherDropdown({
                           />
                         )}
                       </button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="compact"
-                        onClick={() => {
-                          setOpen(false);
-                          onEdit(p);
-                        }}
-                        aria-label={`${p.name} bearbeiten`}
-                      >
-                        Bearbeiten
-                      </Button>
+                      {canManage && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="compact"
+                          onClick={() => {
+                            setOpen(false);
+                            onEdit(p);
+                          }}
+                          aria-label={`${p.name} bearbeiten`}
+                        >
+                          Bearbeiten
+                        </Button>
+                      )}
                     </div>
                   );
                 })}
@@ -310,30 +319,34 @@ export function PeriodSwitcherDropdown({
           </div>
 
           {/* Footer: create new */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => {
-              setOpen(false);
-              onCreate();
-            }}
-            className="w-full justify-start rounded-none border-t border-gray-100 px-4"
-          >
-            <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
-          </Button>
+          {canManage && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => {
+                setOpen(false);
+                onCreate();
+              }}
+              className="w-full justify-start rounded-none border-t border-gray-100 px-4"
+            >
+              <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
+            </Button>
+          )}
           {/* Verwaltungslink: /calendar-periods ist auch als Unterpunkt im
               Planung-Bereich der Sidebar erreichbar (#1946); der Chip bleibt
               als direkter Weg aus dem Planungskontext. tenantPath hält den
               Link im Path-Routing-Modus innerhalb des Tenant-Segments. */}
-          <Link
-            href={tenantPath("/calendar-periods")}
-            onClick={() => setOpen(false)}
-            className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-          >
-            <SlidersHorizontal className="h-4 w-4" aria-hidden /> Zeiträume
-            verwalten
-          </Link>
+          {canManage && (
+            <Link
+              href={tenantPath("/calendar-periods")}
+              onClick={() => setOpen(false)}
+              className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            >
+              <SlidersHorizontal className="h-4 w-4" aria-hidden /> Zeiträume
+              verwalten
+            </Link>
+          )}
         </div>
       )}
     </div>

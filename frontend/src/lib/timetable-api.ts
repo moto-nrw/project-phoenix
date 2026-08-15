@@ -868,6 +868,31 @@ class TimetableService {
   }
 
   /**
+   * GET /api/timetable/instances/{id}/participants — Teilnehmer-Namen eines
+   * Blocks für die Leseansicht (#2283). schedules:read genügt; das Backend
+   * filtert pro Kind über gdpr.student_data_scope, gefilterte Kinder fehlen
+   * still in der Liste.
+   */
+  async getInstanceParticipants(
+    instanceId: string,
+  ): Promise<Map<string, string>> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/participants`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    const raw = await unwrap<{
+      participants: { student_id: number; display_name: string }[];
+    }>(response);
+    return new Map(
+      raw.participants.map((p) => [p.student_id.toString(), p.display_name]),
+    );
+  }
+
+  /**
    * POST /api/timetable/instances/{id}/move-staff — atomarer Personal-Move
    * (#1884): Entnahme aus dem Quellblock und Zuordnung zum Zielblock in
    * EINEM Save; ohne sourceInstanceId wird eine freie Person zugewiesen.

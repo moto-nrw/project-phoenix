@@ -1029,8 +1029,9 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Betreuungsplan",
         icon: CalendarDays,
         summary:
-          "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
+          "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus. Planen können nur Admins; alle anderen Teammitglieder sehen den Plan zum Nachschauen.",
         steps: [
+          "Teammitglieder ohne Admin-Rechte öffnen den `Betreuungsplan` direkt über die Seitenleiste. Oben steht `Nur ansehen`: Sie sehen die ganze Wochenplanung der Schule – wer macht was, wann, wo und mit welchen Kindern (Teilnehmerliste im Termin-Detail). Anlegen, Bearbeiten, Absagen und Löschen bleiben Admins vorbehalten.",
           "In der Seitenleiste den Bereich `Planung` aufklappen und `Betreuungsplan` öffnen. Oben zwischen den Ansichten `Woche`, `Monat` und `Serien` wechseln; die Wochenansicht zeigt Montag bis Freitag. Die Pfeile und `Heute` navigieren durch Woche oder Monat, die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
           "Der `Zeitraum`-Chip in der Kontextzeile zeigt den Planungszeitraum des sichtbaren Datums; ein Klick öffnet eine Liste zum Umspringen, `Zeiträume verwalten` führt zur Verwaltungsseite. Der Chip `Bedarf: …` daneben zeigt, welche Anmeldephase den Bedarf des Zeitraums liefert.",
           "Der Lücken-Chip in der Kontextzeile zählt offene Personal-Lücken des sichtbaren Zeitraums; ein Klick öffnet eine Sprungliste mit Uhrzeit, Titel und Soll/Ist je Lücke, die direkt zum betroffenen Termin springt.",

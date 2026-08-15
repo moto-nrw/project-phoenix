@@ -26,6 +26,8 @@ interface TemplateCardProps {
   onEdit: (template: TimetableTemplate) => void;
   onApply: (template: TimetableTemplate) => void;
   onArchive: (template: TimetableTemplate) => void;
+  /** Leseansicht (#2283): false blendet die Karten-Aktionen aus. */
+  canManage?: boolean;
 }
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -77,6 +79,7 @@ export function TemplateCard({
   onEdit,
   onApply,
   onArchive,
+  canManage = true,
 }: TemplateCardProps) {
   const color = template.planningTrackColor ?? "#D1D5DB";
   const activeWeekdays = new Set(template.schedules.map((s) => s.weekday));
@@ -205,36 +208,38 @@ export function TemplateCard({
         )}
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-2.5 pl-5">
-        <div className="flex items-center justify-between gap-2">
+      {canManage && (
+        <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-2.5 pl-5">
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => onEdit(template)}
+            >
+              Bearbeiten
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => onArchive(template)}
+            >
+              <Archive className="h-3.5 w-3.5" aria-hidden />
+              Archivieren
+            </Button>
+          </div>
           <Button
             type="button"
-            variant="ghost"
+            variant="primary"
             size="compact"
-            onClick={() => onEdit(template)}
+            className="w-full"
+            onClick={() => onApply(template)}
           >
-            Bearbeiten
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => onArchive(template)}
-          >
-            <Archive className="h-3.5 w-3.5" aria-hidden />
-            Archivieren
+            Termine erzeugen
           </Button>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          size="compact"
-          className="w-full"
-          onClick={() => onApply(template)}
-        >
-          Termine erzeugen
-        </Button>
-      </div>
+      )}
     </article>
   );
 }
