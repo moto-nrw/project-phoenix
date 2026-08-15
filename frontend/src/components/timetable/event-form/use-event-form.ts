@@ -384,6 +384,32 @@ export function useEventForm({
     () => calendarPeriods.find((item) => item.id === form.calendarPeriodId),
     [calendarPeriods, form.calendarPeriodId],
   );
+  // #2226: a stored series that has not started yet may be pulled forward to
+  // an earlier start date. Only the direct series editor offers it — scoped
+  // occurrence edits keep the stored envelope. `original` is the stored
+  // Serienbeginn (the upper bound), `min` the earliest pickable date (today,
+  // clamped to the period start). The predecessor bound of a split successor
+  // is not known here; the backend rejects an overlap with a German message.
+  const storedSeriesStart = initialSeries?.schedules[0]?.validFrom ?? "";
+  const seriesStartEdit =
+    initialSeries !== null && storedSeriesStart > berlinTodayISO()
+      ? {
+          original: storedSeriesStart,
+          min: latestISODate(
+            berlinTodayISO(),
+            selectedCalendarPeriod?.startDate ?? "",
+          ),
+        }
+      : null;
+  // The pull actually requested by the form: an earlier date than stored.
+  // Unchanged (or cleared) sends nothing, keeping the PUT idempotent for
+  // clients that never touch the field.
+  const pulledSeriesStart =
+    seriesStartEdit !== null &&
+    form.seriesStartDate !== "" &&
+    form.seriesStartDate < seriesStartEdit.original
+      ? form.seriesStartDate
+      : null;
   const abWeekCycleSlot = useMemo(
     () => weekCycleSlotForDate(selectedCalendarPeriod, form.date),
     [selectedCalendarPeriod, form.date],
@@ -699,7 +725,9 @@ export function useEventForm({
       ? latestISODate(
           period.startDate,
           today,
-          effectiveSeries.schedules[0]?.validFrom ?? "",
+          // #2226: a pulled-forward start widens the probed window — the new
+          // days in front of the stored validFrom will materialize too.
+          pulledSeriesStart ?? effectiveSeries.schedules[0]?.validFrom ?? "",
         )
       : latestISODate(period.startDate, form.date || "");
     const shared = {
@@ -744,6 +772,7 @@ export function useEventForm({
     form,
     initialInstance?.id,
     isSeriesFlow,
+    pulledSeriesStart,
     staffIDsForSave,
   ]);
   const coverageProbeKey = JSON.stringify(coverageProbes);
@@ -1208,6 +1237,20 @@ export function useEventForm({
       }
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
+      }
+      // #2226: the pulled-forward Serienbeginn may only move earlier, never
+      // into the past and never out of the period. An unchanged value passes.
+      if (seriesStartEdit !== null && form.seriesStartDate !== "") {
+        if (form.seriesStartDate > seriesStartEdit.original) {
+          errors.seriesStartDate =
+            "Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden.";
+        } else if (form.seriesStartDate < berlinTodayISO()) {
+          errors.seriesStartDate =
+            "Das Datum darf nicht in der Vergangenheit liegen.";
+        } else if (form.seriesStartDate < seriesStartEdit.min) {
+          errors.seriesStartDate =
+            "Das Datum muss im gewählten Planungszeitraum liegen.";
+        }
       }
       // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored
       // two-week period. Otherwise the A/B week_pattern either fires weekly or
@@ -1999,10 +2042,14 @@ export function useEventForm({
         const seriesId = initialSeries.id;
         const categoryId = parsed.categoryId;
         const runSeriesEdit = async () => {
-          await timetableService.updateTemplate(
-            seriesId,
-            seriesBody(parsed.roomId, categoryId),
-          );
+          await timetableService.updateTemplate(seriesId, {
+            ...seriesBody(parsed.roomId, categoryId),
+            // #2226: pull the Serienbeginn forward when the user picked an
+            // earlier date; unchanged keeps the stored envelope untouched.
+            ...(pulledSeriesStart !== null
+              ? { start_date: pulledSeriesStart }
+              : {}),
+          });
           if (await replanTemplateFuture(seriesId)) {
             toastSuccess("Regeltermin gespeichert");
           } else {
@@ -3336,6 +3383,7 @@ export function useEventForm({
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
+    seriesStartEdit,
     canDeleteSeries,
     gradeLevelMax,
     targetGradeOptions,

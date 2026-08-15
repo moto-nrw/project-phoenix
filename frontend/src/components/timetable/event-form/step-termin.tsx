@@ -59,6 +59,13 @@ export interface StepTerminProps {
    * the series start (#2135) — the hint under the field says so.
    */
   isEditingSeries: boolean;
+  /**
+   * Present when the edited series has not started yet (#2226): the stored
+   * Serienbeginn (`original`, the upper bound) plus the earliest pickable
+   * date (`min` — today, clamped to the period start). Renders the
+   * Serienbeginn field so the start can be pulled to an earlier date.
+   */
+  seriesStartEdit?: { original: string; min: string } | null;
   quickPreset: string;
   // Flipped true the moment the user changes Listenart, so an all/following
   // series edit writes the new value instead of echoing the fetched template
@@ -98,6 +105,7 @@ export function StepTermin({
   expanded,
   isSeriesFlow,
   isEditingSeries,
+  seriesStartEdit = null,
   quickPreset,
   listKindTouched,
   canManageCategories,
@@ -330,7 +338,9 @@ export function StepTermin({
           )}
           {isEditingSeries && (
             <p className="mt-1 text-[11px] leading-4 text-gray-500">
-              Der Serienbeginn bleibt unverändert.
+              {seriesStartEdit
+                ? "Den Serienbeginn ändern Sie unten im Feld „Serienbeginn“."
+                : "Der Serienbeginn bleibt unverändert."}
             </p>
           )}
         </Field>
@@ -357,6 +367,32 @@ export function StepTermin({
           />
         </Field>
       </div>
+
+      {isEditingSeries && seriesStartEdit && (
+        <Field
+          label="Serienbeginn"
+          htmlFor="event_series_start"
+          error={fieldErrors.seriesStartDate}
+        >
+          <ISODatePicker
+            id="event_series_start"
+            controlSize="md"
+            value={form.seriesStartDate}
+            min={seriesStartEdit.min}
+            max={seriesStartEdit.original}
+            invalid={Boolean(fieldErrors.seriesStartDate)}
+            calendarLayout="popover"
+            disabledDay={(date) => date.getDay() === 0 || date.getDay() === 6}
+            onChange={(next) => update("seriesStartDate", next)}
+          />
+          <p className="mt-1 text-[11px] leading-4 text-gray-500">
+            Die Serie hat noch nicht begonnen. Sie können den Beginn auf ein
+            früheres Datum vorziehen; neue Termine entstehen dann ab diesem
+            Datum an den gewählten Wochentagen. Ein späterer Beginn ist nicht
+            möglich.
+          </p>
+        </Field>
+      )}
 
       {isSeriesFlow ? (
         <Field label="Wochennotiz" htmlFor="event_series_notes">

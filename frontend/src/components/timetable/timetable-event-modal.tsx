@@ -66,7 +66,15 @@ const WIZARD_STEPS = ["Termin", "Wiederholung", "Personal und Kinder"] as const;
  * the hook's validateForm — this is only a mapping.
  */
 const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
-  ["title", "date", "startTime", "endTime", "roomId", "categoryId"],
+  [
+    "title",
+    "date",
+    "seriesStartDate",
+    "startTime",
+    "endTime",
+    "roomId",
+    "categoryId",
+  ],
   ["weekdays", "calendarPeriodId", "weekPattern"],
   ["targetGradeLevel", "targetSchoolClass", "educationGroupId"],
 ];
@@ -212,6 +220,7 @@ export function TimetableEventModal({
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
+    seriesStartEdit,
     canDeleteSeries,
     gradeLevelMax,
     targetGradeOptions,
@@ -559,6 +568,7 @@ export function TimetableEventModal({
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
                 isEditingSeries={isEditingSeries}
+                seriesStartEdit={seriesStartEdit}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}

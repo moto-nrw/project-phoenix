@@ -104,6 +104,7 @@ vi.mock("~/lib/timetable-api", () => ({
 }));
 
 import { TimetableEventModal } from "./timetable-event-modal";
+import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { useTenant } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
@@ -5338,6 +5339,108 @@ describe("TimetableEventModal", () => {
           false,
         ),
       );
+    });
+  });
+
+  describe("#2226 Serienbeginn vorziehen", () => {
+    /** ISO date `days` after `iso`, local-midnight-safe. */
+    const isoAddDays = (iso: string, days: number): string => {
+      const date = parseISODate(iso);
+      date.setDate(date.getDate() + days);
+      return toISODate(date);
+    };
+    /** A Monday at least eight days in the future, weekday-stable. */
+    const futureMondayISO = (): string => {
+      const date = parseISODate(todayISO());
+      const daysAhead = (1 - date.getDay() + 7) % 7 || 7;
+      date.setDate(date.getDate() + daysAhead + 7);
+      return toISODate(date);
+    };
+
+    const newStart = futureMondayISO();
+    const oldStart = isoAddDays(newStart, 7);
+    // The stock period ends 2026-12-31; give the future series room.
+    const widePeriods: CalendarPeriod[] = [
+      { ...periods[0]!, endDate: isoAddDays(oldStart, 365) },
+    ];
+    const futureSeries: TimetableTemplate = {
+      ...template,
+      schedules: [{ ...template.schedules[0]!, validFrom: oldStart }],
+    };
+
+    it("prefills the stored Serienbeginn and sends start_date when pulled earlier", async () => {
+      renderModal({
+        initialSeries: futureSeries,
+        calendarPeriods: widePeriods,
+        showPeriodField: true,
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      const field = screen.getByLabelText("Serienbeginn");
+      expect(field).toHaveValue(oldStart);
+
+      fireEvent.change(field, { target: { value: newStart } });
+      await clickSave();
+
+      await waitFor(() =>
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          "7",
+          expect.objectContaining({ start_date: newStart }),
+        ),
+      );
+    });
+
+    it("omits start_date when the Serienbeginn stays untouched", async () => {
+      renderModal({
+        initialSeries: futureSeries,
+        calendarPeriods: widePeriods,
+        showPeriodField: true,
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      await clickSave();
+
+      await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+      expect(mockUpdateTemplate.mock.calls[0]![1]).not.toHaveProperty(
+        "start_date",
+      );
+    });
+
+    it("rejects moving the Serienbeginn to a later date before saving", async () => {
+      renderModal({
+        initialSeries: futureSeries,
+        calendarPeriods: widePeriods,
+        showPeriodField: true,
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      fireEvent.change(screen.getByLabelText("Serienbeginn"), {
+        target: { value: isoAddDays(oldStart, 7) },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+      expect(
+        await screen.findByText(
+          "Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden.",
+        ),
+      ).toBeInTheDocument();
+      expect(mockUpdateTemplate).not.toHaveBeenCalled();
+    });
+
+    it("hides the Serienbeginn field for a series that already started", async () => {
+      renderModal({
+        initialSeries: {
+          ...template,
+          schedules: [{ ...template.schedules[0]!, validFrom: "2026-05-04" }],
+        },
+        showPeriodField: true,
+      });
+
+      await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+      expect(screen.queryByLabelText("Serienbeginn")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Der Serienbeginn bleibt unverändert."),
+      ).toBeInTheDocument();
     });
   });
 });
