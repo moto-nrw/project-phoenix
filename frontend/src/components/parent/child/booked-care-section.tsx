@@ -62,10 +62,11 @@ const DISABLED_REASON_KEYS: Record<OfferingChangesDisabledReason, string> = {
  * "Gebuchte Betreuung": was tatsaechlich gebucht ist, an welchen Tagen, und
  * wann das Kind kommt und geht.
  *
- * Der Wochenplan ist hier **reine Anzeige**. Die Bringzeit stammt aus dem
- * Stundenplan der Schule; sie als Eingabefeld anzubieten war die Ursache
- * falscher Elternaenderungen (#2250). Der Block "AGs und Gruppen" entfaellt
- * ersatzlos (#2303), die eigene Rubrik "Betreuungszeiten" ebenso (#2302).
+ * Der Wochenplan ist hier **reine Anzeige**. Woher die Bringzeit stammt,
+ * entscheidet die Schule (Stundenplan, Anmeldung oder Handeintrag), deshalb
+ * nennt der Hinweis keinen Mechanismus. Sie als Eingabefeld anzubieten war
+ * die Ursache falscher Elternaenderungen (#2250). Der Block "AGs und Gruppen"
+ * entfaellt ersatzlos (#2303), die Rubrik "Betreuungszeiten" ebenso (#2302).
  */
 export function BookedCareSection({
   studentId,
@@ -259,7 +260,7 @@ export function BookedCareSection({
             {tc("care.weekTitle")}
           </h3>
           {/* Mobil eine Karte je Wochentag statt einer Tabelle. Alle Werte sind
-              Anzeige, kein Feld: die Bringzeit folgt dem Stundenplan. */}
+              Anzeige, kein Feld: die Zeiten pflegt die OGS. */}
           <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
             {WEEKDAYS.map((num) => {
               const day = byWeekday.get(num);

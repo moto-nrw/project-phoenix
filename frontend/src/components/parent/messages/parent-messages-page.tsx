@@ -165,9 +165,8 @@ export function ParentMessagesPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-[28px] leading-tight font-bold text-gray-900">
-        {t("title")}
-      </h1>
+      {/* Siehe Kalender: die Kopfzeile traegt den sichtbaren Titel. */}
+      <h1 className="sr-only">{t("title")}</h1>
       <ul className="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         {rows.map((row) => (
           <li key={row.studentId}>

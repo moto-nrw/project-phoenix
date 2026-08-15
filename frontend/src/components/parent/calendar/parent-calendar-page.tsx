@@ -189,9 +189,10 @@ export function ParentCalendarPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-[28px] leading-tight font-bold text-gray-900">
-        {t("title")}
-      </h1>
+      {/* Die Kopfzeile nennt die Seite bereits sichtbar; ein zweiter Titel
+          darunter waere dieselbe Zeile zweimal. Fuer die Sprachausgabe muss
+          die Seite trotzdem eine Ueberschrift haben. */}
+      <h1 className="sr-only">{t("title")}</h1>
 
       {error && <Alert type="error" message={t("loadError")} />}
 
