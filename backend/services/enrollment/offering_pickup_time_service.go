@@ -76,6 +76,9 @@ type offeringPickupDesired struct {
 }
 
 func (s *decisionService) PreviewOfferingPickupRollout(ctx context.Context, offeringID int64) (*OfferingPickupRolloutPreview, error) {
+	if !s.hasOfferingPickupDependencies() {
+		return nil, fmt.Errorf("offering pickup rollout: repositories not configured")
+	}
 	studentIDs, err := s.offeringPickupAffectedStudents(ctx, offeringID)
 	if err != nil {
 		return nil, err
@@ -138,6 +141,9 @@ func (s *decisionService) PreviewOfferingPickupRollout(ctx context.Context, offe
 }
 
 func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeringID int64, skipStudentIDs []int64, reviewedBy int64) (*OfferingPickupRolloutResult, error) {
+	if !s.hasOfferingPickupDependencies() {
+		return nil, fmt.Errorf("offering pickup rollout: repositories not configured")
+	}
 	studentIDs, err := s.offeringPickupAffectedStudents(ctx, offeringID)
 	if err != nil {
 		return nil, err
@@ -177,7 +183,7 @@ func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeri
 }
 
 func (s *decisionService) ReconcileOfferingPickupForStudents(ctx context.Context, studentIDs []int64, createdByStaffID int64) error {
-	if len(studentIDs) == 0 {
+	if len(studentIDs) == 0 || !s.hasOfferingPickupDependencies() {
 		return nil
 	}
 	_, err := s.reconcileOfferingPickupRows(ctx, studentIDs, offeringPickupReconcileOptions{
@@ -188,6 +194,9 @@ func (s *decisionService) ReconcileOfferingPickupForStudents(ctx context.Context
 }
 
 func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, studentID int64, weekday int, reviewedBy int64) (*scheduleModels.StudentPickupSchedule, error) {
+	if !s.hasOfferingPickupDependencies() {
+		return nil, fmt.Errorf("offering pickup reset: repositories not configured")
+	}
 	if weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
 		return nil, fmt.Errorf("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
@@ -481,4 +490,58 @@ func mustParseWallClock(hhmm string) time.Time {
 		return time.Time{}
 	}
 	return timezone.WallClock(t)
+}
+
+// materializeOfferingPickupAfterApproval writes the approved child's
+// Angebots-Gehzeiten (#2290). Runs after the status flip inside the approval
+// transaction. A reviewer without a linked staff row degrades to a
+// no-insert reconcile — the same tolerance the schedule dispatch applies —
+// so an approval never fails on the acting account's shape.
+func (s *decisionService) materializeOfferingPickupAfterApproval(ctx context.Context, child *enrollmentModels.RequestChild, reviewedBy int64) error {
+	studentID := int64(0)
+	switch {
+	case child == nil:
+		return nil
+	case child.CreatedStudentID != nil && *child.CreatedStudentID > 0:
+		studentID = *child.CreatedStudentID
+	case child.MatchedStudentID != nil && *child.MatchedStudentID > 0:
+		studentID = *child.MatchedStudentID
+	default:
+		return nil
+	}
+	createdBy, err := s.resolveReviewerStaffID(ctx, reviewedBy)
+	if err != nil {
+		s.Logger.Warn("offering pickup materialization: reviewer has no staff, inserts skipped",
+			slog.Int64("reviewed_by", reviewedBy),
+			slog.String("error", err.Error()),
+		)
+		createdBy = 0
+	}
+	return s.ReconcileOfferingPickupForStudents(ctx, []int64{studentID}, createdBy)
+}
+
+// ReconcileOfferingPickupForStudentsByAccount is the account-facing form of
+// the reconcile: it resolves the acting account to its staff row for new-row
+// authorship and degrades to a no-insert reconcile when the account has no
+// staff (mirroring the schedule dispatch tolerance).
+func (s *decisionService) ReconcileOfferingPickupForStudentsByAccount(ctx context.Context, studentIDs []int64, accountID int64) error {
+	createdBy, err := s.resolveReviewerStaffID(ctx, accountID)
+	if err != nil {
+		s.Logger.Warn("offering pickup reconcile: account has no staff, inserts skipped",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()),
+		)
+		createdBy = 0
+	}
+	return s.ReconcileOfferingPickupForStudents(ctx, studentIDs, createdBy)
+}
+
+// hasOfferingPickupDependencies guards the reconciler against partial
+// wirings (the rollover worker builds a slim decision service without the
+// pickup repositories). A missing repo means "this wiring does not
+// materialize Gehzeiten", not an error.
+func (s *decisionService) hasOfferingPickupDependencies() bool {
+	return s.PickupScheduleRepo != nil &&
+		s.RequestChildOfferingRepo != nil &&
+		s.CareOfferingRepo != nil
 }

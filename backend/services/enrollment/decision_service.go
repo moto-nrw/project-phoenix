@@ -1245,6 +1245,14 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return nil, ErrDecisionChildNotFound
 	}
 
+	// Materialize the Angebots-Gehzeiten AFTER the refresh: the re-read
+	// child carries the created_student_id the approval just stamped (#2290).
+	if input.Status == DecisionApproved {
+		if err := s.materializeOfferingPickupAfterApproval(ctx, target, input.ReviewedBy); err != nil {
+			return nil, fmt.Errorf("decision: materialize offering pickup times: %w", err)
+		}
+	}
+
 	s.Logger.Info("enrollment decision applied",
 		slog.Int64("request_id", input.RequestID),
 		slog.Int64("child_id", input.ChildID),

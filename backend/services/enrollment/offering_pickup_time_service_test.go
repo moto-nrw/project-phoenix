@@ -254,3 +254,171 @@ func attachOfferingLink(t *testing.T, env *decisionTestEnv, requestChildID, offe
 			Exec(context.Background())
 	})
 }
+
+func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+
+	ctx := testpkg.TenantContext(1)
+	offering := createPickupTimeOffering(t, env, "gehzeit-approve",
+		[]string{"mon", "tue"}, map[string]string{"mon": "14:30", "tue": "16:00"})
+	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Materialisiert")
+	studentID := submitAndApproveWithReviewer(t, env, offering.ID, "gehzeit-approve@example.com", "Appa", reviewerAccount.ID, nil)
+	_ = ctx
+
+	rows := pickupRowsByWeekday(t, env, studentID)
+	require.Contains(t, rows, scheduleModels.WeekdayMonday,
+		"approval must materialize the Angebots-Gehzeit without a manual rollout")
+	assert.Equal(t, "14:30", rows[scheduleModels.WeekdayMonday].PickupTime.Format("15:04"))
+	assert.Equal(t, scheduleModels.PickupScheduleSourceCareOffering, rows[scheduleModels.WeekdayMonday].Source)
+	require.Contains(t, rows, scheduleModels.WeekdayTuesday)
+	assert.Equal(t, "16:00", rows[scheduleModels.WeekdayTuesday].PickupTime.Format("15:04"))
+}
+
+func TestDecisionApproval_FormPickupTimeWinsOverOffering(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
+	offering := createPickupTimeOffering(t, env, "gehzeit-form",
+		[]string{"mon", "tue"}, map[string]string{"mon": "14:30", "tue": "16:00"})
+	reviewerStaff, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Gehzeit")
+	_ = reviewerStaff
+
+	grade := int16(2)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Form",
+		GuardianEmail:     "gehzeit-form@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Fora",
+			LastName:         "Form",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			OfferingIDs:      []int64{offering.ID},
+			CustomData:       map[string]any{"pickup_times": map[string]any{"mon": "14:45"}},
+		}},
+	})
+	require.NoError(t, err)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccount.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows := pickupRowsByWeekday(t, env, *outcome.Child.CreatedStudentID)
+	monday := rows[scheduleModels.WeekdayMonday]
+	require.NotNil(t, monday)
+	assert.Equal(t, "14:45", monday.PickupTime.Format("15:04"),
+		"the submitted Formular-Abholzeit must win over the Angebots-Gehzeit")
+	assert.Equal(t, scheduleModels.PickupScheduleSourceStaff, monday.Source)
+	tuesday := rows[scheduleModels.WeekdayTuesday]
+	require.NotNil(t, tuesday, "days without a form answer still get the Angebots-Gehzeit")
+	assert.Equal(t, "16:00", tuesday.PickupTime.Format("15:04"))
+	assert.Equal(t, scheduleModels.PickupScheduleSourceCareOffering, tuesday.Source)
+}
+
+// submitAndApproveWithReviewer mirrors submitAndApproveOfferingChild but lets
+// the test choose the approving account (Gehzeit inserts need a staff-linked
+// reviewer) and pass custom child data.
+func submitAndApproveWithReviewer(
+	t *testing.T,
+	env *decisionTestEnv,
+	offeringID int64,
+	guardianEmail, firstName string,
+	reviewerAccountID int64,
+	customData map[string]any,
+) int64 {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	grade := int16(2)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Gehzeit",
+		GuardianEmail:     guardianEmail,
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        firstName,
+			LastName:         "Gehzeit",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			OfferingIDs:      []int64{offeringID},
+			CustomData:       customData,
+		}},
+	})
+	require.NoError(t, err)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	t.Cleanup(func() {
+		_, _ = env.db.NewDelete().
+			TableExpr("activities.student_enrollments").
+			Where("student_id = ?", *outcome.Child.CreatedStudentID).
+			Exec(context.Background())
+	})
+	return *outcome.Child.CreatedStudentID
+}
+
+func TestUpdateChildOfferings_ReconcilesOfferingPickupRows(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	timed := createPickupTimeOffering(t, env, "gehzeit-adjust-timed",
+		[]string{"mon"}, map[string]string{"mon": "14:30"})
+	untimed := createPickupTimeOffering(t, env, "gehzeit-adjust-untimed",
+		[]string{"mon"}, nil)
+	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Anpassung")
+	studentID := submitAndApproveWithReviewer(t, env, timed.ID, "gehzeit-adjust@example.com", "Adja", reviewerAccount.ID, nil)
+
+	require.Contains(t, pickupRowsByWeekday(t, env, studentID), scheduleModels.WeekdayMonday)
+
+	child, err := env.repos.RequestChild.FindByID(ctx, childIDForStudent(t, env, studentID))
+	require.NoError(t, err)
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      child.RequestID,
+		ChildID:        child.ID,
+		ActorAccountID: reviewerAccount.ID,
+		ActorRole:      "admin",
+		Reason:         "Wechsel in Angebot ohne Gehzeit",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{{
+			OfferingID: untimed.ID,
+		}},
+	})
+	require.NoError(t, err)
+
+	assert.NotContains(t, pickupRowsByWeekday(t, env, studentID), scheduleModels.WeekdayMonday,
+		"switching to an offering without Gehzeit must remove the sourced row")
+}
+
+// childIDForStudent resolves the approved request child behind a student.
+func childIDForStudent(t *testing.T, env *decisionTestEnv, studentID int64) int64 {
+	t.Helper()
+	var childID int64
+	require.NoError(t, env.db.NewSelect().
+		TableExpr(`enrollment.request_children AS "request_child"`).
+		ColumnExpr(`"request_child".id`).
+		Where(`"request_child".created_student_id = ?`, studentID).
+		OrderExpr(`"request_child".id DESC`).
+		Limit(1).
+		Scan(testpkg.TenantContext(1), &childID))
+	return childID
+}
