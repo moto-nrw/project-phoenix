@@ -91,6 +91,20 @@ function mockParentDashboard({
       return jsonResponse({ data: enrollments });
     }
 
+    if (url.includes("/api/parent/me/messages")) {
+      return jsonResponse({ data: [] });
+    }
+
+    if (url.includes("/api/parent/me/news")) {
+      return jsonResponse({ data: [] });
+    }
+
+    if (url.includes("/api/parent/calendar")) {
+      return jsonResponse({
+        data: { from: "2026-08-15", to: "2026-11-13", events: [] },
+      });
+    }
+
     return undefined;
   });
 }

@@ -6,11 +6,17 @@ const {
   mockRespondParentCalendar,
   mockToastSuccess,
   mockToastError,
+  mockSearchParams,
 } = vi.hoisted(() => ({
   mockGetParentCalendar: vi.fn(),
   mockRespondParentCalendar: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
+  mockSearchParams: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => mockSearchParams,
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -33,6 +39,7 @@ vi.mock("~/lib/personal-calendar-api", async () => {
 
 import ParentCalendarPage from "./page";
 import type { CalendarResponse } from "~/lib/personal-calendar-api";
+import { toISODate } from "~/lib/date-helpers";
 
 const calendarResponse: CalendarResponse = {
   from: "2026-01-05",
@@ -71,6 +78,7 @@ const calendarResponse: CalendarResponse = {
 
 describe("ParentCalendarPage", () => {
   beforeEach(() => {
+    mockSearchParams.delete("date");
     vi.clearAllMocks();
     // The page derives its week from `new Date()`; pin the clock into the
     // fixture week so the events fall in the visible range (Date only, so
@@ -79,6 +87,17 @@ describe("ParentCalendarPage", () => {
     vi.setSystemTime(new Date(2026, 0, 7));
     mockGetParentCalendar.mockResolvedValue(calendarResponse);
     mockRespondParentCalendar.mockResolvedValue(undefined);
+  });
+
+  it("opens the calendar week from a dashboard date link", async () => {
+    mockSearchParams.set("date", "2026-02-18");
+
+    render(<ParentCalendarPage />);
+
+    await waitFor(() => expect(mockGetParentCalendar).toHaveBeenCalled());
+    const [from, to] = mockGetParentCalendar.mock.calls[0] as [Date, Date];
+    expect(toISODate(from)).toBe("2026-02-16");
+    expect(toISODate(to)).toBe("2026-02-22");
   });
 
   afterEach(() => {

@@ -51,6 +51,12 @@ const mocks = vi.hoisted(() => ({
   // The dashboard news panel loads the announcement feed on mount; stub it so
   // the rendered dashboard settles cleanly (empty feed → placeholder).
   listAnnouncements: vi.fn().mockResolvedValue([]),
+  listMessageThreads: vi.fn().mockResolvedValue([]),
+  getParentCalendar: vi.fn().mockResolvedValue({
+    from: "2026-08-15",
+    to: "2026-11-13",
+    events: [],
+  }),
   markAnnouncementRead: vi.fn().mockResolvedValue(undefined),
   acknowledgeAnnouncement: vi.fn().mockResolvedValue(undefined),
   setBreadcrumb: vi.fn(),
@@ -87,12 +93,17 @@ vi.mock("~/lib/parent-api", () => ({
   deleteCareException: mocks.deleteCareException,
   getChildFeatures: mocks.getChildFeatures,
   listAnnouncements: mocks.listAnnouncements,
+  listMessageThreads: mocks.listMessageThreads,
   markAnnouncementRead: mocks.markAnnouncementRead,
   acknowledgeAnnouncement: mocks.acknowledgeAnnouncement,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: mocks.setBreadcrumb,
+}));
+
+vi.mock("~/lib/personal-calendar-api", () => ({
+  getParentCalendar: mocks.getParentCalendar,
 }));
 
 import { ChildDetail } from "./child-detail";
@@ -151,6 +162,13 @@ describe("Parent portal components", () => {
     mocks.listSickDays.mockResolvedValue([]);
     mocks.listCareExceptions.mockResolvedValue([]);
     mocks.listChildThreads.mockResolvedValue([]);
+    mocks.listAnnouncements.mockResolvedValue([]);
+    mocks.listMessageThreads.mockResolvedValue([]);
+    mocks.getParentCalendar.mockResolvedValue({
+      from: "2026-08-15",
+      to: "2026-11-13",
+      events: [],
+    });
     mocks.getChildFeatures.mockResolvedValue({
       sick_note_enabled: true,
       notes_enabled: true,
@@ -173,12 +191,16 @@ describe("Parent portal components", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: "Willkommen im Elternportal",
+        name: "Willkommen",
       }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Aktuelles" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Alles erledigt")).toBeInTheDocument();
     expect(screen.getByText("Lina Muster")).toBeInTheDocument();
     expect(screen.getByText("Mila Neu")).toBeInTheDocument();
-    expect(screen.getByText("Offen")).toBeInTheDocument();
+    expect(screen.queryByText("Offen")).not.toBeInTheDocument();
   });
 
   it("keeps the account settings off the dashboard", async () => {
@@ -189,7 +211,7 @@ describe("Parent portal components", () => {
     mocks.listMyEnrollments.mockResolvedValueOnce([]);
 
     render(<ParentDashboard />);
-    await screen.findByRole("heading", { name: "Willkommen im Elternportal" });
+    await screen.findByRole("heading", { name: "Willkommen" });
 
     expect(
       screen.queryByRole("heading", { name: "Push-Benachrichtigungen" }),
@@ -199,13 +221,101 @@ describe("Parent portal components", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows unread OGS messages in the updates section", async () => {
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    mocks.listMyEnrollments.mockResolvedValueOnce([]);
+    mocks.listMessageThreads.mockResolvedValueOnce([
+      {
+        thread_id: "thread-1",
+        student_id: "42",
+        student_name: "Lina Muster",
+        school_name: "OGS Demo",
+        counterpart_name: "OGS Demo",
+        last_message_at: "2026-08-15T08:00:00Z",
+        last_sender_kind: "staff",
+        last_message_body: "Bitte denken Sie an die Trinkflasche.",
+        last_message_kind: "message",
+        unread: 1,
+      },
+    ]);
+
+    render(<ParentDashboard />);
+
+    expect(await screen.findByText("Neue Nachricht")).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte denken Sie an die Trinkflasche."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Nachricht lesen/ }),
+    ).toHaveAttribute("href", "/parents/messages/42");
+  });
+
+  it("refreshes dashboard updates after realtime message activity", async () => {
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    mocks.listMyEnrollments.mockResolvedValueOnce([]);
+    mocks.listMessageThreads.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        thread_id: "thread-2",
+        student_id: "42",
+        student_name: "Lina Muster",
+        school_name: "OGS Demo",
+        counterpart_name: "OGS Demo",
+        last_message_body: "Die OGS hat geantwortet.",
+        last_message_kind: "message",
+        unread: 1,
+      },
+    ]);
+
+    render(<ParentDashboard />);
+    expect(await screen.findByText("Alles erledigt")).toBeInTheDocument();
+
+    window.dispatchEvent(new Event("parent-threads-refresh"));
+
+    expect(
+      await screen.findByText("Die OGS hat geantwortet."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows appointments that still need a response", async () => {
+    mocks.listMyChildren.mockResolvedValueOnce([child()]);
+    mocks.listMyEnrollments.mockResolvedValueOnce([]);
+    mocks.getParentCalendar.mockResolvedValueOnce({
+      from: "2026-08-15",
+      to: "2026-11-13",
+      events: [
+        {
+          id: "appointment-1",
+          source: "appointment",
+          title: "Elternabend",
+          student_name: "Lina Muster",
+          start_date: "2026-09-01",
+          end_date: "2026-09-01",
+          start_time: "18:00",
+          end_time: "19:00",
+          all_day: false,
+          can_respond: true,
+          can_edit: false,
+          response_status: "pending",
+        },
+      ],
+    });
+
+    render(<ParentDashboard />);
+
+    expect(await screen.findByText("Rückmeldung offen")).toBeInTheDocument();
+    expect(screen.getByText("Elternabend")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Zu- oder absagen/ }),
+    ).toHaveAttribute("href", "/parents/calendar?date=2026-09-01");
+  });
+
   it("keeps the task-focused dashboard free of enrollment administration", async () => {
     mocks.listMyChildren.mockResolvedValueOnce([child()]);
     mocks.listMyEnrollments.mockResolvedValueOnce([]);
 
     render(<ParentDashboard />);
 
-    await screen.findByRole("heading", { name: "Willkommen im Elternportal" });
+    await screen.findByRole("heading", { name: "Willkommen" });
     expect(
       screen.queryByRole("link", { name: "Neue Anmeldung" }),
     ).not.toBeInTheDocument();

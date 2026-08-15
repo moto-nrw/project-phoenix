@@ -1,25 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowRight,
+  CalendarDays,
   CalendarClock,
+  CheckCircle2,
+  ChevronRight,
   HeartPulse,
   MessageCircle,
-  Newspaper,
+  MessageSquareText,
   Users,
 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import {
   type Child,
   type ChildFeatures,
-  type ChildStatus,
   type EnrollmentChildStatus,
   type EnrollmentRequest,
   type ParentAnnouncement,
+  type ThreadSummary,
   listMyChildren,
   listMyEnrollments,
   listAnnouncements,
+  listMessageThreads,
   getChildFeatures,
 } from "~/lib/parent-api";
 import {
@@ -29,9 +34,15 @@ import {
 } from "~/components/parent/news/news-components";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
-import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
-import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import {
+  getParentCalendar,
+  type CalendarEvent,
+} from "~/lib/personal-calendar-api";
+import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Alert } from "~/components/ui/alert";
+import { Skeleton } from "~/components/ui/skeleton";
 import { ChildRow, type ChildRowItem } from "~/components/parent/child-row";
 import {
   ParentLinkAction,
@@ -42,20 +53,6 @@ import {
 } from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "ParentDashboard" });
-
-const statusTone: Record<EnrollmentChildStatus | ChildStatus, StatusBadgeTone> =
-  {
-    submitted: "blue",
-    under_review: "orange",
-    approved: "green",
-    waitlisted: "orange",
-    rejected: "red",
-    withdrawn: "gray",
-    pending: "green",
-    active: "green",
-    inactive: "gray",
-    alumnus: "gray",
-  };
 
 function formatDate(
   iso: string | undefined,
@@ -123,8 +120,6 @@ function buildChildOverviewItems(
         name,
         schoolName: request.school_name,
         detail: `${request.phase_name} · ${getEnrollmentOverviewStatus(child.status, t)}`,
-        badgeLabel: t("open"),
-        badgeTone: statusTone[child.status] ?? "blue",
         href: `/parents/enroll/status/${request.status_token}`,
       });
     }
@@ -208,10 +203,12 @@ export function ParentDashboard() {
   return (
     <ParentPage>
       <ParentPageHeader
-        kicker={t("eyebrow")}
         title={t("title")}
         description={t("description")}
+        variant="plain"
       />
+
+      <DashboardUpdatesPanel />
 
       <SectionCard
         icon={Users}
@@ -244,8 +241,6 @@ export function ParentDashboard() {
           </div>
         )}
       </SectionCard>
-
-      <StartNewsPanel />
     </ParentPage>
   );
 }
@@ -307,36 +302,72 @@ function DashboardChildItem({
   );
 }
 
-/** Newest announcements as compact cards; the full feed lives at /parents/news. */
-const NEWS_PANEL_LIMIT = 3;
+const UPDATES_PREVIEW_LIMIT = 3;
 
-function StartNewsPanel() {
+function DashboardUpdatesPanel() {
   const t = useTranslations("parentDashboard");
-  // Only render on the dashboard once a linked school broadcasts announcements
-  // (the backend feed excludes disabled tenants). Rendered only in the parents
-  // portal, so `enabled` is always true here. Keeps the panel from showing an
-  // empty "Neuigkeiten" area when the feature is off for every linked school.
-  const newsEnabled = useParentNewsEnabled(true);
+  const locale = useLocale();
   const [items, setItems] = useState<ParentAnnouncement[]>([]);
+  const [threads, setThreads] = useState<ThreadSummary[]>([]);
+  const [appointments, setAppointments] = useState<CalendarEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
-    void listAnnouncements()
-      .then((list) => {
-        if (active) setItems(list);
-      })
-      .catch((err: unknown) => {
+    let loadSequence = 0;
+    const loadUpdates = async () => {
+      const sequence = ++loadSequence;
+      const calendarFrom = parseISODate(berlinTodayISO());
+      const calendarTo = new Date(calendarFrom);
+      calendarTo.setDate(calendarTo.getDate() + 90);
+      const [announcementsResult, threadsResult, appointmentsResult] =
+        await Promise.allSettled([
+          listAnnouncements(),
+          listMessageThreads(),
+          getParentCalendar(calendarFrom, calendarTo),
+        ]);
+      if (!active || sequence !== loadSequence) return;
+      let failed = false;
+      if (announcementsResult.status === "fulfilled") {
+        setItems(announcementsResult.value);
+      } else {
+        failed = true;
         logger.error("parent_news_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
+          error: String(announcementsResult.reason),
         });
-      })
-      .finally(() => {
-        if (active) setLoaded(true);
-      });
+      }
+      if (threadsResult.status === "fulfilled") {
+        setThreads(threadsResult.value);
+      } else {
+        failed = true;
+        logger.error("parent_messages_load_failed", {
+          error: String(threadsResult.reason),
+        });
+      }
+      if (appointmentsResult.status === "fulfilled") {
+        setAppointments(appointmentsResult.value.events);
+      } else {
+        failed = true;
+        logger.error("parent_calendar_load_failed", {
+          error: String(appointmentsResult.reason),
+        });
+      }
+      setLoadFailed(failed);
+      setLoaded(true);
+    };
+    const refresh = () => void loadUpdates();
+
+    void loadUpdates();
+    window.addEventListener("parent-threads-refresh", refresh);
+    window.addEventListener("parent-news-unread-refresh", refresh);
+    window.addEventListener("focus", refresh);
     return () => {
       active = false;
+      window.removeEventListener("parent-threads-refresh", refresh);
+      window.removeEventListener("parent-news-unread-refresh", refresh);
+      window.removeEventListener("focus", refresh);
     };
   }, []);
 
@@ -361,22 +392,61 @@ function StartNewsPanel() {
       });
   }, []);
 
-  // Open surveys first: the dashboard panel only shows a handful of items, and
-  // a survey that scrolled out of the panel is a survey nobody answers (#1371).
-  // Within each group the server order (newest published first) is preserved.
-  const visible = [...items]
-    .sort((a, b) => Number(isOpenPoll(b)) - Number(isOpenPoll(a)))
-    .slice(0, NEWS_PANEL_LIMIT);
+  const actionableAnnouncements = items.filter(
+    (item) =>
+      !item.read ||
+      isOpenPoll(item) ||
+      (item.requires_acknowledgement && !item.acknowledged),
+  );
+  const unreadThreads = threads
+    .filter((thread) => thread.unread > 0)
+    .sort(
+      (a, b) =>
+        new Date(b.last_message_at ?? 0).getTime() -
+        new Date(a.last_message_at ?? 0).getTime(),
+    );
+  const prioritizedAnnouncements = [...actionableAnnouncements].sort(
+    (a, b) => Number(isOpenPoll(b)) - Number(isOpenPoll(a)),
+  );
+  const pendingAppointments = appointments
+    .filter(
+      (appointment) =>
+        appointment.source === "appointment" &&
+        appointment.can_respond &&
+        appointment.response_status === "pending" &&
+        appointment.cancelled !== true,
+    )
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  const openPolls = prioritizedAnnouncements.filter(isOpenPoll);
+  const otherAnnouncements = prioritizedAnnouncements.filter(
+    (item) => !isOpenPoll(item),
+  );
+  const updates = [
+    ...openPolls.map((item) => ({
+      type: "announcement" as const,
+      item,
+    })),
+    ...pendingAppointments.map((appointment) => ({
+      type: "appointment" as const,
+      appointment,
+    })),
+    ...unreadThreads.map((thread) => ({
+      type: "message" as const,
+      thread,
+    })),
+    ...otherAnnouncements.map((item) => ({
+      type: "announcement" as const,
+      item,
+    })),
+  ].slice(0, UPDATES_PREVIEW_LIMIT);
   const openItem = items.find((item) => item.id === openId) ?? null;
-
-  if (!newsEnabled || (loaded && items.length === 0)) return null;
 
   return (
     <SectionCard
-      id="news"
-      icon={Newspaper}
-      title={t("newsTitle")}
-      description={t("newsDescription")}
+      id="updates"
+      icon={MessageSquareText}
+      title={t("updatesTitle")}
+      description={t("updatesDescription")}
       className="scroll-mt-24"
       actions={
         items.length > 0 ? (
@@ -387,13 +457,58 @@ function StartNewsPanel() {
         ) : undefined
       }
     >
-      <ul className="space-y-2">
-        {visible.map((item) => (
-          <li key={item.id}>
-            <NewsCard item={item} onOpen={(opened) => setOpenId(opened.id)} />
-          </li>
-        ))}
-      </ul>
+      <div aria-live="polite" aria-busy={!loaded}>
+        {!loaded ? (
+          <div className="space-y-2" aria-label={t("updatesLoading")}>
+            <Skeleton className="h-24 rounded-xl" />
+            <Skeleton className="h-24 rounded-xl" />
+          </div>
+        ) : updates.length === 0 && !loadFailed ? (
+          <EmptyState
+            icon={<CheckCircle2 className="h-7 w-7" aria-hidden="true" />}
+            title={t("updatesEmptyTitle")}
+            description={t("updatesEmptyDescription")}
+            variant="compact"
+          />
+        ) : (
+          <>
+            <ul className="space-y-2">
+              {updates.map((update) => {
+                if (update.type === "announcement") {
+                  return (
+                    <li key={`announcement-${update.item.id}`}>
+                      <NewsCard
+                        item={update.item}
+                        onOpen={(opened) => setOpenId(opened.id)}
+                      />
+                    </li>
+                  );
+                }
+                if (update.type === "appointment") {
+                  return (
+                    <li key={`appointment-${update.appointment.id}`}>
+                      <DashboardAppointmentCard
+                        appointment={update.appointment}
+                        locale={locale}
+                      />
+                    </li>
+                  );
+                }
+                return (
+                  <li key={`message-${update.thread.thread_id}`}>
+                    <DashboardMessageCard thread={update.thread} />
+                  </li>
+                );
+              })}
+            </ul>
+            {loadFailed && (
+              <div className={updates.length > 0 ? "mt-3" : undefined}>
+                <Alert type="warning" message={t("updatesLoadError")} />
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {openItem && (
         <NewsDetailModal
@@ -404,5 +519,89 @@ function StartNewsPanel() {
         />
       )}
     </SectionCard>
+  );
+}
+
+function DashboardAppointmentCard({
+  appointment,
+  locale,
+}: Readonly<{ appointment: CalendarEvent; locale: string }>) {
+  const t = useTranslations("parentDashboard");
+
+  return (
+    <Link
+      href={`/parents/calendar?date=${encodeURIComponent(appointment.start_date)}`}
+      className="group flex min-h-24 w-full items-center gap-3 rounded-xl border border-gray-300 bg-white p-4 text-left shadow-sm transition-colors hover:border-gray-400 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      <span className="bg-moto-orange-soft text-moto-orange-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+        <CalendarDays className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="text-moto-orange-strong text-xs font-semibold">
+          {t("appointmentResponsePending")}
+        </span>
+        <span className="mt-1 block truncate text-sm font-semibold text-gray-900">
+          {appointment.title}
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-gray-500">
+          {appointment.student_name
+            ? t("appointmentForChild", { name: appointment.student_name })
+            : appointment.school_name}
+          {` · ${formatLocalizedDate(appointment.start_date, locale)}`}
+        </span>
+        <span className="mt-2 block text-sm font-semibold text-gray-900">
+          {t("appointmentRespond")}
+        </span>
+      </span>
+      <ChevronRight
+        className="h-5 w-5 shrink-0 text-gray-400 transition-colors group-hover:text-gray-700"
+        aria-hidden="true"
+      />
+    </Link>
+  );
+}
+
+function DashboardMessageCard({ thread }: Readonly<{ thread: ThreadSummary }>) {
+  const t = useTranslations("parentDashboard");
+  const preview =
+    thread.last_message_kind === undefined ||
+    thread.last_message_kind === "message"
+      ? thread.last_message_body
+      : undefined;
+
+  return (
+    <Link
+      href={`/parents/messages/${thread.student_id}`}
+      className="group flex min-h-24 w-full items-center gap-3 rounded-xl border border-gray-300 bg-white p-4 text-left shadow-sm transition-colors hover:border-gray-400 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      <span className="bg-moto-blue-soft text-moto-blue-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+        <MessageCircle className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="text-moto-blue-strong text-xs font-semibold">
+          {thread.unread === 1
+            ? t("messageNewOne")
+            : t("messageNewMany", { count: thread.unread })}
+        </span>
+        <span className="mt-1 block truncate text-sm font-semibold text-gray-900">
+          {thread.counterpart_name}
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-gray-500">
+          {t("messageAboutChild", { name: thread.student_name })}
+        </span>
+        {preview && (
+          <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-gray-600">
+            {preview}
+          </span>
+        )}
+        <span className="mt-2 block text-sm font-semibold text-gray-900">
+          {t("messageRead")}
+        </span>
+      </span>
+      <ChevronRight
+        className="h-5 w-5 shrink-0 text-gray-400 transition-colors group-hover:text-gray-700"
+        aria-hidden="true"
+      />
+    </Link>
   );
 }

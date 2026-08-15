@@ -87,6 +87,13 @@ function NewsBadges({
           {t("newsPollNeedsAnswer")}
         </span>
       )}
+      {item.requires_acknowledgement &&
+        !item.acknowledged &&
+        !isOpenPoll(item) && (
+          <span className="inline-flex items-center rounded-full bg-[#FEF4E7] px-2 py-0.5 text-xs font-semibold text-[#B45309]">
+            {t("newsNeedsAcknowledgement")}
+          </span>
+        )}
       {poll && item.response_deadline && !isPollClosed(item) && (
         <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
           {t("newsPollDeadline", {
@@ -334,6 +341,8 @@ export function NewsCard({
   item: ParentAnnouncement;
   onOpen: (item: ParentAnnouncement) => void;
 }>) {
+  const t = useTranslations("parentDashboard");
+
   return (
     <button
       type="button"
@@ -355,6 +364,13 @@ export function NewsCard({
         </span>
         <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-gray-600">
           {item.body}
+        </span>
+        <span className="mt-2 block text-sm font-semibold text-gray-900">
+          {isOpenPoll(item)
+            ? t("newsAnswer")
+            : item.requires_acknowledgement && !item.acknowledged
+              ? t("newsReadAndConfirm")
+              : t("newsReadAnnouncement")}
         </span>
       </span>
       <ChevronRight

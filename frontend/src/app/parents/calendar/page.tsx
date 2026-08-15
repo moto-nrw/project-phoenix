@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import {
   CalendarOverviewList,
@@ -18,7 +19,7 @@ import {
   type CalendarAppointmentOverview,
   type CalendarResponse,
 } from "~/lib/personal-calendar-api";
-import { toISODate } from "~/lib/date-helpers";
+import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { getWeekRange } from "~/lib/timetable-helpers";
 
 function messageFromError(error: unknown, fallback: string): string {
@@ -47,10 +48,16 @@ function calendarRange(referenceDate: Date, viewMode: CalendarViewMode) {
 
 export default function ParentCalendarPage() {
   const toast = useToast();
+  const searchParams = useSearchParams();
+  const linkedDate = searchParams.get("date");
   // Focal date defaults to today; the calendar component derives the week
   // range for week view, so today shows the current week / month / day
   // correctly (not the start of the week or the wrong month at boundaries).
-  const [referenceDate, setReferenceDate] = useState(() => new Date());
+  const [referenceDate, setReferenceDate] = useState(() =>
+    linkedDate && isValidISODate(linkedDate)
+      ? parseISODate(linkedDate)
+      : new Date(),
+  );
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [data, setData] = useState<CalendarResponse | null>(null);
   const [loading, setLoading] = useState(true);

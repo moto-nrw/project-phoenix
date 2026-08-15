@@ -37,11 +37,9 @@ export function ParentPage({
 }
 
 /**
- * The page's identity block, on the same white surface as the sections below.
- * The calm comes from the typography (blue kicker, `text-xl` title, no oversized
- * display type) and from dropping the old split hero with its dotted panel —
- * not from stripping the card, which left the title floating on the dotted page
- * background.
+ * The page identity block. Detail and list pages use the default white surface.
+ * Dashboards may use the plain variant when the app chrome already provides
+ * enough context and daily content should stay above the fold.
  */
 export function ParentPageHeader({
   kicker,
@@ -51,6 +49,7 @@ export function ParentPageHeader({
   backHref,
   backLabel,
   media,
+  variant = "surface",
 }: Readonly<{
   kicker?: string;
   title: string;
@@ -60,9 +59,17 @@ export function ParentPageHeader({
   backLabel?: string;
   /** Optional leading element, e.g. a child's initials avatar. */
   media?: React.ReactNode;
+  /** A quiet page introduction for dashboards that already sit inside app chrome. */
+  variant?: "surface" | "plain";
 }>) {
   return (
-    <header className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+    <header
+      className={
+        variant === "plain"
+          ? "space-y-2 px-1 py-1"
+          : "moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+      }
+    >
       {backHref && backLabel && (
         <ParentBackLink href={backHref} label={backLabel} />
       )}
