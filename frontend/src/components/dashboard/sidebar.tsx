@@ -552,20 +552,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Kalenderzeiträumen; Abrechnung ist unabhängig davon über config:manage
   // geschützt.
   const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
-    if (!userIsAdmin) {
-      if (
-        page.nonAdminPermission === undefined ||
-        !hasPermission(session, page.nonAdminPermission)
-      ) {
-        return false;
-      }
-      // Gleiches timetable.enabled-Gate wie für Admins: die Leseansicht
-      // (#2283) darf bei abgeschaltetem Planungsbereich nicht auftauchen.
-      return (
-        timetableEnabled ||
-        page.href === "/calendar-periods" ||
-        page.href === "/payroll"
-      );
+    // Nicht-Admins sehen nur Seiten mit gehaltener nonAdminPermission
+    // (#2283); das timetable.enabled-Gate darunter gilt für alle.
+    if (
+      !userIsAdmin &&
+      (page.nonAdminPermission === undefined ||
+        !hasPermission(session, page.nonAdminPermission))
+    ) {
+      return false;
     }
     return (
       timetableEnabled ||
