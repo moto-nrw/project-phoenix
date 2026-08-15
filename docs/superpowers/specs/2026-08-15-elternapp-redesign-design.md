@@ -299,20 +299,25 @@ Eltern verständlichere Lösung schlägt die zum Bestand ähnlichere.
 
 ### Navigation
 
-Mobile Bottom-Nav und Desktop-Sidebar zeigen dieselben Ziele. Kein Alltagsziel
-liegt hinter "Mehr".
+Nach Entscheidung E8. Mobile Bottom-Nav und Desktop-Sidebar zeigen dieselben
+Ziele.
 
 | Ziel | Inhalt |
 |---|---|
 | **Start** | Zu erledigen, darunter je Kind eine Tageskarte mit den drei Hauptaktionen |
-| **Nachrichten** | Chat mit der OGS, Badge für Ungelesenes |
-| **Neuigkeiten** | Aushänge, Umfragen, Termine zum Zusagen, Badge |
-| **Mein Kind** (bei mehreren: **Meine Kinder**) | Heute, gebuchte Betreuung, Daten, Kontakte, Essensplan |
-| **Mehr** | Kalender, Benachrichtigungen, Sprache, Anmeldung, Abmelden |
+| **Kinder** | Bei einem Kind direkt dessen Seite (E9), bei mehreren ein Umschalter. Heute, gebuchte Betreuung, Daten, Kontakte |
+| **Nachrichten** | Verlauf mit der OGS, Zähler für Ungelesenes |
+| **Kalender** | Termine als chronologische Liste, Zu- und Absage in der Zeile (E10) |
+| **Mehr** | Neuigkeiten, Essensplan, Benachrichtigungen, Sprache, Neue Anmeldung, Abmelden |
 
-Anmeldung, Benachrichtigungen und Sprache sind Einmalvorgänge und gehören nicht
-in die Hauptnavigation. Der Kalender bleibt erreichbar, ist aber für den
-Alltag nachrangig gegenüber "Zu erledigen".
+Neuigkeiten liegen hinter "Mehr", **tragen ihren Ungelesen-Zähler aber auf das
+"Mehr"-Symbol**, damit ein ungelesener Aushang sichtbar bleibt. Zusätzlich
+erscheint jeder ungelesene Aushang und jede offene Umfrage im Bereich
+"Zu erledigen" auf der Startseite. Ein Elternteil muss also nirgendwo suchen,
+auch wenn der Eintrag selbst nicht in der Hauptnavigation steht.
+
+Anmeldung, Benachrichtigungen und Sprache sind Einmalvorgänge und gehören
+ohnehin nicht in die Hauptnavigation.
 
 **Entfällt vollständig aus der Navigation:** Betreuungszeiten (#2302), AGs und
 Gruppen (#2303), Produktfeedback (#2326), "Bald im Elternportal".
@@ -321,30 +326,34 @@ Gruppen (#2303), Produktfeedback (#2326), "Bald im Elternportal".
 
 ```
 ┌──────────────────────────────────────────┐
-│  Guten Morgen, Sabine                    │   Begrüßung einzeilig, kein Kicker
-├──────────────────────────────────────────┤
-│  ZU ERLEDIGEN                            │
-│  ┌────────────────────────────────────┐  │   nur Dinge mit offener Handlung:
-│  │ ● Umfrage: Sommerfest   [Antworten]│  │   ungelesene Aushänge,
-│  │ ● Neue Nachricht der OGS  [Lesen]  │  │   offene Umfragen,
-│  │ ● Elternabend 01.09.  [Zu-/Absagen]│  │   Termineinladungen ohne Antwort,
-│  └────────────────────────────────────┘  │   ungelesene Nachrichten
-├──────────────────────────────────────────┤
+│  Guten Morgen, Sabine            28px/700│  eine Zeile, kein Kicker,
+│                                          │  keine Willkommenskarte
+│  Zu erledigen                    20px/600│
+│  ┌────────────────────────────────────┐  │  nur Dinge mit offener Handlung:
+│  │ 📋 Umfrage: Sommerfest          ›  │  │  ungelesene Aushänge,
+│  │ 💬 Neue Nachricht der OGS       ›  │  │  offene Umfragen,
+│  │ 📅 Elternabend 01.09.           ›  │  │  Termineinladungen ohne Antwort,
+│  └────────────────────────────────────┘  │  ungelesene Nachrichten
+│      ↑ feine Punkt-Textur als Fläche     │  ganze Zeile anklickbar, ≥72px
+│                                          │
 │  ┌────────────────────────────────────┐  │
-│  │ ▌ FS  Felix Schneider              │  │   farbiges Statusband links
-│  │ ▌     Klasse 1a                    │  │
-│  │ ▌                                  │  │
-│  │ ▌  Seit 12:38 Uhr im Ganztag       │  │   Tagesstatus, groß, mit Icon
-│  │ ▌  Abholung heute: 15:00 Uhr       │  │
+│  │▌ FS  Felix Schneider               │  │  ▌ 4px farbige Kante,
+│  │▌     Klasse 1a                     │  │     Fläche bleibt weiß
+│  │▌                                   │  │
+│  │▌  ✓  In der OGS          24px/800  │  │  Ebene 1 aus at_ogs
+│  │▌     Seit 12:38 Uhr da     15px    │  │  Ebene 2 aus state
 │  │                                    │  │
-│  │  [Krank melden] [Abholung] [OGS]   │  │   drei Aktionen, farbig, 48 px
+│  │  [ Krank melden      ]             │  │  je 48px, volle Breite mobil,
+│  │  [ Abholung ändern   ]             │  │  ab sm nebeneinander
+│  │  [ OGS schreiben     ]             │  │
 │  └────────────────────────────────────┘  │
 └──────────────────────────────────────────┘
 ```
 
-Ist nichts offen, zeigt "Zu erledigen" einen ruhigen grünen Zustand
-("Alles erledigt"), keine leere Liste und keine Platzhalterkarten. Ein leerer
-Neuigkeitenbereich verdrängt nie die Tageskarten (#2308).
+Ist nichts offen, zeigt "Zu erledigen" einen ruhigen Zustand mit grünem Haken
+("Alles erledigt", darunter "Es gibt gerade nichts zu tun."), keine leere Liste
+und keine Platzhalterkarten. Ein leerer Neuigkeitenbereich verdrängt nie die
+Tageskarten (#2308).
 
 ### Kinderprofil
 
