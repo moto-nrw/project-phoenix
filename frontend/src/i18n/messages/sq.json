@@ -153,9 +153,9 @@
     "newsPollUnsaved": "Ende e paruajtur",
     "newsPollNeedsAnswer": "Nevojitet përgjigje",
     "newsNeedsAcknowledgement": "Ju lutemi konfirmoni",
-    "newsAnswer": "Jep përgjigje",
-    "newsReadAndConfirm": "Lexo dhe konfirmo",
-    "newsReadAnnouncement": "Lexo njoftimin",
+    "newsAnswer": "Përgjigjuni",
+    "newsReadAndConfirm": "Konfirmoni si të lexuar",
+    "newsReadAnnouncement": "Lexoni",
     "newsClose": "Mbyll",
     "newEnrollment": "Regjistrim i ri"
   },
@@ -1395,5 +1395,9 @@
     "rotateError": "Lidhja e abonimit nuk u rinovua dot.",
     "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
     "createNew": "Krijoni lidhje të re abonimi"
+  },
+  "parentNews": {
+    "title": "Nga OGS",
+    "empty": "Për momentin nuk ka asgjë të re nga OGS."
   }
 }

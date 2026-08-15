@@ -153,9 +153,9 @@
     "newsPollUnsaved": "Noch nicht gespeichert",
     "newsPollNeedsAnswer": "Antwort nötig",
     "newsNeedsAcknowledgement": "Bitte bestätigen",
-    "newsAnswer": "Antwort geben",
-    "newsReadAndConfirm": "Lesen und bestätigen",
-    "newsReadAnnouncement": "Mitteilung lesen",
+    "newsAnswer": "Antworten",
+    "newsReadAndConfirm": "Gelesen bestätigen",
+    "newsReadAnnouncement": "Lesen",
     "newsClose": "Schließen",
     "newEnrollment": "Neue Anmeldung"
   },
@@ -1395,5 +1395,9 @@
     "rotateError": "Der Abo-Link konnte nicht erneuert werden.",
     "alreadyActive": "Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er nicht erneut angezeigt. Wenn Sie ihn nicht mehr haben, erstellen Sie einen neuen Link; der bisherige gilt dann nicht mehr.",
     "createNew": "Neuen Abo-Link erstellen"
+  },
+  "parentNews": {
+    "title": "Aus der OGS",
+    "empty": "Derzeit gibt es nichts Neues aus der OGS."
   }
 }

@@ -16,6 +16,7 @@ import { NotificationBadge } from "~/components/ui/notification-badge";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { CaretRight } from "./parent-icons";
 import { isParentNavActive } from "./parent-nav-active";
 import {
   PARENT_ICON_WEIGHT,
@@ -183,7 +184,7 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                   <li
                     key={item.key}
                     data-parent-nav-item={item.key}
-                    className="flex min-h-12 items-center justify-between gap-3 rounded-xl px-3"
+                    className="flex min-h-14 items-center justify-between gap-3 rounded-xl px-3"
                   >
                     <span className="flex items-center gap-3 text-[17px] text-gray-900">
                       <Icon size={22} weight={PARENT_ICON_WEIGHT} />
@@ -201,7 +202,7 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                       type="button"
                       data-parent-nav-item={item.key}
                       onClick={() => void logout()}
-                      className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-[17px] text-gray-900 active:bg-gray-100"
+                      className="flex min-h-14 w-full items-center gap-3 rounded-xl px-3 text-left text-[17px] text-gray-900 active:bg-gray-100"
                     >
                       <Icon
                         size={22}
@@ -224,7 +225,7 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                     data-parent-nav-item={item.key}
                     data-active={active ? "true" : "false"}
                     onClick={() => setMoreOpen(false)}
-                    className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-[17px] ${
+                    className={`flex min-h-14 items-center gap-3 rounded-xl px-3 text-[17px] ${
                       active
                         ? "bg-gray-100 font-semibold text-gray-900"
                         : "text-gray-900"
@@ -246,6 +247,11 @@ export function ParentBottomNav({ badges, gates }: ParentNavCounts) {
                         ariaLabel={`${count} ungelesen`}
                       />
                     )}
+                    <CaretRight
+                      size={20}
+                      className="shrink-0 text-gray-400"
+                      aria-hidden="true"
+                    />
                   </Link>
                 </li>
               );

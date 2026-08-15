@@ -153,9 +153,9 @@
     "newsPollUnsaved": "Not saved yet",
     "newsPollNeedsAnswer": "Reply needed",
     "newsNeedsAcknowledgement": "Please confirm",
-    "newsAnswer": "Reply",
-    "newsReadAndConfirm": "Read and confirm",
-    "newsReadAnnouncement": "Read announcement",
+    "newsAnswer": "Answer",
+    "newsReadAndConfirm": "Confirm as read",
+    "newsReadAnnouncement": "Read",
     "newsClose": "Close",
     "newEnrollment": "New enrollment"
   },
@@ -1395,5 +1395,9 @@
     "rotateError": "The subscription link could not be renewed.",
     "alreadyActive": "Your subscription link is already active. For security reasons it is not shown again. If you no longer have it, create a new link; the old one then stops working.",
     "createNew": "Create a new subscription link"
+  },
+  "parentNews": {
+    "title": "From the OGS",
+    "empty": "There is nothing new from the OGS right now."
   }
 }

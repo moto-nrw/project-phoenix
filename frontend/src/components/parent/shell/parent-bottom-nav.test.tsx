@@ -145,4 +145,26 @@ describe("ParentBottomNav", () => {
     expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
     expect(screen.getByText("Benachrichtigungen")).toBeVisible();
   });
+  it("haelt die Eintraege des Mehr-Sheets auf 56 px und gibt Zielen einen Pfeil", () => {
+    renderNav();
+
+    fireEvent.click(screen.getByText("Mehr"));
+
+    const newsItem = document.querySelector('[data-parent-nav-item="news"]');
+    expect(newsItem).not.toBeNull();
+    expect(newsItem!.className).toContain("min-h-14");
+    expect(newsItem!.querySelector("svg")).not.toBeNull();
+  });
+
+  // Teilmenge von #2326: Produktfeedback gehoert nicht in eine Eltern-App.
+  it("bietet kein Produktfeedback mehr an", () => {
+    renderNav();
+
+    fireEvent.click(screen.getByText("Mehr"));
+
+    expect(screen.queryByText(/Feedback/)).not.toBeInTheDocument();
+    expect(
+      document.querySelector('[data-parent-nav-item="feedback"]'),
+    ).toBeNull();
+  });
 });

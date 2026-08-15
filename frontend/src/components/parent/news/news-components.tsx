@@ -77,47 +77,47 @@ function NewsBadges({
   return (
     <>
       {poll && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-semibold text-[#5080D8]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#5080D8]/10 px-2.5 py-0.5 text-[15px] font-semibold text-[#5080D8]">
           <ListChecks className="h-3 w-3" aria-hidden="true" />
           {t("newsPoll")}
         </span>
       )}
       {isOpenPoll(item) && (
-        <span className="inline-flex items-center rounded-full bg-[#FEF4E7] px-2 py-0.5 text-xs font-semibold text-[#B45309]">
+        <span className="inline-flex items-center rounded-full bg-[#FEF4E7] px-2.5 py-0.5 text-[15px] font-semibold text-[#B45309]">
           {t("newsPollNeedsAnswer")}
         </span>
       )}
       {item.requires_acknowledgement &&
         !item.acknowledged &&
         !isOpenPoll(item) && (
-          <span className="inline-flex items-center rounded-full bg-[#FEF4E7] px-2 py-0.5 text-xs font-semibold text-[#B45309]">
+          <span className="inline-flex items-center rounded-full bg-[#FEF4E7] px-2.5 py-0.5 text-[15px] font-semibold text-[#B45309]">
             {t("newsNeedsAcknowledgement")}
           </span>
         )}
       {poll && item.response_deadline && !isPollClosed(item) && (
-        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[15px] font-semibold text-gray-700">
           {t("newsPollDeadline", {
             date: formatBerlinDate(item.response_deadline),
           })}
         </span>
       )}
       {poll && isPollClosed(item) && (
-        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-500">
+        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[15px] font-semibold text-gray-500">
           {t("newsPollClosed")}
         </span>
       )}
       {!item.read && (
-        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-xs font-semibold text-white">
+        <span className="inline-flex items-center rounded-full bg-gray-900 px-2.5 py-0.5 text-[15px] font-semibold text-white">
           {t("newsNew")}
         </span>
       )}
       {item.priority === "important" && (
-        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-[15px] font-semibold text-gray-700">
           {t("newsImportant")}
         </span>
       )}
       {item.acknowledged && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+        <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[15px] font-semibold text-gray-600">
           <Check className="h-3 w-3" aria-hidden="true" />
           {t("newsAcknowledged")}
         </span>
@@ -280,11 +280,11 @@ function PollAnswerRows({
             className="rounded-xl border border-gray-200 p-3"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
-              <p className="truncate text-sm font-semibold text-gray-900">
+              <p className="truncate text-[17px] font-semibold text-gray-900">
                 {child.first_name}
               </p>
               <span
-                className={`shrink-0 text-xs ${
+                className={`shrink-0 text-[15px] ${
                   dirty
                     ? "text-[#B45309]"
                     : answered
@@ -342,35 +342,47 @@ export function NewsCard({
   onOpen: (item: ParentAnnouncement) => void;
 }>) {
   const t = useTranslations("parentDashboard");
+  const poll = isOpenPoll(item);
+  const needsAck = item.requires_acknowledgement && !item.acknowledged;
+  // Eine Kante, eine Bedeutung: orange heisst "hier wartet eine Handlung",
+  // blau heisst "ungelesen", nichts heisst erledigt. Die Flaeche bleibt weiss.
+  const edge = poll || needsAck ? "bg-moto-orange" : item.read ? "" : "bg-moto-blue";
+  const action = poll
+    ? t("newsAnswer")
+    : needsAck
+      ? t("newsReadAndConfirm")
+      : t("newsReadAnnouncement");
 
   return (
     <button
       type="button"
       onClick={() => onOpen(item)}
-      className={`flex w-full items-center gap-3 rounded-xl border bg-white p-4 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 ${
-        item.read ? "border-gray-200" : "border-gray-300"
-      }`}
+      className="relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-gray-200 bg-white py-4 pr-4 pl-5 text-left shadow-sm transition-colors hover:bg-gray-50 active:bg-gray-100 sm:pl-6"
     >
+      {edge && (
+        <span
+          className={`absolute inset-y-0 left-0 w-1 ${edge}`}
+          aria-hidden="true"
+        />
+      )}
       <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-2">
-          <NewsBadges item={item} />
-        </span>
-        <span className="mt-1.5 block truncate text-sm font-semibold text-gray-900">
+        <span
+          className={`block text-[17px] text-gray-900 ${item.read ? "font-medium" : "font-semibold"}`}
+        >
           {item.title}
         </span>
-        <span className="mt-0.5 block text-xs text-gray-500">
+        <span className="mt-0.5 block text-[15px] text-gray-500">
           {item.school_name}
           {item.published_at ? ` · ${formatDate(item.published_at)}` : ""}
         </span>
-        <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-gray-600">
+        <span className="mt-1 flex flex-wrap items-center gap-2">
+          <NewsBadges item={item} />
+        </span>
+        <span className="mt-1.5 line-clamp-2 block text-[15px] leading-6 text-gray-600">
           {item.body}
         </span>
-        <span className="mt-2 block text-sm font-semibold text-gray-900">
-          {isOpenPoll(item)
-            ? t("newsAnswer")
-            : item.requires_acknowledgement && !item.acknowledged
-              ? t("newsReadAndConfirm")
-              : t("newsReadAnnouncement")}
+        <span className="mt-2 block text-[17px] font-semibold text-gray-900">
+          {action}
         </span>
       </span>
       <ChevronRight
@@ -525,13 +537,13 @@ export function NewsDetailModal({
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <NewsBadges item={item} />
-          <span className="text-xs text-gray-500">
+          <span className="text-[15px] text-gray-500">
             {item.school_name}
             {item.published_at ? ` · ${formatDate(item.published_at)}` : ""}
           </span>
         </div>
 
-        <p className="text-sm leading-6 whitespace-pre-line text-gray-800">
+        <p className="text-[17px] leading-7 whitespace-pre-line text-gray-800">
           <LinkifiedText text={item.body} />
         </p>
 

@@ -293,7 +293,7 @@ describe("Umfrage answering in the detail view", () => {
   it("flags an open poll on the feed card without answering there", () => {
     render(<NewsCard item={poll()} onOpen={vi.fn()} />);
     expect(screen.getByText("Antwort nötig")).toBeInTheDocument();
-    expect(screen.getByText("Antwort geben")).toBeInTheDocument();
+    expect(screen.getByText("Antworten")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Ja" }),
     ).not.toBeInTheDocument();
