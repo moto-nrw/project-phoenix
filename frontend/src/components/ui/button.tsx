@@ -10,7 +10,8 @@ type ButtonVariant =
   | "danger"
   | "success"
   | "ghost";
-type ButtonSize = "sm" | "md" | "base" | "lg" | "xl" | "compact" | "icon";
+type ButtonSize =
+  "sm" | "md" | "base" | "lg" | "xl" | "touch" | "compact" | "icon";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   isLoading?: boolean;
@@ -43,6 +44,7 @@ function buttonClassName({
     base: "text-base",
     lg: "text-lg",
     xl: "text-xl",
+    touch: "",
     compact: "text-xs",
     icon: "text-xs",
   };
@@ -52,6 +54,10 @@ function buttonClassName({
     base: "rounded-lg px-5 py-3",
     lg: "rounded-lg px-5 py-3",
     xl: "rounded-lg px-5 py-3",
+    // Eltern-App: 48px Mindesthoehe und 17px Schrift. Die Seitengroessen
+    // (sm/base/lg/xl) sind mit py-3 zu niedrig fuer eine Touch-Flaeche nach
+    // Apple HIG (44pt) und Material (48dp).
+    touch: "min-h-12 rounded-xl px-5 text-[17px] font-semibold",
     compact: "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed",
     icon: "h-8 w-8 rounded-md disabled:cursor-not-allowed",
   };

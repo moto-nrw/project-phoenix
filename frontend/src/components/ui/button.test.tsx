@@ -137,6 +137,16 @@ describe("Button", () => {
     expect(button.className).toContain("text-xl");
   });
 
+  it("applies touch size styles", () => {
+    render(<Button size="touch">Krank melden</Button>);
+
+    const button = screen.getByRole("button");
+    // Eltern-App: 48px Mindesthoehe (Apple HIG 44pt, Material 48dp) und
+    // 17px Schrift als Untergrenze fuer alles Bedienbare.
+    expect(button.className).toContain("min-h-12");
+    expect(button.className).toContain("text-[17px]");
+  });
+
   it("passes custom className", () => {
     render(<Button className="custom-class">Custom</Button>);
 
