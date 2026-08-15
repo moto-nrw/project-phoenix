@@ -326,15 +326,8 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	// A pull-forward without an explicit period keeps using the template's
-	// stored pin. Besides enforcing its bounds, carrying the pin prevents the
-	// full-replacement update below from clearing it.
-	if parsed.startDate != nil && parsed.req.CalendarPeriodID == nil {
-		parsed.req.CalendarPeriodID = templates[0].CalendarPeriodID
-		if len(templates[0].Schedules) > 0 && templates[0].Schedules[0].CalendarPeriodID != nil {
-			parsed.req.CalendarPeriodID = templates[0].Schedules[0].CalendarPeriodID
-		}
-	}
+	parsed.req.CalendarPeriodID = updateCalendarPeriodID(
+		parsed.startDate, parsed.req.CalendarPeriodID, templates[0])
 	applyOfferingSourcePresence(parsed.req, templates[0])
 	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, parsed.startDate)
 	if !ok {
@@ -364,6 +357,25 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, templates[0], "Template updated")
+}
+
+// updateCalendarPeriodID keeps the stored pin when a pull-forward omits the
+// field. The schedule pin is more specific than the template-level fallback,
+// matching the materializer's period resolution. Carrying the resolved pin
+// both enforces its bounds and prevents the replacement update from clearing
+// it. Updates without start_date preserve the existing omission semantics.
+func updateCalendarPeriodID(
+	startDate *timezone.Date,
+	requestedPeriodID *int64,
+	existing templateResponse,
+) *int64 {
+	if startDate == nil || requestedPeriodID != nil {
+		return requestedPeriodID
+	}
+	if len(existing.Schedules) > 0 && existing.Schedules[0].CalendarPeriodID != nil {
+		return existing.Schedules[0].CalendarPeriodID
+	}
+	return existing.CalendarPeriodID
 }
 
 // applyOfferingSourcePresence resolves the presence-aware offering-source
