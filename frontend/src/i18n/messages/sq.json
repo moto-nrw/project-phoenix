@@ -377,24 +377,24 @@
     "close": "Mbyll",
     "cancel": "Anulo",
     "sick": {
-      "title": "Njofto mungesë",
-      "intro": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Stafi i kujdesit e sheh njoftimin menjëherë.",
-      "introApproval": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Një njoftim sëmundjeje stafi e sheh menjëherë; një mungesë e justifikuar duhet të konfirmohet nga ekipi.",
-      "kindLabel": "Lloji i mungesës",
+      "title": "Njoftoni sëmundje",
+      "intro": "Çregjistroni fëmijën tuaj për një ose disa ditë. OGS-ja njoftohet menjëherë.",
+      "introApproval": "Çregjistroni fëmijën tuaj për një ose disa ditë. Një njoftim sëmundjeje e sheh OGS-ja menjëherë; një mungesë e arsyetuar konfirmohet më parë nga ekipi.",
+      "kindLabel": "A është fëmija juaj i sëmurë?",
       "kindSick": "I sëmurë",
       "kindExcused": "I justifikuar",
       "from": "Nga",
       "to": "Deri",
       "daysCount": "{count, plural, one {# ditë do të njoftohet.} other {# ditë do të njoftohen.}}",
-      "reasonLabel": "Shënim (opsional)",
+      "reasonLabel": "Pse? (vullnetare)",
       "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
-      "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
+      "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme. Data e fundit nuk duhet të jetë para datës së parë.",
       "saveError": "Mungesa nuk u ruajt dot.",
       "submittedButRefreshFailed": "Mungesa u dërgua, por nuk mund të shfaqej. Ju lutemi rifreskoni faqen.",
       "overlapError": "Për një nga këto ditë ekziston tashmë një kërkesë mungese e hapur.",
-      "submit": "Dërgo njoftimin e mungesës",
-      "reasonLabelRequired": "Shënim (i detyrueshëm)",
-      "reasonRequiredError": "Ju lutemi shtoni një shënim që shpjegon pse fëmija juaj mungon me arsye.",
+      "submit": "Dërgoni njoftimin e sëmundjes",
+      "reasonLabelRequired": "Pse? *",
+      "reasonRequiredError": "Ju lutemi shkruani shkurt pse fëmija juaj mungon.",
       "approvalHint": "Kjo mungesë duhet të konfirmohet nga ekipi."
     },
     "summary": {
@@ -411,15 +411,15 @@
       "reasonPrefix": "Arsyeja"
     },
     "pickup": {
-      "title": "Ndrysho orën e marrjes",
-      "intro": "Vendosni orën e re të marrjes dhe një arsye të shkurtër. Ndryshimi vlen vetëm për ditën e zgjedhur.",
+      "title": "Ndryshoni marrjen",
+      "intro": "Shkruani orën e re të marrjes për një ditë të vetme. OGS-ja njoftohet menjëherë.",
       "dateLabel": "Dita",
-      "pickupLabel": "Ora e marrjes",
+      "pickupLabel": "Ora e re e marrjes",
       "arrivalLabel": "Ora e ardhjes",
-      "noTime": "Ju lutemi vendosni orën e re të marrjes.",
-      "reasonLabel": "Arsyeja (e detyrueshme)",
+      "noTime": "Ju lutemi shkruani një orë.",
+      "reasonLabel": "Pse? *",
       "reasonPlaceholder": "Për shembull, takim te mjeku ose marrje nga gjyshërit",
-      "reasonRequired": "Ju lutemi vendosni një arsye të shkurtër për ndryshimin.",
+      "reasonRequired": "Ju lutemi shkruani shkurt pse ndryshon marrja.",
       "reasonTooLong": "Arsyeja mund të ketë maksimumi 255 karaktere.",
       "saveError": "Ndryshimi nuk mund të ruhej.",
       "loadError": "Oraret e ruajtura aktuale nuk mund të ngarkoheshin. Ju lutemi ringarkoni faqen dhe provoni përsëri.",
@@ -430,8 +430,8 @@
       "errorTooFar": "Kjo ditë është shumë larg në të ardhmen. Ju lutemi zgjidhni një ditë brenda dy muajve të ardhshëm.",
       "staffSet": "Institucioni ka caktuar tashmë orare të veçanta për këtë ditë (marrja: {pickup}, ardhja: {arrival}).",
       "existingHint": "Për {date} është caktuar tashmë një ndryshim. Ruajtja e mbishkruan.",
-      "reset": "Rivendos",
-      "submit": "Ruaj"
+      "reset": "Hiqni ndryshimin",
+      "submit": "Ndryshoni marrjen"
     },
     "actions": {
       "sick": {
@@ -469,7 +469,9 @@
         "bus": "Udhëton me autobus",
         "pickup": "Merret"
       }
-    }
+    },
+    "requiredHint": "Fushat me * duhen plotësuar.",
+    "timeFormatHint": "Ora në formatin 15:30"
   },
   "parentLogin": {
     "eyebrow": "Portali i prindërve",

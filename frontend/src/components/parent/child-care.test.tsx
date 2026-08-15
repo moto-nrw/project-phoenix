@@ -95,8 +95,9 @@ function renderModal(
   // live outside the render container — query the document instead.
   const dateInput =
     document.querySelector<HTMLInputElement>('input[type="date"]')!;
-  const pickupInput =
-    document.querySelector<HTMLInputElement>('input[type="time"]');
+  const pickupInput = screen.getByLabelText<HTMLInputElement>(
+    /Neue Abholzeit/,
+  );
   const reasonInput = document.querySelector<HTMLTextAreaElement>("textarea");
   return { onSubmit, onRemove, onClose, dateInput, pickupInput, reasonInput };
 }
@@ -109,7 +110,7 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(screen.getByText(LOAD_ERROR_DE)).toBeInTheDocument();
 
     // The save button is disabled so an omitted leg can't be sent as a clear.
-    const saveButton = screen.getByRole("button", { name: "Speichern" });
+    const saveButton = screen.getByRole("button", { name: "Abholung ändern" });
     expect(saveButton).toBeDisabled();
 
     // Even if a click slips through, handleSubmit refuses to submit.
@@ -127,7 +128,7 @@ describe("PickupTimeModal — failed preload guard", () => {
 
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
     fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abholung ändern" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith(
@@ -160,7 +161,7 @@ describe("PickupTimeModal — failed preload guard", () => {
 
     // Change only the pickup time; arrival stays at its prefilled value.
     fireEvent.change(pickupInput!, { target: { value: "16:00" } });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abholung ändern" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       date: "2026-03-17",
@@ -174,11 +175,11 @@ describe("PickupTimeModal — failed preload guard", () => {
     const { onSubmit, pickupInput, reasonInput } = renderModal();
 
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abholung ändern" }));
 
     expect(
       screen.getByText(
-        "Bitte geben Sie einen kurzen Grund für die Änderung an.",
+        "Bitte schreiben Sie kurz, warum sich die Abholung ändert.",
       ),
     ).toHaveAttribute("role", "alert");
     expect(reasonInput).toHaveAttribute("aria-invalid", "true");
@@ -196,7 +197,7 @@ describe("SickNoteModal — Abmeldegrund", () => {
     const onClose = vi.fn();
     render(<SickNoteModal onClose={onClose} onSubmit={onSubmit} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Krankmeldung senden" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const [dates, reason, status] = onSubmit.mock.calls[0]!;
@@ -212,14 +213,14 @@ describe("SickNoteModal — Abmeldegrund", () => {
 
     // Switch the kind to "Entschuldigt" via the CustomSelect combobox.
     fireEvent.click(
-      screen.getByRole("combobox", { name: "Art der Abmeldung" }),
+      screen.getByRole("combobox", { name: "Ist Ihr Kind krank?" }),
     );
     fireEvent.click(screen.getByRole("option", { name: "Entschuldigt" }));
 
     const reasonField = document.querySelector("textarea")!;
     fireEvent.change(reasonField, { target: { value: "Zahnarzttermin" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Krankmeldung senden" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit).toHaveBeenCalledWith(
@@ -240,7 +241,7 @@ describe("SickNoteModal — Abmeldegrund", () => {
     const [, toInput] = dateInputs;
     fireEvent.change(toInput!, { target: { value: "2000-01-01" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Krankmeldung senden" }));
 
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -744,5 +745,67 @@ describe("useChildCare studentId switch", () => {
       time: "15:00",
       changed: false,
     });
+  });
+});
+
+// Aufgabe 7 des Umbaus: die Dialoge sprechen Elternsprache und sind mit dem
+// Daumen bedienbar. Fachlich aendert sich nichts (Entscheidung E5).
+describe("Dialoge in Elternsprache", () => {
+  it("benennt im Krank-Dialog die Folge und die Pflichtfelder", () => {
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={vi.fn()} />);
+
+    expect(
+      screen.getByText(/Die OGS wird sofort informiert/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Felder mit * müssen ausgefüllt werden."),
+    ).toBeInTheDocument();
+    // Die Hauptaktion nennt die Folge, nicht "Speichern".
+    expect(
+      screen.getByRole("button", { name: "Krankmeldung senden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("benennt im Abhol-Dialog die Folge und zeigt das Uhrzeitformat", () => {
+    renderModal();
+
+    expect(
+      screen.getByText(/Die OGS wird sofort informiert/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Felder mit * müssen ausgefüllt werden."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Uhrzeit im Format 15:30")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abholung ändern" }),
+    ).toBeInTheDocument();
+  });
+
+  it("meldet eine fehlende Uhrzeit in Alltagssprache am Feld", () => {
+    const { onSubmit, reasonInput } = renderModal();
+
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abholung ändern" }));
+
+    expect(screen.getByText("Bitte tragen Sie eine Uhrzeit ein.")).toHaveAttribute(
+      "role",
+      "alert",
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("nimmt die Uhrzeit als Text an und setzt den Doppelpunkt selbst", () => {
+    const { onSubmit, pickupInput, reasonInput } = renderModal();
+
+    fireEvent.change(pickupInput, { target: { value: "1430" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Abholung ändern" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ pickupTime: "14:30" }),
+    );
   });
 });

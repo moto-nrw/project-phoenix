@@ -377,24 +377,24 @@
     "close": "Close",
     "cancel": "Cancel",
     "sick": {
-      "title": "Report absence",
-      "intro": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. The care team sees the report immediately.",
-      "introApproval": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. A sick report is seen by the care team immediately; an excused absence must be confirmed by the team.",
-      "kindLabel": "Type of absence",
+      "title": "Report sick",
+      "intro": "Report your child absent for one or more days. The OGS is informed straight away.",
+      "introApproval": "Report your child absent for one or more days. A sick note reaches the OGS straight away; an excused absence has to be confirmed by the team first.",
+      "kindLabel": "Is your child sick?",
       "kindSick": "Sick",
       "kindExcused": "Excused",
       "from": "From",
       "to": "To",
       "daysCount": "{count, plural, one {# day will be reported.} other {# days will be reported.}}",
-      "reasonLabel": "Note (optional)",
+      "reasonLabel": "Why? (optional)",
       "reasonPlaceholder": "e.g. fever, dentist appointment",
-      "invalidDate": "Please choose a valid date (end date after start date).",
+      "invalidDate": "Please pick a valid date. The end date must not be before the start date.",
       "saveError": "The absence could not be saved.",
       "submittedButRefreshFailed": "The absence was submitted but could not be displayed. Please reload the page.",
       "overlapError": "One of these days already has an open absence request.",
-      "submit": "Send absence",
-      "reasonLabelRequired": "Note (required)",
-      "reasonRequiredError": "Please add a note explaining why your child is excused.",
+      "submit": "Send sick note",
+      "reasonLabelRequired": "Why? *",
+      "reasonRequiredError": "Please write briefly why your child is absent.",
       "approvalHint": "This absence must be confirmed by the team."
     },
     "summary": {
@@ -411,15 +411,15 @@
       "reasonPrefix": "Reason"
     },
     "pickup": {
-      "title": "Change pickup time",
-      "intro": "Enter the new pickup time and a short reason. The change applies only to the selected day.",
+      "title": "Change pick-up",
+      "intro": "Enter the new pick-up time for a single day. The OGS is informed straight away.",
       "dateLabel": "Day",
-      "pickupLabel": "Pickup time",
+      "pickupLabel": "New pick-up time",
       "arrivalLabel": "Arrival time",
-      "noTime": "Please enter the new pickup time.",
-      "reasonLabel": "Reason (required)",
+      "noTime": "Please enter a time.",
+      "reasonLabel": "Why? *",
       "reasonPlaceholder": "For example, a medical appointment or pickup by grandparents",
-      "reasonRequired": "Please enter a short reason for the change.",
+      "reasonRequired": "Please write briefly why the pick-up changes.",
       "reasonTooLong": "The reason may contain at most 255 characters.",
       "saveError": "The change could not be saved.",
       "loadError": "The currently saved times could not be loaded. Please reload the page and try again.",
@@ -430,8 +430,8 @@
       "errorTooFar": "That day is too far in the future. Please pick a day within the next two months.",
       "staffSet": "The school has already set special times for this day (pickup: {pickup}, arrival: {arrival}).",
       "existingHint": "A change is already set for {date}. Saving overwrites it.",
-      "reset": "Reset",
-      "submit": "Save"
+      "reset": "Undo the change",
+      "submit": "Change pick-up"
     },
     "actions": {
       "sick": {
@@ -469,7 +469,9 @@
         "bus": "Takes the bus",
         "pickup": "Is picked up"
       }
-    }
+    },
+    "requiredHint": "Fields marked with * are required.",
+    "timeFormatHint": "Time in the format 15:30"
   },
   "parentLogin": {
     "eyebrow": "Parent portal",

@@ -47,6 +47,13 @@ interface ModalProps {
   readonly backdropLabel?: string;
   /** Prevent every dismissal path while an operation must finish in place. */
   readonly isDismissDisabled?: boolean;
+  /**
+   * Auf schmalen Schirmen als Sheet von unten statt als mittiges Fenster, mit
+   * angehefteter Fussleiste und freiem Sicherheitsbereich. Ab `sm` bleibt es
+   * das gewohnte mittige Fenster. Verlangt von der Eltern-App; alle anderen
+   * Aufrufer bleiben unveraendert.
+   */
+  readonly mobileSheet?: boolean;
 }
 
 export function Modal({
@@ -59,6 +66,7 @@ export function Modal({
   closeLabel = "Modal schließen",
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
+  mobileSheet = false,
 }: ModalProps) {
   // Stable id so the dialog can reference its heading via aria-labelledby,
   // giving the dialog an accessible name (role="dialog" alone has none).
@@ -187,7 +195,9 @@ export function Modal({
     <FocusScope asChild loop trapped>
       <div
         data-modal-focus-scope="true"
-        className="fixed inset-0 z-[9999] flex items-center justify-center"
+        className={`fixed inset-0 z-[9999] flex justify-center ${
+          mobileSheet ? "items-end sm:items-center" : "items-center"
+        }`}
         // pointerEvents: 'auto' is required when this modal is rendered while
         // a Radix/Vaul dialog (e.g. the mobile master/detail drawer) has set
         // `document.body { pointer-events: none }`. Without this, the modal
@@ -222,7 +232,11 @@ export function Modal({
         />
         {/* Dialog container */}
         <div
-          className={`relative ${widthClass} flex max-h-[calc(100dvh-2rem)] transform flex-col overflow-hidden overscroll-contain rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+          className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl ${
+            mobileSheet
+              ? "max-h-[calc(100dvh-3rem)] w-full max-w-none rounded-t-2xl sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:max-w-lg sm:rounded-2xl"
+              : `${widthClass} max-h-[calc(100dvh-2rem)] rounded-2xl`
+          } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
           aria-labelledby={title ? titleId : undefined}
           style={{
@@ -326,7 +340,13 @@ export function Modal({
 
           {/* Footer if provided */}
           {footer && (
-            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
+            <div
+              className={`flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6 ${
+                mobileSheet
+                  ? "flex-col pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:pb-6"
+                  : "justify-end"
+              }`}
+            >
               {footer}
             </div>
           )}

@@ -377,24 +377,24 @@
     "close": "Schließen",
     "cancel": "Abbrechen",
     "sick": {
-      "title": "Abmelden",
-      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Die Betreuung sieht die Meldung sofort.",
-      "introApproval": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Eine Krankmeldung sieht die Betreuung sofort; eine entschuldigte Abmeldung muss vom Team bestätigt werden.",
-      "kindLabel": "Art der Abmeldung",
+      "title": "Krank melden",
+      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Die OGS wird sofort informiert.",
+      "introApproval": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Eine Krankmeldung sieht die OGS sofort; eine entschuldigte Abmeldung bestätigt das Team erst.",
+      "kindLabel": "Ist Ihr Kind krank?",
       "kindSick": "Krank",
       "kindExcused": "Entschuldigt",
       "from": "Von",
       "to": "Bis",
       "daysCount": "{count, plural, one {# Tag wird gemeldet.} other {# Tage werden gemeldet.}}",
-      "reasonLabel": "Notiz (optional)",
+      "reasonLabel": "Warum? (freiwillig)",
       "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
-      "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
+      "invalidDate": "Bitte wählen Sie ein gültiges Datum. Das Bis-Datum darf nicht vor dem Von-Datum liegen.",
       "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
       "submittedButRefreshFailed": "Die Abmeldung wurde gesendet, konnte aber nicht angezeigt werden. Bitte laden Sie die Seite neu.",
       "overlapError": "Für einen dieser Tage liegt bereits eine offene Abmeldung vor.",
-      "submit": "Abmeldung senden",
-      "reasonLabelRequired": "Notiz (Pflichtfeld)",
-      "reasonRequiredError": "Bitte geben Sie eine Notiz an, warum Ihr Kind entschuldigt fehlt.",
+      "submit": "Krankmeldung senden",
+      "reasonLabelRequired": "Warum? *",
+      "reasonRequiredError": "Bitte schreiben Sie kurz, warum Ihr Kind fehlt.",
       "approvalHint": "Diese Abmeldung muss vom Team bestätigt werden."
     },
     "summary": {
@@ -411,15 +411,15 @@
       "reasonPrefix": "Grund"
     },
     "pickup": {
-      "title": "Abholzeit ändern",
-      "intro": "Tragen Sie die neue Abholzeit und einen kurzen Grund ein. Die Änderung gilt nur für den ausgewählten Tag.",
+      "title": "Abholung ändern",
+      "intro": "Tragen Sie die neue Abholzeit für einen einzelnen Tag ein. Die OGS wird sofort informiert.",
       "dateLabel": "Tag",
-      "pickupLabel": "Abholzeit",
+      "pickupLabel": "Neue Abholzeit",
       "arrivalLabel": "Ankunftszeit",
-      "noTime": "Bitte geben Sie die neue Abholzeit an.",
-      "reasonLabel": "Grund (Pflichtfeld)",
+      "noTime": "Bitte tragen Sie eine Uhrzeit ein.",
+      "reasonLabel": "Warum? *",
       "reasonPlaceholder": "Zum Beispiel Arzttermin oder Abholung durch die Großeltern",
-      "reasonRequired": "Bitte geben Sie einen kurzen Grund für die Änderung an.",
+      "reasonRequired": "Bitte schreiben Sie kurz, warum sich die Abholung ändert.",
       "reasonTooLong": "Der Grund darf höchstens 255 Zeichen lang sein.",
       "saveError": "Die Änderung konnte nicht gespeichert werden.",
       "loadError": "Die aktuell hinterlegten Zeiten konnten nicht geladen werden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
@@ -430,8 +430,8 @@
       "errorTooFar": "Der Tag liegt zu weit in der Zukunft. Bitte wählen Sie einen Tag innerhalb der nächsten zwei Monate.",
       "staffSet": "Für diesen Tag hat die Einrichtung bereits abweichende Zeiten festgelegt (Abholzeit: {pickup}, Ankunftszeit: {arrival}).",
       "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
-      "reset": "Zurücksetzen",
-      "submit": "Speichern"
+      "reset": "Änderung zurücknehmen",
+      "submit": "Abholung ändern"
     },
     "actions": {
       "sick": {
@@ -469,7 +469,9 @@
         "bus": "Fährt Bus",
         "pickup": "Wird abgeholt"
       }
-    }
+    },
+    "requiredHint": "Felder mit * müssen ausgefüllt werden.",
+    "timeFormatHint": "Uhrzeit im Format 15:30"
   },
   "parentLogin": {
     "eyebrow": "Elternportal",

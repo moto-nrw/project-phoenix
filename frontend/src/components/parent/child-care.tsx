@@ -14,6 +14,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { TimeField } from "~/components/ui/time-field";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import {
@@ -703,13 +704,41 @@ export function SickNoteModal({
       onClose={onClose}
       title={t("sick.title")}
       closeLabel={t("close")}
+      mobileSheet
+      footer={
+        <>
+          <Button
+            type="button"
+            size="touch"
+            className="w-full gap-2 sm:w-auto"
+            onClick={() => void handleSubmit()}
+            disabled={submitting || noteMissing}
+          >
+            {submitting && (
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            )}
+            {t("sick.submit")}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="touch"
+            className="w-full sm:w-auto"
+            onClick={onClose}
+          >
+            {t("cancel")}
+          </Button>
+        </>
+      }
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">
+        {/* Ein Satz oben, der die Folge benennt. Kein stummes Speichern. */}
+        <p className="text-[17px] leading-7 text-gray-700">
           {excusedRequiresApproval ? t("sick.introApproval") : t("sick.intro")}
         </p>
+        <p className="text-[15px] text-gray-500">{t("requiredHint")}</p>
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <span className="mb-1 block text-[15px] font-medium text-gray-700">
             {t("sick.kindLabel")}
           </span>
           <CustomSelect
@@ -724,7 +753,7 @@ export function SickNoteModal({
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            <span className="mb-1 block text-[15px] font-medium text-gray-700">
               {t("sick.from")}
             </span>
             <ISODatePicker
@@ -741,7 +770,7 @@ export function SickNoteModal({
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            <span className="mb-1 block text-[15px] font-medium text-gray-700">
               {t("sick.to")}
             </span>
             <ISODatePicker
@@ -755,16 +784,16 @@ export function SickNoteModal({
             />
           </label>
         </div>
-        <p className="text-xs text-gray-500">
+        <p className="text-[15px] text-gray-600">
           {t("sick.daysCount", { count: dates.length })}
         </p>
         {noteRequired && excusedRequiresApproval && (
-          <p className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm">
+          <p className="bg-moto-orange-soft text-moto-orange-strong rounded-xl px-3 py-2 text-[15px]">
             {t("sick.approvalHint")}
           </p>
         )}
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <span className="mb-1 block text-[15px] font-medium text-gray-700">
             {noteRequired
               ? t("sick.reasonLabelRequired")
               : t("sick.reasonLabel")}
@@ -775,31 +804,18 @@ export function SickNoteModal({
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder={t("sick.reasonPlaceholder")}
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+            className="min-h-24 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-[17px] focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none"
           />
         </label>
+        {/* Der Fehler steht am Formular, in Alltagssprache. */}
         {error && (
-          <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
+          <p
+            role="alert"
+            className="bg-parent-red-soft text-parent-red-strong rounded-xl px-3 py-2 text-[15px]"
+          >
             {error}
           </p>
         )}
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
-            {t("cancel")}
-          </Button>
-          <Button
-            type="button"
-            size="md"
-            className="gap-2"
-            onClick={() => void handleSubmit()}
-            disabled={submitting || noteMissing}
-          >
-            {submitting && (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            )}
-            {t("sick.submit")}
-          </Button>
-        </div>
       </div>
     </Modal>
   );
@@ -956,16 +972,64 @@ export function PickupTimeModal({
       onClose={onClose}
       title={t("pickup.title")}
       closeLabel={t("close")}
+      mobileSheet
+      footer={
+        <>
+          <Button
+            type="button"
+            size="touch"
+            className="w-full gap-2 sm:w-auto"
+            onClick={() => void handleSubmit()}
+            disabled={
+              submitting ||
+              staffOwned ||
+              !pickupChangeEnabled ||
+              !careExceptionsLoaded
+            }
+          >
+            {submitting && (
+              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            )}
+            {t("pickup.submit")}
+          </Button>
+          {existing && !staffOwned && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="touch"
+              className="w-full gap-2 sm:w-auto"
+              onClick={() => void handleRemove()}
+              disabled={submitting}
+            >
+              <Trash2 className="h-5 w-5" aria-hidden="true" />
+              {t("pickup.reset")}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="touch"
+            className="w-full sm:w-auto"
+            onClick={onClose}
+          >
+            {t("cancel")}
+          </Button>
+        </>
+      }
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">{t("pickup.intro")}</p>
+        {/* Die Folge steht oben, bevor irgendetwas ausgefuellt wird. */}
+        <p className="text-[17px] leading-7 text-gray-700">
+          {t("pickup.intro")}
+        </p>
+        <p className="text-[15px] text-gray-500">{t("requiredHint")}</p>
         {!careExceptionsLoaded && (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <p className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[15px] text-gray-600">
             {t("pickup.loadError")}
           </p>
         )}
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <span className="mb-1 block text-[15px] font-medium text-gray-700">
             {t("pickup.dateLabel")}
           </span>
           <ISODatePicker
@@ -981,7 +1045,7 @@ export function PickupTimeModal({
         </label>
 
         {staffOwned ? (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          <p className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[15px] text-gray-600">
             {t("pickup.staffSet", {
               pickup: existing?.pickup_time ?? "—",
               arrival: existing?.arrival_time ?? "—",
@@ -989,31 +1053,24 @@ export function PickupTimeModal({
           </p>
         ) : (
           <div className="space-y-4">
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {t("pickup.pickupLabel")}
-              </span>
-              <input
-                ref={pickupTimeRef}
-                type="time"
-                value={pickupTime}
-                onChange={(e) => {
-                  setPickupTime(e.target.value);
-                  if (invalidField === "pickupTime") {
-                    setInvalidField(null);
-                    setError(null);
-                  }
-                }}
-                required
-                aria-invalid={invalidField === "pickupTime"}
-                aria-describedby={
-                  invalidField === "pickupTime" ? errorId : undefined
+            <TimeField
+              inputRef={pickupTimeRef}
+              value={pickupTime}
+              onChange={(next) => {
+                setPickupTime(next);
+                if (invalidField === "pickupTime") {
+                  setInvalidField(null);
+                  setError(null);
                 }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none sm:text-sm"
-              />
-            </label>
+              }}
+              label={t("pickup.pickupLabel")}
+              hint={t("timeFormatHint")}
+              required
+              invalid={invalidField === "pickupTime"}
+              describedBy={invalidField === "pickupTime" ? errorId : undefined}
+            />
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <span className="mb-1 block text-[15px] font-medium text-gray-700">
                 {t("pickup.reasonLabel")}
               </span>
               <textarea
@@ -1034,14 +1091,14 @@ export function PickupTimeModal({
                 aria-describedby={
                   invalidField === "reason" ? errorId : undefined
                 }
-                className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-base focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none sm:text-sm"
+                className="min-h-24 w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-[17px] focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none"
               />
             </label>
           </div>
         )}
 
         {existing && !staffOwned && (
-          <p className="text-xs text-gray-500">
+          <p className="text-[15px] text-gray-500">
             {t("pickup.existingHint", {
               date: formatLocaleDate(date, locale),
             })}
@@ -1052,51 +1109,11 @@ export function PickupTimeModal({
           <p
             id={errorId}
             role="alert"
-            className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm"
+            className="bg-parent-red-soft text-parent-red-strong rounded-xl px-3 py-2 text-[15px]"
           >
             {error}
           </p>
         )}
-
-        <div className="flex items-center justify-between gap-2 pt-1">
-          {existing && !staffOwned ? (
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              className="gap-2"
-              onClick={() => void handleRemove()}
-              disabled={submitting}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              {t("pickup.reset")}
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" size="md" onClick={onClose}>
-              {t("cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              className="gap-2"
-              onClick={() => void handleSubmit()}
-              disabled={
-                submitting ||
-                staffOwned ||
-                !pickupChangeEnabled ||
-                !careExceptionsLoaded
-              }
-            >
-              {submitting && (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              )}
-              {t("pickup.submit")}
-            </Button>
-          </div>
-        </div>
       </div>
     </Modal>
   );
