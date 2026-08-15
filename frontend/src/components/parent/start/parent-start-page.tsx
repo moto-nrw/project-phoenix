@@ -154,7 +154,10 @@ export function ParentStartPage() {
               {t("noChildren")}
             </p>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            /* auto-fit statt fester Spaltenzahl: ein Kind fuellt die Breite,
+               zwei stehen nebeneinander, drei brechen um. Vorher blieb bei
+               einem Kind die halbe Zeile leer. */
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4">
               {data.children.map((child) => (
                 <ChildDayCard
                   key={child.student_id}

@@ -160,7 +160,12 @@ export function ChildDayCard({
   const level2 = explainState(today, t);
 
   return (
-    <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    /* @container: die Aktionsreihe richtet sich nach der Breite DIESER Karte,
+       nicht nach der des Fensters. Die Karte steht mal allein in voller Breite,
+       mal zu zweit nebeneinander, mal in einer schmalen Spalte; ein
+       Breakpoint auf das Fenster hat die Beschriftungen deshalb je nach Fall
+       umbrechen lassen, obwohl auf dem Schirm Platz war. */
+    <article className="@container relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
       <span
         className={`absolute inset-y-0 left-0 w-1 ${look.edge}`}
         aria-hidden="true"
@@ -229,8 +234,9 @@ export function ChildDayCard({
 
 /**
  * Die drei Alltagsaktionen. Sie erscheinen nur, wenn die Schule sie erlaubt,
- * sonst wuerde das Backend sie mit 403 abweisen. Mobil untereinander in voller
- * Breite, ab sm nebeneinander gleich breit.
+ * sonst wuerde das Backend sie mit 403 abweisen. Untereinander in voller
+ * Breite, und erst nebeneinander, wenn die Karte breit genug ist, dass keine
+ * Beschriftung umbricht (Containerabfrage, nicht Fensterbreite).
  */
 function ChildDayActions({
   studentId,
@@ -253,7 +259,7 @@ function ChildDayActions({
   if (!anyAction) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2 @md:grid-cols-3">
       {features.sick_note_enabled &&
         (onSick ? (
           <Button
