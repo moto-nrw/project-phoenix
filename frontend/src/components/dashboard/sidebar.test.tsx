@@ -203,7 +203,7 @@ describe("Sidebar", () => {
         homeUrl: "/parents",
         profileUrl: "/parents/profile",
       });
-      mockUsePathname.mockReturnValue("/parents");
+      mockUsePathname.mockReturnValue("/parents/children");
 
       render(<Sidebar />);
 
@@ -215,6 +215,11 @@ describe("Sidebar", () => {
         screen.queryByText("Bald im Elternportal"),
       ).not.toBeInTheDocument();
       expect(screen.queryByText("Kontaktdaten")).not.toBeInTheDocument();
+      const childrenLink = screen.getByText("Meine Kinder").closest("a");
+      expect(childrenLink).toHaveClass("bg-gray-100");
+      expect(
+        childrenLink?.querySelector('[data-moto-duotone-tone="greenVivid"]'),
+      ).toBeInTheDocument();
     });
   });
 

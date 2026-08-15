@@ -337,33 +337,6 @@ const NFC_ONLY_HREFS = new Set<string>([
 // accordion is gated separately below (it's not in NAV_ITEMS).
 const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
-/**
- * Sidebar nav icon. The nav renders icons as raw `<path d>` strings from
- * `navigationIcons`, so this wraps the identical 8-line `<svg>` every item used
- * to repeat inline.
- */
-function NavIcon({
-  d,
-  muted = false,
-}: Readonly<{ d: string; muted?: boolean }>) {
-  return (
-    <svg
-      className={`mr-3 h-5 w-5 shrink-0 ${muted ? "text-gray-300" : "text-gray-400 group-hover:text-gray-500"}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d={d}
-      />
-    </svg>
-  );
-}
-
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -1101,38 +1074,40 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // One item list instead of eight near-identical hand-written <Link> blocks
     // with inline <svg><path d={...}> — every item differed only in href, icon
     // and badge, so a change to the row markup had to be made eight times.
-    const parentNavItems: readonly {
-      href: string;
-      label: string;
-      icon: string;
+    const parentNavItems: readonly (NavItem & {
       badge?: number;
       visible?: boolean;
-    }[] = [
+    })[] = [
       {
         href: "/parents",
         label: tParentNav("start"),
         icon: navigationIcons.home,
+        concept: "dashboard",
       },
       {
         href: "/parents/children",
         label: tParentNav("children"),
         icon: navigationIcons.group,
+        concept: "children",
       },
       {
         href: "/parents/messages",
         label: tParentNav("messages"),
         icon: navigationIcons.chat,
+        concept: "parentConversations",
         badge: parentMessagesUnread,
       },
       {
         href: "/parents/calendar",
         label: tParentNav("calendar"),
         icon: navigationIcons.calendar,
+        concept: "calendar",
       },
       {
         href: "/parents/news",
         label: tParentNav("news"),
         icon: navigationIcons.newspaper,
+        concept: "news",
         badge: parentNewsUnread,
         visible: parentPortalNewsEnabled,
       },
@@ -1140,12 +1115,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
         href: "/parents/meal-plan",
         label: tParentNav("mealPlan"),
         icon: navigationIcons.utensils,
+        concept: "mealPlan",
         visible: parentMealPlanEnabled,
       },
       {
         href: "/parents/enroll",
         label: tParentNav("enroll"),
         icon: navigationIcons.enrollments,
+        concept: "enrollments",
       },
     ];
 
@@ -1163,7 +1140,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   href={item.href}
                   className={getLinkClasses(item.href)}
                 >
-                  <NavIcon d={item.icon} />
+                  {renderNavIcon(item)}
                   <span>{item.label}</span>
                   {item.badge !== undefined && (
                     <UnreadBadge count={item.badge} className="ml-auto" />
@@ -1180,7 +1157,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
               href="/parents/feedback"
               className={getLinkClasses("/parents/feedback")}
             >
-              <NavIcon d={navigationIcons.feedback} />
+              {renderNavIcon({
+                href: "/parents/feedback",
+                label: tParentNav("feedback"),
+                icon: navigationIcons.feedback,
+                concept: "feedback",
+              })}
               <span>{tParentNav("feedback")}</span>
               <UnreadBadge
                 count={parentFeedbackUnread}
