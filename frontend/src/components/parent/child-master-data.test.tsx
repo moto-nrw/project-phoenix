@@ -127,10 +127,10 @@ describe("ChildMasterDataView", () => {
   });
 
   it("loads and renders editable master data with departure matrix", async () => {
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     expect(
-      await screen.findByRole("heading", { name: "Daten und Betreuung" }),
+      await screen.findByRole("heading", { name: "Daten von Lina Muster" }),
     ).toBeInTheDocument();
     expect(screen.getByDisplayValue("Lara")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Allergie")).toBeInTheDocument();
@@ -147,14 +147,10 @@ describe("ChildMasterDataView", () => {
     expect(screen.getByLabelText("Mi Bus")).not.toBeChecked();
     expect(screen.getByLabelText("Mi Geht allein")).not.toBeChecked();
     expect(screen.getByLabelText("Mi Wird abgeholt")).not.toBeChecked();
-    expect(screen.getByRole("link", { name: /Zurück/ })).toHaveAttribute(
-      "href",
-      "/parents/children/42",
-    );
   });
 
   it("auto-saves direct-edit fields on blur", async () => {
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const health = await screen.findByDisplayValue("Allergie");
     fireEvent.change(health, { target: { value: "Neue Info" } });
@@ -172,7 +168,7 @@ describe("ChildMasterDataView", () => {
   });
 
   it("gives editable fields accessible names", async () => {
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     expect(
       await screen.findByLabelText("Gesundheitshinweise / Allergien"),
@@ -191,7 +187,7 @@ describe("ChildMasterDataView", () => {
   });
 
   it("auto-saves contact method and language controls", async () => {
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const method = await screen.findByRole("combobox", {
       name: "Bevorzugter Kontaktweg",
@@ -234,7 +230,7 @@ describe("ChildMasterDataView", () => {
         }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const health = await screen.findByLabelText(
       "Gesundheitshinweise / Allergien",
@@ -281,7 +277,7 @@ describe("ChildMasterDataView", () => {
         }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
     const health = await screen.findByDisplayValue("Allergie");
 
     vi.useFakeTimers();
@@ -319,7 +315,7 @@ describe("ChildMasterDataView", () => {
         }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
     const health = await screen.findByDisplayValue("Allergie");
 
     vi.useFakeTimers();
@@ -367,7 +363,7 @@ describe("ChildMasterDataView", () => {
         Promise.resolve(masterData({ health_info: String(value) })),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
     const health = await screen.findByDisplayValue("Allergie");
 
     vi.useFakeTimers();
@@ -414,7 +410,7 @@ describe("ChildMasterDataView", () => {
       }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const firstName = await screen.findByDisplayValue("Lara");
     const identityHeading = screen.getByRole("heading", {
@@ -469,7 +465,7 @@ describe("ChildMasterDataView", () => {
       .mockResolvedValueOnce(masterData())
       .mockRejectedValueOnce(new Error("refresh failed"));
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const firstName = await screen.findByLabelText("Vorname");
     const identityHeading = screen.getByRole("heading", {
@@ -520,7 +516,7 @@ describe("ChildMasterDataView", () => {
       }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const departureSection = await screen.findByRole("heading", {
       name: "Dauerhafte Gehzeiten",
@@ -567,7 +563,7 @@ describe("ChildMasterDataView", () => {
       .mockResolvedValueOnce(masterData())
       .mockRejectedValueOnce(new Error("refresh failed"));
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const departureSection = await screen.findByRole("heading", {
       name: "Dauerhafte Gehzeiten",
@@ -599,7 +595,7 @@ describe("ChildMasterDataView", () => {
   it("preserves dirty request drafts across unrelated direct-edit refreshes", async () => {
     mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const firstName = await screen.findByDisplayValue("Lara");
     fireEvent.change(firstName, { target: { value: "Lea" } });
@@ -615,7 +611,7 @@ describe("ChildMasterDataView", () => {
   it("preserves dirty departure drafts across unrelated direct-edit refreshes", async () => {
     mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     await screen.findByRole("heading", { name: "Dauerhafte Gehzeiten" });
     const wedPickup = screen.getByLabelText("Mi Wird abgeholt");
@@ -639,7 +635,7 @@ describe("ChildMasterDataView", () => {
       }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const departureSection = await screen.findByRole("heading", {
       name: "Dauerhafte Gehzeiten",
@@ -667,7 +663,7 @@ describe("ChildMasterDataView", () => {
       }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     await screen.findAllByText(
       "Änderungsanfragen sind bei dieser OGS deaktiviert.",
@@ -685,7 +681,7 @@ describe("ChildMasterDataView", () => {
       features({ master_data_contact_edit_enabled: false }),
     );
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     expect(await screen.findByDisplayValue("Allergie")).not.toBeDisabled();
     expect(screen.getByDisplayValue("parent@example.test")).toBeDisabled();
@@ -705,7 +701,7 @@ describe("ChildMasterDataView", () => {
   it("renders a load error if either request fails", async () => {
     mockGetMasterData.mockRejectedValue(new Error("boom"));
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     expect(
       await screen.findByText(
@@ -718,7 +714,7 @@ describe("ChildMasterDataView", () => {
     mockUpdateField.mockRejectedValueOnce(new Error("write failed"));
     mockSubmit.mockRejectedValueOnce(new Error("request failed"));
 
-    render(<ChildMasterDataView studentId="42" />);
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     const health = await screen.findByDisplayValue("Allergie");
     fireEvent.change(health, { target: { value: "Neue Info" } });

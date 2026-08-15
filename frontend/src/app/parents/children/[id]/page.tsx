@@ -1,15 +1,16 @@
-import { use } from "react";
-import { ChildDetail } from "~/components/parent/child-detail";
+import { Suspense, use } from "react";
+import { ChildPage } from "~/components/parent/child/child-page";
 
-/**
- * Per-child detail page. studentId comes from the URL segment.
- * Read-only stub — see ChildDetail for the rendered fields.
- */
+/** Derselbe Kinderbereich, mit dem Kind aus der Adresse vorausgewaehlt. */
 export default function ParentChildPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  return <ChildDetail studentId={id} />;
+  return (
+    <Suspense fallback={null}>
+      <ChildPage studentId={id} />
+    </Suspense>
+  );
 }

@@ -2,32 +2,40 @@
 
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Plus, ShieldCheck, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
-  PhoneIcon,
-  EnvelopeSimpleIcon,
-  MapPinIcon,
-  NoteIcon,
-} from "@phosphor-icons/react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+  Check,
+  EnvelopeSimple,
+  MapPin,
+  Note,
+  PencilSimple,
+  Phone,
+  ShieldCheck,
+  UserPlus,
+  X,
+} from "~/components/parent/shell/parent-icons";
 import {
   type ChildGuardian,
   type GuardianContactPayload,
   type GuardianRelationshipPayload,
+  type RelatedAccount,
   ParentApiError,
+  inviteRelatedAccount,
   listChildGuardians,
+  listRelatedAccounts,
+  removeRelatedAccount,
   updateGuardianContact,
   updateGuardianRelationship,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
-import { Modal } from "~/components/ui/modal";
+import { GUARDIAN_ROLE_OPTIONS } from "~/lib/guardian-helpers";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Alert } from "~/components/ui/alert";
-import { SectionCard } from "~/components/ui/section-card";
+import { ParentSection } from "~/components/parent/shell/parent-section";
 
 const logger = createLogger({ component: "GuardiansPanel" });
 
@@ -105,11 +113,27 @@ function resolveGuardianError(
 
 interface GuardiansPanelProps {
   readonly studentId: string;
+  readonly canInvite: boolean;
+  readonly canRemove: boolean;
 }
 
-export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
+/**
+ * "Eltern und Abholberechtigte": ALLE Personen rund um das Kind an einer
+ * Stelle.
+ *
+ * Frueher standen dieselben Menschen zweimal auf der Seite, einmal als
+ * "Sorgeberechtigte" mit Kontaktdaten und einmal als "Verknuepfte Konten" mit
+ * Zugangsstatus (#2308). Jetzt gibt es eine Liste: Kontakt, Abholrecht und
+ * Zugang zur App stehen in derselben Zeile.
+ */
+export default function GuardiansPanel({
+  studentId,
+  canInvite,
+  canRemove,
+}: GuardiansPanelProps) {
   const t = useTranslations("parentChildDetail");
   const [guardians, setGuardians] = useState<ChildGuardian[]>([]);
+  const [accounts, setAccounts] = useState<RelatedAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingContact, setEditingContact] = useState<ChildGuardian | null>(
     null,
@@ -117,6 +141,16 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
   const [editingPickup, setEditingPickup] = useState<ChildGuardian | null>(
     null,
   );
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  // Bestaetigung fuer den Ausbau eines eingeschraenkten Kontakts (#2172).
+  const [upgradePrompt, setUpgradePrompt] = useState<{
+    email: string;
+    name: string;
+    existingRole?: string;
+  } | null>(null);
   const [message, setMessage] = useState<{
     kind: "success" | "error";
     text: string;
@@ -125,7 +159,12 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
   const load = useCallback(async () => {
     try {
       setIsLoading(true);
-      setGuardians(await listChildGuardians(studentId));
+      const [guardianList, accountList] = await Promise.all([
+        listChildGuardians(studentId),
+        listRelatedAccounts(studentId).catch(() => [] as RelatedAccount[]),
+      ]);
+      setGuardians(guardianList);
+      setAccounts(accountList);
     } catch (err) {
       logger.error("guardians_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -153,12 +192,106 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
     [load],
   );
 
+  const accountById = new Map(
+    accounts.map((account) => [account.guardian_profile_id, account]),
+  );
+  // Kontakte, zu denen es keine Sorgeberechtigten-Zeile gibt, gehen sonst
+  // verloren; sie bekommen eine eigene, schlanke Zeile.
+  const orphanAccounts = accounts.filter(
+    (account) =>
+      !guardians.some(
+        (g) => g.guardian_profile_id === account.guardian_profile_id,
+      ),
+  );
+
+  const handleInvite = async (email: string, confirmRoleUpgrade = false) => {
+    const trimmed = email.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await inviteRelatedAccount(
+        studentId,
+        trimmed,
+        confirmRoleUpgrade ? { confirmRoleUpgrade: true } : undefined,
+      );
+      if (result.outcome === "existing_contact_restricted") {
+        setUpgradePrompt({
+          email: trimmed,
+          name: trimmed,
+          existingRole: result.existing_role,
+        });
+        return;
+      }
+      setUpgradePrompt(null);
+      setInviteEmail("");
+      setInviteOpen(false);
+      await load();
+      setMessage({
+        kind: "success",
+        text:
+          result.outcome === "pending_approval"
+            ? t("guardians.access.invitePending")
+            : result.outcome === "invited"
+              ? t("guardians.access.inviteSent", { email: trimmed })
+              : t("guardians.access.inviteLinked"),
+      });
+    } catch (err) {
+      logger.error("related_account_invite_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setUpgradePrompt(null);
+      setMessage({
+        kind: "error",
+        text:
+          err instanceof ParentApiError &&
+          err.code === "guardian_social_worker_managed"
+            ? t("guardians.errors.socialWorkerManaged")
+            : t("guardians.access.inviteError"),
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async (guardianProfileId: string) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await removeRelatedAccount(studentId, guardianProfileId);
+      setConfirmRemoveId(null);
+      await load();
+      setMessage({ kind: "success", text: t("guardians.access.removed") });
+    } catch (err) {
+      logger.error("related_account_remove_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setMessage({ kind: "error", text: t("guardians.access.removeError") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <SectionCard
-      icon={ShieldCheck}
+    <ParentSection
       title={t("guardians.title")}
       description={t("guardians.description")}
-      bodyClassName="mt-4 space-y-3"
+      actions={
+        canInvite ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="touch"
+            onClick={() => {
+              setInviteOpen((open) => !open);
+              setMessage(null);
+            }}
+          >
+            <UserPlus size={20} className="mr-2 shrink-0" aria-hidden="true" />
+            {t("guardians.access.invite")}
+          </Button>
+        ) : undefined
+      }
     >
       {message && (
         <Alert
@@ -167,25 +300,65 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
         />
       )}
 
-      {isLoading ? (
-        <p className="text-sm text-gray-500">{t("guardians.loading")}</p>
-      ) : guardians.length === 0 ? (
-        <p className="text-sm text-gray-500">{t("guardians.empty")}</p>
-      ) : (
-        guardians.map((g) => (
-          <GuardianRow
-            key={g.guardian_profile_id}
-            guardian={g}
-            onEditContact={() => {
-              setMessage(null);
-              setEditingContact(g);
-            }}
-            onEditPickup={() => {
-              setMessage(null);
-              setEditingPickup(g);
-            }}
+      {inviteOpen && canInvite && (
+        <div className="flex flex-col gap-2 rounded-xl border border-gray-200 p-3 sm:flex-row">
+          <Input
+            type="email"
+            value={inviteEmail}
+            onChange={(event) => setInviteEmail(event.target.value)}
+            placeholder={t("guardians.access.emailPlaceholder")}
+            aria-label={t("guardians.access.emailLabel")}
+            className="flex-1"
           />
-        ))
+          <Button
+            type="button"
+            size="touch"
+            className="shrink-0"
+            onClick={() => void handleInvite(inviteEmail)}
+            disabled={busy || !inviteEmail.trim()}
+          >
+            <Check size={20} className="mr-2 shrink-0" aria-hidden="true" />
+            {t("guardians.access.send")}
+          </Button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="text-[15px] text-gray-500">{t("guardians.loading")}</p>
+      ) : guardians.length === 0 && orphanAccounts.length === 0 ? (
+        <p className="text-[15px] text-gray-500">{t("guardians.empty")}</p>
+      ) : (
+        <>
+          {guardians.map((g) => (
+            <GuardianRow
+              key={g.guardian_profile_id}
+              guardian={g}
+              access={accountById.get(g.guardian_profile_id)}
+              canInvite={canInvite}
+              canRemove={canRemove}
+              busy={busy}
+              confirmingRemove={confirmRemoveId === g.guardian_profile_id}
+              onEditContact={() => {
+                setMessage(null);
+                setEditingContact(g);
+              }}
+              onEditPickup={() => {
+                setMessage(null);
+                setEditingPickup(g);
+              }}
+              onGrantAccess={(email, name) => setUpgradePrompt({ email, name })}
+              onAskRemove={() => setConfirmRemoveId(g.guardian_profile_id)}
+              onCancelRemove={() => setConfirmRemoveId(null)}
+              onConfirmRemove={() => void handleRemove(g.guardian_profile_id)}
+            />
+          ))}
+          {orphanAccounts.map((account) => (
+            <AccountOnlyRow
+              key={account.guardian_profile_id}
+              account={account}
+            />
+          ))}
+        </>
       )}
 
       {editingContact && (
@@ -204,18 +377,88 @@ export default function GuardiansPanel({ studentId }: GuardiansPanelProps) {
           onSaved={() => handleSaved(t("guardians.pickupSaved"))}
         />
       )}
-    </SectionCard>
+
+      <ConfirmationModal
+        isOpen={upgradePrompt !== null}
+        onClose={() => setUpgradePrompt(null)}
+        onConfirm={() => {
+          if (upgradePrompt) void handleInvite(upgradePrompt.email, true);
+        }}
+        title={t("guardians.access.grantTitle")}
+        confirmText={t("guardians.access.grant")}
+        cancelText={t("guardians.cancel")}
+        isConfirmLoading={busy}
+      >
+        <p className="text-[15px] text-gray-600">
+          {upgradePrompt
+            ? guardianRoleLabel(upgradePrompt.existingRole)
+              ? t("guardians.access.grantBodyWithRole", {
+                  name: upgradePrompt.name,
+                  role: guardianRoleLabel(upgradePrompt.existingRole) ?? "",
+                })
+              : t("guardians.access.grantBody", { name: upgradePrompt.name })
+            : ""}
+        </p>
+      </ConfirmationModal>
+    </ParentSection>
+  );
+}
+
+function guardianRoleLabel(role: string | undefined): string | null {
+  return (
+    GUARDIAN_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? null
+  );
+}
+
+/** Ein Kontakt, den es nur als Konto gibt, ohne Sorgeberechtigten-Zeile. */
+function AccountOnlyRow({ account }: Readonly<{ account: RelatedAccount }>) {
+  const t = useTranslations("parentChildDetail");
+  const name =
+    `${account.first_name} ${account.last_name}`.trim() ||
+    (account.email ?? "");
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-gray-200 p-3">
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
+        {initials(account.first_name, account.last_name)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[17px] font-semibold text-gray-900">
+          {name}
+        </p>
+        <p className="truncate text-[15px] text-gray-600">
+          {t(`guardians.access.status.${account.status}`)}
+        </p>
+      </div>
+    </div>
   );
 }
 
 function GuardianRow({
   guardian: g,
+  access,
+  canInvite,
+  canRemove,
+  busy,
+  confirmingRemove,
   onEditContact,
   onEditPickup,
+  onGrantAccess,
+  onAskRemove,
+  onCancelRemove,
+  onConfirmRemove,
 }: Readonly<{
   guardian: ChildGuardian;
+  access?: RelatedAccount;
+  canInvite: boolean;
+  canRemove: boolean;
+  busy: boolean;
+  confirmingRemove: boolean;
   onEditContact: () => void;
   onEditPickup: () => void;
+  onGrantAccess: (email: string, name: string) => void;
+  onAskRemove: () => void;
+  onCancelRemove: () => void;
+  onConfirmRemove: () => void;
 }>) {
   const t = useTranslations("parentChildDetail");
   const name = `${g.first_name} ${g.last_name}`.trim() || "Kontakt";
@@ -228,53 +471,69 @@ function GuardianRow({
     Boolean(g.email) ||
     Boolean(g.address_street ?? g.address_city ?? g.address_postal_code);
   const hasDetails = hasContact || Boolean(g.pickup_notes);
+  // Von der Schule verwaltete Kontakte (social_worker) weist das Backend ab,
+  // deshalb wird der Ausbau dort gar nicht angeboten (#2172).
+  const grantable =
+    canInvite &&
+    access?.status === "active_no_access" &&
+    access.guardian_role !== "social_worker" &&
+    Boolean(access.email);
+  const removable =
+    canRemove &&
+    access !== undefined &&
+    !access.is_primary &&
+    !access.is_self &&
+    access.status !== "no_account";
   return (
-    <div className="rounded-xl bg-gray-50 p-4">
+    <div className="rounded-xl border border-gray-200 p-4">
       <div className="flex items-start gap-3">
-        <span className="bg-moto-teal/15 text-moto-teal-strong flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[15px] font-semibold text-gray-700">
           {initials(g.first_name, g.last_name)}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-sm font-semibold text-gray-900">{name}</p>
-            <span className="text-xs text-gray-500">{relationshipLabel}</span>
+            <p className="text-[17px] font-semibold text-gray-900">{name}</p>
+            <span className="text-[15px] text-gray-500">
+              {relationshipLabel}
+            </span>
             {g.is_primary && (
-              <span className="text-xs font-medium text-gray-500">
+              <span className="text-[15px] font-medium text-gray-500">
                 ({t("guardians.badges.primary")})
               </span>
             )}
           </div>
+          {/* Der Zugang zur App gehoert an die Person, nicht in eine zweite
+              Liste derselben Menschen. */}
+          {access && (
+            <p className="mt-1 text-[15px] text-gray-600">
+              {t(`guardians.access.status.${access.status}`)}
+            </p>
+          )}
           {/* Neutral text chips, not colored dots: "darf abholen" and
               "Notfallkontakt" are facts about a person, not alert states, and a
               green/amber dot per contact turned the list into a traffic light. */}
           {(g.can_pickup || g.is_emergency_contact) && (
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {g.can_pickup && (
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
+                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[15px] font-medium text-gray-700">
                   {t("guardians.badges.canPickup")}
                 </span>
               )}
               {g.is_emergency_contact && (
-                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
+                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[15px] font-medium text-gray-700">
                   {t("guardians.badges.emergency")}
                 </span>
               )}
             </div>
           )}
           {hasDetails && (
-            <div className="mt-2 space-y-1.5 text-sm text-gray-600">
+            <div className="mt-2 space-y-1.5 text-[15px] text-gray-600">
               {hasContact && (
                 <>
                   {g.phones.map((p) => (
                     <ContactLine
                       key={`${p.phone_number}-${p.phone_type}`}
-                      icon={
-                        <MotoDuotoneIcon
-                          icon={PhoneIcon}
-                          tone="neutral"
-                          size={14}
-                        />
-                      }
+                      icon={<Phone size={16} aria-hidden="true" />}
                       text={[
                         p.phone_number,
                         p.label,
@@ -290,13 +549,7 @@ function GuardianRow({
                   ))}
                   {g.email && (
                     <ContactLine
-                      icon={
-                        <MotoDuotoneIcon
-                          icon={EnvelopeSimpleIcon}
-                          tone="neutral"
-                          size={14}
-                        />
-                      }
+                      icon={<EnvelopeSimple size={16} aria-hidden="true" />}
                       text={g.email}
                     />
                   )}
@@ -304,13 +557,7 @@ function GuardianRow({
                     g.address_city ??
                     g.address_postal_code) && (
                     <ContactLine
-                      icon={
-                        <MotoDuotoneIcon
-                          icon={MapPinIcon}
-                          tone="neutral"
-                          size={14}
-                        />
-                      }
+                      icon={<MapPin size={16} aria-hidden="true" />}
                       text={[
                         g.address_street,
                         [g.address_postal_code, g.address_city]
@@ -325,7 +572,7 @@ function GuardianRow({
               )}
               {g.pickup_notes && (
                 <ContactLine
-                  icon={<MotoConceptIcon concept="permissions" size={16} />}
+                  icon={<ShieldCheck size={16} aria-hidden="true" />}
                   text={g.pickup_notes}
                 />
               )}
@@ -344,7 +591,7 @@ function GuardianRow({
                 aria-label={t("guardians.editContact")}
                 className="text-gray-400"
               >
-                <Pencil className="h-4 w-4" aria-hidden="true" />
+                <PencilSimple size={20} aria-hidden="true" />
               </Button>
             )}
             {/* The pickup/relationship modal carries two capabilities: the
@@ -374,15 +621,65 @@ function GuardianRow({
                 className="text-gray-400"
               >
                 {g.can_manage_pickup ? (
-                  <MotoConceptIcon concept="permissions" size={18} />
+                  <ShieldCheck size={20} aria-hidden="true" />
                 ) : (
-                  <MotoDuotoneIcon icon={NoteIcon} tone="neutral" size={16} />
+                  <Note size={20} aria-hidden="true" />
                 )}
               </Button>
             )}
           </div>
         )}
       </div>
+
+      {/* Zugang zur App: gewaehren oder entziehen. Steht bei der Person,
+          nicht in einer zweiten Liste (#2308). */}
+      {(grantable || removable) && (
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+          {grantable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="touch"
+              disabled={busy}
+              onClick={() => onGrantAccess(access?.email ?? "", name)}
+            >
+              {t("guardians.access.grant")}
+            </Button>
+          )}
+          {removable &&
+            (confirmingRemove ? (
+              <>
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="touch"
+                  disabled={busy}
+                  onClick={onConfirmRemove}
+                >
+                  {t("guardians.access.removeConfirm")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="touch"
+                  onClick={onCancelRemove}
+                >
+                  {t("guardians.cancel")}
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="touch"
+                onClick={onAskRemove}
+              >
+                <X size={20} className="mr-2 shrink-0" aria-hidden="true" />
+                {t("guardians.access.remove")}
+              </Button>
+            ))}
+        </div>
+      )}
     </div>
   );
 }

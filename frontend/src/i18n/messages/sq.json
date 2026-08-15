@@ -227,8 +227,8 @@
     "masterDataTitle": "Të dhënat bazë",
     "masterDataDescription": "Të dhënat më të rëndësishme për fëmijën dhe përkujdesjen.",
     "guardians": {
-      "title": "Të autorizuar për marrje dhe kontakte",
-      "description": "Kujdestarë ligjorë dhe persona që mund ta marrin fëmijën tuaj.",
+      "title": "Prindërit dhe personat që marrin fëmijën",
+      "description": "Kush i përket fëmijës suaj, kush mund ta marrë dhe kush ka qasje në aplikacion.",
       "loadError": "Kontaktet nuk mund të ngarkoheshin.",
       "loading": "Duke u ngarkuar…",
       "empty": "Ende nuk ka kontakte.",
@@ -291,6 +291,30 @@
         "socialWorkerManaged": "Këto të dhëna kontakti menaxhohen nga shkolla.",
         "roleManaged": "Ky person është kujdestar ligjor dhe mund të ndryshohet vetëm nga vetë ai ose nga shkolla.",
         "managementDisabled": "Menaxhimi i kontakteve është çaktivizuar për këtë shkollë."
+      },
+      "access": {
+        "invite": "Ftoni një person",
+        "emailPlaceholder": "Adresa e e-mailit",
+        "emailLabel": "Adresa e e-mailit e personit që dëshironi të ftoni",
+        "send": "Dërgoni ftesën",
+        "invitePending": "Kërkesa juaj është te OGS. Ata do ta shqyrtojnë.",
+        "inviteSent": "Ftesa u dërgua te {email}.",
+        "inviteLinked": "Personi tani është i lidhur.",
+        "inviteError": "Ftesa nuk mundi të dërgohej.",
+        "grant": "Jepni qasje",
+        "grantTitle": "Të jepet qasje e plotë?",
+        "grantBody": "{name} ka një llogari, por ende nuk ka qasje te ky fëmijë. Me konfirmimin tuaj shkon një kërkesë te OGS. Pas miratimit ky person sheh gjithçka për fëmijën tuaj.",
+        "grantBodyWithRole": "{name} është regjistruar tashmë si {role}, deri tani pa qasje në aplikacion. Me konfirmimin tuaj shkon një kërkesë te OGS. Pas miratimit ky person sheh gjithçka për fëmijën tuaj.",
+        "remove": "Hiqni qasjen",
+        "removeConfirm": "Po, hiqni qasjen",
+        "removed": "Qasja u hoq.",
+        "removeError": "Qasja nuk mundi të hiqej.",
+        "status": {
+          "active": "Ka qasje në aplikacion",
+          "pending": "Ftesa është nisur",
+          "no_account": "Kontakt pa qasje në aplikacion",
+          "active_no_access": "Ka llogari, por ende pa qasje te ky fëmijë"
+        }
       }
     },
     "newsEyebrow": "Aktuale",
@@ -1280,5 +1304,28 @@
     },
     "loadError": "Përmbledhja juaj nuk u ngarkua dot për momentin. Ju lutemi provoni më vonë.",
     "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë."
+  },
+  "parentChild": {
+    "switcherLabel": "Zgjidhni fëmijën",
+    "loadError": "Të dhënat e fëmijës suaj nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
+    "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj.",
+    "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
+    "sections": {
+      "today": "Sot",
+      "care": "Kujdesi i rezervuar",
+      "data": "Të dhënat e {name}",
+      "people": "Prindërit dhe personat që marrin fëmijën"
+    },
+    "today": {
+      "pickup": "Marrja sot në orën {time}",
+      "pickupChanged": "Marrja sot në orën {time}, e ndryshuar për sot",
+      "pickupAbsent": "Sot i çregjistruar, pa marrje",
+      "pickupNone": "Për sot nuk është regjistruar asnjë marrje",
+      "pickupUnknown": "Ora e marrjes nuk është e disponueshme për momentin"
+    },
+    "care": {
+      "weekTitle": "Java juaj",
+      "arrivalReadOnly": "Ora e ardhjes rrjedh nga orari i shkollës. Nëse diçka nuk përputhet, ju lutemi shkruani OGS-së."
+    }
   }
 }

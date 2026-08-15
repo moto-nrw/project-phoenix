@@ -227,8 +227,8 @@
     "masterDataTitle": "Master data",
     "masterDataDescription": "The most important details about child and care.",
     "guardians": {
-      "title": "Pickup permissions & contacts",
-      "description": "Legal guardians and people who may pick up your child.",
+      "title": "Parents and pick-up contacts",
+      "description": "Who belongs to your child, who may collect them, and who has access to the app.",
       "loadError": "Contacts could not be loaded.",
       "loading": "Loading…",
       "empty": "No contacts have been added yet.",
@@ -291,6 +291,30 @@
         "socialWorkerManaged": "These contact details are managed by the school.",
         "roleManaged": "This person is a legal guardian and can only be edited by themselves or the school.",
         "managementDisabled": "Contact management is disabled for this school."
+      },
+      "access": {
+        "invite": "Invite a person",
+        "emailPlaceholder": "Email address",
+        "emailLabel": "Email address of the person you want to invite",
+        "send": "Send invitation",
+        "invitePending": "Your request is with the OGS. They will review it.",
+        "inviteSent": "Invitation sent to {email}.",
+        "inviteLinked": "The person is now connected.",
+        "inviteError": "The invitation could not be sent.",
+        "grant": "Give access",
+        "grantTitle": "Give full access?",
+        "grantBody": "{name} has an account but no access to this child yet. Confirming sends a request to the OGS. Once approved, this person sees everything about your child.",
+        "grantBodyWithRole": "{name} is already listed as {role}, so far without access to the app. Confirming sends a request to the OGS. Once approved, this person sees everything about your child.",
+        "remove": "Remove access",
+        "removeConfirm": "Yes, remove access",
+        "removed": "Access has been removed.",
+        "removeError": "Access could not be removed.",
+        "status": {
+          "active": "Has access to the app",
+          "pending": "Invitation is on its way",
+          "no_account": "Contact without access to the app",
+          "active_no_access": "Has an account but no access to this child yet"
+        }
       }
     },
     "newsEyebrow": "Updates",
@@ -1280,5 +1304,28 @@
     },
     "loadError": "Your overview could not be loaded right now. Please try again later.",
     "noChildren": "No child is linked to your account yet. Your school's OGS can set this up."
+  },
+  "parentChild": {
+    "switcherLabel": "Choose a child",
+    "loadError": "Your child's details could not be loaded right now. Please try again later.",
+    "notFound": "There is no child at this address in your account.",
+    "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
+    "sections": {
+      "today": "Today",
+      "care": "Booked care",
+      "data": "{name}'s details",
+      "people": "Parents and pick-up contacts"
+    },
+    "today": {
+      "pickup": "Pick-up today at {time}",
+      "pickupChanged": "Pick-up today at {time}, changed for today",
+      "pickupAbsent": "Reported absent today, no pick-up",
+      "pickupNone": "No pick-up is recorded for today",
+      "pickupUnknown": "The pick-up time is not available right now"
+    },
+    "care": {
+      "weekTitle": "Your week",
+      "arrivalReadOnly": "The arrival time follows the school timetable. If something is wrong, please write to the OGS."
+    }
   }
 }

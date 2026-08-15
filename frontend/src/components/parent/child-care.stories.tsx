@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import type { CareException, StatusDay } from "~/lib/parent-api";
-import { CareScheduleRequestModal } from "./care-schedule-request-modal";
 import {
   PickupTimeModal,
   SickNoteModal,
@@ -99,12 +98,3 @@ export const StatusSummaryRange: Story = {
   render: () => <SickStatusSummary sickDays={SICK_DAYS} />,
 };
 
-export const CareScheduleRequest: Story = {
-  render: () => (
-    <CareScheduleRequestModal
-      capabilities={{ arrival: true, pickup: true, departure_mode: true }}
-      onClose={() => undefined}
-      onSubmit={noopSubmit}
-    />
-  ),
-};

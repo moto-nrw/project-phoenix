@@ -6,6 +6,9 @@ import type { ChildGuardian } from "~/lib/parent-api";
 
 const mocks = vi.hoisted(() => ({
   listChildGuardians: vi.fn(),
+  listRelatedAccounts: vi.fn(),
+  inviteRelatedAccount: vi.fn(),
+  removeRelatedAccount: vi.fn(),
   updateGuardianContact: vi.fn(),
   updateGuardianRelationship: vi.fn(),
 }));
@@ -26,6 +29,9 @@ vi.mock("~/lib/parent-api", () => {
   return {
     ParentApiError,
     listChildGuardians: mocks.listChildGuardians,
+    listRelatedAccounts: mocks.listRelatedAccounts,
+    inviteRelatedAccount: mocks.inviteRelatedAccount,
+    removeRelatedAccount: mocks.removeRelatedAccount,
     updateGuardianContact: mocks.updateGuardianContact,
     updateGuardianRelationship: mocks.updateGuardianRelationship,
   };
@@ -73,12 +79,13 @@ describe("GuardiansPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listChildGuardians.mockResolvedValue([editableGuardian]);
+    mocks.listRelatedAccounts.mockResolvedValue([]);
     mocks.updateGuardianContact.mockResolvedValue(editableGuardian);
     mocks.updateGuardianRelationship.mockResolvedValue(editableGuardian);
   });
 
   it("preserves phone labels and the existing primary phone on contact save", async () => {
-    render(<GuardiansPanel studentId="42" />);
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     const emailInput = document.querySelector<HTMLInputElement>(
@@ -125,7 +132,7 @@ describe("GuardiansPanel", () => {
       ),
     );
 
-    render(<GuardiansPanel studentId="42" />);
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -155,7 +162,7 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([noteOnlyGuardian]);
 
-    render(<GuardiansPanel studentId="42" />);
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
 
     // The note action is reachable (labelled as the pickup note, not "manage").
     fireEvent.click(
@@ -199,7 +206,7 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([lockedGuardian]);
 
-    render(<GuardiansPanel studentId="42" />);
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
 
     expect(await screen.findByText("Onkel Ali")).toBeInTheDocument();
     expect(
@@ -225,7 +232,7 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([noteEditableGuardian]);
 
-    render(<GuardiansPanel studentId="42" />);
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Hinweis zur Abholung" }),
@@ -266,7 +273,7 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([manageOnlyGuardian]);
 
-    render(<GuardiansPanel studentId="42" />);
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Abholrecht verwalten" }),
@@ -317,7 +324,7 @@ describe("GuardiansPanel", () => {
       lockedGuardian,
     ]);
 
-    render(<GuardiansPanel studentId="42" />);
+    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
 
     // The redacted guardian is still listed by name.
     expect(await screen.findByText("Mehmet Yilmaz")).toBeInTheDocument();

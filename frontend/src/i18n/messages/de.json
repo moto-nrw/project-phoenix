@@ -227,8 +227,8 @@
     "masterDataTitle": "Stammdaten",
     "masterDataDescription": "Die wichtigsten Angaben zu Kind und Betreuung.",
     "guardians": {
-      "title": "Abholberechtigte & Kontakte",
-      "description": "Erziehungsberechtigte und Personen, die Ihr Kind abholen dürfen.",
+      "title": "Eltern und Abholberechtigte",
+      "description": "Wer zu Ihrem Kind gehört, wer es abholen darf und wer Zugang zur App hat.",
       "loadError": "Kontakte konnten nicht geladen werden.",
       "loading": "Wird geladen…",
       "empty": "Noch keine Kontakte hinterlegt.",
@@ -291,6 +291,30 @@
         "socialWorkerManaged": "Diese Kontaktdaten werden von der Schule verwaltet.",
         "roleManaged": "Diese Person ist erziehungsberechtigt und kann nur von ihr selbst oder der Schule bearbeitet werden.",
         "managementDisabled": "Die Verwaltung von Kontakten ist für diese Schule deaktiviert."
+      },
+      "access": {
+        "invite": "Person einladen",
+        "emailPlaceholder": "E-Mail-Adresse",
+        "emailLabel": "E-Mail-Adresse der Person, die Sie einladen möchten",
+        "send": "Einladung senden",
+        "invitePending": "Ihre Anfrage ist bei der OGS. Sie wird dort geprüft.",
+        "inviteSent": "Einladung an {email} gesendet.",
+        "inviteLinked": "Die Person ist jetzt verbunden.",
+        "inviteError": "Die Einladung konnte nicht gesendet werden.",
+        "grant": "Zugang geben",
+        "grantTitle": "Vollen Zugang geben?",
+        "grantBody": "{name} hat ein Konto, bisher aber keinen Zugang zu diesem Kind. Mit Ihrer Bestätigung geht eine Anfrage an die OGS. Nach der Freigabe sieht diese Person alles zu Ihrem Kind.",
+        "grantBodyWithRole": "{name} ist bereits als {role} eingetragen, bisher ohne Zugang zur App. Mit Ihrer Bestätigung geht eine Anfrage an die OGS. Nach der Freigabe sieht diese Person alles zu Ihrem Kind.",
+        "remove": "Zugang entziehen",
+        "removeConfirm": "Ja, Zugang entziehen",
+        "removed": "Der Zugang wurde entzogen.",
+        "removeError": "Der Zugang konnte nicht entzogen werden.",
+        "status": {
+          "active": "Hat Zugang zur App",
+          "pending": "Einladung ist unterwegs",
+          "no_account": "Kontakt ohne Zugang zur App",
+          "active_no_access": "Hat ein Konto, aber noch keinen Zugang zu diesem Kind"
+        }
       }
     },
     "newsEyebrow": "Aktuelles",
@@ -1280,5 +1304,28 @@
     },
     "loadError": "Ihre Übersicht konnte gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten."
+  },
+  "parentChild": {
+    "switcherLabel": "Kind auswählen",
+    "loadError": "Die Angaben zu Ihrem Kind konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
+    "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto.",
+    "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+    "sections": {
+      "today": "Heute",
+      "care": "Gebuchte Betreuung",
+      "data": "Daten von {name}",
+      "people": "Eltern und Abholberechtigte"
+    },
+    "today": {
+      "pickup": "Abholung heute um {time} Uhr",
+      "pickupChanged": "Abholung heute um {time} Uhr, geändert für heute",
+      "pickupAbsent": "Heute abgemeldet, keine Abholung",
+      "pickupNone": "Für heute ist keine Abholung eingetragen",
+      "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
+    },
+    "care": {
+      "weekTitle": "Ihre Woche",
+      "arrivalReadOnly": "Die Bringzeit ergibt sich aus dem Stundenplan der Schule. Wenn etwas nicht stimmt, schreiben Sie bitte der OGS."
+    }
   }
 }

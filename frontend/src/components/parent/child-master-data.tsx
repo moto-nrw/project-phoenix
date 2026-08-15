@@ -1,34 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertCircle,
-  Check,
-  Clock,
-  Footprints,
-  HeartPulse,
-  Loader2,
-  Mail,
-  UserRound,
-} from "lucide-react";
+import { AlertCircle, Check, Clock, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
-import {
-  ParentPage,
-  ParentPageHeader,
-  ParentPageSkeleton,
-} from "~/components/parent/parent-page";
+import { Skeleton } from "~/components/ui/skeleton";
 import { todayISO } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
 import { createLogger } from "~/lib/logger";
-import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   type ChildFeatures,
   type ChildMasterData,
@@ -39,8 +25,7 @@ import {
   submitMasterDataRequest,
   updateMasterDataField,
 } from "~/lib/parent-api";
-import { ChildCareOfferingsSection } from "~/components/parent/child-care-offerings";
-import { Section } from "~/components/parent/child-detail-section";
+import { ParentSection } from "~/components/parent/shell/parent-section";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -53,16 +38,22 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface Props {
   readonly studentId: string;
+  /** Der Name des Kindes fuer die Ueberschrift "Daten von {Name}". */
+  readonly childName: string;
 }
 
-export function ChildMasterDataView({ studentId }: Props) {
+/**
+ * "Daten von {Name}": die bisherigen Stammdaten in Elternsprache.
+ *
+ * Liegt seit dem Umbau als Abschnitt IM Kinderbereich statt auf einer eigenen
+ * Unterseite; eine Seite pro Datenfeldgruppe hat Eltern nur Klicks gekostet.
+ */
+export function ChildMasterDataView({ studentId, childName }: Props) {
   const t = useTranslations("parentMasterData");
   const [data, setData] = useState<ChildMasterData | null>(null);
   const [features, setFeatures] = useState<ChildFeatures | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useSetBreadcrumb({ pageTitle: t("title") });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,25 +82,17 @@ export function ChildMasterDataView({ studentId }: Props) {
   }, [load]);
 
   if (loading) {
-    return <ParentPageSkeleton rows={3} />;
+    return <Skeleton className="h-64 w-full rounded-2xl" />;
   }
 
   if (error || !data || !features) {
-    return (
-      <ParentPage>
-        <ParentPageHeader
-          backHref={`/parents/children/${studentId}`}
-          backLabel={t("back")}
-          title={t("title")}
-        />
-        <Alert type="error" message={t("loadError")} />
-      </ParentPage>
-    );
+    return <Alert type="error" message={t("loadError")} />;
   }
 
   return (
     <ChildMasterDataContent
       studentId={studentId}
+      childName={childName}
       data={data}
       features={features}
       onApplied={setData}
@@ -126,12 +109,14 @@ export function ChildMasterDataView({ studentId }: Props) {
 
 function ChildMasterDataContent({
   studentId,
+  childName,
   data,
   features,
   onApplied,
   onDirectApplied,
 }: Readonly<{
   studentId: string;
+  childName: string;
   data: ChildMasterData;
   features: ChildFeatures;
   onApplied: (next: ChildMasterData) => void;
@@ -142,6 +127,7 @@ function ChildMasterDataContent({
   ) => void;
 }>) {
   const t = useTranslations("parentMasterData");
+  const tc = useTranslations("parentChild");
 
   const pendingByField = useMemo(() => {
     const map = new Map<string, MasterDataChange>();
@@ -161,13 +147,10 @@ function ChildMasterDataContent({
   );
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        backHref={`/parents/children/${studentId}`}
-        backLabel={t("back")}
-        title={t("title")}
-        description={t("subtitle")}
-      />
+    <div className="space-y-5">
+      <h2 className="text-[20px] leading-tight font-semibold text-gray-900">
+        {tc("sections.data", { name: childName })}
+      </h2>
 
       {/* Track B — child identity (approval required) */}
       <IdentitySection
@@ -179,10 +162,9 @@ function ChildMasterDataContent({
       />
 
       {/* Track A — health (direct edit) */}
-      <Section
-        icon={HeartPulse}
+      <ParentSection
         title={t("sections.health")}
-        hint={t("editableHint")}
+        description={t("editableHint")}
       >
         <AutoSaveField
           label={t("fields.healthInfo")}
@@ -190,13 +172,12 @@ function ChildMasterDataContent({
           disabled={!features.master_data_edit_enabled}
           onSave={(v) => saveField("student", "health_info", v)}
         />
-      </Section>
+      </ParentSection>
 
       {/* Track A — guardian contact (direct edit) */}
-      <Section
-        icon={Mail}
+      <ParentSection
         title={t("sections.contact")}
-        hint={t("editableHint")}
+        description={t("editableHint")}
       >
         <AutoSaveField
           label={t("fields.email")}
@@ -262,7 +243,7 @@ function ChildMasterDataContent({
         {!contactEditEnabled && (
           <p className="text-xs text-gray-500">{t("editDisabled")}</p>
         )}
-      </Section>
+      </ParentSection>
 
       <DepartureSection
         studentId={studentId}
@@ -272,8 +253,7 @@ function ChildMasterDataContent({
         onApplied={onApplied}
       />
 
-      <ChildCareOfferingsSection studentId={studentId} />
-    </ParentPage>
+    </div>
   );
 }
 
@@ -402,10 +382,9 @@ function IdentitySection({
   }, [changes, data, studentId, onApplied, t]);
 
   return (
-    <Section
-      icon={UserRound}
+    <ParentSection
       title={t("sections.child")}
-      hint={t("requestHint")}
+      description={t("requestHint")}
     >
       <RequestField
         label={t("fields.firstName")}
@@ -460,7 +439,7 @@ function IdentitySection({
       ) : (
         <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
       )}
-    </Section>
+    </ParentSection>
   );
 }
 
@@ -560,10 +539,9 @@ function DepartureSection({
   };
 
   return (
-    <Section
-      icon={Footprints}
+    <ParentSection
       title={t("sections.departure")}
-      hint={t("requestHint")}
+      description={t("requestHint")}
     >
       {pending && (
         <p className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
@@ -629,7 +607,7 @@ function DepartureSection({
         <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
       )}
       {pending && <p className="text-xs text-gray-500">{t("pendingNotice")}</p>}
-    </Section>
+    </ParentSection>
   );
 }
 
