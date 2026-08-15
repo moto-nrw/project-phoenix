@@ -78,7 +78,7 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 			)
 			return nil
 		}
-		facts.CareDayResolved = true
+		facts.CareDayResolved = expected.resolved
 		facts.IsCareDay = expected.isCareDay
 		facts.ExpectedArrival = expected.hhmm
 		return nil
@@ -99,6 +99,11 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 // Ableitung braucht: ist heute ueberhaupt ein Betreuungstag, und ab wann wird
 // das Kind erwartet.
 type expectedArrival struct {
+	// resolved ist false, wenn der Betreuungsplan gar nicht befragt werden
+	// konnte. Das ist etwas anderes als "heute kein Betreuungstag": ohne
+	// Auskunft duerfen wir weder "keine Betreuung" noch "nicht angekommen"
+	// behaupten.
+	resolved  bool
 	isCareDay bool
 	hhmm      string
 }
@@ -117,7 +122,7 @@ func (s *service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 	// Wochenende faellt trotzdem nicht durchs Raster, weil eine vorhandene
 	// Anwesenheit in deriveTodayStatus vor dem Betreuungstag geprueft wird.
 	if isWeekend(today) {
-		return expectedArrival{isCareDay: false}, nil
+		return expectedArrival{resolved: true, isCareDay: false}, nil
 	}
 
 	exception, err := s.ArrivalSchedules.GetStudentArrivalExceptionForDate(ctx, studentID, today)
@@ -125,7 +130,7 @@ func (s *service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 		return expectedArrival{}, err
 	}
 	if exception != nil && exception.ExpectedArrival != nil {
-		return expectedArrival{isCareDay: true, hhmm: hhmm(*exception.ExpectedArrival)}, nil
+		return expectedArrival{resolved: true, isCareDay: true, hhmm: hhmm(*exception.ExpectedArrival)}, nil
 	}
 
 	plan, err := s.ArrivalSchedules.GetStudentArrivalScheduleForWeekday(ctx, studentID, isoWeekdayOf(today))
@@ -133,9 +138,9 @@ func (s *service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 		return expectedArrival{}, err
 	}
 	if plan == nil {
-		return expectedArrival{isCareDay: false}, nil
+		return expectedArrival{resolved: true, isCareDay: false}, nil
 	}
-	return expectedArrival{isCareDay: true, hhmm: hhmm(plan.ExpectedArrival)}, nil
+	return expectedArrival{resolved: true, isCareDay: true, hhmm: hhmm(plan.ExpectedArrival)}, nil
 }
 
 // isoWeekdayOf bildet einen Kalendertag auf die Wochentagszahl ab, die
