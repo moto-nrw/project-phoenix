@@ -204,6 +204,67 @@ Elternportal.
   Touchflächen, Folgen vor dem Absenden benennen, nur eine Hauptaktion je
   Bildschirm.
 
+### Der Qualitätsmaßstab: wie eine gute App aus dem App Store
+
+Das Ziel ist die Bedienqualität einer professionellen Store-App, auf allen drei
+Gerätearten. Weil "premium" als Anspruch nichts bewirkt, ist der Maßstab hier
+als Prüfliste formuliert. Eine Etappe gilt erst als fertig, wenn ihre Punkte
+erfüllt sind.
+
+**Ehrliche Randbedingung:** Dies ist eine Web-App. Auf iOS entsteht der
+App-Charakter erst nach Installation auf dem Home-Bildschirm (eigenes Icon,
+kein Browser-Rahmen, Vollbild), und **nur installiert funktionieren dort Push-
+Benachrichtigungen überhaupt**. Die Home-Bildschirm-Anleitung (#2306) ist
+deshalb Voraussetzung für dieses Ziel, nicht Beiwerk.
+
+#### Überall
+
+- **Touchflächen** mindestens 44 pt (Apple HIG) bzw. 48 dp (Material). Wir
+  nehmen 48 px als eine Zahl für alles.
+- **Fließtext ab 17 px.** Keine Versalien-Mikrolabels, keine 11-px-Beschriftung.
+- **Ein typografischer Maßstab** für die ganze App, keine Ad-hoc-Größen.
+- **Icons immer mit Textlabel.** Ein Icon allein ist nie eine Schaltfläche.
+- **Kein horizontaler Seiten-Scroll**, bei keiner Breite. Breite Inhalte
+  scrollen in ihrem eigenen Container.
+- **Kein Layout-Sprung**, wenn Daten eintreffen: Skelette haben die Form des
+  Endzustands, keine ganzseitigen Spinner.
+- **Rückmeldung auf jede Berührung** innerhalb von 100 ms über einen
+  Aktiv-Zustand, nicht nur über Hover.
+- **Leere Zustände** sagen, was passieren wird, und bieten genau eine Aktion an.
+- **Bewegung nur, wenn sie etwas erklärt**, ausschließlich über Transform und
+  Opacity, und `prefers-reduced-motion` wird respektiert.
+- **Bedienbar bei 200 % Zoom und 320 px Breite**, vollständig per Tastatur, mit
+  sichtbarem Fokusring.
+
+#### Mobile, der Leitfall
+
+- **Safe Areas** werden respektiert: Notch oben, Home-Indikator unten, über
+  `env(safe-area-inset-*)`. Nichts klebt unter der Systemleiste.
+- **Bottom-Navigation** fest, in Daumenreichweite, höchstens fünf Ziele, Icon
+  und Label, unmissverständlicher Aktiv-Zustand.
+- **Hauptaktionen unten**, nicht oben: der Daumen erreicht den unteren Rand,
+  nicht die obere Ecke.
+- **Dialoge kommen als Sheet von unten**, schließbar über Hintergrund und
+  Wischgeste, mit angehefteter Aktionsleiste.
+- **Kein Verhalten, das Hover voraussetzt.** Auf Touch gibt es keinen Hover.
+- **Installierbar** als PWA mit eigenem Icon und Startbildschirm.
+
+#### Tablet
+
+- **Kein gestrecktes Handy.** Wo zwei Spalten fachlich Sinn ergeben (Liste und
+  Detail), gibt es zwei Spalten.
+- **Im Querformat** tritt eine Seitennavigation an die Stelle der
+  Bottom-Navigation.
+- **Dialoge** werden zu mittig stehenden Fenstern statt Vollbild-Sheets.
+
+#### Desktop
+
+- **Dauerhafte Seitennavigation**, kein ausklappbares Menü für Alltagsziele.
+- **Begrenzte Zeilenlänge** für Fließtext, keine 1400 px breiten Absätze.
+- **Keine leeren Bildschirmhälften.** Wenn eine Spalte nichts trägt, ist die
+  Aufteilung falsch.
+- **Hover- und Fokuszustände** für jedes bedienbare Element.
+
 ### Die einzigen Grenzen
 
 Die Projektregeln aus Abschnitt 13: neue Bausteine gehören ins geteilte UI-Kit

@@ -68,6 +68,40 @@ Elternportal.
   Touchflächen, Folgen vor dem Absenden benennen, nur eine Hauptaktion je
   Bildschirm.
 
+**Der Qualitätsmaßstab: wie eine gute App aus dem App Store.** Ziel ist die
+Bedienqualität einer professionellen Store-App auf allen drei Gerätearten. Weil
+"premium" als Anspruch nichts bewirkt, ist der Maßstab als Prüfliste
+formuliert; eine Etappe gilt erst als fertig, wenn ihre Punkte erfüllt sind.
+
+*Ehrliche Randbedingung:* Dies ist eine Web-App. Auf iOS entsteht der
+App-Charakter erst nach Installation auf dem Home-Bildschirm, und nur
+installiert funktionieren dort Push-Benachrichtigungen. Die
+Home-Bildschirm-Anleitung (#2306) ist Voraussetzung, nicht Beiwerk.
+
+*Überall:* Touchflächen mindestens 48 px. Fließtext ab 17 px, keine
+Versalien-Mikrolabels. Ein typografischer Maßstab für die ganze App. Icons
+immer mit Textlabel. Kein horizontaler Seiten-Scroll bei keiner Breite. Kein
+Layout-Sprung beim Eintreffen von Daten, Skelette in der Form des Endzustands.
+Rückmeldung auf jede Berührung binnen 100 ms über einen Aktiv-Zustand. Leere
+Zustände nennen die Folge und bieten genau eine Aktion. Bewegung nur, wenn sie
+etwas erklärt, nur über Transform und Opacity, `prefers-reduced-motion` wird
+respektiert. Bedienbar bei 200 % Zoom und 320 px Breite, vollständig per
+Tastatur, mit sichtbarem Fokusring.
+
+*Mobile, der Leitfall:* Safe Areas über `env(safe-area-inset-*)` respektiert.
+Bottom-Navigation fest, in Daumenreichweite, höchstens fünf Ziele, Icon und
+Label, klarer Aktiv-Zustand. Hauptaktionen unten statt oben. Dialoge als Sheet
+von unten mit angehefteter Aktionsleiste. Kein Verhalten, das Hover
+voraussetzt. Installierbar als PWA.
+
+*Tablet:* kein gestrecktes Handy. Zwei Spalten, wo Liste und Detail es
+hergeben. Im Querformat Seitennavigation statt Bottom-Navigation. Dialoge als
+mittige Fenster statt Vollbild-Sheets.
+
+*Desktop:* dauerhafte Seitennavigation. Begrenzte Zeilenlänge für Fließtext.
+Keine leeren Bildschirmhälften. Hover- und Fokuszustände für jedes bedienbare
+Element.
+
 **Die einzigen Grenzen:** neue Bausteine ins geteilte UI-Kit
 (`frontend/src/components/ui/`), Farben aus der moto-Palette über
 `moto-*`-Utilities, Kalenderdaten als `timezone.Date` bzw. `"YYYY-MM-DD"`,
