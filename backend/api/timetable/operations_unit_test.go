@@ -87,6 +87,9 @@ func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
 
 	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?scope=future", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?scope=past&date=2000-01-01", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestOperationsInstanceEndpoints(t *testing.T) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, History } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -87,50 +88,32 @@ export function PastBlocksSection() {
   }, [expanded]);
 
   return (
-    <section className="moto-content-surface mt-5 overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-      <button
-        type="button"
-        onClick={() => setExpanded((current) => !current)}
-        className="group focus-visible:ring-moto-blue/30 flex w-full items-center gap-3 p-4 text-left focus-visible:ring-2 focus-visible:outline-none sm:p-5"
-        aria-expanded={expanded}
-      >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
-          <History className="h-5 w-5 text-gray-600" aria-hidden="true" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="text-moto-blue block text-xs font-semibold tracking-wide uppercase">
-            Rückblick
-          </span>
-          <span className="block text-base font-semibold text-gray-900">
-            Beendete und abgelaufene Blöcke
-          </span>
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${expanded ? "rotate-180" : ""}`}
-          aria-hidden="true"
-        />
-      </button>
-
-      {expanded ? (
-        <div className="border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5">
-          {isLoading && blocks === null ? (
-            <Loading fullPage={false} />
-          ) : loadError ? (
-            <Alert type="error" message={loadError} />
-          ) : blocks !== null && blocks.length === 0 ? (
-            <p className="text-sm text-gray-600">
-              Heute sind noch keine Blöcke beendet oder abgelaufen.
-            </p>
-          ) : blocks !== null ? (
-            <div className="grid gap-3 xl:grid-cols-2">
-              {blocks.map((block) => (
-                <PastBlockCard key={block.id} block={block} />
-              ))}
-            </div>
-          ) : null}
+    <SectionCard
+      kicker="Rückblick"
+      title="Beendete und abgelaufene Blöcke"
+      icon={History}
+      collapsible
+      defaultCollapsed
+      onCollapsedChange={(collapsed) => setExpanded(!collapsed)}
+      className="mt-5"
+      bodyClassName="-mx-5 -mb-5 mt-5 border-t border-gray-100 bg-gray-50/50 p-5"
+    >
+      {isLoading && blocks === null ? (
+        <Loading fullPage={false} />
+      ) : loadError ? (
+        <Alert type="error" message={loadError} />
+      ) : blocks !== null && blocks.length === 0 ? (
+        <p className="text-sm text-gray-600">
+          Heute sind noch keine Blöcke beendet oder abgelaufen.
+        </p>
+      ) : blocks !== null ? (
+        <div className="grid gap-3 xl:grid-cols-2">
+          {blocks.map((block) => (
+            <PastBlockCard key={block.id} block={block} />
+          ))}
         </div>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
