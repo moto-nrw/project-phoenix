@@ -69,6 +69,10 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if rs.AbsenceOverview == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("absence overview service is not configured")))
+		return
+	}
 
 	groups, err := rs.permittedDayLogGroups(ctx, from, logger)
 	if err != nil {
@@ -88,17 +92,12 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 		return
 	}
 
-	entries := []statusDayOverviewEntry{}
-	hasMore := false
-	if rs.AbsenceOverview != nil {
-		overview, err := rs.AbsenceOverview.GetOverview(ctx, queryGroups, from, to, today, filters)
-		if err != nil {
-			renderError(w, r, common.ErrorInternalServerWrap("failed to load absence overview", err))
-			return
-		}
-		entries = mapStatusDayOverviewEntries(overview)
-		hasMore = overview.HasMore
+	overview, err := rs.AbsenceOverview.GetOverview(ctx, queryGroups, from, to, today, filters)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load absence overview", err))
+		return
 	}
+	entries := mapStatusDayOverviewEntries(overview)
 	if err := rs.writeStatusDayOverviewAudit(r, from, to, queryGroups, logger); err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))
 		return
@@ -111,7 +110,7 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 			Name: group.Name,
 		})
 	}
-	common.Respond(w, r, http.StatusOK, statusDayOverviewResponse{From: from.String(), To: to.String(), Groups: responseGroups, Entries: entries, Page: page, PageSize: pageSize, HasMore: hasMore}, "Student status days retrieved successfully")
+	common.Respond(w, r, http.StatusOK, statusDayOverviewResponse{From: from.String(), To: to.String(), Groups: responseGroups, Entries: entries, Page: page, PageSize: pageSize, HasMore: overview.HasMore}, "Student status days retrieved successfully")
 }
 
 func parseStatusDayOverviewFilters(r *http.Request, page, pageSize int) (activeService.StatusDayOverviewFilters, error) {

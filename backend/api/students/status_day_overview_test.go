@@ -288,6 +288,33 @@ func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) 
 	assert.Contains(t, rr.Body.String(), "failed to record audit trail")
 }
 
+func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T) {
+	tc := setupTestContext(t)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Service Failure")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+	tc.resource.AbsenceOverview = nil
+
+	before, err := tc.db.NewSelect().
+		Model((*auditModels.DataAccessLog)(nil)).
+		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
+		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
+		Count(context.Background())
+	require.NoError(t, err)
+
+	req := testutil.NewRequest("GET", "/status-days", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "absence overview service is not configured")
+
+	after, err := tc.db.NewSelect().
+		Model((*auditModels.DataAccessLog)(nil)).
+		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
+		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
+}
+
 func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T) {
 	tc := setupTestContext(t)
 
