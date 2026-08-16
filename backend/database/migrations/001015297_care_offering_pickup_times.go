@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	careOfferingPickupTimesVersion     = "1.15.296"
+	careOfferingPickupTimesVersion     = "1.15.297"
 	careOfferingPickupTimesDescription = "Optional per-weekday pickup times on care offerings + source tracking on student pickup schedules"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 func careOfferingPickupTimesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.296: Adding care offering pickup times + pickup schedule source...")
+	fmt.Println("Migration 1.15.297: Adding care offering pickup times + pickup schedule source...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE enrollment.care_offerings
 			ADD COLUMN IF NOT EXISTS pickup_times JSONB;
