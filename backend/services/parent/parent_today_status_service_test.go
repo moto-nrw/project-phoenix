@@ -77,10 +77,15 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 		return false
 	}
 
+	// Real staff row rather than a guessed id: created_by carries a foreign key.
+	author := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Plan", "Autor")
+	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, author.ID) })
+
 	row := &scheduleModels.StudentArrivalSchedule{
 		StudentID:       studentID,
 		Weekday:         weekday,
 		ExpectedArrival: arrival,
+		CreatedBy:       author.ID,
 	}
 	row.SetTenantID(tenantID)
 
@@ -106,6 +111,48 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 		})
 	})
 	return true
+}
+
+// seedClosedAttendanceOn schreibt eine abgeschlossene Anwesenheit fuer einen
+// vergangenen Tag. Das ist der Beleg, dass die Schule ueberhaupt Anwesenheit
+// pflegt: ohne eine einzige Zeile in den letzten 14 Tagen antwortet der
+// Tagesstatus bewusst "unbekannt", statt "nicht angekommen" zu behaupten.
+func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64, date timezone.Date) {
+	t.Helper()
+	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "attendance-history-fixture")
+
+	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
+	checkOut := date.BerlinMidnight().Add(15 * time.Hour)
+	row := &activeModels.Attendance{
+		StudentID:    studentID,
+		Date:         date,
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		DeviceID:     device.ID,
+	}
+	row.SetTenantID(tenantID)
+
+	ctx := tenant.WithTenantID(context.Background(), tenantID)
+	err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		_, insertErr := tx.NewInsert().
+			Model(row).
+			ModelTableExpr(`active.attendance`).
+			Exec(txCtx)
+		return insertErr
+	})
+	require.NoError(t, err, "historische Anwesenheit konnte nicht angelegt werden")
+
+	t.Cleanup(func() {
+		cleanupCtx := tenant.WithTenantID(context.Background(), tenantID)
+		_ = tenant.WithTenantTx(cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+			_, delErr := tx.NewDelete().
+				Model((*activeModels.Attendance)(nil)).
+				ModelTableExpr(`active.attendance`).
+				Where("student_id = ? AND date = ?", studentID, date).
+				Exec(txCtx)
+			return delErr
+		})
+	})
 }
 
 // openAttendanceToday schreibt eine offene Anwesenheitszeile fuer heute. Sie
@@ -206,10 +253,14 @@ func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
 
 	arrival := timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))
 	seeded := seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
+	// Belegt, dass die Schule Anwesenheit pflegt, ohne heute eine anzulegen.
+	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, timezone.TodayDate().AddDays(-3))
 
 	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
 
 	require.NoError(t, err)
+	require.NotNil(t, status.AtOgs, "mit Betreuungstag und gepflegter Anwesenheit gibt es eine Aussage")
+	assert.False(t, *status.AtOgs, "ohne Anwesenheit heute ist das Kind nicht da")
 	if !seeded {
 		assert.Empty(t, status.ExpectedFrom, "das Wochenende ist nie ein Betreuungstag")
 		return
@@ -217,16 +268,16 @@ func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
 	assert.Equal(t, "08:00", status.ExpectedFrom, "die erwartete Ankunft kommt aus dem Wochenplan")
 }
 
-// TestGetChildTodayStatusPresentOnCareDay haelt fest, dass eine offene
-// Anwesenheit den Betreuungstag nicht verdraengt: beide Angaben stehen
-// nebeneinander in derselben Antwort.
+// TestGetChildTodayStatusPresentOnCareDay: sobald das Kind da ist, zaehlt die
+// Anwesenheit und nicht mehr der Plan. Die erwartete Ankunft verschwindet dann
+// aus der Antwort, sie wuerde neben "ist da seit ..." nur verwirren.
 func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	arrival := timezone.WallClock(time.Date(2026, 1, 1, 7, 30, 0, 0, time.UTC))
-	seeded := seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
+	seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
 	checkIn := timezone.Now().Add(-30 * time.Minute)
 	openAttendanceToday(t, db, chain.TenantID, chain.StudentID, checkIn)
 
@@ -236,9 +287,8 @@ func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 	require.NotNil(t, status.AtOgs, "eine offene Anwesenheit belegt die Ja-Aussage")
 	assert.True(t, *status.AtOgs)
 	assert.Equal(t, parentService.DayStatePresent, status.State)
-	if seeded {
-		assert.Equal(t, "07:30", status.ExpectedFrom)
-	}
+	assert.Equal(t, timezone.WallClock(checkIn).Format("15:04"), status.Since)
+	assert.Empty(t, status.ExpectedFrom, "wer da ist, wird nicht mehr erwartet")
 }
 
 // TestGetChildTodayStatusWithoutPlanIsNoCareDay: ein Kind ohne Eintrag fuer
