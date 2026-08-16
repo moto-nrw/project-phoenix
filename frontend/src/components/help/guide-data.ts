@@ -738,7 +738,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Eine Liste aller eingetragenen Abwesenheitstage über alle Kinder – von heute an bis zu einem frei wählbaren Enddatum. Zum schnellen Nachschlagen, ob für ein Kind schon eine Krankmeldung, Entschuldigung oder Klassenfahrt eingetragen ist.",
         steps: [
-          "`Abwesenheiten` in der Seitenleiste öffnen.",
+          "`Alle Kinder` öffnen und oben rechts im Menü mit den drei Punkten `Abwesenheiten` wählen.",
           "Oben rechts den Zeitraum wählen; er beginnt immer heute und reicht standardmäßig zwei Monate voraus.",
           "Mit dem Suchfeld nach Kind oder Klasse suchen, daneben nach Status und Gruppe filtern.",
           "Ein Klick auf eine Zeile öffnet die Detailseite des Kindes.",
