@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
@@ -25,7 +24,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -67,19 +65,12 @@ func calendarTestConfig(db *bun.DB) calendarSvc.Config {
 		ChildRepo:            repos.ParentChild,
 		GroupRepo:            repos.Group,
 		InstanceStaffRepo:    repos.InstanceStaff,
-		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
 		RoomRepo:             repos.Room,
 		StaffShiftRepo:       repos.StaffShift,
 		ShiftTypeRepo:        repos.ShiftType,
-		CareDays: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
-			ArrivalSchedules:  repos.StudentArrivalSchedule,
-			ArrivalExceptions: repos.StudentArrivalException,
-			PickupSchedules:   repos.StudentPickupSchedule,
-			PickupExceptions:  repos.StudentPickupException,
-		}),
-		UserContext: userContext,
-		DB:          db,
+		UserContext:          userContext,
+		DB:                   db,
 	}
 }
 
@@ -1782,7 +1773,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 	assert.Nil(t, events[1].Description)
 }
 
-func TestCalendarServiceIntegration_ParentCalendarIncludesChildTimetable(t *testing.T) {
+func TestCalendarServiceIntegration_ParentCalendarExcludesChildTimetable(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -1805,15 +1796,7 @@ func TestCalendarServiceIntegration_ParentCalendarIncludesChildTimetable(t *test
 
 	events, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, timezone.NewDate(2026, 4, 8), timezone.NewDate(2026, 4, 8))
 	require.NoError(t, err)
-	require.Len(t, events, 1)
-	assert.Equal(t, calModels.EventSourceTimetable, events[0].Source)
-	assert.Equal(t, "Child Betreuung", events[0].Title)
-	assert.Equal(t, "13:00", events[0].StartTime)
-	assert.Equal(t, "16:00", events[0].EndTime)
-	require.NotNil(t, events[0].StudentID)
-	assert.Equal(t, strconv.FormatInt(parentChain.StudentID, 10), *events[0].StudentID)
-	require.NotNil(t, events[0].StudentName)
-	assert.Contains(t, *events[0].StudentName, "Felix")
+	assert.Empty(t, events)
 }
 
 // The public subscription feed bypasses parent auth, so a deactivated account
@@ -2613,132 +2596,6 @@ func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testi
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
-}
-
-func TestCalendarServiceIntegration_ParentCalendarHidesUnbookedPlannedTimetable(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-
-	service := setupCalendarService(t, db)
-	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	staff := testpkg.CreateTestStaff(t, db, "Care", "Planner")
-	room := testpkg.CreateTestRoom(t, db, "Parent Calendar Unbooked Room")
-	wednesday := timezone.NewDate(2026, 4, 8)
-	instance := testpkg.CreateTestActivityInstance(t, db, wednesday, room.ID, testpkg.ActivityInstanceOpts{
-		StartHHMM: "13:00",
-		EndHHMM:   "16:00",
-		Title:     "Child Betreuung",
-	})
-	studentLink := testpkg.CreateTestInstanceStudent(t, db, instance.ID, parentChain.StudentID, "")
-	arrival := testpkg.CreateTestArrivalSchedule(t, db, parentChain.StudentID, scheduleModels.WeekdayMonday, staff.ID, "13:00")
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", arrival.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", studentLink.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupActivityFixtures(t, db, room.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-	})
-
-	events, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, wednesday, wednesday)
-	require.NoError(t, err)
-	assert.Empty(t, events)
-}
-
-// Reporting a child sick flips every still-expected slot of that day to
-// 'absent' with status-day provenance — including slots on days the care plan
-// never booked. That is not a decision about the slot, so the care-day filter
-// must still apply: a sick note may not resurrect a care event for a Wednesday
-// the child was never booked for (#1747 review).
-func TestCalendarServiceIntegration_ParentCalendarHidesUnbookedStatusDayTimetable(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-
-	service := setupCalendarService(t, db)
-	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	staff := testpkg.CreateTestStaff(t, db, "Care", "Reporter")
-	room := testpkg.CreateTestRoom(t, db, "Parent Calendar Status Day Room")
-	wednesday := timezone.NewDate(2026, 4, 8)
-	instance := testpkg.CreateTestActivityInstance(t, db, wednesday, room.ID, testpkg.ActivityInstanceOpts{
-		StartHHMM: "13:00",
-		EndHHMM:   "16:00",
-		Title:     "Child Betreuung",
-	})
-	studentLink := testpkg.CreateTestInstanceStudent(t, db, instance.ID, parentChain.StudentID, "")
-	arrival := testpkg.CreateTestArrivalSchedule(t, db, parentChain.StudentID, scheduleModels.WeekdayMonday, staff.ID, "13:00")
-
-	ctx := testpkg.TenantContext(1)
-	statusDay := &activeModels.StudentStatusDay{
-		StudentID:  parentChain.StudentID,
-		Date:       wednesday,
-		Status:     activeModels.StudentStatusDaySick,
-		ReportedAt: time.Now().UTC(),
-		Source:     activeModels.StudentStatusSourceManual,
-	}
-	statusDay.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).StudentStatusDay.UpsertReported(ctx, statusDay))
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "active.student_status_days", statusDay.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", arrival.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", studentLink.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupActivityFixtures(t, db, room.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-	})
-
-	// Guard: the cascade really did take the row out of 'expected'.
-	var status string
-	var statusDayID *int64
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("status, student_status_day_id").
-		TableExpr("schedule.instance_students").
-		Where("id = ?", studentLink.ID).
-		Scan(ctx, &status, &statusDayID))
-	require.Equal(t, scheduleModels.AttendanceStatusAbsent, status)
-	require.NotNil(t, statusDayID)
-
-	events, err := service.ListMyParentEvents(ctx, parentChain.AccountID, wednesday, wednesday)
-	require.NoError(t, err)
-	assert.Empty(t, events)
-}
-
-// The mirror image: once the block is completed the verdict is frozen in the
-// stored marker. A care-plan edit afterwards must not retroactively erase a day
-// the child actually attended — the same rule the attendance history follows.
-func TestCalendarServiceIntegration_ParentCalendarKeepsCompletedTimetableWithoutMarker(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-
-	service := setupCalendarService(t, db)
-	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	staff := testpkg.CreateTestStaff(t, db, "Care", "Historian")
-	room := testpkg.CreateTestRoom(t, db, "Parent Calendar Completed Room")
-	wednesday := timezone.NewDate(2026, 4, 8)
-	instance := testpkg.CreateTestActivityInstance(t, db, wednesday, room.ID, testpkg.ActivityInstanceOpts{
-		Status:    scheduleModels.InstanceStatusCompleted,
-		StartHHMM: "13:00",
-		EndHHMM:   "16:00",
-		Title:     "Child Betreuung",
-	})
-	studentLink := testpkg.CreateTestInstanceStudent(t, db, instance.ID, parentChain.StudentID, "")
-	arrival := testpkg.CreateTestArrivalSchedule(t, db, parentChain.StudentID, scheduleModels.WeekdayMonday, staff.ID, "13:00")
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.student_arrival_schedules", arrival.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", studentLink.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupActivityFixtures(t, db, room.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-	})
-
-	events, err := service.ListMyParentEvents(testpkg.TenantContext(1), parentChain.AccountID, wednesday, wednesday)
-	require.NoError(t, err)
-	require.Len(t, events, 1)
-	assert.Equal(t, calModels.EventSourceTimetable, events[0].Source)
 }
 
 // Cancelling a single occurrence must clear any pending create/update notice, so
