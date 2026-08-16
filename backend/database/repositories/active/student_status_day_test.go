@@ -421,3 +421,15 @@ func TestStudentStatusDayRepository_FindActiveByStudentIDsAndDateRange(t *testin
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 }
+
+func TestStudentStatusDayRepository_FindActiveByStudentIDsAndDateRangeWrapsDatabaseError(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	require.NoError(t, db.Close())
+
+	repo := repositories.NewFactory(db).StudentStatusDay
+	today := timezone.TodayDate()
+
+	_, err := repo.FindActiveByStudentIDsAndDateRange(testpkg.TenantContext(1), []int64{7}, today, today)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "find active student status days by student ids and date range")
+}
