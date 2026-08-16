@@ -246,6 +246,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/gaps", rs.getGaps)
 
+		// #2284 Sammel-Vertretung: one atomic save applying a day-wide absence
+		// or substitution for one person across several selected days.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/substitutions/bulk", rs.applyBulkSubstitution)
+
 		// Änderungsprotokoll (#1886): append-only deviation history, read-only.
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/deviations/history", rs.getDeviationHistory)
