@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 // berlinClock baut einen Zeitpunkt an einem festen Tag in Europe/Berlin. Der
@@ -205,5 +207,41 @@ func TestApplyAttendanceRowsPrefersOpenRow(t *testing.T) {
 	}
 	if facts.CheckIn != "13:05" {
 		t.Errorf("CheckIn = %q, erwartet 13:05 aus der offenen Zeile", facts.CheckIn)
+	}
+}
+
+// TestIsoWeekdayOfMapsAWholeWeek pins the ISO mapping the arrival schedule
+// expects: Monday = 1 through Sunday = 7. Go's own Weekday numbers Sunday 0,
+// so an unshifted value would make Sunday look like a Monday care day.
+func TestIsoWeekdayOfMapsAWholeWeek(t *testing.T) {
+	// 2026-08-17 is a Monday.
+	monday := timezone.NewDate(2026, 8, 17)
+	want := []int{
+		scheduleModels.WeekdayMonday,
+		scheduleModels.WeekdayTuesday,
+		scheduleModels.WeekdayWednesday,
+		scheduleModels.WeekdayThursday,
+		scheduleModels.WeekdayFriday,
+		scheduleModels.WeekdaySaturday,
+		scheduleModels.WeekdaySunday,
+	}
+	for offset, expected := range want {
+		date := monday.AddDays(offset)
+		if got := isoWeekdayOf(date); got != expected {
+			t.Errorf("isoWeekdayOf(%s) = %d, erwartet %d", date, got, expected)
+		}
+	}
+}
+
+// TestIsWeekendCoversTheWeek keeps Saturday and Sunday out of the weekly plan,
+// which only knows Monday to Friday and rejects anything else.
+func TestIsWeekendCoversTheWeek(t *testing.T) {
+	monday := timezone.NewDate(2026, 8, 17)
+	want := []bool{false, false, false, false, false, true, true}
+	for offset, expected := range want {
+		date := monday.AddDays(offset)
+		if got := isWeekend(date); got != expected {
+			t.Errorf("isWeekend(%s) = %v, erwartet %v", date, got, expected)
+		}
 	}
 }
