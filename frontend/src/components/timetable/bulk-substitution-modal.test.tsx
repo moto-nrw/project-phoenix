@@ -16,13 +16,33 @@ vi.mock("~/components/ui/date-picker", async (importOriginal) => {
   return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
 });
 
-const { mockGetWeek, mockApplyBulk, mockToastSuccess, mockToastError } =
-  vi.hoisted(() => ({
+const {
+  mockGetWeek,
+  mockApplyBulk,
+  mockToastSuccess,
+  mockToastError,
+  mockUseTenantMutateMatching,
+  mockClearPreviewCache,
+  mockSwrState,
+} = vi.hoisted(() => {
+  const mockClearPreviewCache = vi.fn(() => Promise.resolve());
+  return {
     mockGetWeek: vi.fn(),
     mockApplyBulk: vi.fn(),
     mockToastSuccess: vi.fn(),
     mockToastError: vi.fn(),
-  }));
+    mockClearPreviewCache,
+    mockUseTenantMutateMatching: vi.fn(() => mockClearPreviewCache),
+    // Steuerbarer Lade-/Fehlerzustand des Vorschau-Fetches. data bleibt dabei
+    // absichtlich gefüllt — das spiegelt keepPreviousData: beim
+    // Zeitraumwechsel stehen die Tage des ALTEN Zeitraums noch in data,
+    // während der neue lädt.
+    mockSwrState: {
+      isLoading: false,
+      error: undefined as Error | undefined,
+    },
+  };
+});
 
 vi.mock("~/lib/timetable-api", () => ({
   timetableService: {
@@ -47,10 +67,11 @@ vi.mock("~/lib/swr", () => ({
     }
     return {
       data: mockGetWeek() as WeeklyInstancesResponse,
-      isLoading: false,
-      error: undefined,
+      isLoading: mockSwrState.isLoading,
+      error: mockSwrState.error,
     };
   },
+  useTenantMutateMatching: mockUseTenantMutateMatching,
 }));
 
 vi.mock("~/lib/logger", () => ({
@@ -180,6 +201,9 @@ describe("BulkSubstitutionModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetWeek.mockReturnValue(weekResponse([]));
+    mockClearPreviewCache.mockResolvedValue(undefined);
+    mockSwrState.isLoading = false;
+    mockSwrState.error = undefined;
   });
 
   it("zeigt ohne gewählte Person keine Terminvorschau und blockt den Save", () => {
@@ -426,6 +450,86 @@ describe("BulkSubstitutionModal", () => {
     setRange(futureISO(1), futureISO(1));
 
     expect(screen.getByText("bereits abwesend gemeldet")).toBeInTheDocument();
+  });
+
+  it("blockt den Save, solange die Vorschau des aktuellen Zeitraums noch lädt", () => {
+    // keepPreviousData: beim Zeitraumwechsel stehen die Tage des ALTEN
+    // Zeitraums noch in data, während der neue lädt — ein schneller Save
+    // würde sonst Tage außerhalb des neu gewählten Zeitraums senden.
+    mockGetWeek.mockReturnValue(
+      weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
+    );
+    mockSwrState.isLoading = true;
+    renderModal();
+    pickOption("Abwesende Person", "Anna Alt");
+    setRange(futureISO(1), futureISO(1));
+
+    expect(
+      screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
+    ).toBeDisabled();
+  });
+
+  it("blockt den Save, wenn die Vorschau nicht geladen werden konnte", () => {
+    mockGetWeek.mockReturnValue(
+      weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
+    );
+    mockSwrState.error = new Error("Netzwerkfehler");
+    renderModal();
+    pickOption("Abwesende Person", "Anna Alt");
+    setRange(futureISO(1), futureISO(1));
+
+    expect(
+      screen.getByText(/Termine konnten nicht geladen werden/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
+    ).toBeDisabled();
+  });
+
+  it("leert den Vorschau-Cache nach einem erfolgreichen Save", async () => {
+    mockGetWeek.mockReturnValue(
+      weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
+    );
+    mockApplyBulk.mockResolvedValue(
+      bulkResponse({
+        days: [{ date: futureISO(1), affectedInstances: [], warningCount: 0 }],
+        totalAffected: 1,
+      }),
+    );
+    renderModal();
+
+    pickOption("Abwesende Person", "Anna Alt");
+    setRange(futureISO(1), futureISO(1));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
+    );
+
+    // Geleert (nicht revalidiert): mit keepPreviousData würde ein erneutes
+    // Öffnen desselben Zeitraums sonst die Auswahl von VOR dem Save sofort
+    // wieder speicherbar anzeigen.
+    await waitFor(() =>
+      expect(mockClearPreviewCache).toHaveBeenCalledWith({ clear: true }),
+    );
+    expect(mockUseTenantMutateMatching).toHaveBeenCalledWith([
+      "timetable-sammel-vertretung-",
+    ]);
+  });
+
+  it("leert den Vorschau-Cache bei einem Save-Fehler nicht", async () => {
+    mockGetWeek.mockReturnValue(
+      weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
+    );
+    mockApplyBulk.mockRejectedValue(new Error("Speichern fehlgeschlagen"));
+    renderModal();
+
+    pickOption("Abwesende Person", "Anna Alt");
+    setRange(futureISO(1), futureISO(1));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
+    );
+
+    await waitFor(() => expect(mockToastError).toHaveBeenCalledOnce());
+    expect(mockClearPreviewCache).not.toHaveBeenCalled();
   });
 
   it("heute (Berliner Kalendertag) als Standardzeitraum vorbelegt", () => {

@@ -30,7 +30,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -120,16 +120,25 @@ export function BulkSubstitutionModal({
 
   // Termine des Zeitraums laden, sobald Person und gültiger Zeitraum stehen.
   // Der Key trägt beide Daten; die Personenfilterung ist clientseitig, damit
-  // ein Personenwechsel keinen neuen Fetch braucht.
+  // ein Personenwechsel keinen neuen Fetch braucht. Das "timetable-"-Präfix
+  // hängt die Vorschau in das SSE-Invalidierungsnetz (use-global-sse
+  // revalidiert bei staffing_deviation_changed alle timetable-Keys) — sonst
+  // bekäme sie fremde Planänderungen nie mit.
   const swrKey =
     isOpen && absentStaffId !== "" && rangeValid
-      ? `sammel-vertretung-${fromISO}-${toISO}`
+      ? `timetable-sammel-vertretung-${fromISO}-${toISO}`
       : null;
   const {
     data: rangeData,
     isLoading: rangeLoading,
     error: rangeError,
   } = useSWRAuth(swrKey, () => timetableService.getWeek(fromISO, toISO));
+
+  // Nach einem committeten Save tragen alle Vorschau-Caches den Stand VOR dem
+  // Save; sie werden geleert statt revalidiert (siehe handleSave).
+  const clearPreviewCache = useTenantMutateMatching([
+    "timetable-sammel-vertretung-",
+  ]);
 
   const dayGroups: DayGroup[] = useMemo(() => {
     if (!rangeData || absentStaffId === "") return [];
@@ -212,6 +221,12 @@ export function BulkSubstitutionModal({
     !saving &&
     absentStaffId !== "" &&
     rangeValid &&
+    // Nur mit erfolgreich geladener Vorschau des AKTUELLEN Zeitraums: die
+    // globale keepPreviousData-Konfiguration hält beim Zeitraumwechsel die
+    // Tage des alten Zeitraums in data — ein schneller Save würde sonst Tage
+    // außerhalb des neu gewählten Zeitraums senden.
+    !rangeLoading &&
+    !rangeError &&
     selectedDates.length > 0 &&
     !tooManyDates;
 
@@ -235,6 +250,17 @@ export function BulkSubstitutionModal({
           `${result.warningCount} mögliche Zeitüberschneidung(en) prüfen.`,
         );
       }
+      // Alle Vorschau-Caches leeren: sie tragen den Stand VOR dem Save, und
+      // mit keepPreviousData würde ein erneutes Öffnen desselben Zeitraums
+      // die veraltete Auswahl sofort wieder speicherbar anzeigen. Leeren
+      // statt revalidieren, damit der nächste Mount frisch lädt (isLoading)
+      // und der Save-Gate bis dahin greift. Ein Fehler hier darf den bereits
+      // committeten Save nicht als Fehler melden.
+      await clearPreviewCache({ clear: true }).catch((err: unknown) => {
+        logger.warn("bulk_preview_cache_clear_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
       await onSaved();
       resetAndClose();
     } catch (err) {
