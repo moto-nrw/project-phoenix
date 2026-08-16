@@ -591,10 +591,8 @@ func (r *RequestChildOfferingRepository) resolveApprovedOfferingChildren(
 }
 
 // ListApprovedByStudentIDsOnDate returns the approved offering links of the
-// given students that are current or scheduled as of onDate (valid_until >
-// onDate; future valid_from links are deliberately included, mirroring
-// ListApprovedChildrenByCareOfferingIDs — a rollover child's next-year
-// booking still carries the best known Gehzeit). Alumni are excluded.
+// given students that are active on onDate (valid_from <= onDate and
+// valid_until > onDate). Alumni are excluded.
 // Tenant isolation comes from RLS on the tenant transaction (#2290).
 func (r *RequestChildOfferingRepository) ListApprovedByStudentIDsOnDate(
 	ctx context.Context,
@@ -614,6 +612,7 @@ func (r *RequestChildOfferingRepository) ListApprovedByStudentIDsOnDate(
 		Where(`"student".id IN (?)`, bun.List(studentIDs)).
 		Where(`"student".status <> 'alumnus'`).
 		Where(`"child".status = ?`, enrollment.ChildStatusApproved).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, onDate).
 		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, onDate).
 		OrderExpr(`"request_child_offering".id ASC`).
 		Scan(ctx)

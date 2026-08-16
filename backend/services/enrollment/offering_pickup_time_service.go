@@ -87,7 +87,11 @@ func (s *decisionService) PreviewOfferingPickupRollout(ctx context.Context, offe
 	if len(studentIDs) == 0 {
 		return preview, nil
 	}
-	desired, err := s.desiredOfferingPickupTimes(ctx, studentIDs)
+	onDate, err := s.offeringPickupRolloutDate(ctx, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	desired, err := s.desiredOfferingPickupTimes(ctx, studentIDs, onDate)
 	if err != nil {
 		return nil, err
 	}
@@ -160,10 +164,15 @@ func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeri
 	for _, id := range skipStudentIDs {
 		skip[id] = true
 	}
+	onDate, err := s.offeringPickupRolloutDate(ctx, offeringID)
+	if err != nil {
+		return nil, err
+	}
 	stats, err := s.reconcileOfferingPickupRows(ctx, studentIDs, offeringPickupReconcileOptions{
 		overwriteStaff: true,
 		skipStudents:   skip,
 		createdBy:      createdBy,
+		onDate:         onDate,
 	})
 	if err != nil {
 		return nil, err
@@ -200,7 +209,7 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 	if weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
 		return nil, fmt.Errorf("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
-	desired, err := s.desiredOfferingPickupTimes(ctx, []int64{studentID})
+	desired, err := s.desiredOfferingPickupTimes(ctx, []int64{studentID}, timezone.TodayDate())
 	if err != nil {
 		return nil, err
 	}
@@ -252,6 +261,7 @@ type offeringPickupReconcileOptions struct {
 	overwriteStaff bool
 	skipStudents   map[int64]bool
 	createdBy      int64
+	onDate         timezone.Date
 }
 
 type offeringPickupReconcileStats struct {
@@ -264,7 +274,10 @@ type offeringPickupReconcileStats struct {
 // derived from their currently valid approved offerings. Staff rows are only
 // touched when overwriteStaff is set and the student is not skipped.
 func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, studentIDs []int64, opts offeringPickupReconcileOptions) (*offeringPickupReconcileStats, error) {
-	desired, err := s.desiredOfferingPickupTimes(ctx, studentIDs)
+	if opts.onDate.IsZero() {
+		opts.onDate = timezone.TodayDate()
+	}
+	desired, err := s.desiredOfferingPickupTimes(ctx, studentIDs, opts.onDate)
 	if err != nil {
 		return nil, err
 	}
@@ -367,12 +380,12 @@ func (s *decisionService) offeringPickupAffectedStudents(ctx context.Context, of
 
 // desiredOfferingPickupTimes computes each student's wanted Gehzeit per
 // weekday: the latest pickup_times entry across the offerings the student
-// holds today, on the days they actually booked (falling back to the
+// holds on the reference date, on the days they actually booked (falling back to the
 // offering's fixed available_days when the link stores none — the same
 // fallback careUsageRow applies).
-func (s *decisionService) desiredOfferingPickupTimes(ctx context.Context, studentIDs []int64) (map[int64]map[int]offeringPickupDesired, error) {
+func (s *decisionService) desiredOfferingPickupTimes(ctx context.Context, studentIDs []int64, onDate timezone.Date) (map[int64]map[int]offeringPickupDesired, error) {
 	out := make(map[int64]map[int]offeringPickupDesired, len(studentIDs))
-	links, err := s.RequestChildOfferingRepo.ListApprovedByStudentIDsOnDate(ctx, studentIDs, timezone.TodayDate())
+	links, err := s.RequestChildOfferingRepo.ListApprovedByStudentIDsOnDate(ctx, studentIDs, onDate)
 	if err != nil {
 		return nil, fmt.Errorf("list approved offering links: %w", err)
 	}
@@ -427,6 +440,31 @@ func (s *decisionService) desiredOfferingPickupTimes(ctx context.Context, studen
 		}
 	}
 	return out, nil
+}
+
+// offeringPickupRolloutDate keeps explicit rollouts for an upcoming phase
+// useful while ensuring mid-phase, future-dated replacements do not affect
+// today's desired pickup schedule.
+func (s *decisionService) offeringPickupRolloutDate(ctx context.Context, offeringID int64) (timezone.Date, error) {
+	today := timezone.TodayDate()
+	offering, err := s.CareOfferingRepo.FindByID(ctx, offeringID)
+	if err != nil {
+		return timezone.Date{}, fmt.Errorf("load offering rollout date: %w", err)
+	}
+	if offering == nil {
+		return timezone.Date{}, ErrCareOfferingNotFound
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	if err != nil {
+		return timezone.Date{}, fmt.Errorf("load offering phase rollout date: %w", err)
+	}
+	if phase == nil {
+		return timezone.Date{}, fmt.Errorf("load offering phase rollout date: phase not found")
+	}
+	if phase.ServiceStartDate.Compare(today) <= 0 {
+		return today, nil
+	}
+	return phase.ServiceStartDate, nil
 }
 
 func (s *decisionService) existingPickupRowsByStudent(ctx context.Context, studentIDs []int64) (map[int64]map[int]*scheduleModels.StudentPickupSchedule, error) {
@@ -497,7 +535,10 @@ func mustParseWallClock(hhmm string) time.Time {
 // transaction. A reviewer without a linked staff row degrades to a
 // no-insert reconcile — the same tolerance the schedule dispatch applies —
 // so an approval never fails on the acting account's shape.
-func (s *decisionService) materializeOfferingPickupAfterApproval(ctx context.Context, child *enrollmentModels.RequestChild, reviewedBy int64) error {
+func (s *decisionService) materializeOfferingPickupAfterApproval(ctx context.Context, child *enrollmentModels.RequestChild, reviewedBy int64, onDate timezone.Date) error {
+	if !s.hasOfferingPickupDependencies() {
+		return nil
+	}
 	studentID := int64(0)
 	switch {
 	case child == nil:
@@ -517,7 +558,11 @@ func (s *decisionService) materializeOfferingPickupAfterApproval(ctx context.Con
 		)
 		createdBy = 0
 	}
-	return s.ReconcileOfferingPickupForStudents(ctx, []int64{studentID}, createdBy)
+	_, err = s.reconcileOfferingPickupRows(ctx, []int64{studentID}, offeringPickupReconcileOptions{
+		createdBy: createdBy,
+		onDate:    onDate,
+	})
+	return err
 }
 
 // ReconcileOfferingPickupForStudentsByAccount is the account-facing form of

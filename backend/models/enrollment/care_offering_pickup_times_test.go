@@ -54,6 +54,15 @@ func TestCareOffering_Validate_PickupTimes_RejectsUnknownDay(t *testing.T) {
 	assert.Contains(t, err.Error(), "pickup_times")
 }
 
+func TestCareOffering_Validate_PickupTimes_RejectsWeekend(t *testing.T) {
+	c := validCareOffering()
+	c.AvailableDays = []string{"mon", "sat"}
+	c.PickupTimes = map[string]string{"sat": "14:30"}
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Monday through Friday")
+}
+
 func TestCareOffering_Validate_PickupTimes_RejectsDayOutsideAvailableDays(t *testing.T) {
 	c := validCareOffering()
 	c.AvailableDays = []string{"mon", "tue"}

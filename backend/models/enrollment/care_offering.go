@@ -332,6 +332,9 @@ func normalizePickupTimes(times map[string]string, availableDays []string) (map[
 		if !canonicalDaySet[key] {
 			return nil, fmt.Errorf("pickup_times key %q is not a known day abbreviation", day)
 		}
+		if key == "sat" || key == "sun" {
+			return nil, fmt.Errorf("pickup_times day %q must be Monday through Friday", key)
+		}
 		if !available[key] {
 			return nil, fmt.Errorf("pickup_times day %q is not in available_days", key)
 		}
@@ -517,8 +520,7 @@ type RequestChildOfferingRepository interface {
 
 	// ListApprovedByStudentIDsOnDate returns every offering link of an
 	// APPROVED request child resolved to one of the given students that is
-	// current or scheduled as of onDate (valid_until > onDate; future
-	// valid_from included, mirroring ListApprovedChildrenByCareOfferingIDs).
+	// active on onDate (valid_from <= onDate and valid_until > onDate).
 	// Alumni are excluded. The Gehzeit reconciler (#2290) uses it to compute
 	// a student's desired offering-sourced pickup times.
 	ListApprovedByStudentIDsOnDate(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*ApprovedOfferingChild, error)

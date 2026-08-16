@@ -283,6 +283,22 @@ export function CarePlanEditorModal({
     toast.error(message);
   };
 
+  const handleResetPickupToOffering = async (weekday: number) => {
+    if (!onResetPickupToOffering) return;
+    setError(null);
+    setIsResettingPickup(true);
+    try {
+      await onResetPickupToOffering(weekday);
+    } catch {
+      const message =
+        "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsResettingPickup(false);
+    }
+  };
+
   const performSave = async () => {
     setError(null);
     setIsSubmitting(true);
@@ -444,12 +460,9 @@ export function CarePlanEditorModal({
                     variant="ghost"
                     size="compact"
                     disabled={isResettingPickup}
-                    onClick={() => {
-                      setIsResettingPickup(true);
-                      onResetPickupToOffering(pickupDay.weekday)
-                        .catch(() => {})
-                        .finally(() => setIsResettingPickup(false));
-                    }}
+                    onClick={() =>
+                      void handleResetPickupToOffering(pickupDay.weekday)
+                    }
                   >
                     {isResettingPickup
                       ? "Setzt zurück…"

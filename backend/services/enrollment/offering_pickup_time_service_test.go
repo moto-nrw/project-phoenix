@@ -172,6 +172,47 @@ func TestOfferingPickupRollout_LatestTimeWinsAcrossOfferings(t *testing.T) {
 	assert.Equal(t, late.ID, *monday.CareOfferingID)
 }
 
+func TestOfferingPickupReconcile_IgnoresFutureOfferingUntilValidFrom(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	current := createPickupTimeOffering(t, env, "gehzeit-current",
+		[]string{"mon"}, map[string]string{"mon": "14:30"})
+	future := createPickupTimeOffering(t, env, "gehzeit-future",
+		[]string{"mon"}, map[string]string{"mon": "16:00"})
+	studentID, childID := submitAndApproveOfferingChild(t, env, current.ID, "gehzeit-future@example.com", "Heute", 2)
+	attachOfferingLink(t, env, childID, future.ID, []string{"mon"})
+
+	tomorrow := timezone.TodayDate().AddDays(1)
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChildOffering)(nil)).
+		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		Set("valid_from = ?", tomorrow).
+		Where(`"request_child_offering".request_child_id = ?`, childID).
+		Where(`"request_child_offering".care_offering_id = ?`, future.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChildOffering)(nil)).
+		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		Set("valid_from = NULL").
+		Where(`"request_child_offering".request_child_id = ?`, childID).
+		Where(`"request_child_offering".care_offering_id = ?`, current.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Heute")
+	require.NoError(t, pickupTimeService(t, env).ReconcileOfferingPickupForStudents(ctx, []int64{studentID}, author.ID))
+
+	monday := pickupRowsByWeekday(t, env, studentID)[scheduleModels.WeekdayMonday]
+	require.NotNil(t, monday)
+	assert.Equal(t, "14:30", monday.PickupTime.Format("15:04"),
+		"a future booking must not change today's desired pickup time")
+	require.NotNil(t, monday.CareOfferingID)
+	assert.Equal(t, current.ID, *monday.CareOfferingID)
+}
+
 func TestOfferingPickupReconcile_RemovesStaleSourcedRowsKeepsStaff(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -216,7 +257,15 @@ func TestOfferingPickupReset_RestoresOfferingTimeOrDeletes(t *testing.T) {
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-reset",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30"})
-	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-reset@example.com", "Resa", 2)
+	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-reset@example.com", "Resa", 2)
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChildOffering)(nil)).
+		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		Set("valid_from = NULL").
+		Where(`"request_child_offering".request_child_id = ?`, childID).
+		Where(`"request_child_offering".care_offering_id = ?`, offering.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Reset")
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "15:00")
