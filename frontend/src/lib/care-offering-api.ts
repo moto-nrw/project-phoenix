@@ -207,7 +207,7 @@ export async function cloneCareOffering(
   return readJSON<CareOffering>(response);
 }
 
-export interface OfferingPickupConflict {
+interface OfferingPickupConflict {
   student_id: string;
   student_name: string;
   weekday: number;
