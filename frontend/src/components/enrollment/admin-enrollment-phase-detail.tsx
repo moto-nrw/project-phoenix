@@ -984,15 +984,9 @@ function ReportStatCard({
   );
 }
 
-interface ReportExportOption {
-  readonly format: EnrollmentReportFormat;
-  readonly layout: EnrollmentReportLayout;
-  readonly label: string;
-}
-
 // Excel is always tabular; PDF and Word offer the detailed record layout and
 // the compact class-roster-style table (#2215).
-const REPORT_EXPORT_OPTIONS: readonly ReportExportOption[] = [
+const REPORT_EXPORT_OPTIONS: readonly ExportMenuItem[] = [
   { format: "xlsx", layout: "detailed", label: "Als Excel-Datei exportieren" },
   {
     format: "pdf",
@@ -1065,21 +1059,13 @@ function ReportExportCard({
           aria-label="Auswertung exportieren"
           className="absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
-          {REPORT_EXPORT_OPTIONS.map((option) => (
-            <button
-              key={`${option.format}-${option.layout}`}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onExport(option.format, option.layout);
-              }}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-            >
-              <ExportFormatIcon format={option.format} />
-              <span className="flex-1">{option.label}</span>
-            </button>
-          ))}
+          <ExportMenuItems
+            items={REPORT_EXPORT_OPTIONS}
+            onSelect={(item) => {
+              setOpen(false);
+              onExport(item.format, item.layout ?? "detailed");
+            }}
+          />
         </div>
       ) : null}
     </div>
@@ -1155,25 +1141,31 @@ function formatDayCountLabel(count: number): string {
   return count === 1 ? "1 Tag" : `${count} Tage`;
 }
 
+interface ExportMenuItem {
+  readonly format: EnrollmentExportFormat;
+  readonly label: string;
+  readonly layout?: EnrollmentReportLayout;
+}
+
 function ExportMenuItems({
-  formats,
+  items,
   onSelect,
 }: {
-  readonly formats: readonly EnrollmentExportFormat[];
-  readonly onSelect: (format: EnrollmentExportFormat) => void;
+  readonly items: readonly ExportMenuItem[];
+  readonly onSelect: (item: ExportMenuItem) => void;
 }) {
   return (
     <>
-      {formats.map((format) => (
+      {items.map((item) => (
         <button
-          key={format}
+          key={`${item.format}-${item.layout ?? "detailed"}`}
           type="button"
           role="menuitem"
-          onClick={() => onSelect(format)}
+          onClick={() => onSelect(item)}
           className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
         >
-          <ExportFormatIcon format={format} />
-          <span className="flex-1">{EXPORT_MENU_LABELS[format]}</span>
+          <ExportFormatIcon format={item.format} />
+          <span className="flex-1">{item.label}</span>
         </button>
       ))}
     </>
@@ -1227,10 +1219,13 @@ function ExportMenuButton({
           className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
           <ExportMenuItems
-            formats={formats}
-            onSelect={(format) => {
+            items={formats.map((format) => ({
+              format,
+              label: EXPORT_MENU_LABELS[format],
+            }))}
+            onSelect={(item) => {
               setOpen(false);
-              onExport(format);
+              onExport(item.format);
             }}
           />
         </div>

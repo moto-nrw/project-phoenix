@@ -10,6 +10,7 @@ import (
 
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestParseCareUsageExportRequestLayout(t *testing.T) {
@@ -54,8 +55,6 @@ func TestParseCareUsageExportRequestLayout(t *testing.T) {
 	})
 }
 
-func strPtr(s string) *string { return &s }
-
 func compactLayoutTestReport() *enrollmentService.CareUsageReport {
 	grade := int16(1)
 	phone := "0151 2345678"
@@ -72,7 +71,7 @@ func compactLayoutTestReport() *enrollmentService.CareUsageReport {
 				RequestID:         1,
 				ChildFirstName:    "Ida",
 				ChildLastName:     "Conrad",
-				TargetSchoolClass: strPtr("2b"),
+				TargetSchoolClass: testpkg.StrPtr("2b"),
 				EffectiveDays:     []string{"mon", "wed"},
 				PickupByDay:       map[string]string{"mon": "14:30", "wed": "14:30"},
 				GuardianFirstName: "Carla",
@@ -84,7 +83,7 @@ func compactLayoutTestReport() *enrollmentService.CareUsageReport {
 				RequestID:         2,
 				ChildFirstName:    "Mila",
 				ChildLastName:     "Anders",
-				TargetSchoolClass: strPtr("1a"),
+				TargetSchoolClass: testpkg.StrPtr("1a"),
 				EffectiveDays:     []string{"mon", "tue"},
 				PickupByDay:       map[string]string{"mon": "14:30"},
 				Offerings: []enrollmentService.CareUsageRowOffering{
@@ -174,8 +173,8 @@ func TestBuildCareUsageCompactTableDocumentSingleClassHasNoHeadings(t *testing.T
 
 func TestBuildCareUsageCompactTableDocumentMergesClassLabelVariants(t *testing.T) {
 	report := compactLayoutTestReport()
-	report.Rows[0].TargetSchoolClass = strPtr("1A")
-	report.Rows[2].TargetSchoolClass = strPtr("1 a")
+	report.Rows[0].TargetSchoolClass = testpkg.StrPtr("1A")
+	report.Rows[2].TargetSchoolClass = testpkg.StrPtr("1 a")
 	report.Rows[2].TargetGradeLevel = nil
 
 	doc := buildCareUsageCompactTableDocument(report)
