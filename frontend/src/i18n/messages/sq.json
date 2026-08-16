@@ -478,7 +478,7 @@
     },
     "pickup": {
       "title": "Ndryshoni marrjen",
-      "intro": "Shkruani orën e re të marrjes për një ditë të vetme. OGS-ja njoftohet menjëherë.",
+      "intro": "Kërkoni një orar tjetër marrjeje për një ditë. Ndryshimi vlen pasi ta konfirmojë OGS-ja.",
       "dateLabel": "Dita",
       "pickupLabel": "Ora e re e marrjes",
       "noTime": "Ju lutemi shkruani një orë.",
@@ -494,9 +494,18 @@
       "errorPastDate": "Për ditët e kaluara nuk mund të ruhet asnjë ndryshim.",
       "errorTooFar": "Kjo ditë është shumë larg në të ardhmen. Ju lutemi zgjidhni një ditë brenda dy muajve të ardhshëm.",
       "staffSet": "Institucioni ka caktuar tashmë një orë të veçantë marrjeje për këtë ditë: {pickup}.",
+      "alreadyHome": "{name} është tashmë në shtëpi sot. Ora e marrjes nuk mund të ndryshohet më.",
+      "alreadyHomeGeneric": "Fëmija juaj është tashmë në shtëpi sot. Ora e marrjes nuk mund të ndryshohet më.",
       "existingHint": "Për {date} është caktuar tashmë një ndryshim. Ruajtja e mbishkruan.",
       "reset": "Hiqni ndryshimin",
-      "submit": "Ndryshoni marrjen"
+      "withdraw": "Tërhiqni kërkesën",
+      "pendingChange": "{from} → {to}",
+      "pendingRequested": "Ora e re e marrjes: {to}",
+      "statusPending": "Në pritje të konfirmimit",
+      "statusApproved": "U konfirmua, orari i ri i marrjes u ruajt.",
+      "statusRejected": "U refuzua: {reason}",
+      "noDecisionReason": "Nuk u dha arsye",
+      "submit": "Dërgo kërkesën"
     },
     "actions": {
       "sick": {

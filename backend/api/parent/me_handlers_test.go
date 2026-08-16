@@ -21,6 +21,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -200,6 +201,29 @@ func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, acc
 	f.gotCarePickup = pickup
 	f.gotCareReason = reason
 	return f.careException, f.careExceptionErr
+}
+
+func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error) {
+	f.gotCareAccount = accountID
+	f.gotCareStudent = studentID
+	f.gotCareDate = date
+	f.gotCarePickup = &pickup
+	f.gotCareReason = reason
+	if f.careExceptionErr != nil {
+		return nil, f.careExceptionErr
+	}
+	return &scheduleModels.CareScheduleChangeRequest{
+		Payload: map[string]any{"date": date.String(), "pickup_time": pickup.Format("15:04"), "previous_pickup_time": "15:30", "reason": reason},
+		Status:  scheduleModels.CareRequestStatusPending,
+	}, nil
+}
+
+func (f *fakeParentService) ListPickupChangeRequests(context.Context, int64, int64) ([]*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawPickupChangeRequest(context.Context, int64, int64, int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
 }
 
 func (f *fakeParentService) ListCareExceptions(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*parentService.CareException, error) {
@@ -408,6 +432,7 @@ func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
 	assert.Equal(t, "14:30", service.gotCarePickup.Format("15:04"))
 	assert.Equal(t, reason, service.gotCareReason)
 	assert.Contains(t, w.Body.String(), `"reason":"Abholung durch die Großeltern"`)
+	assert.Contains(t, w.Body.String(), `"previous_pickup_time":"15:30"`)
 }
 
 func TestSubmitCareException_RejectsArrivalChange(t *testing.T) {

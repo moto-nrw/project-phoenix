@@ -109,12 +109,48 @@ function renderModal(
   };
 }
 
+describe("PickupTimeModal, bereits abgeholt", () => {
+  it("erklärt bei einem bereits gegangenen Kind den tatsächlichen Sperrgrund", () => {
+    render(
+      <PickupTimeModal
+        childFirstName="Hannah"
+        today={{ at_ogs: false, state: "left", until: "15:30" }}
+        careExceptions={[
+          {
+            date: todayISO(),
+            pickup_time: "15:30",
+            source: "staff",
+            pickup_source: "staff",
+            updated_at: "2026-08-16T15:30:00Z",
+          },
+        ]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Hannah ist heute bereits zuhause. Die Abholzeit kann nicht mehr geändert werden.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /Einrichtung bereits eine abweichende Abholzeit festgelegt/,
+      ),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("PickupTimeModal — failed preload guard", () => {
   it("uses the compact shared modal button size", () => {
     renderModal();
 
     const submitButton = screen.getByRole("button", {
-      name: "Abholzeit ändern",
+      name: "Anfrage senden",
     });
     expect(submitButton).toHaveClass("px-4", "py-2", "text-sm");
     expect(submitButton).not.toHaveClass("min-h-12", "text-[17px]");
@@ -128,7 +164,7 @@ describe("PickupTimeModal — failed preload guard", () => {
 
     // The save button is disabled so an omitted leg can't be sent as a clear.
     const saveButton = screen.getByRole("button", {
-      name: "Abholzeit ändern",
+      name: "Anfrage senden",
     });
     expect(saveButton).toBeDisabled();
 
@@ -147,7 +183,7 @@ describe("PickupTimeModal — failed preload guard", () => {
 
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
     fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
-    fireEvent.click(screen.getByRole("button", { name: "Abholzeit ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith(
@@ -162,6 +198,14 @@ describe("PickupTimeModal — failed preload guard", () => {
     renderModal();
 
     expect(screen.queryByLabelText(/Ankunftszeit/)).not.toBeInTheDocument();
+  });
+
+  it("marks the required reason visibly", () => {
+    renderModal();
+
+    expect(screen.getByText("Grund für die Änderung")).toHaveTextContent(
+      "Grund für die Änderung *",
+    );
   });
 
   it("allows a pickup change when only the arrival was set by staff", () => {
@@ -199,7 +243,7 @@ describe("PickupTimeModal — failed preload guard", () => {
 
     fireEvent.change(dateInput, { target: { value: "2026-03-17" } });
     fireEvent.change(pickupInput!, { target: { value: "16:00" } });
-    fireEvent.click(screen.getByRole("button", { name: "Abholzeit ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       date: "2026-03-17",
@@ -212,7 +256,7 @@ describe("PickupTimeModal — failed preload guard", () => {
     const { onSubmit, pickupInput, reasonInput } = renderModal();
 
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Abholzeit ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     expect(
       screen.getByText(
@@ -222,6 +266,45 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(reasonInput).toHaveAttribute("aria-invalid", "true");
     expect(reasonInput).toHaveFocus();
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows a pending request and lets the guardian withdraw it", () => {
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        pickupChangeRequests={[
+          {
+            id: "request-1",
+            date: todayISO(),
+            pickup_time: "14:30",
+            previous_pickup_time: "15:30",
+            reason: "Arzttermin",
+            status: "pending",
+            created_at: "2026-08-16T10:00:00Z",
+          },
+        ]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        onRemove={onRemove}
+      />,
+    );
+
+    expect(screen.getByText("15:30 → 14:30 Uhr")).toBeInTheDocument();
+    expect(screen.getByText("Wartet auf Bestätigung")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfrage senden" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+    ).toHaveClass("whitespace-nowrap");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+    );
+    expect(onRemove).toHaveBeenCalledWith(todayISO());
   });
 });
 
@@ -678,6 +761,7 @@ describe("useChildCare reportSick", () => {
     vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
     vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "getChildCareSchedule").mockResolvedValue({
       weekdays: [
         { weekday: todayWd, status: "scheduled", pickup: "16:00", modes: [] },
@@ -750,6 +834,7 @@ describe("useChildCare studentId switch", () => {
 
     vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
     vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "listCareExceptions").mockImplementation((id: string) =>
       // Child A resolves; child B hangs so we observe the pre-fetch window.
       id === "1"
@@ -819,6 +904,7 @@ describe("useChildCare studentId switch", () => {
 
     vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
     vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue(
       [] as CareException[],
     );
@@ -936,11 +1022,11 @@ describe("Dialoge in Elternsprache", () => {
     renderModal();
 
     expect(
-      screen.getByText(/Die OGS wird sofort informiert/),
+      screen.getByText(/gilt erst, nachdem die OGS sie bestätigt hat/),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Uhrzeit im Format 15:30")).toHaveLength(1);
     expect(
-      screen.getByRole("button", { name: "Abholzeit ändern" }),
+      screen.getByRole("button", { name: "Anfrage senden" }),
     ).toBeInTheDocument();
   });
 
@@ -948,7 +1034,7 @@ describe("Dialoge in Elternsprache", () => {
     const { onSubmit, reasonInput } = renderModal();
 
     fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
-    fireEvent.click(screen.getByRole("button", { name: "Abholzeit ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     expect(
       screen.getByText("Bitte tragen Sie eine Abholzeit ein."),
@@ -961,7 +1047,7 @@ describe("Dialoge in Elternsprache", () => {
 
     fireEvent.change(pickupInput, { target: { value: "1430" } });
     fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
-    fireEvent.click(screen.getByRole("button", { name: "Abholzeit ändern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ pickupTime: "14:30" }),

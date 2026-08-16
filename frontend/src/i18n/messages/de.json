@@ -478,7 +478,7 @@
     },
     "pickup": {
       "title": "Abholzeit ändern",
-      "intro": "Legen Sie für einen einzelnen Tag eine abweichende Abholzeit fest. Der reguläre Wochenplan bleibt unverändert. Die OGS wird sofort informiert.",
+      "intro": "Fragen Sie für einen einzelnen Tag eine abweichende Abholzeit an. Der reguläre Wochenplan bleibt unverändert. Die Änderung gilt erst, nachdem die OGS sie bestätigt hat.",
       "dateLabel": "Tag",
       "pickupLabel": "Abholzeit",
       "noTime": "Bitte tragen Sie eine Abholzeit ein.",
@@ -494,9 +494,18 @@
       "errorPastDate": "Für vergangene Tage kann keine Änderung gespeichert werden.",
       "errorTooFar": "Der Tag liegt zu weit in der Zukunft. Bitte wählen Sie einen Tag innerhalb der nächsten zwei Monate.",
       "staffSet": "Für diesen Tag hat die Einrichtung bereits eine abweichende Abholzeit festgelegt: {pickup} Uhr.",
+      "alreadyHome": "{name} ist heute bereits zuhause. Die Abholzeit kann nicht mehr geändert werden.",
+      "alreadyHomeGeneric": "Ihr Kind ist heute bereits zuhause. Die Abholzeit kann nicht mehr geändert werden.",
       "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
       "reset": "Änderung zurücknehmen",
-      "submit": "Abholzeit ändern"
+      "withdraw": "Anfrage zurückziehen",
+      "pendingChange": "{from} → {to} Uhr",
+      "pendingRequested": "Neue Abholzeit: {to} Uhr",
+      "statusPending": "Wartet auf Bestätigung",
+      "statusApproved": "Bestätigt, die neue Abholzeit wurde übernommen.",
+      "statusRejected": "Abgelehnt: {reason}",
+      "noDecisionReason": "Keine Begründung angegeben",
+      "submit": "Anfrage senden"
     },
     "actions": {
       "sick": {
@@ -1453,7 +1462,7 @@
       "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
     },
     "care": {
-      "weekTitle": "Wochenplan der OGS"
+      "weekTitle": "Dein OGS Wochenplan"
     }
   },
   "parentMessages": {

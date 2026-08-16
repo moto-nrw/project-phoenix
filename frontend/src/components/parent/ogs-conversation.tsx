@@ -22,9 +22,12 @@ import {
 } from "~/lib/messaging-status";
 import {
   type ChildFeatures,
+  type ChildToday,
   type ParentMessage,
   type ThreadView,
+  UNKNOWN_CHILD_TODAY,
   getChildConversation,
+  getChildToday,
   postChildMessage,
 } from "~/lib/parent-api";
 import {
@@ -79,12 +82,22 @@ export function OgsConversation({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const care = useChildCare(studentId);
+  const [today, setToday] = useState<ChildToday>(UNKNOWN_CHILD_TODAY);
   const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   // Pin the chat to the viewport and lock page scroll (only the list scrolls).
   const containerRef = useChatViewportLock<HTMLDivElement>(!loading);
+
+  useEffect(() => {
+    if (activeModal !== "pickup") return;
+    void getChildToday(studentId)
+      .then(setToday)
+      .catch(() => {
+        setToday(UNKNOWN_CHILD_TODAY);
+      });
+  }, [activeModal, studentId]);
 
   // Latest-wins guard shared by EVERY setThread path (refresh, send). SSE fires
   // one parent-conversation-refresh per message and those refetches can overlap a
@@ -386,13 +399,9 @@ export function OgsConversation({
         </div>
       </section>
 
-      {/* Self-service actions (sick note, pickup change) apply IMMEDIATELY and are
-          NOT chat messages — the write endpoints update status/exception rows and
-          fire only a student-updated cache SSE, they create no parent_messages
-          event. So they deliberately leave no card in this thread (the change is
-          visible in the attendance/status views, and stays editable/removable,
-          which a permanent event card could not reflect). The child-care hook
-          updates its own local state, so no conversation refetch is needed. */}
+      {/* Structured actions use their own status and request flows, so they do
+          not create cards in the conversation. The child-care hook updates its
+          own local state, so no conversation refetch is needed. */}
       {activeModal === "sick" && (
         <SickNoteModal
           onClose={() => setActiveModal(null)}
@@ -405,8 +414,12 @@ export function OgsConversation({
       {activeModal === "pickup" && (
         <PickupTimeModal
           careExceptions={care.careExceptions}
+          pickupChangeRequests={care.pickupChangeRequests}
           careExceptionsLoaded={care.careExceptionsLoaded}
+          pickupChangeRequestsLoaded={care.pickupChangeRequestsLoaded}
           pickupChangeEnabled={care.features.pickup_change_enabled}
+          childFirstName={thread?.student_name?.split(/\s+/)[0]}
+          today={today}
           onClose={() => setActiveModal(null)}
           onSubmit={async (params) => {
             await care.saveCareException(params);
@@ -455,11 +468,9 @@ function RequestItem({
 // an unlabelled "+", so parents rarely discovered them and typed the same thing
 // as free text instead, which silently loses the auto-apply.
 //
-// These are all immediate self-service actions (sick note, pickup-for-a-day) —
-// frequent, low-stakes, one tap and it takes effect at once. Permanent change
-// requests (care schedule, master data) are NOT reachable from the chat since
-// #1803; they live on the Stammdaten page, which owns the create/withdraw flow.
-// Feature flags still gate the pills.
+// These structured actions are available next to the conversation, while
+// permanent care schedule and master data requests remain on the Stammdaten
+// page. Feature flags still gate the pills.
 //
 // Pills render only once the per-child feature flags have loaded: the pickup
 // flag arrives async (defaults off), so rendering early made "Abholung" pop in a

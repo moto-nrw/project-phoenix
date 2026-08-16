@@ -1226,6 +1226,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindParentMessage,
+		platform.RendererFunc(messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
+	)
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
 	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
 		DefaultFrom: defaultFrom,
@@ -1789,12 +1793,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
-	careRequestService := schedule.NewCareScheduleRequestService(
+	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChanges(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
 		arrivalScheduleService,
 		pickupScheduleService,
+		repos.StudentPickupException,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -1885,11 +1890,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Preferences: notificationPreferencesService,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307): der
 		// Rueckfall fuer alle, die Push nicht eingerichtet haben.
-		Dispatcher:       dispatcher,
+		Outbox:           emailOutboxService,
 		GuardianProfiles: repos.GuardianProfile,
 		Schools:          repos.School,
 		LoginImages:      settingsService,
-		DefaultFrom:      defaultFrom,
 		ParentsURL:       parentsURL,
 	})
 

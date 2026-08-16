@@ -224,6 +224,18 @@ export interface CareException {
   readonly arrival_absent?: boolean;
 }
 
+export interface PickupChangeRequest {
+  readonly id: string;
+  readonly date: string;
+  readonly pickup_time: string;
+  readonly previous_pickup_time?: string;
+  readonly reason: string;
+  readonly status: "pending" | "approved" | "rejected" | "withdrawn";
+  readonly decision_reason?: string;
+  readonly created_at: string;
+  readonly reviewed_at?: string;
+}
+
 // A guardian linked to the child, with portal-access status.
 export interface RelatedAccount {
   readonly guardian_profile_id: string;
@@ -930,14 +942,31 @@ export async function submitCareException(
     pickupTime: string;
     reason: string;
   },
-): Promise<CareException> {
-  return postJson<CareException>(
+): Promise<PickupChangeRequest> {
+  return postJson<PickupChangeRequest>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
     {
       date: params.date,
       pickup_time: params.pickupTime,
       reason: params.reason,
     },
+  );
+}
+
+export async function listPickupChangeRequests(
+  studentId: string,
+): Promise<PickupChangeRequest[]> {
+  return getJson<PickupChangeRequest[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-change-requests`,
+  );
+}
+
+export async function withdrawPickupChangeRequest(
+  studentId: string,
+  requestId: string,
+): Promise<PickupChangeRequest> {
+  return deleteJson<PickupChangeRequest>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-change-requests/${encodeURIComponent(requestId)}`,
   );
 }
 

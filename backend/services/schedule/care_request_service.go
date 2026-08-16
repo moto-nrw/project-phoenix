@@ -49,9 +49,11 @@ const careRequestPendingUniqueIndex = "uniq_care_schedule_change_requests_pendin
 // German pill texts. The staff portal renders these directly; the parents
 // portal localizes from the structured event fields instead.
 const (
-	careRequestCreatedBody   = "Anfrage: Dauerhafte Betreuungszeiten ändern"
-	careRequestConfirmedBody = "Anfrage bestätigt, Betreuungszeiten übernommen"
-	careRequestWithdrawnBody = "Anfrage zurückgezogen"
+	careRequestCreatedBody     = "Anfrage: Dauerhafte Betreuungszeiten ändern"
+	careRequestConfirmedBody   = "Anfrage bestätigt, Betreuungszeiten übernommen"
+	careRequestWithdrawnBody   = "Anfrage zurückgezogen"
+	pickupRequestCreatedBody   = "Anfrage: Abholzeit ändern"
+	pickupRequestConfirmedBody = "Abholzeit bestätigt"
 )
 
 var (
@@ -77,6 +79,7 @@ var (
 	ErrCareRequestRejectReasonRequired = errors.New("schedule: reject reason is required")
 	// ErrCareRequestRejectReasonTooLong means the reason exceeded the bound.
 	ErrCareRequestRejectReasonTooLong = errors.New("schedule: reject reason too long")
+	ErrPickupChangeConflict           = errors.New("schedule: pickup change conflicts with a staff exception")
 )
 
 // Diff care-kind discriminators (see RequestDiffEntry.CareKind). Stable wire
@@ -142,6 +145,7 @@ type CareScheduleRequestService interface {
 	// and (after commit) posts the withdrawal pill. studentID pins the request
 	// to the child the caller was authorized for.
 	WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error)
+	WithdrawPickupChangeRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error)
 	// GetPendingForStudent returns the child's open request (nil when none)
 	// with its live "current → requested" diff, for the parent read view.
 	GetPendingForStudent(ctx context.Context, studentID int64) (*scheduleModels.CareScheduleChangeRequest, []RequestDiffEntry, error)
@@ -149,6 +153,9 @@ type CareScheduleRequestService interface {
 	// newest-first, enriched with child names and live diffs — the staff
 	// review queue on the Änderungsanfragen page.
 	ListPending(ctx context.Context) ([]*CareRequestReviewItem, error)
+	CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error)
+	ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error)
+	ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error)
 	// Decide approves (applies the weekly plan, then stamps) or rejects
 	// (reason required) one pending request and returns the refreshed row.
 	// After commit it posts the decision pill and fires the schedule cache
@@ -157,16 +164,48 @@ type CareScheduleRequestService interface {
 }
 
 type careScheduleRequestService struct {
-	requestRepo  scheduleModels.CareScheduleChangeRequestRepository
-	studentRepo  usersModels.StudentRepository
-	personRepo   usersModels.PersonRepository
-	arrival      ArrivalScheduleService
-	pickup       PickupScheduleService
-	userContext  userContextService.UserContextService
-	emitter      *parentmessaging.Emitter
-	broadcaster  realtime.Broadcaster
-	studentAudit usersService.StudentChangeRecorder
-	logger       *slog.Logger
+	requestRepo      scheduleModels.CareScheduleChangeRequestRepository
+	studentRepo      usersModels.StudentRepository
+	personRepo       usersModels.PersonRepository
+	arrival          ArrivalScheduleService
+	pickup           PickupScheduleService
+	pickupExceptions scheduleModels.StudentPickupExceptionRepository
+	userContext      userContextService.UserContextService
+	emitter          *parentmessaging.Emitter
+	broadcaster      realtime.Broadcaster
+	studentAudit     usersService.StudentChangeRecorder
+	logger           *slog.Logger
+}
+
+// NewCareScheduleRequestServiceWithPickupChanges wires one-day pickup requests
+// in addition to the recurring weekly schedule requests.
+func NewCareScheduleRequestServiceWithPickupChanges(
+	requestRepo scheduleModels.CareScheduleChangeRequestRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	arrival ArrivalScheduleService,
+	pickup PickupScheduleService,
+	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+	studentAudits ...usersService.StudentChangeRecorder,
+) CareScheduleRequestService {
+	svc := NewCareScheduleRequestService(
+		requestRepo,
+		studentRepo,
+		personRepo,
+		arrival,
+		pickup,
+		userContext,
+		emitter,
+		broadcaster,
+		logger,
+		studentAudits...,
+	)
+	svc.(*careScheduleRequestService).pickupExceptions = pickupExceptions
+	return svc
 }
 
 // NewCareScheduleRequestService wires the care-request service.
@@ -211,6 +250,7 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 	req := &scheduleModels.CareScheduleChangeRequest{
 		StudentID:   studentID,
 		SubmittedBy: guardianAccountID,
+		RequestKind: scheduleModels.CareRequestKindWeeklySchedule,
 		Payload:     canonical,
 		Status:      scheduleModels.CareRequestStatusPending,
 	}
@@ -232,7 +272,65 @@ func (s *careScheduleRequestService) CreateRequest(ctx context.Context, studentI
 	return req, nil
 }
 
+func (s *careScheduleRequestService) CreatePickupChangeRequest(ctx context.Context, studentID, guardianAccountID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error) {
+	reason = strings.TrimSpace(reason)
+	if studentID <= 0 || guardianAccountID <= 0 || date.IsZero() || pickupTime.IsZero() || reason == "" || utf8.RuneCountInString(reason) > 255 {
+		return nil, ErrInvalidCareRequestPayload
+	}
+	today := timezone.TodayDate()
+	if date.Before(today) || date.After(timezone.NewDate(today.Year, today.Month+2, today.Day)) {
+		return nil, ErrInvalidCareRequestPayload
+	}
+
+	payload := map[string]any{
+		"date":        date.String(),
+		"pickup_time": pickupTime.Format("15:04"),
+		"reason":      reason,
+	}
+	if s.pickup != nil {
+		effective, err := s.pickup.GetEffectivePickupTimeForDate(ctx, studentID, date)
+		if err != nil {
+			return nil, fmt.Errorf("schedule: resolve current pickup time: %w", err)
+		}
+		if effective != nil && effective.PickupTime != nil {
+			payload["previous_pickup_time"] = effective.PickupTime.Format("15:04")
+		}
+	}
+
+	req := &scheduleModels.CareScheduleChangeRequest{
+		StudentID:   studentID,
+		SubmittedBy: guardianAccountID,
+		RequestKind: scheduleModels.CareRequestKindPickupChange,
+		Payload:     payload,
+		Status:      scheduleModels.CareRequestStatusPending,
+	}
+	if err := s.requestRepo.Create(ctx, req); err != nil {
+		if isCareRequestPendingUniqueViolation(err) {
+			return nil, ErrCareRequestAlreadyPending
+		}
+		return nil, fmt.Errorf("schedule: create pickup change request: %w", err)
+	}
+	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
+		EventType:      "request_created",
+		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		ActorAccountID: guardianAccountID,
+		Body:           pickupRequestCreatedBody,
+		RequestType:    usersModels.ParentMessageRequestCareSchedule,
+		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
+	})
+	s.wakeGuardiansAfterCommit(ctx, req)
+	return req, nil
+}
+
 func (s *careScheduleRequestService) WithdrawRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return s.withdrawRequestOfKind(ctx, requestID, studentID, guardianAccountID, scheduleModels.CareRequestKindWeeklySchedule)
+}
+
+func (s *careScheduleRequestService) WithdrawPickupChangeRequest(ctx context.Context, requestID, studentID, guardianAccountID int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return s.withdrawRequestOfKind(ctx, requestID, studentID, guardianAccountID, scheduleModels.CareRequestKindPickupChange)
+}
+
+func (s *careScheduleRequestService) withdrawRequestOfKind(ctx context.Context, requestID, studentID, guardianAccountID int64, requestKind string) (*scheduleModels.CareScheduleChangeRequest, error) {
 	// Lock the row regardless of status so ownership is checked BEFORE the
 	// pending-status distinction — FindPendingByIDForUpdate would collapse a
 	// terminal (already decided/withdrawn) row into ErrCareRequestNotPending
@@ -245,7 +343,7 @@ func (s *careScheduleRequestService) WithdrawRequest(ctx context.Context, reques
 	// Only the submitting guardian withdraws their own request, and only under
 	// the child the caller was authorized for. Report a foreign request as
 	// not-found rather than forbidden so the id space is not probeable.
-	if req.SubmittedBy != guardianAccountID || req.StudentID != studentID {
+	if req.SubmittedBy != guardianAccountID || req.StudentID != studentID || req.RequestKind != requestKind {
 		return nil, scheduleModels.ErrCareRequestNotFound
 	}
 	// The caller owns a real request; only a still-pending one can be withdrawn.
@@ -293,10 +391,37 @@ func (s *careScheduleRequestService) GetPendingForStudent(ctx context.Context, s
 }
 
 func (s *careScheduleRequestService) ListPending(ctx context.Context) ([]*CareRequestReviewItem, error) {
-	rows, err := s.requestRepo.ListPendingForTenant(ctx)
+	weekly, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindWeeklySchedule)
 	if err != nil {
 		return nil, fmt.Errorf("schedule: list pending care requests: %w", err)
 	}
+	pickups, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange)
+	if err != nil {
+		return nil, fmt.Errorf("schedule: list pending pickup change requests: %w", err)
+	}
+	rows := append(weekly, pickups...)
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].ID > rows[j].ID
+		}
+		return rows[i].CreatedAt.After(rows[j].CreatedAt)
+	})
+	return s.buildPendingItems(ctx, rows)
+}
+
+func (s *careScheduleRequestService) ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error) {
+	rows, err := s.requestRepo.ListPendingForTenantAndKind(ctx, scheduleModels.CareRequestKindPickupChange)
+	if err != nil {
+		return nil, fmt.Errorf("schedule: list pending pickup change requests: %w", err)
+	}
+	return s.buildPendingItems(ctx, rows)
+}
+
+func (s *careScheduleRequestService) ListPickupChangeRequests(ctx context.Context, studentID int64, since time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error) {
+	return s.requestRepo.ListRecentForStudentAndKind(ctx, studentID, scheduleModels.CareRequestKindPickupChange, since)
+}
+
+func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows []*scheduleModels.CareScheduleChangeRequest) ([]*CareRequestReviewItem, error) {
 	if len(rows) == 0 {
 		return []*CareRequestReviewItem{}, nil
 	}
@@ -351,12 +476,18 @@ func (s *careScheduleRequestService) ListPending(ctx context.Context) ([]*CareRe
 				item.LastName = p.LastName
 			}
 		}
-		src, ok := sources[r.StudentID]
-		if !ok {
-			src = &careDiffSource{s: s, studentID: r.StudentID}
-			sources[r.StudentID] = src
+		var diff []RequestDiffEntry
+		var err error
+		if r.RequestKind == scheduleModels.CareRequestKindPickupChange {
+			diff, err = s.pickupChangeDiff(ctx, r)
+		} else {
+			src, ok := sources[r.StudentID]
+			if !ok {
+				src = &careDiffSource{s: s, studentID: r.StudentID}
+				sources[r.StudentID] = src
+			}
+			diff, err = s.careScheduleDiffFrom(ctx, src, r.Payload)
 		}
-		diff, err := s.careScheduleDiffFrom(ctx, src, r.Payload)
 		if err != nil {
 			// A diff that can't be built is logged and skipped rather than
 			// failing the whole queue load.
@@ -370,6 +501,45 @@ func (s *careScheduleRequestService) ListPending(ctx context.Context) ([]*CareRe
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func (s *careScheduleRequestService) pickupChangeDiff(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest) ([]RequestDiffEntry, error) {
+	date, pickupTime, _, err := parsePickupChangePayload(req.Payload)
+	if err != nil {
+		return nil, err
+	}
+	old, _ := req.Payload["previous_pickup_time"].(string)
+	if old == "" && s.pickupExceptions != nil {
+		existing, findErr := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+		if findErr != nil {
+			return nil, findErr
+		}
+		if existing != nil && existing.PickupTime != nil {
+			old = existing.PickupTime.Format("15:04")
+		}
+	}
+	if old == "" && s.pickup != nil {
+		rows, findErr := s.pickup.GetStudentPickupSchedules(ctx, req.StudentID)
+		if findErr != nil {
+			return nil, findErr
+		}
+		weekday := int(date.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		for _, row := range rows {
+			if row.Weekday == weekday {
+				old = row.PickupTime.Format("15:04")
+				break
+			}
+		}
+	}
+	return []RequestDiffEntry{{
+		Label:    date.String() + " · Abholzeit",
+		Old:      old,
+		New:      pickupTime.Format("15:04"),
+		CareKind: DiffCareKindPickup,
+	}}, nil
 }
 
 func (s *careScheduleRequestService) Decide(ctx context.Context, input CareRequestDecideInput) (*CareRequestReviewItem, error) {
@@ -457,16 +627,25 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		// ambient tenant transaction. A mid-apply failure must propagate as a
 		// plain error (→ 500) so the WHOLE transaction rolls back — masking it
 		// as a 409 would commit a half-applied weekly plan.
-		linksChanged, err := s.applyCareScheduleRequest(ctx, req, input.ReviewedBy)
-		if err != nil {
-			return nil, err
+		if req.RequestKind == scheduleModels.CareRequestKindPickupChange {
+			if err := s.applyPickupChangeRequest(ctx, req); err != nil {
+				return nil, err
+			}
+		} else {
+			linksChanged, err := s.applyCareScheduleRequest(ctx, req, input.ReviewedBy)
+			if err != nil {
+				return nil, err
+			}
+			companionsChanged = linksChanged
 		}
-		companionsChanged = linksChanged
 	}
 
 	newStatus := scheduleModels.CareRequestStatusApproved
 	pillStatus := usersModels.ParentMessageRequestStatusDone
 	pillBody := careRequestConfirmedBody
+	if req.RequestKind == scheduleModels.CareRequestKindPickupChange {
+		pillBody = pickupRequestConfirmedBody
+	}
 	var reasonPtr *string
 	if !input.Approve {
 		newStatus = scheduleModels.CareRequestStatusRejected
@@ -520,6 +699,78 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		}
 	}
 	return item, nil
+}
+
+func parsePickupChangePayload(payload map[string]any) (timezone.Date, time.Time, string, error) {
+	dateRaw, dateOK := payload["date"].(string)
+	pickupRaw, pickupOK := payload["pickup_time"].(string)
+	reason, reasonOK := payload["reason"].(string)
+	date, dateErr := timezone.ParseDate(dateRaw)
+	pickup, pickupErr := parseCareWallClock(pickupRaw)
+	reason = strings.TrimSpace(reason)
+	if !dateOK || !pickupOK || !reasonOK || dateErr != nil || pickupErr != nil || reason == "" || utf8.RuneCountInString(reason) > 255 {
+		return timezone.Date{}, time.Time{}, "", ErrInvalidCareRequestPayload
+	}
+	return date, pickup, reason, nil
+}
+
+func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest) error {
+	if s.pickupExceptions == nil || s.userContext == nil {
+		return errors.New("schedule: pickup change request dependencies not configured")
+	}
+	date, pickupTime, reason, err := parsePickupChangePayload(req.Payload)
+	if err != nil {
+		return err
+	}
+	if date.Before(timezone.TodayDate()) {
+		return ErrInvalidCareRequestPayload
+	}
+	staff, err := s.userContext.GetCurrentStaff(ctx)
+	if err != nil {
+		if errors.Is(err, userContextService.ErrUserNotLinkedToStaff) || errors.Is(err, userContextService.ErrUserNotLinkedToPerson) {
+			return ErrCareRequestForbidden
+		}
+		return fmt.Errorf("schedule: resolve acting staff for pickup request: %w", err)
+	}
+	if staff == nil {
+		return ErrCareRequestForbidden
+	}
+
+	existing, err := s.pickupExceptions.FindByStudentIDAndDate(ctx, req.StudentID, date)
+	if err != nil {
+		return fmt.Errorf("schedule: load pickup exception for request: %w", err)
+	}
+	if existing != nil {
+		if existing.Source == scheduleModels.ExceptionSourceStaff || existing.ExcusedFrom != nil {
+			return ErrPickupChangeConflict
+		}
+		existing.PickupTime = &pickupTime
+		existing.Reason = &reason
+		existing.Source = scheduleModels.ExceptionSourceStaff
+		existing.CreatedBy = staff.ID
+		existing.CreatedByGuardian = nil
+		if err := s.pickupExceptions.Update(ctx, existing); err != nil {
+			return fmt.Errorf("schedule: update approved pickup exception: %w", err)
+		}
+		return nil
+	}
+
+	exception := &scheduleModels.StudentPickupException{
+		TenantModel:   modelBase.TenantModel{TenantID: req.TenantID},
+		StudentID:     req.StudentID,
+		ExceptionDate: date,
+		PickupTime:    &pickupTime,
+		Reason:        &reason,
+		Source:        scheduleModels.ExceptionSourceStaff,
+		CreatedBy:     staff.ID,
+	}
+	if err := s.pickupExceptions.Create(ctx, exception); err != nil {
+		if modelBase.IsUniqueViolation(err) {
+			return ErrPickupChangeConflict
+		}
+		return fmt.Errorf("schedule: create approved pickup exception: %w", err)
+	}
+	return nil
 }
 
 // emitRequestPillAfterCommit schedules the notification pill for after the

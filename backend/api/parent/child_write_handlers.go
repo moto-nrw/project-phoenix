@@ -446,6 +446,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "master_data_no_changes"))
 	case errors.Is(err, parentService.ErrCareExceptionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
+	case errors.Is(err, parentService.ErrCareExceptionAlreadyLeft):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_already_left"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
 	case errors.Is(err, parentService.ErrExcusedRequestNotFound):

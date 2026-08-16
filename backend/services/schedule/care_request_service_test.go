@@ -57,12 +57,13 @@ func newCareFixture(t *testing.T) *careFixture {
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
 
-	svc := schedule.NewCareScheduleRequestService(
+	svc := schedule.NewCareScheduleRequestServiceWithPickupChanges(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
+		repos.StudentPickupException,
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops

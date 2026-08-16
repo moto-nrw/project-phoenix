@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/localization"
@@ -13,18 +13,24 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// parentMessageEmailPreviewRunes bounds the quoted preview. The mail is a
-// pointer into the portal, not a copy of the conversation: the full text stays
-// behind the parent login, where it belongs.
-const parentMessageEmailPreviewRunes = 160
 
 const (
 	parentMessageEmailTemplate = "parent-message-notification.html"
 	parentMessageEmailType     = "parent_message"
+	messagePayloadRecipient    = "recipient_email"
+	messagePayloadFirstName    = "first_name"
+	messagePayloadLastName     = "last_name"
+	messagePayloadLocale       = "locale"
+	messagePayloadSchoolName   = "school_name"
+	messagePayloadMessagesURL  = "messages_url"
+	messagePayloadLogoURL      = "logo_url"
+	messagePayloadMotoLogoURL  = "moto_logo_url"
 )
+
+type ParentMessageRendererConfig struct {
+	DefaultFrom email.Email
+}
 
 type parentMessageEmailCopy struct {
 	Subject            string
@@ -67,24 +73,23 @@ type LoginImageResolver interface {
 // only guardians who explicitly declined this notification and keeps everyone
 // who never decided, because the school already writes to this address.
 //
-// Everything here reads inside the request's tenant transaction (RLS-scoped);
-// only the dispatch is deferred to after the commit, so a rolled-back reply
-// never announces itself. A failure only logs: e-mail must never block a reply.
-func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.ParentMessageThread, body string) {
+// Everything here runs in the request's tenant transaction. The message and
+// durable outbox row therefore commit or roll back together.
+func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.ParentMessageThread, messageID int64) error {
 	if thread == nil || thread.GuardianAccountID <= 0 {
-		return
+		return nil
 	}
-	if s.Dispatcher == nil || s.GuardianProfiles == nil {
-		return
+	if s.Outbox == nil || s.GuardianProfiles == nil {
+		return nil
 	}
 	if s.ParentsURL == "" {
 		s.Logger.Warn("messaging: guardian e-mail skipped, no parents portal URL configured",
 			slog.Int64("thread_id", thread.ID),
 		)
-		return
+		return nil
 	}
 	if !s.guardianAcceptsMessageMail(ctx, thread) {
-		return
+		return nil
 	}
 
 	profile, err := s.GuardianProfiles.FindByAccountID(ctx, thread.GuardianAccountID)
@@ -93,64 +98,87 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 			slog.Int64("thread_id", thread.ID),
 			slog.String("error", err.Error()),
 		)
-		return
+		return nil
 	}
 	if profile == nil || profile.Email == nil {
-		return
+		return nil
 	}
 	recipient := strings.TrimSpace(*profile.Email)
 	if recipient == "" {
-		return
+		return nil
 	}
 
 	schoolName, logoURL := s.resolveSchoolBrand(ctx, thread.TenantID)
-	childName := s.resolveChildName(ctx, thread.ID)
 	locale := localization.DefaultLocale()
 	if profile.PortalLocale != nil {
 		locale = localization.NormalizeLocale(*profile.PortalLocale)
 	}
-	copy := messageEmailCopy(locale, profile.FirstName, profile.LastName, schoolName, childName)
-	message := email.Message{
-		From:     s.DefaultFrom,
-		To:       email.NewEmail(strings.TrimSpace(profile.FirstName+" "+profile.LastName), recipient),
-		Subject:  copy.Subject,
-		Template: parentMessageEmailTemplate,
-		Content: map[string]any{
-			"Subject":            copy.Subject,
-			"GuardianFirstName":  profile.FirstName,
-			"GuardianLastName":   profile.LastName,
-			"SchoolName":         schoolName,
-			"BrandKicker":        copy.Kicker,
-			"Greeting":           copy.Greeting,
-			"IntroText":          copy.Intro,
-			"ReplyLabel":         copy.Reply,
-			"FallbackHint":       copy.FallbackHint,
-			"PreferenceHint":     copy.PreferenceHint,
-			"FooterText":         copy.FooterText,
-			"PoweredByLabel":     copy.PoweredByLabel,
-			"SchoolLogoAlt":      copy.SchoolLogoAlt,
-			"DefaultBrandKicker": copy.DefaultBrandKicker,
-			"DefaultSchoolName":  copy.DefaultSchoolName,
-			"ChildName":          childName,
-			"Preview":            messagePreview(body),
-			"MessagesURL":        s.ParentsURL + "/messages",
-			"LogoURL":            logoURL,
-			"MotoLogoURL":        emailbranding.MotoLogoURL(s.ParentsURL),
+	request := platformModels.OutboxEnqueueRequest{
+		Kind:              platformModels.EmailKindParentMessage,
+		RelatedEntityType: platformModels.EmailRelatedTypeParentMessage,
+		RelatedEntityID:   messageID,
+		IdempotencyKey:    parentMessageEmailType + ":" + strconv.FormatInt(messageID, 10),
+		Payload: map[string]any{
+			messagePayloadRecipient:   recipient,
+			messagePayloadFirstName:   profile.FirstName,
+			messagePayloadLastName:    profile.LastName,
+			messagePayloadLocale:      locale,
+			messagePayloadSchoolName:  schoolName,
+			messagePayloadMessagesURL: strings.TrimRight(s.ParentsURL, "/") + "/messages/" + strconv.FormatInt(thread.StudentID, 10),
+			messagePayloadLogoURL:     logoURL,
+			messagePayloadMotoLogoURL: emailbranding.MotoLogoURL(s.ParentsURL),
 		},
 	}
+	if err := s.Outbox.EnqueueOutbox(ctx, request); err != nil {
+		return fmt.Errorf("messaging: enqueue guardian message e-mail: %w", err)
+	}
+	return nil
+}
 
-	dispatcher := s.Dispatcher
-	request := email.DeliveryRequest{
-		Message: message,
-		Metadata: email.DeliveryMetadata{
-			Type:        parentMessageEmailType,
-			ReferenceID: thread.ID,
-			Recipient:   recipient,
-		},
+func NewParentMessageRenderer(cfg ParentMessageRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
+	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+		recipient, _ := row.Payload[messagePayloadRecipient].(string)
+		if strings.TrimSpace(recipient) == "" {
+			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
+		}
+		first, _ := row.Payload[messagePayloadFirstName].(string)
+		last, _ := row.Payload[messagePayloadLastName].(string)
+		locale, _ := row.Payload[messagePayloadLocale].(string)
+		schoolName, _ := row.Payload[messagePayloadSchoolName].(string)
+		messagesURL, _ := row.Payload[messagePayloadMessagesURL].(string)
+		logoURL, _ := row.Payload[messagePayloadLogoURL].(string)
+		motoLogoURL, _ := row.Payload[messagePayloadMotoLogoURL].(string)
+		if messagesURL == "" {
+			return nil, fmt.Errorf("%s payload missing messages_url", row.Kind)
+		}
+		copy := messageEmailCopy(locale, first, last, schoolName, "")
+		return &email.Message{
+			From:     cfg.DefaultFrom,
+			To:       email.NewEmail(strings.TrimSpace(first+" "+last), recipient),
+			Subject:  copy.Subject,
+			Template: parentMessageEmailTemplate,
+			Content: map[string]any{
+				"Subject":            copy.Subject,
+				"GuardianFirstName":  first,
+				"GuardianLastName":   last,
+				"SchoolName":         schoolName,
+				"BrandKicker":        copy.Kicker,
+				"Greeting":           copy.Greeting,
+				"IntroText":          copy.Intro,
+				"ReplyLabel":         copy.Reply,
+				"FallbackHint":       copy.FallbackHint,
+				"PreferenceHint":     copy.PreferenceHint,
+				"FooterText":         copy.FooterText,
+				"PoweredByLabel":     copy.PoweredByLabel,
+				"SchoolLogoAlt":      copy.SchoolLogoAlt,
+				"DefaultBrandKicker": copy.DefaultBrandKicker,
+				"DefaultSchoolName":  copy.DefaultSchoolName,
+				"MessagesURL":        messagesURL,
+				"LogoURL":            logoURL,
+				"MotoLogoURL":        motoLogoURL,
+			},
+		}, nil
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		dispatcher.Dispatch(context.Background(), request)
-	})
 }
 
 func messageEmailCopy(locale, firstName, lastName, schoolName, childName string) parentMessageEmailCopy {
@@ -265,26 +293,4 @@ func (s *Service) resolveSchoolBrand(ctx context.Context, tenantID int64) (strin
 		}
 	}
 	return school.Name, logoURL
-}
-
-// resolveChildName returns the child the conversation is about, so the mail says
-// which of several children it concerns. Never logged: the name stays in the
-// mail body (GDPR — no student names in logs at Info level or above).
-func (s *Service) resolveChildName(ctx context.Context, threadID int64) string {
-	header, err := s.ReadRepo.FindThreadHeader(ctx, threadID)
-	if err != nil || header == nil {
-		return ""
-	}
-	return header.StudentName
-}
-
-// messagePreview collapses the message to one line and cuts it to a readable
-// taste, ending with an ellipsis when something was left out.
-func messagePreview(body string) string {
-	preview := strings.Join(strings.Fields(body), " ")
-	if utf8.RuneCountInString(preview) <= parentMessageEmailPreviewRunes {
-		return preview
-	}
-	runes := []rune(preview)
-	return strings.TrimRight(string(runes[:parentMessageEmailPreviewRunes]), " ") + "…"
 }

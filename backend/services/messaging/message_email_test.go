@@ -8,10 +8,11 @@ package messaging_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"strings"
+	"strconv"
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,7 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	"github.com/moto-nrw/project-phoenix/services/notifications"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -45,9 +47,33 @@ func (s *stubMessagePreferences) FilterNotOptedOut(_ context.Context, notificati
 
 type emailFixture struct {
 	svc    *messaging.Service
-	mailer *testpkg.CapturingMailer
+	outbox *recordingMessageOutbox
 	chain  testpkg.ParentChain
 	staff  int64
+}
+
+type recordingMessageOutbox struct {
+	mu   sync.Mutex
+	rows []platformModels.OutboxEnqueueRequest
+}
+
+func (o *recordingMessageOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.rows = append(o.rows, req)
+	return nil
+}
+
+func (o *recordingMessageOutbox) Rows() []platformModels.OutboxEnqueueRequest {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]platformModels.OutboxEnqueueRequest(nil), o.rows...)
+}
+
+func (o *recordingMessageOutbox) Clear() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.rows = nil
 }
 
 func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
@@ -55,7 +81,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	mailer := testpkg.NewCapturingMailer()
+	outbox := &recordingMessageOutbox{}
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:      repos.ParentMessage,
@@ -66,10 +92,9 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 		DB:               db,
 		Logger:           slog.Default(),
 		Preferences:      preferences,
-		Dispatcher:       email.NewDispatcher(mailer, slog.Default()),
+		Outbox:           outbox,
 		GuardianProfiles: repos.GuardianProfile,
 		Schools:          repos.School,
-		DefaultFrom:      email.NewEmail("moto", "no-reply@moto.test"),
 		ParentsURL:       testParentsURL,
 	})
 
@@ -80,15 +105,26 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
 	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
 
-	return &emailFixture{svc: svc, mailer: mailer, chain: chain, staff: staffAccount.ID}
+	return &emailFixture{svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
 }
 
 // mailContent unwraps the template data of a captured message.
-func mailContent(t *testing.T, msg email.Message) map[string]any {
+func mailContent(t *testing.T, msg *email.Message) map[string]any {
 	t.Helper()
 	content, ok := msg.Content.(map[string]any)
 	require.True(t, ok, "Template-Daten sind eine Map")
 	return content
+}
+
+func renderMessageRow(t *testing.T, req platformModels.OutboxEnqueueRequest) *email.Message {
+	t.Helper()
+	row := &platformModels.EmailOutbox{Kind: req.Kind, Payload: req.Payload}
+	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{
+		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
+	})
+	msg, err := renderer(context.Background(), row)
+	require.NoError(t, err)
+	return msg
 }
 
 func guardianEmail(t *testing.T, db *bun.DB, accountID int64) string {
@@ -114,19 +150,20 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 		"Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
 	require.NoError(t, err)
 
-	require.True(t, f.mailer.WaitForMessages(1, 2*time.Second), "genau eine E-Mail wird ausgeloest")
-	messages := f.mailer.Messages()
-	require.Len(t, messages, 1)
+	rows := f.outbox.Rows()
+	require.Len(t, rows, 1)
+	assert.Equal(t, platformModels.EmailKindParentMessage, rows[0].Kind)
+	assert.Equal(t, platformModels.EmailRelatedTypeParentMessage, rows[0].RelatedEntityType)
 
-	msg := messages[0]
+	msg := renderMessageRow(t, rows[0])
 	assert.Equal(t, guardianEmail(t, db, f.chain.AccountID), msg.To.Address)
 	assert.Equal(t, "Neue Nachricht von der OGS", msg.Subject)
 	assert.Equal(t, "parent-message-notification.html", msg.Template)
 	content := mailContent(t, msg)
-	assert.Equal(t, "Felix Schneider", content["ChildName"])
-	assert.Equal(t, testParentsURL+"/messages", content["MessagesURL"])
-	preview, _ := content["Preview"].(string)
-	assert.Contains(t, preview, "Guten Tag")
+	assert.Equal(t, testParentsURL+"/messages/"+strconv.FormatInt(f.chain.StudentID, 10), content["MessagesURL"])
+	assert.NotContains(t, content, "ChildName")
+	assert.NotContains(t, content, "Preview")
+	assert.NotContains(t, rows[0].Payload, "body")
 }
 
 func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
@@ -142,9 +179,9 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 
 	_, err = f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
 	require.NoError(t, err)
-	require.True(t, f.mailer.WaitForMessages(1, 2*time.Second))
-
-	msg := f.mailer.Messages()[0]
+	rows := f.outbox.Rows()
+	require.Len(t, rows, 1)
+	msg := renderMessageRow(t, rows[0])
 	assert.Equal(t, "New message from the OGS", msg.Subject)
 	content := mailContent(t, msg)
 	assert.Equal(t, "New message", content["BrandKicker"])
@@ -155,24 +192,22 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 	assert.NotContains(t, content["FooterText"], "Diese E-Mail")
 }
 
-// TestPostMessage_ShortensThePreview keeps the mail a pointer into the portal:
-// the full conversation stays behind the login, the mail carries a taste of it.
-func TestPostMessage_ShortensThePreview(t *testing.T) {
+func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	ctx := adminCtx(f.staff)
 
 	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
 	require.NoError(t, err)
-	f.mailer.Clear()
+	f.outbox.Clear()
 
-	long := strings.Repeat("Sehr ausfuehrliche Elterninformation. ", 20)
-	_, err = f.svc.PostMessage(ctx, detail.ThreadID, long, detail.Messages[0].ID)
+	sensitive := "Gesundheitsinformation, die nicht in eine E-Mail gehoert"
+	_, err = f.svc.PostMessage(ctx, detail.ThreadID, sensitive, detail.Messages[0].ID)
 	require.NoError(t, err)
 
-	require.True(t, f.mailer.WaitForMessages(1, 2*time.Second))
-	preview, _ := mailContent(t, f.mailer.Messages()[0])["Preview"].(string)
-	assert.Less(t, len([]rune(preview)), len([]rune(long)))
-	assert.True(t, strings.HasSuffix(preview, "…"), "gekuerzte Vorschau endet mit Auslassungszeichen")
+	rows := f.outbox.Rows()
+	require.Len(t, rows, 1)
+	assert.NotContains(t, fmt.Sprint(rows[0].Payload), sensitive)
+	assert.Contains(t, rows[0].IdempotencyKey, "parent_message:")
 }
 
 // TestStartThread_RespectsGuardianOptOut: who switched the notification off is
@@ -184,6 +219,6 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 	_, err := f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
 	require.NoError(t, err)
 
-	assert.False(t, f.mailer.WaitForMessages(1, 300*time.Millisecond), "kein Versand nach Widerspruch")
+	assert.Empty(t, f.outbox.Rows(), "kein Versand nach Widerspruch")
 	assert.Equal(t, notifications.TypeParentMessage, preferences.gotType)
 }

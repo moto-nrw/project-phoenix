@@ -100,6 +100,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 	}
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
+		AttendanceRepo:       repos.Attendance,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  pickup,
@@ -128,6 +129,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
+		AttendanceRepo:       repos.Attendance,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
@@ -211,6 +213,38 @@ func TestSubmitCareException_PastDate(t *testing.T) {
 	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID,
 		timezone.TodayDate().AddDays(-1), wallClock(15, 0), nil)
 	assert.ErrorIs(t, err, parentService.ErrPastCareDate)
+}
+
+func TestSubmitCareException_TodayAfterCheckout(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Care", "Checkout")
+	device := testpkg.CreateTestDevice(t, db, "parent-care-checkout")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("active.attendance").
+			Where("student_id = ?", chain.StudentID).Exec(context.Background())
+		testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID)
+		testpkg.CleanupParentGuardianChain(t, db, chain)
+	})
+
+	_, err := svc.SubmitCareException(
+		context.Background(), chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), wallClock(16, 0), nil,
+	)
+	require.NoError(t, err)
+
+	now := timezone.Now()
+	checkout := now.Add(-5 * time.Minute)
+	testpkg.CreateTestAttendance(t, db, chain.StudentID, staff.ID, device.ID, now.Add(-2*time.Hour), &checkout)
+
+	_, err = svc.SubmitCareException(
+		context.Background(), chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), wallClock(15, 0), nil,
+	)
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionAlreadyLeft)
+
+	err = svc.DeleteCareException(context.Background(), chain.AccountID, chain.StudentID, timezone.TodayDate())
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionAlreadyLeft)
 }
 
 func TestSubmitCareException_TooFarDate(t *testing.T) {

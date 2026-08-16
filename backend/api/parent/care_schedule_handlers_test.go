@@ -49,3 +49,13 @@ func TestRenderParentWriteErrorMapsDisabledCareFieldToForbiddenCode(t *testing.T
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
 	assert.Contains(t, recorder.Body.String(), `"code":"care_request_field_disabled"`)
 }
+
+func TestRenderParentWriteErrorMapsAlreadyLeftToConflictCode(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/me/children/1/care-exception", nil)
+
+	renderParentWriteError(recorder, request, parentService.ErrCareExceptionAlreadyLeft)
+
+	assert.Equal(t, http.StatusConflict, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"care_exception_already_left"`)
+}

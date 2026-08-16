@@ -14,6 +14,17 @@ interface BackendCareException {
   updated_at: string;
 }
 
+interface BackendPickupChangeRequest {
+  id: string;
+  date: string;
+  pickup_time: string;
+  reason: string;
+  status: string;
+  decision_reason?: string;
+  created_at: string;
+  reviewed_at?: string;
+}
+
 interface CareExceptionBody {
   date: string;
   pickup_time?: string | null;
@@ -34,7 +45,7 @@ export const GET = proxyGet<BackendCareException[]>(
  * The route-wrapper injects the parent session token + 401 retry; the backend
  * verifies the account is a guardian of the child (account id from the JWT).
  */
-export const POST = proxyPost<BackendCareException, CareExceptionBody>(
+export const POST = proxyPost<BackendPickupChangeRequest, CareExceptionBody>(
   (params) =>
     `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/care-exception`,
 );

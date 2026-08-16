@@ -31,6 +31,8 @@ function decideErrorMessage(code: string | undefined): string {
       return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Anfrage kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
     case "change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
+    case "pickup_change_conflict":
+      return "Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen. Bitte prüfen und die Anfrage gegebenenfalls ablehnen.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
   }
@@ -147,8 +149,12 @@ export function CareRequestReviewList() {
         suppressSelfReloadRef.current = false;
         setNotice(
           approve
-            ? "Betreuungszeiten übernommen"
-            : "Betreuungszeit-Anfrage abgelehnt",
+            ? row.request_kind === "pickup_change"
+              ? "Abholzeit übernommen"
+              : "Betreuungszeiten übernommen"
+            : row.request_kind === "pickup_change"
+              ? "Abholzeit-Anfrage abgelehnt"
+              : "Betreuungszeit-Anfrage abgelehnt",
         );
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

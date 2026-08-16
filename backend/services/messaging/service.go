@@ -22,8 +22,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -96,16 +96,13 @@ type Config struct {
 	Notifier    notifications.Service
 	Preferences notifications.PreferenceService
 
-	// Dispatcher, GuardianProfiles, Schools, DefaultFrom and ParentsURL send the
-	// guardian an e-mail about a new OGS message (#2307) — the fallback for the
-	// guardians push never reaches. All optional: without Dispatcher or
-	// GuardianProfiles nothing is mailed, which keeps bare-constructed services
-	// (unit tests) silent. LoginImages only decorates the mail header.
-	Dispatcher       *email.Dispatcher
+	// Outbox, GuardianProfiles, Schools and ParentsURL queue the guardian e-mail
+	// for a new OGS message (#2307). All are optional so bare-constructed unit
+	// test services remain silent. LoginImages only decorates the mail header.
+	Outbox           platformModels.OutboxEnqueuer
 	GuardianProfiles GuardianProfileFinder
 	Schools          SchoolFinder
 	LoginImages      LoginImageResolver
-	DefaultFrom      email.Email
 	ParentsURL       string
 }
 
@@ -392,7 +389,11 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	}
 
 	accountID := accountIDFromCtx(ctx)
-	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
+	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
 	}
 
@@ -422,7 +423,6 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, 
 	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread)
-	s.notifyGuardianEmail(ctx, thread, body)
 	return messages, nil
 }
 
@@ -469,7 +469,11 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
-	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
+	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
 	}
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
@@ -478,7 +482,6 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	}
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread)
-	s.notifyGuardianEmail(ctx, thread, body)
 	s.Logger.Info("staff sent parent message",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
@@ -558,7 +561,7 @@ func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 // does NOT move the sender's read cursor) is shared with the parent side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
-func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
+func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) (*usersModels.ParentMessage, error) {
 	msg := &usersModels.ParentMessage{
 		ThreadID:         thread.ID,
 		StudentID:        thread.StudentID,
@@ -571,9 +574,9 @@ func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := parentmessaging.AppendMessage(ctx, s.MessageRepo, s.ThreadRepo, msg); err != nil {
-		return fmt.Errorf("messaging: append staff message: %w", err)
+		return nil, fmt.Errorf("messaging: append staff message: %w", err)
 	}
-	return nil
+	return msg, nil
 }
 
 // requireEnabled blocks writes (reply, new thread, open) when the school has

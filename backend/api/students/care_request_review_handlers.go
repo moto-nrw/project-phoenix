@@ -17,15 +17,16 @@ import (
 // care-schedule change request in the review queue, including the live
 // "current → requested" weekly diff.
 type CareRequestResponse struct {
-	ID         string                    `json:"id"`
-	StudentID  string                    `json:"student_id"`
-	FirstName  string                    `json:"first_name"`
-	LastName   string                    `json:"last_name"`
-	Status     string                    `json:"status"`
-	Diff       []CareRequestDiffResponse `json:"diff"`
-	Reason     *string                   `json:"reason,omitempty"`
-	CreatedAt  time.Time                 `json:"created_at"`
-	ReviewedAt *time.Time                `json:"reviewed_at,omitempty"`
+	ID          string                    `json:"id"`
+	StudentID   string                    `json:"student_id"`
+	FirstName   string                    `json:"first_name"`
+	LastName    string                    `json:"last_name"`
+	Status      string                    `json:"status"`
+	RequestKind string                    `json:"request_kind"`
+	Diff        []CareRequestDiffResponse `json:"diff"`
+	Reason      *string                   `json:"reason,omitempty"`
+	CreatedAt   time.Time                 `json:"created_at"`
+	ReviewedAt  *time.Time                `json:"reviewed_at,omitempty"`
 }
 
 // CareRequestDiffResponse mirrors the request-diff wire shape the messaging
@@ -55,15 +56,16 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 		})
 	}
 	return CareRequestResponse{
-		ID:         strconv.FormatInt(r.ID, 10),
-		StudentID:  strconv.FormatInt(r.StudentID, 10),
-		FirstName:  item.FirstName,
-		LastName:   item.LastName,
-		Status:     r.Status,
-		Diff:       diff,
-		Reason:     r.DecisionReason,
-		CreatedAt:  r.CreatedAt,
-		ReviewedAt: r.ReviewedAt,
+		ID:          strconv.FormatInt(r.ID, 10),
+		StudentID:   strconv.FormatInt(r.StudentID, 10),
+		FirstName:   item.FirstName,
+		LastName:    item.LastName,
+		Status:      r.Status,
+		RequestKind: r.RequestKind,
+		Diff:        diff,
+		Reason:      r.DecisionReason,
+		CreatedAt:   r.CreatedAt,
+		ReviewedAt:  r.ReviewedAt,
 	}
 }
 
@@ -131,6 +133,8 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 			renderError(w, r, common.ErrorConflictWithCode(err, "guardian_access_revoked"))
 		case errors.Is(err, scheduleService.ErrCareRequestForbidden):
 			renderError(w, r, common.ErrorForbidden(err))
+		case errors.Is(err, scheduleService.ErrPickupChangeConflict):
+			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_conflict"))
 		case errors.Is(err, scheduleService.ErrCareRequestRejectReasonRequired),
 			errors.Is(err, scheduleService.ErrCareRequestRejectReasonTooLong),
 			errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):

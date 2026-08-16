@@ -128,6 +128,9 @@ type Service interface {
 	// concrete pickup time and stores the parent's explanation with it. Arrival
 	// exceptions remain under staff control.
 	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*CareException, error)
+	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, reason string) (*scheduleModels.CareScheduleChangeRequest, error)
+	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]*scheduleModels.CareScheduleChangeRequest, error)
+	WithdrawPickupChangeRequest(ctx context.Context, accountID, studentID, requestID int64) (*scheduleModels.CareScheduleChangeRequest, error)
 
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
 	// child in [from, to], including staff-authored ones (flagged via Source)

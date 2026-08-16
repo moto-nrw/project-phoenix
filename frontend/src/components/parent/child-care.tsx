@@ -21,7 +21,9 @@ import {
   type CareException,
   type ChildCareSchedule,
   type ChildFeatures,
+  type ChildToday,
   type ExcusedRequest,
+  type PickupChangeRequest,
   ParentApiError,
   type StatusDay,
   type StudentStatusKind,
@@ -29,11 +31,13 @@ import {
   getChildCareSchedule,
   getChildFeatures,
   listCareExceptions,
+  listPickupChangeRequests,
   listExcusedRequests,
   listSickDays,
   submitCareException,
   submitSickNote,
   withdrawExcusedRequest,
+  withdrawPickupChangeRequest,
 } from "~/lib/parent-api";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
@@ -66,6 +70,7 @@ const MAX_NOTE_LEN = 2000;
 // a fresh [] literal per render would break referential equality (oxlint
 // react/no-object-type-as-default-prop).
 const EMPTY_EXCUSED_REQUESTS: readonly ExcusedRequest[] = [];
+const EMPTY_PICKUP_CHANGE_REQUESTS: PickupChangeRequest[] = [];
 
 // --- date helpers (native <input type=date> already yields YYYY-MM-DD) ---
 
@@ -253,12 +258,14 @@ export interface ChildCare {
   // recently-decided). Empty for schools that don't gate excused absences.
   readonly excusedRequests: ExcusedRequest[];
   readonly careExceptions: CareException[];
+  readonly pickupChangeRequests: PickupChangeRequest[];
   // Whether the care-exception list actually loaded. A failed fetch leaves
   // careExceptions empty, which is indistinguishable from "no overrides exist"
   // — and submitCareException treats an omitted leg as an authoritative clear.
   // The pickup modal must block saving while this is false so a parent can't
   // silently wipe an existing override the UI never managed to prefill.
   readonly careExceptionsLoaded: boolean;
+  readonly pickupChangeRequestsLoaded: boolean;
   // Today's resolved pickup state for the "Heute" tile (see TodayPickup).
   readonly todayPickup: TodayPickup;
   readonly features: ChildFeatures;
@@ -282,6 +289,11 @@ export function useChildCare(studentId: string): ChildCare {
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
   const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
+  const [pickupChangeRequests, setPickupChangeRequests] = useState<
+    PickupChangeRequest[]
+  >([]);
+  const [pickupChangeRequestsLoaded, setPickupChangeRequestsLoaded] =
+    useState(false);
   // The child's standard weekly plan, used only to resolve today's base pickup
   // time for the "Heute" tile. weekPlanLoaded stays false on a failed fetch so
   // the tile shows a neutral state instead of falsely claiming "no pickup".
@@ -348,6 +360,8 @@ export function useChildCare(studentId: string): ChildCare {
     setExcusedRequests([]);
     setCareExceptions([]);
     setCareExceptionsLoaded(false);
+    setPickupChangeRequests([]);
+    setPickupChangeRequestsLoaded(false);
     setWeekdays([]);
     setWeekPlanLoaded(false);
     setTodayAbsent(false);
@@ -371,30 +385,36 @@ export function useChildCare(studentId: string): ChildCare {
     let sickOk = true;
     let requestsOk = true;
     let exceptionsOk = true;
+    let pickupRequestsOk = true;
     let weekPlanOk = true;
     try {
-      const [days, requests, exceptions, plan, flags] = await Promise.all([
-        listSickDays(studentId).catch(() => {
-          sickOk = false;
-          return [] as StatusDay[];
-        }),
-        // Always fetch: it's a cheap call and the response is empty for schools
-        // without the approval gate, so gating it on the (separately fetched)
-        // feature flag would only add an ordering dependency for no real saving.
-        listExcusedRequests(studentId).catch(() => {
-          requestsOk = false;
-          return [] as ExcusedRequest[];
-        }),
-        listCareExceptions(studentId).catch(() => {
-          exceptionsOk = false;
-          return [] as CareException[];
-        }),
-        getChildCareSchedule(studentId).catch(() => {
-          weekPlanOk = false;
-          return null;
-        }),
-        getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
-      ]);
+      const [days, requests, exceptions, pickupRequests, plan, flags] =
+        await Promise.all([
+          listSickDays(studentId).catch(() => {
+            sickOk = false;
+            return [] as StatusDay[];
+          }),
+          // Always fetch: it's a cheap call and the response is empty for schools
+          // without the approval gate, so gating it on the (separately fetched)
+          // feature flag would only add an ordering dependency for no real saving.
+          listExcusedRequests(studentId).catch(() => {
+            requestsOk = false;
+            return [] as ExcusedRequest[];
+          }),
+          listCareExceptions(studentId).catch(() => {
+            exceptionsOk = false;
+            return [] as CareException[];
+          }),
+          listPickupChangeRequests(studentId).catch(() => {
+            pickupRequestsOk = false;
+            return [] as PickupChangeRequest[];
+          }),
+          getChildCareSchedule(studentId).catch(() => {
+            weekPlanOk = false;
+            return null;
+          }),
+          getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
+        ]);
       if (!mountedRef.current || seq !== loadSeqRef.current)
         return { requestsOk };
       // Only overwrite a list whose fetch succeeded; keep the previous state
@@ -403,6 +423,8 @@ export function useChildCare(studentId: string): ChildCare {
       if (requestsOk) setExcusedRequests(requests);
       if (exceptionsOk) setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
+      if (pickupRequestsOk) setPickupChangeRequests(pickupRequests);
+      setPickupChangeRequestsLoaded(pickupRequestsOk);
       if (weekPlanOk && plan) {
         setWeekdays(plan.weekdays);
         setTodayAbsent(plan.today_absent);
@@ -560,25 +582,39 @@ export function useChildCare(studentId: string): ChildCare {
       // Bail if we navigated to another child mid-save — A's override must not
       // land in B's exception list (#1725 review).
       if (currentStudentIdRef.current !== studentId) return;
-      // Replace any same-date entry with the just-saved one, keep sorted.
-      setCareExceptions((prev) =>
-        [...prev.filter((e) => e.date !== saved.date), saved].sort((a, b) =>
-          a.date.localeCompare(b.date),
-        ),
-      );
+      setPickupChangeRequests((prev) => [
+        saved,
+        ...prev.filter((request) => request.id !== saved.id),
+      ]);
     },
     [studentId],
   );
 
   const removeCareException = useCallback(
     async (date: string) => {
+      const pending = pickupChangeRequests.find(
+        (request) => request.date === date && request.status === "pending",
+      );
+      if (pending) {
+        const withdrawn = await withdrawPickupChangeRequest(
+          studentId,
+          pending.id,
+        );
+        if (currentStudentIdRef.current !== studentId) return;
+        setPickupChangeRequests((prev) =>
+          prev.map((request) =>
+            request.id === withdrawn.id ? withdrawn : request,
+          ),
+        );
+        return;
+      }
       await deleteCareException(studentId, date);
       // Bail if we navigated to another child mid-delete — the removal must not
       // apply to B's exception list (#1725 review).
       if (currentStudentIdRef.current !== studentId) return;
       setCareExceptions((prev) => prev.filter((e) => e.date !== date));
     },
-    [studentId],
+    [pickupChangeRequests, studentId],
   );
 
   const todayPickup = useMemo(
@@ -613,7 +649,10 @@ export function useChildCare(studentId: string): ChildCare {
     sickDays: hasCurrentStudentData ? sickDays : [],
     excusedRequests: hasCurrentStudentData ? excusedRequests : [],
     careExceptions: hasCurrentStudentData ? careExceptions : [],
+    pickupChangeRequests: hasCurrentStudentData ? pickupChangeRequests : [],
     careExceptionsLoaded: hasCurrentStudentData && careExceptionsLoaded,
+    pickupChangeRequestsLoaded:
+      hasCurrentStudentData && pickupChangeRequestsLoaded,
     todayPickup,
     features: hasCurrentStudentData ? features : DEFAULT_FEATURES,
     loading: !hasCurrentStudentData || loading,
@@ -839,15 +878,23 @@ export function SickNoteModal({
 
 export function PickupTimeModal({
   careExceptions,
+  pickupChangeRequests = EMPTY_PICKUP_CHANGE_REQUESTS,
   careExceptionsLoaded,
+  pickupChangeRequestsLoaded = true,
   pickupChangeEnabled,
+  childFirstName,
+  today: childToday,
   onClose,
   onSubmit,
   onRemove,
 }: Readonly<{
   careExceptions: CareException[];
+  pickupChangeRequests?: PickupChangeRequest[];
   careExceptionsLoaded: boolean;
+  pickupChangeRequestsLoaded?: boolean;
   pickupChangeEnabled: boolean;
+  childFirstName?: string;
+  today?: ChildToday;
   onClose: () => void;
   onSubmit: (params: {
     date: string;
@@ -859,7 +906,7 @@ export function PickupTimeModal({
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
-  const today = todayISO();
+  const today = berlinTodayISO();
   const initial = useMemo(() => {
     if (pickupChangeEnabled) return today;
     return (
@@ -891,7 +938,13 @@ export function PickupTimeModal({
     () => careExceptions.find((e) => e.date === date),
     [careExceptions, date],
   );
+  const request = useMemo(
+    () => pickupChangeRequests.find((entry) => entry.date === date),
+    [date, pickupChangeRequests],
+  );
+  const pending = request?.status === "pending";
   const staffOwned = existing?.pickup_source === "staff";
+  const alreadyHome = date === today && childToday?.state === "left";
 
   // Map the backend's stable error code to a localized message; fall back to
   // the raw message (or a generic one) when the code is missing/unknown so the
@@ -903,6 +956,10 @@ export function PickupTimeModal({
           return t("pickup.errorDisabled");
         case "care_exception_conflict":
           return t("pickup.errorStaffConflict");
+        case "care_exception_already_left":
+          return childFirstName
+            ? t("pickup.alreadyHome", { name: childFirstName })
+            : t("pickup.alreadyHomeGeneric");
         case "care_exception_raced":
           return t("pickup.errorRaced");
         case "care_exception_past_date":
@@ -915,6 +972,8 @@ export function PickupTimeModal({
           return t("pickup.reasonRequired");
         case "care_exception_reason_too_long":
           return t("pickup.reasonTooLong");
+        case "care_request_already_pending":
+          return t("pickup.statusPending");
       }
     }
     return err instanceof Error ? err.message : t("pickup.saveError");
@@ -923,17 +982,17 @@ export function PickupTimeModal({
   // When the selected date already has an override, prefill the fields so the
   // parent edits rather than blindly overwrites.
   useEffect(() => {
-    setPickupTime(existing?.pickup_time ?? "");
-    setReason(existing?.reason ?? "");
+    setPickupTime(request?.pickup_time ?? existing?.pickup_time ?? "");
+    setReason(request?.reason ?? existing?.reason ?? "");
     setError(null);
     setInvalidField(null);
-  }, [existing]);
+  }, [existing, request]);
 
   const handleSubmit = async () => {
     // Guard: if the existing overrides never loaded we can't trust the
     // prefilled fields, and a save would send the empty leg as an authoritative
     // clear. Block until the list is known (the page must be reloaded).
-    if (!careExceptionsLoaded) {
+    if (!careExceptionsLoaded || !pickupChangeRequestsLoaded) {
       setError(t("pickup.loadError"));
       return;
     }
@@ -988,51 +1047,55 @@ export function PickupTimeModal({
       mobileSheet
       footer={
         <>
-          {existing?.pickup_source === "guardian" && (
+          {(pending || existing?.pickup_source === "guardian") && (
             <Button
               type="button"
               variant="ghost"
               size="md"
-              className="w-full gap-2 sm:w-auto"
+              className="w-full gap-2 whitespace-nowrap sm:w-auto"
               onClick={() => void handleRemove()}
-              disabled={submitting}
+              disabled={submitting || alreadyHome}
             >
               <Trash2 className="size-4" aria-hidden="true" />
-              {t("pickup.reset")}
+              {pending ? t("pickup.withdraw") : t("pickup.reset")}
             </Button>
           )}
           <Button
             type="button"
             variant="outline"
             size="md"
-            className="hidden sm:inline-flex"
+            className="hidden whitespace-nowrap shadow-sm sm:inline-flex"
             onClick={onClose}
           >
             {t("cancel")}
           </Button>
-          <Button
-            type="button"
-            size="md"
-            className="w-full gap-2 sm:w-auto"
-            onClick={() => void handleSubmit()}
-            disabled={
-              submitting ||
-              staffOwned ||
-              !pickupChangeEnabled ||
-              !careExceptionsLoaded
-            }
-          >
-            {submitting && (
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-            )}
-            {t("pickup.submit")}
-          </Button>
+          {!pending && (
+            <Button
+              type="button"
+              size="md"
+              className="w-full gap-2 whitespace-nowrap shadow-sm sm:w-auto"
+              onClick={() => void handleSubmit()}
+              disabled={
+                submitting ||
+                alreadyHome ||
+                staffOwned ||
+                !pickupChangeEnabled ||
+                !careExceptionsLoaded ||
+                !pickupChangeRequestsLoaded
+              }
+            >
+              {submitting && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              {t("pickup.submit")}
+            </Button>
+          )}
         </>
       }
     >
       <div className="space-y-4">
         <p className="text-sm leading-6 text-gray-700">{t("pickup.intro")}</p>
-        {!careExceptionsLoaded && (
+        {(!careExceptionsLoaded || !pickupChangeRequestsLoaded) && (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.loadError")}
           </p>
@@ -1053,7 +1116,39 @@ export function PickupTimeModal({
           />
         </label>
 
-        {staffOwned ? (
+        {pending && (
+          <div className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2.5">
+            <p className="text-base font-semibold tabular-nums">
+              {request.previous_pickup_time
+                ? t("pickup.pendingChange", {
+                    from: request.previous_pickup_time,
+                    to: request.pickup_time,
+                  })
+                : t("pickup.pendingRequested", {
+                    to: request.pickup_time,
+                  })}
+            </p>
+            <p className="mt-0.5 text-sm">{t("pickup.statusPending")}</p>
+          </div>
+        )}
+        {request?.status === "approved" && (
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            {t("pickup.statusApproved")}
+          </p>
+        )}
+        {request?.status === "rejected" && (
+          <p className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm">
+            {t("pickup.statusRejected", {
+              reason: request.decision_reason ?? t("pickup.noDecisionReason"),
+            })}
+          </p>
+        )}
+
+        {pending ? null : alreadyHome && childFirstName ? (
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            {t("pickup.alreadyHome", { name: childFirstName })}
+          </p>
+        ) : staffOwned ? (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.staffSet", {
               pickup: existing?.pickup_time ?? "—",
@@ -1081,6 +1176,7 @@ export function PickupTimeModal({
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700">
                 {t("pickup.reasonLabel")}
+                <span aria-hidden="true"> *</span>
               </span>
               <textarea
                 ref={reasonRef}

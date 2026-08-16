@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
@@ -78,6 +80,36 @@ type CareExceptionResponse struct {
 	ArrivalAbsent bool `json:"arrival_absent,omitempty"`
 }
 
+type PickupChangeRequestResponse struct {
+	ID             string     `json:"id"`
+	Date           string     `json:"date"`
+	PickupTime     string     `json:"pickup_time"`
+	PreviousPickup *string    `json:"previous_pickup_time,omitempty"`
+	Reason         string     `json:"reason"`
+	Status         string     `json:"status"`
+	DecisionReason *string    `json:"decision_reason,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
+}
+
+func toPickupChangeRequestResponse(req *scheduleModels.CareScheduleChangeRequest) (PickupChangeRequestResponse, error) {
+	date, dateOK := req.Payload["date"].(string)
+	pickup, pickupOK := req.Payload["pickup_time"].(string)
+	reason, reasonOK := req.Payload["reason"].(string)
+	if !dateOK || !pickupOK || !reasonOK {
+		return PickupChangeRequestResponse{}, errors.New("invalid pickup change request payload")
+	}
+	var previousPickup *string
+	if value, ok := req.Payload["previous_pickup_time"].(string); ok && value != "" {
+		previousPickup = &value
+	}
+	return PickupChangeRequestResponse{
+		ID: strconv.FormatInt(req.ID, 10), Date: date, PickupTime: pickup,
+		PreviousPickup: previousPickup, Reason: reason, Status: req.Status, DecisionReason: req.DecisionReason,
+		CreatedAt: req.CreatedAt, ReviewedAt: req.ReviewedAt,
+	}, nil
+}
+
 func toCareExceptionResponse(c *parentService.CareException) CareExceptionResponse {
 	return CareExceptionResponse{
 		Date:          c.Date.String(),
@@ -125,12 +157,73 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	result, err := rs.ParentService.SubmitCareExceptionWithReason(r.Context(), accountID, studentID, date, pickup, req.Reason)
+	if pickup == nil {
+		renderParentWriteError(w, r, parentService.ErrNoCareException)
+		return
+	}
+	result, err := rs.ParentService.SubmitPickupChangeRequest(r.Context(), accountID, studentID, date, *pickup, req.Reason)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, toCareExceptionResponse(result), "Care exception saved")
+	response, err := toPickupChangeRequestResponse(result)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, response, "Pickup change request submitted")
+}
+
+func (rs *Resource) listPickupChangeRequests(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	rows, err := rs.ParentService.ListPickupChangeRequests(r.Context(), accountID, studentID)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	out := make([]PickupChangeRequestResponse, 0, len(rows))
+	for _, row := range rows {
+		response, convertErr := toPickupChangeRequestResponse(row)
+		if convertErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(convertErr))
+			return
+		}
+		out = append(out, response)
+	}
+	common.Respond(w, r, http.StatusOK, out, "Pickup change requests retrieved")
+}
+
+func (rs *Resource) withdrawPickupChangeRequest(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
+	if !ok {
+		return
+	}
+	result, err := rs.ParentService.WithdrawPickupChangeRequest(r.Context(), accountID, studentID, requestID)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	response, err := toPickupChangeRequestResponse(result)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, response, "Pickup change request withdrawn")
 }
 
 // listCareExceptions returns the child's pickup/arrival overrides in the

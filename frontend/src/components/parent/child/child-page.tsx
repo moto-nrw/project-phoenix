@@ -294,8 +294,12 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
       {modal === "pickup" && (
         <PickupTimeModal
           careExceptions={care.careExceptions}
+          pickupChangeRequests={care.pickupChangeRequests}
           careExceptionsLoaded={care.careExceptionsLoaded}
+          pickupChangeRequestsLoaded={care.pickupChangeRequestsLoaded}
           pickupChangeEnabled={care.features.pickup_change_enabled}
+          childFirstName={child.first_name}
+          today={today ?? undefined}
           onClose={() => setModal(null)}
           onSubmit={care.saveCareException}
           onRemove={care.removeCareException}

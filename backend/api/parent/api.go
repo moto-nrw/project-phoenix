@@ -219,6 +219,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/care-exception", rs.listCareExceptions)
 		r.Post("/me/children/{studentId}/care-exception", rs.submitCareException)
 		r.Delete("/me/children/{studentId}/care-exception", rs.deleteCareException)
+		r.Get("/me/children/{studentId}/pickup-change-requests", rs.listPickupChangeRequests)
+		r.Delete("/me/children/{studentId}/pickup-change-requests/{requestId}", rs.withdrawPickupChangeRequest)
 
 		// Permanent weekly care plan (#1803) — read view on the Stammdaten
 		// page plus the change-request lifecycle (create / withdraw). Staff

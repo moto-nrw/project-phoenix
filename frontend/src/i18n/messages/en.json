@@ -478,7 +478,7 @@
     },
     "pickup": {
       "title": "Change pick-up time",
-      "intro": "Set a different pick-up time for one day. The regular weekly plan remains unchanged. The OGS is informed immediately.",
+      "intro": "Request a different pick-up time for one day. The regular weekly plan remains unchanged. The change applies only after the OGS confirms it.",
       "dateLabel": "Day",
       "pickupLabel": "Pick-up time",
       "noTime": "Enter a pick-up time.",
@@ -494,9 +494,18 @@
       "errorPastDate": "Changes cannot be saved for days in the past.",
       "errorTooFar": "That day is too far in the future. Please pick a day within the next two months.",
       "staffSet": "The school has already set a special pick-up time for this day: {pickup}.",
+      "alreadyHome": "{name} is already home today. The pick-up time can no longer be changed.",
+      "alreadyHomeGeneric": "Your child is already home today. The pick-up time can no longer be changed.",
       "existingHint": "A change is already set for {date}. Saving overwrites it.",
       "reset": "Undo the change",
-      "submit": "Change pick-up time"
+      "withdraw": "Withdraw request",
+      "pendingChange": "{from} → {to}",
+      "pendingRequested": "New pickup time: {to}",
+      "statusPending": "Waiting for confirmation",
+      "statusApproved": "Confirmed, the new pick-up time has been applied.",
+      "statusRejected": "Rejected: {reason}",
+      "noDecisionReason": "No reason provided",
+      "submit": "Send request"
     },
     "actions": {
       "sick": {

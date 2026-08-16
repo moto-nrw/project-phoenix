@@ -47,6 +47,7 @@ function row(overrides: Partial<StaffCareRequest> = {}): StaffCareRequest {
     first_name: "Lara",
     last_name: "Beispiel",
     status: "pending",
+    request_kind: "weekly_schedule",
     diff: [
       {
         label: "Montag · Abholzeit",
