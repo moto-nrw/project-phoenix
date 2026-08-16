@@ -3,7 +3,6 @@ package active
 import (
 	"context"
 	"errors"
-	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -63,7 +62,7 @@ func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*edu
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.overviewRepo.ListWithOptions(ctx, options)
+	rows, err := s.overviewRepo.ListOverviewWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -82,11 +81,6 @@ func statusDayOverviewOptions(studentIDs []int64, students map[int64]*userModels
 	return &modelBase.QueryOptions{
 		Filter:     filter,
 		Pagination: &modelBase.Pagination{Page: filters.Page, PageSize: filters.PageSize},
-		Sorting: &modelBase.Sorting{Fields: []modelBase.SortField{
-			{Field: "date", Direction: modelBase.SortAsc},
-			{Field: "student_id", Direction: modelBase.SortAsc},
-			{Field: "reported_at", Direction: modelBase.SortDesc},
-		}},
 	}
 }
 
@@ -172,18 +166,6 @@ func assembleStatusDayOverview(rows []*activeModels.StudentStatusDay, students m
 			Group:     groups[*student.GroupID],
 		})
 	}
-	sort.SliceStable(entries, func(i, j int) bool {
-		if entries[i].StatusDay.Date != entries[j].StatusDay.Date {
-			return entries[i].StatusDay.Date.Before(entries[j].StatusDay.Date)
-		}
-		if entries[i].Person == nil || entries[j].Person == nil {
-			return entries[i].Student.ID < entries[j].Student.ID
-		}
-		if entries[i].Person.LastName != entries[j].Person.LastName {
-			return entries[i].Person.LastName < entries[j].Person.LastName
-		}
-		return entries[i].Person.FirstName < entries[j].Person.FirstName
-	})
 	return entries
 }
 

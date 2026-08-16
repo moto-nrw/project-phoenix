@@ -26,7 +26,7 @@ type StudentStatusDayService struct {
 }
 
 type statusDayOverviewRepository interface {
-	ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*activeModels.StudentStatusDay, error)
+	ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*activeModels.StudentStatusDay, error)
 	CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error)
 }
 

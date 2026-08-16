@@ -207,6 +207,10 @@ export default function AbsencesPage() {
   )
     ? groupFilter
     : "all";
+  const hasActiveFilters =
+    deferredQuery.trim() !== "" ||
+    statusFilter !== "all" ||
+    effectiveGroupFilter !== "all";
 
   useEffect(() => {
     if (groupFilter !== effectiveGroupFilter) {
@@ -318,9 +322,9 @@ export default function AbsencesPage() {
                 <EmptyState
                   title="Keine Abwesenheiten eingetragen"
                   description={
-                    entries.length === 0
-                      ? "Im gewählten Zeitraum ist für kein Kind eine Abwesenheit eingetragen."
-                      : "Kein Eintrag passt zu den gewählten Filtern."
+                    hasActiveFilters
+                      ? "Kein Eintrag passt zu den gewählten Filtern."
+                      : "Im gewählten Zeitraum ist für kein Kind eine Abwesenheit eingetragen."
                   }
                 />
               }

@@ -222,19 +222,22 @@ func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
 	assert.Equal(t, 100, body.Data.PageSize)
 }
 
-func TestGetStudentStatusDaysOverview_PaginatesOnlyEligibleEntries(t *testing.T) {
+func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.T) {
 	tc := setupTestContext(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Eligibility")
 	endedChild := testpkg.CreateTestStudent(t, tc.db, "A", "Beendet", "1a")
-	activeChild := testpkg.CreateTestStudent(t, tc.db, "B", "Sofort", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, endedChild.ID, activeChild.ID, group.ID)
+	zChild := testpkg.CreateTestStudent(t, tc.db, "Zora", "Zulu", "1a")
+	aChild := testpkg.CreateTestStudent(t, tc.db, "Anna", "Alpha", "1a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, endedChild.ID, zChild.ID, aChild.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, group.ID)
-	testpkg.AssignStudentToGroup(t, tc.db, activeChild.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, zChild.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, aChild.ID, group.ID)
 
 	today := timezone.TodayDate()
 	endedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today, active.StudentStatusDaySick)
-	activeDay := testpkg.CreateTestStudentStatusDay(t, tc.db, activeChild.ID, today, active.StudentStatusDayExcused)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, endedDay.ID, activeDay.ID)
+	zDay := testpkg.CreateTestStudentStatusDay(t, tc.db, zChild.ID, today, active.StudentStatusDaySick)
+	aDay := testpkg.CreateTestStudentStatusDay(t, tc.db, aChild.ID, today, active.StudentStatusDayExcused)
+	defer testpkg.CleanupStudentStatusDays(t, tc.db, endedDay.ID, zDay.ID, aDay.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -250,7 +253,7 @@ func TestGetStudentStatusDaysOverview_PaginatesOnlyEligibleEntries(t *testing.T)
 		ModelTableExpr("users.students").
 		Set("enrolled_from = ?", today.AddDays(7)).
 		Set("status = ?", usersModel.StudentStatusActive).
-		Where("id = ?", activeChild.ID).
+		Where("id = ?", aChild.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -261,7 +264,15 @@ func TestGetStudentStatusDaysOverview_PaginatesOnlyEligibleEntries(t *testing.T)
 	var body statusDayOverviewTestBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	require.Len(t, body.Data.Entries, 1)
-	assert.Equal(t, fmt.Sprintf("%d", activeChild.ID), body.Data.Entries[0].StudentID)
+	assert.Equal(t, fmt.Sprintf("%d", aChild.ID), body.Data.Entries[0].StudentID)
+	assert.True(t, body.Data.HasMore)
+
+	req = testutil.NewRequest("GET", "/status-days?page=2&page_size=1", nil)
+	rr = authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	require.Len(t, body.Data.Entries, 1)
+	assert.Equal(t, fmt.Sprintf("%d", zChild.ID), body.Data.Entries[0].StudentID)
 	assert.False(t, body.Data.HasMore)
 }
 
