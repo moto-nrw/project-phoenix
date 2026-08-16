@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,9 +53,13 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	emptyGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Ohne Abwesenheit")
 	sickChild := testpkg.CreateTestStudent(t, tc.db, "Selma", "Krank", "1a")
 	tripChild := testpkg.CreateTestStudent(t, tc.db, "Theo", "Fahrt", "2b")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, sickChild.ID, tripChild.ID, groupA.ID, groupB.ID, emptyGroup.ID)
+	endedChild := testpkg.CreateTestStudent(t, tc.db, "Ehemalig", "Beendet", "3c")
+	inactiveLegacyChild := testpkg.CreateTestStudent(t, tc.db, "Ehemalig", "Legacy", "3c")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, sickChild.ID, tripChild.ID, endedChild.ID, inactiveLegacyChild.ID, groupA.ID, groupB.ID, emptyGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, sickChild.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, tripChild.ID, groupB.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, groupA.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, inactiveLegacyChild.ID, groupA.ID)
 
 	today := timezone.TodayDate()
 	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, today.AddDays(2), active.StudentStatusDaySick)
@@ -62,7 +67,9 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	// Out of the default two-month window: must not be listed.
 	farDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year, today.Month+3, 1), active.StudentStatusDayExcused)
 	clearedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(3), active.StudentStatusDaySick)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, sickDay.ID, tripDay.ID, farDay.ID, clearedDay.ID)
+	endedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today.AddDays(1), active.StudentStatusDaySick)
+	legacyDay := testpkg.CreateTestStudentStatusDay(t, tc.db, inactiveLegacyChild.ID, today.AddDays(1), active.StudentStatusDayExcused)
+	defer testpkg.CleanupStudentStatusDays(t, tc.db, sickDay.ID, tripDay.ID, farDay.ID, clearedDay.ID, endedDay.ID, legacyDay.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -71,6 +78,22 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 		ModelTableExpr("active.student_status_days").
 		Set("cleared_at = ?", time.Now()).
 		Where("id = ?", clearedDay.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = tc.db.NewUpdate().
+		Model((*usersModel.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("enrolled_until = ?", today).
+		Where("id = ?", endedChild.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = tc.db.NewUpdate().
+		Model((*usersModel.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("status = ?", usersModel.StudentStatusInactive).
+		Set("enrolled_from = NULL").
+		Set("enrolled_until = NULL").
+		Where("id = ?", inactiveLegacyChild.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 	privateNote := "Vertraulicher Grund"

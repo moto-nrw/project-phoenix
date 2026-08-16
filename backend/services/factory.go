@@ -2090,6 +2090,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
 		db,
+		usersService,
 	)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
 		People:          usersService,

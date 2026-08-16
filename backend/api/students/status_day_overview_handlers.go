@@ -1,11 +1,9 @@
 package students
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -15,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // Absence overview (#2288): one forward-looking list of every entered
@@ -52,7 +50,6 @@ type statusDayOverviewEntry struct {
 	Label       string    `json:"label"`
 	ReportedAt  time.Time `json:"reported_at"`
 	Source      string    `json:"source"`
-	sortDate    timezone.Date
 }
 
 // getStudentStatusDaysOverview handles GET /students/status-days?from=&to=&group_id=N.
@@ -75,11 +72,12 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 
 	entries := []statusDayOverviewEntry{}
 	if rs.StudentStatusDayService != nil {
-		entries, err = rs.loadStatusDayOverviewEntries(ctx, groups, from, to)
+		overview, err := rs.StudentStatusDayService.GetOverview(ctx, groups, from, to)
 		if err != nil {
 			renderError(w, r, common.ErrorInternalServerWrap("failed to load absence overview", err))
 			return
 		}
+		entries = mapStatusDayOverviewEntries(overview)
 	}
 	if err := rs.writeStatusDayOverviewAudit(r, from, to, groups, logger); err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))
@@ -131,69 +129,31 @@ func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezo
 	return nil
 }
 
-// loadStatusDayOverviewEntries bulk-loads the permitted groups' rosters, the
-// active status days of the range, and the person names, and folds them into
-// sorted response entries.
-func (rs *Resource) loadStatusDayOverviewEntries(ctx context.Context, groups []*educationModel.Group, from, to timezone.Date) ([]statusDayOverviewEntry, error) {
-	groupIDs := make([]int64, 0, len(groups))
-	groupsByID := make(map[int64]*educationModel.Group, len(groups))
-	for _, group := range groups {
-		groupIDs = append(groupIDs, group.ID)
-		groupsByID[group.ID] = group
-	}
-
-	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-	studentsByID := make(map[int64]*usersModel.Student, len(students))
-	studentIDs := make([]int64, 0, len(students))
-	personIDs := make([]int64, 0, len(students))
-	for _, student := range students {
-		studentsByID[student.ID] = student
-		studentIDs = append(studentIDs, student.ID)
-		personIDs = append(personIDs, student.PersonID)
-	}
-
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentIDsAndDateRange(ctx, studentIDs, from, to)
-	if err != nil {
-		return nil, err
-	}
-
-	persons, err := rs.PersonService.GetByIDs(ctx, personIDs)
-	if err != nil {
-		return nil, err
-	}
-
+func mapStatusDayOverviewEntries(rows []activeService.StatusDayOverviewEntry) []statusDayOverviewEntry {
 	entries := make([]statusDayOverviewEntry, 0, len(rows))
 	for _, row := range rows {
-		student := studentsByID[row.StudentID]
-		if student == nil || student.GroupID == nil {
-			continue
-		}
+		statusDay := row.StatusDay
 		entry := statusDayOverviewEntry{
-			ID:          strconv.FormatInt(row.ID, 10),
-			StudentID:   strconv.FormatInt(row.StudentID, 10),
-			SchoolClass: student.SchoolClass,
-			GroupID:     strconv.FormatInt(*student.GroupID, 10),
-			Date:        row.Date.String(),
-			Status:      row.Status,
-			Label:       studentStatusDayLabel(row.Status),
-			ReportedAt:  row.ReportedAt,
-			Source:      row.Source,
-			sortDate:    row.Date,
+			ID:          strconv.FormatInt(statusDay.ID, 10),
+			StudentID:   strconv.FormatInt(statusDay.StudentID, 10),
+			SchoolClass: row.Student.SchoolClass,
+			GroupID:     strconv.FormatInt(*row.Student.GroupID, 10),
+			Date:        statusDay.Date.String(),
+			Status:      statusDay.Status,
+			Label:       studentStatusDayLabel(statusDay.Status),
+			ReportedAt:  statusDay.ReportedAt,
+			Source:      statusDay.Source,
 		}
-		if person := persons[student.PersonID]; person != nil {
-			entry.FirstName = person.FirstName
-			entry.LastName = person.LastName
+		if row.Person != nil {
+			entry.FirstName = row.Person.FirstName
+			entry.LastName = row.Person.LastName
 		}
-		if group := groupsByID[*student.GroupID]; group != nil {
-			entry.GroupName = group.Name
+		if row.Group != nil {
+			entry.GroupName = row.Group.Name
 		}
 		entries = append(entries, entry)
 	}
-	sortStatusDayOverviewEntries(entries)
-	return entries, nil
+	return entries
 }
 
 // parseStatusDayOverviewRange reuses the per-child defaults (today up to two
@@ -210,16 +170,4 @@ func parseStatusDayOverviewRange(r *http.Request, today timezone.Date) (timezone
 		return timezone.Date{}, timezone.Date{}, errors.New("date range cannot exceed 366 days")
 	}
 	return from, to, nil
-}
-
-func sortStatusDayOverviewEntries(entries []statusDayOverviewEntry) {
-	sort.SliceStable(entries, func(i, j int) bool {
-		if entries[i].sortDate != entries[j].sortDate {
-			return entries[i].sortDate.Before(entries[j].sortDate)
-		}
-		if entries[i].LastName != entries[j].LastName {
-			return entries[i].LastName < entries[j].LastName
-		}
-		return entries[i].FirstName < entries[j].FirstName
-	})
 }

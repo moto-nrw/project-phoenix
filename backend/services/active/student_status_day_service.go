@@ -12,15 +12,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// StudentStatusDayService exposes student status-day persistence to the api
-// layer (issue #584: handlers must not hold repositories). CONTRACT:
-// repository results and errors are returned VERBATIM — the handlers keep
-// their transaction wrappers, mutual-exclusion logic, and live-flag updates,
-// so behaviour is byte-identical.
+// StudentStatusDayService owns status-day persistence and the absence-overview
+// data assembly. Simple persistence operations return repository results and
+// errors verbatim; GetOverview also joins roster and person data and applies
+// enrollment eligibility for each row.
 type StudentStatusDayService struct {
 	repo             activeModels.StudentStatusDayRepository
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository
 	db               *bun.DB
+	people           statusDayOverviewPeople
 }
 
 // NewStudentStatusDayService creates a StudentStatusDayService backed by the
@@ -35,20 +35,15 @@ func NewStudentStatusDayServiceWithPartialAbsences(
 	repo activeModels.StudentStatusDayRepository,
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
 	db *bun.DB,
+	people statusDayOverviewPeople,
 ) *StudentStatusDayService {
-	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db}
+	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db, people: people}
 }
 
 // GetActiveByStudentIDsAndDate returns the active status rows of many
 // students for one calendar date.
 func (s *StudentStatusDayService) GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	return s.repo.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
-}
-
-// GetActiveByStudentIDsAndDateRange returns the active status rows of many
-// students within the date range (#2288 absence overview).
-func (s *StudentStatusDayService) GetActiveByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, startDate, endDate timezone.Date) ([]*activeModels.StudentStatusDay, error) {
-	return s.repo.FindActiveByStudentIDsAndDateRange(ctx, studentIDs, startDate, endDate)
 }
 
 // GetSignedOffByStudentIDsAndDate returns the status rows of many students
