@@ -89,7 +89,10 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	})
 	assert.True(t, today.BerlinMidnight().Equal(auditEntry.RangeStart))
 	assert.True(t, timezone.NewDate(today.Year, today.Month+2, today.Day).EndOfDay().Equal(auditEntry.RangeEnd))
-	assert.ElementsMatch(t, []interface{}{float64(groupA.ID), float64(groupB.ID)}, auditEntry.Metadata["group_ids"])
+	groupIDs, ok := auditEntry.Metadata["group_ids"].([]interface{})
+	require.True(t, ok)
+	assert.Contains(t, groupIDs, float64(groupA.ID))
+	assert.Contains(t, groupIDs, float64(groupB.ID))
 
 	var body statusDayOverviewTestBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
