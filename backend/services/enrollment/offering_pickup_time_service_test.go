@@ -67,11 +67,13 @@ func pickupRowsByWeekday(t *testing.T, env *decisionTestEnv, studentID int64) ma
 func TestOfferingPickupRollout_CreatesSourcedRows(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 	ctx := testpkg.TenantContext(1)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-basic",
 		[]string{"mon", "tue"}, map[string]string{"mon": "14:30"})
 	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-basic@example.com", "Gina", 2)
+	require.NoError(t, env.repos.StudentPickupSchedule.DeleteByStudentID(ctx, studentID))
 
 	result, err := pickupTimeService(t, env).RolloutOfferingPickupTimes(ctx, offering.ID, nil, rolloutActorAccountID(t, env))
 	require.NoError(t, err)
@@ -91,12 +93,15 @@ func TestOfferingPickupRollout_CreatesSourcedRows(t *testing.T) {
 func TestOfferingPickupRollout_OverwritesStaffRowsUnlessSkipped(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 	ctx := testpkg.TenantContext(1)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-overwrite",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
 	overwrittenID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-ow-a@example.com", "Owa", 2)
 	keptID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-ow-b@example.com", "Owb", 2)
+	require.NoError(t, env.repos.StudentPickupSchedule.DeleteByStudentID(ctx, overwrittenID))
+	require.NoError(t, env.repos.StudentPickupSchedule.DeleteByStudentID(ctx, keptID))
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Autor")
 	testpkg.CreateTestPickupSchedule(t, env.db, overwrittenID, scheduleModels.WeekdayMonday, author.ID, "15:00")
@@ -120,12 +125,15 @@ func TestOfferingPickupRollout_OverwritesStaffRowsUnlessSkipped(t *testing.T) {
 func TestOfferingPickupRolloutPreview_ClassifiesWithoutWriting(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 	ctx := testpkg.TenantContext(1)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-preview",
 		[]string{"mon"}, map[string]string{"mon": "14:30"})
 	freshID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-pv-a@example.com", "Pva", 2)
 	conflictID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-pv-b@example.com", "Pvb", 2)
+	require.NoError(t, env.repos.StudentPickupSchedule.DeleteByStudentID(ctx, freshID))
+	require.NoError(t, env.repos.StudentPickupSchedule.DeleteByStudentID(ctx, conflictID))
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Konflikt")
 	testpkg.CreateTestPickupSchedule(t, env.db, conflictID, scheduleModels.WeekdayMonday, author.ID, "15:00")
@@ -152,6 +160,7 @@ func TestOfferingPickupRolloutPreview_ClassifiesWithoutWriting(t *testing.T) {
 func TestOfferingPickupRollout_LatestTimeWinsAcrossOfferings(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 	ctx := testpkg.TenantContext(1)
 
 	early := createPickupTimeOffering(t, env, "gehzeit-early",
@@ -170,6 +179,28 @@ func TestOfferingPickupRollout_LatestTimeWinsAcrossOfferings(t *testing.T) {
 		"the latest Gehzeit across the day's offerings must win")
 	require.NotNil(t, monday.CareOfferingID)
 	assert.Equal(t, late.ID, *monday.CareOfferingID)
+}
+
+func TestOfferingPickupRollout_FuturePhaseDoesNotOverwriteCurrentSchedule(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(30))
+	ctx := testpkg.TenantContext(1)
+
+	offering := createPickupTimeOffering(t, env, "gehzeit-future-rollout",
+		[]string{"mon"}, map[string]string{"mon": "16:00"})
+	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-future-rollout@example.com", "Rolla", 2)
+	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Aktuell")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "14:30")
+
+	result, err := pickupTimeService(t, env).RolloutOfferingPickupTimes(ctx, offering.ID, nil, rolloutActorAccountID(t, env))
+	require.NoError(t, err)
+	assert.Zero(t, result.UpdatedRows)
+	assert.Zero(t, result.DeletedRows)
+	monday := pickupRowsByWeekday(t, env, studentID)[scheduleModels.WeekdayMonday]
+	require.NotNil(t, monday)
+	assert.Equal(t, "14:30", monday.PickupTime.Format("15:04"))
+	assert.Equal(t, scheduleModels.PickupScheduleSourceStaff, monday.Source)
 }
 
 func TestOfferingPickupReconcile_IgnoresFutureOfferingUntilValidFrom(t *testing.T) {
@@ -216,6 +247,7 @@ func TestOfferingPickupReconcile_IgnoresFutureOfferingUntilValidFrom(t *testing.
 func TestOfferingPickupReconcile_RemovesStaleSourcedRowsKeepsStaff(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 	ctx := testpkg.TenantContext(1)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-stale",
