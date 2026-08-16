@@ -733,6 +733,11 @@ func (r *fakeStatusDayRepo) FindByStudentAndDateRange(_ context.Context, _ int64
 	return nil, nil
 }
 
+// Stub for the #2288 absence-overview interface addition — unused here.
+func (r *fakeStatusDayRepo) FindActiveByStudentIDsAndDateRange(_ context.Context, _ []int64, _, _ timezone.Date) ([]*active.StudentStatusDay, error) {
+	return nil, nil
+}
+
 func statusDayTestRouter(resource *Resource) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

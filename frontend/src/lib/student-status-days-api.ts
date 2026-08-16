@@ -119,6 +119,61 @@ export async function fetchStudentStatusDays(
   return data.map(mapStatusDay);
 }
 
+/**
+ * One row of the tenant-wide absence overview (#2288). IDs arrive as strings
+ * from the backend already; no mapping needed.
+ */
+export interface StatusDayOverviewEntry {
+  id: string;
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  group_id: string;
+  group_name: string;
+  date: string;
+  status: StudentStatusKind;
+  label: string;
+  reported_at: string;
+  source: string;
+  note?: string | null;
+}
+
+export interface StatusDayOverview {
+  from: string;
+  to: string;
+  entries: StatusDayOverviewEntry[];
+}
+
+/** Thrown when the account has no staff link (backend 403). */
+export class StatusDayOverviewForbiddenError extends Error {
+  constructor() {
+    super(
+      "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
+    );
+    this.name = "StatusDayOverviewForbiddenError";
+  }
+}
+
+export async function fetchStatusDayOverview(
+  from: string,
+  to: string,
+): Promise<StatusDayOverview> {
+  const response = await fetch(
+    `/api/students/status-days?from=${from}&to=${to}`,
+  );
+  if (response.status === 403) {
+    throw new StatusDayOverviewForbiddenError();
+  }
+  if (!response.ok) {
+    throw new Error("Abwesenheiten konnten nicht geladen werden");
+  }
+  return parseApiResult<StatusDayOverview>(
+    response,
+    "Abwesenheiten konnten nicht geladen werden",
+  );
+}
+
 export async function createStudentStatusDays(
   studentId: string,
   status: StudentStatusKind,

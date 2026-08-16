@@ -152,6 +152,10 @@ func (rs *Resource) Router() chi.Router {
 		// the tenant while the child's list entry and detail page stayed closed
 		// to them either way.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
+		// Absence overview (#2288): forward-looking status-day list across the
+		// children of every group the caller may see. Static path takes
+		// precedence over /{id}/status-days in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/status-days", rs.getStudentStatusDaysOverview)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 		// Per-child change history (issue #1455). Full access (admin / group
 		// supervisor) is enforced inside the handler.

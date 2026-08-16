@@ -386,3 +386,38 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 	}
 	require.Error(t, repo.UpsertReported(ctx, zeroEntry))
 }
+
+func TestStudentStatusDayRepository_FindActiveByStudentIDsAndDateRange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StudentStatusDay
+	ctx := testpkg.TenantContext(1)
+
+	first := testpkg.CreateTestStudent(t, db, "RangeRepo", "First", "RR1")
+	second := testpkg.CreateTestStudent(t, db, "RangeRepo", "Second", "RR1")
+	other := testpkg.CreateTestStudent(t, db, "RangeRepo", "Other", "RR1")
+	defer testpkg.CleanupActivityFixtures(t, db, first.ID, second.ID, other.ID)
+
+	from := timezone.TodayDate()
+	to := from.AddDays(6)
+
+	inRangeFirst := testpkg.CreateTestStudentStatusDay(t, db, first.ID, from.AddDays(2), active.StudentStatusDaySick)
+	inRangeSecond := testpkg.CreateTestStudentStatusDay(t, db, second.ID, from.AddDays(1), active.StudentStatusDayExcused)
+	outOfRange := testpkg.CreateTestStudentStatusDay(t, db, first.ID, to.AddDays(1), active.StudentStatusDayClassTrip)
+	otherStudent := testpkg.CreateTestStudentStatusDay(t, db, other.ID, from.AddDays(1), active.StudentStatusDaySick)
+	cleared := testpkg.CreateTestStudentStatusDay(t, db, second.ID, from.AddDays(3), active.StudentStatusDaySick)
+	defer testpkg.CleanupStudentStatusDays(t, db, inRangeFirst.ID, inRangeSecond.ID, outOfRange.ID, otherStudent.ID, cleared.ID)
+	require.NoError(t, repo.MarkClearedByID(ctx, cleared.ID, time.Now(), active.StudentStatusSourceManual))
+
+	rows, err := repo.FindActiveByStudentIDsAndDateRange(ctx, []int64{first.ID, second.ID}, from, to)
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "cleared, out-of-range and other-student rows must be excluded")
+	// Ordered by date first.
+	assert.Equal(t, inRangeSecond.ID, rows[0].ID)
+	assert.Equal(t, inRangeFirst.ID, rows[1].ID)
+
+	empty, err := repo.FindActiveByStudentIDsAndDateRange(ctx, nil, from, to)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+}
