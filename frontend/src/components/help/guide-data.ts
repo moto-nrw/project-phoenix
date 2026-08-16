@@ -1486,7 +1486,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen. Die Wochentage sind nicht vorausgewählt: mindestens ein Tag muss aktiv angeklickt werden, und nur die gewählten Tage sind später für Eltern auswählbar - ein Angebot nur für Montag darf also auch nur `Mo` gesetzt haben.",
-          "Optional je Wochentag eine `Gehzeit` eintragen, wenn das Angebot ein festes Betreuungsende hat (z. B. `14:30` bei `Ganztagsbetreuung bis 14.30 Uhr`). Beim Speichern fragt die App, ob die Gehzeit auf alle Kinder mit diesem Angebot übertragen werden soll; Kinder mit einer von Hand gepflegten Gehzeit sind im Dialog gelistet und lassen sich einzeln ausnehmen. Die übertragene Gehzeit erscheint in Klassenliste, Kindersuche und auf der Kinderdetailseite und lässt sich dort pro Kind anpassen oder wieder auf die Angebots-Gehzeit zurücksetzen.",
+          "Optional je Wochentag eine `Gehzeit` eintragen, wenn das Angebot ein festes Betreuungsende hat (z. B. `14:30` bei `Ganztagsbetreuung bis 14.30 Uhr`). Die Schritt-für-Schritt-Anleitung mit Bildern steht in der nächsten Karte `Gehzeit am Betreuungsangebot`.",
           "Unter `Regeltermin` den passenden Regeltermin aus dem Betreuungsplan verknüpfen, wenn genehmigte Anmeldungen dort erwartet werden sollen. Für jeden angebotenen Wochentag muss die Regeltermin-Serie den gesamten Betreuungszeitraum der Anmeldephase lückenlos abdecken. Jeder Termin braucht eine vollständige Uhrzeit mit Ende und einen wirksamen Raum; eine Raum-Ausnahme gilt nur für ihr konkretes Datum. Bei einem aktiven Angebot müssen außerdem alle verwendeten Planungszeiträume aktiv sein.",
           "Ohne Verfügbarkeitsregel gilt das Angebot für alle Klassenstufen. Optional `Nur unter Bedingungen anbieten` aktivieren, `Klassenstufe des Kindes` als Quelle wählen und mit `ist eine von` oder `ist keine von` auf die gewünschten Klassenstufen eingrenzen. Bei mehreren Bedingungen festlegen, ob alle oder mindestens eine erfüllt sein muss.",
           "Unter `Betreuungstage & Mitbuchung` festlegen, ob das Angebot als Betreuungstage zählt und ob es mitgebucht wird, wenn Eltern bestimmte andere Angebote wählen.",
@@ -1502,6 +1502,52 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Bearbeitungsformular eines Betreuungsangebots mit einem zum Betreuungszeitraum passenden Regeltermin.",
         image: "/help/screens/betreuungsangebote.webp",
+      },
+      {
+        id: "angebots-gehzeit",
+        title: "Gehzeit am Betreuungsangebot",
+        icon: ClipboardList,
+        summary:
+          "Hat ein Angebot ein festes Betreuungsende (z. B. `Ganztagsbetreuung bis 14.30 Uhr`), trägst du die Gehzeit einmal am Angebot ein und überträgst sie auf alle gebuchten Kinder. Danach steht sie in Klassenliste, Kindersuche und auf der Kinderdetailseite.",
+        steps: [
+          "`Anmeldungen` -> `Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
+          "Beim gewünschten Angebot rechts das Aktionsmenü (`⋮`) öffnen und `Bearbeiten` wählen.",
+          "Im Abschnitt `Wochentage` unter `Gehzeit je Wochentag (optional)` für jeden Tag mit festem Betreuungsende die Uhrzeit eintragen, z. B. `14:30`. Tage ohne feste Zeit (etwa eine Randstunde) bleiben leer.",
+          "Unten `Speichern` klicken. Es öffnet sich der Dialog `Gehzeit auf Kinder übertragen` mit der Anzahl der betroffenen Kinder.",
+          "Kinder mit einer von Hand gepflegten, abweichenden Gehzeit sind im Dialog einzeln aufgeführt und angehakt. Haken entfernen, wenn ein Kind seine bisherige Gehzeit behalten soll.",
+          "`Übertragen` klicken. Die Gehzeit steht jetzt bei allen (angehakten) Kindern als reguläre Abholzeit an ihren gebuchten Wochentagen; `Nicht übertragen` speichert nur das Angebot.",
+          "Prüfen: Auf der Kinderdetailseite im Tab `Betreuungszeiten` trägt die Abholung den Hinweis `aus Angebot`. Wird die Gehzeit später am Angebot geändert, erscheint der Dialog beim Speichern erneut.",
+          "Einzelnes Kind anpassen: Im Tab `Betreuungszeiten` über `Wochenplan` eine eigene Zeit eintragen - sie ersetzt die Angebots-Gehzeit nur für dieses Kind und bleibt bei späteren Übertragungen wählbar. Über `Ausnahme` auf einer Tageskarte öffnet sich der Tageseditor; dort stellt `Abholung auf Angebots-Gehzeit zurücksetzen` die Zeit aus dem Angebot wieder her.",
+        ],
+        callout: {
+          title: "Was gilt wann?",
+          body: "Eine im Anmeldeformular angegebene Abholzeit und eine von Hand gepflegte Gehzeit gehen der Angebots-Gehzeit vor. Sind mehrere Angebote mit Gehzeit am selben Tag gebucht, gilt die späteste Zeit. Verliert ein Kind das Angebot, wird die daraus übernommene Gehzeit automatisch entfernt; von Hand gepflegte Zeiten bleiben bestehen.",
+          tone: "blue",
+        },
+        gallery: [
+          {
+            image: "/help/screens/gehzeit-angebot.webp",
+            caption:
+              "Schritt 1-3: Im Angebots-Editor unter `Wochentage` je Tag die Gehzeit eintragen, hier 14:30 für Montag bis Freitag.",
+          },
+          {
+            image: "/help/screens/gehzeit-uebertragen.webp",
+            caption:
+              "Schritt 4-6: Der Dialog nach dem Speichern. Kinder mit abweichender, von Hand gepflegter Gehzeit sind angehakt gelistet und lassen sich einzeln ausnehmen.",
+          },
+          {
+            image: "/help/screens/gehzeit-kinderdetails.webp",
+            caption:
+              "Schritt 7: Auf der Kinderdetailseite im Tab `Betreuungszeiten` trägt die übernommene Abholzeit den Hinweis `aus Angebot`.",
+          },
+          {
+            image: "/help/screens/gehzeit-zuruecksetzen.webp",
+            caption:
+              "Schritt 8: Der Tageseditor (über `Ausnahme` geöffnet) mit `Abholung auf Angebots-Gehzeit zurücksetzen` bei einer von Hand gepflegten Zeit.",
+          },
+        ],
+        screenshot:
+          "Vier Schritte: Gehzeit im Angebots-Editor, Übertragen-Dialog, Kinderdetailseite mit Hinweis `aus Angebot` und Zurücksetzen im Tageseditor.",
       },
       {
         id: "anmeldeformulare",
