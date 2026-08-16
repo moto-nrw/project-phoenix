@@ -30,7 +30,7 @@ import {
   ParentLoadError,
   ParentPage,
   ParentPageHeader,
-  ParentPageSkeleton,
+  ParentSectionSkeletons,
 } from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "ParentDashboard" });
@@ -163,8 +163,27 @@ export function ParentDashboard() {
     [children, requests, locale, t],
   );
 
+  const header = (
+    <ParentPageHeader
+      kicker={t("eyebrow")}
+      title={t("title")}
+      description={t("description")}
+      actions={
+        <ParentLinkAction href="/parents/enroll">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          {t("newEnrollment")}
+        </ParentLinkAction>
+      }
+    />
+  );
+
   if (loading) {
-    return <ParentPageSkeleton rows={2} />;
+    return (
+      <ParentPage>
+        {header}
+        <ParentSectionSkeletons rows={2} />
+      </ParentPage>
+    );
   }
 
   if (error) {
@@ -176,17 +195,7 @@ export function ParentDashboard() {
 
   return (
     <ParentPage>
-      <ParentPageHeader
-        kicker={t("eyebrow")}
-        title={t("title")}
-        description={t("description")}
-        actions={
-          <ParentLinkAction href="/parents/enroll">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            {t("newEnrollment")}
-          </ParentLinkAction>
-        }
-      />
+      {header}
 
       <SectionCard
         icon={Users}

@@ -5,7 +5,7 @@ import GuardianApprovalQueue, {
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { Loading } from "~/components/ui/loading";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
@@ -45,7 +45,12 @@ export default function GuardianApprovalsPage() {
     getSettingValue(settingsSchema, "guardians.parent_invite_mode"),
   );
 
-  if (!isReady) return <Loading fullPage={false} />;
+  if (!isReady)
+    return (
+      <SkeletonRegion label="Konto-Anfragen werden geladen">
+        <ListSkeleton rows={5} />
+      </SkeletonRegion>
+    );
 
   const inviteModeState: GuardianInviteModeState = isSettingsLoading
     ? { status: "loading" }

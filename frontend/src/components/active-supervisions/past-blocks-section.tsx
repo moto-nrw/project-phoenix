@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, History } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Loading } from "~/components/ui/loading";
+import {
+  CardGridSkeleton,
+  ListSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
@@ -100,7 +104,13 @@ export function PastBlocksSection() {
       bodyClassName="-mx-5 -mb-5 mt-5 border-t border-gray-100 bg-gray-50/50 p-5"
     >
       {isLoading && blocks === null ? (
-        <Loading fullPage={false} />
+        <SkeletonRegion label="Vergangene Blöcke werden geladen">
+          <CardGridSkeleton
+            cards={4}
+            rowsPerCard={2}
+            className="grid gap-3 xl:grid-cols-2"
+          />
+        </SkeletonRegion>
       ) : loadError ? (
         <Alert type="error" message={loadError} />
       ) : blocks !== null && blocks.length === 0 ? (
@@ -192,7 +202,9 @@ function PastBlockCard({
         {expanded ? (
           <div className="mt-3">
             {isLoading ? (
-              <Loading fullPage={false} />
+              <SkeletonRegion label="Kinderliste wird geladen">
+                <ListSkeleton rows={4} avatar={false} />
+              </SkeletonRegion>
             ) : loadError ? (
               <Alert type="error" message={loadError} />
             ) : roster !== null ? (

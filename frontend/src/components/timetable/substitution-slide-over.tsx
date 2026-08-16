@@ -42,8 +42,8 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
@@ -1218,7 +1218,9 @@ function HistoryTab({
         </div>
 
         {isLoading ? (
-          <Loading />
+          <SkeletonRegion label="Verlauf wird geladen">
+            <ListSkeleton rows={4} avatar={false} />
+          </SkeletonRegion>
         ) : error ? (
           <p className="text-sm text-gray-500">
             Der Verlauf konnte nicht geladen werden. Bitte erneut versuchen.

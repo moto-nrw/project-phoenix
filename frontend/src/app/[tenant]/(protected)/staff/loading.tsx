@@ -1,12 +1,22 @@
 "use client";
 
-import { StaffPageSkeleton } from "./page-skeleton";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { StaffCardsSkeleton } from "./page-skeleton";
 
 /**
- * Route-level loading UI: renders the same skeleton the page shows while its
- * data loads, so navigation shows one continuous skeleton instead of the
- * generic group-level Loading followed by the page skeleton.
+ * Route-level loading UI: renders the real header immediately (Polaris: real
+ * chrome first, skeletonize only the data region) with a disabled no-op
+ * search field — this component has no page state yet — followed by the
+ * card-grid skeleton for the data region.
  */
 export default function StaffLoading() {
-  return <StaffPageSkeleton />;
+  return (
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch
+        title="Mitarbeiter"
+        search={{ value: "", onChange: () => {} }}
+      />
+      <StaffCardsSkeleton />
+    </div>
+  );
 }

@@ -8,6 +8,7 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 interface PersonsTableProps {
   persons: OperatorPerson[];
   showSchool?: boolean;
+  isLoading?: boolean;
   onDelete?: (person: OperatorPerson) => void;
 }
 
@@ -65,6 +66,7 @@ function getPersonTagSortValue(person: OperatorPerson): string {
 export function PersonsTable({
   persons,
   showSchool = false,
+  isLoading = false,
   onDelete,
 }: Readonly<PersonsTableProps>) {
   const columns: DataTableColumn<OperatorPerson>[] = useMemo(() => {
@@ -145,6 +147,7 @@ export function PersonsTable({
       emptyState="Keine Personen vorhanden."
       defaultSortKey="name"
       pageSize={50}
+      isLoading={isLoading}
     />
   );
 }

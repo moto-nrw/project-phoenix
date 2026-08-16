@@ -9,7 +9,7 @@ import {
   exportEmergencySnapshot,
   type EmergencySnapshotExportMode,
 } from "~/lib/emergency-export-api";
-import { Loading } from "~/components/ui/loading";
+import { SkeletonRegion, CardSkeleton } from "~/components/ui/page-skeletons";
 
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
@@ -40,7 +40,16 @@ export default function EmergencyPage() {
   }, [handleExport]);
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return (
+      <main className="flex w-full items-center justify-center px-4 py-6 sm:min-h-[calc(100dvh-11rem)] sm:px-6 sm:py-10 lg:px-8">
+        <SkeletonRegion
+          label="Notfallliste wird geladen…"
+          className="w-full max-w-3xl"
+        >
+          <CardSkeleton rows={2} />
+        </SkeletonRegion>
+      </main>
+    );
   }
 
   return (

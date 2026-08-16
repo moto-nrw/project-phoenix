@@ -653,7 +653,9 @@ function SkeletonStudentRow({ withAvatar }: { withAvatar: boolean }) {
   );
 }
 
-function RoomDetailSkeleton() {
+function RoomDetailSkeleton({
+  headerAction,
+}: Readonly<{ headerAction?: React.ReactNode }>) {
   // Read the per-tenant photo flag once at the top of the skeleton so the
   // child-rows below match the populated CompactStudentCard shape exactly
   // (avatar slot reserved when the tenant has photos on; original tighter
@@ -665,13 +667,36 @@ function RoomDetailSkeleton() {
       data-testid="room-detail-skeleton"
       className="block"
     >
-      {/* Header row , name + status pill, same line as the loaded view. */}
-      <div className="mb-6 flex items-center gap-2">
-        <SkeletonLine className="h-7 w-48 md:h-8 md:w-64" />
-        <SkeletonLine className="h-6 w-16 rounded-full" />
+      {/* Header row mirrors RoomDetailContent's real header (icon + name +
+          status pill placeholders), but renders the real headerAction so
+          the close control (modal/drawer X) stays available while the
+          fetch is in flight instead of disappearing behind the skeleton. */}
+      <div
+        className={`flex items-center gap-2 ${
+          headerAction
+            ? "sticky top-0 z-20 border-b border-gray-200/70 bg-gray-50/95 px-5 pt-5 pb-4 backdrop-blur supports-[backdrop-filter]:bg-gray-50/85 sm:px-6"
+            : "mb-5"
+        }`}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <MotoDuotoneIcon
+            icon={MOTO_CONCEPTS.rooms.icon}
+            tone={MOTO_CONCEPTS.rooms.tone}
+            size={32}
+          />
+          <SkeletonLine className="h-7 w-48 md:h-8 md:w-64" />
+          <SkeletonLine className="h-6 w-16 flex-shrink-0 rounded-full" />
+        </div>
+        {headerAction && (
+          <div className="ml-auto flex-shrink-0">{headerAction}</div>
+        )}
       </div>
 
-      <div className="space-y-4 sm:space-y-6">
+      <div
+        className={`space-y-4 sm:space-y-6 ${
+          headerAction ? "px-5 pt-5 sm:px-6" : ""
+        }`}
+      >
         <SkeletonCardShell heading="Rauminformationen">
           <div className="space-y-1">
             <SkeletonIconRow />
@@ -735,9 +760,10 @@ export function RoomDetailLoader({
 }: RoomDetailLoaderProps) {
   const { room, history, loading, error, historyDisabled } =
     useRoomDetail(roomId);
+  const showSkeleton = loading;
 
-  if (loading) {
-    return <RoomDetailSkeleton />;
+  if (showSkeleton) {
+    return <RoomDetailSkeleton headerAction={headerAction} />;
   }
 
   if (error || !room) {

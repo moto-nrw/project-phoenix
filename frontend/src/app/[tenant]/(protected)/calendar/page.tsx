@@ -17,8 +17,8 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
-import { Loading } from "~/components/ui/loading";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -276,7 +276,14 @@ const SchoolPlanReadView = dynamic(
     import("~/components/timetable/betreuungsplan-view").then(
       (mod) => mod.BetreuungsplanView,
     ),
-  { ssr: false, loading: () => <Loading /> },
+  {
+    ssr: false,
+    loading: () => (
+      <SkeletonRegion label="Betreuungsplan wird geladen…">
+        <TableSkeleton rows={7} columns={5} />
+      </SkeletonRegion>
+    ),
+  },
 );
 
 export default function StaffCalendarPage() {

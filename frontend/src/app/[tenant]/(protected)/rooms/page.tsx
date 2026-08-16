@@ -501,24 +501,27 @@ function RoomsPageContent() {
     [exportTargetCount, handleExport, isExporting, loading],
   );
 
-  // Auth-loading: show the same skeleton as the Suspense fallback and the
-  // data-loading branch, so the cold-load sequence stays skeleton -> content
-  // without a spinner flash in between. The `useSession({ required: true })`
-  // callback redirects on unauthenticated.
-  if (status === "loading") {
-    return <RoomsGridSkeleton />;
-  }
+  // Auth-loading joins the data-loading condition below instead of an early
+  // return before the header, so the real PageHeaderWithSearch (title,
+  // search field, static tabs) renders immediately and only the room-card
+  // grid skeletonizes. The `useSession({ required: true })` callback
+  // redirects on unauthenticated.
+  const showSkeleton = status === "loading" || loading;
 
   return (
     <div className="-mt-1.5 w-full">
       {/* PageHeaderWithSearch - Title only on mobile */}
       <PageHeaderWithSearch
         title={isMobile ? "Räume" : ""}
-        badge={{
-          icon: <MotoConceptIcon concept="rooms" size={20} />,
-          count: filteredRooms.length,
-          label: "Räume",
-        }}
+        badge={
+          showSkeleton
+            ? undefined
+            : {
+                icon: <MotoConceptIcon concept="rooms" size={20} />,
+                count: filteredRooms.length,
+                label: "Räume",
+              }
+        }
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
@@ -553,7 +556,7 @@ function RoomsPageContent() {
           data arrives. Review feedback (#1323): a generic spinner
           collapsed the header row into a tiny payload, then the layout
           jumped open when rooms loaded. */}
-      {loading ? (
+      {showSkeleton ? (
         <RoomsGridSkeleton />
       ) : (
         <>

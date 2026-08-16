@@ -669,9 +669,14 @@ function StudentDetailPageContent() {
     }
   }, [loading, student, sessionStatus, urlTab, activeTab, handleTabChange]);
 
-  // Show loading state
+  // Show loading state. `referrer` needs no fetched data (it's derived from
+  // the `?from=` query param above), so the BackButton renders for real here
+  // instead of a placeholder — see page-skeleton.tsx. The rest of the body
+  // stays skeletonized: `visibleTabs` and the FullAccessView/LimitedAccessView
+  // split both depend on `hasFullAccess`, a field on the student object that
+  // isn't known until this fetch resolves.
   if (loading) {
-    return <StudentDetailSkeleton />;
+    return <StudentDetailSkeleton referrer={referrer} />;
   }
 
   // Show error state

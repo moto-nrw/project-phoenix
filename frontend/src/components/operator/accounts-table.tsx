@@ -85,6 +85,7 @@ function getNameSortValue(account: AccountRow): string {
 interface AccountsTableProps {
   accounts: SchoolAccount[] | OrgAccount[];
   showSchool?: boolean;
+  isLoading?: boolean;
   selectedSchool?: School | null;
   onManageCaregiver?: (
     account: AccountRow,
@@ -101,6 +102,7 @@ interface AccountsTableProps {
 export function AccountsTable({
   accounts,
   showSchool = false,
+  isLoading = false,
   selectedSchool,
   onManageCaregiver,
   onManageMFA,
@@ -265,6 +267,7 @@ export function AccountsTable({
       }}
       defaultSortKey={showSchool ? "schoolName" : "name"}
       pageSize={50}
+      isLoading={isLoading}
     />
   );
 }

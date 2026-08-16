@@ -13,10 +13,13 @@ import {
 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useToast } from "~/contexts/ToastContext";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -528,7 +531,13 @@ export default function MealPlanPage() {
         </section>
 
         {loading && !hasLoaded ? (
-          <Loading fullPage={false} />
+          <SkeletonRegion label="Essensplan wird geladen">
+            <CardGridSkeleton
+              cards={5}
+              rowsPerCard={2}
+              className="grid grid-cols-1 gap-4 md:grid-cols-5"
+            />
+          </SkeletonRegion>
         ) : loadError ? (
           <section className="moto-content-surface flex flex-col items-center gap-4 rounded-2xl border p-8 text-center shadow-sm">
             <p className="text-sm text-gray-500">

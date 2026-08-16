@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
-import { Loading } from "~/components/ui/loading";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
 import {
@@ -180,7 +180,11 @@ export function TransitionPreviewModal({
           </div>
         }
       >
-        {!preview && !loadError && <Loading fullPage={false} />}
+        {!preview && !loadError && (
+          <SkeletonRegion label="Vorschau wird geladen">
+            <ListSkeleton rows={4} avatar={false} />
+          </SkeletonRegion>
+        )}
         {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
 
         {preview && (

@@ -2,21 +2,33 @@
 
 import { Suspense } from "react";
 import { PhasesEditor } from "~/components/enrollment/phases-editor";
-import { Loading } from "~/components/ui/loading";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
+import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+
+function PhasesEditorSkeleton() {
+  return (
+    <SkeletonRegion label="Anmeldephasen werden geladen">
+      <TableSkeleton columns={6} rows={5} />
+    </SkeletonRegion>
+  );
+}
 
 export default function EnrollmentPhasesPage() {
   const { isReady } = useRequireAdmin();
-  if (!isReady) return <Loading fullPage={false} />;
+  const showSkeleton = !isReady;
 
   return (
     <div className="-mt-1.5 w-full">
       <DesktopOnlyNotice />
       <div className="hidden lg:block">
-        <Suspense fallback={<Loading fullPage={false} />}>
-          <PhasesEditor />
-        </Suspense>
+        {showSkeleton ? (
+          <PhasesEditorSkeleton />
+        ) : (
+          <Suspense fallback={<PhasesEditorSkeleton />}>
+            <PhasesEditor />
+          </Suspense>
+        )}
       </div>
     </div>
   );

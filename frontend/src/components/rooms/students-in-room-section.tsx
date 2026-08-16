@@ -25,6 +25,7 @@ import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
 import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
@@ -551,28 +552,6 @@ interface StudentsInRoomBodyProps {
   readonly router: ReturnType<typeof useTenantRouter>;
 }
 
-// Single student-row skeleton matching CompactStudentCard's outer shell
-// (rounded-xl border, px-4 py-3, name line + meta line). The skeleton
-// list lives inside the same `flex flex-col gap-2` wrapper the populated
-// list uses, so swapping skeleton → real cards causes zero layout shift
-// (review feedback #1323). When the per-tenant photo feature is on we
-// also reserve the avatar slot (sm = 32px) so the row height + horizontal
-// content origin match the populated card; opt-out tenants keep the
-// original tighter shape.
-function StudentRowSkeleton({ withAvatar }: { withAvatar: boolean }) {
-  return (
-    <div className="moto-content-surface flex items-center gap-3 rounded-xl border px-4 py-3">
-      {withAvatar ? (
-        <div className="h-8 w-8 flex-shrink-0 animate-pulse rounded-full bg-gray-200" />
-      ) : null}
-      <div className="min-w-0 flex-1">
-        <div className="h-4 w-40 animate-pulse rounded bg-gray-200" />
-        <div className="mt-2 h-3 w-24 animate-pulse rounded bg-gray-200" />
-      </div>
-    </div>
-  );
-}
-
 function StudentsInRoomBody({
   fromReferrer,
   loading,
@@ -593,23 +572,19 @@ function StudentsInRoomBody({
     );
   }
 
-  // All three states (loading / empty / loaded) live inside the same
-  // `flex flex-col gap-2` wrapper so the section's vertical footprint
-  // stays stable across them. Without this, the loading placeholder
-  // (was: <Loading> with pt-24 pb-12) was a different shape than the
-  // populated list, and the section visibly resized when data arrived.
+  // All three states (loading / empty / loaded) occupy similar vertical
+  // space so the section's footprint stays roughly stable across them and
+  // doesn't visibly jump when real data arrives (#1323 review). Shared kit
+  // primitive: SkeletonRegion is the one announcing wrapper per region, its
+  // testid/label are the AT + test contract other code queries.
   if (loading && students.length === 0) {
     return (
-      <output
-        aria-label="Kinderliste wird geladen"
-        data-testid="students-in-room-skeleton"
-        className="flex flex-col gap-2"
+      <SkeletonRegion
+        label="Kinderliste wird geladen"
+        testId="students-in-room-skeleton"
       >
-        <StudentRowSkeleton withAvatar={photosEnabled} />
-        <StudentRowSkeleton withAvatar={photosEnabled} />
-        <StudentRowSkeleton withAvatar={photosEnabled} />
-        <StudentRowSkeleton withAvatar={photosEnabled} />
-      </output>
+        <ListSkeleton rows={4} avatar={photosEnabled} />
+      </SkeletonRegion>
     );
   }
 

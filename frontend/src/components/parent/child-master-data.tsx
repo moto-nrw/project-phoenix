@@ -20,7 +20,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import {
   ParentPage,
   ParentPageHeader,
-  ParentPageSkeleton,
+  ParentSectionSkeletons,
 } from "~/components/parent/parent-page";
 import { todayISO } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
@@ -91,37 +91,42 @@ export function ChildMasterDataView({ studentId }: Props) {
     void load();
   }, [load]);
 
-  if (loading) {
-    return <ParentPageSkeleton rows={3} />;
-  }
-
-  if (error || !data || !features) {
-    return (
-      <ParentPage>
-        <ParentPageHeader
-          backHref={`/parents/children/${studentId}`}
-          backLabel={t("back")}
-          title={t("title")}
-        />
-        <Alert type="error" message={t("loadError")} />
-      </ParentPage>
-    );
-  }
+  // Rendered once, in the same tree position, across loading/error/success —
+  // the header content never depends on the fetch outcome, and identity here
+  // keeps it a single stable DOM node instead of one that gets torn down and
+  // rebuilt when the body swaps in underneath it.
+  const header = (
+    <ParentPageHeader
+      backHref={`/parents/children/${studentId}`}
+      backLabel={t("back")}
+      title={t("title")}
+      description={t("subtitle")}
+    />
+  );
 
   return (
-    <ChildMasterDataContent
-      studentId={studentId}
-      data={data}
-      features={features}
-      onApplied={setData}
-      onDirectApplied={(target, field, next) =>
-        setData((current) =>
-          current
-            ? mergeDirectMasterDataField(current, next, target, field)
-            : next,
-        )
-      }
-    />
+    <ParentPage>
+      {header}
+      {loading ? (
+        <ParentSectionSkeletons rows={3} />
+      ) : error || !data || !features ? (
+        <Alert type="error" message={t("loadError")} />
+      ) : (
+        <ChildMasterDataContent
+          studentId={studentId}
+          data={data}
+          features={features}
+          onApplied={setData}
+          onDirectApplied={(target, field, next) =>
+            setData((current) =>
+              current
+                ? mergeDirectMasterDataField(current, next, target, field)
+                : next,
+            )
+          }
+        />
+      )}
+    </ParentPage>
   );
 }
 
@@ -162,14 +167,7 @@ function ChildMasterDataContent({
   );
 
   return (
-    <ParentPage>
-      <ParentPageHeader
-        backHref={`/parents/children/${studentId}`}
-        backLabel={t("back")}
-        title={t("title")}
-        description={t("subtitle")}
-      />
-
+    <>
       {/* Track B — child identity (approval required) */}
       <IdentitySection
         studentId={studentId}
@@ -276,7 +274,7 @@ function ChildMasterDataContent({
       <ChildCareScheduleSection studentId={studentId} />
 
       <ChildCareOfferingsSection studentId={studentId} />
-    </ParentPage>
+    </>
   );
 }
 

@@ -483,6 +483,51 @@
   z-index: 60;
 }
 
+/* Anti-flash for loading skeletons (NN/g: no indicator under ~1 s). The
+   region stays in the DOM (labels/queries work immediately) but its visual
+   content only appears after 300 ms — fast responses never flash a skeleton.
+   Opacity-only, so it is not motion in the prefers-reduced-motion sense. */
+@keyframes moto-skeleton-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.moto-skeleton-defer {
+  animation: moto-skeleton-appear 120ms linear 300ms both;
+}
+
+/* Skeleton mask: renders REAL component markup with placeholder data as its
+   own loading state — text becomes bars, controls become inert. Scope: only
+   text-heavy detail/form surfaces without images or charts (see
+   docs/skeleton-loading-research.md). The container that applies this class
+   must also set aria-hidden="true" and inert so fake content reaches neither
+   screen readers nor the tab order. */
+.moto-skeleton-mask {
+  pointer-events: none;
+  user-select: none;
+}
+
+.moto-skeleton-mask :is(p, span, dt, dd, h1, h2, h3, h4, label, a, td, th, li) {
+  color: transparent !important;
+  background: var(--color-gray-200);
+  border-radius: 6px;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.moto-skeleton-mask :is(img, svg, video, button, input, select, textarea) {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moto-skeleton-mask :is(p, span, dt, dd, h1, h2, h3, h4, label, a, td, th, li) {
+    animation: none;
+  }
+}
+
 /* Print rules reset unlayered page styles that Tailwind print utilities cannot
    override, then add a dedicated guide background for PDF exports. */
 @media print {

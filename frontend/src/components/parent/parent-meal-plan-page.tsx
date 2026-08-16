@@ -4,8 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Loading } from "~/components/ui/loading";
 import { Alert } from "~/components/ui/alert";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import {
   ParentPage,
   ParentPageHeader,
@@ -289,7 +292,13 @@ export function ParentMealPlanPage() {
           </section>
 
           {!weekReady ? (
-            <Loading fullPage={false} />
+            <SkeletonRegion label="Essensplan wird geladen">
+              <CardGridSkeleton
+                cards={5}
+                rowsPerCard={1}
+                className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-5"
+              />
+            </SkeletonRegion>
           ) : weekError ? (
             <Alert type="error" message={t("loadError")} />
           ) : weekIsEmpty ? (

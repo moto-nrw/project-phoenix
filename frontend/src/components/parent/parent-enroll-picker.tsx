@@ -255,14 +255,27 @@ function EmptyPhases() {
 }
 
 function ParentEnrollSkeleton() {
+  // Mirrors SchoolCard above: icon-tile header row over a divide-y list of
+  // PhaseRow-shaped lines, instead of two blank blocks.
   return (
-    <div className="space-y-4">
-      {[0, 1].map((item) => (
-        <div
-          key={item}
-          className="h-40 animate-pulse rounded-2xl border border-gray-200 bg-white shadow-sm"
-        />
-      ))}
+    <div className="space-y-4" aria-hidden="true">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
+          <span className="h-11 w-11 shrink-0 animate-pulse rounded-xl bg-gray-100" />
+          <span className="h-5 w-48 animate-pulse rounded bg-gray-200" />
+        </div>
+        <ul className="divide-y divide-gray-100">
+          {[0, 1, 2].map((row) => (
+            <li key={row} className="flex items-center gap-4 p-4 sm:px-6">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200" />
+                <div className="h-3 w-3/5 animate-pulse rounded bg-gray-200" />
+              </div>
+              <div className="h-4 w-4 shrink-0 animate-pulse rounded bg-gray-200" />
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

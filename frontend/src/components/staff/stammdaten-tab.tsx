@@ -6,8 +6,8 @@ import { Eye, EyeOff, Lock } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { DataFieldSkeleton } from "~/components/ui/detail-modal-components";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate, todayISO } from "~/lib/date-helpers";
@@ -136,19 +136,11 @@ export function StammdatenTab({
   const {
     data: stammdaten,
     error: stammdatenError,
-    isLoading: stammdatenLoading,
     isValidating: stammdatenValidating,
     mutate: mutateStammdaten,
   } = useSWRAuth(canViewSections ? `staff-stammdaten-${staffId}` : null, () =>
     staffStammdatenService.get(staffId),
   );
-
-  if (
-    (canManagePayroll && payrollLoading) ||
-    (canViewSections && stammdatenLoading)
-  ) {
-    return <Loading fullPage={false} />;
-  }
 
   if (canManagePayroll && payrollError) {
     return (
@@ -201,7 +193,7 @@ export function StammdatenTab({
 
   return (
     <div className="space-y-5">
-      {stammdaten && (
+      {canViewSections && (
         <>
           <SectionCard
             collapsible
@@ -209,30 +201,41 @@ export function StammdatenTab({
             title="Person"
             action={
               <EditAction
-                visible={canEditSections}
+                visible={canEditSections && Boolean(stammdaten)}
                 onClick={() => setOpenModal("person")}
               />
             }
           >
             <FieldGrid>
-              <Field label="Vorname" value={stammdaten.person.firstName} />
-              <Field label="Nachname" value={stammdaten.person.lastName} />
-              <Field
-                label="Geburtsdatum"
-                value={
-                  stammdaten.person.birthday
-                    ? formatDate(stammdaten.person.birthday)
-                    : null
-                }
-              />
-              <Field
-                label="Geschlecht"
-                value={
-                  stammdaten.person.gender
-                    ? (genderLabels[stammdaten.person.gender] ?? null)
-                    : null
-                }
-              />
+              {stammdaten ? (
+                <>
+                  <Field label="Vorname" value={stammdaten.person.firstName} />
+                  <Field label="Nachname" value={stammdaten.person.lastName} />
+                  <Field
+                    label="Geburtsdatum"
+                    value={
+                      stammdaten.person.birthday
+                        ? formatDate(stammdaten.person.birthday)
+                        : null
+                    }
+                  />
+                  <Field
+                    label="Geschlecht"
+                    value={
+                      stammdaten.person.gender
+                        ? (genderLabels[stammdaten.person.gender] ?? null)
+                        : null
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                </>
+              )}
             </FieldGrid>
           </SectionCard>
 
@@ -242,22 +245,33 @@ export function StammdatenTab({
             title="Kontakt"
             action={
               <EditAction
-                visible={canEditSections}
+                visible={canEditSections && Boolean(stammdaten)}
                 onClick={() => setOpenModal("kontakt")}
               />
             }
           >
             <FieldGrid>
-              <Field
-                label="Adresse"
-                value={formatAddress(stammdaten) ?? null}
-              />
-              <Field label="Telefon" value={stammdaten.kontakt.phone} />
-              <Field label="E-Mail" value={stammdaten.kontakt.email} />
-              <Field
-                label="Notfallkontakt"
-                value={formatEmergencyContact(stammdaten) ?? null}
-              />
+              {stammdaten ? (
+                <>
+                  <Field
+                    label="Adresse"
+                    value={formatAddress(stammdaten) ?? null}
+                  />
+                  <Field label="Telefon" value={stammdaten.kontakt.phone} />
+                  <Field label="E-Mail" value={stammdaten.kontakt.email} />
+                  <Field
+                    label="Notfallkontakt"
+                    value={formatEmergencyContact(stammdaten) ?? null}
+                  />
+                </>
+              ) : (
+                <>
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                </>
+              )}
             </FieldGrid>
           </SectionCard>
 
@@ -267,55 +281,67 @@ export function StammdatenTab({
             title="Arbeitsvertrag"
             action={
               <EditAction
-                visible={canEditSections}
+                visible={canEditSections && Boolean(stammdaten)}
                 onClick={() => setOpenModal("arbeitsvertrag")}
               />
             }
           >
             <FieldGrid>
-              <Field
-                label="Eintrittsdatum"
-                value={
-                  stammdaten.arbeitsvertrag.entryDate
-                    ? formatDate(stammdaten.arbeitsvertrag.entryDate)
-                    : null
-                }
-              />
-              <Field
-                label="Beschäftigungstyp"
-                value={
-                  stammdaten.arbeitsvertrag.employmentType
-                    ? (employmentTypeLabels[
-                        stammdaten.arbeitsvertrag.employmentType
-                      ] ?? stammdaten.arbeitsvertrag.employmentType)
-                    : null
-                }
-              />
-              <Field
-                label="Befristet bis"
-                value={
-                  stammdaten.arbeitsvertrag.contractEndDate
-                    ? formatDate(stammdaten.arbeitsvertrag.contractEndDate)
-                    : "Unbefristet"
-                }
-              />
-              <Field
-                label="Probezeit bis"
-                value={
-                  stammdaten.arbeitsvertrag.probationEndDate
-                    ? formatDate(stammdaten.arbeitsvertrag.probationEndDate)
-                    : null
-                }
-              />
-              <Field
-                label="Wochenstunden lt. Vertrag"
-                value={
-                  stammdaten.arbeitsvertrag.weeklyHours != null
-                    ? `${stammdaten.arbeitsvertrag.weeklyHours.toLocaleString("de-DE")} Std.`
-                    : null
-                }
-                mono
-              />
+              {stammdaten ? (
+                <>
+                  <Field
+                    label="Eintrittsdatum"
+                    value={
+                      stammdaten.arbeitsvertrag.entryDate
+                        ? formatDate(stammdaten.arbeitsvertrag.entryDate)
+                        : null
+                    }
+                  />
+                  <Field
+                    label="Beschäftigungstyp"
+                    value={
+                      stammdaten.arbeitsvertrag.employmentType
+                        ? (employmentTypeLabels[
+                            stammdaten.arbeitsvertrag.employmentType
+                          ] ?? stammdaten.arbeitsvertrag.employmentType)
+                        : null
+                    }
+                  />
+                  <Field
+                    label="Befristet bis"
+                    value={
+                      stammdaten.arbeitsvertrag.contractEndDate
+                        ? formatDate(stammdaten.arbeitsvertrag.contractEndDate)
+                        : "Unbefristet"
+                    }
+                  />
+                  <Field
+                    label="Probezeit bis"
+                    value={
+                      stammdaten.arbeitsvertrag.probationEndDate
+                        ? formatDate(stammdaten.arbeitsvertrag.probationEndDate)
+                        : null
+                    }
+                  />
+                  <Field
+                    label="Wochenstunden lt. Vertrag"
+                    value={
+                      stammdaten.arbeitsvertrag.weeklyHours != null
+                        ? `${stammdaten.arbeitsvertrag.weeklyHours.toLocaleString("de-DE")} Std.`
+                        : null
+                    }
+                    mono
+                  />
+                </>
+              ) : (
+                <>
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                  <DataFieldSkeleton />
+                </>
+              )}
             </FieldGrid>
           </SectionCard>
 
@@ -326,12 +352,17 @@ export function StammdatenTab({
             description="Nachweise wie Erste-Hilfe-Kurs oder Schwimmschein, mit Ablaufdatum."
             action={
               <EditAction
-                visible={canEditSections}
+                visible={canEditSections && Boolean(stammdaten)}
                 onClick={() => setOpenModal("qualifikationen")}
               />
             }
           >
-            {stammdaten.qualifikationen.length === 0 ? (
+            {!stammdaten ? (
+              <FieldGrid>
+                <DataFieldSkeleton />
+                <DataFieldSkeleton />
+              </FieldGrid>
+            ) : stammdaten.qualifikationen.length === 0 ? (
               <p className="text-sm text-gray-400">
                 Keine Qualifikationen hinterlegt.
               </p>
@@ -381,18 +412,22 @@ export function StammdatenTab({
           description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen."
           action={
             <EditAction
-              visible={canManagePayroll}
+              visible={canManagePayroll && !payrollLoading}
               onClick={() => setOpenModal("payroll")}
             />
           }
         >
           <FieldGrid>
-            <Field
-              label="Personalnummer"
-              value={personnelNumber ?? null}
-              emptyText="Nicht gesetzt"
-              mono
-            />
+            {payrollLoading ? (
+              <DataFieldSkeleton />
+            ) : (
+              <Field
+                label="Personalnummer"
+                value={personnelNumber ?? null}
+                emptyText="Nicht gesetzt"
+                mono
+              />
+            )}
           </FieldGrid>
           <p className="mt-4 text-xs text-gray-500">
             Lohnarten und DATEV-Mandantendaten werden zentral unter{" "}

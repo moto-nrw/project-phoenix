@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Modal } from "~/components/ui/modal";
 import { createLogger } from "~/lib/logger";
 import {
@@ -286,7 +286,11 @@ export function TransitionEditor({
         </p>
 
         {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
-        {rows === null && !loadError && <Loading fullPage={false} />}
+        {rows === null && !loadError && (
+          <SkeletonRegion label="Klassenvorschläge werden geladen">
+            <ListSkeleton rows={5} avatar={false} />
+          </SkeletonRegion>
+        )}
 
         {rows !== null && (
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-200">

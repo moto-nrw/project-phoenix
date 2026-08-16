@@ -33,6 +33,10 @@ import {
 import { fetchSettingsSchema } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -156,7 +160,13 @@ export function AdminEnrollmentsList() {
 
   if (loading) {
     return (
-      <p className="text-sm text-gray-500">Anmeldungen werden geladen...</p>
+      <SkeletonRegion label="Anmeldungen werden geladen" className="mt-4">
+        <CardGridSkeleton
+          cards={3}
+          rowsPerCard={2}
+          className="grid grid-cols-1 gap-4"
+        />
+      </SkeletonRegion>
     );
   }
 

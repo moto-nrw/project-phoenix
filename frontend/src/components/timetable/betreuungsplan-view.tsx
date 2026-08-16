@@ -1166,17 +1166,16 @@ function TimetablesContent() {
     toast,
   ]);
 
-  if (status === "loading") {
-    return <TimetablePageSkeleton />;
-  }
+  // While the session or the settings schema loads we cannot tell yet
+  // whether the feature is enabled or what the caller may do. The
+  // PlanningContextBar (title, navigation) renders immediately regardless —
+  // only the calendar-grid content below falls back to its skeleton, and
+  // permission-dependent toolbar bits (view switcher, export, "Neu") stay
+  // hidden until they resolve (hasPermission(undefined, …) is false while
+  // loading).
+  const showSkeleton = status === "loading" || settingsSchemaLoading;
 
-  // While the settings schema loads we cannot tell yet whether the feature
-  // is enabled — show the normal skeleton instead of flashing the planner.
-  if (settingsSchemaLoading) {
-    return <TimetablePageSkeleton />;
-  }
-
-  if (timetableDisabled) {
+  if (!showSkeleton && timetableDisabled) {
     return (
       <PlanningDisabledState
         pageTitle="Betreuungsplan"
@@ -1435,7 +1434,7 @@ function TimetablesContent() {
             )}
 
           {view === "month" &&
-            (isInstanceDataLoading ? (
+            (showSkeleton || isInstanceDataLoading ? (
               <TimetableContentSkeleton view="month" />
             ) : (
               <MonthPlannerGrid
@@ -1451,7 +1450,7 @@ function TimetablesContent() {
 
           {view === "week" && (
             <>
-              {isInstanceDataLoading ? (
+              {showSkeleton || isInstanceDataLoading ? (
                 <TimetableContentSkeleton view="week" />
               ) : (
                 <WeeklyCalendarGrid
@@ -1490,7 +1489,7 @@ function TimetablesContent() {
 
           {view === "series" && (
             <>
-              {templatesLoading ? (
+              {showSkeleton || templatesLoading ? (
                 <TimetableContentSkeleton view="series" />
               ) : (
                 <TemplateList

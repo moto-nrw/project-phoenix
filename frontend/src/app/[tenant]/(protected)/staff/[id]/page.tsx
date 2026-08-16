@@ -34,7 +34,8 @@ import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
-import { StaffDetailSkeleton } from "./page-skeleton";
+import { DetailSkeleton } from "~/components/ui/page-skeletons";
+import { StaffDetailSkeleton, StaffHeaderSkeleton } from "./page-skeleton";
 
 // ─── Labels & constants ──────────────────────────────────────────────────────
 
@@ -207,7 +208,13 @@ export default function StaffDetailContent() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [staffId]);
 
-  if (sessionStatus === "loading" || isLoading) {
+  // The tab set is permission-gated, and permissions come from the session,
+  // not from the staff fetch below — so until the session resolves we don't
+  // know which tabs to render at all and fall back to the full-page
+  // skeleton. Once it resolves, the real tab bar renders immediately; only
+  // the header (name/status, data-bound) and the active tab's content
+  // (needs the fetched `staff`) stay skeletons while `isLoading`.
+  if (sessionStatus === "loading") {
     return <StaffDetailSkeleton />;
   }
 
@@ -216,7 +223,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (error || !staff) {
+  if (!isLoading && (error || !staff)) {
     return (
       <EmptyState
         title="Mitarbeiter konnte nicht geladen werden."
@@ -239,13 +246,22 @@ export default function StaffDetailContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* Rich Header with kebab trigger */}
-      <StaffHeader
-        staff={staff}
-        menu={<OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />}
-      />
+      {/* Rich Header with kebab trigger. Name/status are data-bound (they
+          come from `staff`), so this stays a skeleton until the fetch
+          resolves — the tab bar right below doesn't need to wait. */}
+      {staff ? (
+        <StaffHeader
+          staff={staff}
+          menu={<OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />}
+        />
+      ) : (
+        <StaffHeaderSkeleton />
+      )}
 
-      {/* Tabs */}
+      {/* Tabs — permission-gated, not data-gated: the canView/canEdit/canManage
+          flags all derive from the session, which is already resolved here,
+          so the real tab bar renders immediately even while `staff` is
+          still loading. */}
       <Tabs
         defaultValue={
           requestedTab === "dokumente" && canViewDocuments
@@ -299,62 +315,73 @@ export default function StaffDetailContent() {
           ) : null}
         </TabsList>
 
-        {canViewTimeTracking ? (
-          <TabsPrimitive.Content value="uebersicht">
-            <UebersichtTab staffId={staffId} />
-          </TabsPrimitive.Content>
-        ) : null}
+        {staff ? (
+          <>
+            {canViewTimeTracking ? (
+              <TabsPrimitive.Content value="uebersicht">
+                <UebersichtTab staffId={staffId} />
+              </TabsPrimitive.Content>
+            ) : null}
 
-        {canViewTimeTracking ? (
-          <TabsPrimitive.Content value="zeiterfassung">
-            <ZeiterfassungTab staffId={staffId} />
-          </TabsPrimitive.Content>
-        ) : null}
+            {canViewTimeTracking ? (
+              <TabsPrimitive.Content value="zeiterfassung">
+                <ZeiterfassungTab staffId={staffId} />
+              </TabsPrimitive.Content>
+            ) : null}
 
-        {canEdit ? (
-          <TabsPrimitive.Content value="arbeitszeitmodell">
-            <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
-          </TabsPrimitive.Content>
-        ) : null}
+            {canEdit ? (
+              <TabsPrimitive.Content value="arbeitszeitmodell">
+                <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
+              </TabsPrimitive.Content>
+            ) : null}
 
-        {canManageAbsences ? (
-          <TabsPrimitive.Content value="abwesenheiten">
-            <AbwesenheitenTab
-              staffId={staffId}
-              canEdit={canEdit}
-              canManageSickReports={canManageTimeTracking}
-              staff={staff}
-            />
-          </TabsPrimitive.Content>
-        ) : null}
+            {canManageAbsences ? (
+              <TabsPrimitive.Content value="abwesenheiten">
+                <AbwesenheitenTab
+                  staffId={staffId}
+                  canEdit={canEdit}
+                  canManageSickReports={canManageTimeTracking}
+                  staff={staff}
+                />
+              </TabsPrimitive.Content>
+            ) : null}
 
-        {canViewStammdaten ? (
-          <TabsPrimitive.Content value="stammdaten">
-            <StammdatenTab
-              staffId={staffId}
-              canManagePayroll={canManageTimeTracking}
-              canManagePayrollSettings={canManagePayrollSettings}
-              canViewSections={canViewStammdatenSections}
-              canEditSections={canEditStammdaten}
-              canViewFinancial={canViewFinancial}
-            />
-          </TabsPrimitive.Content>
-        ) : null}
+            {canViewStammdaten ? (
+              <TabsPrimitive.Content value="stammdaten">
+                <StammdatenTab
+                  staffId={staffId}
+                  canManagePayroll={canManageTimeTracking}
+                  canManagePayrollSettings={canManagePayrollSettings}
+                  canViewSections={canViewStammdatenSections}
+                  canEditSections={canEditStammdaten}
+                  canViewFinancial={canViewFinancial}
+                />
+              </TabsPrimitive.Content>
+            ) : null}
 
-        {canViewDocuments ? (
-          <TabsPrimitive.Content value="dokumente">
-            <DokumenteTab staffId={staffId} />
-          </TabsPrimitive.Content>
-        ) : null}
+            {canViewDocuments ? (
+              <TabsPrimitive.Content value="dokumente">
+                <DokumenteTab staffId={staffId} />
+              </TabsPrimitive.Content>
+            ) : null}
 
-        {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
-            Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
-            Ersetzen mit users:manage — beides erzwingt das Backend. */}
-        {canViewKlassen ? (
-          <TabsPrimitive.Content value="klassen">
-            <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
-          </TabsPrimitive.Content>
-        ) : null}
+            {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
+                Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
+                Ersetzen mit users:manage — beides erzwingt das Backend. */}
+            {canViewKlassen ? (
+              <TabsPrimitive.Content value="klassen">
+                <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
+              </TabsPrimitive.Content>
+            ) : null}
+          </>
+        ) : (
+          // The active tab's content needs the fetched `staff` (e.g.
+          // AbwesenheitenTab takes it as a prop directly), so it skeletonizes
+          // as a unit instead of rendering per-tab while data is missing.
+          <div className="mt-6">
+            <DetailSkeleton sections={2} fieldsPerSection={4} />
+          </div>
+        )}
       </Tabs>
     </div>
   );

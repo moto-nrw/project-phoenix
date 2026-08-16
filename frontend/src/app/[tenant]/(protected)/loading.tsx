@@ -1,12 +1,13 @@
 "use client";
 
-import { Loading } from "~/components/ui/loading";
+import { ListPageSkeleton } from "~/components/ui/page-skeletons";
 
 /**
  * Content-area-only loading skeleton for the (protected) route group.
  * Renders inline within the persistent shell (Header/Sidebar stay mounted).
- * Uses fullPage=false so there's no fixed overlay or z-50.
+ * Generic list-page silhouette (header + table) since the actual route
+ * being navigated to is not known here.
  */
 export default function ProtectedLoadingPage() {
-  return <Loading message="Laden..." fullPage={false} />;
+  return <ListPageSkeleton label="Laden..." chips={3} rows={7} columns={5} />;
 }
