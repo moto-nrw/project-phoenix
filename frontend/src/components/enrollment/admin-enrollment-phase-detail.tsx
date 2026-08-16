@@ -40,6 +40,7 @@ import {
   type CareUsageReport,
   type CareUsageRow,
   type EnrollmentReportFormat,
+  type EnrollmentReportLayout,
   type EnrollmentReportStatus,
   exportCareUsageReport,
   exportPhaseClassRoster,
@@ -265,10 +266,17 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   }, [loadReport, reportFilters]);
 
   const handleReportExport = useCallback(
-    async (format: EnrollmentReportFormat) => {
+    async (
+      format: EnrollmentReportFormat,
+      layout: EnrollmentReportLayout = "detailed",
+    ) => {
       setExportingReportFormat(format);
       try {
-        await exportCareUsageReport(reportFilters, format);
+        if (layout === "compact") {
+          await exportCareUsageReport(reportFilters, format, "compact");
+        } else {
+          await exportCareUsageReport(reportFilters, format);
+        }
         toast.success("Auswertungsexport wurde erstellt.");
       } catch (err) {
         const message =
@@ -276,6 +284,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         logger.error("phase_care_usage_report_export_failed", {
           error: message,
           format,
+          layout,
           phase_id: phaseId,
         });
         toast.error(message);
@@ -758,7 +767,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         report={report}
         loading={reportLoading}
         exportingFormat={exportingReportFormat}
-        onExport={(format) => void handleReportExport(format)}
+        onExport={(format, layout) => void handleReportExport(format, layout)}
       />
 
       <DataTable
@@ -872,7 +881,10 @@ function ReportStats({
   report: CareUsageReport | null;
   loading: boolean;
   exportingFormat: EnrollmentReportFormat | null;
-  onExport: (format: EnrollmentReportFormat) => void;
+  onExport: (
+    format: EnrollmentReportFormat,
+    layout: EnrollmentReportLayout,
+  ) => void;
 }>) {
   const totals = report?.totals;
   return (
@@ -972,19 +984,53 @@ function ReportStatCard({
   );
 }
 
+interface ReportExportOption {
+  readonly format: EnrollmentReportFormat;
+  readonly layout: EnrollmentReportLayout;
+  readonly label: string;
+}
+
+// Excel is always tabular; PDF and Word offer the detailed record layout and
+// the compact class-roster-style table (#2215).
+const REPORT_EXPORT_OPTIONS: readonly ReportExportOption[] = [
+  { format: "xlsx", layout: "detailed", label: "Als Excel-Datei exportieren" },
+  {
+    format: "pdf",
+    layout: "detailed",
+    label: "Als PDF exportieren (ausführlich)",
+  },
+  {
+    format: "pdf",
+    layout: "compact",
+    label: "Als PDF exportieren (kompakte Tabelle)",
+  },
+  {
+    format: "docx",
+    layout: "detailed",
+    label: "Als Word-Dokument exportieren (ausführlich)",
+  },
+  {
+    format: "docx",
+    layout: "compact",
+    label: "Als Word-Dokument exportieren (kompakte Tabelle)",
+  },
+];
+
 function ReportExportCard({
   exportingFormat,
   onExport,
 }: Readonly<{
   exportingFormat: EnrollmentReportFormat | null;
-  onExport: (format: EnrollmentReportFormat) => void;
+  onExport: (
+    format: EnrollmentReportFormat,
+    layout: EnrollmentReportLayout,
+  ) => void;
 }>) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const closeMenu = useCallback(() => setOpen(false), []);
   useClickOutside(containerRef, closeMenu, open);
   const disabled = exportingFormat !== null;
-  const formats: readonly EnrollmentReportFormat[] = ["xlsx", "pdf", "docx"];
 
   return (
     <div
@@ -1019,13 +1065,21 @@ function ReportExportCard({
           aria-label="Auswertung exportieren"
           className="absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
-          <ExportMenuItems
-            formats={formats}
-            onSelect={(format) => {
-              setOpen(false);
-              onExport(format);
-            }}
-          />
+          {REPORT_EXPORT_OPTIONS.map((option) => (
+            <button
+              key={`${option.format}-${option.layout}`}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onExport(option.format, option.layout);
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
+            >
+              <ExportFormatIcon format={option.format} />
+              <span className="flex-1">{option.label}</span>
+            </button>
+          ))}
         </div>
       ) : null}
     </div>
