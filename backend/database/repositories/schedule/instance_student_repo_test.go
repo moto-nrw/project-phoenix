@@ -2147,3 +2147,81 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 	assert.Equal(t, statusDay.ID, *got.StudentStatusDayID)
 	assert.Nil(t, got.PickupExceptionID)
 }
+
+// Parallel-presence lookup (#2265): only rows in OTHER instances that are
+// currently active on the same day and hold the student as 'present' count.
+func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")
+	checkedOut := testpkg.CreateTestStudent(t, db, "Carla", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+2), "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, other.ID, checkedOut.ID)
+
+	day := timezone.NewDate(2026, 9, 21)
+	instTarget, cleanTarget := createInstanceFixture(t, db, "par-target", day)
+	defer cleanTarget()
+	instActive, cleanActive := createInstanceFixture(t, db, "par-active", day)
+	defer cleanActive()
+	instPlanned, cleanPlanned := createInstanceFixture(t, db, "par-planned", day)
+	defer cleanPlanned()
+
+	activate := func(inst *scheduleModels.ActivityInstance, title string) {
+		inst.Status = scheduleModels.InstanceStatusActive
+		inst.Title = title
+		inst.StartTime = time.Date(2024, 1, 1, 12, 45, 0, 0, time.UTC)
+		inst.EndTime = time.Date(2024, 1, 1, 13, 45, 0, 0, time.UTC)
+		require.NoError(t, instRepo.Update(ctx, inst))
+	}
+	activate(instTarget, "Lernzeit JG 1")
+	activate(instActive, "GT 1")
+
+	mkRow := func(instID, studentID int64, status string) *scheduleModels.InstanceStudent {
+		row := &scheduleModels.InstanceStudent{InstanceID: instID, StudentID: studentID, Status: status}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		return row
+	}
+	// Present in the target itself — must be excluded.
+	rTarget := mkRow(instTarget.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rTarget.ID)
+	// Present in another ACTIVE instance — the one expected hit.
+	rActive := mkRow(instActive.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rActive.ID)
+	// Present in a PLANNED instance — not running, excluded.
+	rPlanned := mkRow(instPlanned.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rPlanned.ID)
+	// Only expected in the other active instance — excluded.
+	rExpected := mkRow(instActive.ID, other.ID, scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rExpected.ID)
+	// A checked-out row retains status='present' but is no longer current.
+	checkedOutAt := time.Date(2026, 9, 21, 13, 0, 0, 0, time.UTC)
+	rCheckedOut := &scheduleModels.InstanceStudent{
+		InstanceID:   instActive.ID,
+		StudentID:    checkedOut.ID,
+		Status:       scheduleModels.AttendanceStatusPresent,
+		CheckedOutAt: &checkedOutAt,
+	}
+	rCheckedOut.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, rCheckedOut))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rCheckedOut.ID)
+
+	got, err := repo.FindPresentInOtherActiveInstances(ctx, instTarget.ID, day, []int64{student.ID, other.ID, checkedOut.ID})
+	require.NoError(t, err)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, student.ID, got[0].StudentID)
+	assert.Equal(t, instActive.ID, got[0].InstanceID)
+	assert.Equal(t, "GT 1", got[0].Title)
+	assert.Equal(t, "12:45", got[0].StartTime.Format("15:04"))
+	assert.Equal(t, "13:45", got[0].EndTime.Format("15:04"))
+
+	empty, err := repo.FindPresentInOtherActiveInstances(ctx, instTarget.ID, day, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+}

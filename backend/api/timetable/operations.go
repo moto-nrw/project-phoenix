@@ -54,23 +54,43 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// operationsActiveSessions lists today's running instances with their plan
+// windows so the supervision UI can label session tabs (#2265).
+func (rs *Resource) operationsActiveSessions(w http.ResponseWriter, r *http.Request) {
+	if rs.OperationsService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
+		return
+	}
+	result, err := rs.OperationsService.ActiveSessions(r.Context(), timezone.TodayDate())
+	if err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]any{"sessions": result}, "Active timetable sessions retrieved")
+}
+
 func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request) {
 	if rs.OperationsService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations service not wired")))
 		return
 	}
-	date := timezone.TodayDate()
+	opts, ok := parsePlannedNowOptions(w, r)
+	if !ok {
+		return
+	}
+	today := timezone.TodayDate()
+	date := today
 	if raw := r.URL.Query().Get("date"); raw != "" {
 		parsed, err := timezone.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date")))
 			return
 		}
+		if opts.Scope == scheduleSvc.PlannedNowScopePast && parsed != today {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("past scope only supports today's date")))
+			return
+		}
 		date = parsed
-	}
-	opts, ok := parsePlannedNowOptions(w, r)
-	if !ok {
-		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
 	result, err := rs.OperationsService.PlannedNow(r.Context(), int64(claims.ID), claims.IsAdmin, date, timezone.Now(), opts)
@@ -99,6 +119,13 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 			return opts, false
 		}
 		opts.Limit = value
+	}
+	if raw := query.Get("scope"); raw != "" {
+		if raw != scheduleSvc.PlannedNowScopePast {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid scope")))
+			return opts, false
+		}
+		opts.Scope = raw
 	}
 	if raw := query.Get("include_roster"); raw != "" {
 		value, err := strconv.ParseBool(raw)

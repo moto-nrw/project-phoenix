@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -148,14 +149,15 @@ type CreatePhaseFromSourceRequest struct {
 // RolloverResult summarises what the rollover did so the admin UI can
 // confirm "you carried 27 children forward, 2 need review".
 type RolloverResult struct {
-	Phase             *enrollmentModels.Phase
-	SourceChildCount  int            // approved children scanned in the source phase
-	RolledCount       int            // child rows created in renewal state
-	ReviewCount       int            // child rows created in pending_admin_review
-	ReviewByReason    map[string]int // per-reason breakdown for the UI
-	RequestCount      int            // distinct parent requests created in the new phase
-	EnqueuedEmails    int
-	SkippedEmptyEmail int // rows whose parent had no email (no enqueue)
+	Phase               *enrollmentModels.Phase
+	SourceChildCount    int            // approved children scanned in the source phase
+	RolledCount         int            // child rows created in renewal state
+	ClonedOfferingCount int            // care offerings cloned into the new phase (#2249)
+	ReviewCount         int            // child rows created in pending_admin_review
+	ReviewByReason      map[string]int // per-reason breakdown for the UI
+	RequestCount        int            // distinct parent requests created in the new phase
+	EnqueuedEmails      int
+	SkippedEmptyEmail   int // rows whose parent had no email (no enqueue)
 }
 
 // ReviewQueueItem is one row in the admin review UI. SourceChild is
@@ -200,7 +202,12 @@ type rolloverRequestInput struct {
 	sourceChildren    []*enrollmentModels.RequestChild
 	maxGrade          int
 	collectGradeLevel bool
-	result            *RolloverResult
+	// offeringIDMap translates source-phase care offering IDs to their
+	// target-phase clones (built by OfferingCatalogCloner). Every carried
+	// booking MUST resolve through it — a source-phase reference in the
+	// target phase is exactly the mixed-phase state #2249 forbids.
+	offeringIDMap map[int64]int64
+	result        *RolloverResult
 }
 
 type rolloverChildAttributes struct {
@@ -216,9 +223,15 @@ type RolloverServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	SchoolRepo               platformModels.SchoolRepository
-	OutboxEnqueuer           platformModels.OutboxEnqueuer
-	Settings                 RequestSettingsResolver
+	// OfferingCatalogCloner clones the source phase's care-offering
+	// catalog into the follow-up phase (#2249). Production always wires
+	// the care-offering service; when nil (lightweight tests without
+	// offerings) the catalog is not cloned and any carried booking fails
+	// the rollover instead of persisting a source-phase reference.
+	OfferingCatalogCloner RolloverOfferingCatalogCloner
+	SchoolRepo            platformModels.SchoolRepository
+	OutboxEnqueuer        platformModels.OutboxEnqueuer
+	Settings              RequestSettingsResolver
 	// DecisionService is consumed by RunDeadlineWorker only when a
 	// phase carries rollover_auto_approve = true. Optional — leave
 	// nil to disable auto-approve regardless of the phase flag
@@ -241,11 +254,14 @@ func NewRolloverService(cfg RolloverServiceConfig) RolloverService {
 // CreatePhaseFromSource is the workhorse. Pseudocode:
 //  1. Load + validate source phase
 //  2. Build the new Phase (Validate(), Insert)
-//  3. List approved source children + skip ones already rolled
-//  4. Group by source request_id and create one new request per group
-//  5. Per child: compute new grade, decide status, create row
-//  6. Copy care offerings (request_child_offerings) verbatim
-//  7. Enqueue one email per new request via the outbox
+//  3. Clone the source phase's care-offering catalog into the new phase
+//     (source→target ID map, see RolloverOfferingCatalogCloner)
+//  4. List approved source children + skip ones already rolled
+//  5. Group by source request_id and create one new request per group
+//  6. Per child: compute new grade, decide status, create row
+//  7. Copy the effective care-offering booking (request_child_offerings),
+//     remapped to the cloned offerings, days carried, validity reset
+//  8. Enqueue one email per new request via the outbox
 func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreatePhaseFromSourceRequest) (*RolloverResult, error) {
 	if err := s.validateCreateRequest(req); err != nil {
 		return nil, err
@@ -299,6 +315,15 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		return err
 	}
 	result.SourceChildCount = len(sourceChildren)
+	carriedOfferingIDs, err := s.listCarriedOfferingIDs(ctx, source, sourceChildren)
+	if err != nil {
+		return err
+	}
+	offeringIDMap, err := s.cloneOfferingCatalog(ctx, source.ID, newPhase.ID, carriedOfferingIDs)
+	if err != nil {
+		return err
+	}
+	result.ClonedOfferingCount = len(offeringIDMap)
 	return s.rollSourceRequests(ctx, rolloverRequestInput{
 		tenantID:          tenantID,
 		sourcePhase:       source,
@@ -306,8 +331,43 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		sourceChildren:    sourceChildren,
 		maxGrade:          maxGrade,
 		collectGradeLevel: collectGradeLevel,
+		offeringIDMap:     offeringIDMap,
 		result:            result,
 	})
+}
+
+// cloneOfferingCatalog delegates to the injected cloner. A nil cloner
+// yields an empty map — copyRolloverOfferings then rejects any booking
+// it cannot remap, so a mis-wired production setup fails loudly instead
+// of carrying source-phase offering references (#2249).
+func (s *rolloverService) cloneOfferingCatalog(ctx context.Context, sourcePhaseID, targetPhaseID int64, carriedOfferingIDs []int64) (map[int64]int64, error) {
+	if s.OfferingCatalogCloner == nil {
+		return map[int64]int64{}, nil
+	}
+	mapping, err := s.OfferingCatalogCloner.CloneCatalogForRollover(ctx, sourcePhaseID, targetPhaseID, carriedOfferingIDs)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: clone offering catalog: %w", err)
+	}
+	return mapping, nil
+}
+
+func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollmentModels.Phase, children []*enrollmentModels.RequestChild) ([]int64, error) {
+	ids := make(map[int64]struct{})
+	for _, child := range children {
+		offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, sourcePhase.ServiceEndDate)
+		if err != nil {
+			return nil, fmt.Errorf("rollover: list source offerings for child %d: %w", child.ID, err)
+		}
+		for _, offering := range offerings {
+			ids[offering.CareOfferingID] = struct{}{}
+		}
+	}
+	result := make([]int64, 0, len(ids))
+	for id := range ids {
+		result = append(result, id)
+	}
+	slices.Sort(result)
+	return result, nil
 }
 
 func (s *rolloverService) loadRolloverSourcePhase(ctx context.Context, tenantID, sourcePhaseID int64) (*enrollmentModels.Phase, error) {
@@ -503,7 +563,7 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 		}
 		return "", fmt.Errorf("rollover: create request_child: %w", err)
 	}
-	if err := s.copyRolloverOfferings(ctx, input.tenantID, source.ID, child.ID, input.sourcePhase.ServiceEndDate); err != nil {
+	if err := s.copyRolloverOfferings(ctx, input, source.ID, child.ID); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s %s", source.FirstName, source.LastName), nil
@@ -531,14 +591,35 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentM
 	return attributes
 }
 
-func (s *rolloverService) copyRolloverOfferings(ctx context.Context, tenantID, sourceChildID, newChildID int64, sourcePeriodEnd timezone.Date) error {
-	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, sourceChildID, sourcePeriodEnd)
+// copyRolloverOfferings carries the booking effective at the END of the
+// source phase into the new child: the offering reference is remapped to
+// the target phase's clone, the effective weekday selection (parent-
+// selected, manual, and automatically derived days) plus notes travel
+// verbatim, and the validity interval is deliberately left nil — the
+// repository pins it to the NEW phase's service window on insert, so
+// historical source-phase intervals never carry over (#2249).
+func (s *rolloverService) copyRolloverOfferings(ctx context.Context, input rolloverRequestInput, sourceChildID, newChildID int64) error {
+	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, sourceChildID, input.sourcePhase.ServiceEndDate)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}
 	for _, offering := range offerings {
-		copyRow := &enrollmentModels.RequestChildOffering{RequestChildID: newChildID, CareOfferingID: offering.CareOfferingID}
-		copyRow.SetTenantID(tenantID)
+		targetOfferingID, ok := input.offeringIDMap[offering.CareOfferingID]
+		if !ok {
+			return fmt.Errorf(
+				"rollover: source care offering %d of child %d has no clone in the target phase",
+				offering.CareOfferingID, sourceChildID,
+			)
+		}
+		copyRow := &enrollmentModels.RequestChildOffering{
+			RequestChildID:        newChildID,
+			CareOfferingID:        targetOfferingID,
+			SelectedDays:          offering.SelectedDays,
+			ManualSelectedDays:    offering.ManualSelectedDays,
+			AutomaticSelectedDays: offering.AutomaticSelectedDays,
+			Notes:                 offering.Notes,
+		}
+		copyRow.SetTenantID(input.tenantID)
 		if err := s.RequestChildOfferingRepo.Create(ctx, copyRow); err != nil {
 			return fmt.Errorf("rollover: copy offering: %w", err)
 		}

@@ -34,6 +34,7 @@
  * statt erfundener Null) überleben wörtlich.
  */
 
+import { CalendarRange } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -46,6 +47,7 @@ import {
   PlanningDayChip,
 } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { BulkSubstitutionModal } from "~/components/timetable/bulk-substitution-modal";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
 import { VertretungCoverageNotice } from "~/components/timetable/vertretung-coverage-notice";
 import {
@@ -432,6 +434,10 @@ function VertretungContent() {
   // Drei-Parameter-Vokabular). Standard "Nur Störungen" (aus K2).
   const [mode, setMode] = useState<VertretungDayListMode>("stoerungen");
 
+  // Sammel-Vertretung (#2284): Modalzustand ist lokal, kein URL-Parameter —
+  // das URL-Vokabular bleibt bei d/view/block/verlauf.
+  const [bulkOpen, setBulkOpen] = useState(false);
+
   const goToDay = useCallback(
     (iso: string) => updateUrlParams({ d: iso, block: null, verlauf: null }),
     [updateUrlParams],
@@ -600,6 +606,28 @@ function VertretungContent() {
             </TabsList>
           </Tabs>
         }
+        actions={
+          // Sammel-Vertretung (#2284): mehrtägige Abwesenheit + Ersatz in
+          // einem Schritt. Reine Mutation, daher nur mit schedules:manage.
+          canManageSchedules ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+              aria-label="Sammel-Vertretung eintragen"
+              onClick={() => setBulkOpen(true)}
+            >
+              <CalendarRange
+                className="h-4 w-4 shrink-0 sm:mr-1.5"
+                aria-hidden
+              />
+              <span className="hidden whitespace-nowrap sm:inline">
+                Sammel-Vertretung
+              </span>
+            </Button>
+          ) : undefined
+        }
       >
         {/* Die Tagesleiste steht in der Kontextzeile, nicht zwischen den
             Pfeilen: sie wählt einen Tag INNERHALB der Woche, die oben schon
@@ -765,6 +793,14 @@ function VertretungContent() {
           </div>
         </div>
       )}
+
+      <BulkSubstitutionModal
+        isOpen={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        staffOptions={staffOptions}
+        staffLoadError={staffErrorMessage !== null}
+        onSaved={revalidate}
+      />
 
       <SubstitutionSlideOver
         instance={selectedInstance}

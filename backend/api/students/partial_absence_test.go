@@ -162,9 +162,13 @@ func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 
 func TestPartialAbsenceIsAPlannedPickupTimeWithoutAFullDayStatus(t *testing.T) {
 	tc := setupTestContext(t)
+	// Pin the clock to a fixed Monday: the effective-time resolver skips
+	// Saturday/Sunday entirely (weekday > WeekdayFriday), so a real-today
+	// date makes this test fail on every weekend CI run.
+	tc.resource.Now = func() time.Time { return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC) }
 	student := testpkg.CreateTestStudent(t, tc.db, "Planning", "Partial", "PA4")
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Planning", "Teacher")
-	date := timezone.TodayDate()
+	date := timezone.NewDate(2026, 6, 1)
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID) })
 
 	partialReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/partial-absences", student.ID), map[string]any{

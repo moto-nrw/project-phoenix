@@ -104,3 +104,11 @@ type StudentStatusDayRepository interface {
 	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentStatusDay, error)
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
 }
+
+// StudentStatusDayOverviewRepository adds the joined, globally ordered read
+// required by the paginated absence overview.
+type StudentStatusDayOverviewRepository interface {
+	StudentStatusDayRepository
+	ListOverviewWithOptions(ctx context.Context, options *base.QueryOptions) ([]*StudentStatusDay, error)
+	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+}

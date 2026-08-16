@@ -114,9 +114,9 @@ func NewService(cfg Config) *Service {
 	return &Service{Config: cfg}
 }
 
-func (s *Service) scope(ctx context.Context) (bool, []int64) {
+func (s *Service) scope(ctx context.Context) bool {
 	perms := jwt.PermissionsFromCtx(ctx)
-	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext, s.Settings, s.Logger)
+	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext)
 }
 
 func accountIDFromCtx(ctx context.Context) int64 {
@@ -125,8 +125,8 @@ func accountIDFromCtx(ctx context.Context) int64 {
 
 func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
 	accountID := accountIDFromCtx(ctx)
-	allStudents, groupIDs := s.scope(ctx)
-	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread)
+	allStudents := s.scope(ctx)
+	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
@@ -192,8 +192,8 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 	accountID := accountIDFromCtx(ctx)
-	allStudents, groupIDs := s.scope(ctx)
-	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
+	allStudents := s.scope(ctx)
+	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}
@@ -223,7 +223,7 @@ func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
 		return ErrForbidden
 	}
 	perms := jwt.PermissionsFromCtx(ctx)
-	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext, s.Settings, s.Logger) {
+	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext) {
 		return ErrForbidden
 	}
 	return nil

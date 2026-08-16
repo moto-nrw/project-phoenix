@@ -55,6 +55,10 @@ type studentScheduleRepository[T validatedEntity] struct {
 	timeColumn string
 	upsertOp   string
 	nilErr     error
+	// extraUpsertSets lists additional "col = EXCLUDED.col" assignments the
+	// ON CONFLICT update applies. The pickup repository uses it for the
+	// source/care_offering_id provenance columns (#2290).
+	extraUpsertSets []string
 }
 
 func newStudentScheduleRepository[T validatedEntity](
@@ -179,13 +183,17 @@ func (r *studentScheduleRepository[T]) UpsertSchedule(ctx context.Context, sched
 	}
 
 	base.EnsureTenantID(ctx, schedule)
-	_, err := base.GetDB(ctx, r.db).NewInsert().
+	insert := base.GetDB(ctx, r.db).NewInsert().
 		Model(schedule).
 		ModelTableExpr(r.config.table).
 		On("CONFLICT (tenant_id, student_id, weekday) DO UPDATE").
 		Set(fmt.Sprintf("%s = EXCLUDED.%s", r.timeColumn, r.timeColumn)).
 		Set("notes = EXCLUDED.notes").
-		Set("updated_at = NOW()").
+		Set("updated_at = NOW()")
+	for _, assignment := range r.extraUpsertSets {
+		insert = insert.Set(assignment)
+	}
+	_, err := insert.
 		Returning("id").
 		Exec(ctx)
 	if err != nil {

@@ -225,6 +225,33 @@ export async function updateStudentPickupSchedules(
 }
 
 /**
+ * Setzt die Gehzeit eines Wochentags auf die Angebots-Gehzeit zurück (#2290).
+ * Ohne Angebots-Gehzeit für den Tag wird der Eintrag entfernt.
+ */
+export async function resetStudentPickupToOffering(
+  studentId: string,
+  weekday: number,
+): Promise<PickupData> {
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-schedules/reset-offering`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weekday }),
+    },
+  );
+
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to reset pickup schedule");
+  }
+
+  return parseApiResult<BackendPickupData>(
+    response,
+    "Failed to reset pickup schedule",
+  ).then(mapPickupDataResponse);
+}
+
+/**
  * Create a pickup exception for a student
  */
 export async function createStudentPickupException(

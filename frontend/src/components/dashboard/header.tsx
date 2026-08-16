@@ -311,6 +311,10 @@ function enrichReferrerWithParam(referrer: string): string {
     if (groupId) return `/ogs-groups?group=${groupId}`;
   }
   if (referrer === "/active-supervisions") {
+    // Prefer the precise session key (#2265); the room key is the legacy
+    // fallback for state written before session tracking existed.
+    const sessionId = localStorage.getItem("supervision-last-session");
+    if (sessionId) return `/active-supervisions?session=${sessionId}`;
     const roomId = localStorage.getItem("sidebar-last-room");
     if (roomId) return `/active-supervisions?room=${roomId}`;
   }

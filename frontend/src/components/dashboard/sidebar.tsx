@@ -346,16 +346,25 @@ function isGroupSubItemActive(
   return index === 0;
 }
 
-/** Determine if a room sub-item should be highlighted as active */
+/**
+ * Determine if a supervision sub-item should be highlighted as active.
+ * Sessions are keyed by active-group ID (`?session=`, #2265); the legacy
+ * room key still resolves for old links and stored state.
+ */
 function isRoomSubItemActive(
+  childSessionId: string | null,
   childRoomId: string | null,
+  sessionId: string,
   roomId: string,
   pathname: string,
+  currentSessionParam: string | null,
   currentRoomParam: string | null,
   index: number,
 ): boolean {
+  if (childSessionId) return childSessionId === sessionId;
   if (childRoomId) return childRoomId === roomId;
   if (!pathname.startsWith("/active-supervisions")) return false;
+  if (currentSessionParam) return currentSessionParam === sessionId;
   if (currentRoomParam) return currentRoomParam === roomId;
   return index === 0;
 }
@@ -469,11 +478,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Kalenderzeiträumen; Abrechnung ist unabhängig davon über config:manage
   // geschützt.
   const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
-    if (!userIsAdmin) {
-      return (
-        page.nonAdminPermission !== undefined &&
-        hasPermission(session, page.nonAdminPermission)
-      );
+    // Nicht-Admins sehen nur Seiten mit gehaltener nonAdminPermission
+    // (#2283); das timetable.enabled-Gate darunter gilt für alle.
+    if (
+      !userIsAdmin &&
+      (page.nonAdminPermission === undefined ||
+        !hasPermission(session, page.nonAdminPermission))
+    ) {
+      return false;
     }
     return (
       timetableEnabled ||
@@ -818,6 +830,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Get current search params for group/room selection
   const currentGroupParam = searchParams.get("group");
   const currentRoomParam = searchParams.get("room");
+  const currentSessionParam = searchParams.get("session");
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.
@@ -830,6 +843,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   );
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
+    childFromParam?.startsWith("/active-supervisions") ?? false,
+  );
+  const childSessionId = useLocalStorageValue(
+    "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
 
@@ -889,13 +906,27 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const handleSupervisionsToggle = useCallback(() => {
     toggle("supervisions");
     if (!pathname.startsWith("/active-supervisions")) {
+      // Prefer the precise session key (#2265); the room key is the legacy
+      // fallback for state written before session tracking existed.
+      const savedSessionId = localStorage.getItem("supervision-last-session");
       const savedRoomId = localStorage.getItem("sidebar-last-room");
-      const targetRoom = savedRoomId
-        ? supervisedRooms.find((r) => r.id === savedRoomId)
-        : supervisedRooms[0];
-      const roomId = targetRoom?.id ?? supervisedRooms[0]?.id;
-      if (roomId) {
-        router.push(`/active-supervisions?room=${roomId}`);
+      const targetRoom =
+        (savedSessionId
+          ? supervisedRooms.find((r) =>
+              r.isSchulhof
+                ? savedSessionId === "schulhof"
+                : r.groupId === savedSessionId,
+            )
+          : undefined) ??
+        (savedRoomId
+          ? supervisedRooms.find((r) => r.id === savedRoomId)
+          : undefined) ??
+        supervisedRooms[0];
+      if (targetRoom) {
+        const sessionId = targetRoom.isSchulhof
+          ? "schulhof"
+          : targetRoom.groupId;
+        router.push(`/active-supervisions?session=${sessionId}`);
       } else {
         router.push("/active-supervisions");
       }
@@ -1165,14 +1196,17 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   key={`${room.id}-${room.groupId ?? index}`}
                   href={
                     room.isSchulhof
-                      ? `/active-supervisions?room=schulhof`
-                      : `/active-supervisions?room=${room.id}`
+                      ? `/active-supervisions?session=schulhof`
+                      : `/active-supervisions?session=${room.groupId}`
                   }
                   label={room.name}
                   isActive={isRoomSubItemActive(
+                    childSessionId,
                     childRoomId,
+                    room.isSchulhof ? "schulhof" : room.groupId,
                     room.isSchulhof ? "schulhof" : room.id,
                     pathname,
+                    currentSessionParam,
                     currentRoomParam,
                     index,
                   )}
@@ -1266,10 +1300,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
           )}
 
           {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
-              Vertretung und Kalenderzeiträume für Admins. Berechtigte
-              Nicht-Admins behalten Abrechnung als einzigen Unterpunkt. Bei
-              explizit ausgeschaltetem timetable.enabled bleiben für Admins
-              Kalenderzeiträume und Abrechnung übrig. */}
+              Vertretung und Kalenderzeiträume für Admins. Bei explizit
+              ausgeschaltetem timetable.enabled bleiben für Admins
+              Kalenderzeiträume und Abrechnung übrig.
+
+              Nicht-Admins erreichen die Betreuungsplan-Leseansicht (#2283)
+              als Tab in "Mein Kalender"; das Akkordeon zeigt ihnen nur
+              Seiten mit gehaltener nonAdminPermission (heute: Abrechnung
+              über config:manage). */}
           {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}

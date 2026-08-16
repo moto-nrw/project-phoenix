@@ -114,6 +114,18 @@ func TestStatusDayRangeParsing(t *testing.T) {
 	require.ErrorContains(t, err, "to must be after from")
 }
 
+func TestStatusDayOverviewRangeUsesSingleTodaySnapshot(t *testing.T) {
+	today := timezone.NewDate(2026, 5, 25)
+	from, to, err := parseStatusDayOverviewRange(
+		httptest.NewRequest("GET", "/status-days", nil),
+		today,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, today, from)
+	assert.Equal(t, timezone.NewDate(2026, 7, 25), to)
+}
+
 func TestStatusDayDateHelpers(t *testing.T) {
 	dates, err := parseStatusDayDates([]string{"2026-05-25", "2026-05-27"})
 	require.NoError(t, err)

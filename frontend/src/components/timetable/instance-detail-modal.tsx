@@ -42,6 +42,9 @@ import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
+import { useSWRAuth } from "~/lib/swr";
+import { timetableService } from "~/lib/timetable-api";
+import type { InstanceParticipantNames } from "~/lib/timetable-api";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -142,6 +145,20 @@ interface InstanceDetailModalProps {
    * Defaults false so a missing permission prop never exposes mutation chrome.
    */
   canManageStaffPool?: boolean;
+  /**
+   * Leseansicht (#2283): false blendet sämtliche Termin-Aktionen im Footer
+   * aus (Lebenszyklus, Vertretungs-Link, Löschen). Default true, damit
+   * bestehende Admin-Aufrufer unverändert bleiben; die Callback-gebundenen
+   * Aktionen (Bearbeiten, Wiederholen, Anwesenheit) steuert weiterhin der
+   * Aufrufer über die Props.
+   */
+  canManage?: boolean;
+  /**
+   * Leseansicht (#2283): true lädt die Kindernamen über den schmalen
+   * Teilnehmer-Endpunkt (schedules:read) statt über die users:read-gegatete
+   * studentNames-Map des Aufrufers.
+   */
+  fetchParticipantNames?: boolean;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -367,6 +384,41 @@ function AssignedStaffSection({
   );
 }
 
+/**
+ * Leseansicht (#2283): lädt die Kindernamen pro Termin über den schmalen
+ * Teilnehmer-Endpunkt (schedules:read). Eigene Komponente statt Hook im
+ * Modal, damit der Session-abhängige SWR-Aufruf nur gemountet wird, wenn
+ * die Leseansicht ihn wirklich braucht. Die zurückgegebenen IDs sind zugleich
+ * die serverseitig autorisierte Sichtmenge; ausgelassene Kinder dürfen daher
+ * auch nicht anonymisiert als "Kind #ID" erscheinen.
+ */
+function ParticipantNamesLoader({
+  instanceId,
+  children,
+}: Readonly<{
+  instanceId: string;
+  children: (names: InstanceParticipantNames) => React.ReactNode;
+}>) {
+  const { data, error } = useSWRAuth(
+    `timetable-participants-${instanceId}`,
+    () => timetableService.getInstanceParticipants(instanceId),
+  );
+  if (data) return <>{children(data)}</>;
+  if (error) {
+    return (
+      <Alert
+        type="error"
+        message="Die Teilnehmenden konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
+      />
+    );
+  }
+  return (
+    <p role="status" className="text-sm text-gray-500">
+      Teilnehmende werden geladen…
+    </p>
+  );
+}
+
 function InstanceStudentsSection({
   groupedStudents,
   handleAttendancePatch,
@@ -462,6 +514,8 @@ export function InstanceDetailModal({
   suspended = false,
   onOpenPool,
   canManageStaffPool = false,
+  canManage = true,
+  fetchParticipantNames = false,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -649,7 +703,8 @@ export function InstanceDetailModal({
                   (offene Lücke oder eingetragene Abwesenheit) —
                   docs/planung-redesign/docs/07-vertretung.md Abschnitt 6. Nutzt
                   nur bereits geladene Instanzdaten, kein zusätzlicher Abruf. */}
-        {(instance.status === "planned" || instance.status === "active") &&
+        {canManage &&
+          (instance.status === "planned" || instance.status === "active") &&
           (instance.staff.some((row) => row.isAbsent) ||
             (instance.requiredStaffCount > 0 &&
               instance.assignedStaffCount < instance.requiredStaffCount)) && (
@@ -693,7 +748,7 @@ export function InstanceDetailModal({
               </span>
             </Button>
           )}
-        {instance.status === "active" && attendanceWebEnabled && (
+        {canManage && instance.status === "active" && attendanceWebEnabled && (
           <Button
             variant="primary"
             size="md"
@@ -709,23 +764,24 @@ export function InstanceDetailModal({
             </span>
           </Button>
         )}
-        {(instance.status === "planned" ||
-          (instance.status === "active" && attendanceWebEnabled)) && (
-          <Button
-            variant="outline_danger"
-            size="md"
-            type="button"
-            onClick={() => setPendingConfirm("cancel")}
-            isLoading={pendingAction === "cancel"}
-            loadingText="Sage ab …"
-            disabled={pendingAction !== null}
-          >
-            <span className="inline-flex items-center gap-2">
-              <CircleX className="h-4 w-4" />
-              Absagen
-            </span>
-          </Button>
-        )}
+        {canManage &&
+          (instance.status === "planned" ||
+            (instance.status === "active" && attendanceWebEnabled)) && (
+            <Button
+              variant="outline_danger"
+              size="md"
+              type="button"
+              onClick={() => setPendingConfirm("cancel")}
+              isLoading={pendingAction === "cancel"}
+              loadingText="Sage ab …"
+              disabled={pendingAction !== null}
+            >
+              <span className="inline-flex items-center gap-2">
+                <CircleX className="h-4 w-4" />
+                Absagen
+              </span>
+            </Button>
+          )}
         {instance.status === "planned" && onDeleteCancelled && (
           <Button
             variant="outline_danger"
@@ -748,7 +804,7 @@ export function InstanceDetailModal({
               <CheckCircle2 className="h-4 w-4" />
               Diese Aktivität ist bereits abgeschlossen.
             </span>
-            {instance.canReopen && (
+            {canManage && instance.canReopen && (
               <Button
                 variant="outline"
                 size="md"
@@ -915,22 +971,67 @@ export function InstanceDetailModal({
             )}
           </Section>
 
-          <AssignedStaffSection
-            instance={instance}
-            staffNames={staffNames}
-            onOpenPool={poolAvailable ? onOpenPool : undefined}
-            canManageStaffPool={canManageStaffPool}
-          />
+          {fetchParticipantNames ? (
+            <ParticipantNamesLoader instanceId={instance.id}>
+              {(names) => {
+                const visibleStudents = students.filter((student) =>
+                  names.studentNames.has(student.studentId),
+                );
+                const visibleGroupedStudents = {
+                  expected: groupedStudents.expected.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                  notScheduled: groupedStudents.notScheduled.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                  present: groupedStudents.present.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                  absent: groupedStudents.absent.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                };
 
-          <InstanceStudentsSection
-            groupedStudents={groupedStudents}
-            handleAttendancePatch={handleAttendancePatch}
-            instance={instance}
-            onAttendancePatch={attendancePatch}
-            pendingStudentId={pendingStudentId}
-            studentNames={studentNames}
-            students={students}
-          />
+                return (
+                  <>
+                    <AssignedStaffSection
+                      instance={instance}
+                      staffNames={names.staffNames}
+                      onOpenPool={poolAvailable ? onOpenPool : undefined}
+                      canManageStaffPool={canManageStaffPool}
+                    />
+                    <InstanceStudentsSection
+                      groupedStudents={visibleGroupedStudents}
+                      handleAttendancePatch={handleAttendancePatch}
+                      instance={instance}
+                      onAttendancePatch={attendancePatch}
+                      pendingStudentId={pendingStudentId}
+                      studentNames={names.studentNames}
+                      students={visibleStudents}
+                    />
+                  </>
+                );
+              }}
+            </ParticipantNamesLoader>
+          ) : (
+            <>
+              <AssignedStaffSection
+                instance={instance}
+                staffNames={staffNames}
+                onOpenPool={poolAvailable ? onOpenPool : undefined}
+                canManageStaffPool={canManageStaffPool}
+              />
+              <InstanceStudentsSection
+                groupedStudents={groupedStudents}
+                handleAttendancePatch={handleAttendancePatch}
+                instance={instance}
+                onAttendancePatch={attendancePatch}
+                pendingStudentId={pendingStudentId}
+                studentNames={studentNames}
+                students={students}
+              />
+            </>
+          )}
         </div>
       </Modal>
       {pendingConfirm && (

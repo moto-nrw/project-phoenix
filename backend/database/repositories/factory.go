@@ -139,7 +139,7 @@ type Factory struct {
 	CombinedGroup         activeModels.CombinedGroupRepository
 	GroupMapping          activeModels.GroupMappingRepository
 	Attendance            activeModels.AttendanceRepository
-	StudentStatusDay      activeModels.StudentStatusDayRepository
+	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
 	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
 	WorkSession           activeModels.WorkSessionRepository
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository

@@ -67,7 +67,7 @@ func TestParentMessageTeamHandledMigrationLeavesExistingHistoryOpen(t *testing.T
 	assert.Nil(t, handledMessageID, "the migration must not guess which existing messages were visible before a reply")
 
 	count, err := usersRepo.NewParentMessageReadRepository(db).
-		UnreadMessageCountForStaff(tenantCtx, staffAccount.ID, true, nil)
+		UnreadMessageCountForStaff(tenantCtx, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "existing guardian activity stays open until a new snapshot-bounded team reply")
 }

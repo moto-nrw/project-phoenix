@@ -379,7 +379,7 @@ func (p *studentListParams) buildCountOptions() *base.QueryOptions {
 // Thin wrapper that injects this Resource's services into the shared common
 // helper so per-student access checks stay cheap when iterating a list.
 func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContext {
-	return common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.Logger)
+	return common.DetermineStudentAccess(r, rs.UserContextService)
 }
 
 // collectIDsFromStudents extracts IDs needed for bulk loading

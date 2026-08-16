@@ -58,6 +58,9 @@ const mainRoutes: Record<string, string> = {
   "/active-supervisions": "Aktuelle Aufsicht",
   // Ohne Navigationseintrag, nur über Verlinkung erreichbar.
   "/reminders": "Erinnerungen",
+  // Abwesenheits-Übersicht (#2288): bewusst ohne Seitenleisten-Eintrag,
+  // erreichbar über das Aktionsmenü der Kindersuche.
+  "/absences": "Abwesenheiten",
   "/profile": "Profil",
   // Die Planungsseiten selbst kommen aus PLANNING_SUB_PAGES
   // (getSectionBreadcrumb); /planung ist nur der Redirect-Frame und behält

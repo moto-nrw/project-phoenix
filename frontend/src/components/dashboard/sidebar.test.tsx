@@ -191,7 +191,6 @@ describe("Sidebar", () => {
       expect(nav).toBeInTheDocument();
       expect(nav?.closest("aside")).toBeInTheDocument();
     });
-
   });
 
   describe("admin navigation", () => {
@@ -815,7 +814,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?session=1",
       );
     });
 
@@ -1357,7 +1356,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=20",
+        "/test-tenant/active-supervisions?session=2",
       );
     });
 
@@ -1427,7 +1426,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?session=1",
       );
     });
   });
@@ -1536,7 +1535,7 @@ describe("Sidebar", () => {
       const schulhofLink = screen.getByText("Schulhof").closest("a");
       expect(schulhofLink).toHaveAttribute(
         "href",
-        "/active-supervisions?room=schulhof",
+        "/active-supervisions?session=schulhof",
       );
     });
 
@@ -1851,6 +1850,35 @@ describe("Sidebar", () => {
         "href",
         "/test-tenant/payroll",
       );
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+    });
+
+    // Leseansicht (#2283): Nicht-Admins erreichen den Betreuungsplan als Tab
+    // in "Mein Kalender" — die Sidebar zeigt ihnen KEINEN eigenen Eintrag,
+    // auch nicht mit schedules:read.
+    it("shows no Betreuungsplan entry for non-admins with schedules:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "schedules:read" || permission === "calendar:own",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+      expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+    });
+
+    it("hides Betreuungsplan for non-admins without schedules:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockReturnValue(false);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
   });

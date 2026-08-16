@@ -85,6 +85,25 @@ describe("timetableOperationsApi", () => {
     );
   });
 
+  it("fetches past blocks with the scope query (#2335)", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: { instances: [] },
+      }),
+    );
+
+    await timetableOperationsApi.plannedNow({ scope: "past" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/planned-now?scope=past",
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
+  });
+
   it("fetches planned instances without a date query", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch.mockResolvedValueOnce(

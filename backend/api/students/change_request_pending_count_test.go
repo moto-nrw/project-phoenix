@@ -18,7 +18,7 @@ import (
 // (#2232): the Stammdaten, Betreuungszeiten and Angebots queues are
 // users:update-gated, the excused-absence queue also accepts users:absence.
 // Their services scope per child but never re-check the permission, so an
-// absence-only supervisor would otherwise get a badge leading to three 403s.
+// absence-only caller would otherwise get a badge leading to three 403s.
 func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testing.T) {
 	tc := setupTestContext(t)
 

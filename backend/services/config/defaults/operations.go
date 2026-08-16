@@ -440,25 +440,6 @@ func init() {
 	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
 
 	config.Register(config.Definition{
-		Key:             config.KeyWebCheckinAccess,
-		Label:           "Web-An/Abmeldung Zugriff",
-		Description:     "Legt fest, welche Mitarbeitenden Kinder über die Weboberfläche an- und abmelden dürfen.",
-		Type:            config.FieldSelect,
-		Default:         config.WebCheckinAccessGroupSupervisors,
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "operations",
-		Category:        "anwesenheit",
-		SortOrder:       41,
-		Options: &config.SelectOptions{
-			Static: []config.SelectOption{
-				{Label: "Nur Gruppenbetreuer des Kindes", Value: config.WebCheckinAccessGroupSupervisors},
-				{Label: "Alle berechtigten Mitarbeitenden", Value: config.WebCheckinAccessAllStaff},
-			},
-		},
-	})
-
-	config.Register(config.Definition{
 		Key:             config.KeyWebSpontaneousActivities,
 		Label:           "Spontane Aktivitäten über Web/App",
 		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Betreuungsplan geschrieben, auch wenn die Betreuungsplanung deaktiviert ist.",

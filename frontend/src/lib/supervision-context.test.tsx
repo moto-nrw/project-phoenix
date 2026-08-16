@@ -1446,6 +1446,42 @@ describe("SupervisionProvider supervised rooms comparison", () => {
 
     expect(prevRoomIds !== newRoomIds).toBe(true);
   });
+
+  it("updates a supervised room when its active group changes", async () => {
+    let activeGroupId = 101;
+    setupFetchMock({
+      supervised: {
+        get data() {
+          return [
+            {
+              id: activeGroupId,
+              room_id: 10,
+              group_id: 1,
+              room: { id: 10, name: "Raum A" },
+              actual_group: { id: 1, name: "GT 1" },
+            },
+          ];
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token"),
+    });
+
+    await waitFor(() => {
+      expect(result.current.supervisedRooms[0]?.groupId).toBe("101");
+    });
+
+    activeGroupId = 202;
+    await act(async () => {
+      await result.current.refresh({ force: true, silent: true });
+    });
+
+    await waitFor(() => {
+      expect(result.current.supervisedRooms[0]?.groupId).toBe("202");
+    });
+  });
 });
 
 describe("SupervisionProvider Schulhof room creation", () => {

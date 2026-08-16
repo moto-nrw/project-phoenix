@@ -136,7 +136,7 @@ func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
 		renderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, userService.ErrPhotoStudentForbidden),
 		errors.Is(err, userService.ErrPhotoStudentReassigned):
-		renderError(w, r, common.ErrorForbidden(errors.New("you can only update students in groups you supervise")))
+		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to update this student's photo")))
 	case errors.Is(err, userService.ErrPhotoConsentRequired):
 		renderError(w, r, common.ErrorInvalidRequest(errors.New(msgConsentRequiredFirst))) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, userService.ErrPhotoConsentWithdrawn):
@@ -158,7 +158,7 @@ func mapPhotoDeleteError(w http.ResponseWriter, r *http.Request, err error) {
 		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 	case errors.Is(err, userService.ErrPhotoStudentForbidden),
 		errors.Is(err, userService.ErrPhotoStudentReassigned):
-		renderError(w, r, common.ErrorForbidden(errors.New("you can only delete student photos in groups you supervise")))
+		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to delete this student's photo")))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
 		renderError(w, r, common.ErrorInvalidRequest(err))
 	default:

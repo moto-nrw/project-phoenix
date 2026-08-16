@@ -183,3 +183,48 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("StepPersonalKinder — Maximale Teilnehmerzahl (#2233)", () => {
+  it("renders the stored limit editable in the series flow", () => {
+    const { update } = renderStep({
+      form: { ...emptyForm("2026-08-03"), maxParticipants: "43" },
+    });
+
+    const input = screen.getByLabelText("Maximale Teilnehmerzahl");
+    expect(input).toHaveValue(43);
+    fireEvent.change(input, { target: { value: "20" } });
+    expect(update).toHaveBeenCalledWith("maxParticipants", "20");
+  });
+
+  it("shows the unbegrenzt placeholder when no limit is stored", () => {
+    renderStep({ form: { ...emptyForm("2026-08-03"), maxParticipants: "" } });
+
+    expect(screen.getByLabelText("Maximale Teilnehmerzahl")).toHaveAttribute(
+      "placeholder",
+      "unbegrenzt",
+    );
+  });
+
+  it("hides the field outside the series flow — a single occurrence has no capacity of its own", () => {
+    renderStep({ isSeriesFlow: false });
+
+    expect(
+      screen.queryByLabelText("Maximale Teilnehmerzahl"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the validation error", () => {
+    renderStep({
+      fieldErrors: {
+        maxParticipants:
+          "Bitte eine ganze Zahl größer als 0 angeben oder das Feld leer lassen.",
+      },
+    });
+
+    expect(
+      screen.getByText(
+        "Bitte eine ganze Zahl größer als 0 angeben oder das Feld leer lassen.",
+      ),
+    ).toBeInTheDocument();
+  });
+});

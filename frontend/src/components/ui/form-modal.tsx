@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState, useId } from "react";
+import { useEffect, useCallback, useState, useId, useRef } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
@@ -19,6 +19,9 @@ interface FormModalProps {
   // Where to position the modal on mobile viewports
   // 'bottom' mimics a bottom sheet; 'center' behaves like a classic modal
   readonly mobilePosition?: "bottom" | "center";
+  // Blocks every dismissal path (close icon, backdrop, Escape): for modals
+  // whose in-flight request must not look cancelled while it still commits.
+  readonly closeDisabled?: boolean;
 }
 
 export function FormModal({
@@ -29,6 +32,7 @@ export function FormModal({
   footer,
   size = "lg",
   mobilePosition = "bottom",
+  closeDisabled = false,
 }: FormModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -50,16 +54,53 @@ export function FormModal({
     xl: "max-w-4xl",
   };
 
+  // Ref keeps handleClose referentially stable when the flag flips mid-save,
+  // so the open/close effect below does not re-run and re-dispatch events.
+  const closeDisabledRef = useLatest(closeDisabled);
+  const pendingCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Enhanced close handler with exit animation
   const handleClose = useCallback(() => {
+    if (closeDisabledRef.current) return;
     setIsExiting(true);
     setIsAnimating(false);
 
-    // Delay actual close to allow exit animation
-    setTimeout(() => {
+    // Delay actual close to allow exit animation. Clear a previously queued
+    // timer first: repeated dismissals must never leave an untracked timer
+    // behind that could still fire after a save cancelled the newest one.
+    if (pendingCloseTimer.current) clearTimeout(pendingCloseTimer.current);
+    pendingCloseTimer.current = setTimeout(() => {
+      pendingCloseTimer.current = null;
+      // A save started during the exit delay wins over the queued close:
+      // keep the modal mounted and bring it back until the request resolves.
+      if (closeDisabledRef.current) {
+        setIsExiting(false);
+        setIsAnimating(true);
+        return;
+      }
       onClose();
     }, 250);
-  }, [onClose]);
+  }, [onClose, closeDisabledRef]);
+
+  // A save started during the exit delay cancels the queued close for good.
+  // The re-check inside the timeout is not enough on its own: a fast-failing
+  // request can reset closeDisabled before the 250ms elapse, and the timeout
+  // would then close the modal and discard the form state the user needs to
+  // correct the error.
+  useEffect(() => {
+    if (closeDisabled && pendingCloseTimer.current) {
+      clearTimeout(pendingCloseTimer.current);
+      pendingCloseTimer.current = null;
+      setIsExiting(false);
+      setIsAnimating(true);
+    }
+  }, [closeDisabled]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingCloseTimer.current) clearTimeout(pendingCloseTimer.current);
+    };
+  }, []);
 
   // Handle modal context state for blur overlay
   useEffect(() => {

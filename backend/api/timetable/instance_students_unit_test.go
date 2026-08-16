@@ -76,6 +76,9 @@ func (f *fakeRepo) List(context.Context, *modelsBase.QueryOptions) ([]*schedule.
 func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
+func (f *fakeRepo) FindPresentInOtherActiveInstances(context.Context, int64, timezone.Date, []int64) ([]schedule.ParallelPresence, error) {
+	panic("unused")
+}
 func (f *fakeRepo) FindByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }

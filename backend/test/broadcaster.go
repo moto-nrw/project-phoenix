@@ -164,7 +164,7 @@ func AssertSingleTenantEvent(tb testing.TB, b *RecordingBroadcaster, eventType r
 // AssertNoTenantWideStudentIdentity asserts that not one of the recorded
 // BroadcastToTenant calls carries a child identifier — the invariant behind
 // #2085. A tenant-scoped broadcast lands on EVERY staff client of the school,
-// including colleagues whose gdpr.student_data_scope keeps that child's data
+// including guest/guardian clients for whom that child's data stays
 // out of their API responses; a student id in the payload hands them the
 // movement fact anyway. Child-identifying payloads belong on the group-scoped
 // topics (BroadcastToGroup) or on a guardian's own channel.

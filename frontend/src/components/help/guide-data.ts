@@ -702,6 +702,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
           "Erfasst Ihre Einrichtung Anwesenheit ohne Raum- oder Aktivitätszuordnung, erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Ist die Schulhof-Funktion aktiviert, kann der Schulhof trotzdem zusätzlich erfasst werden. Diesen Modus stellt das moto-Team ein.",
+          "Ganz unten `Beendete und abgelaufene Blöcke` aufklappen.",
+          "Bei beendeten Blöcken den letzten Stand der Kinder nachlesen.",
+          "Bei nicht gestarteten Blöcken die geplante Kinderliste ansehen.",
+          "Die Angaben in diesem Bereich lassen sich nicht ändern.",
         ],
         callout: {
           title: "Warum steht ein Kind auf `Nicht eingeplant`?",
@@ -726,11 +730,31 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Seite nicht sichtbar?",
-          body: "Die Tagesauswertung gehört zum Anwesenheitsprotokoll und ist im Auslieferungszustand aus. Ein Admin schaltet sie unter `Einstellungen` -> `Datenschutz` mit `Anwesenheitsprotokoll` ein; dort steuert auch `Sichtbarkeit`, ob nur Gruppenleitungen ihre eigene Gruppe sehen oder das ganze Team alle Gruppen.",
+          body: "Die Tagesauswertung gehört zum Anwesenheitsprotokoll und ist im Auslieferungszustand aus. Ein Admin schaltet sie unter `Einstellungen` -> `Datenschutz` mit `Anwesenheitsprotokoll` ein; danach sehen alle Mitarbeitenden die Auswertung aller Gruppen.",
           tone: "blue",
         },
         screenshot:
           "Tagesauswertung mit Status-Zählern und Kinderliste nach Status gruppiert.",
+      },
+      {
+        id: "abwesenheiten",
+        title: "Abwesenheiten",
+        icon: CalendarRange,
+        summary:
+          "Eine Liste aller eingetragenen Abwesenheitstage über alle Kinder – von heute an bis zu einem frei wählbaren Enddatum. Zum schnellen Nachschlagen, ob für ein Kind schon eine Krankmeldung, Entschuldigung oder Klassenfahrt eingetragen ist.",
+        steps: [
+          "`Alle Kinder` öffnen und oben rechts im Menü mit den drei Punkten `Abwesenheiten` wählen.",
+          "Oben rechts den Zeitraum wählen; er beginnt immer heute und reicht standardmäßig zwei Monate voraus.",
+          "Mit dem Suchfeld nach Kind oder Klasse suchen, daneben nach Status und Gruppe filtern.",
+          "Ein Klick auf eine Zeile öffnet die Detailseite des Kindes.",
+        ],
+        callout: {
+          title: "Warum keine vergangenen Tage?",
+          body: "Die Liste zeigt nur Einträge von heute an. Für vergangene Tage nutzen Sie die Tagesauswertung oder den Betreuungsplan auf der Kind-Detailseite.",
+          tone: "blue",
+        },
+        screenshot:
+          "Abwesenheiten-Liste mit Zeitraumwahl, Such- und Statusfilter.",
       },
       {
         id: "notfall",
@@ -1030,8 +1054,9 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Betreuungsplan",
         icon: CalendarDays,
         summary:
-          "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
+          "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus. Planen können nur Admins; alle anderen Teammitglieder sehen den Plan zum Nachschauen.",
         steps: [
+          "Teammitglieder ohne Admin-Rechte finden den Betreuungsplan in `Mein Kalender` im Tab `Betreuungsplan`. Oben steht `Nur ansehen`: Sie sehen die Wochenplanung der ganzen Schule – wer macht was, wann, wo und mit welchen Kindern (Teilnehmerliste im Termin-Detail). Der Tab `Meine Termine` daneben zeigt weiterhin die eigenen Einsätze, Schichten und Einladungen. Die Schul-Ansicht zeigt bewusst nur die Woche; Planungswerkzeuge wie Monats- und Serienansicht, Lücken- und Konflikthinweise sowie Anlegen, Bearbeiten, Absagen und Löschen bleiben Admins vorbehalten.",
           "In der Seitenleiste den Bereich `Planung` aufklappen und `Betreuungsplan` öffnen. Oben zwischen den Ansichten `Woche`, `Monat` und `Serien` wechseln; die Wochenansicht zeigt Montag bis Freitag. Die Pfeile und `Heute` navigieren durch Woche oder Monat, die Serienansicht zeigt stattdessen die Liste aller Regeltermine des sichtbaren Planungszeitraums.",
           "Der `Zeitraum`-Chip in der Kontextzeile zeigt den Planungszeitraum des sichtbaren Datums; ein Klick öffnet eine Liste zum Umspringen, `Zeiträume verwalten` führt zur Verwaltungsseite. Der Chip `Bedarf: …` daneben zeigt, welche Anmeldephase den Bedarf des Zeitraums liefert.",
           "Der Lücken-Chip in der Kontextzeile zählt offene Personal-Lücken des sichtbaren Zeitraums; ein Klick öffnet eine Sprungliste mit Uhrzeit, Titel und Soll/Ist je Lücke, die direkt zum betroffenen Termin springt.",
@@ -1042,6 +1067,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Schritt 3 `Personal und Kinder`: `Personal` und `Kinder` zuordnen. Mit `Jahrgang/Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Zielgruppe auf einmal in die Auswahl. Suche und Filter helfen bei langen Kinderlisten. Hier erscheinen auch Hinweise zu doppelt eingeplanten Personen sowie zum Abgleich mit dem Dienstplan; sie verhindern das Speichern nicht. Parallele Termine und mehrere Termine im selben Raum sind erlaubt und erzeugen keinen Hinweis; gewarnt wird nur, wenn ein Kind zeitgleich in zwei Terminen steckt oder eine Betreuungskraft zeitgleich in verschiedenen Räumen eingeplant ist.",
           "Läuft ein Regeltermin an mehreren Wochentagen, legt der Schalter `Für alle Tage gleich` / `Pro Wochentag` in Schritt 3 fest, ob alle Tage dieselbe Zuordnung teilen. Bei `Pro Wochentag` erscheint eine Leiste mit den Wochentagen der Serie; jeder Tag bekommt eigenes `Personal`, eine eigene `Zuständige Person` und eine eigene Kinderliste. Tage, die vom ersten Wochentag abweichen, sind mit `abweichend` gekennzeichnet und unter `Abweichende Tage` aufgeführt. `Auf alle Tage übertragen` kopiert die Zuordnung des ausgewählten Tages auf alle übrigen. Wer den Schalter auf `Für alle Tage gleich` zurückstellt, plant die Serie wieder mit einer gemeinsamen Zuordnung.",
           "`Benötigtes Personal` legt in Schritt 3 den Personalbedarf des Blocks fest. Bleibt das Feld leer, berechnet Phoenix den Bedarf automatisch aus der Kinderzahl und dem Betreuungsschlüssel; eine eingetragene Zahl überschreibt diese Berechnung und bestimmt die Besetzungsanzeige (z. B. `2/3`).",
+          "`Maximale Teilnehmerzahl` begrenzt bei einem Regeltermin in Schritt 3, wie viele Kinder an jedem Termin der Reihe teilnehmen können (z. B. 43 Plätze beim Mittagessen). Leer bedeutet unbegrenzt. Beim Bearbeiten der Serie zeigt das Feld die gespeicherte Grenze; sie lässt sich dort jederzeit ändern oder wieder entfernen.",
           "Bei einem Regeltermin in Schritt 3 unter `Zielgruppe` festlegen, für wen der Block gedacht ist: `Jahrgang`, `Klasse`, `Gruppe` oder `Angebot`. Bei Jahrgang, Klasse und Gruppe lassen sich mehrere Einträge auswählen. Phoenix bildet daraus automatisch eine gemeinsame Kinderliste und entfernt Überschneidungen. Einzelne zusätzlich gewählte Kinder bleiben enthalten. Ändert sich später die Klasse oder Gruppe eines Kindes, wird dies bei der nächsten Planung berücksichtigt. Bei `Angebot` kommen Kinder automatisch über ein verknüpftes Betreuungsangebot hinzu.",
           "Unter `Angebot` lassen sich zusätzlich ein oder mehrere `Angebote als Quelle` ankreuzen und optional `Nach Jahrgang filtern`. So verteilt ein breites Angebot (z. B. eine Nachmittagsbetreuung der Jahrgänge 1 bis 4) seine angemeldeten Kinder auf mehrere parallele Regeltermine, etwa einen pro Jahrgang – oder ein Block führt die Kinder mehrerer Angebote zusammen (z. B. Betreuung bis 14:30 Uhr, bis 16 Uhr und montags bis zum Musikunterricht). Jedes Kind zählt dabei nur einmal, auch wenn es in mehreren der gewählten Angebote angemeldet ist; alle gewählten Angebote müssen zur selben Anmeldephase gehören. Die Kinderliste folgt automatisch den Anmeldungen – neue, geänderte oder beendete Anmeldungen wirken sich auf zukünftige Planungen aus. Kinder werden erst ab dem Betreuungsbeginn der Anmeldephase und nur an ihren gebuchten Wochentagen übernommen. Ein früherer Termin bleibt für Raum und Personal sichtbar; beim Öffnen erklärt die Kinder-Sektion, warum er noch leer ist. Vor dem Speichern zeigt das Formular, wie viele Kinder der Filter erfasst, warnt bei einem Filter ohne Treffer und weist darauf hin, wenn sich die Jahrgänge mehrerer Regeltermine derselben Angebote überschneiden. Räume und Personal pflegt jeder Regeltermin weiterhin unabhängig.",
           "Bei einem Regeltermin lässt sich in Schritt 1 unter `Listenart` festlegen, zu welcher druckbaren Tagesliste der Block gehört: `Randstunden`, `Lernzeit`, `AG-Angebote` oder `Mensa`. Die Zuordnung steuert, welche Termine die jeweilige Tagesliste unter `Planung` -> `Tageslisten` automatisch einsammelt; ohne Listenart bleibt der Block über die `Freie Angebotsauswahl` erreichbar.",
@@ -1052,6 +1078,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Beim Öffnen eines Termins aus einer Serie wählen Sie zuerst den Bearbeitungsumfang: `Nur diese Woche`, `Ab jetzt dauerhaft` oder `Alle Termine der Serie`. Erst danach öffnet sich der Assistent mit den passenden Ausgangsdaten. `Nur diese Woche` zeigt nur das konkrete Vorkommen. `Ab jetzt dauerhaft` lädt den ab diesem Stichtag wirksamen Serienteil. `Alle Termine der Serie` lädt den gespeicherten Rhythmus, alle Wochentage, den Planungszeitraum und die gemeinsamen oder wochentagsspezifischen Personal- und Kinderzuordnungen. Zielgruppen über Angebot, Gruppe, Klasse oder Jahrgang bleiben dabei als Regeln erhalten.",
           "Wenn Sie `Ab jetzt dauerhaft` oder `Alle Termine der Serie` wählen und einzelne Termine der Reihe zuvor per `Nur diese Woche` angepasst wurden (z. B. anderer Raum, andere Uhrzeit, geändertes Personal, andere Kinder oder eine manuell gesetzte Anwesenheit), warnt die App und listet die betroffenen Termine mit Datum auf, bevor diese Einzelanpassungen überschrieben werden. Notieren Sie sich diese Termine, um sie anschließend bei Bedarf erneut anzupassen.",
           "Für Notizen gibt es zwei Ebenen: Die `Wochennotiz` pflegen Sie am Regeltermin (Serie); sie erscheint an jedem Termin der Reihe und bleibt bei Re-Plan und Serienänderungen erhalten (z. B. `Raum erst ab 14 Uhr offen`). Die `Tagesnotiz` gilt nur für einen einzelnen Termin und wird über `Nur diese Woche` gespeichert. An einem Einzeltermin sehen Sie beide getrennt.",
+          "Hat ein Regeltermin noch nicht begonnen, zeigt das Bearbeiten der Serie (Ansicht `Serien` -> `Bearbeiten`) in Schritt 1 zusätzlich das Feld `Serienbeginn` mit dem gespeicherten Startdatum. Dort ziehen Sie den Beginn auf ein früheres Datum vor, zum Beispiel vom 13.08. auf den 12.08. Neue Termine entstehen nur zwischen neuem und bisherigem Beginn an den gewählten Wochentagen; bereits geplante Termine bleiben unverändert. Das Datum darf nicht in der Vergangenheit liegen und muss im Planungszeitraum bleiben; ein späterer Beginn ist nicht möglich.",
           "Beim Löschen eines Serientermins wählen Sie zwischen `Nur diese Woche` und `Ab jetzt dauerhaft`; frühere Termine bleiben erhalten. Liegt der Termin in der Vergangenheit, entfällt die Auswahl und der Termin wird direkt gelöscht: Ein Regeltermin lässt sich nur ab heute beenden. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
           "Geplante Termine erscheinen schon vor ihrer Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes`. Die Schaltfläche zeigt die genaue Uhrzeit, ab der der Termin gestartet werden kann; den Vorlauf legen Admins unter `Einstellungen` -> `Betrieb` fest. In einer aktiven Aufsicht stehen Aktivität, Raum und vollständige Planzeit gemeinsam im Kopf.",
           "`Beenden` zeigt vor der Bestätigung das Planende sowie Anzahl und Namen der noch anwesenden Kinder. Geplante Termine lassen sich standardmäßig erst ab Planende beenden; Admins können diese Grenze unter `Einstellungen` -> `Betrieb` abschalten. Nach dem Beenden kann die Person, die beendet hat, oder ein Admin die Aktivität fünf Minuten lang mit `Rückgängig` wieder öffnen.",
@@ -1087,6 +1114,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Ein einziges `Speichern` überträgt Abwesenheit, Ersatz, `Bewusst unbesetzt` oder Absage gemeinsam als eine Änderung. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
           "Im Editor den Reiter `Verlauf` öffnen, um das Änderungsprotokoll zu sehen: wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen hat, samt Begründung. Bei Blöcken aus dem Betreuungsplan zwischen `Dieser Block` und `Ganzer Tag` wechseln.",
           "Ist eine Person für einen Betreuungsblock eingeteilt, hat dafür aber keine passende Schicht im Dienstplan, erscheint über der Liste ein Hinweis mit der Anzahl der betroffenen Einsätze und dem Link `Dienstplan öffnen`; dort steht bei jedem Einsatz, welche Person in welchem Zeitraum nicht abgedeckt ist. Das ist keine Störung und zählt nicht in `Offen` oder `Quittiert`: entweder die Schicht im Dienstplan nachtragen oder die Einteilung im Betreuungsplan anpassen. Einrichtungen ohne gepflegten Dienstplan sehen den Hinweis nicht.",
+          "Fällt eine Person über mehrere Tage aus, oben rechts `Sammel-Vertretung` wählen (sichtbar für Personen mit der Berechtigung `Betreuungsplanverwaltung (Vollzugriff)`): abwesende Person und Zeitraum von–bis angeben, die App listet alle betroffenen Termine nach Tagen gruppiert. Einzelne Tage lassen sich abwählen; optional eine Ersatzperson und einen Grund ergänzen. Ohne Ersatzperson werden die Termine nur als abwesend markiert. Ein `Speichern` trägt alles zusammen ein — schlägt ein Tag fehl (etwa weil die Ersatzperson dort selbst abwesend ist), wird nichts gespeichert und die Meldung nennt den betroffenen Tag.",
         ],
         callout: {
           title: "Abweichung statt neue Vorlage",
@@ -1387,7 +1415,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei einer Phase auf `Anmeldungen ansehen` klicken, um die eingegangenen Anmeldungen zu prüfen.",
           "Mit `Status`, `Berücksichtigte Angebote`, `Anzahl Betreuungstage`, `Zielklasse`, `Wochentag`, `Gehzeit` oder der Suche die Tabelle auf die Kinder eingrenzen, die du brauchst.",
           "Die Kennzahlen über der Tabelle zeigen, wie viele Kinder an einem, zwei, drei, vier oder fünf Tagen betreut werden. Die Karte `Einsatzplanung` zeigt zusätzlich, wie viele Kinder je Wochentag bis zu welcher Gehzeit bleiben.",
-          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die Abholzeit, an Betreuungstagen ohne hinterlegte Zeit ersatzweise das gebuchte Betreuungsangebot (sonst `Keine Abholzeit`) oder `—` ohne Betreuung, plus Geh-/Abholweise und Kontaktdaten der Erziehungsberechtigten.",
+          "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die Gehzeit des Kindes (aus dem Gehplan, einschließlich einer am Betreuungsangebot hinterlegten Gehzeit), ersatzweise die Abholzeit aus dem Anmeldeformular oder das gebuchte Betreuungsangebot (sonst `Keine Abholzeit`), jeweils zusammen mit der Geh-/Abholregelung des Tages (z. B. `14:30 Uhr, wird abgeholt`), und `—` ohne Betreuung, plus Kontaktdaten der Erziehungsberechtigten.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Wenn eine Familie nach der Frist nachgereicht hat, erscheint die Anmeldung nach Nutzung des Nachzügler-Links ganz normal in dieser Liste. Bei der manuellen Freigabe ist das Kind bereits bestätigt; prüfe anschließend bei Bedarf den Statuslink oder die Kinddetailseite.",
           "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken. Ist die Warteliste in den Einstellungen deaktiviert, wird diese Aktion nicht angeboten. Nach einer Bestätigung lässt sich eine erziehungsberechtigte Person bei Bedarf in der Kinddetailseite manuell einladen oder erneut einladen.",
@@ -1418,15 +1446,18 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
-          "Für eine Auswertung nach Betreuungsangeboten, Betreuungstagen, Wochentag oder Gehzeit nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht. PDF und Word beginnen mit einer Einsatzplanung nach Wochentag und Gehzeit.",
-          "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist pro Klasse aufgebaut und zeigt pro Wochentag die Abholzeit, ersatzweise das gebuchte Betreuungsangebot oder `—` ohne Betreuung, plus Geh-/Abholweise und Erziehungsberechtigte. Mit `Alle Klassen` exportierst du alle Klassenlisten in einer Datei, mit eigener Überschrift je Klasse und im PDF auf jeweils einer neuen Seite.",
+          "Für eine Auswertung zuerst die passenden Filter setzen. Danach `Auswertung exportieren` öffnen.",
+          "`Excel-Datei` erstellt eine Tabelle für die gefilterten Kinder. Bei `PDF` und `Word-Dokument` wählst du zwischen `ausführlich` und `kompakte Tabelle`.",
+          "Die ausführliche Datei zeigt zuerst die Planung nach Wochentag und Gehzeit. Danach folgt ein Block pro Kind. Die kompakte Tabelle zeigt jedes Kind in einer Zeile. Sie enthält Klasse, Betreuungstage mit Gehzeit und Erziehungsberechtigte.",
+          "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist pro Klasse aufgebaut und zeigt pro Wochentag die Gehzeit des Kindes (einschließlich einer am Betreuungsangebot hinterlegten Gehzeit), ersatzweise die Abholzeit aus dem Anmeldeformular oder das gebuchte Betreuungsangebot, jeweils mit der Geh-/Abholregelung des Tages (z. B. `14:30 Uhr, wird abgeholt`), und `—` ohne Betreuung, plus Erziehungsberechtigte. Mit `Alle Klassen` exportierst du alle Klassenlisten in einer Datei, mit eigener Überschrift je Klasse und im PDF auf jeweils einer neuen Seite.",
         ],
         callout: {
           title: "Vertrauliche Daten - sorgsam aufbewahren",
           body: "Die Datei enthält alle Kontakt- und Kinderdaten der Phase gebündelt an einem Ort. Jede erzeugte Datei trägt einen Vertraulichkeitshinweis in der Fußzeile. Drucke und Dateien bitte sicher verwahren und nicht unkontrolliert weitergeben.",
           tone: "orange",
         },
-        screenshot: "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
+        screenshot:
+          "Gefilterte Anmeldeauswertung mit geöffnetem Export-Menü für Excel, ausführliche PDF- und Word-Dateien sowie kompakte Tabellen.",
         image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {
@@ -1486,6 +1517,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen. Die Wochentage sind nicht vorausgewählt: mindestens ein Tag muss aktiv angeklickt werden, und nur die gewählten Tage sind später für Eltern auswählbar - ein Angebot nur für Montag darf also auch nur `Mo` gesetzt haben.",
+          "Optional je Wochentag eine `Gehzeit` eintragen, wenn das Angebot ein festes Betreuungsende hat (z. B. `14:30` bei `Ganztagsbetreuung bis 14.30 Uhr`). Beim Speichern fragt die App, ob die Gehzeit auf alle Kinder mit diesem Angebot übertragen werden soll; Kinder mit einer von Hand gepflegten Gehzeit sind im Dialog gelistet und lassen sich einzeln ausnehmen. Die übertragene Gehzeit erscheint in Klassenliste, Kindersuche und auf der Kinderdetailseite und lässt sich dort pro Kind anpassen oder wieder auf die Angebots-Gehzeit zurücksetzen.",
           "Unter `Regeltermin` den passenden Regeltermin aus dem Betreuungsplan verknüpfen, wenn genehmigte Anmeldungen dort erwartet werden sollen. Für jeden angebotenen Wochentag muss die Regeltermin-Serie den gesamten Betreuungszeitraum der Anmeldephase lückenlos abdecken. Jeder Termin braucht eine vollständige Uhrzeit mit Ende und einen wirksamen Raum; eine Raum-Ausnahme gilt nur für ihr konkretes Datum. Bei einem aktiven Angebot müssen außerdem alle verwendeten Planungszeiträume aktiv sein.",
           "Ohne Verfügbarkeitsregel gilt das Angebot für alle Klassenstufen. Optional `Nur unter Bedingungen anbieten` aktivieren, `Klassenstufe des Kindes` als Quelle wählen und mit `ist eine von` oder `ist keine von` auf die gewünschten Klassenstufen eingrenzen. Bei mehreren Bedingungen festlegen, ob alle oder mindestens eine erfüllt sein muss.",
           "Unter `Betreuungstage & Mitbuchung` festlegen, ob das Angebot als Betreuungstage zählt und ob es mitgebucht wird, wenn Eltern bestimmte andere Angebote wählen.",

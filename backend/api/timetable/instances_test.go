@@ -1120,6 +1120,15 @@ func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in 
 	return &scheduleSvc.ApplyDeviationsResult{}, nil
 }
 
+// ApplyBulkSubstitution delegates to a real InstanceService when wired
+// (interface completeness for #2284; the mock-only path is unused today).
+func (m *mockInstanceService) ApplyBulkSubstitution(ctx context.Context, in scheduleSvc.BulkSubstitutionInput) (*scheduleSvc.BulkSubstitutionResult, error) {
+	if m.real != nil {
+		return m.real.ApplyBulkSubstitution(ctx, in)
+	}
+	return &scheduleSvc.BulkSubstitutionResult{}, nil
+}
+
 // MoveStaffBetweenBlocks delegates to a real InstanceService when wired
 // (interface completeness for #1884; the mock-only path is unused today).
 func (m *mockInstanceService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in scheduleSvc.MoveStaffInput) (*scheduleSvc.MoveStaffResult, error) {

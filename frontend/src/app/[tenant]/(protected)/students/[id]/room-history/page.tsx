@@ -66,7 +66,7 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   feature_disabled:
     "Diese Funktion ist für Ihre Schule deaktiviert. Bitte wenden Sie sich an Ihre Administration.",
   not_group_supervisor:
-    "Sie können nur das Anwesenheitsprotokoll von Kindern Ihrer betreuten Gruppen einsehen.",
+    "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
   not_found: "Kind nicht gefunden.",
   generic: "Fehler beim Laden des Anwesenheitsprotokolls.",
 };

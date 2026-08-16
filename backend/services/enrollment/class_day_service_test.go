@@ -38,16 +38,16 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 			OfferingsByDay: map[string][]string{
 				"wed": {"Ganztag"},
 			},
-			PickupByDay:  map[string]string{"wed": "15:00"},
-			ArrivalByDay: map[string]string{"wed": "07:30"},
-			Departure:    "Wird abgeholt",
+			PickupByDay:    map[string]string{"wed": "15:00"},
+			ArrivalByDay:   map[string]string{"wed": "07:30"},
+			DepartureByDay: map[string]string{"wed": "wird abgeholt"},
 		},
 		{
-			StudentID:  2,
-			FirstName:  "Finn",
-			LastName:   "Becker",
-			Registered: false,
-			Departure:  "Geht alleine",
+			StudentID:      2,
+			FirstName:      "Finn",
+			LastName:       "Becker",
+			Registered:     false,
+			DepartureByDay: map[string]string{"mon": "geht alleine"},
 		},
 		{
 			StudentID:  3,
@@ -75,9 +75,9 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	assert.Equal(t, "07:30", report.Rows[0].Arrival)
 	// The day-specific departure is the ONLY source on a school day.
 	assert.Equal(t, "Abholung", report.Rows[0].Departure)
-	// The roster's week summary ("Geht alleine" here) must NOT leak onto the
-	// day sheet: it is never empty and floors at "Geht alleine", so a child
-	// without any per-day plan renders as explicit "Keine Angabe" instead.
+	// The roster's per-day map must NOT leak onto the day sheet: it is never
+	// empty and floors at "geht alleine", so a child without any per-day plan
+	// renders as explicit "Keine Angabe" instead.
 	assert.Equal(t, "Keine Angabe", report.Rows[1].Departure)
 	assert.Equal(t, "Keine Angabe", report.Rows[2].Departure)
 
@@ -97,7 +97,7 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 		StudentID:      1,
 		Registered:     true,
 		OfferingsByDay: map[string][]string{"mon": {"Ganztag"}},
-		Departure:      "Mo: Bus, Di: Abholung",
+		DepartureByDay: map[string]string{"mon": "fährt Bus", "tue": "wird abgeholt"},
 	}}
 
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil, nil, nil, nil)
@@ -107,8 +107,8 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 	require.Len(t, report.Rows, 1)
 	assert.False(t, report.Rows[0].StaysToday)
 	// Kein Schultag: keine Übergabe, also auch keine Abgangs-Aussage — die
-	// Wochen-Zusammenfassung des Rosters darf nicht ins Einzeltag-Feld
-	// durchsickern (auch nicht für Nicht-UI-Consumer des Endpoints).
+	// Tageswerte des Rosters dürfen nicht ins Einzeltag-Feld durchsickern
+	// (auch nicht für Nicht-UI-Consumer des Endpoints).
 	assert.Equal(t, "", report.Rows[0].Departure)
 	// Kein Schultag: nur der Klassenverband ist eine ehrliche Zahl.
 	assert.Equal(t, ClassDayTotals{Students: 1}, report.Totals)
@@ -433,7 +433,7 @@ func TestClassDayDepartureNamesOnlyCompanionsOnTheSheet(t *testing.T) {
 
 func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 	// Real classDayDeparture output, not a hand-built impossible state: the
-	// roster row carries the never-empty week summary the real builder
+	// roster row carries the never-empty per-day map the real builder
 	// produces, the day map carries what classDayDeparture actually returns
 	// for a day the plan does not cover.
 	monOnly := &userModels.Student{
@@ -443,8 +443,8 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 	}
 	noPlan := &userModels.Student{}
 	rows := []ClassRosterRow{
-		{StudentID: 1, Registered: true, Departure: "Mo: Bus"},
-		{StudentID: 2, Registered: true, Departure: "Geht alleine"},
+		{StudentID: 1, Registered: true, DepartureByDay: map[string]string{"mon": "fährt Bus"}},
+		{StudentID: 2, Registered: true, DepartureByDay: map[string]string{"wed": "geht alleine"}},
 	}
 	departures := map[int64]string{
 		1: classDayDeparture(monOnly, "wed", nil, nil),
@@ -454,7 +454,7 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, departures, nil, nil, nil)
 
 	require.Len(t, report.Rows, 2)
-	// A Wednesday sheet must neither print the Monday-only week summary nor
+	// A Wednesday sheet must neither print a Monday-only roster value nor
 	// fabricate "Geht alleine" for a child without any plan.
 	assert.Equal(t, "Keine Angabe", report.Rows[0].Departure)
 	assert.Equal(t, "Keine Angabe", report.Rows[1].Departure)

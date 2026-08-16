@@ -287,20 +287,11 @@ func (s *service) authorizeAttendanceToggle(ctx context.Context, studentID, staf
 	return s.authorizeWebToggle(ctx, studentID, staffID)
 }
 
-// authorizeWebToggle authorizes web/manual attendance toggle
-func (s *service) authorizeWebToggle(ctx context.Context, studentID, staffID int64) (int64, error) {
-	isAuthorized, err := s.checkTeacherOrRoomSupervisorAccess(ctx, studentID, staffID)
-	if err != nil {
-		return 0, err
-	}
-
-	if !isAuthorized {
-		return 0, &ActiveError{
-			Op:  "ToggleStudentAttendance",
-			Err: fmt.Errorf("teacher does not have access to this student (not their educational group teacher or room supervisor)"),
-		}
-	}
-
+// authorizeWebToggle authorizes web/manual attendance toggle. Any staff
+// member may toggle any student (#2329) — the former education-group /
+// room-supervision gate is gone; the caller's staff identity was already
+// resolved from the JWT.
+func (s *service) authorizeWebToggle(_ context.Context, _, staffID int64) (int64, error) {
 	return staffID, nil
 }
 
@@ -314,44 +305,6 @@ func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) 
 		}
 	}
 	return supervisorStaffID, nil
-}
-
-// checkTeacherOrRoomSupervisorAccess checks if teacher has access via educational groups or room supervision
-func (s *service) checkTeacherOrRoomSupervisorAccess(ctx context.Context, studentID, staffID int64) (bool, error) {
-	// First check via educational groups
-	hasAccess, err := s.CheckTeacherStudentAccess(ctx, staffID, studentID)
-	if err == nil && hasAccess {
-		return true, nil
-	}
-
-	// Check via room supervision
-	return s.checkRoomSupervisorAccess(ctx, studentID, staffID)
-}
-
-// checkRoomSupervisorAccess checks if staff is supervising the student's current room
-func (s *service) checkRoomSupervisorAccess(ctx context.Context, studentID, staffID int64) (bool, error) {
-	currentVisit, err := s.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil || currentVisit.ActiveGroupID == 0 {
-		return false, nil
-	}
-
-	activeGroup, err := s.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil || !activeGroup.IsActive() {
-		return false, nil
-	}
-
-	supervisors, err := s.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
-	if err != nil {
-		return false, nil
-	}
-
-	for _, supervisor := range supervisors {
-		if supervisor.StaffID == staffID && supervisor.EndDate == nil {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 // performCheckIn creates a new attendance record for check-in.

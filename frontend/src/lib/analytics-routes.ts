@@ -4,6 +4,7 @@
  * parameter name, never by the value from the browser URL.
  */
 export const TRACKED_TENANT_ROUTE_TEMPLATES = [
+  "/absences",
   "/active-supervisions",
   "/activities",
   "/admin/change-requests",

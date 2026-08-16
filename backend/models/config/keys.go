@@ -50,28 +50,12 @@ const (
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.
+// The former gdpr.attendance_log_scope and gdpr.student_data_scope settings
+// were removed in #2329: student access is tenant-wide for verified staff.
 const (
 	KeyAttendanceLogEnabled  = "gdpr.attendance_log_enabled"
 	KeyAttendanceVisibleDays = "gdpr.attendance_visible_days"
 	KeyRoomDetailVisibleDays = "gdpr.room_detail_visible_days"
-	KeyAttendanceLogScope    = "gdpr.attendance_log_scope"
-)
-
-// AttendanceLogScope option values for KeyAttendanceLogScope.
-const (
-	AttendanceLogScopeGroupSupervisorsOnly = "group_supervisors_only"
-	AttendanceLogScopeAllStaff             = "all_staff"
-)
-
-// Student data scope / who can read full student profile data.
-const (
-	KeyStudentDataScope = "gdpr.student_data_scope"
-)
-
-// StudentDataScope option values for KeyStudentDataScope.
-const (
-	StudentDataScopeGroupSupervisorsOnly = "group_supervisors_only"
-	StudentDataScopeAllStaff             = "all_staff"
 )
 
 // Feedback settings.
@@ -137,7 +121,6 @@ const (
 	KeyPresenceMode                    = "operations.presence_mode"
 	KeyAttendanceWebEnabled            = "attendance.web_enabled"
 	KeyAttendanceNFCEnabled            = "attendance.nfc_enabled"
-	KeyWebCheckinAccess                = "attendance.web_checkin_access"
 	KeyStudentActivationIntervalMin    = "operations.student_activation_interval_minutes"
 	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
 	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
@@ -194,12 +177,6 @@ const (
 const (
 	PresenceModeDetailed = "detailed"
 	PresenceModeBinary   = "binary"
-)
-
-// WebCheckinAccess option values for KeyWebCheckinAccess.
-const (
-	WebCheckinAccessGroupSupervisors = "group_supervisors"
-	WebCheckinAccessAllStaff         = "all_staff"
 )
 
 // GroupMode option values for KeyGroupMode.

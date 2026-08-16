@@ -161,6 +161,10 @@ func (f *fakeInstanceStudentRepo) ReconcileAttendanceInterval(
 	return f.reconcileErr == nil, f.reconcileErr
 }
 
+func (f *fakeInstanceStudentRepo) FindPresentInOtherActiveInstances(context.Context, int64, timezone.Date, []int64) ([]scheduleModel.ParallelPresence, error) {
+	return nil, nil
+}
+
 func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
 	if f.candidatePanic != nil {
 		panic(f.candidatePanic)

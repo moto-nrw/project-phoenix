@@ -164,6 +164,13 @@ export function useTenantMutate() {
  * This avoids cascading useCallback invalidations in consumers that depend
  * on the returned function.
  *
+ * **Clearing instead of revalidating**: pass `{ clear: true }` to DELETE the
+ * matching cache entries without refetching. The global `keepPreviousData`
+ * config means a plain revalidation still serves the stale entry first
+ * (`isLoading` stays false on remount) — when consumers must never act on
+ * pre-mutation data, the entry has to go so the next mount loads fresh with
+ * `isLoading: true`.
+ *
  * @example
  * ```tsx
  * const refreshRoomConsumers = useTenantMutateMatching([
@@ -183,15 +190,22 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
   // fresh array literal with identical contents reuses the memoized callback.
   const joined = substrings.join("|");
 
-  return useCallback(() => {
-    const needles = joined.length > 0 ? joined.split("|") : [];
-    return swrMutate((key) => {
-      if (typeof key !== "string") return false;
-      // Limit to the active tenant so cross-tenant caches (multi-tab) stay put.
-      if (slug && !key.startsWith(`${slug}:`)) return false;
-      return needles.some((needle) => key.includes(needle));
-    });
-  }, [slug, joined]);
+  return useCallback(
+    (options?: { clear?: boolean }) => {
+      const needles = joined.length > 0 ? joined.split("|") : [];
+      const matches = (key: unknown): boolean => {
+        if (typeof key !== "string") return false;
+        // Limit to the active tenant so cross-tenant caches (multi-tab) stay put.
+        if (slug && !key.startsWith(`${slug}:`)) return false;
+        return needles.some((needle) => key.includes(needle));
+      };
+      if (options?.clear) {
+        return swrMutate(matches, undefined, { revalidate: false });
+      }
+      return swrMutate(matches);
+    },
+    [slug, joined],
+  );
 }
 
 /**

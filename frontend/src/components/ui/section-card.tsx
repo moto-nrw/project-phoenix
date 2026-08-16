@@ -31,6 +31,8 @@ export function SectionCard({
   action,
   actions,
   collapsible = false,
+  defaultCollapsed = false,
+  onCollapsedChange,
   headingLevel = 2,
   titleClassName,
   bodyClassName,
@@ -48,6 +50,8 @@ export function SectionCard({
   action?: ReactNode;
   actions?: ReactNode;
   collapsible?: boolean;
+  defaultCollapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   /** 1 for a page's primary section, 2 (default) for the rest. */
   headingLevel?: 1 | 2 | 3;
   titleClassName?: string;
@@ -57,7 +61,7 @@ export function SectionCard({
   children?: ReactNode;
   id?: string;
 }>) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
   const headerActions = actions ?? action;
   const showBody = children != null && !(collapsible && collapsed);
@@ -109,7 +113,11 @@ export function SectionCard({
                   collapsed ? `${title} ausklappen` : `${title} einklappen`
                 }
                 aria-expanded={!collapsed}
-                onClick={() => setCollapsed((prev) => !prev)}
+                onClick={() => {
+                  const next = !collapsed;
+                  setCollapsed(next);
+                  onCollapsedChange?.(next);
+                }}
               >
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}

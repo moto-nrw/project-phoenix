@@ -338,6 +338,32 @@ describe("timetableService", () => {
     );
   });
 
+  it("passes start_date through to the update body (#2226)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: backendTemplate }));
+
+    const body = {
+      name: "Yoga",
+      type: "activity" as const,
+      weekdays: [1],
+      start_time: "14:00",
+      end_time: "15:00",
+      room_id: 3,
+      category_id: 2,
+      calendar_period_id: 5,
+      start_date: "2026-08-12",
+    };
+
+    await timetableService.updateTemplate("7", body);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/templates/7",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    );
+  });
+
   it("loads a single template, splits a template, and ends it from an effective date", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: backendTemplate }))
@@ -1303,5 +1329,199 @@ describe("staff pool + move (#1884)", () => {
       "/api/timetable/instances/42/reopen",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+});
+
+describe("timetableService.applyBulkSubstitution (#2284)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockGetSession.mockResolvedValue({
+      user: { token: "jwt" },
+      expires: "2099-01-01",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("posts the snake_case body with substitute and reason and maps the result", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          days: [
+            {
+              date: "2026-08-18",
+              affected_instances: [
+                {
+                  instance_id: 43,
+                  title: "Mensa",
+                  start_time: "12:00",
+                  action: "substituted",
+                },
+              ],
+              warnings: [{}],
+            },
+          ],
+          total_affected: 1,
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.applyBulkSubstitution({
+        absentStaffId: "11",
+        substituteStaffId: "12",
+        dates: ["2026-08-18", "2026-08-19"],
+        reason: "Krankheit",
+      }),
+    ).resolves.toEqual({
+      days: [
+        {
+          date: "2026-08-18",
+          affectedInstances: [
+            {
+              instanceId: "43",
+              title: "Mensa",
+              startTime: "12:00",
+              action: "substituted",
+            },
+          ],
+          warningCount: 1,
+        },
+      ],
+      totalAffected: 1,
+      warningCount: 1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/substitutions/bulk",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          absent_staff_id: 11,
+          dates: ["2026-08-18", "2026-08-19"],
+          substitute_staff_id: 12,
+          reason: "Krankheit",
+        }),
+      }),
+    );
+  });
+
+  it("omits substitute and reason for an absence-only save", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: { days: [], total_affected: 0 } }),
+    );
+
+    await expect(
+      timetableService.applyBulkSubstitution({
+        absentStaffId: "11",
+        dates: ["2026-08-18"],
+      }),
+    ).resolves.toEqual({ days: [], totalAffected: 0, warningCount: 0 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/substitutions/bulk",
+      expect.objectContaining({
+        body: JSON.stringify({ absent_staff_id: 11, dates: ["2026-08-18"] }),
+      }),
+    );
+  });
+
+  it("surfaces the backend error message of the all-or-nothing reject", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          error:
+            "18.08.2026: die Ersatzperson ist am 18.08.2026 selbst abwesend",
+        },
+        { status: 400 },
+      ),
+    );
+
+    await expect(
+      timetableService.applyBulkSubstitution({
+        absentStaffId: "11",
+        substituteStaffId: "12",
+        dates: ["2026-08-18"],
+      }),
+    ).rejects.toThrow(
+      "18.08.2026: die Ersatzperson ist am 18.08.2026 selbst abwesend",
+    );
+  });
+});
+
+describe("instance participants (#2283)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockGetSession.mockResolvedValue({
+      user: { token: "jwt" },
+      expires: "2099-01-01",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("loads participant and staff names as string-keyed maps", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: {
+          participants: [
+            { student_id: 21, display_name: "Mia M." },
+            { student_id: 22, display_name: "Ben B." },
+          ],
+          staff: [{ staff_id: 11, display_name: "Frau Weber" }],
+        },
+      }),
+    );
+
+    const names = await timetableService.getInstanceParticipants("42");
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/timetable/instances/42/participants",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+    expect(names.studentNames.get("21")).toBe("Mia M.");
+    expect(names.studentNames.get("22")).toBe("Ben B.");
+    expect(names.staffNames.get("11")).toBe("Frau Weber");
+    expect(names.studentNames.size).toBe(2);
+    expect(names.staffNames.size).toBe(1);
+  });
+
+  it("returns empty maps when the block has no participants", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: { participants: [], staff: [] },
+      }),
+    );
+
+    const names = await timetableService.getInstanceParticipants("42");
+    expect(names.studentNames.size).toBe(0);
+    expect(names.staffNames.size).toBe(0);
+  });
+
+  it("surfaces backend errors via TimetableApiError", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        { error: "Zugriff verweigert", code: "FORBIDDEN" },
+        { status: 403 },
+      ),
+    );
+
+    await expect(
+      timetableService.getInstanceParticipants("42"),
+    ).rejects.toMatchObject({ httpStatus: 403, code: "FORBIDDEN" });
   });
 });

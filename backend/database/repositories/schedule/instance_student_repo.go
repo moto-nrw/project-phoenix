@@ -217,6 +217,57 @@ func (r *InstanceStudentRepository) CountNonAbsentByInstanceIDs(ctx context.Cont
 	return out, nil
 }
 
+// FindPresentInOtherActiveInstances returns, for the given students, rows
+// where the student is recorded status='present' in another instance that is
+// currently active on the given date (#2265 parallel-presence hint).
+func (r *InstanceStudentRepository) FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date timezone.Date, studentIDs []int64) ([]schedule.ParallelPresence, error) {
+	if len(studentIDs) == 0 {
+		return []schedule.ParallelPresence{}, nil
+	}
+	var rows []struct {
+		StudentID  int64     `bun:"student_id"`
+		InstanceID int64     `bun:"instance_id"`
+		Title      string    `bun:"title"`
+		StartTime  time.Time `bun:"start_time"`
+		EndTime    time.Time `bun:"end_time"`
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(modelTblInstanceStudent).
+		ColumnExpr(`"instance_student".student_id`).
+		ColumnExpr(`"activity_instance".id AS instance_id`).
+		ColumnExpr(`"activity_instance".title`).
+		ColumnExpr(`"activity_instance".start_time`).
+		ColumnExpr(`"activity_instance".end_time`).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
+		Where(`"instance_student".instance_id != ?`, excludeInstanceID).
+		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusPresent).
+		Where(`"instance_student".checked_out_at IS NULL`).
+		Where(`"activity_instance".date = ?`, date).
+		Where(`"activity_instance".status = ?`, schedule.InstanceStatusActive).
+		OrderExpr(`"activity_instance".start_time DESC, "activity_instance".id DESC`)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find present in other active instances",
+			Err: err,
+		}
+	}
+	out := make([]schedule.ParallelPresence, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, schedule.ParallelPresence{
+			StudentID:  row.StudentID,
+			InstanceID: row.InstanceID,
+			Title:      row.Title,
+			StartTime:  row.StartTime,
+			EndTime:    row.EndTime,
+		})
+	}
+	return out, nil
+}
+
 // FindByStudentAndDateRange returns attendance rows for a student across all
 // instances whose date falls within the inclusive range.
 func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*schedule.InstanceStudent, error) {

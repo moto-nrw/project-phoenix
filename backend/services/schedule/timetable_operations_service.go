@@ -62,6 +62,10 @@ type OperationArrivalService interface {
 
 type TimetableOperationsService interface {
 	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
+	// ActiveSessions lists the given day's running instances with their plan
+	// windows, keyed by live session (active group), so the supervision UI
+	// can label session tabs "Aktivitätsname · Planzeit" (#2265).
+	ActiveSessions(ctx context.Context, date timezone.Date) ([]OperationActiveSession, error)
 	Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error)
 	// CreateAndStartSpontaneous creates a spontaneous instance and starts it as
 	// one atomic composition in the caller's request transaction.
@@ -75,10 +79,18 @@ type TimetableOperationsService interface {
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error)
 }
 
+// PlannedNowScopePast flips PlannedNow to the complement of its default
+// window (#2335): today's finished blocks — completed ones, and planned ones
+// whose end time has passed without ever being started (no job moves them out
+// of "planned", so a status filter alone would miss them).
+const PlannedNowScopePast = "past"
+
 type PlannedNowOptions struct {
 	HorizonMinutes int
 	Limit          int
 	IncludeRoster  bool
+	// Scope is "" for the default upcoming window or PlannedNowScopePast.
+	Scope string
 }
 
 type TimetableOperationsDependencies struct {
@@ -136,6 +148,17 @@ type OperationPlannedInstance struct {
 	StartExpiresAt    string                    `json:"start_expires_at"`
 }
 
+// OperationActiveSession is one running instance seen from its live session
+// (#2265). StartTime/EndTime are the PLAN window ("15:04"), not the actual
+// start instant.
+type OperationActiveSession struct {
+	ActiveGroupID int64  `json:"active_group_id"`
+	InstanceID    int64  `json:"instance_id"`
+	Title         string `json:"title"`
+	StartTime     string `json:"start_time"`
+	EndTime       string `json:"end_time"`
+}
+
 type OperationRoster struct {
 	Instance OperationRosterInstance `json:"instance"`
 	Rows     []OperationRosterRow    `json:"rows"`
@@ -172,6 +195,10 @@ type OperationRosterRow struct {
 	CheckedOutAt     *string                  `json:"checked_out_at,omitempty"`
 	VisitEntryTime   *string                  `json:"visit_entry_time,omitempty"`
 	Warnings         []OperationRosterWarning `json:"warnings,omitempty"`
+	// ParallelPresentIn names the other running instance where this child is
+	// currently recorded present (#2265). Set only on rosters of active
+	// instances; nil when no parallel block holds the child as present.
+	ParallelPresentIn *OperationParallelPresence `json:"parallel_present_in,omitempty"`
 	// CareDayStatus is the care-plan verdict for this child on the instance's
 	// date (#1747): "scheduled" | "not_scheduled" | "cancelled" | "unknown".
 	// "not_scheduled" (not booked that weekday) and "cancelled" (someone said
@@ -180,6 +207,15 @@ type OperationRosterRow struct {
 	// stay in the payload so a child who turns up anyway can still be checked
 	// in with one tap.
 	CareDayStatus CareDayStatus `json:"care_day_status"`
+}
+
+// OperationParallelPresence identifies the other running instance a roster
+// row's parallel-presence hint points at (#2265).
+type OperationParallelPresence struct {
+	InstanceID int64  `json:"instance_id"`
+	Title      string `json:"title"`
+	StartTime  string `json:"start_time"`
+	EndTime    string `json:"end_time"`
 }
 
 type OperationRosterWarning struct {
@@ -242,9 +278,14 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	if startLead > horizon {
 		horizon = startLead
 	}
+	past := opts.Scope == PlannedNowScopePast
 	candidates := make([]plannedNowCandidate, 0, len(instances))
 	for _, inst := range instances {
-		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, horizon) {
+		if past {
+			if !plannedPastToday(inst, now) {
+				continue
+			}
+		} else if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, horizon) {
 			continue
 		}
 		roomName := roomNames[inst.RoomID]
@@ -278,11 +319,15 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	out := make([]OperationPlannedInstance, 0, len(candidates))
 	for _, candidate := range candidates {
 		mapped := mapPlannedInstance(candidate.instance, candidate.staffRows, candidate.studentRows, now, staffID, candidate.roomName, careDay)
-		availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
-		mapped.CanStart = availability.CanStart
-		mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
-		if !candidate.instance.IsSpontaneous {
-			mapped.StartExpiresAt = availability.CompleteAvailableAt.Format(time.RFC3339)
+		// Past blocks are read-only: no start lifecycle, the zero-value
+		// CanStart/StartAvailableAt/StartExpiresAt say so.
+		if !past {
+			availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
+			mapped.CanStart = availability.CanStart
+			mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
+			if !candidate.instance.IsSpontaneous {
+				mapped.StartExpiresAt = availability.CompleteAvailableAt.Format(time.RFC3339)
+			}
 		}
 		if opts.IncludeRoster {
 			roster, err := s.buildRosterWithCareDay(ctx, candidate.instance.ID, careDay)
@@ -711,12 +756,18 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 			return nil, err
 		}
 	}
+	parallelPresence, err := s.parallelPresenceByStudent(ctx, inst, studentIDs)
+	if err != nil {
+		return nil, err
+	}
 	rows := make([]OperationRosterRow, 0, len(seen))
 	for _, planned := range plannedRows {
 		if excludedAlumni[planned.StudentID] {
 			continue
 		}
-		rows = append(rows, s.mapRosterRow(inst, planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID], careDay))
+		row := s.mapRosterRow(inst, planned.StudentID, planned, latestVisits[planned.StudentID], students, persons, groups, warningsByStudent[planned.StudentID], careDay)
+		row.ParallelPresentIn = parallelPresence[planned.StudentID]
+		rows = append(rows, row)
 	}
 	for _, visit := range latestVisits {
 		if excludedAlumni[visit.StudentID] {
@@ -725,7 +776,9 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 		if _, planned := findPlanned(plannedRows, visit.StudentID); planned {
 			continue
 		}
-		rows = append(rows, s.mapRosterRow(inst, visit.StudentID, nil, visit, students, persons, groups, nil, careDay))
+		row := s.mapRosterRow(inst, visit.StudentID, nil, visit, students, persons, groups, nil, careDay)
+		row.ParallelPresentIn = parallelPresence[visit.StudentID]
+		rows = append(rows, row)
 	}
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].CurrentlyPresent != rows[j].CurrentlyPresent {
@@ -771,6 +824,58 @@ func (s *timetableOperationsService) buildRosterWithCareDay(
 		},
 		Rows: rows,
 	}, nil
+}
+
+// ActiveSessions implements TimetableOperationsService. Purely descriptive
+// display metadata (titles + plan windows of running blocks), so it carries
+// no per-caller assignment filter — route-level SchedulesRead gates access.
+func (s *timetableOperationsService) ActiveSessions(ctx context.Context, date timezone.Date) ([]OperationActiveSession, error) {
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDate(ctx, date)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]OperationActiveSession, 0, len(instances))
+	for _, inst := range instances {
+		if inst.Status != scheduleModel.InstanceStatusActive || inst.ActiveGroupID == nil {
+			continue
+		}
+		out = append(out, OperationActiveSession{
+			ActiveGroupID: *inst.ActiveGroupID,
+			InstanceID:    inst.ID,
+			Title:         inst.Title,
+			StartTime:     inst.StartTime.Format("15:04"),
+			EndTime:       inst.EndTime.Format("15:04"),
+		})
+	}
+	return out, nil
+}
+
+// parallelPresenceByStudent resolves, for an active instance's roster, which
+// students are recorded present in another running instance right now
+// (#2265). Repo ordering is start_time DESC, so the first row per student is
+// the latest parallel block. Non-active instances never query — a completed
+// or planned roster carries no "right now" claim to contradict.
+func (s *timetableOperationsService) parallelPresenceByStudent(ctx context.Context, inst *scheduleModel.ActivityInstance, studentIDs []int64) (map[int64]*OperationParallelPresence, error) {
+	if inst.Status != scheduleModel.InstanceStatusActive || len(studentIDs) == 0 {
+		return nil, nil
+	}
+	found, err := s.deps.InstanceStudents.FindPresentInOtherActiveInstances(ctx, inst.ID, inst.Date, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]*OperationParallelPresence, len(found))
+	for _, row := range found {
+		if _, taken := out[row.StudentID]; taken {
+			continue
+		}
+		out[row.StudentID] = &OperationParallelPresence{
+			InstanceID: row.InstanceID,
+			Title:      row.Title,
+			StartTime:  row.StartTime.Format("15:04"),
+			EndTime:    row.EndTime.Format("15:04"),
+		}
+	}
+	return out, nil
 }
 
 func (s *timetableOperationsService) mapRosterRow(inst *scheduleModel.ActivityInstance, studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning, careDay map[int64]CareDayStatus) OperationRosterRow {
@@ -1119,6 +1224,23 @@ func plannedNowWindow(inst *scheduleModel.ActivityInstance, now time.Time, horiz
 		return false
 	}
 	return (start.After(now.Add(-15*time.Minute)) && start.Before(now.Add(time.Duration(horizonMinutes)*time.Minute))) || start.Before(now)
+}
+
+// plannedPastToday is the scope=past complement of plannedNowWindow (#2335):
+// completed blocks, plus non-spontaneous planned blocks whose end time has
+// passed — those never started and stay "planned" forever, so a pure status
+// filter would hide them. Spontaneous planned instances stay in the default
+// scope (plannedNowWindow keeps them startable past their end), and cancelled
+// and running instances belong to neither list.
+func plannedPastToday(inst *scheduleModel.ActivityInstance, now time.Time) bool {
+	switch inst.Status {
+	case scheduleModel.InstanceStatusCompleted:
+		return true
+	case scheduleModel.InstanceStatusPlanned:
+		return !inst.IsSpontaneous && !now.Before(instanceEndAt(inst, now.Location()))
+	default:
+		return false
+	}
 }
 
 func instanceEndAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {

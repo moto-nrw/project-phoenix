@@ -28,6 +28,7 @@ import {
   getYearRange,
   groupInstancesByDate,
   mapApplyDeviations,
+  mapBulkSubstitution,
   mapMoveStaff,
   mapStaffPool,
   mapAttendance,
@@ -779,6 +780,60 @@ describe("backend mappers", () => {
       affectedInstances: [],
       warnings: [],
     });
+  });
+
+  it("maps a bulk-substitution result per day and aggregates warnings (#2284)", () => {
+    expect(
+      mapBulkSubstitution({
+        days: [
+          {
+            date: "2026-08-18",
+            affected_instances: [
+              {
+                instance_id: 43,
+                title: "Mensa",
+                start_time: "12:00",
+                action: "substituted",
+              },
+            ],
+            warnings: [{}, {}],
+          },
+          {
+            date: "2026-08-19",
+            affected_instances: [],
+            warnings: [{}],
+          },
+        ],
+        total_affected: 3,
+      }),
+    ).toEqual({
+      days: [
+        {
+          date: "2026-08-18",
+          affectedInstances: [
+            {
+              instanceId: "43",
+              title: "Mensa",
+              startTime: "12:00",
+              action: "substituted",
+            },
+          ],
+          warningCount: 2,
+        },
+        { date: "2026-08-19", affectedInstances: [], warningCount: 1 },
+      ],
+      totalAffected: 3,
+      warningCount: 3,
+    });
+  });
+
+  it("maps a bulk-substitution result with missing optional collections (#2284)", () => {
+    expect(
+      mapBulkSubstitution({
+        days: undefined as never,
+        total_affected: undefined as never,
+      }),
+    ).toEqual({ days: [], totalAffected: 0, warningCount: 0 });
   });
 
   it("maps deviation fields on an instance: reason, ack and cancel note (#1840)", () => {

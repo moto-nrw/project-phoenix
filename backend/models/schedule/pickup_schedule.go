@@ -49,6 +49,15 @@ func validateExceptionAuthor(source string, createdBy int64, createdByGuardian *
 	return nil
 }
 
+// Recurring pickup-schedule row sources (#2290). Unlike the exception
+// sources above, these describe WHERE the weekly Gehzeit came from: staff
+// keeps it manually, care_offering rows are materialized from an
+// Angebots-Gehzeit and belong to automatic reconciliation.
+const (
+	PickupScheduleSourceStaff        = "staff"
+	PickupScheduleSourceCareOffering = "care_offering"
+)
+
 // Weekday constants (ISO 8601: Monday = 1, Friday = 5)
 const (
 	WeekdayMonday    = 1
@@ -84,7 +93,13 @@ type StudentPickupSchedule struct {
 	Weekday    int       `bun:"weekday,notnull" json:"weekday"`
 	PickupTime time.Time `bun:"pickup_time,notnull" json:"pickup_time"`
 	Notes      *string   `bun:"notes" json:"notes,omitempty"`
-	CreatedBy  int64     `bun:"created_by,notnull" json:"created_by"`
+	CreatedBy  int64     `bun:"created_by,nullzero" json:"created_by"`
+	// Source marks how the row came to be: staff-maintained (default) or
+	// materialized from a care offering's Angebots-Gehzeit (#2290). A manual
+	// edit of a care_offering row flips it back to staff, which shields it
+	// from automatic reconciliation.
+	Source         string `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CareOfferingID *int64 `bun:"care_offering_id,nullzero" json:"care_offering_id,omitempty"`
 }
 
 // Validate ensures pickup schedule data is valid
@@ -98,11 +113,23 @@ func (s *StudentPickupSchedule) Validate() error {
 	if s.PickupTime.IsZero() {
 		return errors.New("pickup_time is required")
 	}
-	if s.CreatedBy <= 0 {
+	if s.CreatedBy <= 0 && s.Source != PickupScheduleSourceCareOffering {
 		return errors.New(errMsgCreatedByRequired)
 	}
 	if s.Notes != nil && len(*s.Notes) > scheduleNotesMaxLength {
 		return errors.New("notes cannot exceed 500 characters")
+	}
+	switch s.Source {
+	case "":
+		s.Source = PickupScheduleSourceStaff
+	case PickupScheduleSourceStaff:
+		// no offering reference required
+	case PickupScheduleSourceCareOffering:
+		if s.CareOfferingID == nil || *s.CareOfferingID <= 0 {
+			return errors.New("care_offering_id is required for care_offering-sourced rows")
+		}
+	default:
+		return errors.New("invalid pickup schedule source")
 	}
 	return nil
 }

@@ -684,9 +684,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       isPlanningPageHref(item.href) &&
       item.href !== "/calendar-periods" &&
       item.href !== "/payroll" &&
-      !timetableEnabled &&
-      (userIsAdmin || item.requiresPermission === undefined)
+      !timetableEnabled
     ) {
+      // Gilt auch für Nicht-Admins mit nonAdminPermission (#2283): die
+      // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
       return false;
     }
     if (item.href === "/substitutions" && openCareGroupMode) return false;

@@ -74,6 +74,7 @@ type ResourceConfig struct {
 	OfferingChangeService   enrollmentService.OfferingChangeRequestService
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
+	AbsenceOverview         *activeService.StudentStatusDayOverviewService
 	StudentHistoryService   activeService.StudentHistoryService
 	OGSGroupLiveService     ogsGroupLiveService.Getter
 	ActivityService         activityService.ActivityService
@@ -149,12 +150,13 @@ func (rs *Resource) Router() chi.Router {
 		// on top of the children a caller may see and grants nothing on its own
 		// (authorize.CanManageStudentAbsence). Widening this route instead would
 		// have let a caller without any read permission pull absence data out of
-		// a tenant running gdpr.student_data_scope = all_staff, while the child's
-		// list entry and detail page stayed closed to them either way. What the
-		// absence gate does relax is the PER-CHILD check inside the handler: a
-		// caller with no group supervision still reads the status days they are
-		// allowed to write, which the planning dialog loads before it saves.
+		// the tenant while the child's list entry and detail page stayed closed
+		// to them either way.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
+		// Absence overview (#2288): forward-looking status-day list across the
+		// children of every group the caller may see. Static path takes
+		// precedence over /{id}/status-days in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/status-days", rs.getStudentStatusDaysOverview)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 		// Per-child change history (issue #1455). Full access (admin / group
 		// supervisor) is enforced inside the handler.
@@ -239,6 +241,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/partial-absences", rs.getStudentPartialAbsences)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/reset-offering", rs.resetStudentPickupToOffering)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/pickup-schedules/bulk", rs.bulkUpsertPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
@@ -272,9 +275,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
 
 		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
-		// The users:checkin permission is the coarse gate; the
-		// attendance.web_checkin_access setting is the fine gate enforced inside
-		// the handler (group_supervisors vs all_staff).
+		// The users:checkin permission is the gate; any verified staff member may
+		// toggle any student (#2329).
 		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
 
 		// Student photo (Datenverwaltung). upload + delete: users:update;

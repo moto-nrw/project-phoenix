@@ -590,9 +590,9 @@ export function useGlobalSSE(): SSEHookState {
     // an open tab indefinitely.
     //
     // Broad by design, exactly like arrival: the event is tenant-wide and
-    // carries no student id (a tenant-wide id would leak pickup activity to
-    // staff outside gdpr.student_data_scope=group_supervisors_only — see the
-    // backend broadcast), so it cannot be narrowed to one child here. The cost
+    // carries no student id (guest/guardian clients must not learn pickup
+    // activity — see the backend broadcast), so it cannot be narrowed to one
+    // child here. The cost
     // is one re-check per open detail/care-plan page; each refetch is
     // server-access-filtered, so an out-of-scope staffer gets nothing back.
     if (hasPendingPickupScheduleEvent.current) {

@@ -26,7 +26,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -86,9 +85,6 @@ func (stubSlotListSettings) ResolveBool(_ context.Context, key string) (bool, er
 }
 
 func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModels.KeyStudentDataScope {
-		return configModels.StudentDataScopeAllStaff, nil
-	}
 	if v, ok := s[key]; ok {
 		return v, nil
 	}
@@ -107,9 +103,6 @@ func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (stri
 }
 
 func (s stubSlotListSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	if key == configModels.KeyStudentDataScope {
-		return true, nil
-	}
 	_, ok := s[key]
 	return ok, nil
 }
@@ -146,38 +139,6 @@ func (failingSlotListSettings) HasTenantOverride(context.Context, string) (bool,
 
 func (failingSlotListSettings) LockSlotListCutoffPairShared(context.Context) error { return nil }
 
-type groupSupervisorOnlySlotListSettings struct{}
-
-func (groupSupervisorOnlySlotListSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	if key == configModels.KeyTimetableEnabled {
-		return true, nil
-	}
-	return false, fmt.Errorf("unexpected boolean setting %q", key)
-}
-
-func (groupSupervisorOnlySlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModels.KeyStudentDataScope {
-		return configModels.StudentDataScopeGroupSupervisorsOnly, nil
-	}
-	// The default read scope stub still needs valid cutoffs so a pickup list built
-	// under it does not fail before the read-scope logic runs.
-	switch key {
-	case configModels.KeySlotListShortDayCutoff:
-		return "14:30", nil
-	case configModels.KeySlotListLongDayCutoff:
-		return "16:00", nil
-	}
-	return "", nil
-}
-
-func (groupSupervisorOnlySlotListSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	return key == configModels.KeyStudentDataScope, nil
-}
-
-func (groupSupervisorOnlySlotListSettings) LockSlotListCutoffPairShared(context.Context) error {
-	return nil
-}
-
 func TestSlotListEntryPointsRejectDisabledTimetable(t *testing.T) {
 	svc := slotlists.NewService(slotlists.Dependencies{
 		Settings: disabledTimetableSlotListSettings{
@@ -202,15 +163,10 @@ func TestSlotListEntryPointsRejectDisabledTimetable(t *testing.T) {
 
 type slotListUserContext struct {
 	currentStaff *userModels.Staff
-	groups       []*educationModels.Group
 }
 
 func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
 	return u.currentStaff, nil
-}
-
-func (u slotListUserContext) GetMyGroups(context.Context) ([]*educationModels.Group, error) {
-	return u.groups, nil
 }
 
 type failingRoomRepo struct {
@@ -783,12 +739,17 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	assert.Equal(t, 1, byKind[slotlists.ListKindLearningTime].RowCount)
 }
 
-func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing.T) {
+// TestBuildList_StaffReadsEveryStudentRow pins the #2329 read scope from both
+// ends: a caller with a staff record reads every child on the list whatever
+// education group they belong to, while a caller WITHOUT a staff record (guest,
+// guardian) reads none of them — a slot list must never become the back door
+// around the per-child gate.
+func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 	f := buildMensaFixture(t)
 	ctx := testpkg.TenantContext(1)
 
-	allowedGroup := testpkg.CreateTestEducationGroup(t, f.db, "SL-Allowed")
-	deniedGroup := testpkg.CreateTestEducationGroup(t, f.db, "SL-Denied")
+	groupA := testpkg.CreateTestEducationGroup(t, f.db, "SL-GroupA")
+	groupB := testpkg.CreateTestEducationGroup(t, f.db, "SL-GroupB")
 	t.Cleanup(func() {
 		_, err := f.db.NewUpdate().
 			TableExpr(`users.students`).
@@ -796,13 +757,13 @@ func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing
 			Where(`id IN (?)`, bun.List([]int64{f.plannedID, f.missingID, f.walkInID})).
 			Exec(ctx)
 		require.NoError(t, err)
-		testpkg.CleanupTableRecords(t, f.db, "education.groups", allowedGroup.ID, deniedGroup.ID)
+		testpkg.CleanupTableRecords(t, f.db, "education.groups", groupA.ID, groupB.ID)
 	})
 
 	for studentID, groupID := range map[int64]int64{
-		f.plannedID: allowedGroup.ID,
-		f.missingID: deniedGroup.ID,
-		f.walkInID:  deniedGroup.ID,
+		f.plannedID: groupA.ID,
+		f.missingID: groupB.ID,
+		f.walkInID:  groupB.ID,
 	} {
 		_, err := f.db.NewUpdate().
 			TableExpr(`users.students`).
@@ -812,31 +773,39 @@ func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing
 		require.NoError(t, err)
 	}
 
-	svc := newTestServiceWithCustomAccess(
-		f.db,
-		facilitiesRepo.NewRoomRepository(f.db),
-		groupSupervisorOnlySlotListSettings{},
-		slotListUserContext{
-			currentStaff: &userModels.Staff{},
-			groups:       []*educationModels.Group{allowedGroup},
-		},
-	)
-
-	result, err := svc.BuildList(ctx, slotlists.Params{
+	params := slotlists.Params{
 		Date:   listDate,
 		Target: slotlists.TargetSlots,
 		Source: slotlists.SourceReconciliation,
-	})
+	}
+
+	// A staff member supervising none of the two groups still reads every row.
+	staffSvc := newTestServiceWithCustomAccess(
+		f.db,
+		facilitiesRepo.NewRoomRepository(f.db),
+		stubSlotListSettings{},
+		slotListUserContext{currentStaff: &userModels.Staff{}},
+	)
+	result, err := staffSvc.BuildList(ctx, params)
 	require.NoError(t, err)
 
-	require.Len(t, result.Rows, 1)
-	assert.Equal(t, f.plannedID, result.Rows[0].StudentID)
-	assert.Equal(t, 1, result.Counters.Planned)
-	assert.Equal(t, 1, result.Counters.Present)
-	assert.Equal(t, 0, result.Counters.Missing)
-	assert.Equal(t, 0, result.Counters.Unplanned)
-	require.Len(t, result.Groups, 1)
-	assert.Equal(t, allowedGroup.ID, result.Groups[0].ID)
+	require.Len(t, result.Rows, 3)
+	assert.Equal(t, 2, result.Counters.Planned)
+	assert.Equal(t, 2, result.Counters.Present)
+	assert.Equal(t, 1, result.Counters.Missing)
+	assert.Equal(t, 1, result.Counters.Unplanned)
+	require.Len(t, result.Groups, 2, "both education groups surface, not just a supervised one")
+
+	// No staff record → no child rows at all.
+	outsiderSvc := newTestServiceWithCustomAccess(
+		f.db,
+		facilitiesRepo.NewRoomRepository(f.db),
+		stubSlotListSettings{},
+		slotListUserContext{},
+	)
+	outsiderResult, err := outsiderSvc.BuildList(ctx, params)
+	require.NoError(t, err)
+	assert.Empty(t, outsiderResult.Rows, "a caller without a staff record must read no child rows")
 }
 
 func TestBuildList_SlotFilter(t *testing.T) {

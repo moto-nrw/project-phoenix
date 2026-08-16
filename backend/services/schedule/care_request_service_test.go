@@ -90,10 +90,10 @@ func (f *careFixture) staffCtx(accountID int64) context.Context {
 	return ctx
 }
 
-// nonAdminCtx carries a staff caller with users:update but NO admin wildcard and
-// no supervised group, so the per-child write gate (CanUpdateStudent) denies —
-// used to prove the queue/decide scope rejects a staffer who cannot edit the
-// child.
+// nonAdminCtx carries a caller with users:update but NO admin wildcard. Whether
+// the per-child write gate (CanUpdateStudent) admits them depends only on the
+// account behind the id holding a staff record (#2329): the fixture's staff
+// account passes, the guardian account does not.
 func (f *careFixture) nonAdminCtx(accountID int64) context.Context {
 	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
@@ -126,29 +126,34 @@ func (f *careFixture) createPending(t *testing.T, payload map[string]any) *sched
 	return req
 }
 
-// TestDecide_ForbiddenWithoutWriteAccess proves the per-child write gate: a
-// staffer with users:update but neither admin nor supervision of the child's
-// group cannot see the request in the scoped queue and cannot decide it either
-// way — while the admin path still decides the same request, proving only the
-// scope blocked the non-admin.
-func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
+// TestDecide_ForbiddenWithoutStaffRecord proves the per-child write gate after
+// #2329: a caller without a staff record (the guardian account) — even holding
+// users:update — sees nothing in the queue and cannot decide either way, while
+// a verified non-admin staffer with the same permission sees and decides the
+// same request.
+func TestDecide_ForbiddenWithoutStaffRecord(t *testing.T) {
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
 	))
 
-	denyCtx := f.nonAdminCtx(f.staffAccount)
+	denyCtx := f.nonAdminCtx(f.chain.AccountID)
 
 	items, err := f.svc.ListPending(denyCtx)
 	require.NoError(t, err)
-	assert.Empty(t, items, "a non-writable child's request must not appear in the queue")
+	assert.Empty(t, items, "a caller without a staff record must not see the queue")
 
 	_, err = f.svc.Decide(denyCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
 	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
 	_, err = f.svc.Decide(denyCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "nope", ReviewedBy: f.staffAccount})
 	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
 
-	item, err := f.svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "closing out", ReviewedBy: f.staffAccount})
+	staffCtx := f.nonAdminCtx(f.staffAccount)
+	items, err = f.svc.ListPending(staffCtx)
+	require.NoError(t, err)
+	require.Len(t, items, 1, "a verified staffer with users:update sees the request")
+
+	item, err := f.svc.Decide(staffCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "closing out", ReviewedBy: f.staffAccount})
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
 }

@@ -55,6 +55,8 @@ export interface CareOffering {
   // Optional in the type (older rows + existing fixtures may omit it);
   // the backend always sends it, defaulting to "optional".
   selection_rule?: CareSelectionRule;
+  /** Angebots-Gehzeit pro Wochentag ({"mon":"14:30"}), optional (#2290). */
+  pickup_times?: Record<string, string> | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,6 +83,8 @@ export interface CareOfferingInput {
   // Optional in the type (older rows + existing fixtures may omit it);
   // the backend always sends it, defaulting to "optional".
   selection_rule?: CareSelectionRule;
+  /** Angebots-Gehzeit pro Wochentag ({"mon":"14:30"}), optional (#2290). */
+  pickup_times?: Record<string, string> | null;
 }
 
 interface BackendEnvelope<T> {
@@ -201,4 +205,60 @@ export async function cloneCareOffering(
     throw await readError(response, "Klonen fehlgeschlagen");
   }
   return readJSON<CareOffering>(response);
+}
+
+interface OfferingPickupConflict {
+  student_id: string;
+  student_name: string;
+  weekday: number;
+  current_time: string;
+  new_time: string;
+}
+
+export interface OfferingPickupRolloutPreview {
+  affected_students: number;
+  new_rows: number;
+  updated_rows: number;
+  removed_rows: number;
+  conflicts: OfferingPickupConflict[];
+}
+
+export interface OfferingPickupRolloutResult {
+  created_rows: number;
+  updated_rows: number;
+  deleted_rows: number;
+  skipped_students: number;
+}
+
+/** Trockenlauf: was würde das Ausrollen der Angebots-Gehzeit ändern? */
+export async function previewCareOfferingPickupRollout(
+  id: string,
+): Promise<OfferingPickupRolloutPreview> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(id)}/pickup-rollout`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Gehzeit-Vorschau fehlgeschlagen");
+  }
+  return readJSON<OfferingPickupRolloutPreview>(response);
+}
+
+/** Rollt die Angebots-Gehzeit aus; skipStudentIds bleiben unangetastet. */
+export async function rolloutCareOfferingPickupTimes(
+  id: string,
+  skipStudentIds: string[],
+): Promise<OfferingPickupRolloutResult> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(id)}/pickup-rollout`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skip_student_ids: skipStudentIds }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Gehzeit-Ausrollen fehlgeschlagen");
+  }
+  return readJSON<OfferingPickupRolloutResult>(response);
 }
