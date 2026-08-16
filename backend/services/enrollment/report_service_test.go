@@ -1076,10 +1076,16 @@ func (r *fakeClassRosterChildRepo) ListByRequestIDs(_ context.Context, _ []int64
 
 type fakeClassRosterRequestGuardianRepo struct {
 	enrollmentModels.RequestGuardianRepository
-	guardians []*enrollmentModels.RequestGuardian
+	guardians  []*enrollmentModels.RequestGuardian
+	err        error
+	requestIDs []int64
 }
 
 func (r *fakeClassRosterRequestGuardianRepo) ListByRequestIDs(_ context.Context, requestIDs []int64) ([]*enrollmentModels.RequestGuardian, error) {
+	r.requestIDs = append([]int64(nil), requestIDs...)
+	if r.err != nil {
+		return nil, r.err
+	}
 	seen := map[int64]bool{}
 	for _, id := range requestIDs {
 		seen[id] = true
@@ -1302,16 +1308,31 @@ func (r *fakeCareUsageRequestRepo) ListAdmin(_ context.Context, _ enrollmentMode
 
 type fakeCareUsagePickupScheduleSvc struct {
 	scheduleService.PickupScheduleService
-	rows []*scheduleModels.StudentPickupSchedule
+	rows       []*scheduleModels.StudentPickupSchedule
+	err        error
+	studentIDs []int64
 }
 
-func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDs(_ context.Context, _ []int64) ([]*scheduleModels.StudentPickupSchedule, error) {
-	return s.rows, nil
+func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDs(_ context.Context, studentIDs []int64) ([]*scheduleModels.StudentPickupSchedule, error) {
+	s.studentIDs = append([]int64(nil), studentIDs...)
+	return s.rows, s.err
 }
 
 func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	studentID := int64(700)
+	excludedStudentID := int64(701)
 	guardianEmail := "max@example.org"
+	guardianRepo := &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentModels.RequestGuardian{{
+		RequestID: 11,
+		FirstName: "Max",
+		LastName:  "Muster",
+		Email:     &guardianEmail,
+	}}}
+	pickupSvc := &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+		StudentID:  studentID,
+		Weekday:    scheduleModels.WeekdayMonday,
+		PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
+	}}}
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
 		RequestRepo: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
 			Model:             baseModels.Model{ID: 11},
@@ -1319,6 +1340,8 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 			GuardianLastName:  "Muster",
 			GuardianEmail:     "eva@example.org",
 			SubmittedAt:       time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}, {
+			Model: baseModels.Model{ID: 12}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
 		}}},
 		RequestChildRepo: &fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
 			Model:            baseModels.Model{ID: 21},
@@ -1327,24 +1350,18 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 			LastName:         "Muster",
 			Status:           enrollmentModels.ChildStatusApproved,
 			CreatedStudentID: &studentID,
+		}, {
+			Model: baseModels.Model{ID: 22}, RequestID: 12, FirstName: "Nicht", LastName: "Enthalten",
+			Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &excludedStudentID,
 		}}},
-		RequestGuardianRepo: &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentModels.RequestGuardian{{
-			RequestID: 11,
-			FirstName: "Max",
-			LastName:  "Muster",
-			Email:     &guardianEmail,
-		}}},
+		RequestGuardianRepo:      guardianRepo,
 		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
 		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
 		PhaseRepo:                &fakeClassRosterPhaseRepo{},
-		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
-			StudentID:  studentID,
-			Weekday:    scheduleModels.WeekdayMonday,
-			PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
-		}}},
+		PickupScheduleSvc:        pickupSvc,
 	}}
 
-	report, err := svc.CareUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"})
+	report, err := svc.careUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all", Search: "Lina"}, true)
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
@@ -1359,6 +1376,8 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	assert.Equal(t, "Eva Muster", row.Guardians[0].Name)
 	assert.Equal(t, "Max Muster", row.Guardians[1].Name)
 	assert.Equal(t, guardianEmail, row.Guardians[1].Email)
+	assert.Equal(t, []int64{11}, guardianRepo.requestIDs)
+	assert.Equal(t, []int64{studentID}, pickupSvc.studentIDs)
 }
 
 func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
@@ -1386,9 +1405,34 @@ func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
 		}}},
 	}}
 
-	report, err := svc.CareUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"})
+	report, err := svc.careUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"}, true)
 
 	require.NoError(t, err)
 	require.Len(t, report.Rows, 1)
 	assert.Empty(t, report.Rows[0].SchedulePickupByDay)
+}
+
+func TestCareUsageSkipsCompactEnrichment(t *testing.T) {
+	enrichmentErr := errors.New("enrichment unavailable")
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		RequestRepo: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+			Model:       baseModels.Model{ID: 11},
+			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}}},
+		RequestChildRepo: &fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
+			Model: baseModels.Model{ID: 21}, RequestID: 11, FirstName: "Lina", LastName: "Muster",
+		}}},
+		RequestGuardianRepo:      &fakeClassRosterRequestGuardianRepo{err: enrichmentErr},
+		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		PhaseRepo:                &fakeClassRosterPhaseRepo{},
+		PickupScheduleSvc:        &fakeCareUsagePickupScheduleSvc{err: enrichmentErr},
+	}}
+
+	report, err := svc.CareUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Nil(t, report.Rows[0].CareDays)
+	assert.Nil(t, report.Rows[0].SchedulePickupByDay)
 }

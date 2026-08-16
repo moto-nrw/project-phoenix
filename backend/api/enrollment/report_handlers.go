@@ -254,7 +254,8 @@ func exportReport[F, R any](rs *Resource, w http.ResponseWriter, r *http.Request
 func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request) {
 	exportReport(rs, w, r, parseCareUsageExportRequest,
 		func(ctx context.Context, params careUsageExportParams, actorAccountID int64, actorRole, format string) (careUsageExportPayload, error) {
-			report, err := rs.ReportService.ExportCareUsage(ctx, params.CareUsageFilters, actorAccountID, actorRole, format)
+			compact := params.Layout == careUsageLayoutCompact && format != string(listexport.FormatXLSX)
+			report, err := rs.ReportService.ExportCareUsage(ctx, params.CareUsageFilters, actorAccountID, actorRole, format, compact)
 			if err != nil {
 				return careUsageExportPayload{}, err
 			}

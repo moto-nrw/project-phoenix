@@ -207,7 +207,7 @@ type ClassRosterGuardian struct {
 
 type ReportService interface {
 	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
-	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error)
+	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string, compact bool) (*CareUsageReport, error)
 	ExportClassRoster(ctx context.Context, filters ClassRosterFilters, actorAccountID int64, actorRole, format string) (*ClassRosterReport, error)
 	// ClassDay is the read-only per-class day view for the Lehrkraft handoff
 	// (#1772). Every call writes a GDPR access-log row for the actor;
@@ -306,6 +306,10 @@ func reportOfferingDate(phase *enrollmentModels.Phase) timezone.Date {
 }
 
 func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error) {
+	return s.careUsage(ctx, filters, false)
+}
+
+func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters, enrichCompact bool) (*CareUsageReport, error) {
 	filters = normalizeCareUsageFilters(filters)
 	if err := validateCareUsageFilters(filters); err != nil {
 		return nil, err
@@ -352,14 +356,6 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list offerings: %w", err)
 	}
-	careOfferingsEnabled := true
-	if s.Settings != nil {
-		careOfferingsEnabled, err = s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
-		if err != nil {
-			return nil, fmt.Errorf("care usage report: resolve %s: %w", configModel.KeyEnrollmentCareOfferingsEnabled, err)
-		}
-	}
-
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
@@ -373,28 +369,6 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(childIDs))
 	for _, link := range links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
-	}
-
-	// Display-only enrichment for the roster-style export (#2215): all
-	// request guardians and the maintained Kind-Gehzeit of already-linked
-	// students. Neither feeds filters or totals.
-	guardiansByRequest := map[int64][]*enrollmentModels.RequestGuardian{}
-	if s.RequestGuardianRepo != nil && len(reqIDs) > 0 {
-		requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, reqIDs)
-		if err != nil {
-			return nil, fmt.Errorf("care usage report: list request guardians: %w", err)
-		}
-		guardiansByRequest = classRosterRequestGuardiansByRequestID(requestGuardians)
-	}
-	studentIDs := make([]int64, 0, len(children))
-	for _, child := range children {
-		if id := careUsageStudentID(child); id != 0 {
-			studentIDs = append(studentIDs, id)
-		}
-	}
-	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, fmt.Errorf("care usage report: %w", err)
 	}
 
 	report := &CareUsageReport{
@@ -422,11 +396,6 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 			return nil, fmt.Errorf("care usage report: child %d pickup schedule: %w", child.ID, err)
 		}
 		row := careUsageRow(req, child, linksByChild[child.ID], offeringByID, includedOfferingIDs, pickupByDay)
-		row.CareDays = classRosterCareDays(row.EffectiveDays, offeringByID, careOfferingsEnabled)
-		row.Guardians = classRosterEnrollmentGuardians(req, guardiansByRequest[req.ID])
-		if byDay := schedulePickup[careUsageStudentID(child)]; byDay != nil {
-			row.SchedulePickupByDay = byDay
-		}
 		if child.TargetGradeLevel != nil {
 			gradeSeen[*child.TargetGradeLevel] = true
 		}
@@ -475,7 +444,57 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	report.ByOffering = careUsageOfferingStats(offeringStats)
 	report.FilterOptions.GradeLevels = careUsageGradeOptions(gradeSeen)
 	report.FilterOptions.PickupTimes = sortedPickupTimes(pickupTimeSeen)
+	if enrichCompact {
+		if err := s.enrichCompactCareUsage(ctx, report, children, requestByID, offeringByID); err != nil {
+			return nil, err
+		}
+	}
 	return report, nil
+}
+
+func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*enrollmentModels.RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering) error {
+	requestIDs := make([]int64, 0, len(report.Rows))
+	childByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
+	for _, child := range children {
+		childByID[child.ID] = child
+	}
+	studentIDs := make([]int64, 0, len(report.Rows))
+	for _, row := range report.Rows {
+		requestIDs = append(requestIDs, row.RequestID)
+		if id := careUsageStudentID(childByID[row.ChildID]); id != 0 {
+			studentIDs = append(studentIDs, id)
+		}
+	}
+
+	guardiansByRequest := map[int64][]*enrollmentModels.RequestGuardian{}
+	if s.RequestGuardianRepo != nil && len(requestIDs) > 0 {
+		guardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+		if err != nil {
+			return fmt.Errorf("care usage report: list request guardians: %w", err)
+		}
+		guardiansByRequest = classRosterRequestGuardiansByRequestID(guardians)
+	}
+	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("care usage report: %w", err)
+	}
+	careOfferingsEnabled := true
+	if s.Settings != nil {
+		careOfferingsEnabled, err = s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
+		if err != nil {
+			return fmt.Errorf("care usage report: resolve %s: %w", configModel.KeyEnrollmentCareOfferingsEnabled, err)
+		}
+	}
+
+	for i := range report.Rows {
+		row := &report.Rows[i]
+		row.CareDays = classRosterCareDays(row.EffectiveDays, offeringByID, careOfferingsEnabled)
+		row.Guardians = classRosterEnrollmentGuardians(requestByID[row.RequestID], guardiansByRequest[row.RequestID])
+		if byDay := schedulePickup[careUsageStudentID(childByID[row.ChildID])]; byDay != nil {
+			row.SchedulePickupByDay = byDay
+		}
+	}
+	return nil
 }
 
 func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*enrollmentModels.Request) (map[int64]*enrollmentModels.FormSchema, error) {
@@ -499,8 +518,8 @@ func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*en
 	return schemas, nil
 }
 
-func (s *reportService) ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error) {
-	report, err := s.CareUsage(ctx, filters)
+func (s *reportService) ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string, compact bool) (*CareUsageReport, error) {
+	report, err := s.careUsage(ctx, filters, compact)
 	if err != nil {
 		return nil, err
 	}
