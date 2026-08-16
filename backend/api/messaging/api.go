@@ -43,9 +43,8 @@ func (rs *Resource) Router() chi.Router {
 		// deliberately requires only users:read (+ CanReadStudent), NOT
 		// users:update: messaging authority is defined to equal student-read
 		// authority, so any staffer who may read a child may message that child's
-		// guardians. Under gdpr.student_data_scope='all_staff' that is school-wide
-		// — an accepted, signed-off policy (the guardian always sees the sender as
-		// "OGS <Schule>", never an individual).
+		// guardians — school-wide since #2329, an accepted, signed-off policy (the
+		// guardian always sees the sender as "OGS <Schule>", never an individual).
 		read := authorize.RequiresPermission(permissions.UsersRead)
 		r.With(read, withTx).Get("/", rs.listInbox)
 		r.With(read, withTx).Get("/unread-count", rs.unreadCount)

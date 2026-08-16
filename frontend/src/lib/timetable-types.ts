@@ -1023,6 +1023,14 @@ export type UpdateTemplateBody = Omit<
   "materialize_from" | "materialize_to" | "list_kind" | "start_date"
 > & {
   /**
+   * Pulls a not-yet-started series forward (#2226): schedule envelope and
+   * series-managed roster move to this earlier date. The backend accepts only
+   * dates before the stored series start, not in the past, within the pinned
+   * period and clear of a predecessor segment's window. Omitted = the stored
+   * series start stays untouched (the pre-#2226 behavior).
+   */
+  start_date?: string;
+  /**
    * Listenart classification. A value sets it; explicit `null` clears it. On the
    * split ("Diesen und folgende") endpoint, omitting the field keeps the existing
    * classification while `null` clears it — so a cleared Listenart MUST send

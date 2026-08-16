@@ -37,11 +37,10 @@ import (
 // --- test doubles -------------------------------------------------------
 
 // stubSettings answers only the lookups the messaging service makes: the
-// parent-messaging feature flag (ResolveBool) and the student-data-scope reads
-// (HasTenantOverride / ResolveString) used by CanReadStudent when the caller is
-// NOT an admin. Every other SettingsService method is inherited from the embedded
-// nil interface and would panic if unexpectedly called. The scope lookups stay
-// restrictive so a non-admin caller without supervised groups is denied.
+// parent-messaging feature flag and the staff-name visibility flag. Every other
+// SettingsService method is inherited from the embedded nil interface and would
+// panic if unexpectedly called — student read access no longer consults any
+// setting (#2329), it follows from the caller's staff record alone.
 type stubSettings struct {
 	configService.SettingsService
 	messagingEnabled bool
@@ -49,10 +48,6 @@ type stubSettings struct {
 	// flag the send path freezes onto each staff message. Defaults false so
 	// existing tests exercise the masked ("OGS") path unchanged.
 	staffNameVisible bool
-	// dataScope, when set, makes the gdpr.student_data_scope lookups report an
-	// override of this value so CanReadStudent relaxes reads (e.g. "all_staff").
-	// Empty (the default) keeps the restrictive group-supervisors-only behavior.
-	dataScope string
 }
 
 func (s stubSettings) ResolveBool(_ context.Context, key string) (bool, error) {
@@ -66,17 +61,11 @@ func (s stubSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	}
 }
 
-func (s stubSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	if key == configModels.KeyStudentDataScope && s.dataScope != "" {
-		return true, nil
-	}
+func (s stubSettings) HasTenantOverride(_ context.Context, _ string) (bool, error) {
 	return false, nil
 }
 
-func (s stubSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModels.KeyStudentDataScope {
-		return s.dataScope, nil
-	}
+func (s stubSettings) ResolveString(_ context.Context, _ string) (string, error) {
 	return "", nil
 }
 
@@ -270,14 +259,6 @@ func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
 // unread for the whole team again.
 func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	f := newFixture(t, true)
-	accessibleGroup := testpkg.CreateTestEducationGroup(t, f.db, "Nachrichten Zugriff")
-	otherGroup := testpkg.CreateTestEducationGroup(t, f.db, "Nachrichten Kein Zugriff")
-	t.Cleanup(func() {
-		_, _ = f.db.NewUpdate().TableExpr("users.students").Set("group_id = NULL").Where("id = ?", f.chain.StudentID).Exec(context.Background())
-		_, _ = f.db.NewDelete().TableExpr("education.groups").Where("id IN (?)", bun.List([]int64{accessibleGroup.ID, otherGroup.ID})).Exec(context.Background())
-	})
-	_, err := f.db.NewUpdate().TableExpr("users.students").Set("group_id = ?", accessibleGroup.ID).Where("id = ?", f.chain.StudentID).Exec(context.Background())
-	require.NoError(t, err)
 	colleague, colleagueAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, f.db, colleague.ID) })
 	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, f.db, colleagueAccount.ID) })
@@ -333,12 +314,12 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 	assertStaffUnread(colleagueAccount.ID, 1)
 
 	readRepo := repositories.NewFactory(f.db).ParentMessageRead
-	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(colleagueAccount.ID), colleagueAccount.ID, false, []int64{accessibleGroup.ID})
+	count, err := readRepo.UnreadMessageCountForStaff(adminCtx(colleagueAccount.ID), colleagueAccount.ID, true)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count, "authorized group staff must see the new open message")
-	count, err = readRepo.UnreadMessageCountForStaff(adminCtx(colleagueAccount.ID), colleagueAccount.ID, false, []int64{otherGroup.ID})
+	assert.Equal(t, 1, count, "authorized staff must see the new open message")
+	count, err = readRepo.UnreadMessageCountForStaff(adminCtx(colleagueAccount.ID), colleagueAccount.ID, false)
 	require.NoError(t, err)
-	assert.Zero(t, count, "the team boundary must not broaden student access")
+	assert.Zero(t, count, "the team boundary must not broaden student access beyond the caller's own scope")
 }
 
 func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
@@ -536,9 +517,10 @@ func TestStartThread_InvalidGuardian(t *testing.T) {
 	require.ErrorIs(t, err, messaging.ErrInvalidGuardian)
 }
 
-// TestMessaging_Forbidden: a caller with no admin permission and no supervised
-// groups may not read a child's threads or guardians — CanReadStudent denies, and
-// the service maps that to ErrForbidden (→ 403), never leaking the conversation.
+// TestMessaging_Forbidden: a caller with no admin permission and no staff record
+// in the tenant (guest, guardian) may not read a child's threads or guardians —
+// CanReadStudent denies, and the service maps that to ErrForbidden (→ 403),
+// never leaking the conversation. users:read alone is not enough.
 func TestMessaging_Forbidden(t *testing.T) {
 	f := newFixture(t, true)
 	started, err := f.svc.StartThread(adminCtx(f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")

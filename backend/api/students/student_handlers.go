@@ -1137,13 +1137,12 @@ var errSickExcusedConflict = errors.New("sick and excused conflict on locked row
 // concurrent delete.
 var errStudentNotFoundUnderLock = errors.New("student deleted between snapshot and lock")
 
-// In-tx sentinel: the pre-tx authorizeStudentUpdate check ran on student.GroupID
-// from the snapshot. The gate decides off group membership, so a concurrent
-// admin moving the student into a different group between snapshot and lock can
-// leave the caller without write authority on the locked row. Re-checking
-// against fresh closes that window. Mapped to 403 in the outer switch so the
-// response status matches what the pre-tx gate would emit.
-var errStudentReassigned = errors.New("student reassigned out of caller's scope mid-update")
+// In-tx sentinel: the pre-tx authorizeStudentUpdate check ran on the snapshot
+// row. Re-checking against the locked row keeps the payload-aware permission
+// decision (users:update vs absence-only, #2232) honest under concurrency.
+// Mapped to 403 in the outer switch so the response status matches what the
+// pre-tx gate would emit.
+var errStudentReassigned = errors.New("caller lost write authority on this student mid-update")
 
 // lockStudentForUpdate takes the row lock and re-validates every precondition
 // against the LOCKED row rather than the pre-transaction snapshot, so a
@@ -1371,7 +1370,7 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 			ErrCodeSickExcusedConflict,
 		)
 	case errors.Is(err, errStudentReassigned):
-		return common.ErrorForbidden(errors.New("you can only update students in groups you supervise"))
+		return common.ErrorForbidden(errors.New("insufficient permissions to update this student's data"))
 	case errors.Is(err, errStudentNotFoundUnderLock):
 		return common.ErrorNotFound(errors.New("student not found"))
 	case errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict):

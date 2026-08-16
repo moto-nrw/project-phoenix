@@ -1830,7 +1830,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		userContextService,
 		pillEmitter,
 		realtimeHub,
-		settingsService,
 		logger.With("service", "excused-requests"),
 		db,
 	)
@@ -2076,7 +2075,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
-		Groups:      userContextService,
 		Logger:      logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
@@ -2084,7 +2082,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// keeps the per-minute cost flat in the number of staff.
 		BulkSupervision:   repos.GroupSupervisor,
 		BulkVisits:        repos.ActiveVisit,
-		BulkGroups:        repos.Group,
 		BulkInstanceStaff: repos.InstanceStaff,
 	})
 

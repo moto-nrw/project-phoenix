@@ -492,16 +492,16 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 	assert.Equal(t, "feature_disabled", body.Error, "the `error` field must literally equal `feature_disabled` — the frontend proxy matches this exact string to translate the 403 into a UI-hides-section signal")
 }
 
-// TestGetRoomHistory_ScopeGroupSupervisorsOnly — exercises the per-staff
-// filter that the default scope (`group_supervisors_only`) enables. Four
-// cases on the same session:
-//   - admin caller bypasses the filter and sees the session
+// TestGetRoomHistory_StaffScope — the room history is gated on caller identity
+// alone since #2329 (the gdpr.attendance_log_scope per-group filter is gone).
+// Four cases on the same session:
+//   - admin caller sees the session without a staff lookup
 //   - a teacher who supervises the session sees it
-//   - a teacher who does NOT supervise the session sees an empty list
+//   - a teacher who does NOT supervise the session sees it too
 //   - a caller with rooms:read but no staff record gets 403
 //     (`not_group_supervisor`) — the failure mode for a caregiver or other
 //     non-staff role that happens to hold the read permission.
-func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
+func TestGetRoomHistory_StaffScope(t *testing.T) {
 	tc := setupTestContext(t)
 
 	ctx := tenant.WithTenantID(context.Background(), 1)
@@ -509,7 +509,6 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
 	})
-	// Default scope is `group_supervisors_only` — no override needed.
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ScopeRoom")
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "ScopeActivity")
@@ -535,7 +534,7 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 
 	// staffPermissions is the read permission the handler accepts. It
 	// must NOT include any admin wildcard or common.HasAdminPermissions
-	// returns true and the scope filter is bypassed.
+	// returns true and the staff lookup is skipped entirely.
 	staffPermissions := []string{"rooms:read"}
 
 	teacherClaims := func(accountID int64) jwt.AppClaims {
@@ -560,17 +559,18 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 		assert.Equal(t, float64(activeGroup.ID), data[0]["session_id"], "session id should match the active group")
 	})
 
-	t.Run("bystander_sees_empty", func(t *testing.T) {
+	t.Run("bystander_staff_sees_session_too", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, teacherClaims(bystanderAcc.ID))
 
 		require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 		data := decodeData(t, rr)
-		assert.Empty(t, data, "non-supervisor staff must NOT see sessions they don't supervise")
+		require.Len(t, data, 1, "verified staff read the room history whether or not they supervise the session")
+		assert.Equal(t, float64(activeGroup.ID), data[0]["session_id"])
 	})
 
-	t.Run("admin_bypasses_scope_filter", func(t *testing.T) {
+	t.Run("admin_needs_no_staff_record", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
@@ -585,10 +585,9 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 		// Account + Person exist but no `users.staff` row is wired up —
 		// GetCurrentStaff resolves the person successfully and then
 		// returns ErrUserNotLinkedToStaff from FindByPersonID, which the
-		// handler maps to 403 not_group_supervisor. Important: this is
-		// distinct from the bystander branch above (which is staff but
-		// not a supervisor) — that returns 200 with an empty list. The
-		// non-staff caller never even gets the chance to be filtered.
+		// handler maps to 403 not_group_supervisor. This is the branch
+		// the #2329 relaxation deliberately keeps closed: a staff record
+		// is still required, only the group affiliation is not.
 		nonStaffPerson, nonStaffAcc := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonStaff", "Caregiver")
 		t.Cleanup(func() {
 			// Person first, then the auth account (CleanupAccount only
@@ -601,84 +600,6 @@ func TestGetRoomHistory_ScopeGroupSupervisorsOnly(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
 
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, teacherClaims(nonStaffAcc.ID))
-
-		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
-		assert.Contains(t, rr.Body.String(), "not_group_supervisor")
-	})
-}
-
-// TestGetRoomHistory_ScopeAllStaff — when gdpr.attendance_log_scope is set
-// to all_staff, the supervisor filter is bypassed for staff callers but
-// non-staff callers still fail before the scope is applied. Locks in the
-// inverted-condition guard in the handler (`scope != AttendanceLogScopeAllStaff`):
-// if someone typos the constant, the safe default reasserts itself and this
-// test fails, surfacing the bug instead of silently disabling the filter.
-func TestGetRoomHistory_ScopeAllStaff(t *testing.T) {
-	tc := setupTestContext(t)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogEnabled, true, nil, nil))
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeAllStaff, nil, nil))
-	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogEnabled, nil, nil)
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogScope, nil, nil)
-	})
-
-	room := testpkg.CreateTestRoom(t, tc.db, "AllStaffRoom")
-	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "AllStaffActivity")
-	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-
-	// The supervisor row exists only to attach SOMEONE to the session — the
-	// caller below is intentionally NOT this person. Under
-	// group_supervisors_only this caller would see an empty list; under
-	// all_staff they must see the session.
-	supervisor, _ := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Supervisor")
-	bystander, bystanderAcc := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Bystander")
-	_ = testpkg.CreateTestGroupSupervisor(t, tc.db, supervisor.ID, activeGroup.ID, "lead")
-
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, supervisor.ID, bystander.ID)
-
-	staffPermissions := []string{"rooms:read"}
-	bystanderClaims := jwt.AppClaims{
-		ID:          int(bystanderAcc.ID),
-		Sub:         "bystander@example.com",
-		Username:    "bystander",
-		Roles:       []string{"user"},
-		Permissions: staffPermissions,
-		TenantID:    1,
-	}
-
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
-	rr := testutil.ExecuteWithAuth(t, tc.router, req, bystanderClaims)
-
-	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-
-	var body struct {
-		Data []map[string]any `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-
-	require.Len(t, body.Data, 1, "all_staff scope must surface the session to a non-supervisor staff caller")
-	assert.Equal(t, float64(activeGroup.ID), body.Data[0]["session_id"])
-
-	t.Run("caller_without_staff_record_returns_forbidden", func(t *testing.T) {
-		nonStaffPerson, nonStaffAcc := testpkg.CreateTestPersonWithAccount(t, tc.db, "AllStaff", "Caregiver")
-		t.Cleanup(func() {
-			testpkg.CleanupPerson(t, tc.db, nonStaffPerson.ID)
-			testpkg.CleanupAccount(t, tc.db, nonStaffAcc.ID)
-		})
-
-		nonStaffClaims := jwt.AppClaims{
-			ID:          int(nonStaffAcc.ID),
-			Sub:         "caregiver@example.com",
-			Username:    "caregiver",
-			Roles:       []string{"user"},
-			Permissions: staffPermissions,
-			TenantID:    1,
-		}
-
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/history", room.ID), nil)
-		rr := testutil.ExecuteWithAuth(t, tc.router, req, nonStaffClaims)
 
 		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "not_group_supervisor")

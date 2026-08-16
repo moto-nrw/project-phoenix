@@ -277,9 +277,9 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	return staff.ID, nil
 }
 
-// requirePickupReadAccess parses the student from URL params and checks read access.
-// Respects the gdpr.student_data_scope setting: with group_supervisors_only only
-// supervisors and admins can view pickup data; with all_staff any verified staff can.
+// requirePickupReadAccess parses the student from URL params and checks read
+// access: admins and verified staff pass, guest/guardian accounts do not
+// (#2329).
 // Returns the student on success or writes an error response and returns nil.
 func (rs *Resource) requirePickupReadAccess(w http.ResponseWriter, r *http.Request) *users.Student {
 	return rs.requireCareReadAccess(w, r, "pickup")
@@ -303,8 +303,8 @@ func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label s
 	return id, true
 }
 
-// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
-// Access is controlled by the gdpr.student_data_scope tenant setting.
+// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules.
+// Readable by admins and verified staff (#2329).
 func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
 	student := rs.requirePickupReadAccess(w, r)
 	if student == nil {
@@ -379,10 +379,10 @@ func (rs *Resource) broadcastPickupScheduleChanged(tenantID, studentID int64) {
 	}
 
 	// No student_id on the payload — deliberately, for GDPR. This is a
-	// TENANT-WIDE broadcast: every staff client in the school receives it,
-	// including those who under gdpr.student_data_scope=group_supervisors_only
-	// may NOT read this child. A student_id in that raw SSE stream would leak
-	// which children have pickup-plan activity to staff outside their scope.
+	// TENANT-WIDE broadcast: every staff client in the school receives it. A
+	// student_id in that raw SSE stream would leak which children have
+	// pickup-plan activity to clients without student read access
+	// (guest/guardian, #2329).
 	// The rule this follows: only GROUP-topic events (student_checkin/checkout
 	// via BroadcastToGroup, whose audience is already the child's room) may
 	// carry the id; tenant-wide staff events must not — the arrival sibling is
@@ -850,47 +850,11 @@ func mapBulkPickupTimeResponse(
 }
 
 // filterAuthorizedStudentIDs filters the requested student IDs to only those
-// the current user has read access to. Respects the gdpr.student_data_scope
-// setting: admins see all, all_staff scope lets any verified staff see all,
-// otherwise only students in the user's supervised groups are returned.
+// the current user has read access to: admins and verified staff see all
+// requested students, every other caller none (#2329).
 func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []int64) ([]int64, error) {
-	accessCtx := rs.determineStudentAccess(r)
-
-	// Admins and all_staff scope see all requested students
-	if accessCtx.IsAdmin || accessCtx.AllStaffScope {
+	if rs.determineStudentAccess(r).HasFullAccess() {
 		return requestedIDs, nil
 	}
-
-	// No supervised groups → no access
-	if len(accessCtx.MyGroupIDs) == 0 {
-		return []int64{}, nil
-	}
-
-	// Extract group IDs from access context
-	groupIDs := make([]int64, 0, len(accessCtx.MyGroupIDs))
-	for gid := range accessCtx.MyGroupIDs {
-		groupIDs = append(groupIDs, gid)
-	}
-
-	// Get all students in these groups
-	students, err := rs.PersonService.GetStudentsByGroupIDs(r.Context(), groupIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build set of authorized student IDs for O(1) lookup
-	authorizedSet := make(map[int64]struct{}, len(students))
-	for _, student := range students {
-		authorizedSet[student.ID] = struct{}{}
-	}
-
-	// Filter requested IDs to only authorized ones
-	filtered := make([]int64, 0, len(requestedIDs))
-	for _, id := range requestedIDs {
-		if _, ok := authorizedSet[id]; ok {
-			filtered = append(filtered, id)
-		}
-	}
-
-	return filtered, nil
+	return []int64{}, nil
 }

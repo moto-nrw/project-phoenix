@@ -39,9 +39,9 @@ type BirthdayEntry struct {
 	FirstName string        `json:"first_name"`
 	LastName  string        `json:"last_name"`
 	Birthday  timezone.Date `json:"birthday"`
-	// GroupID is the child's education group, carried so the caller's student
-	// data scope (gdpr.student_data_scope) can be applied before a name ever
-	// reaches a screen. Nil for staff and for children without a group.
+	// GroupID is the child's education group. Nil for staff and for children
+	// without a group. No longer drives visibility (#2329) — kept because the
+	// repository scan populates it alongside GroupName.
 	GroupID     *int64 `json:"-"`
 	GroupName   string `json:"group_name,omitempty"`
 	SchoolClass string `json:"school_class,omitempty"`

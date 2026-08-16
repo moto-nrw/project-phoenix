@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,29 +31,16 @@ type studentDocumentScenario struct {
 	groupID   int64
 }
 
-// stubDocumentUserContext answers the supervision question the document
-// service asks. It reports exactly the groups it was built with, so a test can
-// put the caller inside or outside the child's group.
+// stubDocumentUserContext answers the only identity question the document
+// service asks since #2329: does the caller hold a staff record in this tenant.
+// A nil staff models a guest or guardian account — which children a staff
+// member may reach is no longer a group question.
 type stubDocumentUserContext struct {
-	supervisedGroupIDs []int64
+	staff *userModels.Staff
 }
 
 func (s stubDocumentUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
-	return nil, nil
-}
-
-func (s stubDocumentUserContext) GetMyGroups(context.Context) ([]*educationModels.Group, error) {
-	groups := make([]*educationModels.Group, 0, len(s.supervisedGroupIDs))
-	for _, id := range s.supervisedGroupIDs {
-		group := &educationModels.Group{}
-		group.ID = id
-		groups = append(groups, group)
-	}
-	return groups, nil
-}
-
-func (s stubDocumentUserContext) GetMyActiveGroups(context.Context) ([]*activeModels.Group, error) {
-	return nil, nil
+	return s.staff, nil
 }
 
 func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
@@ -67,8 +52,8 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	suffix := time.Now().UnixNano()
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Dokumente-Gruppe-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Dokumente", fmt.Sprintf("Kind-%d", suffix), "1a")
-	// A child without a group is reachable only by admins, so the fixture has
-	// to sit in one for the supervisor cases to mean anything.
+	// The child sits in a group so the fixture keeps modelling the ordinary
+	// case; since #2329 the group no longer takes part in the access decision.
 	assignStudentGroup(t, db, student.ID, group.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("kind-dokumente-%d@example.test", suffix))
 	t.Cleanup(func() {
@@ -85,7 +70,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{group.ID}},
+		stubDocumentUserContext{staff: &userModels.Staff{}},
 		nil,
 	)
 
@@ -370,15 +355,15 @@ func TestStudentDocumentService_QueueCleanupForAllDocuments(t *testing.T) {
 	assert.Contains(t, names, second.FilenameStored)
 }
 
-// TestStudentDocumentService_ForeignChildIsUnreachable covers the per-child
+// TestStudentDocumentService_NonStaffCallerIsUnreachable covers the per-child
 // gate. The route permissions only say the caller may open documents at all;
-// which children they may open is a separate question, and without this every
-// group supervisor holding users:update could read and delete the paperwork of
-// every child in the school.
-func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
+// whether the caller is staff of this tenant is a separate question, and
+// without this a guest or guardian account holding users:update could read and
+// delete the paperwork of every child in the school.
+func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 	s := newStudentDocumentScenario(t)
 
-	// Same permissions, but supervising a different group.
+	// Same permissions, but no staff record in the tenant.
 	repos := repositories.NewFactory(s.db)
 	outsider := usersSvc.NewStudentDocumentService(
 		s.db,
@@ -386,7 +371,7 @@ func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID + 100_000}},
+		stubDocumentUserContext{},
 		nil,
 	)
 
@@ -410,7 +395,7 @@ func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, docs, 1)
 
-	// An admin reaches every child regardless of supervision — that is the
+	// An admin reaches every child without a staff record at all — that is the
 	// office role the tab exists for.
 	adminDocs, _, err := outsider.ListStudentDocuments(s.ctx, s.studentID, "", s.actor("admin:*"))
 	require.NoError(t, err)
@@ -467,7 +452,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 		repos.Student,
 		nil,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID}},
+		stubDocumentUserContext{staff: &userModels.Staff{}},
 		nil,
 	)
 	office := s.actor("users:update")
@@ -494,7 +479,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 		repos.Student,
 		repos.StudentFieldEdit,
 		nil,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID}},
+		stubDocumentUserContext{staff: &userModels.Staff{}},
 		nil,
 	)
 	health := s.actor("student_documents:health")
@@ -577,9 +562,10 @@ func TestStudentDocumentService_RejectsMalformedInput(t *testing.T) {
 	assert.Empty(t, docs)
 }
 
-// TestStudentDocumentService_UnknownChildAndGrouplessChild covers the two ways
-// the per-child gate closes for a non-admin: the child does not exist, or the
-// child sits in no group and therefore has no supervisor to be.
+// TestStudentDocumentService_UnknownChildAndGrouplessChild covers the two ends
+// of the per-child gate for a non-admin staff caller: an unknown child is
+// refused, while a child without an education group is ordinary paperwork
+// (#2329 — group-less children used to be admin-only territory).
 func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
@@ -591,10 +577,8 @@ func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, groupless.ID) })
 
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentNoAccess)
+	require.NoError(t, err, "a staff member reaches a child that has no group yet")
 
-	// An admin still reaches them — the office role is exactly who handles a
-	// child that is not assigned to a group yet.
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", s.actor("admin:*"))
 	require.NoError(t, err)
 }
@@ -713,8 +697,8 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
-	// Wrong category for these permissions, unknown category, and a child the
-	// caller supervises nothing of — all refused up front.
+	// Wrong category for these permissions, unknown category, and a caller
+	// without a staff record — all refused up front.
 	require.ErrorIs(t,
 		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, userModels.StudentDocumentCategoryAttest, office),
 		usersSvc.ErrStudentDocumentForbidden)
@@ -729,7 +713,7 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID + 100_000}},
+		stubDocumentUserContext{},
 		nil,
 	)
 	require.ErrorIs(t,

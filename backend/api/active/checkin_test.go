@@ -393,10 +393,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		assert.Contains(t, []int{http.StatusForbidden, http.StatusInternalServerError}, rr.Code)
 	})
 
-	t.Run("returns 403 when staff has no access to student", func(t *testing.T) {
+	t.Run("staff without a group relation to the student may check in", func(t *testing.T) {
+		// #2329: being verified staff of the tenant is the whole gate — the
+		// former "you must be their group teacher" refusal is gone.
 		handler := setupCheckinTestHandler(t, db)
 
-		// Create staff with account (but NOT a teacher for the student's group)
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-access-test")
@@ -416,7 +417,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
-		assert.Equal(t, http.StatusForbidden, rr.Code)
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("returns 409 when active group session has ended", func(t *testing.T) {

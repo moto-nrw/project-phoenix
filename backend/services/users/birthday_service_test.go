@@ -68,21 +68,17 @@ func setBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.Date) {
 	require.NoError(t, err, "stamp birthday on test person")
 }
 
-// fullAccess stands in for an admin caller: every child is visible. The
-// group-scoped variants below carry the interesting cases.
+// fullAccess stands in for an admin or verified staff caller: every child is
+// visible (#2329 — the visibility decision is all-or-nothing).
 type fullAccess struct{}
 
-func (fullAccess) HasFullAccessByGroupID(*int64) bool { return true }
+func (fullAccess) HasFullAccess() bool { return true }
 
-// groupScoped mirrors a caregiver: only children of the supervised groups.
-type groupScoped struct{ groupIDs map[int64]bool }
+// noAccess mirrors a caller without a staff record (guest, guardian): no child
+// is visible.
+type noAccess struct{}
 
-func (g groupScoped) HasFullAccessByGroupID(groupID *int64) bool {
-	if groupID == nil {
-		return false
-	}
-	return g.groupIDs[*groupID]
-}
+func (noAccess) HasFullAccess() bool { return false }
 
 func celebrationNames(overview *usersService.BirthdayOverview) []string {
 	names := make([]string, 0, len(overview.Celebrations))
@@ -438,9 +434,10 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 	})
 }
 
-// Datenschutz-Blocker aus dem Review: a birthday row is student data. A caller
-// with users:read but only their own groups must not receive the whole school
-// through this card, and an unclassified caller must receive nothing at all.
+// Datenschutz-Blocker aus dem Review: a birthday row is student data. Since
+// #2329 the decision is all-or-nothing — admins and verified staff see every
+// child of the tenant, an unclassified caller (guest, guardian, or none at all)
+// receives nothing.
 func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() {
@@ -473,31 +470,28 @@ func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 	ctx := testpkg.TenantContext(1)
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return today })
 
-	t.Run("group-scoped caller sees only their own children", func(t *testing.T) {
-		overview, err := service.Overview(ctx, groupScoped{groupIDs: map[int64]bool{myGroup.ID: true}})
+	t.Run("caller without full access sees no child at all", func(t *testing.T) {
+		overview, err := service.Overview(ctx, noAccess{})
 		require.NoError(t, err)
 
-		names := celebrationNames(overview)
-		assert.Contains(t, names, "Mein Gruppenkind")
-		assert.NotContains(t, names, "Fremdes Gruppenkind", "a child outside the caller's groups must not appear")
-		assert.NotContains(t, names, "Ohne Gruppenkind", "a group-less child is admin/all-staff territory")
+		assert.Empty(t, celebrationNames(overview), "the display fails closed rather than publishing the school")
 	})
 
 	t.Run("unclassified caller sees no child at all", func(t *testing.T) {
 		overview, err := service.Overview(ctx, nil)
 		require.NoError(t, err)
 
-		assert.Empty(t, celebrationNames(overview), "the display fails closed rather than publishing the school")
+		assert.Empty(t, celebrationNames(overview), "a nil visibility must never be read as full access")
 	})
 
-	t.Run("full access still sees everyone", func(t *testing.T) {
+	t.Run("full access sees every child, group or not", func(t *testing.T) {
 		overview, err := service.Overview(ctx, fullAccess{})
 		require.NoError(t, err)
 
 		names := celebrationNames(overview)
 		assert.Contains(t, names, "Mein Gruppenkind")
 		assert.Contains(t, names, "Fremdes Gruppenkind")
-		assert.Contains(t, names, "Ohne Gruppenkind")
+		assert.Contains(t, names, "Ohne Gruppenkind", "a group-less child is visible to staff like any other")
 	})
 }
 

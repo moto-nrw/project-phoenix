@@ -212,11 +212,9 @@ var errDayLogGroupsUnavailable = errors.New("failed to resolve permitted groups"
 var errInvalidDayLogGroupID = errors.New("invalid group_id")
 
 // resolveDayLogGroups returns the groups the caller may evaluate, optionally
-// narrowed to the requested group_id. Admins see all groups. Every other caller
-// must have a linked staff record first: the all_staff scope widens what STAFF
-// may read, so an account holding users:read without a person/staff row must
-// not inherit it. Only then does the scope decide between all groups and the
-// groups supervised on the requested date.
+// narrowed to the requested group_id. Admins see all groups. Every other
+// caller must have a linked staff record; verified staff see all groups
+// (#2329 — the former gdpr.attendance_log_scope per-group filter is gone).
 func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, logger *slog.Logger) ([]*educationModel.Group, error) {
 	ctx := r.Context()
 
@@ -251,11 +249,7 @@ func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Dat
 		return nil, nil
 	}
 
-	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
-	if scope == configModel.AttendanceLogScopeAllStaff {
-		return rs.EducationService.ListGroups(ctx, nil)
-	}
-	return rs.dayLogGroupsForDate(ctx, staff.ID, date)
+	return rs.EducationService.ListGroups(ctx, nil)
 }
 
 // dayLogCurrentStaff returns the caller's staff record, or (nil, nil) when the
@@ -271,49 +265,6 @@ func (rs *Resource) dayLogCurrentStaff(ctx context.Context) (*usersModel.Staff, 
 		return nil, err
 	}
 	return staff, nil
-}
-
-// dayLogGroupsForDate resolves permanent teacher groups plus only those
-// substitutions that cover the requested log date. GetMyGroups intentionally
-// uses today's substitutions for live views and must not authorize history.
-func (rs *Resource) dayLogGroupsForDate(ctx context.Context, staffID int64, date timezone.Date) ([]*educationModel.Group, error) {
-	groupsByID := make(map[int64]*educationModel.Group)
-	teacher, err := rs.UserContextService.GetCurrentTeacher(ctx)
-	if err == nil {
-		groups, groupsErr := rs.EducationService.GetTeacherGroups(ctx, teacher.ID)
-		if groupsErr != nil {
-			return nil, groupsErr
-		}
-		addDayLogGroups(groupsByID, groups)
-	} else if !errors.Is(err, userContextService.ErrUserNotLinkedToTeacher) {
-		return nil, err
-	}
-	substitutions, err := rs.EducationService.GetActiveSubstitutions(ctx, date)
-	if err != nil {
-		return nil, err
-	}
-	addDayLogSubstitutionGroups(groupsByID, substitutions, staffID)
-	groups := make([]*educationModel.Group, 0, len(groupsByID))
-	for _, group := range groupsByID {
-		groups = append(groups, group)
-	}
-	return groups, nil
-}
-
-func addDayLogGroups(groupsByID map[int64]*educationModel.Group, groups []*educationModel.Group) {
-	for _, group := range groups {
-		if group != nil {
-			groupsByID[group.ID] = group
-		}
-	}
-}
-
-func addDayLogSubstitutionGroups(groupsByID map[int64]*educationModel.Group, substitutions []*educationModel.GroupSubstitution, staffID int64) {
-	for _, substitution := range substitutions {
-		if substitution != nil && substitution.SubstituteStaffID == staffID && substitution.Group != nil {
-			groupsByID[substitution.Group.ID] = substitution.Group
-		}
-	}
 }
 
 // renderDayLogGroupError separates the two failure classes of
