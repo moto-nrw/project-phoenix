@@ -54,8 +54,9 @@ type statusDayOverviewEntry struct {
 func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := rs.dayLogLogger()
+	today := timezone.TodayDate()
 
-	from, to, err := parseStatusDayOverviewRange(r)
+	from, to, err := parseStatusDayOverviewRange(r, today)
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -186,12 +187,12 @@ func (rs *Resource) loadStatusDayOverviewEntries(ctx context.Context, groups []*
 
 // parseStatusDayOverviewRange reuses the per-child defaults (today up to two
 // months ahead) and pins the v1 contract: no past days, bounded range.
-func parseStatusDayOverviewRange(r *http.Request) (timezone.Date, timezone.Date, error) {
-	from, to, err := parseStatusDayRange(r)
+func parseStatusDayOverviewRange(r *http.Request, today timezone.Date) (timezone.Date, timezone.Date, error) {
+	from, to, err := parseStatusDayRangeAt(r, today)
 	if err != nil {
 		return timezone.Date{}, timezone.Date{}, err
 	}
-	if from.Before(timezone.TodayDate()) {
+	if from.Before(today) {
 		return timezone.Date{}, timezone.Date{}, errors.New("from must not be in the past")
 	}
 	if to.After(from.AddDays(maxStatusDayOverviewRangeDays - 1)) {

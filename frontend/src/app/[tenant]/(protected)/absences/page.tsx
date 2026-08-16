@@ -198,18 +198,31 @@ export default function AbsencesPage() {
     return [{ value: "all", label: "Alle Gruppen" }, ...options];
   }, [entries]);
 
+  const effectiveGroupFilter = groupOptions.some(
+    (option) => option.value === groupFilter,
+  )
+    ? groupFilter
+    : "all";
+
+  useEffect(() => {
+    if (groupFilter !== effectiveGroupFilter) {
+      setGroupFilter(effectiveGroupFilter);
+    }
+  }, [effectiveGroupFilter, groupFilter]);
+
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return (entries ?? []).filter(
       (entry) =>
         (statusFilter === "all" || entry.status === statusFilter) &&
-        (groupFilter === "all" || entry.group_id === groupFilter) &&
+        (effectiveGroupFilter === "all" ||
+          entry.group_id === effectiveGroupFilter) &&
         (needle === "" ||
           `${entry.first_name} ${entry.last_name} ${entry.school_class}`
             .toLowerCase()
             .includes(needle)),
     );
-  }, [entries, query, statusFilter, groupFilter]);
+  }, [entries, query, statusFilter, effectiveGroupFilter]);
 
   const minDate = useMemo(() => parseISODate(todayIso), [todayIso]);
   const maxDate = useMemo(() => {
@@ -265,7 +278,7 @@ export default function AbsencesPage() {
             className="w-full sm:w-44"
           />
           <CustomSelect
-            value={groupFilter}
+            value={effectiveGroupFilter}
             options={groupOptions}
             onChange={setGroupFilter}
             ariaLabel="Nach Gruppe filtern"
@@ -298,7 +311,7 @@ export default function AbsencesPage() {
               defaultSortKey="date"
               defaultSortDirection="asc"
               pageSize={50}
-              paginationResetKey={`${query}:${statusFilter}:${groupFilter}`}
+              paginationResetKey={`${query}:${statusFilter}:${effectiveGroupFilter}`}
               caption={`${filtered.length} ${
                 filtered.length === 1 ? "Eintrag" : "Einträge"
               } im gewählten Zeitraum`}
