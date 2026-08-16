@@ -15,7 +15,9 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -1285,4 +1287,75 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "Mo: Mit anderem Kind, Di: Bus (mit: Mia Schulz (Mo))", row.Departure)
+}
+
+// --- CareUsage display enrichment (#2215) ------------------------------
+
+type fakeCareUsageRequestRepo struct {
+	enrollmentModels.RequestRepository
+	requests []*enrollmentModels.Request
+}
+
+func (r *fakeCareUsageRequestRepo) ListAdmin(_ context.Context, _ enrollmentModels.RequestListFilters) ([]*enrollmentModels.Request, error) {
+	return r.requests, nil
+}
+
+type fakeCareUsagePickupScheduleSvc struct {
+	scheduleService.PickupScheduleService
+	rows []*scheduleModels.StudentPickupSchedule
+}
+
+func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDs(_ context.Context, _ []int64) ([]*scheduleModels.StudentPickupSchedule, error) {
+	return s.rows, nil
+}
+
+func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
+	studentID := int64(700)
+	guardianEmail := "max@example.org"
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		RequestRepo: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+			Model:             baseModels.Model{ID: 11},
+			GuardianFirstName: "Eva",
+			GuardianLastName:  "Muster",
+			GuardianEmail:     "eva@example.org",
+			SubmittedAt:       time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}}},
+		RequestChildRepo: &fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
+			Model:            baseModels.Model{ID: 21},
+			RequestID:        11,
+			FirstName:        "Lina",
+			LastName:         "Muster",
+			Status:           enrollmentModels.ChildStatusApproved,
+			CreatedStudentID: &studentID,
+		}}},
+		RequestGuardianRepo: &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentModels.RequestGuardian{{
+			RequestID: 11,
+			FirstName: "Max",
+			LastName:  "Muster",
+			Email:     &guardianEmail,
+		}}},
+		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		PhaseRepo:                &fakeClassRosterPhaseRepo{},
+		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+			StudentID:  studentID,
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
+		}}},
+	}}
+
+	report, err := svc.CareUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	row := report.Rows[0]
+	// Maintained Kind-Gehzeit of the linked student is attached for
+	// display; the snapshot PickupByDay stays untouched.
+	assert.Equal(t, "14:30", row.SchedulePickupByDay["mon"])
+	assert.Empty(t, row.PickupByDay["mon"])
+	// All request guardians, primary first.
+	require.Len(t, row.Guardians, 2)
+	assert.Equal(t, "Eva Muster", row.Guardians[0].Name)
+	assert.Equal(t, "Max Muster", row.Guardians[1].Name)
+	assert.Equal(t, guardianEmail, row.Guardians[1].Email)
 }

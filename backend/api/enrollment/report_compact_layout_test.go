@@ -161,6 +161,34 @@ func TestBuildCareUsageCompactTableDocumentWeeklyCells(t *testing.T) {
 	assert.Equal(t, "Carla Conrad (carla@example.org, 0151 2345678)", ida[listexport.ColumnGuardianContacts])
 }
 
+func TestBuildCareUsageCompactTableDocumentPrefersScheduleAndAllGuardians(t *testing.T) {
+	report := compactLayoutTestReport()
+	// The maintained Kind-Gehzeit (#2290) outranks the enrollment-form
+	// snapshot, exactly like the class-roster export.
+	report.Rows[0].SchedulePickupByDay = map[string]string{"mon": "15:00"}
+	report.Rows[0].Guardians = []enrollmentService.ClassRosterGuardian{
+		{Name: "Carla Conrad", Email: "carla@example.org"},
+		{Name: "Kai Conrad", Phone: "0170 111"},
+	}
+
+	doc := buildCareUsageCompactTableDocument(report)
+
+	var ida map[listexport.ColumnID]string
+	for _, row := range doc.Rows {
+		if row.Values[listexport.ColumnName] == "Ida Conrad" {
+			ida = row.Values
+		}
+	}
+	require.NotNil(t, ida)
+	assert.Equal(t, "15:00 Uhr", ida[listexport.ColumnWeeklyMonday])
+	// Wednesday has no maintained time -> snapshot still applies.
+	assert.Equal(t, "14:30 Uhr", ida[listexport.ColumnWeeklyWednesday])
+	assert.Equal(t,
+		"Carla Conrad (carla@example.org); Kai Conrad (0170 111)",
+		ida[listexport.ColumnGuardianContacts],
+	)
+}
+
 func TestBuildCareUsageCompactTableDocumentSingleClassHasNoHeadings(t *testing.T) {
 	report := compactLayoutTestReport()
 	report.Rows = report.Rows[:1]

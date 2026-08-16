@@ -660,18 +660,14 @@ func buildCareUsageCompactTableDocument(report *enrollmentService.CareUsageRepor
 			rows = append(rows, listexport.Row{GroupTitle: careUsageGroupTitle(class)})
 		}
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:            strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
-			listexport.ColumnSchoolClass:     class,
-			listexport.ColumnWeeklyMonday:    careUsageWeeklyCell(row, "mon"),
-			listexport.ColumnWeeklyTuesday:   careUsageWeeklyCell(row, "tue"),
-			listexport.ColumnWeeklyWednesday: careUsageWeeklyCell(row, "wed"),
-			listexport.ColumnWeeklyThursday:  careUsageWeeklyCell(row, "thu"),
-			listexport.ColumnWeeklyFriday:    careUsageWeeklyCell(row, "fri"),
-			listexport.ColumnGuardianContacts: classRosterGuardianContactsLabel([]enrollmentService.ClassRosterGuardian{{
-				Name:  strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
-				Email: row.GuardianEmail,
-				Phone: base.Deref(row.GuardianPhone),
-			}}),
+			listexport.ColumnName:             strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
+			listexport.ColumnSchoolClass:      class,
+			listexport.ColumnWeeklyMonday:     careUsageWeeklyCell(row, "mon"),
+			listexport.ColumnWeeklyTuesday:    careUsageWeeklyCell(row, "tue"),
+			listexport.ColumnWeeklyWednesday:  careUsageWeeklyCell(row, "wed"),
+			listexport.ColumnWeeklyThursday:   careUsageWeeklyCell(row, "thu"),
+			listexport.ColumnWeeklyFriday:     careUsageWeeklyCell(row, "fri"),
+			listexport.ColumnGuardianContacts: classRosterGuardianContactsLabel(careUsageGuardians(row)),
 		}})
 	}
 	return listexport.Document{
@@ -711,38 +707,37 @@ func careUsageSpansMultipleClasses(sorted []enrollmentService.CareUsageRow) bool
 	return false
 }
 
-// careUsageWeeklyCell mirrors classRosterWeeklyCell for enrollment-report
-// rows: pickup time on care days, offering names as fallback for schools
-// whose form has no pickup-time field, "—" on non-care days.
 func careUsageWeeklyCell(row enrollmentService.CareUsageRow, day string) string {
-	if !containsReportDay(row.EffectiveDays, day) {
-		return "—"
-	}
-	if pickup := strings.TrimSpace(row.PickupByDay[day]); pickup != "" {
-		return pickup + " Uhr"
-	}
-	if offerings := careUsageDailyOfferingNames(row, day); len(offerings) > 0 {
-		return strings.Join(offerings, "; ")
-	}
-	return "Keine Abholzeit"
+	return weeklyPickupCell(
+		containsReportDay(row.EffectiveDays, day),
+		row.SchedulePickupByDay[day],
+		row.PickupByDay[day],
+		careUsageDailyOfferingNames(row, day),
+	)
 }
 
 func careUsageDailyOfferingNames(row enrollmentService.CareUsageRow, day string) []string {
-	seen := map[string]bool{}
-	names := []string{}
+	names := make([]string, 0, len(row.Offerings))
 	for _, offering := range row.Offerings {
-		if !containsReportDay(offering.Days, day) {
-			continue
+		if containsReportDay(offering.Days, day) {
+			names = append(names, offering.Name)
 		}
-		name := strings.TrimSpace(offering.Name)
-		if name == "" || seen[name] {
-			continue
-		}
-		seen[name] = true
-		names = append(names, name)
 	}
-	sort.Strings(names)
-	return names
+	return normalizedClassRosterOfferingNames(names)
+}
+
+// careUsageGuardians prefers the enriched full contact list; rows built
+// without enrichment (older callers, tests) fall back to the submitting
+// guardian carried on the flat fields.
+func careUsageGuardians(row enrollmentService.CareUsageRow) []enrollmentService.ClassRosterGuardian {
+	if len(row.Guardians) > 0 {
+		return row.Guardians
+	}
+	return []enrollmentService.ClassRosterGuardian{{
+		Name:  strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
+		Email: row.GuardianEmail,
+		Phone: base.Deref(row.GuardianPhone),
+	}}
 }
 
 func buildClassRosterExportFile(svc *listexport.RendererService, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
@@ -841,22 +836,32 @@ func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []stri
 }
 
 func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
-	if !containsReportDay(row.CareDays, day) {
+	return weeklyPickupCell(
+		containsReportDay(row.CareDays, day),
+		row.SchedulePickupByDay[day],
+		row.PickupByDay[day],
+		classRosterDailyOfferings(row, day),
+	)
+}
+
+// weeklyPickupCell renders one weekday cell of the roster-style tables
+// (class roster and compact care-usage export): "—" outside care days; the
+// maintained Kind-Gehzeit (manual rows and rolled-out Angebots-Gehzeiten)
+// outranks the enrollment-form snapshot (#2290); offering names are the
+// fallback for schools whose form encodes the care window in the offering
+// name ("Betreuung bis 14:30 Uhr") instead of a pickup-time field.
+func weeklyPickupCell(isCareDay bool, schedulePickup, snapshotPickup string, offeringNames []string) string {
+	if !isCareDay {
 		return "—"
 	}
-	// The maintained Kind-Gehzeit (manual rows and rolled-out
-	// Angebots-Gehzeiten) outranks the enrollment-form snapshot (#2290).
-	if pickup := strings.TrimSpace(row.SchedulePickupByDay[day]); pickup != "" {
+	if pickup := strings.TrimSpace(schedulePickup); pickup != "" {
 		return pickup + " Uhr"
 	}
-	if pickup := strings.TrimSpace(row.PickupByDay[day]); pickup != "" {
+	if pickup := strings.TrimSpace(snapshotPickup); pickup != "" {
 		return pickup + " Uhr"
 	}
-	// Schools without a pickup-time form field encode the care window in the
-	// offering name ("Betreuung bis 14:30 Uhr") — fall back to it instead of
-	// printing "Keine Abholzeit" across the whole roster.
-	if offerings := classRosterDailyOfferings(row, day); len(offerings) > 0 {
-		return strings.Join(offerings, "; ")
+	if len(offeringNames) > 0 {
+		return strings.Join(offeringNames, "; ")
 	}
 	return "Keine Abholzeit"
 }

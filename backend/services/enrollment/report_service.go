@@ -113,6 +113,16 @@ type CareUsageRow struct {
 	GuardianEmail     string                 `json:"guardian_email"`
 	GuardianPhone     *string                `json:"guardian_phone,omitempty"`
 	SubmittedAt       time.Time              `json:"submitted_at"`
+	// SchedulePickupByDay is the maintained Kind-Gehzeit (manual rows and
+	// rolled-out Angebots-Gehzeiten, #2290) of the student linked to this
+	// request child, when one exists. Display-only enrichment for the
+	// compact export (#2215): filters and totals keep using the
+	// enrollment-form snapshot in PickupByDay.
+	SchedulePickupByDay map[string]string `json:"schedule_pickup_by_day"`
+	// Guardians are all guardian contacts on the request (primary plus
+	// additional request guardians), mirroring the class-roster contact
+	// column. The flat Guardian* fields above stay the submitting guardian.
+	Guardians []ClassRosterGuardian `json:"guardians"`
 }
 
 type CareUsageRowOffering struct {
@@ -354,6 +364,28 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)
 	}
 
+	// Display-only enrichment for the roster-style export (#2215): all
+	// request guardians and the maintained Kind-Gehzeit of already-linked
+	// students. Neither feeds filters or totals.
+	guardiansByRequest := map[int64][]*enrollmentModels.RequestGuardian{}
+	if s.RequestGuardianRepo != nil && len(reqIDs) > 0 {
+		requestGuardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, reqIDs)
+		if err != nil {
+			return nil, fmt.Errorf("care usage report: list request guardians: %w", err)
+		}
+		guardiansByRequest = classRosterRequestGuardiansByRequestID(requestGuardians)
+	}
+	studentIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		if id := careUsageStudentID(child); id != 0 {
+			studentIDs = append(studentIDs, id)
+		}
+	}
+	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("care usage report: %w", err)
+	}
+
 	report := &CareUsageReport{
 		Phase:   CareUsagePhase{ID: phase.ID, Name: phase.Name},
 		Filters: careUsageAppliedFilters(filters),
@@ -379,6 +411,10 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 			return nil, fmt.Errorf("care usage report: child %d pickup schedule: %w", child.ID, err)
 		}
 		row := careUsageRow(req, child, linksByChild[child.ID], offeringByID, includedOfferingIDs, pickupByDay)
+		row.Guardians = classRosterEnrollmentGuardians(req, guardiansByRequest[req.ID])
+		if byDay := schedulePickup[careUsageStudentID(child)]; byDay != nil {
+			row.SchedulePickupByDay = byDay
+		}
 		if child.TargetGradeLevel != nil {
 			gradeSeen[*child.TargetGradeLevel] = true
 		}
@@ -1970,19 +2006,44 @@ var classRosterISOWeekdayDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "
 // rows (schedule.student_pickup_schedules) for the roster students (#2290).
 // Nil-safe: wirings without the schedule service render without the column.
 func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, students []*userModels.Student) (map[int64]map[string]string, error) {
-	out := map[int64]map[string]string{}
-	if s.PickupScheduleSvc == nil || len(students) == 0 {
-		return out, nil
-	}
 	studentIDs := make([]int64, 0, len(students))
 	for _, student := range students {
 		if student != nil {
 			studentIDs = append(studentIDs, student.ID)
 		}
 	}
+	out, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: %w", err)
+	}
+	return out, nil
+}
+
+// careUsageStudentID resolves the student a request child is already tied
+// to (rollout-created or matched existing student); 0 when there is none.
+func careUsageStudentID(child *enrollmentModels.RequestChild) int64 {
+	if child == nil {
+		return 0
+	}
+	if child.CreatedStudentID != nil {
+		return *child.CreatedStudentID
+	}
+	if child.MatchedStudentID != nil {
+		return *child.MatchedStudentID
+	}
+	return 0
+}
+
+// schedulePickupByStudentIDs maps student ID -> day code -> maintained
+// pickup time (HH:MM), shared by the class-roster and care-usage reports.
+func (s *reportService) schedulePickupByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]map[string]string, error) {
+	out := map[int64]map[string]string{}
+	if s.PickupScheduleSvc == nil || len(studentIDs) == 0 {
+		return out, nil
+	}
 	rows, err := s.PickupScheduleSvc.GetWeeklySchedulesByStudentIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("class roster report: list pickup schedules: %w", err)
+		return nil, fmt.Errorf("list pickup schedules: %w", err)
 	}
 	for _, row := range rows {
 		day, ok := classRosterISOWeekdayDay[row.Weekday]
