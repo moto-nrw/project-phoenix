@@ -3,13 +3,17 @@ package students
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -63,18 +67,55 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if rs.StudentStatusDayService == nil {
-		common.Respond(w, r, http.StatusOK, statusDayOverviewResponse{From: from.String(), To: to.String(), Entries: []statusDayOverviewEntry{}}, "Student status days retrieved successfully")
-		return
+	entries := []statusDayOverviewEntry{}
+	if rs.StudentStatusDayService != nil {
+		entries, err = rs.loadStatusDayOverviewEntries(ctx, groups, from, to)
+		if err != nil {
+			renderError(w, r, common.ErrorInternalServerWrap("failed to load absence overview", err))
+			return
+		}
 	}
-
-	entries, err := rs.loadStatusDayOverviewEntries(ctx, groups, from, to)
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServerWrap("failed to load absence overview", err))
+	if err := rs.writeStatusDayOverviewAudit(r, from, to, groups, logger); err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, statusDayOverviewResponse{From: from.String(), To: to.String(), Entries: entries}, "Student status days retrieved successfully")
+}
+
+func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezone.Date, groups []*educationModel.Group, logger *slog.Logger) error {
+	if rs.StudentHistoryService == nil {
+		logger.Error("audit log repo not configured, refusing to serve absence overview")
+		return errors.New("audit log repository not configured")
+	}
+
+	claims := jwt.ClaimsFromCtx(r.Context())
+	actorRole := strings.Join(claims.Roles, ",")
+	if actorRole == "" {
+		actorRole = "unknown"
+	}
+	groupIDs := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		groupIDs = append(groupIDs, group.ID)
+	}
+	entry := &auditModels.DataAccessLog{
+		ActorAccountID: int64(claims.ID),
+		ActorRole:      actorRole,
+		ResourceType:   auditModels.ResourceTypeStudentStatusDayOverview,
+		RangeStart:     from.BerlinMidnight(),
+		RangeEnd:       to.EndOfDay(),
+		AccessedAt:     time.Now(),
+	}
+	entry.SetMetadata("group_ids", groupIDs)
+
+	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
+		logger.Error("audit log write failed, refusing to serve absence overview",
+			slog.String("resource_type", auditModels.ResourceTypeStudentStatusDayOverview),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	return nil
 }
 
 // loadStatusDayOverviewEntries bulk-loads the permitted groups' rosters, the

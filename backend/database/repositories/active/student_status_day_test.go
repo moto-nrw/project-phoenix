@@ -407,15 +407,18 @@ func TestStudentStatusDayRepository_FindActiveByStudentIDsAndDateRange(t *testin
 	outOfRange := testpkg.CreateTestStudentStatusDay(t, db, first.ID, to.AddDays(1), active.StudentStatusDayClassTrip)
 	otherStudent := testpkg.CreateTestStudentStatusDay(t, db, other.ID, from.AddDays(1), active.StudentStatusDaySick)
 	cleared := testpkg.CreateTestStudentStatusDay(t, db, second.ID, from.AddDays(3), active.StudentStatusDaySick)
-	defer testpkg.CleanupStudentStatusDays(t, db, inRangeFirst.ID, inRangeSecond.ID, outOfRange.ID, otherStudent.ID, cleared.ID)
+	archived := testpkg.CreateTestStudentStatusDay(t, db, first.ID, from.AddDays(4), active.StudentStatusDayExcused)
+	defer testpkg.CleanupStudentStatusDays(t, db, inRangeFirst.ID, inRangeSecond.ID, outOfRange.ID, otherStudent.ID, cleared.ID, archived.ID)
 	require.NoError(t, repo.MarkClearedByID(ctx, cleared.ID, time.Now(), active.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkClearedByID(ctx, archived.ID, time.Now(), active.StudentStatusSourceEndOfDay))
 
 	rows, err := repo.FindActiveByStudentIDsAndDateRange(ctx, []int64{first.ID, second.ID}, from, to)
 	require.NoError(t, err)
-	require.Len(t, rows, 2, "cleared, out-of-range and other-student rows must be excluded")
+	require.Len(t, rows, 3, "manually cleared, out-of-range and other-student rows must be excluded")
 	// Ordered by date first.
 	assert.Equal(t, inRangeSecond.ID, rows[0].ID)
 	assert.Equal(t, inRangeFirst.ID, rows[1].ID)
+	assert.Equal(t, archived.ID, rows[2].ID, "end-of-day archives remain valid registered absences")
 
 	empty, err := repo.FindActiveByStudentIDsAndDateRange(ctx, nil, from, to)
 	require.NoError(t, err)

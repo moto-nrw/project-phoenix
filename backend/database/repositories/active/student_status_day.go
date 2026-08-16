@@ -265,7 +265,7 @@ func (r *StudentStatusDayRepository) FindActiveByStudentIDsAndDateRange(ctx cont
 		Where(`"student_status_day".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_status_day".date >= ?`, startDate).
 		Where(`"student_status_day".date <= ?`, endDate).
-		Where(`"student_status_day".cleared_at IS NULL`).
+		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, active.StudentStatusSourceEndOfDay).
 		OrderExpr(`"student_status_day".date ASC`).
 		OrderExpr(`"student_status_day".student_id ASC`).
 		OrderExpr(`"student_status_day".reported_at DESC`)

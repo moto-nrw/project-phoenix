@@ -29,9 +29,11 @@ import { createLogger } from "~/lib/logger";
 import {
   fetchStatusDayOverview,
   StatusDayOverviewForbiddenError,
+  type StatusDayOverview,
   type StatusDayOverviewEntry,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "AbsencesPage" });
@@ -135,9 +137,6 @@ export default function AbsencesPage() {
   const [range, setRange] = useState<DateRange | undefined>(() =>
     defaultRange(berlinTodayISO()),
   );
-  const [entries, setEntries] = useState<StatusDayOverviewEntry[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -148,37 +147,45 @@ export default function AbsencesPage() {
   const fromIso = range?.from ? toISODate(range.from) : null;
   const toIso = range?.to ? toISODate(range.to) : null;
   const effectiveFromIso = fromIso && fromIso < todayIso ? todayIso : fromIso;
+  const effectiveToIso =
+    toIso && effectiveFromIso && toIso < effectiveFromIso
+      ? effectiveFromIso
+      : toIso;
 
   useEffect(() => {
-    if (!effectiveFromIso || !toIso) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetchStatusDayOverview(effectiveFromIso, toIso)
-      .then((overview) => {
-        if (!cancelled) setEntries(overview.entries);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setEntries(null);
-        setError(
-          err instanceof StatusDayOverviewForbiddenError
-            ? err.message
-            : "Abwesenheiten konnten nicht geladen werden.",
-        );
-        logger.error("absences_fetch_failed", {
-          from: effectiveFromIso,
-          to: toIso,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveFromIso, toIso]);
+    if (!range?.from || fromIso === effectiveFromIso) return;
+    const from = parseISODate(effectiveFromIso!);
+    setRange({
+      from,
+      to: effectiveToIso ? parseISODate(effectiveToIso) : from,
+    });
+  }, [effectiveFromIso, effectiveToIso, fromIso, range?.from]);
+
+  const {
+    data: overview,
+    isLoading: loading,
+    error: swrError,
+  } = useSWRAuth<StatusDayOverview>(
+    effectiveFromIso && effectiveToIso
+      ? `student-status-days-overview-${effectiveFromIso}-${effectiveToIso}`
+      : null,
+    () => fetchStatusDayOverview(effectiveFromIso!, effectiveToIso!),
+  );
+  const entries = overview?.entries ?? null;
+  const error = swrError
+    ? swrError instanceof StatusDayOverviewForbiddenError
+      ? swrError.message
+      : "Abwesenheiten konnten nicht geladen werden."
+    : null;
+
+  useEffect(() => {
+    if (!swrError) return;
+    logger.error("absences_fetch_failed", {
+      from: effectiveFromIso,
+      to: effectiveToIso,
+      error: swrError instanceof Error ? swrError.message : String(swrError),
+    });
+  }, [effectiveFromIso, effectiveToIso, swrError]);
 
   const groupOptions = useMemo(() => {
     const byId = new Map<string, string>();
@@ -205,6 +212,14 @@ export default function AbsencesPage() {
   }, [entries, query, statusFilter, groupFilter]);
 
   const minDate = useMemo(() => parseISODate(todayIso), [todayIso]);
+  const maxDate = useMemo(() => {
+    const today = parseISODate(todayIso);
+    return new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate() + 365,
+    );
+  }, [todayIso]);
 
   return (
     <div className="w-full">
@@ -228,6 +243,7 @@ export default function AbsencesPage() {
             onChange={setRange}
             presets={rangePresets(todayIso)}
             fromMin={minDate}
+            toMax={maxDate}
             className="w-full sm:w-auto"
           />
         </div>
@@ -282,6 +298,7 @@ export default function AbsencesPage() {
               defaultSortKey="date"
               defaultSortDirection="asc"
               pageSize={50}
+              paginationResetKey={`${query}:${statusFilter}:${groupFilter}`}
               caption={`${filtered.length} ${
                 filtered.length === 1 ? "Eintrag" : "Einträge"
               } im gewählten Zeitraum`}

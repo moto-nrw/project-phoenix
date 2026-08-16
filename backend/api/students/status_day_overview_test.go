@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,6 +72,20 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	req := testutil.NewRequest("GET", "/status-days", nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var auditEntry auditModels.DataAccessLog
+	require.NoError(t, tc.db.NewSelect().
+		Model(&auditEntry).
+		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
+		OrderExpr("id DESC").
+		Limit(1).
+		Scan(context.Background()))
+	t.Cleanup(func() {
+		_, _ = tc.db.NewDelete().Model(&auditEntry).WherePK().Exec(context.Background())
+	})
+	assert.Equal(t, today.BerlinMidnight(), auditEntry.RangeStart)
+	assert.Equal(t, timezone.NewDate(today.Year, today.Month+2, today.Day).EndOfDay(), auditEntry.RangeEnd)
+	assert.ElementsMatch(t, []interface{}{float64(groupA.ID), float64(groupB.ID)}, auditEntry.Metadata["group_ids"])
 
 	var body statusDayOverviewTestBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
@@ -139,6 +154,16 @@ func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "date range cannot exceed")
+}
+
+func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) {
+	tc := setupTestContext(t)
+	tc.resource.StudentHistoryService = nil
+
+	req := testutil.NewRequest("GET", "/status-days", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "failed to record audit trail")
 }
 
 func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T) {
