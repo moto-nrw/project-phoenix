@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -3515,4 +3516,54 @@ func CleanupParentMessagingForAccount(tb testing.TB, db *bun.DB, accountIDs ...i
 		exec(`DELETE FROM users.parent_message_reads WHERE account_id = ?`, id)
 		exec(`DELETE FROM users.parent_messages WHERE sender_account_id = ?`, id)
 	}
+}
+
+// CreateTestEnrollmentPhase creates a minimal active enrollment phase for
+// tenant 1 covering the current school year, with cleanup registered.
+func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
+	tb.Helper()
+	ctx := TenantContext(1)
+	phase := &enrollment.Phase{
+		Name:                      fmt.Sprintf("Testphase-%d", time.Now().UnixNano()),
+		Kind:                      "school_year",
+		ServiceStartDate:          timezone.TodayDate().AddDays(-30),
+		ServiceEndDate:            timezone.TodayDate().AddDays(300),
+		CareOverflowMode:          "waitlist",
+		CareOfferingSelectionMode: "optional",
+		IsActive:                  true,
+	}
+	phase.SetTenantID(1)
+	_, err := db.NewInsert().Model(phase).ModelTableExpr(`enrollment.phases AS "phase"`).Returning("*").Exec(ctx)
+	if err != nil {
+		tb.Fatalf("create test enrollment phase: %v", err)
+	}
+	tb.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(context.Background())
+	})
+	return phase
+}
+
+// CreateTestCareOffering creates a minimal active care offering in the given
+// phase (fixed Mo-Fr), with cleanup registered.
+func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *enrollment.CareOffering {
+	tb.Helper()
+	ctx := TenantContext(1)
+	offering := &enrollment.CareOffering{
+		PhaseID:            phaseID,
+		Name:               fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+		DaysOfWeekMode:     enrollment.DaysOfWeekModeFixed,
+		AvailableDays:      []string{"mon", "tue", "wed", "thu", "fri"},
+		AutoAddGradeLevels: []int{},
+		IsActive:           true,
+		CountsAsCare:       true,
+	}
+	offering.SetTenantID(1)
+	_, err := db.NewInsert().Model(offering).ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).Returning("*").Exec(ctx)
+	if err != nil {
+		tb.Fatalf("create test care offering: %v", err)
+	}
+	tb.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("enrollment.care_offerings").Where("id = ?", offering.ID).Exec(context.Background())
+	})
+	return offering
 }

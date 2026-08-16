@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/render"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -27,9 +29,13 @@ type PickupScheduleResponse struct {
 	WeekdayName string  `json:"weekday_name"`
 	PickupTime  string  `json:"pickup_time"` // HH:MM format
 	Notes       *string `json:"notes,omitempty"`
-	CreatedBy   int64   `json:"created_by"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	// Source marks the row's provenance: "staff" (manually maintained) or
+	// "care_offering" (materialized Angebots-Gehzeit, #2290).
+	Source         string  `json:"source"`
+	CareOfferingID *string `json:"care_offering_id,omitempty"`
+	CreatedBy      int64   `json:"created_by"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
 }
 
 // PickupExceptionResponse represents a pickup exception in API responses
@@ -180,17 +186,26 @@ func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 
 // mapScheduleToResponse converts a schedule model to API response
 func mapScheduleToResponse(s *schedule.StudentPickupSchedule) PickupScheduleResponse {
-	return PickupScheduleResponse{
+	resp := PickupScheduleResponse{
 		ID:          s.ID,
 		StudentID:   s.StudentID,
 		Weekday:     s.Weekday,
 		WeekdayName: s.GetWeekdayName(),
 		PickupTime:  s.PickupTime.Format("15:04"),
 		Notes:       s.Notes,
+		Source:      s.Source,
 		CreatedBy:   s.CreatedBy,
 		CreatedAt:   s.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:   s.UpdatedAt.Format(time.RFC3339),
 	}
+	if resp.Source == "" {
+		resp.Source = schedule.PickupScheduleSourceStaff
+	}
+	if s.CareOfferingID != nil {
+		id := strconv.FormatInt(*s.CareOfferingID, 10)
+		resp.CareOfferingID = &id
+	}
+	return resp
 }
 
 // mapExceptionToResponse converts an exception model to API response
@@ -857,4 +872,57 @@ func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []i
 		return requestedIDs, nil
 	}
 	return []int64{}, nil
+}
+
+// ResetOfferingPickupRequest selects the weekday to reset onto the
+// Angebots-Gehzeit (#2290).
+type ResetOfferingPickupRequest struct {
+	Weekday int `json:"weekday"`
+}
+
+func (r *ResetOfferingPickupRequest) Bind(_ *http.Request) error {
+	if r.Weekday < schedule.WeekdayMonday || r.Weekday > schedule.WeekdayFriday {
+		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
+	}
+	return nil
+}
+
+// resetStudentPickupToOffering handles
+// POST /students/{id}/pickup-schedules/reset-offering: the weekday's Gehzeit
+// goes back to the Angebots-Gehzeit (or is removed when the booked offerings
+// carry none for that day).
+func (rs *Resource) resetStudentPickupToOffering(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupWriteAccess(w, r, "reset pickup schedule to offering")
+	if student == nil {
+		return
+	}
+	svc, ok := rs.EnrollmentDecision.(enrollmentService.OfferingPickupTimeService)
+	if rs.EnrollmentDecision == nil || !ok {
+		renderError(w, r, common.ErrorInternalServer(errors.New("offering pickup service not configured")))
+		return
+	}
+	req := &ResetOfferingPickupRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		_, err := svc.ResetStudentPickupDayToOffering(ctx, student.ID, req.Weekday, int64(claims.ID))
+		return err
+	}); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+	})
+	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, buildPickupDataResponse(data), "Pickup schedule reset to offering")
 }

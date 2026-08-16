@@ -176,8 +176,13 @@ type ClassRosterRow struct {
 	CareDays          []string               `json:"care_days"`
 	ArrivalByDay      map[string]string      `json:"arrival_by_day"`
 	PickupByDay       map[string]string      `json:"pickup_by_day"`
-	Departure         string                 `json:"departure"`
-	Guardians         []ClassRosterGuardian  `json:"guardians"`
+	// SchedulePickupByDay is the maintained Kind-Gehzeit from
+	// schedule.student_pickup_schedules (manual rows and rolled-out
+	// Angebots-Gehzeiten). It outranks the enrollment-form answer in the
+	// weekday cells (#2290).
+	SchedulePickupByDay map[string]string     `json:"schedule_pickup_by_day"`
+	Departure           string                `json:"departure"`
+	Guardians           []ClassRosterGuardian `json:"guardians"`
 }
 
 type ClassRosterGuardian struct {
@@ -593,6 +598,10 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	classRosterAttachOfferingLinks(enrollmentsByStudent, links)
 	classRosterAttachRequestGuardians(enrollmentsByStudent, requestGuardiansByID)
 
+	schedulePickup, err := s.classRosterSchedulePickupByStudent(ctx, students)
+	if err != nil {
+		return nil, err
+	}
 	rows := make([]ClassRosterRow, 0, len(students))
 	for _, student := range students {
 		if student == nil {
@@ -602,6 +611,9 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 		row, err := classRosterRow(student, person, classRosterGroupName(student, groups), enrollmentsByStudent[student.ID], offeringByID, schemas, studentGuardianContacts[student.ID], companions[student.ID], careOfferingsEnabled)
 		if err != nil {
 			return nil, err
+		}
+		if byDay := schedulePickup[student.ID]; byDay != nil {
+			row.SchedulePickupByDay = byDay
 		}
 		rows = append(rows, row)
 	}
@@ -1114,15 +1126,16 @@ func classRosterRow(
 ) (ClassRosterRow, error) {
 	studentContactGuardians := classRosterStudentGuardians(student, studentGuardians)
 	row := ClassRosterRow{
-		StudentID:         student.ID,
-		SchoolClass:       student.SchoolClass,
-		GroupName:         groupName,
-		EnrollmentSummary: "Keine Anmeldung",
-		CareDays:          []string{},
-		OfferingsByDay:    map[string][]string{},
-		ArrivalByDay:      map[string]string{},
-		PickupByDay:       map[string]string{},
-		Guardians:         studentContactGuardians,
+		StudentID:           student.ID,
+		SchoolClass:         student.SchoolClass,
+		GroupName:           groupName,
+		EnrollmentSummary:   "Keine Anmeldung",
+		CareDays:            []string{},
+		OfferingsByDay:      map[string][]string{},
+		ArrivalByDay:        map[string]string{},
+		PickupByDay:         map[string]string{},
+		SchedulePickupByDay: map[string]string{},
+		Guardians:           studentContactGuardians,
 	}
 	if person != nil {
 		row.FirstName = person.FirstName
@@ -1947,4 +1960,39 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 	entry.SetMetadata("student_count", report.Totals.Students)
 	entry.SetMetadata("registered_count", report.Totals.Registered)
 	return writeExportAudit(ctx, s.DataAccessLogRepo, entry, "class roster report export audit")
+}
+
+// classRosterISOWeekdayDay maps pickup-schedule weekdays (ISO, Mon=1) onto
+// the report day codes used across the roster maps.
+var classRosterISOWeekdayDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri"}
+
+// classRosterSchedulePickupByStudent loads the maintained weekly Kind-Gehzeit
+// rows (schedule.student_pickup_schedules) for the roster students (#2290).
+// Nil-safe: wirings without the schedule service render without the column.
+func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, students []*userModels.Student) (map[int64]map[string]string, error) {
+	out := map[int64]map[string]string{}
+	if s.PickupScheduleSvc == nil || len(students) == 0 {
+		return out, nil
+	}
+	studentIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student != nil {
+			studentIDs = append(studentIDs, student.ID)
+		}
+	}
+	rows, err := s.PickupScheduleSvc.GetWeeklySchedulesByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: list pickup schedules: %w", err)
+	}
+	for _, row := range rows {
+		day, ok := classRosterISOWeekdayDay[row.Weekday]
+		if !ok {
+			continue
+		}
+		if out[row.StudentID] == nil {
+			out[row.StudentID] = map[string]string{}
+		}
+		out[row.StudentID][day] = row.PickupTime.Format("15:04")
+	}
+	return out, nil
 }

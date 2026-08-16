@@ -676,6 +676,11 @@ func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) str
 	if !containsReportDay(row.CareDays, day) {
 		return "—"
 	}
+	// The maintained Kind-Gehzeit (manual rows and rolled-out
+	// Angebots-Gehzeiten) outranks the enrollment-form snapshot (#2290).
+	if pickup := strings.TrimSpace(row.SchedulePickupByDay[day]); pickup != "" {
+		return pickup + " Uhr"
+	}
 	if pickup := strings.TrimSpace(row.PickupByDay[day]); pickup != "" {
 		return pickup + " Uhr"
 	}

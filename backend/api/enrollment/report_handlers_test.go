@@ -264,3 +264,53 @@ func (s *fakeClassRosterReportService) ExportClassRoster(_ context.Context, filt
 		},
 	}, nil
 }
+
+// #2290: the maintained Kind-Gehzeit (schedule.student_pickup_schedules,
+// incl. rolled-out Angebots-Gehzeiten) outranks the enrollment-form answer.
+func TestClassRosterWeeklyCellSchedulePickupPriority(t *testing.T) {
+	tests := []struct {
+		name string
+		row  enrollmentService.ClassRosterRow
+		want string
+	}{
+		{
+			name: "schedule pickup wins over form pickup",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:            []string{"mon"},
+				SchedulePickupByDay: map[string]string{"mon": "14:30"},
+				PickupByDay:         map[string]string{"mon": "15:00"},
+			},
+			want: "14:30 Uhr",
+		},
+		{
+			name: "schedule pickup wins over offering names",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:            []string{"mon"},
+				SchedulePickupByDay: map[string]string{"mon": "16:00"},
+				OfferingsByDay:      map[string][]string{"mon": {"Ganztagsbetreuung"}},
+			},
+			want: "16:00 Uhr",
+		},
+		{
+			name: "form pickup still applies without schedule row",
+			row: enrollmentService.ClassRosterRow{
+				CareDays:    []string{"mon"},
+				PickupByDay: map[string]string{"mon": "15:00"},
+			},
+			want: "15:00 Uhr",
+		},
+		{
+			name: "no care day ignores schedule pickup",
+			row: enrollmentService.ClassRosterRow{
+				SchedulePickupByDay: map[string]string{"mon": "14:30"},
+			},
+			want: "—",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classRosterWeeklyCell(tt.row, "mon"))
+		})
+	}
+}

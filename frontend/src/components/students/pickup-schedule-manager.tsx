@@ -30,6 +30,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import {
   fetchStudentPickupData,
+  resetStudentPickupToOffering,
   updateStudentPickupSchedules,
   createStudentPickupException,
   updateStudentPickupException,
@@ -199,6 +200,12 @@ export default function PickupScheduleManager({
     },
     [editingDay, studentId, refreshAndKeepModal],
   );
+
+  const handleResetToOffering = useCallback(async () => {
+    if (!editingDay || editingDay.weekday === 0) return;
+    await resetStudentPickupToOffering(studentId, editingDay.weekday);
+    await refreshAndKeepModal();
+  }, [editingDay, studentId, refreshAndKeepModal]);
 
   const handleDeleteException = useCallback(async () => {
     if (!editingDay?.exception) return;
@@ -383,6 +390,7 @@ export default function PickupScheduleManager({
         day={currentEditingDay}
         onSaveException={handleSaveException}
         onDeleteException={handleDeleteException}
+        onResetToOffering={handleResetToOffering}
         onCreateNote={handleCreateNote}
         onUpdateNote={handleUpdateNote}
         onDeleteNote={handleDeleteNote}
@@ -444,6 +452,15 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
               {effectiveTime ?? "-"}
             </div>
+            {!day.isException &&
+            day.baseSchedule?.source === "care_offering" ? (
+              <span
+                className="flex-shrink-0 text-[10px] text-gray-400"
+                title="Gehzeit aus dem Betreuungsangebot"
+              >
+                aus Angebot
+              </span>
+            ) : null}
 
             {/* Exception indicator */}
             <div className="min-w-0 flex-1">
@@ -553,6 +570,14 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           <div className="mt-1 text-sm font-semibold text-gray-900">
             {effectiveTime ?? "-"}
           </div>
+          {!day.isException && day.baseSchedule?.source === "care_offering" ? (
+            <div
+              className="text-[10px] text-gray-400"
+              title="Gehzeit aus dem Betreuungsangebot"
+            >
+              aus Angebot
+            </div>
+          ) : null}
 
           {/* Schedule note (recurring weekly) */}
           {day.baseSchedule?.notes && (

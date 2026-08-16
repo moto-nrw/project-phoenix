@@ -10,6 +10,9 @@ export interface PickupSchedule {
   weekdayName: string;
   pickupTime: string; // HH:MM format
   notes?: string;
+  /** "staff" (von Hand gepflegt) oder "care_offering" (Angebots-Gehzeit, #2290) */
+  source?: string;
+  careOfferingId?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -23,6 +26,8 @@ export interface BackendPickupSchedule {
   weekday_name: string;
   pickup_time: string; // HH:MM format
   notes?: string;
+  source?: string; // "staff" | "care_offering" (#2290)
+  care_offering_id?: string;
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -154,6 +159,8 @@ export function mapPickupScheduleResponse(
     weekdayName: data.weekday_name,
     pickupTime: data.pickup_time,
     notes: data.notes,
+    source: data.source,
+    careOfferingId: data.care_offering_id,
     createdBy: data.created_by.toString(),
     createdAt: data.created_at,
     updatedAt: data.updated_at,

@@ -176,6 +176,7 @@ GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
 GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
+GET /api/enrollment/care-offerings/{id}/pickup-rollout
 GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/legal/{tenantSlug}
 GET /api/enrollment/legal/{tenantSlug}/{phaseId}
@@ -574,6 +575,7 @@ POST /api/enrollment/admin/requests/{id}/restore
 POST /api/enrollment/admin/students/{studentId}/requests/export
 POST /api/enrollment/care-offerings/
 POST /api/enrollment/care-offerings/{id}/clone
+POST /api/enrollment/care-offerings/{id}/pickup-rollout
 POST /api/enrollment/legal-documents
 POST /api/enrollment/phases/
 POST /api/enrollment/phases/{id}/export
@@ -682,6 +684,7 @@ POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
+POST /api/students/{id}/pickup-schedules/reset-offering
 POST /api/students/{id}/rfid
 POST /api/students/{id}/school-checkin
 POST /api/students/{id}/status-days
