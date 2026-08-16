@@ -839,7 +839,7 @@ export interface BulkSubstitutionInput {
   reason?: string;
 }
 
-export interface BulkSubstitutionDayResult {
+interface BulkSubstitutionDayResult {
   date: string;
   affectedInstances: SubstituteAffectedInstance[];
   warningCount: number;
