@@ -6,6 +6,7 @@ import {
   emptyForm,
   formFromSeries,
   hasPerWeekdayStaffDeviation,
+  parseMaxParticipants,
 } from "./form-model";
 
 function template(
@@ -77,6 +78,38 @@ describe("formFromSeries", () => {
     // Sourced children stay server-managed; the occurrence snapshot is not
     // promoted to a manually maintained static roster.
     expect(form.studentIds).toEqual([]);
+  });
+
+  it("seeds the stored Teilnehmergrenze and maps null to empty (#2233)", () => {
+    expect(
+      formFromSeries(template({ maxParticipants: 43 }), "2026-08-13")
+        .maxParticipants,
+    ).toBe("43");
+    expect(
+      formFromSeries(template({ maxParticipants: null }), "2026-08-13")
+        .maxParticipants,
+    ).toBe("");
+    expect(emptyForm("2026-08-13").maxParticipants).toBe("");
+  });
+});
+
+describe("parseMaxParticipants", () => {
+  it("maps empty input to null (unbegrenzt)", () => {
+    expect(parseMaxParticipants("")).toBeNull();
+    expect(parseMaxParticipants("   ")).toBeNull();
+  });
+
+  it("accepts whole positive integers", () => {
+    expect(parseMaxParticipants("43")).toBe(43);
+    expect(parseMaxParticipants(" 1 ")).toBe(1);
+  });
+
+  it("rejects zero, negatives, fractions and junk", () => {
+    expect(parseMaxParticipants("0")).toBeNull();
+    expect(parseMaxParticipants("-5")).toBeNull();
+    expect(parseMaxParticipants("2.5")).toBeNull();
+    expect(parseMaxParticipants("1e2")).toBeNull();
+    expect(parseMaxParticipants("abc")).toBeNull();
   });
 });
 

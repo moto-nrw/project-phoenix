@@ -324,6 +324,15 @@ export interface EventFormState {
    */
   requiredStaff: string;
   /**
+   * Maximale Teilnehmerzahl of the series (#2233), stored on
+   * activities.groups.max_participants. Empty = unbegrenzt (NULL, #2236).
+   * Held as a string because it is an <input> value; parsed via
+   * parseMaxParticipants. Series flows only — a single occurrence has no
+   * capacity of its own, so occurrence-scope edits keep echoing the stored
+   * series value.
+   */
+  maxParticipants: string;
+  /**
    * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
    * above as its value rather than a separate field — switching away from
    * "gruppe" clears educationGroupId so the two never disagree.
@@ -393,6 +402,7 @@ export function emptyForm(
     weekdayRosters: {},
     protectedStudentAssignments: [],
     requiredStaff: "",
+    maxParticipants: "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -443,6 +453,9 @@ export function formFromInstance(
       instance.requiredStaffOverride !== undefined
         ? String(instance.requiredStaffOverride)
         : "",
+    // Capacity lives on the series, not the occurrence; the occurrence editor
+    // never shows or writes it (#2233).
+    maxParticipants: "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -508,6 +521,8 @@ export function formFromSeries(
       series.requiredStaffOverride !== undefined
         ? String(series.requiredStaffOverride)
         : "",
+    maxParticipants:
+      series.maxParticipants !== null ? String(series.maxParticipants) : "",
     targetGroupType: series.targetGroupType,
     targetGradeLevel:
       series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
@@ -567,6 +582,19 @@ export function parseRequiredStaffOverride(value: string): number | null {
   if (!/^\d+$/.test(trimmed)) return null;
   const parsed = Number(trimmed);
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+// parseMaxParticipants maps the "Maximale Teilnehmerzahl" input to the wire
+// value (#2233): empty → null (unbegrenzt, stored as NULL since #2236); a
+// whole positive integer → the capacity. Only plain digit strings are
+// accepted, mirroring parseRequiredStaffOverride. "0" and junk both parse to
+// null here — validateForm rejects them before any save runs, so null never
+// silently clears a limit the user meant to keep.
+export function parseMaxParticipants(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 export function sortPeople<T extends PersonOption>(items: T[]): T[] {
