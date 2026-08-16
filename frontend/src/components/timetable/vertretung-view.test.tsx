@@ -53,6 +53,9 @@ vi.mock("~/contexts/ToastContext", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: mockUseSWRAuth,
   useTenantMutate: () => mockTenantMutate,
+  // Vom eingebetteten BulkSubstitutionModal gebraucht (Vorschau-Cache-Reset);
+  // dessen Verhalten testet bulk-substitution-modal.test.tsx.
+  useTenantMutateMatching: () => () => Promise.resolve(),
 }));
 
 vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({

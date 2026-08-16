@@ -729,6 +729,7 @@ POST /api/timetable/periods/bootstrap
 POST /api/timetable/planning-tracks/
 POST /api/timetable/planning-tracks/{id}/restore
 POST /api/timetable/shift-coverage
+POST /api/timetable/substitutions/bulk
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
 POST /api/timetable/templates/{id}/split

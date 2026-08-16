@@ -209,6 +209,11 @@ type InstanceService interface {
 	// (Phase B). See deviation_apply.go. Returns a DeviationError carrying the
 	// exact HTTP mapping on a validation/conflict failure.
 	ApplyDeviations(ctx context.Context, instanceID int64, in ApplyDeviationsInput) (*ApplyDeviationsResult, error)
+	// ApplyBulkSubstitution applies one person's day-wide absence — optionally
+	// covered by one substitute — to several selected dates in a single atomic
+	// save (Sammel-Vertretung, #2284). Multi-day sibling of ApplyDeviations;
+	// see bulk_substitution.go.
+	ApplyBulkSubstitution(ctx context.Context, in BulkSubstitutionInput) (*BulkSubstitutionResult, error)
 	// MoveStaffBetweenBlocks moves (or pool-assigns) one staff member onto the
 	// target block atomically in one save (#1884): removal from the source and
 	// assignment to the target share the day lock and the tenant tx, and leave

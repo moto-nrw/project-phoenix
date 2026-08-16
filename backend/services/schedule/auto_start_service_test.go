@@ -362,6 +362,9 @@ func (s *autoStartInstanceStarter) QueueActivityUpdates(context.Context, map[int
 func (s *autoStartInstanceStarter) ApplyDeviations(context.Context, int64, ApplyDeviationsInput) (*ApplyDeviationsResult, error) {
 	return nil, nil
 }
+func (s *autoStartInstanceStarter) ApplyBulkSubstitution(context.Context, BulkSubstitutionInput) (*BulkSubstitutionResult, error) {
+	return nil, nil
+}
 func (s *autoStartInstanceStarter) AcknowledgeUnderstaffed(context.Context, int64, bool, *string, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }

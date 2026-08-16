@@ -65,6 +65,9 @@ import type {
   StartInstanceResult,
   ApplyDeviationsInput,
   ApplyDeviationsResponse,
+  BulkSubstitutionInput,
+  BulkSubstitutionResponse,
+  BackendBulkSubstitutionResponse,
   TemplatesResponse,
   TimetableTemplate,
   UpdateTemplateBody,
@@ -79,6 +82,7 @@ import {
   mapGaps,
   mapDeviationHistory,
   mapApplyDeviations,
+  mapBulkSubstitution,
   mapMoveStaff,
   mapStaffPool,
   mapInstance,
@@ -853,6 +857,44 @@ class TimetableService {
       cancelled: raw.cancelled,
     });
     return mapApplyDeviations(raw);
+  }
+
+  /**
+   * POST /api/timetable/substitutions/bulk — Sammel-Vertretung (#2284):
+   * applies one person's day-wide absence (optionally covered by one
+   * substitute) to several selected days in ONE backend transaction. Either
+   * every selected day lands or none does.
+   */
+  async applyBulkSubstitution(
+    input: BulkSubstitutionInput,
+  ): Promise<BulkSubstitutionResponse> {
+    const body: Record<string, unknown> = {
+      absent_staff_id: Number(input.absentStaffId),
+      dates: input.dates,
+    };
+    if (input.substituteStaffId) {
+      body.substitute_staff_id = Number(input.substituteStaffId);
+    }
+    if (input.reason) body.reason = input.reason;
+
+    const response = await fetch("/api/timetable/substitutions/bulk", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+
+    const raw = await unwrap<BackendBulkSubstitutionResponse>(response);
+    const result = mapBulkSubstitution(raw);
+    logger.info("bulk_substitution_applied", {
+      dates: input.dates.length,
+      affected_instances: result.totalAffected,
+      with_substitute: Boolean(input.substituteStaffId),
+    });
+    return result;
   }
 
   /**
