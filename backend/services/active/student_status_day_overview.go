@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -23,12 +25,24 @@ type StatusDayOverviewEntry struct {
 	Group     *educationModels.Group
 }
 
+type StatusDayOverviewFilters struct {
+	Query    string
+	Status   string
+	Page     int
+	PageSize int
+}
+
+type StatusDayOverview struct {
+	Entries []StatusDayOverviewEntry
+	HasMore bool
+}
+
 // GetOverview loads and assembles the absence rows for the authorized groups.
 // Enrollment is evaluated on each status-day date; lifecycle status is used
 // only for legacy students without enrollment bounds.
-func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*educationModels.Group, from, to timezone.Date) ([]StatusDayOverviewEntry, error) {
-	if s.people == nil {
-		return nil, errors.New("student status day overview people service is not configured")
+func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*educationModels.Group, from, to timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
+	if s.people == nil || s.overviewRepo == nil {
+		return nil, errors.New("student status day overview dependencies are not configured")
 	}
 	groupIDs, groupsByID := indexOverviewGroups(groups)
 	students, err := s.people.GetStudentsByGroupIDs(ctx, groupIDs)
@@ -36,15 +50,63 @@ func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*edu
 		return nil, err
 	}
 	studentIDs, personIDs, studentsByID := indexOverviewStudents(students)
-	rows, err := s.repo.FindActiveByStudentIDsAndDateRange(ctx, studentIDs, from, to)
-	if err != nil {
-		return nil, err
-	}
 	persons, err := s.people.GetByIDs(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}
-	return assembleStatusDayOverview(rows, studentsByID, persons, groupsByID), nil
+	studentIDs = filterOverviewStudentIDs(studentIDs, studentsByID, persons, filters.Query)
+	if len(studentIDs) == 0 {
+		return &StatusDayOverview{Entries: []StatusDayOverviewEntry{}}, nil
+	}
+	options := statusDayOverviewOptions(studentIDs, from, to, filters)
+	total, err := s.overviewRepo.CountWithOptions(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.overviewRepo.ListWithOptions(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	return &StatusDayOverview{Entries: assembleStatusDayOverview(rows, studentsByID, persons, groupsByID), HasMore: filters.Page*filters.PageSize < total}, nil
+}
+
+func statusDayOverviewOptions(studentIDs []int64, from, to timezone.Date, filters StatusDayOverviewFilters) *modelBase.QueryOptions {
+	boxed := make([]interface{}, len(studentIDs))
+	for i, id := range studentIDs {
+		boxed[i] = id
+	}
+	filter := modelBase.NewFilter().In("student_id", boxed...).GreaterThanOrEqual("date", from).LessThanOrEqual("date", to)
+	active := modelBase.NewFilter().IsNull("cleared_at")
+	active.Or(*modelBase.NewFilter().Equal("source", activeModels.StudentStatusSourceEndOfDay))
+	filter.And(*active)
+	if filters.Status != "" {
+		filter.Equal("status", filters.Status)
+	}
+	return &modelBase.QueryOptions{
+		Filter:     filter,
+		Pagination: &modelBase.Pagination{Page: filters.Page, PageSize: filters.PageSize},
+		Sorting: &modelBase.Sorting{Fields: []modelBase.SortField{
+			{Field: "date", Direction: modelBase.SortAsc},
+			{Field: "student_id", Direction: modelBase.SortAsc},
+			{Field: "reported_at", Direction: modelBase.SortDesc},
+		}},
+	}
+}
+
+func filterOverviewStudentIDs(ids []int64, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, query string) []int64 {
+	needle := strings.ToLower(strings.TrimSpace(query))
+	if needle == "" {
+		return ids
+	}
+	filtered := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		student := students[id]
+		person := persons[student.PersonID]
+		if person != nil && strings.Contains(strings.ToLower(person.FirstName+" "+person.LastName+" "+student.SchoolClass), needle) {
+			filtered = append(filtered, id)
+		}
+	}
+	return filtered
 }
 
 func indexOverviewGroups(groups []*educationModels.Group) ([]int64, map[int64]*educationModels.Group) {

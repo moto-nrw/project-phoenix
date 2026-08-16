@@ -28,7 +28,10 @@ type statusDayOverviewTestBody struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"groups"`
-		Entries []struct {
+		Page     int  `json:"page"`
+		PageSize int  `json:"page_size"`
+		HasMore  bool `json:"has_more"`
+		Entries  []struct {
 			ID          string          `json:"id"`
 			StudentID   string          `json:"student_id"`
 			FirstName   string          `json:"first_name"`
@@ -133,6 +136,8 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	var body statusDayOverviewTestBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, today.String(), body.Data.From)
+	assert.Equal(t, 1, body.Data.Page)
+	assert.Equal(t, 50, body.Data.PageSize)
 	assert.Contains(t, body.Data.Groups, struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
@@ -202,6 +207,19 @@ func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "date range cannot exceed")
+}
+
+func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
+	tc := setupTestContext(t)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Page Cap")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
+
+	req := testutil.NewRequest("GET", "/status-days?page_size=10000", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	var body statusDayOverviewTestBody
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, 100, body.Data.PageSize)
 }
 
 func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) {

@@ -7,7 +7,7 @@
 // ließen sich nicht sicher der damaligen Gruppe zuordnen — dieselbe
 // Einschränkung wie bei der Tagesauswertung.
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -135,6 +135,8 @@ export default function AbsencesPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const deferredQuery = useDeferredValue(query);
 
   // Nur mit vollständigem Zeitraum laden; das Backend akzeptiert kein
   // Startdatum in der Vergangenheit, deshalb wird `from` auf heute geklemmt
@@ -158,14 +160,23 @@ export default function AbsencesPage() {
 
   const {
     data: overview,
-    isLoading: loading,
+    isLoading,
+    isValidating,
     error: swrError,
   } = useSWRAuth<StatusDayOverview>(
     effectiveFromIso && effectiveToIso
-      ? `student-status-days-overview-${effectiveFromIso}-${effectiveToIso}`
+      ? `student-status-days-overview-${effectiveFromIso}-${effectiveToIso}-${page}-${deferredQuery}-${statusFilter}-${groupFilter}`
       : null,
-    () => fetchStatusDayOverview(effectiveFromIso!, effectiveToIso!),
+    () =>
+      fetchStatusDayOverview(effectiveFromIso!, effectiveToIso!, {
+        page,
+        query: deferredQuery,
+        status: statusFilter,
+        groupId: groupFilter,
+      }),
+    { keepPreviousData: true },
   );
+  const loading = isLoading || isValidating;
   const entries = overview?.entries ?? null;
   const error = swrError
     ? swrError instanceof StatusDayOverviewForbiddenError
@@ -201,19 +212,15 @@ export default function AbsencesPage() {
     }
   }, [effectiveGroupFilter, groupFilter]);
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return (entries ?? []).filter(
-      (entry) =>
-        (statusFilter === "all" || entry.status === statusFilter) &&
-        (effectiveGroupFilter === "all" ||
-          entry.group_id === effectiveGroupFilter) &&
-        (needle === "" ||
-          `${entry.first_name} ${entry.last_name} ${entry.school_class}`
-            .toLowerCase()
-            .includes(needle)),
-    );
-  }, [entries, query, statusFilter, effectiveGroupFilter]);
+  useEffect(() => {
+    setPage(1);
+  }, [
+    effectiveFromIso,
+    effectiveToIso,
+    deferredQuery,
+    statusFilter,
+    effectiveGroupFilter,
+  ]);
 
   const minDate = useMemo(() => parseISODate(todayIso), [todayIso]);
   const maxDate = useMemo(() => {
@@ -290,22 +297,18 @@ export default function AbsencesPage() {
           </div>
         )}
 
-        {error === null && entries !== null && (
+        {error === null && entries !== null && !loading && (
           <div className="mt-4">
             <DataTable
               columns={COLUMNS}
-              rows={filtered}
+              rows={entries}
               getRowKey={(row) => row.id}
               onRowClick={(row) =>
                 router.push(`/students/${row.student_id}?from=/absences`)
               }
               defaultSortKey="date"
               defaultSortDirection="asc"
-              pageSize={50}
-              paginationResetKey={`${query}:${statusFilter}:${effectiveGroupFilter}`}
-              caption={`${filtered.length} ${
-                filtered.length === 1 ? "Eintrag" : "Einträge"
-              } im gewählten Zeitraum`}
+              caption={`${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${page}`}
               emptyState={
                 <EmptyState
                   title="Keine Abwesenheiten eingetragen"
@@ -317,6 +320,26 @@ export default function AbsencesPage() {
                 />
               }
             />
+            {(page > 1 || overview?.has_more) && (
+              <div className="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={page === 1}
+                  onClick={() => setPage((value) => Math.max(1, value - 1))}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  Zurück
+                </button>
+                <button
+                  type="button"
+                  disabled={!overview?.has_more}
+                  onClick={() => setPage((value) => value + 1)}
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:opacity-50"
+                >
+                  Weiter
+                </button>
+              </div>
+            )}
           </div>
         )}
       </section>

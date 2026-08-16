@@ -143,6 +143,9 @@ export interface StatusDayOverview {
   to: string;
   groups: Array<{ id: string; name: string }>;
   entries: StatusDayOverviewEntry[];
+  page: number;
+  page_size: number;
+  has_more: boolean;
 }
 
 /** Thrown when the account has no staff link (backend 403). */
@@ -158,10 +161,18 @@ export class StatusDayOverviewForbiddenError extends Error {
 export async function fetchStatusDayOverview(
   from: string,
   to: string,
+  filters: { page: number; query: string; status: string; groupId: string },
 ): Promise<StatusDayOverview> {
-  const response = await fetch(
-    `/api/students/status-days?from=${from}&to=${to}`,
-  );
+  const params = new URLSearchParams({
+    from,
+    to,
+    page: filters.page.toString(),
+    page_size: "50",
+  });
+  if (filters.query.trim()) params.set("q", filters.query.trim());
+  if (filters.status !== "all") params.set("status", filters.status);
+  if (filters.groupId !== "all") params.set("group_id", filters.groupId);
+  const response = await fetch(`/api/students/status-days?${params}`);
   if (response.status === 403) {
     throw new StatusDayOverviewForbiddenError();
   }

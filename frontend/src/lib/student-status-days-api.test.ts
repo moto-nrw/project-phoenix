@@ -271,6 +271,9 @@ describe("student-status-days-api", () => {
       from: "2026-05-25",
       to: "2026-05-29",
       groups: [{ id: "3", name: "Igel" }],
+      page: 1,
+      page_size: 50,
+      has_more: false,
       entries: [
         {
           id: "7",
@@ -294,10 +297,15 @@ describe("student-status-days-api", () => {
         Response.json({ status: "success", data: overview }),
       );
 
-    const result = await fetchStatusDayOverview("2026-05-25", "2026-05-29");
+    const result = await fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+      page: 1,
+      query: "",
+      status: "all",
+      groupId: "all",
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/students/status-days?from=2026-05-25&to=2026-05-29",
+      "/api/students/status-days?from=2026-05-25&to=2026-05-29&page=1&page_size=50",
     );
     expect(result).toEqual(overview);
   });
@@ -308,7 +316,12 @@ describe("student-status-days-api", () => {
     );
 
     await expect(
-      fetchStatusDayOverview("2026-05-25", "2026-05-29"),
+      fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+        page: 1,
+        query: "",
+        status: "all",
+        groupId: "all",
+      }),
     ).rejects.toBeInstanceOf(StatusDayOverviewForbiddenError);
   });
 
@@ -318,7 +331,12 @@ describe("student-status-days-api", () => {
     );
 
     await expect(
-      fetchStatusDayOverview("2026-05-25", "2026-05-29"),
+      fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+        page: 1,
+        query: "",
+        status: "all",
+        groupId: "all",
+      }),
     ).rejects.toThrow("Abwesenheiten konnten nicht geladen werden");
   });
 });
