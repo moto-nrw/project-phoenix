@@ -2,6 +2,7 @@ package students
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -76,7 +77,7 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 
 	groups, err := rs.permittedDayLogGroups(ctx, from, logger)
 	if err != nil {
-		renderDayLogGroupError(w, r, err, logger)
+		renderDayLogGroupError(w, r, fmt.Errorf("%w: %w", errDayLogGroupsUnavailable, err), logger)
 		return
 	}
 	queryGroups, err := filterDayLogGroups(r, groups)

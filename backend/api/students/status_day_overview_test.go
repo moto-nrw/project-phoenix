@@ -3,6 +3,7 @@ package students_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -12,7 +13,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,6 +50,14 @@ type statusDayOverviewTestBody struct {
 			Note        json.RawMessage `json:"note"`
 		} `json:"entries"`
 	} `json:"data"`
+}
+
+type failingOverviewEducationService struct {
+	educationService.Service
+}
+
+func (failingOverviewEducationService) ListGroups(context.Context, *modelBase.QueryOptions) ([]*educationModels.Group, error) {
+	return nil, errors.New("group database unavailable")
 }
 
 func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
@@ -313,6 +325,16 @@ func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T
 		Count(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, before, after)
+}
+
+func TestGetStudentStatusDaysOverview_GroupLookupFailureIsServerError(t *testing.T) {
+	tc := setupTestContext(t)
+	tc.resource.EducationService = failingOverviewEducationService{Service: tc.resource.EducationService}
+
+	req := testutil.NewRequest("GET", "/status-days", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	assert.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "failed to resolve permitted groups")
 }
 
 func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T) {
