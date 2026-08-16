@@ -106,13 +106,17 @@ type CareUsageRow struct {
 	Status            string                 `json:"status"`
 	Offerings         []CareUsageRowOffering `json:"offerings"`
 	EffectiveDays     []string               `json:"effective_days"`
-	DayCount          int                    `json:"day_count"`
-	PickupByDay       map[string]string      `json:"pickup_by_day"`
-	GuardianFirstName string                 `json:"guardian_first_name"`
-	GuardianLastName  string                 `json:"guardian_last_name"`
-	GuardianEmail     string                 `json:"guardian_email"`
-	GuardianPhone     *string                `json:"guardian_phone,omitempty"`
-	SubmittedAt       time.Time              `json:"submitted_at"`
+	// CareDays is the display-only set of weekdays used by the compact
+	// export. Unlike EffectiveDays, it includes every weekday when care is
+	// not constrained by an active offering catalog.
+	CareDays          []string          `json:"-"`
+	DayCount          int               `json:"day_count"`
+	PickupByDay       map[string]string `json:"pickup_by_day"`
+	GuardianFirstName string            `json:"guardian_first_name"`
+	GuardianLastName  string            `json:"guardian_last_name"`
+	GuardianEmail     string            `json:"guardian_email"`
+	GuardianPhone     *string           `json:"guardian_phone,omitempty"`
+	SubmittedAt       time.Time         `json:"submitted_at"`
 	// SchedulePickupByDay is the maintained Kind-Gehzeit (manual rows and
 	// rolled-out Angebots-Gehzeiten, #2290) of the student linked to this
 	// request child, when one exists. Display-only enrichment for the
@@ -348,6 +352,13 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list offerings: %w", err)
 	}
+	careOfferingsEnabled := true
+	if s.Settings != nil {
+		careOfferingsEnabled, err = s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
+		if err != nil {
+			return nil, fmt.Errorf("care usage report: resolve %s: %w", configModel.KeyEnrollmentCareOfferingsEnabled, err)
+		}
+	}
 
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	for _, offering := range offerings {
@@ -411,6 +422,7 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 			return nil, fmt.Errorf("care usage report: child %d pickup schedule: %w", child.ID, err)
 		}
 		row := careUsageRow(req, child, linksByChild[child.ID], offeringByID, includedOfferingIDs, pickupByDay)
+		row.CareDays = classRosterCareDays(row.EffectiveDays, offeringByID, careOfferingsEnabled)
 		row.Guardians = classRosterEnrollmentGuardians(req, guardiansByRequest[req.ID])
 		if byDay := schedulePickup[careUsageStudentID(child)]; byDay != nil {
 			row.SchedulePickupByDay = byDay
@@ -2019,10 +2031,11 @@ func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, 
 	return out, nil
 }
 
-// careUsageStudentID resolves the student a request child is already tied
-// to (rollout-created or matched existing student); 0 when there is none.
+// careUsageStudentID resolves the student of an approved request child
+// (rollout-created or matched existing student). Unapproved children return
+// 0 because their form snapshot must not be replaced by live student data.
 func careUsageStudentID(child *enrollmentModels.RequestChild) int64 {
-	if child == nil {
+	if child == nil || child.Status != enrollmentModels.ChildStatusApproved {
 		return 0
 	}
 	if child.CreatedStudentID != nil {

@@ -708,8 +708,12 @@ func careUsageSpansMultipleClasses(sorted []enrollmentService.CareUsageRow) bool
 }
 
 func careUsageWeeklyCell(row enrollmentService.CareUsageRow, day string) string {
+	careDays := row.CareDays
+	if careDays == nil {
+		careDays = row.EffectiveDays
+	}
 	return weeklyPickupCell(
-		containsReportDay(row.EffectiveDays, day),
+		containsReportDay(careDays, day),
 		row.SchedulePickupByDay[day],
 		row.PickupByDay[day],
 		careUsageDailyOfferingNames(row, day),

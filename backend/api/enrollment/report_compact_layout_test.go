@@ -161,6 +161,25 @@ func TestBuildCareUsageCompactTableDocumentWeeklyCells(t *testing.T) {
 	assert.Equal(t, "Carla Conrad (carla@example.org, 0151 2345678)", ida[listexport.ColumnGuardianContacts])
 }
 
+func TestBuildCareUsageCompactTableDocumentUsesDisplayCareDays(t *testing.T) {
+	report := compactLayoutTestReport()
+	report.Rows[1].EffectiveDays = nil
+	report.Rows[1].CareDays = []string{"mon", "tue", "wed", "thu", "fri"}
+	report.Rows[1].PickupByDay = map[string]string{"mon": "14:30"}
+
+	doc := buildCareUsageCompactTableDocument(report)
+
+	var mila map[listexport.ColumnID]string
+	for _, row := range doc.Rows {
+		if row.Values[listexport.ColumnName] == "Mila Anders" {
+			mila = row.Values
+		}
+	}
+	require.NotNil(t, mila)
+	assert.Equal(t, "14:30 Uhr", mila[listexport.ColumnWeeklyMonday])
+	assert.Equal(t, "Keine Abholzeit", mila[listexport.ColumnWeeklyWednesday])
+}
+
 func TestBuildCareUsageCompactTableDocumentPrefersScheduleAndAllGuardians(t *testing.T) {
 	report := compactLayoutTestReport()
 	// The maintained Kind-Gehzeit (#2290) outranks the enrollment-form

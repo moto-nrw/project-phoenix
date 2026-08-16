@@ -1353,9 +1353,42 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	// display; the snapshot PickupByDay stays untouched.
 	assert.Equal(t, "14:30", row.SchedulePickupByDay["mon"])
 	assert.Empty(t, row.PickupByDay["mon"])
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.CareDays)
 	// All request guardians, primary first.
 	require.Len(t, row.Guardians, 2)
 	assert.Equal(t, "Eva Muster", row.Guardians[0].Name)
 	assert.Equal(t, "Max Muster", row.Guardians[1].Name)
 	assert.Equal(t, guardianEmail, row.Guardians[1].Email)
+}
+
+func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
+	studentID := int64(700)
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		RequestRepo: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+			Model:       baseModels.Model{ID: 11},
+			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}}},
+		RequestChildRepo: &fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
+			Model:            baseModels.Model{ID: 21},
+			RequestID:        11,
+			FirstName:        "Lina",
+			LastName:         "Muster",
+			Status:           enrollmentModels.ChildStatusSubmitted,
+			MatchedStudentID: &studentID,
+		}}},
+		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		PhaseRepo:                &fakeClassRosterPhaseRepo{},
+		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+			StudentID:  studentID,
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
+		}}},
+	}}
+
+	report, err := svc.CareUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Empty(t, report.Rows[0].SchedulePickupByDay)
 }
