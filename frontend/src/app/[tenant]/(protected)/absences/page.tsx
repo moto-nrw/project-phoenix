@@ -10,6 +10,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
@@ -176,8 +177,9 @@ export default function AbsencesPage() {
       }),
     { keepPreviousData: true },
   );
-  const loading = isLoading || isValidating;
   const entries = overview?.entries ?? null;
+  const displayedPage = overview?.page ?? page;
+  const hasMore = overview?.has_more ?? false;
   const error = swrError
     ? swrError instanceof StatusDayOverviewForbiddenError
       ? swrError.message
@@ -285,19 +287,22 @@ export default function AbsencesPage() {
         </div>
 
         {error !== null && (
-          <div className="mt-4">
+          <div
+            className={`mt-4 transition-opacity ${isValidating ? "opacity-60" : ""}`}
+            aria-busy={isValidating}
+          >
             <Alert type="error" message={error} />
           </div>
         )}
 
-        {loading && entries === null && (
+        {isLoading && entries === null && (
           <div className="mt-4 space-y-3">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-64 w-full" />
           </div>
         )}
 
-        {error === null && entries !== null && !loading && (
+        {error === null && entries !== null && (
           <div className="mt-4">
             <DataTable
               columns={COLUMNS}
@@ -308,7 +313,7 @@ export default function AbsencesPage() {
               }
               defaultSortKey="date"
               defaultSortDirection="asc"
-              caption={`${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${page}`}
+              caption={`${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${displayedPage}`}
               emptyState={
                 <EmptyState
                   title="Keine Abwesenheiten eingetragen"
@@ -320,24 +325,26 @@ export default function AbsencesPage() {
                 />
               }
             />
-            {(page > 1 || overview?.has_more) && (
+            {(displayedPage > 1 || hasMore) && (
               <div className="mt-3 flex justify-end gap-2">
-                <button
+                <Button
                   type="button"
-                  disabled={page === 1}
-                  onClick={() => setPage((value) => Math.max(1, value - 1))}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:opacity-50"
+                  variant="outline"
+                  size="md"
+                  disabled={displayedPage === 1 || isValidating}
+                  onClick={() => setPage(Math.max(1, displayedPage - 1))}
                 >
                   Zurück
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  disabled={!overview?.has_more}
-                  onClick={() => setPage((value) => value + 1)}
-                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm disabled:opacity-50"
+                  variant="outline"
+                  size="md"
+                  disabled={!hasMore || isValidating}
+                  onClick={() => setPage(displayedPage + 1)}
                 >
                   Weiter
-                </button>
+                </Button>
               </div>
             )}
           </div>

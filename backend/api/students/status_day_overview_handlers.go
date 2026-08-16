@@ -91,7 +91,7 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 	entries := []statusDayOverviewEntry{}
 	hasMore := false
 	if rs.StudentStatusDayService != nil {
-		overview, err := rs.StudentStatusDayService.GetOverview(ctx, queryGroups, from, to, filters)
+		overview, err := rs.StudentStatusDayService.GetOverview(ctx, queryGroups, from, to, today, filters)
 		if err != nil {
 			renderError(w, r, common.ErrorInternalServerWrap("failed to load absence overview", err))
 			return

@@ -40,7 +40,7 @@ type StatusDayOverview struct {
 // GetOverview loads and assembles the absence rows for the authorized groups.
 // Enrollment is evaluated on each status-day date; lifecycle status is used
 // only for legacy students without enrollment bounds.
-func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*educationModels.Group, from, to timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
+func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*educationModels.Group, from, to, today timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
 	if s.people == nil || s.overviewRepo == nil {
 		return nil, errors.New("student status day overview dependencies are not configured")
 	}
@@ -58,7 +58,7 @@ func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*edu
 	if len(studentIDs) == 0 {
 		return &StatusDayOverview{Entries: []StatusDayOverviewEntry{}}, nil
 	}
-	options := statusDayOverviewOptions(studentIDs, from, to, filters)
+	options := statusDayOverviewOptions(studentIDs, studentsByID, from, to, today, filters)
 	total, err := s.overviewRepo.CountWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
@@ -67,15 +67,12 @@ func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*edu
 	if err != nil {
 		return nil, err
 	}
-	return &StatusDayOverview{Entries: assembleStatusDayOverview(rows, studentsByID, persons, groupsByID), HasMore: filters.Page*filters.PageSize < total}, nil
+	return &StatusDayOverview{Entries: assembleStatusDayOverview(rows, studentsByID, persons, groupsByID, today), HasMore: filters.Page*filters.PageSize < total}, nil
 }
 
-func statusDayOverviewOptions(studentIDs []int64, from, to timezone.Date, filters StatusDayOverviewFilters) *modelBase.QueryOptions {
-	boxed := make([]interface{}, len(studentIDs))
-	for i, id := range studentIDs {
-		boxed[i] = id
-	}
-	filter := modelBase.NewFilter().In("student_id", boxed...).GreaterThanOrEqual("date", from).LessThanOrEqual("date", to)
+func statusDayOverviewOptions(studentIDs []int64, students map[int64]*userModels.Student, from, to, today timezone.Date, filters StatusDayOverviewFilters) *modelBase.QueryOptions {
+	filter := modelBase.NewFilter().GreaterThanOrEqual("date", from).LessThanOrEqual("date", to)
+	filter.And(*statusDayEnrollmentFilter(studentIDs, students, today))
 	active := modelBase.NewFilter().IsNull("cleared_at")
 	active.Or(*modelBase.NewFilter().Equal("source", activeModels.StudentStatusSourceEndOfDay))
 	filter.And(*active)
@@ -91,6 +88,36 @@ func statusDayOverviewOptions(studentIDs []int64, from, to timezone.Date, filter
 			{Field: "reported_at", Direction: modelBase.SortDesc},
 		}},
 	}
+}
+
+func statusDayEnrollmentFilter(studentIDs []int64, students map[int64]*userModels.Student, today timezone.Date) *modelBase.Filter {
+	var eligible *modelBase.Filter
+	for _, id := range studentIDs {
+		student := students[id]
+		if student == nil || (student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModels.StudentStatusInactive) {
+			continue
+		}
+		studentFilter := modelBase.NewFilter().Equal("student_id", id)
+		if student.EnrolledFrom != nil {
+			from := *student.EnrolledFrom
+			if student.Status == userModels.StudentStatusActive && today.Before(from) {
+				from = today
+			}
+			studentFilter.GreaterThanOrEqual("date", from)
+		}
+		if student.EnrolledUntil != nil {
+			studentFilter.LessThanOrEqual("date", *student.EnrolledUntil)
+		}
+		if eligible == nil {
+			eligible = studentFilter
+		} else {
+			eligible.Or(*studentFilter)
+		}
+	}
+	if eligible == nil {
+		return modelBase.NewFilter().Equal("student_id", int64(-1))
+	}
+	return eligible
 }
 
 func filterOverviewStudentIDs(ids []int64, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, query string) []int64 {
@@ -131,11 +158,11 @@ func indexOverviewStudents(students []*userModels.Student) ([]int64, []int64, ma
 	return studentIDs, personIDs, byID
 }
 
-func assembleStatusDayOverview(rows []*activeModels.StudentStatusDay, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, groups map[int64]*educationModels.Group) []StatusDayOverviewEntry {
+func assembleStatusDayOverview(rows []*activeModels.StudentStatusDay, students map[int64]*userModels.Student, persons map[int64]*userModels.Person, groups map[int64]*educationModels.Group, today timezone.Date) []StatusDayOverviewEntry {
 	entries := make([]StatusDayOverviewEntry, 0, len(rows))
 	for _, row := range rows {
 		student := students[row.StudentID]
-		if !studentEnrolledOn(student, row.Date) || student.GroupID == nil {
+		if !studentEnrolledOn(student, row.Date, today) || student.GroupID == nil {
 			continue
 		}
 		entries = append(entries, StatusDayOverviewEntry{
@@ -160,11 +187,12 @@ func assembleStatusDayOverview(rows []*activeModels.StudentStatusDay, students m
 	return entries
 }
 
-func studentEnrolledOn(student *userModels.Student, date timezone.Date) bool {
+func studentEnrolledOn(student *userModels.Student, date, today timezone.Date) bool {
 	if student == nil {
 		return false
 	}
-	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
+	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) &&
+		(student.Status != userModels.StudentStatusActive || date.Before(today)) {
 		return false
 	}
 	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {

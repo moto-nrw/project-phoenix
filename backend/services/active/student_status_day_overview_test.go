@@ -19,7 +19,8 @@ func TestStudentEnrolledOn(t *testing.T) {
 		want    bool
 	}{
 		{name: "inside enrollment interval", student: &userModels.Student{EnrolledFrom: &before, EnrolledUntil: &after}, want: true},
-		{name: "before enrollment", student: &userModels.Student{EnrolledFrom: &after, Status: userModels.StudentStatusActive}},
+		{name: "before enrollment", student: &userModels.Student{EnrolledFrom: &after, Status: userModels.StudentStatusPending}},
+		{name: "immediately active before enrollment", student: &userModels.Student{EnrolledFrom: &after, Status: userModels.StudentStatusActive}, want: true},
 		{name: "after enrollment", student: &userModels.Student{EnrolledUntil: &before, Status: userModels.StudentStatusActive}},
 		{name: "inactive legacy student", student: &userModels.Student{Status: userModels.StudentStatusInactive}},
 		{name: "active legacy student", student: &userModels.Student{Status: userModels.StudentStatusActive}, want: true},
@@ -27,7 +28,7 @@ func TestStudentEnrolledOn(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.want, studentEnrolledOn(test.student, date))
+			assert.Equal(t, test.want, studentEnrolledOn(test.student, date, date))
 		})
 	}
 }

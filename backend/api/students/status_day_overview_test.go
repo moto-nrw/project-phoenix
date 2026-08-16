@@ -222,6 +222,49 @@ func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
 	assert.Equal(t, 100, body.Data.PageSize)
 }
 
+func TestGetStudentStatusDaysOverview_PaginatesOnlyEligibleEntries(t *testing.T) {
+	tc := setupTestContext(t)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Eligibility")
+	endedChild := testpkg.CreateTestStudent(t, tc.db, "A", "Beendet", "1a")
+	activeChild := testpkg.CreateTestStudent(t, tc.db, "B", "Sofort", "1a")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, endedChild.ID, activeChild.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, activeChild.ID, group.ID)
+
+	today := timezone.TodayDate()
+	endedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today, active.StudentStatusDaySick)
+	activeDay := testpkg.CreateTestStudentStatusDay(t, tc.db, activeChild.ID, today, active.StudentStatusDayExcused)
+	defer testpkg.CleanupStudentStatusDays(t, tc.db, endedDay.ID, activeDay.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := tc.db.NewUpdate().
+		Model((*usersModel.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("enrolled_until = ?", today.AddDays(-1)).
+		Where("id = ?", endedChild.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = tc.db.NewUpdate().
+		Model((*usersModel.Student)(nil)).
+		ModelTableExpr("users.students").
+		Set("enrolled_from = ?", today.AddDays(7)).
+		Set("status = ?", usersModel.StudentStatusActive).
+		Where("id = ?", activeChild.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	req := testutil.NewRequest("GET", "/status-days?page_size=1", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body statusDayOverviewTestBody
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	require.Len(t, body.Data.Entries, 1)
+	assert.Equal(t, fmt.Sprintf("%d", activeChild.ID), body.Data.Entries[0].StudentID)
+	assert.False(t, body.Data.HasMore)
+}
+
 func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) {
 	tc := setupTestContext(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Audit Failure")
