@@ -87,6 +87,7 @@ function CheckIcon() {
 interface DevicesTableProps {
   devices: OperatorDevice[];
   showSchool?: boolean;
+  isLoading?: boolean;
   onSetKey?: (device: OperatorDevice) => void;
   onTransfer?: (device: OperatorDevice) => void;
   onDelete?: (device: OperatorDevice) => void;
@@ -95,6 +96,7 @@ interface DevicesTableProps {
 export function DevicesTable({
   devices,
   showSchool = false,
+  isLoading = false,
   onSetKey,
   onTransfer,
   onDelete,
@@ -246,6 +248,7 @@ export function DevicesTable({
       rows={devices}
       getRowKey={(row) => row.id}
       defaultSortKey={showSchool ? "schoolName" : "deviceId"}
+      isLoading={isLoading}
     />
   );
 }

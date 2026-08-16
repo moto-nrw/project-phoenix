@@ -171,14 +171,6 @@ export function ClosingDaysEditor() {
     [beginEdit],
   );
 
-  if (loading) {
-    return (
-      <div className="moto-content-surface rounded-2xl border px-5 py-10 text-center text-sm text-gray-500 shadow-sm">
-        Schließtage werden geladen...
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {error && (
@@ -211,7 +203,7 @@ export function ClosingDaysEditor() {
         </div>
       </section>
 
-      {closingDays.length === 0 ? (
+      {!loading && closingDays.length === 0 ? (
         <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
             <MotoConceptIcon concept="closingDays" size={28} />
@@ -241,6 +233,7 @@ export function ClosingDaysEditor() {
           getRowKey={(day) => day.id}
           defaultSortKey="range"
           defaultSortDirection="asc"
+          isLoading={loading}
         />
       )}
 

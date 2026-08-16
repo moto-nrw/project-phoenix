@@ -49,8 +49,11 @@ import {
 import {
   DataTable,
   type DataTableColumn,
+  DataTableSkeleton,
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -500,7 +503,21 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   if (loading) {
     return (
-      <p className="text-sm text-gray-500">Anmeldungen werden geladen...</p>
+      <SkeletonRegion label="Anmeldungen werden geladen">
+        <div className="space-y-4">
+          <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md sm:p-6">
+            <Skeleton className="h-3 w-28 rounded" />
+            <Skeleton className="mt-2 h-6 w-64 rounded" />
+            <Skeleton className="mt-2 h-4 w-48 rounded" />
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {Array.from({ length: 4 }, (_, i) => (
+                <Skeleton key={i} className="h-16 rounded-2xl" />
+              ))}
+            </div>
+          </div>
+          <DataTableSkeleton rows={8} columns={8} />
+        </div>
+      </SkeletonRegion>
     );
   }
 

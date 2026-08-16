@@ -6,8 +6,11 @@ import { useSWRConfig } from "swr";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
@@ -134,7 +137,23 @@ export function ArbeitszeitmodellTab({
   const { mutate } = useSWRConfig();
 
   if (isLoading || !schedule) {
-    return <Loading fullPage={false} />;
+    return (
+      <SkeletonRegion
+        label="Arbeitszeitmodell wird geladen"
+        className="space-y-5"
+      >
+        <CardGridSkeleton
+          cards={2}
+          rowsPerCard={2}
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+        />
+        <CardGridSkeleton
+          cards={4}
+          rowsPerCard={1}
+          className="grid grid-cols-1 gap-2"
+        />
+      </SkeletonRegion>
+    );
   }
 
   const today = new Date();

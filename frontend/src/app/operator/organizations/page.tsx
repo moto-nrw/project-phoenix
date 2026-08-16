@@ -12,11 +12,7 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
-import {
-  EmptyState,
-  PlusIcon,
-  CardSkeletons,
-} from "../provisioning/provisioning-shared";
+import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
 import { CreateOrganizationModal } from "../provisioning/create-organization-modal";
 import {
   useSoftDeletable,
@@ -218,56 +214,53 @@ export default function OperatorOrganizationsPage() {
         </div>
       ) : null}
 
-      {orgsLoading && <CardSkeletons />}
+      <div className="mt-6">
+        {deletedOrganizations.length > 0 && (
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                orgDelete.showTrash
+                  ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Papierkorb ({deletedOrganizations.length})
+            </button>
+          </div>
+        )}
 
-      {!orgsLoading && (
-        <div className="mt-6">
-          {deletedOrganizations.length > 0 && (
-            <div className="mb-4 flex justify-end">
-              <button
-                type="button"
-                onClick={() => orgDelete.setShowTrash(!orgDelete.showTrash)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  orgDelete.showTrash
-                    ? "bg-moto-red/15 text-moto-red-strong hover:bg-moto-red/20"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                Papierkorb ({deletedOrganizations.length})
-              </button>
-            </div>
-          )}
-
-          {orgDelete.showTrash ? (
-            <div className="mt-4 space-y-4">
-              {deletedOrganizations.map((org) => (
-                <DeletedEntityCard
-                  key={org.id}
-                  name={org.name}
-                  subtitle={org.slug}
-                  deletedAt={org.deletedAt}
-                  onRestore={() => orgDelete.setRestoreTarget(org)}
-                />
-              ))}
-            </div>
-          ) : activeOrganizations.length === 0 ? (
-            <EmptyState
-              title="Keine Träger"
-              description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."
-              buttonLabel="Neuer Träger"
-              onAction={() => setCreateOrgOpen(true)}
-            />
-          ) : (
-            <DataTable
-              columns={columns}
-              rows={activeOrganizations}
-              getRowKey={(row) => row.id}
-              onRowClick={handleRowClick}
-              defaultSortKey="name"
-            />
-          )}
-        </div>
-      )}
+        {orgDelete.showTrash ? (
+          <div className="mt-4 space-y-4">
+            {deletedOrganizations.map((org) => (
+              <DeletedEntityCard
+                key={org.id}
+                name={org.name}
+                subtitle={org.slug}
+                deletedAt={org.deletedAt}
+                onRestore={() => orgDelete.setRestoreTarget(org)}
+              />
+            ))}
+          </div>
+        ) : !orgsLoading && activeOrganizations.length === 0 ? (
+          <EmptyState
+            title="Keine Träger"
+            description="Erstellen Sie einen neuen Träger, um Schulen zu verwalten."
+            buttonLabel="Neuer Träger"
+            onAction={() => setCreateOrgOpen(true)}
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={activeOrganizations}
+            getRowKey={(row) => row.id}
+            onRowClick={handleRowClick}
+            defaultSortKey="name"
+            isLoading={orgsLoading}
+          />
+        )}
+      </div>
 
       {orgDelete.deleteTarget && (
         <OrgSoftDeleteModal

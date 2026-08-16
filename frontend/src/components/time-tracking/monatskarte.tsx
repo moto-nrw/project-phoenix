@@ -10,6 +10,7 @@ import { Lock } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
@@ -137,10 +138,30 @@ export function Monatskarte({
   onReopen,
 }: MonatskarteProps) {
   if (isLoading) {
+    // Mirrors the loaded card below: title row, then SummaryRow-shaped
+    // label/value lines in the same divide-y raster.
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="h-40 animate-pulse rounded-lg bg-gray-100" />
-      </div>
+      <output
+        aria-label="Monatskarte wird geladen"
+        aria-live="polite"
+        className="moto-content-surface block rounded-2xl border p-4 shadow-sm sm:p-6"
+      >
+        <div className="mb-3 flex items-center">
+          <Skeleton className="h-5 w-44 rounded" />
+        </div>
+        <div className="divide-y divide-gray-100" aria-hidden="true">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div
+              key={i}
+              className="flex items-baseline justify-between gap-4 py-1.5"
+            >
+              <Skeleton className="h-4 w-32 rounded" />
+              <Skeleton className="h-4 w-16 rounded" />
+            </div>
+          ))}
+        </div>
+        <span className="sr-only">Monatskarte wird geladen</span>
+      </output>
     );
   }
   if (error) {

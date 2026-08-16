@@ -10,12 +10,12 @@ import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { UnregisteredTagScan } from "~/lib/operator/provisioning-helpers";
-import {
-  CardSkeletons,
-  SimpleEmptyState,
-} from "../provisioning/provisioning-shared";
+import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
+import { DataTable } from "~/components/ui/data-table";
+import type { DataTableColumn } from "~/components/ui/data-table";
+import { ListPageSkeleton } from "~/components/ui/page-skeletons";
 
 const logger = createLogger({ component: "OperatorUnregisteredTagsPage" });
 
@@ -159,17 +159,17 @@ function OperatorUnregisteredTagsPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
-      {isLoading && <CardSkeletons />}
-
-      {!isLoading && (!scans || scans.length === 0) && (
+      {!isLoading && (!scans || scans.length === 0) ? (
         <SimpleEmptyState
           title="Keine unbekannten RFID-Scans"
           description="Es liegen keine passenden Scanversuche vor."
         />
-      )}
-
-      {!isLoading && scans && scans.length > 0 && (
-        <UnregisteredTagsTable scans={scans} onResolve={openResolveModal} />
+      ) : (
+        <UnregisteredTagsTable
+          scans={scans ?? []}
+          isLoading={isLoading}
+          onResolve={openResolveModal}
+        />
       )}
 
       {resolveTarget && (
@@ -189,79 +189,99 @@ function OperatorUnregisteredTagsPageContent() {
 
 function UnregisteredTagsTable({
   scans,
+  isLoading,
   onResolve,
 }: Readonly<{
   scans: UnregisteredTagScan[];
+  isLoading: boolean;
   onResolve: (scan: UnregisteredTagScan) => void;
 }>) {
+  const columns: DataTableColumn<UnregisteredTagScan>[] = useMemo(
+    () => [
+      {
+        key: "tagUid",
+        header: "RFID",
+        render: (row) => row.tagUid,
+        sortValue: (row) => row.tagUid.toLowerCase(),
+        className: "font-mono text-xs font-medium text-gray-900",
+      },
+      {
+        key: "schoolName",
+        header: "Schule",
+        render: (row) => (
+          <div>
+            <div className="font-medium text-gray-900">{row.schoolName}</div>
+            <div className="text-xs text-gray-500">{row.organizationName}</div>
+          </div>
+        ),
+        sortValue: (row) => row.schoolName.toLowerCase(),
+      },
+      {
+        key: "device",
+        header: "Gerät",
+        render: (row) => row.deviceName || row.deviceIdentifier || "—",
+        sortValue: (row) =>
+          (row.deviceName || row.deviceIdentifier || "").toLowerCase(),
+        className: "text-gray-600",
+      },
+      {
+        key: "scannedAt",
+        header: "Zeitpunkt",
+        render: (row) => (
+          <span
+            title={new Date(row.scannedAt).toLocaleString("de-DE", {
+              timeZone: "Europe/Berlin",
+            })}
+          >
+            {getRelativeTime(row.scannedAt)}
+          </span>
+        ),
+        sortValue: (row) => row.scannedAt,
+        className: "text-gray-600",
+      },
+      {
+        key: "status",
+        header: "Status",
+        render: (row) =>
+          row.resolvedAt ? (
+            <span className="bg-moto-green/15 text-moto-green-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
+              Erledigt
+            </span>
+          ) : (
+            <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
+              Offen
+            </span>
+          ),
+        sortValue: (row) => (row.resolvedAt ? 1 : 0),
+      },
+      {
+        key: "action",
+        header: "Aktion",
+        align: "right",
+        render: (row) =>
+          !row.resolvedAt && (
+            <button
+              type="button"
+              onClick={() => onResolve(row)}
+              className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+            >
+              Erledigen
+            </button>
+          ),
+      },
+    ],
+    [onResolve],
+  );
+
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-100 text-sm">
-          <thead className="bg-gray-50">
-            <tr className="text-left text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              <th className="px-4 py-3">RFID</th>
-              <th className="px-4 py-3">Schule</th>
-              <th className="px-4 py-3">Gerät</th>
-              <th className="px-4 py-3">Zeitpunkt</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3 text-right">Aktion</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {scans.map((scan) => (
-              <tr key={scan.id}>
-                <td className="px-4 py-3 font-mono text-xs font-medium text-gray-900">
-                  {scan.tagUid}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">
-                    {scan.schoolName}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {scan.organizationName}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-gray-600">
-                  {scan.deviceName || scan.deviceIdentifier || "—"}
-                </td>
-                <td className="px-4 py-3 text-gray-600">
-                  <span
-                    title={new Date(scan.scannedAt).toLocaleString("de-DE", {
-                      timeZone: "Europe/Berlin",
-                    })}
-                  >
-                    {getRelativeTime(scan.scannedAt)}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  {scan.resolvedAt ? (
-                    <span className="bg-moto-green/15 text-moto-green-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
-                      Erledigt
-                    </span>
-                  ) : (
-                    <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
-                      Offen
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  {!scan.resolvedAt && (
-                    <button
-                      type="button"
-                      onClick={() => onResolve(scan)}
-                      className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-                    >
-                      Erledigen
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <DataTable
+      columns={columns}
+      rows={scans}
+      getRowKey={(row) => row.id}
+      defaultSortKey="scannedAt"
+      defaultSortDirection="desc"
+      isLoading={isLoading}
+    />
   );
 }
 
@@ -328,7 +348,9 @@ function ResolveScanModal({
 
 export default function OperatorUnregisteredTagsPage() {
   return (
-    <Suspense fallback={<CardSkeletons />}>
+    <Suspense
+      fallback={<ListPageSkeleton label="Unbekannte RFID werden geladen" />}
+    >
       <OperatorUnregisteredTagsPageContent />
     </Suspense>
   );

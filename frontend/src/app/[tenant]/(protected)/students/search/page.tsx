@@ -2564,11 +2564,10 @@ function SearchPageContent() {
     [sortedStudents, effectiveGroupMode],
   );
 
-  // Fix P2: Show loading during initialization (prevents empty state flash)
-  // Note: With required: true, unauthenticated users are auto-redirected to login
-  if (isInitializing || isAuthError) {
-    return <StudentSearchPageSkeleton />;
-  }
+  // Fix P2: Session initialization / auth-gate loading no longer replaces the
+  // whole page — real chrome (header, filters) renders immediately below;
+  // only the results region skeletonizes while the session resolves. Note:
+  // with required: true, unauthenticated users are auto-redirected to login.
 
   return (
     <div className="-mt-1.5 w-full">
@@ -2689,17 +2688,20 @@ function SearchPageContent() {
           bar / tablet floating FAB; desktop has neither. */}
       <div className={checkinModeAvailable ? "pb-24 lg:pb-0" : undefined}>
         {(() => {
-          // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
-          // or while a date switch is in flight — keepPreviousData still holds
-          // the previous day's rows, so show the skeleton instead of presenting
+          // Fix P2: Show loading while the session is still resolving, while
+          // the first fetch is in progress (not yet hasFetchedOnce), or while
+          // a date switch is in flight — keepPreviousData still holds the
+          // previous day's rows, so show the skeleton instead of presenting
           // them under the newly selected date (#1939). Handle a fetch error
           // FIRST, though: when the new date's request fails, keepPreviousData
           // keeps the stale response so isDateTransition stays true — without
           // this guard the page would show the skeleton indefinitely instead of
           // the error and its recovery guidance (#1939).
           if (
-            !errorMessage &&
-            ((isSearching && !hasFetchedOnce) || isDateTransition)
+            isInitializing ||
+            isAuthError ||
+            (!errorMessage &&
+              ((isSearching && !hasFetchedOnce) || isDateTransition))
           ) {
             return <StudentCardGridSkeleton />;
           }

@@ -12,7 +12,7 @@ import {
   ParentLoadError,
   ParentPage,
   ParentPageHeader,
-  ParentPageSkeleton,
+  ParentSectionSkeletons,
 } from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "ParentChildrenPage" });
@@ -61,8 +61,21 @@ export function ParentChildrenPage() {
     void load();
   }, [load]);
 
+  const header = (
+    <ParentPageHeader
+      kicker={t("eyebrow")}
+      title={t("title")}
+      description={t("description")}
+    />
+  );
+
   if (loading) {
-    return <ParentPageSkeleton rows={1} />;
+    return (
+      <ParentPage>
+        {header}
+        <ParentSectionSkeletons rows={1} />
+      </ParentPage>
+    );
   }
 
   if (error) {
@@ -89,11 +102,7 @@ export function ParentChildrenPage() {
 
   return (
     <ParentPage>
-      <ParentPageHeader
-        kicker={t("eyebrow")}
-        title={t("title")}
-        description={t("description")}
-      />
+      {header}
 
       {items.length === 0 ? (
         <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">

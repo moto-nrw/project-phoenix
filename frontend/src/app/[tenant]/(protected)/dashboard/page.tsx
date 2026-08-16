@@ -366,13 +366,21 @@ function DashboardContent() {
           <InfoCard title="Letzte Bewegungen" concept="changeHistory">
             {(() => {
               if (isLoading) {
+                // Mirrors the loaded activity row below: same rounded-xl
+                // p-3 surface, two text lines left, badge right.
                 return (
-                  <div className="space-y-3">
+                  <div className="space-y-2" aria-hidden="true">
                     {[1, 2, 3].map((i) => (
                       <div
                         key={i}
-                        className="h-12 animate-pulse rounded-lg bg-gray-100"
-                      ></div>
+                        className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3"
+                      >
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200"></div>
+                          <div className="h-3 w-1/4 animate-pulse rounded bg-gray-200"></div>
+                        </div>
+                        <div className="h-6 w-16 animate-pulse rounded-full bg-gray-200"></div>
+                      </div>
                     ))}
                   </div>
                 );
@@ -443,13 +451,21 @@ function DashboardContent() {
           >
             {(() => {
               if (isLoading) {
+                // Mirrors the loaded row: rounded-xl p-3, name + meta line
+                // left, status dot right.
                 return (
-                  <div className="space-y-3">
+                  <div className="space-y-2" aria-hidden="true">
                     {[1, 2, 3].map((i) => (
                       <div
                         key={i}
-                        className="h-14 animate-pulse rounded-lg bg-gray-100"
-                      ></div>
+                        className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3"
+                      >
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200"></div>
+                          <div className="h-3 w-2/3 animate-pulse rounded bg-gray-200"></div>
+                        </div>
+                        <div className="ml-2 h-2.5 w-2.5 flex-shrink-0 animate-pulse rounded-full bg-gray-200"></div>
+                      </div>
                     ))}
                   </div>
                 );
@@ -496,13 +512,21 @@ function DashboardContent() {
           <InfoCard title="Aktive Gruppen" concept="groups" href="/ogs-groups">
             {(() => {
               if (isLoading) {
+                // Mirrors the loaded row: rounded-xl p-3, name + meta line
+                // left, status dot right.
                 return (
-                  <div className="space-y-3">
+                  <div className="space-y-2" aria-hidden="true">
                     {[1, 2, 3].map((i) => (
                       <div
                         key={i}
-                        className="h-14 animate-pulse rounded-lg bg-gray-100"
-                      ></div>
+                        className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3"
+                      >
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="h-4 w-1/2 animate-pulse rounded bg-gray-200"></div>
+                          <div className="h-3 w-2/3 animate-pulse rounded bg-gray-200"></div>
+                        </div>
+                        <div className="ml-2 h-2.5 w-2.5 flex-shrink-0 animate-pulse rounded-full bg-gray-200"></div>
+                      </div>
                     ))}
                   </div>
                 );
@@ -549,7 +573,19 @@ function DashboardContent() {
         >
           <InfoCard title="Personal heute" concept="staff" href="/staff">
             {isLoading ? (
-              <div className="h-32 animate-pulse rounded-lg bg-gray-100"></div>
+              // Mirrors the loaded 2-column stat grid: same tile surface,
+              // label line over a large value line.
+              <div className="grid grid-cols-2 gap-4" aria-hidden="true">
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4"
+                  >
+                    <div className="mb-2 h-3 w-24 animate-pulse rounded bg-gray-200"></div>
+                    <div className="h-7 w-12 animate-pulse rounded bg-gray-200"></div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4 transition-colors hover:bg-gray-100/50">

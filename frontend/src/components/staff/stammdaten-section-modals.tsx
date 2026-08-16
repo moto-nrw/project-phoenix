@@ -6,8 +6,8 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODateInput, ISODatePicker } from "~/components/ui/date-picker";
-import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { createLogger } from "~/lib/logger";
 import { isValidISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -642,7 +642,9 @@ export function FinancialEditModal({
   return (
     <Modal isOpen onClose={onClose} title="Bank & Steuer bearbeiten">
       {loading ? (
-        <Loading fullPage={false} />
+        <SkeletonRegion label="Bank- und Steuerdaten werden geladen">
+          <FormSkeleton fields={3} />
+        </SkeletonRegion>
       ) : loadError ? (
         <p className="text-sm text-[#FF3130]">{loadError}</p>
       ) : (

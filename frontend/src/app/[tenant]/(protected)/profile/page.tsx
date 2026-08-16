@@ -9,7 +9,11 @@ import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
-import { Loading } from "~/components/ui/loading";
+import {
+  SkeletonRegion,
+  PageHeaderSkeleton,
+  DetailSkeleton,
+} from "~/components/ui/page-skeletons";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
@@ -24,6 +28,13 @@ import { PushNotificationSection } from "~/components/settings/push-notification
 import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
+
+const profileLoadingFallback = (
+  <SkeletonRegion label="Profil wird geladen…">
+    <PageHeaderSkeleton search={false} />
+    <DetailSkeleton sections={3} fieldsPerSection={3} />
+  </SkeletonRegion>
+);
 
 function ProfileContent() {
   const {
@@ -118,7 +129,7 @@ function ProfileContent() {
   }, []);
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return profileLoadingFallback;
   }
 
   if (!session?.user) {
@@ -317,7 +328,7 @@ function ProfileContent() {
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={profileLoadingFallback}>
       <ProfileContent />
     </Suspense>
   );

@@ -31,7 +31,11 @@ import type {
   FilterConfig,
   ActiveFilter,
 } from "~/components/ui/page-header/types";
-import { Loading } from "~/components/ui/loading";
+import {
+  CardGridSkeleton,
+  PageHeaderSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
@@ -2261,7 +2265,7 @@ function MeinRaumPageContent() {
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (isWaitingForUrlRoomSelection || isWaitingForTimetableRoster) {
-      return <ActiveSupervisionLoadingView />;
+      return <ActiveSupervisionLoadingView withHeader={false} />;
     }
 
     if (currentTimetableRoster) {
@@ -2710,7 +2714,7 @@ function ActiveSupervisionGate({
     useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
-    return <Loading fullPage={false} />;
+    return <ActiveSupervisionLoadingView />;
   }
 
   // Caregivers (user/teacher role) always have access
@@ -2735,7 +2739,18 @@ function ActiveSupervisionGate({
 export default function MeinRaumPage() {
   return (
     <BinaryModeGuard>
-      <Suspense fallback={<Loading fullPage={false} />}>
+      <Suspense
+        fallback={
+          <SkeletonRegion label="Mein Raum wird geladen">
+            <PageHeaderSkeleton actions={1} />
+            <CardGridSkeleton
+              cards={6}
+              rowsPerCard={2}
+              className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+            />
+          </SkeletonRegion>
+        }
+      >
         <ActiveSupervisionGate>
           <SSEErrorBoundary>
             <MeinRaumPageContent />

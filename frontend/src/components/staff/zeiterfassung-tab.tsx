@@ -5,7 +5,11 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Loading } from "~/components/ui/loading";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+  TableSkeleton,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
@@ -229,7 +233,16 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   );
 
   if (scheduleLoading) {
-    return <Loading fullPage={false} />;
+    return (
+      <SkeletonRegion label="Zeiterfassung wird geladen" className="space-y-5">
+        <CardGridSkeleton
+          cards={4}
+          rowsPerCard={1}
+          className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+        />
+        <TableSkeleton rows={7} columns={5} />
+      </SkeletonRegion>
+    );
   }
 
   const handlePrev = () => {
@@ -349,8 +362,10 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
         )}
 
         {visibleLoading || shiftsLoading ? (
-          <div className="py-10">
-            <Loading fullPage={false} />
+          <div className="mt-4">
+            <SkeletonRegion label="Zeiterfassungstabelle wird geladen">
+              <TableSkeleton rows={7} columns={5} />
+            </SkeletonRegion>
           </div>
         ) : (
           <div className="mt-4">

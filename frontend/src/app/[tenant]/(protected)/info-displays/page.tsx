@@ -15,7 +15,6 @@ import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
 import { DisplayModeGuard } from "~/components/tenant/display-mode-guard";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -54,7 +53,7 @@ export default function InfoDisplaysPage() {
 function InfoDisplaysPageContent() {
   // Viewing needs display:read OR display:manage (matching the backend list
   // route); mutating actions are additionally gated on display:manage below.
-  const { isReady, isLoading: permissionLoading } = useRequirePermission([
+  const { isLoading: permissionLoading } = useRequirePermission([
     "display:read",
     "display:manage",
   ]);
@@ -235,10 +234,6 @@ function InfoDisplaysPageContent() {
       : []),
   ];
 
-  if (permissionLoading || !isReady) {
-    return <Loading />;
-  }
-
   return (
     <div className="space-y-6">
       <PageHeaderWithSearch
@@ -276,7 +271,7 @@ function InfoDisplaysPageContent() {
         columns={columns}
         rows={filtered}
         getRowKey={(row) => row.id}
-        isLoading={isLoading}
+        isLoading={permissionLoading || isLoading}
         defaultSortKey="name"
         emptyState={
           loadError ? (

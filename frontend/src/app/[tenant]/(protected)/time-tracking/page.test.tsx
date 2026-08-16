@@ -221,12 +221,6 @@ vi.mock("~/components/staff/staff-session-table", () => ({
   },
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-fullpage={fullPage} aria-label="Laden..." />
-  ),
-}));
-
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
@@ -714,7 +708,9 @@ describe("TimeTrackingPage", () => {
       } as never);
 
       render(<TimeTrackingPage />);
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Zeiterfassung wird geladen"),
+      ).toBeInTheDocument();
     });
 
     it("renders main content when authenticated", () => {

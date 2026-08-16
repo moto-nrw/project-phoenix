@@ -1,7 +1,11 @@
 "use client";
 
 import { WarningCircleIcon } from "@phosphor-icons/react";
-import { Loading } from "~/components/ui/loading";
+import {
+  SkeletonRegion,
+  PageHeaderSkeleton,
+  CardGridSkeleton,
+} from "~/components/ui/page-skeletons";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
@@ -45,8 +49,22 @@ interface ReleaseSupervisionModalProps {
   readonly onConfirm: () => void;
 }
 
-export function ActiveSupervisionLoadingView() {
-  return <Loading fullPage={false} />;
+// withHeader is false when the real PageHeaderWithSearch chrome is already
+// on screen (e.g. re-loading only the student grid) — showing a second
+// header skeleton underneath it would duplicate the page's own chrome.
+export function ActiveSupervisionLoadingView({
+  withHeader = true,
+}: Readonly<{ withHeader?: boolean }> = {}) {
+  return (
+    <SkeletonRegion label="Aktuelle Aufsicht wird geladen…">
+      {withHeader && <PageHeaderSkeleton actions={1} />}
+      <CardGridSkeleton
+        cards={6}
+        rowsPerCard={2}
+        className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+      />
+    </SkeletonRegion>
+  );
 }
 
 export function NoActiveSupervisionAccessView() {

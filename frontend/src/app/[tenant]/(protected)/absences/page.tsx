@@ -16,7 +16,6 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   berlinTodayISO,
@@ -300,23 +299,21 @@ export default function AbsencesPage() {
           </div>
         )}
 
-        {isLoading && entries === null && (
-          <div className="mt-4 space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-64 w-full" />
-          </div>
-        )}
-
-        {error === null && entries !== null && (
+        {error === null && (
           <div className="mt-4">
             <DataTable
               columns={COLUMNS}
-              rows={entries}
+              rows={entries ?? []}
+              isLoading={isLoading && entries === null}
               getRowKey={(row) => row.id}
               onRowClick={(row) =>
                 router.push(`/students/${row.student_id}?from=/absences`)
               }
-              caption={`${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${displayedPage}`}
+              caption={
+                entries
+                  ? `${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${displayedPage}`
+                  : undefined
+              }
               emptyState={
                 <EmptyState
                   title="Keine Abwesenheiten eingetragen"
@@ -328,7 +325,7 @@ export default function AbsencesPage() {
                 />
               }
             />
-            {(displayedPage > 1 || hasMore) && (
+            {entries && (displayedPage > 1 || hasMore) && (
               <div className="mt-3 flex justify-end gap-2">
                 <Button
                   type="button"

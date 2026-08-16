@@ -11,7 +11,11 @@ import React, {
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { Loading } from "~/components/ui/loading";
+import {
+  SkeletonRegion,
+  CardSkeleton,
+  TableSkeleton,
+} from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import {
   Drawer,
@@ -3729,7 +3733,7 @@ function TimeTrackingContent() {
   );
 
   if (authStatus === "loading") {
-    return <Loading fullPage={false} />;
+    return <TimeTrackingPageSkeleton />;
   }
 
   return (
@@ -4037,9 +4041,27 @@ function TimeTrackingContent() {
 
 // ─── Page Export ───────────────────────────────────────────────────────────────
 
+function TimeTrackingPageSkeleton() {
+  return (
+    <SkeletonRegion label="Zeiterfassung wird geladen">
+      <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
+        <CardSkeleton rows={4} />
+        <CardSkeleton rows={4} />
+      </div>
+      <div className="mb-4 md:mb-6">
+        <CardSkeleton rows={2} />
+      </div>
+      <div className="mb-4 md:mb-6">
+        <CardSkeleton rows={2} />
+      </div>
+      <TableSkeleton rows={7} columns={5} />
+    </SkeletonRegion>
+  );
+}
+
 export default function TimeTrackingPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<TimeTrackingPageSkeleton />}>
       <TimeTrackingContent />
     </Suspense>
   );

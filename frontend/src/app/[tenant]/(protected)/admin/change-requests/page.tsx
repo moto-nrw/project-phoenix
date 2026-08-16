@@ -6,8 +6,8 @@ import { CareRequestReviewList } from "~/components/students/care-request-review
 import { ExcusedRequestReviewList } from "~/components/students/excused-request-review-list";
 import { MasterDataReviewList } from "~/components/students/master-data-review-list";
 import { OfferingRequestReviewList } from "~/components/students/offering-request-review-list";
-import { Loading } from "~/components/ui/loading";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 import {
   canReviewChangeRequests,
   canReviewStudentDataRequests,
@@ -27,7 +27,16 @@ export default function AdminChangeRequestsPage() {
   // that permission gets a 403 on the three Stammdaten-side queues, so they are
   // not rendered at all instead of showing three error cards (#2232).
   const showStudentDataQueues = canReviewStudentDataRequests(session);
-  if (!isReady) return <Loading fullPage={false} />;
+  if (!isReady) {
+    return (
+      <div className="-mt-1.5 w-full">
+        <PageHeaderWithSearch title="Änderungsanfragen" />
+        <SkeletonRegion label="Änderungsanfragen werden geladen…">
+          <ListSkeleton rows={4} avatar={false} />
+        </SkeletonRegion>
+      </div>
+    );
+  }
 
   // Stacked sections instead of tabs: both queues are short, and tabs
   // would hide the pending count of the inactive one. Unlike the enrollment

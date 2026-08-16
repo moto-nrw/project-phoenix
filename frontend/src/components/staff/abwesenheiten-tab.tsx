@@ -41,8 +41,12 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import {
+  CardGridSkeleton,
+  ListSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard, type StatCardTone } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -151,7 +155,21 @@ function TabLoadingBoundary({
   readonly loading: boolean;
   readonly children: ReactNode;
 }) {
-  if (loading) return <Loading fullPage={false} />;
+  if (loading) {
+    return (
+      <SkeletonRegion
+        label="Abwesenheiten werden geladen"
+        className="space-y-5"
+      >
+        <CardGridSkeleton
+          cards={4}
+          rowsPerCard={1}
+          className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+        />
+        <ListSkeleton rows={5} avatar={false} />
+      </SkeletonRegion>
+    );
+  }
   return children;
 }
 

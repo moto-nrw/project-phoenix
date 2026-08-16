@@ -792,14 +792,6 @@ export function CareOfferingsEditor() {
     [deletingId, handleDelete, saving],
   );
 
-  if (loading) {
-    return (
-      <div className="moto-content-surface rounded-2xl border px-5 py-10 text-center text-sm text-gray-500 shadow-sm">
-        Betreuungsangebote werden geladen...
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {error && (
@@ -816,7 +808,15 @@ export function CareOfferingsEditor() {
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
       ) : null}
 
-      {catalogError ? (
+      {loading ? (
+        <DataTable
+          columns={columns}
+          rows={[]}
+          isLoading
+          loadingRowCount={6}
+          getRowKey={(offering) => offering.id}
+        />
+      ) : catalogError ? (
         <CareOfferingCatalogError
           message={catalogError}
           onRetry={() => void loadAll(selectedPhaseIdRef.current)}

@@ -19,30 +19,6 @@ const DAY_COLUMN_INDEXES = Array.from(
   (_, index) => index,
 );
 
-// The PlanningContextBar header placeholder mirrors its mobile title,
-// navigation, view switcher, action, and context row. Only used by the
-// full-page skeleton — once the session is ready the real PlanningContextBar
-// renders and only the grid area falls back to a skeleton on cold data
-// (docs/05 Abschnitt 5).
-function HeaderSkeleton() {
-  return (
-    <div className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3">
-      <Skeleton className="h-7 w-28 md:hidden" />
-      <div className="flex min-h-9 flex-wrap items-center gap-3">
-        <Skeleton className="h-8 w-28 rounded-lg" />
-        <Skeleton className="h-6 w-44 rounded" />
-        <Skeleton className="h-8 w-40 rounded-lg" />
-        <Skeleton className="ml-auto h-9 w-48 rounded-lg" />
-      </div>
-      <div className="border-t border-gray-100 pt-2">
-        <div className="min-h-8">
-          <Skeleton className="h-5 w-32" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // The grid surface card: staff column + 5 weekday columns, 6 rows, plus the
 // CapacityStrip footer row (label + 5 cells). Shared by both the full-page
 // skeleton and the standalone grid skeleton — no status role here so it can be
@@ -109,9 +85,10 @@ function GridSkeletonBody() {
   );
 }
 
-// Grid-only skeleton for the content area while the schedule data loads on a
-// cold SWR key. The PlanningContextBar stays mounted above it, so week/view
-// navigation never disappears mid-click (docs/05 Abschnitt 5).
+// Grid-only skeleton for the content area while the schedule data loads —
+// including the initial session/settings-schema load, so the real
+// PlanningContextBar (title, week navigation) renders immediately and only
+// this grid area falls back to a skeleton (docs/05 Abschnitt 5).
 export function DienstplanGridSkeleton() {
   return (
     <div
@@ -120,23 +97,6 @@ export function DienstplanGridSkeleton() {
       aria-label="Dienstplan wird geladen"
       data-testid="dienstplan-grid-skeleton"
     >
-      <GridSkeletonBody />
-    </div>
-  );
-}
-
-// Full-page skeleton (header + grid) for the session/permission loading state,
-// before the real PlanningContextBar can render.
-export function DienstplanPageSkeleton() {
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      aria-label="Dienstplan wird geladen"
-      data-testid="dienstplan-skeleton"
-      className="space-y-4"
-    >
-      <HeaderSkeleton />
       <GridSkeletonBody />
     </div>
   );

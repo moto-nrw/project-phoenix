@@ -215,17 +215,36 @@ export function ParentLoadError({ message }: Readonly<{ message: string }>) {
 }
 
 /**
- * Shared page skeleton. `rows` controls how many section placeholders follow
- * the header so a page can approximate its own shape without redefining the
- * whole block.
+ * Section placeholders only — no header skeleton. Use this when the page's
+ * `ParentPageHeader` is static (title/description don't depend on the
+ * fetched data): render the real header immediately and reserve the
+ * skeleton for the data-dependent region below it, so navigation never
+ * flashes a placeholder over chrome that was already known.
+ */
+export function ParentSectionSkeletons({
+  rows = 2,
+}: Readonly<{ rows?: number }>) {
+  return (
+    <>
+      {Array.from({ length: rows }, (_, index) => (
+        <Skeleton key={index} className="h-40 w-full rounded-2xl" />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Shared page skeleton, header included. `rows` controls how many section
+ * placeholders follow the header so a page can approximate its own shape
+ * without redefining the whole block. Reserve this for pages whose header
+ * itself depends on the fetched data (e.g. a child's name) — when the header
+ * is static, render it directly and use `ParentSectionSkeletons` instead.
  */
 export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
   return (
     <ParentPage>
       <Skeleton className="h-28 w-full rounded-2xl" />
-      {Array.from({ length: rows }, (_, index) => (
-        <Skeleton key={index} className="h-40 w-full rounded-2xl" />
-      ))}
+      <ParentSectionSkeletons rows={rows} />
     </ParentPage>
   );
 }
