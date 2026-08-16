@@ -5,10 +5,9 @@
 // The Leseansicht name source: schedules:read holders (every staff role) get
 // the display names of the children enrolled in one instance without the
 // users:read-gated tenant-wide roster. Names are filtered per student through
-// authorize.CanReadStudent, so gdpr.student_data_scope keeps its meaning:
-// all_staff shows every participant, group_supervisors_only only the caller's
-// own groups. Filtered-out children are omitted silently — the planner shows
-// counts from the instances payload either way.
+// authorize.CanReadStudent, so only verified staff (or admins) receive them.
+// Filtered-out children are omitted silently — the planner shows counts from
+// the instances payload either way.
 package timetable
 
 import (
@@ -151,7 +150,7 @@ func (rs *Resource) visibleParticipants(r *http.Request, rows []*scheduleModel.I
 		if student == nil || student.Status == usersModel.StudentStatusAlumnus {
 			continue
 		}
-		if !authorize.CanReadStudent(ctx, perms, student, rs.UserContextService, rs.SettingsService, rs.getLogger()) {
+		if !authorize.CanReadStudent(ctx, perms, student, rs.UserContextService) {
 			continue
 		}
 		visible = append(visible, student)

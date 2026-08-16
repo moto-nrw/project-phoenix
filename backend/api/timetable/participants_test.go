@@ -107,9 +107,9 @@ func buildParticipantsSetup(t *testing.T) *participantsSetup {
 			PersonRepo:  personRepo,
 			StaffRepo:   usersRepo.NewStaffRepository(db),
 		}),
-		// UserContextService + SettingsService intentionally nil: the
-		// admin-perm path short-circuits CanReadStudent; the non-admin test
-		// relies on the fallthrough filtering every student out.
+		// UserContextService intentionally nil: the admin-perm path
+		// short-circuits CanReadStudent; the non-staff test relies on the
+		// fallthrough filtering every student out.
 		DB: db,
 	})
 	return setup
@@ -147,12 +147,12 @@ func TestGetInstanceParticipants_AdminSeesSortedNames(t *testing.T) {
 	assert.Equal(t, s.students[1].fullName, got.Participants[1].DisplayName)
 }
 
-func TestGetInstanceParticipants_NonAdminWithoutScopeSeesNone(t *testing.T) {
+func TestGetInstanceParticipants_NonStaffSeesNoStudentNames(t *testing.T) {
 	s := buildParticipantsSetup(t)
 
-	// schedules:read alone reaches the endpoint, but with no user context and
-	// no all_staff scope every name is filtered out — 200 with an empty list,
-	// never a 403 and never a leak.
+	// schedules:read alone reaches the endpoint, but with no verified staff
+	// context every name is filtered out — 200 with an empty list, never a 403
+	// and never a leak.
 	router := participantsRouter(s.ctx, s.res, []string{"schedules:read"})
 	w := doGet(t, router, fmt.Sprintf("/instances/%d/participants", s.instanceID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
