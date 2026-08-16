@@ -99,16 +99,6 @@ const COLUMNS: DataTableColumn<StatusDayOverviewEntry>[] = [
     ),
   },
   {
-    key: "school_class",
-    header: "Klasse",
-    render: (row) => row.school_class,
-  },
-  {
-    key: "group",
-    header: "Gruppe",
-    render: (row) => row.group_name,
-  },
-  {
     key: "status",
     header: "Status",
     render: (row) => (
@@ -116,9 +106,25 @@ const COLUMNS: DataTableColumn<StatusDayOverviewEntry>[] = [
     ),
   },
   {
+    key: "school_class",
+    header: "Klasse",
+    render: (row) => row.school_class,
+  },
+  // Gruppe und Meldedatum sind sekundär; auf Phone-Breite ausgeblendet,
+  // damit Datum, Kind und Status ohne horizontales Scrollen sichtbar sind.
+  {
+    key: "group",
+    header: "Gruppe",
+    render: (row) => row.group_name,
+    className: "hidden sm:table-cell",
+    headerClassName: "hidden sm:table-cell",
+  },
+  {
     key: "reported",
     header: "Gemeldet",
     render: (row) => <span className="text-gray-600">{reportedLine(row)}</span>,
+    className: "hidden sm:table-cell",
+    headerClassName: "hidden sm:table-cell",
   },
 ];
 
