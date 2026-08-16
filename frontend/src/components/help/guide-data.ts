@@ -725,7 +725,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Seite nicht sichtbar?",
-          body: "Die Tagesauswertung gehört zum Anwesenheitsprotokoll und ist im Auslieferungszustand aus. Ein Admin schaltet sie unter `Einstellungen` -> `Datenschutz` mit `Anwesenheitsprotokoll` ein; dort steuert auch `Sichtbarkeit`, ob nur Gruppenleitungen ihre eigene Gruppe sehen oder das ganze Team alle Gruppen.",
+          body: "Die Tagesauswertung gehört zum Anwesenheitsprotokoll und ist im Auslieferungszustand aus. Ein Admin schaltet sie unter `Einstellungen` -> `Datenschutz` mit `Anwesenheitsprotokoll` ein; danach sehen alle Mitarbeitenden die Auswertung aller Gruppen.",
           tone: "blue",
         },
         screenshot:

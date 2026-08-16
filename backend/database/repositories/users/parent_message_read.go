@@ -353,24 +353,21 @@ func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader b
 }
 
 // applyStaffScope narrows a thread query to the students a staff member may
-// read: all students (admin / all_staff scope) or only their supervised
-// groups (empty groups → impossible filter, so the result is empty).
-func applyStaffScope(q *bun.SelectQuery, allStudents bool, groupIDs []int64) *bun.SelectQuery {
+// read: everything for admins and verified staff (#2329), nothing for any
+// other caller (impossible filter, so the result is empty).
+func applyStaffScope(q *bun.SelectQuery, allStudents bool) *bun.SelectQuery {
 	if allStudents {
 		return q
 	}
-	if len(groupIDs) == 0 {
-		return q.Where("1 = 0")
-	}
-	return q.Where("s.group_id IN (?)", bun.List(groupIDs))
+	return q.Where("1 = 0")
 }
 
 // ListInboxForStaff returns the staff member's readable threads, newest
 // activity first. onlyUnread keeps only threads with an unread guardian message.
-func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*users.InboxThread, error) {
+func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*users.InboxThread, error) {
 	var rows []*users.InboxThread
 	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
-	query = applyStaffScope(query, allStudents, groupIDs)
+	query = applyStaffScope(query, allStudents)
 	query = query.Where(threadHasMessages)
 	query = base.WithTenantFilter(ctx, query, "t")
 	if onlyUnread {
@@ -573,9 +570,9 @@ func (r *ParentMessageReadRepository) GuardianReadCursor(ctx context.Context, th
 // reader, within their visible student scope — the sidebar badge source. It
 // counts messages (not threads) so the badge matches the per-thread unread pills
 // in the inbox: a thread with three unread guardian messages contributes 3, not 1.
-func (r *ParentMessageReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
+func (r *ParentMessageReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
 	query := unreadMessageCountSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
-	query = applyStaffScope(query, allStudents, groupIDs)
+	query = applyStaffScope(query, allStudents)
 	query = base.WithTenantFilter(ctx, query, "t")
 	count, err := query.Count(ctx)
 	if err != nil {

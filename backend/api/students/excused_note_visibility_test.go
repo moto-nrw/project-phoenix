@@ -21,18 +21,17 @@ import (
 // blocker. The pending excused-absence badge carries the parent's note and
 // belongs to the users:update-gated review queue (Änderungsanfragen). The
 // enrichment also runs inside the users:read student list/detail/export handlers,
-// and PendingByStudentForDate scopes only to children the caller SUPERVISES
+// and PendingByStudentForDate scopes only to children the caller may WRITE
 // (WritableStudentFilter) — it never checks the users:update permission. So a
-// read-only group supervisor (supervises the group, but holds only users:read)
-// would otherwise receive pending_excused_note for their supervised child while
-// being unable to open or decide the queue. The fix gates the whole enrichment on
+// read-only staff member would otherwise receive pending_excused_note for a
+// child while being unable to open or decide the queue. The fix gates the whole enrichment on
 // users:update; this test pins that only that permission flips the note on.
 func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	tc := setupTestContext(t)
 
-	// The caller supervises the group, so under the default data scope they have
-	// full read access to the child — HasFullAccess is true for BOTH calls below,
-	// isolating the users:update permission as the only variable.
+	// The caller is verified staff, so they have full read access to the child
+	// (#2329) — HasFullAccess is true for BOTH calls below, isolating the
+	// users:update permission as the only variable.
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ExcusedNote", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ExcusedNoteGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Note", "EN1")
@@ -65,14 +64,14 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-		require.True(t, resp.Data.HasFullAccess, "a supervisor must have full read access to their child")
+		require.True(t, resp.Data.HasFullAccess, "a staff member must have full read access to the child")
 		return resp.Data.PendingExcusedNote
 	}
 
 	// Read-only supervisor → the parent's note must NOT leak, even though the
 	// child is theirs to view.
 	assert.Nil(t, get([]string{"users:read"}),
-		"a users:read-only supervisor must not receive the pending excused note")
+		"a users:read-only caller must not receive the pending excused note")
 
 	// users:update (the review-queue permission) → the note is shown.
 	shown := get([]string{"users:read", "users:update"})

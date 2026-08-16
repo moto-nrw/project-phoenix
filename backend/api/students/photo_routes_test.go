@@ -129,9 +129,8 @@ func adminBearer(t *testing.T) string {
 
 // staffWithUsersUpdate returns the JWT claims for a staff member who
 // holds users:update + users:read but who is NOT an admin and is NOT
-// (by default) a group supervisor. The handler-level
-// canUpdateStudent gate must reject this caller for a student in a
-// foreign group.
+// (by default) a group supervisor. Since #2329 the handler-level
+// canUpdateStudent gate admits this caller for every child of the tenant.
 func staffWithUsersUpdate(accountID int64) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          int(accountID),
@@ -439,22 +438,19 @@ func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
 		"feature-disabled response must use the canonical German message")
 }
 
-// TestUploadStudentPhoto_NotGroupSupervisor — caller has users:update
-// but does not supervise the student's group. canUpdateStudent must
-// reject with 403. This is the per-student write gate that prevents
-// supervisor-of-group-A from uploading photos for students in group B.
-func TestUploadStudentPhoto_NotGroupSupervisor(t *testing.T) {
+// TestUploadStudentPhoto_StaffOutsideGroup — a staff member holding
+// users:update but no supervision of the child's group. Since #2329 the
+// per-student write gate (canUpdateStudent) asks only for a staff record, so
+// this upload must succeed exactly like an admin's.
+func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
-	// Student belongs to a group the caller does NOT supervise.
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ForeignGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoUpload", "ForeignStu", "PU7")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	stampPhotoConsentRow(t, tc, student.ID)
 
-	// Caller is a staff member with users:update but no group teaching/
-	// supervision relationship to the student's group.
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NonSup", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
 
@@ -467,9 +463,11 @@ func TestUploadStudentPhoto_NotGroupSupervisor(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
-	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
-	assert.Equal(t, "", readStudentPhotoPath(t, tc, student.ID),
-		"refused upload must not persist a photo_path")
+	t.Cleanup(func() { removeUploadedPhotoFile(t, rr.Body.Bytes()) })
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	assert.NotEqual(t, "", readStudentPhotoPath(t, tc, student.ID),
+		"a successful upload must persist a photo_path")
 }
 
 // TestUploadStudentPhoto_StudentNotFound — non-existent ID inside
@@ -601,10 +599,10 @@ func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
 
-// TestDeleteStudentPhoto_NotGroupSupervisor — same per-student write
-// gate as upload. A non-supervising staff with users:update must not
-// be able to delete a foreign student's photo.
-func TestDeleteStudentPhoto_NotGroupSupervisor(t *testing.T) {
+// TestDeleteStudentPhoto_StaffOutsideGroup — same per-student write gate as
+// upload: a staff member with users:update deletes any child's photo since
+// #2329, supervision of the group no longer participates.
+func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -622,10 +620,9 @@ func TestDeleteStudentPhoto_NotGroupSupervisor(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
 
-	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
-	// photo_path must still point at the seeded file.
-	assert.NotEqual(t, "", readStudentPhotoPath(t, tc, student.ID),
-		"refused delete must NOT clear photo_path")
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	assert.Equal(t, "", readStudentPhotoPath(t, tc, student.ID),
+		"a successful delete must clear photo_path")
 }
 
 // TestDeleteStudentPhoto_StudentNotFound — non-existent ID. The
@@ -759,29 +756,26 @@ func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
 		"German error must surface so the UI can show why the load failed")
 }
 
-// TestServeStudentPhoto_ForbiddenForNonSupervisorUnderGroupScope —
-// gdpr.student_data_scope = group_supervisors_only (the default). A
-// staff member with users:read who does NOT supervise the student's
-// group must NOT be able to fetch the photo. Mirrors the policy used
-// by getStudent and protects against leaked photo URLs.
-func TestServeStudentPhoto_ForbiddenForNonSupervisor(t *testing.T) {
+// TestServeStudentPhoto_ForbiddenWithoutStaffRecord — the photo bytes follow
+// CanReadStudent, so since #2329 every verified staff member may fetch them and
+// the surviving refusal is an account without a staff record (guest, guardian)
+// that merely holds users:read. Mirrors the policy used by getStudent and
+// protects against leaked photo URLs.
+func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
-	// Default scope is group_supervisors_only — leave it as-is.
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ForeignServeGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Foreign", "PS5")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	storedURL, _ := seedStudentWithPhoto(t, tc, student.ID)
 	filename := filepath.Base(storedURL)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ServeNonSup", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
+	guest := testpkg.CreateTestAccount(t, tc.db, "photo-serve-guest@example.com")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, guest.ID)
 
-	// Staff has users:read but no group supervision → CanReadStudent
-	// returns false under group_supervisors_only.
 	claims := jwt.AppClaims{
-		ID:          int(account.ID),
+		ID:          int(guest.ID),
 		Sub:         "noread@example.com",
 		Username:    "noread",
 		Roles:       []string{"user"},
@@ -795,6 +789,38 @@ func TestServeStudentPhoto_ForbiddenForNonSupervisor(t *testing.T) {
 	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
+}
+
+// TestServeStudentPhoto_AllowedForStaffOutsideGroup — the counterpart: a staff
+// member who does not supervise the child's group fetches the photo normally.
+func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
+	tc := setupTestContext(t)
+	enableStudentPhotos(t, tc)
+
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "ForeignServeGroupOK")
+	student := testpkg.CreateTestStudent(t, tc.db, "PhotoServe", "Allowed", "PS6")
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	storedURL, _ := seedStudentWithPhoto(t, tc, student.ID)
+	filename := filepath.Base(storedURL)
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ServeNonSup", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID, staff.ID)
+
+	claims := jwt.AppClaims{
+		ID:          int(account.ID),
+		Sub:         "staffread@example.com",
+		Username:    "staffread",
+		Roles:       []string{"user"},
+		Permissions: []string{"users:read"},
+		TenantID:    1,
+	}
+	token := testutil.MintTestJWT(t, claims)
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("/%d/photo/%s", student.ID, filename), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+
+	assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 }
 
 // TestServeStudentPhoto_StudentNotFound — non-existent ID returns 404

@@ -241,9 +241,9 @@ describe("useSchoolCheckinMode", () => {
   });
 
   it("names the permission problem instead of asking for a retry on 403", async () => {
-    // The default attendance.web_checkin_access setting ("Nur Gruppenbetreuer
-    // des Kindes") makes cross-group taps fail permanently — "bitte erneut
-    // versuchen" would be misleading advice there (#2220).
+    // A permission 403 (missing users:checkin or web attendance disabled)
+    // fails on every retry — "bitte erneut versuchen" would be misleading
+    // advice there (#2220).
     mockSchoolCheckinStudent.mockRejectedValueOnce(
       new Error("API error (403): Forbidden"),
     );
@@ -255,9 +255,6 @@ describe("useSchoolCheckinMode", () => {
 
     expect(mockToastError).toHaveBeenCalledWith(
       expect.stringContaining("Keine Berechtigung"),
-    );
-    expect(mockToastError).toHaveBeenCalledWith(
-      expect.stringContaining("Gruppenbetreuung"),
     );
     expect(mockToastError).not.toHaveBeenCalledWith(
       expect.stringContaining("erneut versuchen"),

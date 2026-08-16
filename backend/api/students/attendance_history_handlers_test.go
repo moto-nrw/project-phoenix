@@ -218,28 +218,36 @@ func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "start must not be in the future")
 }
 
-func TestGetStudentAttendanceHistory_ScopeAllStaff_NonAdminCanAccess(t *testing.T) {
+func TestGetStudentAttendanceHistory_StaffCanAccessAnyStudent(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
-	// Set scope to all_staff
-	ctx := testpkg.TenantContext(1)
-	err := tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeAllStaff, nil, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogScope, nil, nil)
-	})
-
+	// #2329: the history is readable by any verified staff member of the tenant,
+	// regardless of which group the child belongs to.
 	student := testpkg.CreateTestStudent(t, tc.db, "ScopeAll", "Student", "3b")
-	// Create a real account so the audit log FK constraint is satisfied
-	account := testpkg.CreateTestAccount(t, tc.db, "scopeall-teacher")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ScopeAll", "Staff")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
+
+	assert.Equal(t, http.StatusOK, rr.Code, "any staff member with users:read may read the history. Body: %s", rr.Body.String())
+}
+
+func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+
+	// An account holding users:read without a staff record (guest, guardian) is
+	// not staff and must stay out — users:read alone never unlocks the history.
+	student := testpkg.CreateTestStudent(t, tc.db, "Unlinked", "Student", "3c")
+	account := testpkg.CreateTestAccount(t, tc.db, "history-unlinked@example.com")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, account.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
-	// Use teacher claims (non-admin) with UsersRead permission — account ID must exist in auth.accounts
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
 
-	assert.Equal(t, http.StatusOK, rr.Code, "all_staff scope should allow any staff with UsersRead. Body: %s", rr.Body.String())
+	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 }
 
 func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {

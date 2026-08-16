@@ -70,49 +70,19 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, locationResponse, "Student location retrieved successfully")
 }
 
-// checkGroupRoomAccessAuthorization verifies if the user can view student room status.
-// Returns an error if unauthorized, nil if authorized.
+// checkGroupRoomAccessAuthorization verifies if the user can view student room
+// status. Returns an error if unauthorized, nil if authorized.
 //
-// Grants access to: admins, any staff when gdpr.student_data_scope = all_staff,
-// and the student's group supervisors. This endpoint is read-only.
-func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, studentGroupID int64) error {
+// Grants access to admins and any verified staff member (#2329). This endpoint
+// is read-only.
+func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, _ int64) error {
 	if authorize.HasAdminWildcard(getPermissionsFromRequest(r)) {
 		return nil
 	}
-
-	// Tenant-configurable read scope: when set to all_staff, any authenticated
-	// staff member can view this information.
-	scope := configService.ResolveStringOrDefault(
-		r.Context(),
-		rs.SettingsService,
-		configModel.KeyStudentDataScope,
-		configModel.StudentDataScopeGroupSupervisorsOnly,
-		rs.Logger,
-	)
-	if scope == configModel.StudentDataScopeAllStaff {
-		if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
-			return nil
-		}
-		return errors.New("unauthorized to view student room status")
+	if staff, err := rs.UserContextService.GetCurrentStaff(r.Context()); err == nil && staff != nil {
+		return nil
 	}
-
-	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
-	if err != nil || staff == nil {
-		return errors.New("unauthorized to view student room status")
-	}
-
-	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-	if err != nil {
-		return errors.New("you do not supervise this student's group")
-	}
-
-	for _, supervGroup := range educationGroups {
-		if supervGroup.ID == studentGroupID {
-			return nil
-		}
-	}
-
-	return errors.New("you do not supervise this student's group")
+	return errors.New("unauthorized to view student room status")
 }
 
 // buildGroupRoomResponse constructs the response for in-group-room check

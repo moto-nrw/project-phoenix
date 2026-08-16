@@ -104,102 +104,13 @@ func (r *GroupRepository) FindByTeacher(ctx context.Context, teacherID int64) ([
 	return groups, nil
 }
 
-// ListSupervisedGroupIDsByStaff returns the (staff, education group) pairs the
-// given staff members supervise on the given day.
-//
-// It mirrors usercontext.GetMyGroups exactly, in bulk and without needing JWT
-// claims in the context. GetMyGroups resolves person -> staff -> teacher ->
-// groups and unions that with the staff member's active substitutions; the two
-// branches below are the same two sources, so an equivalence test can pin them
-// against each other.
-//
-// Two queries rather than one UNION: the tenant predicate is applied per branch
-// through the standard helper, which a hand-written UNION would force us to
-// inline. The cost that matters is that neither branch scales with the number
-// of staff members, and both are IN-list lookups.
-//
-// Every join is an INNER join on purpose. A LEFT join here would emit rows with
-// a NULL group for a staff member who supervises nothing, and a caller reading
-// "no rows means no restriction" would turn this filter into full access.
-// Soft-deleted staff and teachers are excluded for the same reason GetMyGroups
-// returns nothing for them: their identity lookup fails, so they supervise
-// nothing.
-func (r *GroupRepository) ListSupervisedGroupIDsByStaff(ctx context.Context, staffIDs []int64, on timezone.Date) ([]education.StaffGroupID, error) {
-	if len(staffIDs) == 0 {
-		return []education.StaffGroupID{}, nil
-	}
-
-	pairs := make([]education.StaffGroupID, 0, len(staffIDs))
-	seen := make(map[education.StaffGroupID]struct{}, len(staffIDs))
-
-	appendRows := func(rows []education.StaffGroupID) {
-		for _, row := range rows {
-			if _, dup := seen[row]; dup {
-				continue
-			}
-			seen[row] = struct{}{}
-			pairs = append(pairs, row)
-		}
-	}
-
-	// Branch 1: groups the staff member is assigned to as a teacher. Mirrors
-	// GetCurrentStaff -> teacherRepo.FindByStaffID -> educationGroupRepo.FindByTeacher.
-	var assigned []education.StaffGroupID
-	assignedQuery := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.staff AS "staff"`).
-		ColumnExpr(`"staff".id AS staff_id, "group".id AS group_id`).
-		Join(`JOIN users.teachers AS "teacher" ON "teacher".staff_id = "staff".id AND "teacher".deleted_at IS NULL`).
-		Join(`JOIN education.group_teacher AS "gt" ON "gt".teacher_id = "teacher".id`).
-		Join(`JOIN education.groups AS "group" ON "group".id = "gt".group_id`).
-		Where(`"staff".deleted_at IS NULL`).
-		Where(`"staff".id IN (?)`, bun.List(staffIDs))
-
-	assignedQuery = base.WithTenantFilter(ctx, assignedQuery, "staff")
-
-	if err := assignedQuery.Scan(ctx, &assigned); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list supervised group IDs by staff (assigned)",
-			Err: err,
-		}
-	}
-	appendRows(assigned)
-
-	// Branch 2: groups covered through a substitution that is active on `on`.
-	// The date predicate is inclusive on both ends, matching Filter.DateBetween
-	// as used by FindActiveBySubstituteWithRelations. The join back to
-	// users.staff reproduces GetMyGroups' precondition that the substitute has
-	// a live staff row at all.
-	var substituted []education.StaffGroupID
-	substitutedQuery := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`education.group_substitution AS "sub"`).
-		ColumnExpr(`"sub".substitute_staff_id AS staff_id, "group".id AS group_id`).
-		Join(`JOIN users.staff AS "staff" ON "staff".id = "sub".substitute_staff_id AND "staff".deleted_at IS NULL`).
-		Join(`JOIN education.groups AS "group" ON "group".id = "sub".group_id`).
-		Where(`"sub".substitute_staff_id IN (?)`, bun.List(staffIDs)).
-		Where(`"sub".start_date <= ?`, on).
-		Where(`"sub".end_date >= ?`, on)
-
-	substitutedQuery = base.WithTenantFilter(ctx, substitutedQuery, "sub")
-
-	if err := substitutedQuery.Scan(ctx, &substituted); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list supervised group IDs by staff (substitutions)",
-			Err: err,
-		}
-	}
-	appendRows(substituted)
-
-	return pairs, nil
-}
-
 // ListStaffIDsByEducationGroupIDs returns the (staff, group) pairs supervising
 // the given groups on the given day.
 //
-// The mirror image of ListSupervisedGroupIDsByStaff, deliberately built from
-// the same two sources with the same predicates: teacher assignments plus
-// substitutions active on the day, inner joins throughout, soft-deleted staff
-// and teachers excluded. If the two ever disagree, one of them is granting
-// access the other denies.
+// The bulk mirror of usercontext.GetMyGroups read from the group side,
+// deliberately built from the same two sources with the same predicates:
+// teacher assignments plus substitutions active on the day, inner joins
+// throughout, soft-deleted staff and teachers excluded.
 func (r *GroupRepository) ListStaffIDsByEducationGroupIDs(ctx context.Context, groupIDs []int64, on timezone.Date) ([]education.StaffGroupID, error) {
 	if len(groupIDs) == 0 {
 		return []education.StaffGroupID{}, nil

@@ -251,7 +251,7 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 	assert.ErrorIs(t, err, activeSvc.ErrActiveGroupAlreadyEnded)
 }
 
-func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsUnsupervisedLockedSource(t *testing.T) {
+func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -282,17 +282,16 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsUnsupervisedLo
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
 
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
-
-	reloadedSourceVisit, err := service.GetVisit(ctx, sourceVisit.ID)
+	// #2329: pulling a child out of a colleague's room no longer requires
+	// supervising the SOURCE — any staff may move any child; only the TARGET
+	// must be a group the caller supervises (which it is here).
 	require.NoError(t, err)
-	assert.Nil(t, reloadedSourceVisit.ExitTime, "forbidden moves must not close the source visit")
+	require.NotNil(t, result)
+	assert.Contains(t, result.Moved, student.ID)
 
 	currentVisit, err := service.GetStudentCurrentVisit(ctx, student.ID)
 	require.NoError(t, err)
-	assert.Equal(t, sourceVisit.ID, currentVisit.ID)
+	assert.Equal(t, targetGroup.ID, currentVisit.ActiveGroupID)
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourceAndTarget(t *testing.T) {
@@ -372,7 +371,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitInto
 	assert.Equal(t, targetGroup.ID, currentVisit.ActiveGroupID)
 }
 
-func TestActiveService_MoveStudentsToTransitAuthorized_RejectsUnsupervisedSource(t *testing.T) {
+func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -394,13 +393,15 @@ func TestActiveService_MoveStudentsToTransitAuthorized_RejectsUnsupervisedSource
 
 	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{student.ID}, activeSvc.StudentMoveAuthorization{StaffID: staff.ID})
 
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.ErrorIs(t, err, activeSvc.ErrStudentMoveForbidden)
+	// #2329: sending a child to transit no longer requires supervising their
+	// current room — any staff member may move any child.
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Contains(t, result.Moved, student.ID)
 
 	reloadedVisit, err := service.GetVisit(ctx, visit.ID)
 	require.NoError(t, err)
-	assert.Nil(t, reloadedVisit.ExitTime, "forbidden transit moves must not close the source visit")
+	assert.NotNil(t, reloadedVisit.ExitTime, "the transit move closes the source visit")
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *testing.T) {

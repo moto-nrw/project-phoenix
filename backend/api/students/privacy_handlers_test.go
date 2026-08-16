@@ -158,16 +158,17 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 	})
 
 	t.Run("forbidden_without_full_access", func(t *testing.T) {
+		// #2329: staff read every child's consent; the surviving denial is an
+		// account without a staff record holding users:read.
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "NoAccess", "PNA1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "NoAccess")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "privacy-consent-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
 
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		// Non-supervisor should be forbidden from viewing privacy consent
 		testutil.AssertForbidden(t, rr)
 	})
 }
@@ -198,9 +199,10 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("update_privacy_consent_forbidden", func(t *testing.T) {
+		// Only accounts without a staff record are refused now (#2329).
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Forbidden", "PF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "ForbiddenStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "privacy-consent-write-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
@@ -209,10 +211,9 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
 
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
-		// Non-supervisor should be forbidden from updating privacy consent
 		testutil.AssertForbidden(t, rr)
 	})
 }
