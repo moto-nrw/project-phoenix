@@ -102,13 +102,11 @@ export function SectionCard({
                   collapsed ? `${title} ausklappen` : `${title} einklappen`
                 }
                 aria-expanded={!collapsed}
-                onClick={() =>
-                  setCollapsed((previous) => {
-                    const next = !previous;
-                    onCollapsedChange?.(next);
-                    return next;
-                  })
-                }
+                onClick={() => {
+                  const next = !collapsed;
+                  setCollapsed(next);
+                  onCollapsedChange?.(next);
+                }}
               >
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}

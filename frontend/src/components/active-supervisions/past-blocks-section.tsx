@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, History } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -149,35 +150,36 @@ function PastBlockCard({
   };
 
   return (
-    <article className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-      <div className="p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="truncate text-sm font-semibold text-gray-900">
-            {block.title}
-          </h3>
-          {completed ? (
-            <StatusBadge label="Beendet" tone="gray" />
-          ) : (
-            <StatusBadge label="Nicht gestartet" tone="orange" />
-          )}
-        </div>
-        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
-          <span>
-            {block.startTime}-{block.endTime}
-          </span>
-          <span>{block.roomName ?? `Raum ${block.roomId}`}</span>
-          <span>
-            {block.assignedStaffIds.length}{" "}
-            {block.assignedStaffIds.length === 1 ? "Betreuer" : "Betreuende"}
-          </span>
-        </div>
+    <SectionCard
+      title={block.title}
+      headingLevel={3}
+      action={
+        completed ? (
+          <StatusBadge label="Beendet" tone="gray" />
+        ) : (
+          <StatusBadge label="Nicht gestartet" tone="orange" />
+        )
+      }
+      bodyClassName="mt-2"
+    >
+      <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+        <span>
+          {block.startTime}-{block.endTime}
+        </span>
+        <span>{block.roomName ?? `Raum ${block.roomId}`}</span>
+        <span>
+          {block.assignedStaffIds.length}{" "}
+          {block.assignedStaffIds.length === 1 ? "Betreuer" : "Betreuende"}
+        </span>
       </div>
 
-      <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
-        <button
+      <div className="-mx-5 mt-4 -mb-5 border-t border-gray-100 bg-gray-50/70 px-5 py-3">
+        <Button
           type="button"
+          variant="ghost"
+          size="compact"
           onClick={toggleRoster}
-          className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="w-full justify-between text-sm"
           aria-expanded={expanded}
         >
           <span>Kinder</span>
@@ -185,7 +187,7 @@ function PastBlockCard({
             className={`h-4 w-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
             aria-hidden="true"
           />
-        </button>
+        </Button>
 
         {expanded ? (
           <div className="mt-3">
@@ -218,7 +220,7 @@ function PastBlockCard({
           </div>
         ) : null}
       </div>
-    </article>
+    </SectionCard>
   );
 }
 
