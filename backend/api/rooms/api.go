@@ -447,8 +447,8 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 // router (see Rule 5 in backend-conventions.md — no separate
 // `GetRoomHistoryHandler()` wrapper).
 //
-// Privacy: this endpoint is gated by gdpr.attendance_log_enabled, scoped by
-// gdpr.attendance_log_scope (admin / supervisor-only / all_staff), and the
+// Privacy: this endpoint is gated by gdpr.attendance_log_enabled, requires a
+// verified staff record, and the
 // requested time range is capped by gdpr.room_detail_visible_days. No
 // per-student IDs or names leave the backend — per-child movement detail
 // lives behind /students/{id}/attendance-history under its own gates.
@@ -459,7 +459,6 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	ctx := common.PrefetchSettings(r.Context(), rs.SettingsService,
 		configModel.KeyAttendanceLogEnabled,
 		configModel.KeyRoomDetailVisibleDays,
-		configModel.KeyAttendanceLogScope,
 	)
 	r = r.WithContext(ctx)
 	logger := rs.roomHistoryLogger()
@@ -562,17 +561,16 @@ func (rs *Resource) GetRoomHistory(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, history, "Room history retrieved successfully")
 }
 
-// resolveRoomHistorySupervisorFilter applies the gdpr.attendance_log_scope
-// rule. Admin callers see every session without a staff lookup. Non-admin
-// callers must resolve to a staff row before the tenant scope is applied:
-// all_staff sees every session, while group_supervisors_only is filtered to
-// sessions they supervise. The "scope != all_staff" condition is inverted on
-// purpose: an unknown / typo'd setting value falls through to the safe
-// supervisor-only path instead of silently disabling the filter.
+// resolveRoomHistorySupervisorFilter gates room history on caller identity.
+// Admin callers see every session without a staff lookup; every verified
+// staff member sees every session too (#2329 — the former
+// gdpr.attendance_log_scope per-group filter is gone). Callers without a
+// staff record are refused.
 //
 // Return contract:
 //
-//	(filter, false) — caller continues; filter may be nil (admin/all_staff)
+//	(filter, false) — caller continues; filter is nil today (kept for the
+//	signature/response plumbing)
 //	(nil,    true)  — helper already wrote a 403/500 response; caller MUST return
 //
 // Distinguishing ErrUserNotLinkedToStaff (legitimate 403) from any other
@@ -611,13 +609,7 @@ func (rs *Resource) resolveRoomHistorySupervisorFilter(
 		return nil, true
 	}
 
-	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
-	if scope == configModel.AttendanceLogScopeAllStaff {
-		return nil, false
-	}
-
-	staffID := staff.ID
-	return &staffID, false
+	return nil, false
 }
 
 // roomHistoryLogger returns a scoped logger, falling back to slog.Default

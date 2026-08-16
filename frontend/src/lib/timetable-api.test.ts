@@ -1454,3 +1454,74 @@ describe("timetableService.applyBulkSubstitution (#2284)", () => {
     );
   });
 });
+
+describe("instance participants (#2283)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockGetSession.mockResolvedValue({
+      user: { token: "jwt" },
+      expires: "2099-01-01",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("loads participant and staff names as string-keyed maps", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: {
+          participants: [
+            { student_id: 21, display_name: "Mia M." },
+            { student_id: 22, display_name: "Ben B." },
+          ],
+          staff: [{ staff_id: 11, display_name: "Frau Weber" }],
+        },
+      }),
+    );
+
+    const names = await timetableService.getInstanceParticipants("42");
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/timetable/instances/42/participants",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+    expect(names.studentNames.get("21")).toBe("Mia M.");
+    expect(names.studentNames.get("22")).toBe("Ben B.");
+    expect(names.staffNames.get("11")).toBe("Frau Weber");
+    expect(names.studentNames.size).toBe(2);
+    expect(names.staffNames.size).toBe(1);
+  });
+
+  it("returns empty maps when the block has no participants", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: { participants: [], staff: [] },
+      }),
+    );
+
+    const names = await timetableService.getInstanceParticipants("42");
+    expect(names.studentNames.size).toBe(0);
+    expect(names.staffNames.size).toBe(0);
+  });
+
+  it("surfaces backend errors via TimetableApiError", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        { error: "Zugriff verweigert", code: "FORBIDDEN" },
+        { status: 403 },
+      ),
+    );
+
+    await expect(
+      timetableService.getInstanceParticipants("42"),
+    ).rejects.toMatchObject({ httpStatus: 403, code: "FORBIDDEN" });
+  });
+});

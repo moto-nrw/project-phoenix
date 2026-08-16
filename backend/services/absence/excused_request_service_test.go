@@ -92,7 +92,6 @@ func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService,
 		nil, // userContext: admin:* perms in the ctx short-circuit the write gate
 		emitter,
 		bc,
-		nil, // settings: nil resolves group mode to fixed_groups (supervisor gate)
 		nil, // logger: nil-safe, falls back to slog.Default()
 		db,
 	)
@@ -264,7 +263,7 @@ func TestPendingByStudentForDate_DedupesPerStudent(t *testing.T) {
 }
 
 // TestDecide_ForbiddenWithoutWriteAccess verifies a caller who cannot write the
-// child (no admin perms, no supervision) is refused even on a valid pending id.
+// child (no admin perms, no staff record) is refused even on a valid pending id.
 func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

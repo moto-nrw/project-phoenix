@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,32 +18,13 @@ import (
 // Integration tests for POST /api/students/{id}/school-checkin.
 // Follow the codebase convention: real DB via testpkg.SetupTestDB, real
 // fixtures, external _test package. These fill the coverage gap on the
-// HTTP-handler functions (schoolCheckinHandler, applySchoolCheckinAction,
-// enforceWebCheckinAccess) that can't be exercised with unit-level mocks
+// HTTP-handler functions (schoolCheckinHandler, applySchoolCheckinAction)
+// that can't be exercised with unit-level mocks
 // because they depend on the full active.Service surface.
 
 // bytesReader is a local convenience wrapper — the existing helpers pass
 // nil for GET bodies, but our POST cases need a real reader.
 func bytesReader(b []byte) io.Reader { return bytes.NewReader(b) }
-
-// setAllStaffAccess overrides attendance.web_checkin_access so the test
-// caller isn't forced through the group-supervisor check. Cleanup resets
-// to the registry default automatically.
-func setAllStaffAccess(t *testing.T, tc *testContext) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-	err := tc.services.Settings.SetValue(
-		ctx,
-		configModel.KeyWebCheckinAccess,
-		configModel.WebCheckinAccessAllStaff,
-		nil,
-		nil,
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyWebCheckinAccess, nil, nil)
-	})
-}
 
 // NOTE on fixtures: the handler resolves JWT claims through
 // PersonService.FindByAccountID → Staff lookup, so tests must create the
@@ -54,7 +34,6 @@ func setAllStaffAccess(t *testing.T, tc *testContext) {
 
 func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 	tc := setupTestContext(t)
-	setAllStaffAccess(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Checkin", "Target", "1a")
 	// Full chain: caller must have a resolvable account → person → staff
@@ -86,7 +65,6 @@ func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 
 func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 	tc := setupTestContext(t)
-	setAllStaffAccess(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Idem", "Target", "1a")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Idem", "Caller")
@@ -118,7 +96,6 @@ func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 
 func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 	tc := setupTestContext(t)
-	setAllStaffAccess(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Checkout", "Target", "2b")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Checkout", "Caller")
@@ -163,7 +140,6 @@ func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 // fixture for this branch to fire.
 func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	tc := setupTestContext(t)
-	setAllStaffAccess(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Cleanup", "2c")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Visit", "Caller")
@@ -204,12 +180,15 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	assert.NotNil(t, updatedVisit.ExitTime, "open visit must be closed after web checkout")
 }
 
-func TestSchoolCheckin_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
+// TestSchoolCheckin_NonSupervisingStaffAllowed pins the #2329 rule for the web
+// check-in: the users:checkin route permission plus a staff identity is the
+// whole gate. Supervision of the child's group no longer participates, and the
+// per-child attendance.web_checkin_access setting is gone.
+func TestSchoolCheckin_NonSupervisingStaffAllowed(t *testing.T) {
 	tc := setupTestContext(t)
-	// Default setting is group_supervisors — don't override, don't grant.
 
-	student := testpkg.CreateTestStudent(t, tc.db, "Denied", "Target", "3c")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Denied", "Caller")
+	student := testpkg.CreateTestStudent(t, tc.db, "Allowed", "Target", "3c")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Allowed", "Caller")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
@@ -217,10 +196,8 @@ func TestSchoolCheckin_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
 	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
 
-	// Non-admin claim so the users:checkin permission flows through the
-	// attendance.web_checkin_access gate. Admins (admin:* / *:*) now
-	// short-circuit the gate and would always pass — to test the
-	// supervisor-only branch we have to drop the admin wildcard.
+	// Non-admin claim: the admin wildcard would pass on its own, so drop it to
+	// exercise the plain staff path.
 	claims := testutil.AdminTestClaims(int(account.ID))
 	claims.Roles = []string{"user"}
 	claims.IsAdmin = false
@@ -228,16 +205,36 @@ func TestSchoolCheckin_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
 
 	rr := authExec(t, tc, req, claims, []string{"users:checkin"})
 
-	// The caller is not a supervisor of this student's group → 403 with
-	// the specific denial reason (not the "person not found" auth error
-	// we'd see if the fixture chain was incomplete).
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+}
+
+// TestSchoolCheckin_AccountWithoutStaffRecordDenied is the surviving guard: an
+// account holding users:checkin without a staff record in the tenant (guest,
+// guardian) has no identity to attribute the attendance row to and stays out.
+func TestSchoolCheckin_AccountWithoutStaffRecordDenied(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Denied", "Target", "3d")
+	guest := testpkg.CreateTestAccount(t, tc.db, "school-checkin-guest@example.com")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+	defer testpkg.CleanupAccount(t, tc.db, guest.ID)
+
+	bodyBytes, _ := json.Marshal(map[string]string{"action": "in"})
+	req := testutil.NewRequest("POST", fmt.Sprintf("/%d/school-checkin", student.ID), bytesReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+
+	claims := testutil.AdminTestClaims(int(guest.ID))
+	claims.Roles = []string{"user"}
+	claims.IsAdmin = false
+	claims.Permissions = []string{"users:checkin"}
+
+	rr := authExec(t, tc, req, claims, []string{"users:checkin"})
+
 	require.Equal(t, http.StatusForbidden, rr.Code, "body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "not a supervisor")
 }
 
 func TestSchoolCheckin_InvalidAction_Rejects(t *testing.T) {
 	tc := setupTestContext(t)
-	setAllStaffAccess(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Invalid", "Target", "4d")
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Invalid", "Caller")

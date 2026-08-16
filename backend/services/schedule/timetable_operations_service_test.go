@@ -302,6 +302,64 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	assert.Equal(t, "Lina Lang", result[0].RosterPreview[0].StudentName)
 }
 
+// scope=past is the complement of the default window (#2335): completed
+// blocks and never-started planned blocks whose end has passed. Running,
+// cancelled, still-open planned, and spontaneous planned instances stay out.
+func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 632, 438, 231, 360)
+	completed := instanceWithTimes(361, scheduleModel.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredSpontaneous := instanceWithTimes(364, scheduleModel.InstanceStatusPlanned, now.Add(-3*time.Hour), now.Add(-2*time.Hour))
+	expiredSpontaneous.IsSpontaneous = true
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(360, scheduleModel.InstanceStatusPlanned, now.Add(-135*time.Minute), now.Add(-30*time.Minute)),
+		completed,
+		instanceWithTimes(362, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now.Add(time.Hour)),
+		instanceWithTimes(363, scheduleModel.InstanceStatusCancelled, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+		expiredSpontaneous,
+		instanceWithTimes(365, scheduleModel.InstanceStatusActive, now.Add(-time.Hour), now.Add(-30*time.Minute)),
+	}
+	for _, inst := range deps.instanceRepo.byDate {
+		deps.staffRepo.byInstance[inst.ID] = []*scheduleModel.InstanceStaff{{StaffID: 231}}
+	}
+
+	result, err := deps.service.PlannedNow(context.Background(), 632, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
+
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	ids := []int64{result[0].ID, result[1].ID}
+	assert.ElementsMatch(t, []int64{360, 361}, ids)
+	for _, inst := range result {
+		assert.False(t, inst.CanStart)
+		assert.Empty(t, inst.StartExpiresAt)
+	}
+}
+
+// Past-scope visibility mirrors the default scope: unassigned staff see
+// nothing, the admin overview sees everything (#2335).
+func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 633, 439, 232, 370)
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(370, scheduleModel.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+		instanceWithTimes(371, scheduleModel.InstanceStatusCompleted, now.Add(-3*time.Hour), now.Add(-2*time.Hour)),
+	}
+	deps.staffRepo.byInstance[370] = []*scheduleModel.InstanceStaff{{StaffID: 232}}
+	deps.staffRepo.byInstance[371] = []*scheduleModel.InstanceStaff{{StaffID: 999}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 633, false, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(370), result[0].ID)
+
+	deps.settings.enabled = true
+	result, err = deps.service.PlannedNow(context.Background(), 633, true, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+}
+
 func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
 	deps := newTimetableOpsDeps()
 	deps.settings.enabled = true

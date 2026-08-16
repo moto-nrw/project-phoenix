@@ -552,11 +552,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Kalenderzeiträumen; Abrechnung ist unabhängig davon über config:manage
   // geschützt.
   const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
-    if (!userIsAdmin) {
-      return (
-        page.nonAdminPermission !== undefined &&
-        hasPermission(session, page.nonAdminPermission)
-      );
+    // Nicht-Admins sehen nur Seiten mit gehaltener nonAdminPermission
+    // (#2283); das timetable.enabled-Gate darunter gilt für alle.
+    if (
+      !userIsAdmin &&
+      (page.nonAdminPermission === undefined ||
+        !hasPermission(session, page.nonAdminPermission))
+    ) {
+      return false;
     }
     return (
       timetableEnabled ||
@@ -1485,10 +1488,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
           )}
 
           {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
-              Vertretung und Kalenderzeiträume für Admins. Berechtigte
-              Nicht-Admins behalten Abrechnung als einzigen Unterpunkt. Bei
-              explizit ausgeschaltetem timetable.enabled bleiben für Admins
-              Kalenderzeiträume und Abrechnung übrig. */}
+              Vertretung und Kalenderzeiträume für Admins. Bei explizit
+              ausgeschaltetem timetable.enabled bleiben für Admins
+              Kalenderzeiträume und Abrechnung übrig.
+
+              Nicht-Admins erreichen die Betreuungsplan-Leseansicht (#2283)
+              als Tab in "Mein Kalender"; das Akkordeon zeigt ihnen nur
+              Seiten mit gehaltener nonAdminPermission (heute: Abrechnung
+              über config:manage). */}
           {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}

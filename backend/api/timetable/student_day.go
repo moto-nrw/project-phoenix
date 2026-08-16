@@ -199,8 +199,6 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 		jwt.PermissionsFromCtx(ctx),
 		student,
 		rs.UserContextService,
-		rs.SettingsService,
-		rs.getLogger(),
 	) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("forbidden")))
 		return nil, false

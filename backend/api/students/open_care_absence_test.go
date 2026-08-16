@@ -19,29 +19,18 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// Issue #2232: a school running operations.group_mode = open_care has no
-// groups, so the supervisor-based write gate leaves every child admin-only.
-// Staff holding users:absence must still be able to report and clear
-// absences — and nothing else.
+// Issue #2232 (reworked for #2329): users:absence is the write scope that lets
+// a role report and clear absences WITHOUT the Stammdaten write. Since #2329
+// the per-child question is only "admin or verified staff", so the group mode
+// and the child's group no longer participate — what these tests still pin is
+// the permission axis: what users:absence unlocks, what it must not unlock, and
+// its users:read prerequisite.
 
-// setGroupMode overrides operations.group_mode for tenant 1 and resets it
-// after the test.
-func setGroupMode(t *testing.T, tc *testContext, mode string) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyGroupMode, mode, nil, nil))
-	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyGroupMode, nil, nil)
-	})
-}
-
-func TestOpenCareAbsence_GrouplessStudent(t *testing.T) {
+func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
 	tc := setupTestContext(t)
-	setGroupMode(t, tc, configModel.GroupModeOpenCare)
 
 	// A staff member (the Sekretariat case) who supervises nothing, and a child
 	// with no group at all.
@@ -129,12 +118,29 @@ func TestOpenCareAbsence_GrouplessStudent(t *testing.T) {
 		testutil.AssertForbidden(t, authExec(t, tc, req, claims, absencePerms))
 	})
 
-	t.Run("without_the_absence_permission_it_stays_forbidden", func(t *testing.T) {
+	t.Run("users_update_reports_the_absence_too", func(t *testing.T) {
+		// users:update is the permission that gated these writes before #2232 and
+		// still does: the route admits either, and the per-child gate asks only
+		// for a staff record (#2329).
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 			"status": "sick",
 			"dates":  []string{today},
 		})
-		testutil.AssertForbidden(t, authExec(t, tc, req, claims, []string{"users:read", "users:update"}))
+		rr := authExec(t, tc, req, claims, []string{"users:read", "users:update"})
+		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+		var env struct {
+			Data []struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+		require.NotEmpty(t, env.Data)
+
+		// Clear it again so the shared child stays neutral for the sub-tests
+		// that follow.
+		del := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/%d", student.ID, env.Data[0].ID), nil)
+		require.Equal(t, http.StatusOK, authExec(t, tc, del, claims, []string{"users:read", "users:update"}).Code)
 	})
 
 	// users:absence is a write scope on top of what a caller may already see.
@@ -155,15 +161,14 @@ func TestOpenCareAbsence_GrouplessStudent(t *testing.T) {
 	})
 }
 
-// TestAbsenceWriterCannotEditSupervisedStudent pins the separation the
-// dedicated permission exists for: PUT /students/{id} carries the Krankmeldung
-// AND every Stammdaten field, and its route gate admits users:absence. The
-// per-child write check decides supervision only, so without an explicit
-// users:update check a group supervisor holding users:absence would inherit the
-// full record write — address, class, notes — from that supervision.
-func TestAbsenceWriterCannotEditSupervisedStudent(t *testing.T) {
+// TestAbsenceWriterCannotEditStammdaten pins the separation the dedicated
+// permission exists for: PUT /students/{id} carries the Krankmeldung AND every
+// Stammdaten field, and its route gate admits users:absence. The per-child
+// write check asks only for a staff record (#2329), so without the explicit
+// users:update check in authorizeStudentUpdate every absence writer would
+// inherit the full record write — address, class, notes — from being staff.
+func TestAbsenceWriterCannotEditStammdaten(t *testing.T) {
 	tc := setupTestContext(t)
-	setGroupMode(t, tc, configModel.GroupModeFixedGroups)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absence", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceWriterGroup")
@@ -207,58 +212,51 @@ func TestAbsenceWriterCannotEditSupervisedStudent(t *testing.T) {
 	})
 }
 
-// TestFixedGroupsAbsence_GrouplessStudentStaysAdminOnly pins acceptance
-// criterion 7: the relaxation is bound to open care. Under fixed groups the
-// users:absence permission changes nothing.
-func TestFixedGroupsAbsence_GrouplessStudentStaysAdminOnly(t *testing.T) {
+// TestAbsenceWriter_DetailFlags pins the response contract the frontend gates
+// on: an absence writer is offered the Krankmeldung action while the Stammdaten
+// write stays refused.
+//
+// has_write_access is deliberately NOT asserted here: it is built from
+// checkStudentFullAccess, which since #2329 answers "admin or staff" without
+// re-checking users:update, so it no longer mirrors the outcome of the PUT
+// below. Whether that flag should carry the permission is an open follow-up —
+// this test asserts the enforced behavior, not the advisory flag.
+func TestAbsenceWriter_DetailFlags(t *testing.T) {
 	tc := setupTestContext(t)
-	setGroupMode(t, tc, configModel.GroupModeFixedGroups)
-
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Fixed", "Staff")
-	student := testpkg.CreateTestStudent(t, tc.db, "Fixed", "Kind", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, student.ID)
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
-		"status": "sick",
-		"dates":  []string{timezone.TodayDate().String()},
-	})
-	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read", "users:update", "users:absence"})
-	testutil.AssertForbidden(t, rr)
-}
-
-// TestOpenCareAbsence_DetailFlagsDiverge pins the response contract the
-// frontend gates on: an absence writer sees has_absence_write_access without
-// has_write_access.
-func TestOpenCareAbsence_DetailFlagsDiverge(t *testing.T) {
-	tc := setupTestContext(t)
-	setGroupMode(t, tc, configModel.GroupModeOpenCare)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Flag", "Staff")
 	student := testpkg.CreateTestStudent(t, tc.db, "Flag", "Kind", "1a")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, student.ID)
 
+	claims := testutil.TeacherTestClaims(int(account.ID))
+	absencePerms := []string{"users:read", "users:absence"}
+
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read", "users:absence"})
+	rr := authExec(t, tc, req, claims, absencePerms)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	var env struct {
 		Data struct {
-			HasWriteAccess        bool `json:"has_write_access"`
 			HasAbsenceWriteAccess bool `json:"has_absence_write_access"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	assert.False(t, env.Data.HasWriteAccess, "Stammdaten stay read-only")
 	assert.True(t, env.Data.HasAbsenceWriteAccess, "the Krankmeldung action must be offered")
+
+	// The enforced counterpart: without users:update the Stammdaten write stays
+	// refused for the very same caller.
+	stammdaten := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), map[string]any{
+		"school_class": "2b",
+	})
+	testutil.AssertForbidden(t, authExec(t, tc, stammdaten, claims, absencePerms))
 }
 
 // TestOpenCareAbsence_ParentExcusedRequestDecidable covers the parent-side
 // counterpart: a guardian's excused request is equally undecidable for every
 // non-admin in a school without groups, so the queue and the decision follow
 // the same absence gate (#2232).
-func TestOpenCareAbsence_ParentExcusedRequestDecidable(t *testing.T) {
+func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 	tc := setupTestContext(t)
-	setGroupMode(t, tc, configModel.GroupModeOpenCare)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
 	defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
@@ -303,15 +301,13 @@ func TestOpenCareAbsence_ParentExcusedRequestDecidable(t *testing.T) {
 	})
 }
 
-// TestOpenCareAbsence_PendingNoteReachesUnsupervisingReviewer covers the read
-// side of the same request: under open care the person who decides it
-// supervises no group, so every child reaches them as a RESTRICTED entry
-// (has_full_access false). The parent's note is the queue's signal, not part of
-// the day plan, so it must survive that — a badge withheld from its decider
-// hides work they own.
-func TestOpenCareAbsence_PendingNoteReachesUnsupervisingReviewer(t *testing.T) {
+// TestAbsenceWriter_PendingNoteReachesReviewer covers the read side of the same
+// request: the parent's note is the queue's signal, so the person who decides
+// the request must see it on the child's detail page. Since #2329 a staff
+// reviewer reads the child fully, so the note travels alongside the rest of the
+// record — a badge withheld from its decider would hide work they own.
+func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 	tc := setupTestContext(t)
-	setGroupMode(t, tc, configModel.GroupModeOpenCare)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Reviewer")
 	student := testpkg.CreateTestStudent(t, tc.db, "Note", "Kind", "1a")
@@ -341,19 +337,18 @@ func TestOpenCareAbsence_PendingNoteReachesUnsupervisingReviewer(t *testing.T) {
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	require.False(t, env.Data.HasFullAccess, "without supervision the child is a restricted entry")
+	require.True(t, env.Data.HasFullAccess, "a verified staff reviewer reads the child (#2329)")
 	require.NotNil(t, env.Data.PendingExcusedNote, "the decider of the request must see its note")
 	assert.Equal(t, note, *env.Data.PendingExcusedNote)
 }
 
-// TestAbsenceWithoutReadPermissionRefused pins the read prerequisite on the
-// path that does NOT go through open care: a supervisor holding users:absence
-// alone. The route gate admits that permission on its own, so without this the
-// caller would inherit the absence write — and the guardian requests behind
-// it — from supervision, in a school that never granted the pair.
+// TestAbsenceWithoutReadPermissionRefused pins the read prerequisite for a
+// caller holding users:absence alone. The route gate admits that permission on
+// its own, so without this check the caller would inherit the absence write —
+// and the guardian requests behind it — from merely being staff, in a school
+// that never granted the pair.
 func TestAbsenceWithoutReadPermissionRefused(t *testing.T) {
 	tc := setupTestContext(t)
-	setGroupMode(t, tc, configModel.GroupModeFixedGroups)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NoRead", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoReadGroup")
@@ -369,8 +364,8 @@ func TestAbsenceWithoutReadPermissionRefused(t *testing.T) {
 	})
 	testutil.AssertForbidden(t, authExec(t, tc, req, claims, []string{"users:absence"}))
 
-	// The same supervisor WITH users:read keeps working — the prerequisite is
-	// the missing permission, not the supervision.
+	// The same caller WITH users:read keeps working — what was missing is the
+	// permission, nothing else.
 	ok := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": "sick",
 		"dates":  []string{timezone.TodayDate().String()},

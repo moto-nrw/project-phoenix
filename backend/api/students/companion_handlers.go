@@ -234,12 +234,11 @@ func (rs *Resource) getStudentCompanions(w http.ResponseWriter, r *http.Request)
 // redactUnreadableCompanionNames strips the name of every linked child the
 // caller may not read, leaving the id and the weekdays.
 //
-// Access to the SUBJECT is not access to the far end of its links. Linking
-// across groups is the whole point of a Laufgemeinschaft, so with
-// gdpr.student_data_scope at its restrictive default a group supervisor
-// legitimately reads the child in front of them while the linked child belongs
-// to a group they do not supervise — its first and last name are that other
-// child's personal data and must not ride along on this response.
+// Access to the SUBJECT is not access to the far end of its links. Since
+// #2329 every verified staff member reads every child, so the redaction only
+// still bites callers without full access (guest/guardian accounts) — for
+// them the far end's first and last name are another child's personal data
+// and must not ride along on this response.
 //
 // Redacting rather than dropping the entry keeps the link itself visible: the
 // caller may see THAT this child walks home with someone (they may edit the
@@ -676,11 +675,10 @@ func (rs *Resource) enrichWithCompanions(ctx context.Context, responses []Studen
 // Unlike enrichWithCompanions (ids of the whole Laufgemeinschaft, for the
 // Kindersuche grouping) this carries NAMES, so it is restricted to the children
 // the caller has full access to — the same gate the grouping uses. That gate
-// covers only the SUBJECT of each link: with gdpr.student_data_scope at its
-// restrictive default the far end may be a child in a group the caller does not
-// supervise, and its name must not ride into the exported document either —
-// the same per-companion redaction getStudentCompanions applies runs here
-// before any link is attached to a response.
+// covers only the SUBJECT of each link: for a caller without full access
+// (guest/guardian, #2329) the far end's name must not ride into the exported
+// document either — the same per-companion redaction getStudentCompanions
+// applies runs here before any link is attached to a response.
 //
 // A failure is returned, not swallowed. The caller decides: an export whose
 // columns include the departure plan MUST abort, because a child whose

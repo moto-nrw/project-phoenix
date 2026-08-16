@@ -57,6 +57,11 @@ func TestOperationsPlannedNow(t *testing.T) {
 	assert.Equal(t, 480, service.lastPlannedOptions.HorizonMinutes)
 	assert.Equal(t, 5, service.lastPlannedOptions.Limit)
 	assert.True(t, service.lastPlannedOptions.IncludeRoster)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?scope=past", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, scheduleSvc.PlannedNowScopePast, service.lastPlannedOptions.Scope)
 }
 
 func testWorkdayNow() time.Time {
@@ -78,6 +83,12 @@ func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?include_roster=maybe", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?scope=future", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?scope=past&date=2000-01-01", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 

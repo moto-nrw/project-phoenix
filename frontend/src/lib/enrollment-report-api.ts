@@ -6,6 +6,12 @@ const logger = createLogger({ component: "EnrollmentReportAPI" });
 
 export type EnrollmentReportStatus = ChildStatus | "all";
 export type EnrollmentReportFormat = "pdf" | "docx" | "xlsx";
+/**
+ * Export layout for the filtered care-usage report (#2215): "detailed" keeps
+ * the one-block-per-child output, "compact" renders the class-roster-style
+ * table. Excel is always tabular.
+ */
+export type EnrollmentReportLayout = "detailed" | "compact";
 
 export interface CareUsageFilters {
   phase_id: string;
@@ -140,13 +146,20 @@ export async function getCareUsageReport(
 export async function exportCareUsageReport(
   filters: CareUsageFilters,
   format: EnrollmentReportFormat,
+  layout: EnrollmentReportLayout = "detailed",
 ): Promise<void> {
   const response = await fetch(
     "/api/enrollment/admin/reports/care-usage/export",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ format, filters }),
+      // "detailed" is the backend default; only the compact layout is sent
+      // explicitly so the detailed request body stays unchanged.
+      body: JSON.stringify(
+        layout === "compact"
+          ? { format, layout, filters }
+          : { format, filters },
+      ),
     },
   );
   if (!response.ok) {

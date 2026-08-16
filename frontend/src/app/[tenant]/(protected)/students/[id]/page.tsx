@@ -167,14 +167,10 @@ function resolveActiveTab(
 
 /**
  * @param hasStudentReadAccess the backend's READ predicate for this child,
- *   `has_full_access` on the student response. Despite the wire name this is
- *   NOT the strict supervisor/admin check — that one is `has_write_access`.
- *   It resolves to `authorize.CanReadStudent`, which honours
- *   `gdpr.student_data_scope`: under `all_staff` EVERY staff member gets `true`
- *   here, under `group_supervisors_only` only the child's supervisors (and
- *   admins) do. See api/students/authorization.go — `checkStudentReadAccess`
- *   (scope-aware, this flag) vs `checkStudentFullAccess` (scope-ignoring, the
- *   write flag).
+ *   `has_full_access` on the student response: true for admins and every
+ *   verified staff member (#2329), false for guest/guardian accounts. See
+ *   api/students/authorization.go — `checkStudentReadAccess` (this flag) vs
+ *   `checkStudentFullAccess` (the write flag).
  */
 function studentTabs(
   hasStudentReadAccess: boolean,
@@ -197,12 +193,11 @@ function studentTabs(
   // oversight: those routes gate on read access per student too
   // (resolveStudentForRead → authorize.CanReadStudent in
   // api/timetable/student_day.go) — the SAME predicate behind the flag above,
-  // so the two can never disagree. A staff member who may read the child under
-  // `all_staff` therefore lands in the full-access set and DOES get the tab;
-  // one who may not gets 403 from the care-plan endpoints, so widening the tab
-  // would only surface a permanently failing panel, and ?tab=betreuungsplan is
-  // clamped away for the same reason. Widening staff access to a child's plan
-  // is a backend (gdpr.student_data_scope) decision, not a frontend one.
+  // so the two can never disagree. Every verified staff member lands in the
+  // full-access set and DOES get the tab (#2329); a caller without read access
+  // (guest/guardian) gets 403 from the care-plan endpoints, so widening the
+  // tab would only surface a permanently failing panel, and
+  // ?tab=betreuungsplan is clamped away for the same reason.
   const withCarePlan = canViewCarePlan
     ? base
     : base.filter((tab) => tab !== "betreuungsplan");

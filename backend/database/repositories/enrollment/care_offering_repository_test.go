@@ -171,6 +171,7 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	offering.PriceCents = &price
 	offering.IsActive = false
 	offering.SortOrder = 5
+	offering.PickupTimes = map[string]string{"mon": "14:30", "fri": "16:00"}
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Update(ctx, offering)
@@ -195,6 +196,8 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	assert.Equal(t, 12000, *got.PriceCents)
 	assert.False(t, got.IsActive)
 	assert.Equal(t, 5, got.SortOrder)
+	assert.Equal(t, map[string]string{"mon": "14:30", "fri": "16:00"}, got.PickupTimes,
+		"pickup_times must survive the explicit column-list update (#2290)")
 }
 
 func TestCareOfferingRepository_Update_RejectsInvalidOffering(t *testing.T) {

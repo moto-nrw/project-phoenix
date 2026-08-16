@@ -363,13 +363,41 @@ describe("AdminEnrollmentPhaseDetail", () => {
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
     fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Word-Dokument exportieren" }),
+      screen.getByRole("menuitem", {
+        name: "Als Word-Dokument exportieren (ausführlich)",
+      }),
     );
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
         expect.objectContaining({ status: "all" }),
         "docx",
+      );
+    });
+  });
+
+  it("exports the report as a compact table and forwards the active filters", async () => {
+    await renderPhase();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Auswertung exportieren" }),
+    );
+    expect(
+      screen.getByRole("menuitem", {
+        name: "Als Word-Dokument exportieren (kompakte Tabelle)",
+      }),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("menuitem", {
+        name: "Als PDF exportieren (kompakte Tabelle)",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "all" }),
+        "pdf",
+        "compact",
       );
     });
   });

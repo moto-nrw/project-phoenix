@@ -84,11 +84,11 @@ type fakeReadRepo struct {
 	studentErr  error
 }
 
-func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, []int64, bool) ([]*usersModels.InboxThread, error) {
+func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, bool) ([]*usersModels.InboxThread, error) {
 	return f.inbox, f.inboxErr
 }
 
-func (f *fakeReadRepo) UnreadMessageCountForStaff(context.Context, int64, bool, []int64) (int, error) {
+func (f *fakeReadRepo) UnreadMessageCountForStaff(context.Context, int64, bool) (int, error) {
 	return f.unread, f.unreadErr
 }
 

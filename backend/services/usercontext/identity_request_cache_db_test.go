@@ -3,7 +3,6 @@ package usercontext_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -14,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -85,7 +83,7 @@ func newIdentityQueryCounter(db *bun.DB) *identityQueryCounter {
 
 // resolveFullChain exercises every identity-chain read the way a busy handler
 // does: access check, teacher resolution, groups, substitutions, and the
-// composite ResolveStudentAccess (which itself nests staff + groups).
+// composite ResolveStudentAccess (which itself nests the staff lookup).
 func resolveFullChain(t *testing.T, ctx context.Context, service usercontextSvc.UserContextService) {
 	t.Helper()
 
@@ -98,7 +96,7 @@ func resolveFullChain(t *testing.T, ctx context.Context, service usercontextSvc.
 	_, err = service.GetSubstitutedGroupIDs(ctx)
 	require.NoError(t, err)
 
-	access := usercontextSvc.ResolveStudentAccess(ctx, service, &configtest.Mock{}, slog.Default())
+	access := usercontextSvc.ResolveStudentAccess(ctx, service)
 	require.NotNil(t, access)
 }
 

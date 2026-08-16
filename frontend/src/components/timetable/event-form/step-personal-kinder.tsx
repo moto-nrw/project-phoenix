@@ -628,6 +628,36 @@ export function StepPersonalKinder({
         </p>
       </Field>
 
+      {isSeriesFlow && (
+        <Field
+          label="Maximale Teilnehmerzahl"
+          htmlFor="event_max_participants"
+          error={fieldErrors.maxParticipants}
+        >
+          <Input
+            id="event_max_participants"
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={form.maxParticipants}
+            onChange={(event) => update("maxParticipants", event.target.value)}
+            placeholder="unbegrenzt"
+            controlSize="compact"
+            aria-invalid={Boolean(fieldErrors.maxParticipants)}
+            aria-describedby={
+              fieldErrors.maxParticipants
+                ? "event_max_participants_error"
+                : undefined
+            }
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Leer = unbegrenzt. Begrenzt, wie viele Kinder an jedem Termin der
+            Reihe teilnehmen können.
+          </p>
+        </Field>
+      )}
+
       {hasOfferingSource ? (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold text-gray-700">Kinder</span>

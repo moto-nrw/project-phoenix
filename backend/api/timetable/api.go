@@ -220,6 +220,11 @@ func (rs *Resource) Router() chi.Router {
 				// this block — from another block or from the free pool (write).
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/{id}/staff-pool", rs.getStaffPool)
+			// #2283 Leseansicht: per-instance participant names for
+			// schedules:read holders, CanReadStudent-filtered — the narrow
+			// replacement for the users:read-gated tenant roster.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/{id}/participants", rs.getInstanceParticipants)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/move-staff", rs.moveStaff)
 

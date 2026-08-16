@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,33 +122,4 @@ func TestIsIdempotentSchoolCheckin(t *testing.T) {
 			assert.Equal(t, tc.wantNoOp, isIdempotentSchoolCheckin(tc.action, tc.currentStatus))
 		})
 	}
-}
-
-// =============================================================================
-// evaluateWebCheckinAccess — pure decision logic
-// =============================================================================
-
-func TestEvaluateWebCheckinAccess_AllStaff_AlwaysAllows(t *testing.T) {
-	// all_staff ignores the supervisor flag entirely.
-	assert.NoError(t, evaluateWebCheckinAccess(configModel.WebCheckinAccessAllStaff, false))
-	assert.NoError(t, evaluateWebCheckinAccess(configModel.WebCheckinAccessAllStaff, true))
-}
-
-func TestEvaluateWebCheckinAccess_GroupSupervisors_AllowsSupervisor(t *testing.T) {
-	assert.NoError(t, evaluateWebCheckinAccess(configModel.WebCheckinAccessGroupSupervisors, true))
-}
-
-func TestEvaluateWebCheckinAccess_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
-	err := evaluateWebCheckinAccess(configModel.WebCheckinAccessGroupSupervisors, false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not a supervisor")
-}
-
-func TestEvaluateWebCheckinAccess_UnknownMode_FallsThroughToSupervisorCheck(t *testing.T) {
-	// Defense in depth: an unrecognised mode string treats the caller as
-	// non-all-staff, so the supervisor flag decides. If the tenant has a
-	// broken setting value we fail closed rather than silently granting.
-	assert.NoError(t, evaluateWebCheckinAccess("garbage-value", true))
-	err := evaluateWebCheckinAccess("garbage-value", false)
-	require.Error(t, err)
 }

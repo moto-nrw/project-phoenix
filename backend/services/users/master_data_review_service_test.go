@@ -57,11 +57,12 @@ func insertPendingChange(t *testing.T, db *bun.DB, repos *repositories.Factory, 
 	return row
 }
 
-// TestMasterDataReview_ScopedToSupervisedChildren proves the per-child write
-// gate: a staffer with users:update but neither admin nor supervision of the
-// child cannot see the request in the scoped queue and cannot decide it — while
-// the admin path sees and decides the same request.
-func TestMasterDataReview_ScopedToSupervisedChildren(t *testing.T) {
+// TestMasterDataReview_ScopedToWritableChildren proves the per-child write
+// gate: a caller with users:update but neither admin permissions nor a staff
+// record (the service is wired without a user context here, as a guest or
+// guardian account resolves) cannot see the request in the scoped queue and
+// cannot decide it — while the admin path sees and decides the same request.
+func TestMasterDataReview_ScopedToWritableChildren(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() {
 		require.NoError(t, db.Close())
@@ -77,7 +78,7 @@ func TestMasterDataReview_ScopedToSupervisedChildren(t *testing.T) {
 	err := tenant.WithTenantTx(denyBase, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		items, e := svc.ListPending(txCtx)
 		require.NoError(t, e)
-		assert.Empty(t, items, "a non-writable child's request must not appear in the queue")
+		assert.Empty(t, items, "a caller who cannot write the child must not see its request in the queue")
 		_, e = svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true})
 		return e
 	})
