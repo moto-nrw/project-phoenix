@@ -125,8 +125,8 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	assert.Equal(t, []string{"Randstunde"}, row.OfferingsByDay["mon"])
 	assert.Equal(t, "11:30", row.ArrivalByDay["mon"])
 	assert.Equal(t, "14:30", row.PickupByDay["mon"])
-	assert.Contains(t, row.Departure, "Mo: Abholung, Mit anderem Kind")
-	assert.Contains(t, row.Departure, "(mit: Mia)")
+	assert.Equal(t, "wird abgeholt / mit anderem Kind (mit: Mia)", row.DepartureByDay["mon"])
+	assert.Equal(t, "geht alleine", row.DepartureByDay["tue"])
 }
 
 func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
@@ -342,7 +342,10 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	assert.Equal(t, "Keine Anmeldung", row.EnrollmentSummary)
 	assert.Equal(t, []string{}, row.CareDays)
 	assert.Equal(t, map[string][]string{}, row.OfferingsByDay)
-	assert.Equal(t, "Geht alleine", row.Departure)
+	assert.Equal(t, map[string]string{
+		"mon": "geht alleine", "tue": "geht alleine", "wed": "geht alleine",
+		"thu": "geht alleine", "fri": "geht alleine",
+	}, row.DepartureByDay)
 	assert.Equal(t, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
 }
 
@@ -1217,12 +1220,14 @@ func TestClassRosterRowNamesStructuredCompanions(t *testing.T) {
 	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions, true)
 
 	require.NoError(t, err)
-	assert.Equal(t, "Mo: Mit anderem Kind (mit: Mia Schulz (Mo))", row.Departure)
+	assert.Equal(t, "mit anderem Kind (mit: Mia Schulz)", row.DepartureByDay["mon"])
+	assert.Equal(t, "geht alleine", row.DepartureByDay["tue"])
 }
 
 // TestClassRosterRowCombinesCompanionsAndNote pins that a child using both
 // sources keeps both: the link answers Monday, the note answers the day no link
-// covers.
+// covers: Monday prints the link, Tuesday falls back to the note — the note
+// never repeats on a day a link already names.
 func TestClassRosterRowCombinesCompanionsAndNote(t *testing.T) {
 	note := "Dienstags mit Nachbarskind Tom"
 	student := &userModels.Student{
@@ -1243,15 +1248,16 @@ func TestClassRosterRowCombinesCompanionsAndNote(t *testing.T) {
 	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions, true)
 
 	require.NoError(t, err)
-	assert.Equal(t, "Mo: Mit anderem Kind, Di: Mit anderem Kind (mit: Mia Schulz (Mo); Dienstags mit Nachbarskind Tom)", row.Departure)
+	assert.Equal(t, "mit anderem Kind (mit: Mia Schulz)", row.DepartureByDay["mon"])
+	assert.Equal(t, "mit anderem Kind (mit: Dienstags mit Nachbarskind Tom)", row.DepartureByDay["tue"])
 }
 
 // TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan pins that the roster
 // never prints a "läuft mit" day the plan on the same line forbids. The plan
 // comes from the approved enrollment phase while the links belong to the live
 // child and follow every later Stammdaten edit, so the two sources can disagree
-// — and a sheet that says "Di: Bus" and "dienstags mit Mia" at once is worse
-// than one that says nothing about Tuesday (#1694).
+// — and a Tuesday cell that says "fährt Bus" and "dienstags mit Mia" at once
+// is worse than one that says nothing about Tuesday (#1694).
 func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	schemaID := int64(88)
 	req := &enrollmentModels.Request{
@@ -1293,7 +1299,8 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, companions, true)
 
 	require.NoError(t, err)
-	assert.Equal(t, "Mo: Mit anderem Kind, Di: Bus (mit: Mia Schulz (Mo))", row.Departure)
+	assert.Equal(t, "mit anderem Kind (mit: Mia Schulz)", row.DepartureByDay["mon"])
+	assert.Equal(t, "fährt Bus", row.DepartureByDay["tue"])
 }
 
 // --- CareUsage display enrichment (#2215) ------------------------------
