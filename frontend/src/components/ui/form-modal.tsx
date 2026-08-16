@@ -66,6 +66,13 @@ export function FormModal({
 
     // Delay actual close to allow exit animation
     setTimeout(() => {
+      // A save started during the exit delay wins over the queued close:
+      // keep the modal mounted and bring it back until the request resolves.
+      if (closeDisabledRef.current) {
+        setIsExiting(false);
+        setIsAnimating(true);
+        return;
+      }
       onClose();
     }, 250);
   }, [onClose, closeDisabledRef]);

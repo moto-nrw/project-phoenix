@@ -188,6 +188,42 @@ describe("FormModal", () => {
     expect(screen.getByText("Test")).toBeInTheDocument();
   });
 
+  it("cancels a queued close when a save starts during the exit delay", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={onClose} title="Test">
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+
+    // Save clicked within the 250ms exit delay: the request is now in flight
+    rerender(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={onClose} title="Test" closeDisabled>
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(document.querySelector('[role="dialog"]')).toHaveClass(
+      "animate-modalEnter",
+    );
+  });
+
   it("should render footer when provided", async () => {
     render(
       <TestWrapper>
