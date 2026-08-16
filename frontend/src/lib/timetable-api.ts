@@ -136,6 +136,12 @@ async function unwrap<T>(response: Response): Promise<T> {
   return envelope.data;
 }
 
+/** Namens-Maps (ID → Anzeigename) aus dem Teilnehmer-Endpunkt (#2283). */
+export interface InstanceParticipantNames {
+  studentNames: Map<string, string>;
+  staffNames: Map<string, string>;
+}
+
 class TimetableService {
   /**
    * GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD.
@@ -865,6 +871,38 @@ class TimetableService {
     );
     const raw = await unwrap<BackendStaffPoolResponse>(response);
     return mapStaffPool(raw);
+  }
+
+  /**
+   * GET /api/timetable/instances/{id}/participants — Teilnehmer- und
+   * Personal-Namen eines Blocks für die Leseansicht (#2283). schedules:read
+   * genügt; Kindernamen filtert das Backend pro Kind über
+   * gdpr.student_data_scope (gefilterte Kinder fehlen still), Personal-Namen
+   * kommen ungefiltert.
+   */
+  async getInstanceParticipants(
+    instanceId: string,
+  ): Promise<InstanceParticipantNames> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/participants`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    const raw = await unwrap<{
+      participants: { student_id: number; display_name: string }[];
+      staff: { staff_id: number; display_name: string }[];
+    }>(response);
+    return {
+      studentNames: new Map(
+        raw.participants.map((p) => [p.student_id.toString(), p.display_name]),
+      ),
+      staffNames: new Map(
+        raw.staff.map((s) => [s.staff_id.toString(), s.display_name]),
+      ),
+    };
   }
 
   /**

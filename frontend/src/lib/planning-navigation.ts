@@ -34,6 +34,10 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Betreuungsplan",
     legacyPrefixes: ["/timetables"],
     showInMobileNav: true,
+    // Leseansicht (#2283): Nicht-Admins erreichen den Wochenplan als Tab
+    // "Betreuungsplan" in "Mein Kalender" (eine Kalenderfläche) — deshalb
+    // hier bewusst KEINE nonAdminPermission; der Planungsbereich in der
+    // Navigation bleibt Admins vorbehalten.
   },
   {
     href: "/dienstplan",

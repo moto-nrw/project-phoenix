@@ -7,6 +7,15 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import useSWR from "swr";
+
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: { user: { token: "test-token" } },
+    status: "authenticated",
+    update: vi.fn(),
+  })),
+}));
 
 import { InstanceDetailModal } from "./instance-detail-modal";
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -168,6 +177,78 @@ describe("InstanceDetailModal", () => {
         substatus: "excused",
       }),
     );
+  });
+
+  it("only renders students returned by the participant endpoint in read-only mode", () => {
+    vi.mocked(useSWR).mockReturnValue({
+      data: {
+        studentNames: new Map([["21", "Max Sichtbar"]]),
+        staffNames: new Map(),
+      },
+    } as ReturnType<typeof useSWR>);
+
+    render(
+      <InstanceDetailModal
+        instance={instance()}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        canManage={false}
+        fetchParticipantNames
+      />,
+    );
+
+    expect(screen.getByText("Max Sichtbar")).toBeInTheDocument();
+    expect(screen.queryByText("Kind #22")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kind #23")).not.toBeInTheDocument();
+    expect(screen.queryByText("krank")).not.toBeInTheDocument();
+  });
+
+  it("shows a loading state while read-only participant names are loading", () => {
+    vi.mocked(useSWR).mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: true,
+    } as ReturnType<typeof useSWR>);
+
+    render(
+      <InstanceDetailModal
+        instance={instance()}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        canManage={false}
+        fetchParticipantNames
+      />,
+    );
+
+    expect(screen.getByText("Teilnehmende werden geladen…")).toBeVisible();
+    expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
+  });
+
+  it("shows an error instead of fallback participant data when loading fails", () => {
+    vi.mocked(useSWR).mockReturnValue({
+      data: undefined,
+      error: new Error("network failed"),
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    render(
+      <InstanceDetailModal
+        instance={instance()}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        canManage={false}
+        fetchParticipantNames
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Teilnehmenden konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
   });
 
   // The header count already leaves these children out (#1747). Listing them
