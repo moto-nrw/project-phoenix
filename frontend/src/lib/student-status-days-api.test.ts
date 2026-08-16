@@ -270,6 +270,7 @@ describe("student-status-days-api", () => {
     const overview = {
       from: "2026-05-25",
       to: "2026-05-29",
+      groups: [{ id: "3", name: "Igel" }],
       entries: [
         {
           id: "7",

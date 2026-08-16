@@ -30,7 +30,13 @@ const maxStatusDayOverviewRangeDays = 366
 type statusDayOverviewResponse struct {
 	From    string                   `json:"from"`
 	To      string                   `json:"to"`
+	Groups  []statusDayOverviewGroup `json:"groups"`
 	Entries []statusDayOverviewEntry `json:"entries"`
+}
+
+type statusDayOverviewGroup struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 type statusDayOverviewEntry struct {
@@ -46,7 +52,6 @@ type statusDayOverviewEntry struct {
 	Label       string    `json:"label"`
 	ReportedAt  time.Time `json:"reported_at"`
 	Source      string    `json:"source"`
-	Note        *string   `json:"note,omitempty"`
 	sortDate    timezone.Date
 }
 
@@ -81,7 +86,14 @@ func (rs *Resource) getStudentStatusDaysOverview(w http.ResponseWriter, r *http.
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, statusDayOverviewResponse{From: from.String(), To: to.String(), Entries: entries}, "Student status days retrieved successfully")
+	responseGroups := make([]statusDayOverviewGroup, 0, len(groups))
+	for _, group := range groups {
+		responseGroups = append(responseGroups, statusDayOverviewGroup{
+			ID:   strconv.FormatInt(group.ID, 10),
+			Name: group.Name,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, statusDayOverviewResponse{From: from.String(), To: to.String(), Groups: responseGroups, Entries: entries}, "Student status days retrieved successfully")
 }
 
 func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezone.Date, groups []*educationModel.Group, logger *slog.Logger) error {
@@ -169,7 +181,6 @@ func (rs *Resource) loadStatusDayOverviewEntries(ctx context.Context, groups []*
 			Label:       studentStatusDayLabel(row.Status),
 			ReportedAt:  row.ReportedAt,
 			Source:      row.Source,
-			Note:        row.Note,
 			sortDate:    row.Date,
 		}
 		if person := persons[student.PersonID]; person != nil {

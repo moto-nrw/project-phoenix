@@ -21,21 +21,25 @@ import (
 
 type statusDayOverviewTestBody struct {
 	Data struct {
-		From    string `json:"from"`
-		To      string `json:"to"`
+		From   string `json:"from"`
+		To     string `json:"to"`
+		Groups []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"groups"`
 		Entries []struct {
-			ID          string  `json:"id"`
-			StudentID   string  `json:"student_id"`
-			FirstName   string  `json:"first_name"`
-			LastName    string  `json:"last_name"`
-			SchoolClass string  `json:"school_class"`
-			GroupID     string  `json:"group_id"`
-			GroupName   string  `json:"group_name"`
-			Date        string  `json:"date"`
-			Status      string  `json:"status"`
-			Label       string  `json:"label"`
-			Source      string  `json:"source"`
-			Note        *string `json:"note"`
+			ID          string          `json:"id"`
+			StudentID   string          `json:"student_id"`
+			FirstName   string          `json:"first_name"`
+			LastName    string          `json:"last_name"`
+			SchoolClass string          `json:"school_class"`
+			GroupID     string          `json:"group_id"`
+			GroupName   string          `json:"group_name"`
+			Date        string          `json:"date"`
+			Status      string          `json:"status"`
+			Label       string          `json:"label"`
+			Source      string          `json:"source"`
+			Note        json.RawMessage `json:"note"`
 		} `json:"entries"`
 	} `json:"data"`
 }
@@ -45,9 +49,10 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 
 	groupA := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Gruppe A")
 	groupB := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Gruppe B")
+	emptyGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Ohne Abwesenheit")
 	sickChild := testpkg.CreateTestStudent(t, tc.db, "Selma", "Krank", "1a")
 	tripChild := testpkg.CreateTestStudent(t, tc.db, "Theo", "Fahrt", "2b")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, sickChild.ID, tripChild.ID, groupA.ID, groupB.ID)
+	defer testpkg.CleanupActivityFixtures(t, tc.db, sickChild.ID, tripChild.ID, groupA.ID, groupB.ID, emptyGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, sickChild.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, tripChild.ID, groupB.ID)
 
@@ -66,6 +71,14 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 		ModelTableExpr("active.student_status_days").
 		Set("cleared_at = ?", time.Now()).
 		Where("id = ?", clearedDay.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	privateNote := "Vertraulicher Grund"
+	_, err = tc.db.NewUpdate().
+		Model((*active.StudentStatusDay)(nil)).
+		ModelTableExpr("active.student_status_days").
+		Set("note = ?", privateNote).
+		Where("id = ?", sickDay.ID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -97,6 +110,10 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	var body statusDayOverviewTestBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, today.String(), body.Data.From)
+	assert.Contains(t, body.Data.Groups, struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}{ID: fmt.Sprintf("%d", emptyGroup.ID), Name: emptyGroup.Name})
 	require.Len(t, body.Data.Entries, 2, "cleared and out-of-range rows must be excluded")
 
 	// Ordered by date ascending.
@@ -115,6 +132,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%d", sickChild.ID), second.StudentID)
 	assert.Equal(t, active.StudentStatusDaySick, second.Status)
 	assert.Equal(t, "Krank", second.Label)
+	assert.Nil(t, second.Note, "free-text absence reasons must not be disclosed by the overview")
 }
 
 func TestGetStudentStatusDaysOverview_GroupFilter(t *testing.T) {

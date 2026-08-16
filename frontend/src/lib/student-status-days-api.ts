@@ -136,12 +136,12 @@ export interface StatusDayOverviewEntry {
   label: string;
   reported_at: string;
   source: string;
-  note?: string | null;
 }
 
 export interface StatusDayOverview {
   from: string;
   to: string;
+  groups: Array<{ id: string; name: string }>;
   entries: StatusDayOverviewEntry[];
 }
 

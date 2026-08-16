@@ -124,11 +124,6 @@ const COLUMNS: DataTableColumn<StatusDayOverviewEntry>[] = [
     header: "Gemeldet",
     render: (row) => <span className="text-gray-600">{reportedLine(row)}</span>,
   },
-  {
-    key: "note",
-    header: "Notiz",
-    render: (row) => <span className="text-gray-600">{row.note ?? ""}</span>,
-  },
 ];
 
 export default function AbsencesPage() {
@@ -188,15 +183,11 @@ export default function AbsencesPage() {
   }, [effectiveFromIso, effectiveToIso, swrError]);
 
   const groupOptions = useMemo(() => {
-    const byId = new Map<string, string>();
-    for (const entry of entries ?? []) {
-      byId.set(entry.group_id, entry.group_name);
-    }
-    const options = [...byId.entries()]
-      .sort((a, b) => a[1].localeCompare(b[1], "de"))
-      .map(([value, label]) => ({ value, label }));
+    const options = [...(overview?.groups ?? [])]
+      .sort((a, b) => a.name.localeCompare(b.name, "de"))
+      .map((group) => ({ value: group.id, label: group.name }));
     return [{ value: "all", label: "Alle Gruppen" }, ...options];
-  }, [entries]);
+  }, [overview?.groups]);
 
   const effectiveGroupFilter = groupOptions.some(
     (option) => option.value === groupFilter,
