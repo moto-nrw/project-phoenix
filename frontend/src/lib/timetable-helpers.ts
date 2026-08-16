@@ -29,6 +29,8 @@ import type {
   StaffPoolResponse,
   BackendDeviationHistoryResponse,
   BackendApplyDeviationsResponse,
+  BackendBulkSubstitutionResponse,
+  BulkSubstitutionResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -747,6 +749,26 @@ export function mapApplyDeviations(
       startTime: warning.start_time,
       endTime: warning.end_time,
     })),
+  };
+}
+
+export function mapBulkSubstitution(
+  raw: BackendBulkSubstitutionResponse,
+): BulkSubstitutionResponse {
+  const days = (raw.days ?? []).map((day) => ({
+    date: day.date,
+    affectedInstances: (day.affected_instances ?? []).map((item) => ({
+      instanceId: String(item.instance_id),
+      title: item.title,
+      startTime: item.start_time,
+      action: item.action,
+    })),
+    warningCount: (day.warnings ?? []).length,
+  }));
+  return {
+    days,
+    totalAffected: raw.total_affected ?? 0,
+    warningCount: days.reduce((sum, day) => sum + day.warningCount, 0),
   };
 }
 

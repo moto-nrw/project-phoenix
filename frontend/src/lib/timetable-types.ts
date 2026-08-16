@@ -827,6 +827,42 @@ export interface BackendApplyDeviationsResponse {
 }
 
 /**
+ * #2284 Sammel-Vertretung: one person's day-wide absence — optionally covered
+ * by one substitute — applied to several selected days in ONE atomic save via
+ * POST /substitutions/bulk. `substituteStaffId` undefined marks the person
+ * absent without assigning cover. `dates` are "YYYY-MM-DD" strings.
+ */
+export interface BulkSubstitutionInput {
+  absentStaffId: string;
+  substituteStaffId?: string;
+  dates: string[];
+  reason?: string;
+}
+
+export interface BulkSubstitutionDayResult {
+  date: string;
+  affectedInstances: SubstituteAffectedInstance[];
+  warningCount: number;
+}
+
+export interface BulkSubstitutionResponse {
+  days: BulkSubstitutionDayResult[];
+  totalAffected: number;
+  warningCount: number;
+}
+
+interface BackendBulkSubstitutionDay {
+  date: string;
+  affected_instances: BackendSubstituteAffectedInstance[];
+  warnings: unknown[];
+}
+
+export interface BackendBulkSubstitutionResponse {
+  days: BackendBulkSubstitutionDay[];
+  total_affected: number;
+}
+
+/**
  * #1884 Personalpool: every staff member categorized against one block's
  * time window. Categories are mutually exclusive; `assignedElsewhere`
  * entries carry the overlapping blocks they could be moved away from.
