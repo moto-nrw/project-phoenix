@@ -21,7 +21,7 @@ func (n *recordingPickupGuardianNotifier) BroadcastChildUpdateToGuardians(tenant
 	n.calls = append(n.calls, [2]int64{tenantID, studentID})
 }
 
-func TestDeferPickupRolloutBroadcasts_FiresStaffAndGuardianInvalidationsAfterCommit(t *testing.T) {
+func TestDeferOfferingPickupBroadcasts_FiresStaffAndGuardianInvalidationsAfterCommit(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	guardians := &recordingPickupGuardianNotifier{}
 	svc := &decisionService{DecisionServiceConfig: DecisionServiceConfig{
@@ -31,7 +31,7 @@ func TestDeferPickupRolloutBroadcasts_FiresStaffAndGuardianInvalidationsAfterCom
 	}}
 	ctx, commit := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 7))
 
-	svc.deferPickupRolloutBroadcasts(ctx, []int64{42, 43})
+	svc.deferOfferingPickupBroadcasts(ctx, []int64{42, 43})
 	assert.Empty(t, broadcaster.Calls(), "staff clients must not wake before commit")
 	assert.Empty(t, guardians.calls, "guardian clients must not wake before commit")
 

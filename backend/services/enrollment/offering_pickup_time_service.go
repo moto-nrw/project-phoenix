@@ -194,7 +194,6 @@ func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeri
 	result.UpdatedRows = stats.updated
 	result.DeletedRows = stats.deleted
 	result.SkippedStudents = stats.skippedStudents
-	s.deferPickupRolloutBroadcasts(ctx, stats.changedStudentIDs())
 	s.Logger.Info("offering pickup rollout executed",
 		slog.Int64("care_offering_id", offeringID),
 		slog.Int("created_rows", result.CreatedRows),
@@ -379,10 +378,11 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 			}
 		}
 	}
+	s.deferOfferingPickupBroadcasts(ctx, stats.changedStudentIDs())
 	return stats, nil
 }
 
-func (s *decisionService) deferPickupRolloutBroadcasts(ctx context.Context, studentIDs []int64) {
+func (s *decisionService) deferOfferingPickupBroadcasts(ctx context.Context, studentIDs []int64) {
 	if len(studentIDs) == 0 || (s.Broadcaster == nil && s.PickupGuardianNotifier == nil) {
 		return
 	}
@@ -392,10 +392,10 @@ func (s *decisionService) deferPickupRolloutBroadcasts(ctx context.Context, stud
 			return
 		}
 		if s.Broadcaster != nil {
-			source := "offering_pickup_rollout"
+			source := "offering_pickup_reconcile"
 			event := realtime.NewEvent(realtime.EventPickupScheduleChanged, "", realtime.EventData{Source: &source})
 			if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-				s.Logger.Warn("offering pickup rollout: failed to broadcast schedule change",
+				s.Logger.Warn("offering pickup reconcile: failed to broadcast schedule change",
 					slog.Int64("tenant_id", tenantID),
 					slog.String("error", err.Error()),
 				)
