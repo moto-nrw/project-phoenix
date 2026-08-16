@@ -546,6 +546,42 @@ describe("EnrollmentForm", () => {
     ).toBeNull();
   });
 
+  // The reason must be phrased against the grades the SCHOOL has, not the
+  // backend's 1-13 ceiling (#2186 review). Picked so the two disagree: with
+  // gradeLevelMax 4 the excluded side is shorter ("nicht für Klasse 4"),
+  // while the 1-13 fallback would name the allowed side instead ("nur für
+  // Klassen 1-3"). The grades 1-2 case above reads identically either way,
+  // so only this shape catches a caller that drops gradeLevelMax.
+  it("describes a blocked offering against the tenant's grade ceiling", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [
+          { source: "grade_level", operator: "in", value: [1, 2, 3] },
+        ],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({ showBlockedOfferings: true });
+    await waitForLoaded();
+
+    await chooseOption("Klassenstufe *", "4. Klasse");
+
+    expect(
+      screen.getByText("Nicht wählbar: nicht für Klasse 4 (Kind: Klasse 4)"),
+    ).toBeVisible();
+  });
+
   it("drops the blocked section once the grade makes the offering available", async () => {
     const conditional: PublicCareOffering = {
       ...offerings()[1]!,
