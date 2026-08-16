@@ -76,15 +76,19 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	var auditEntry auditModels.DataAccessLog
 	require.NoError(t, tc.db.NewSelect().
 		Model(&auditEntry).
+		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
 		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
 		OrderExpr("id DESC").
 		Limit(1).
 		Scan(context.Background()))
 	t.Cleanup(func() {
-		_, _ = tc.db.NewDelete().Model(&auditEntry).WherePK().Exec(context.Background())
+		_, _ = tc.db.NewDelete().
+			TableExpr("audit.data_access_log").
+			Where("id = ?", auditEntry.ID).
+			Exec(context.Background())
 	})
-	assert.Equal(t, today.BerlinMidnight(), auditEntry.RangeStart)
-	assert.Equal(t, timezone.NewDate(today.Year, today.Month+2, today.Day).EndOfDay(), auditEntry.RangeEnd)
+	assert.True(t, today.BerlinMidnight().Equal(auditEntry.RangeStart))
+	assert.True(t, timezone.NewDate(today.Year, today.Month+2, today.Day).EndOfDay().Equal(auditEntry.RangeEnd))
 	assert.ElementsMatch(t, []interface{}{float64(groupA.ID), float64(groupB.ID)}, auditEntry.Metadata["group_ids"])
 
 	var body statusDayOverviewTestBody
@@ -158,6 +162,8 @@ func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
 
 func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) {
 	tc := setupTestContext(t)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Audit Failure")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 	tc.resource.StudentHistoryService = nil
 
 	req := testutil.NewRequest("GET", "/status-days", nil)
