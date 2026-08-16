@@ -1538,7 +1538,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Von der Tageskarte aus melden Eltern ihr Kind krank, ändern die Abholung für einen Tag oder schreiben der OGS.",
           "`Kinder` zeigt bei einem Kind direkt dieses Kind, bei mehreren einen Umschalter oben. Der Bereich hat vier Abschnitte: `Heute`, `Gebuchte Betreuung`, `Daten von {Name}` und `Eltern und Abholberechtigte`.",
           "`Kalender` ist eine Terminliste nach `Diese Woche`, `Nächste Woche` und `Später`. Zusagen und Absagen stehen direkt in der Zeile.",
-          "Hinter `Mehr` liegen `Aus der OGS` (früher Neuigkeiten), Essensplan, Benachrichtigungen, Sprache, eine neue Anmeldung und das Abmelden. Ein ungelesener Aushang wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Aushang erscheint zusätzlich auf der Startseite.",
+          "Hinter `Mehr` liegen `Elternbriefe`, Essensplan, Einstellungen, eine neue Anmeldung und das Abmelden. Ein ungelesener Elternbrief wird trotzdem sichtbar: sein Zähler liegt auf dem Symbol `Mehr` und der Elternbrief erscheint zusätzlich auf der Startseite.",
         ],
         callout: {
           title: "Was es nicht mehr gibt",
@@ -1600,7 +1600,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Elternmitteilungen",
         icon: Megaphone,
         summary:
-          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie in ihrer App unter `Aus der OGS`. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
+          "Mitteilungen an ausgewählte Elterngruppen senden (Rundinformationen statt Einzelnachrichten). Eltern sehen sie in ihrer App unter `Elternbriefe`. Eine Mitteilung ist eine Einbahn-Information; wenn Sie eine Rückmeldung brauchen, nutzen Sie den Bereich `Umfragen` auf derselben Seite. Für individuelle Rückfragen nutzen Eltern den normalen Nachrichten-Chat.",
         steps: [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen und Umfragen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail enthält nur den Titel und einen Link ins Elternportal.",
@@ -1634,7 +1634,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Pro Kind, nicht pro Konto",
-          body: "Eltern sehen die Umfrage unter `Neuigkeiten` mit dem Hinweis `Antwort erforderlich`, öffnen sie und antworten dort für jedes ihrer Kinder einzeln; gespeichert wird erst mit `Antwort speichern`. Die Auswertung zählt entsprechend Kinder, nicht Konten – das ist die Zahl, mit der Sie planen. Bezugspersonen ohne betreutes Kind (z. B. mit einer noch offenen Anmeldung) können nicht antworten.",
+          body: "Eltern sehen die Umfrage unter `Elternbriefe` mit dem Hinweis `Antwort erforderlich`, öffnen sie und antworten dort für jedes ihrer Kinder einzeln; gespeichert wird erst mit `Antwort speichern`. Die Auswertung zählt entsprechend Kinder, nicht Konten. Das ist die Zahl, mit der Sie planen. Bezugspersonen ohne betreutes Kind (z. B. mit einer noch offenen Anmeldung) können nicht antworten.",
           tone: "blue",
         },
         screenshot:

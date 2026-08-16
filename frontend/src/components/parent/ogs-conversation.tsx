@@ -2,17 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { XIcon } from "@phosphor-icons/react/ssr";
+import { useLocale, useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { parentPath } from "~/lib/parent-url";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
-import { getApiErrorMessage } from "~/lib/api-error-message";
+import { parentMessageError } from "~/lib/parent-message-error";
 import {
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
@@ -71,6 +73,7 @@ export function OgsConversation({
 }) {
   const t = useTranslations("parentOgsMessaging");
   const tm = useTranslations("parentMessages");
+  const locale = useLocale();
   const [thread, setThread] = useState<ThreadView | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -173,7 +176,7 @@ export function OgsConversation({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread]);
+  }, [thread, care.loading]);
 
   const handleSend = useCallback(async () => {
     const body = draft.trim();
@@ -194,18 +197,11 @@ export function OgsConversation({
       logger.warn("ogs_message_send_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setSendError(
-        getApiErrorMessage(
-          err,
-          "senden",
-          "Nachrichten",
-          "Die Nachricht konnte nicht gesendet werden.",
-        ),
-      );
+      setSendError(parentMessageError(err, tm));
     } finally {
       setSending(false);
     }
-  }, [draft, sending, studentId, applyThread]);
+  }, [draft, sending, studentId, applyThread, tm]);
 
   return (
     <div
@@ -215,20 +211,44 @@ export function OgsConversation({
       {showBack ? <BackBar /> : null}
 
       <section className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border shadow-sm">
-        <div className="border-b border-gray-100 px-4 py-4 sm:px-6">
-          <h1 className="text-[20px] leading-tight font-semibold break-words text-gray-900">
-            {counterpart}
-          </h1>
-          {showChild && thread?.student_name ? (
-            <p className="mt-0.5 text-[15px] text-gray-600">
-              {tm("aboutChild", { name: thread.student_name })}
-            </p>
-          ) : null}
+        <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+          {loading ? (
+            <div
+              className="flex min-h-7 items-center justify-between gap-3"
+              aria-hidden="true"
+            >
+              <Skeleton className="h-5 w-48 max-w-2/3" />
+              {showChild ? <Skeleton className="h-7 w-28 rounded-lg" /> : null}
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-base leading-tight font-semibold tracking-tight break-words text-gray-900 sm:text-lg">
+                  {thread?.school_name
+                    ? tm("ogsTeam", { school: thread.school_name })
+                    : counterpart}
+                </h1>
+              </div>
+              {showChild && thread?.student_name ? (
+                <div
+                  className="bg-moto-green-soft inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-900"
+                  title={tm("aboutChild", { name: thread.student_name })}
+                >
+                  <MotoConceptIcon
+                    concept="children"
+                    size={16}
+                    aria-hidden="true"
+                  />
+                  {thread.student_name}
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
 
         <div
           ref={scrollRef}
-          className="flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:px-6"
+          className="flex-1 space-y-2.5 overflow-y-auto bg-gray-50/60 px-3 py-3 sm:px-5 sm:py-4"
         >
           {/* Keep already-loaded messages on screen even if a later background
               refresh (SSE / focus) fails transiently — only fall back to the
@@ -237,11 +257,25 @@ export function OgsConversation({
           {loading ? (
             <ThreadSkeleton />
           ) : messages.length > 0 ? (
-            messages.map((message) => {
+            messages.map((message, index) => {
               const eventI18n =
                 message.kind === "event"
                   ? parentEventI18nDescriptor(message)
                   : null;
+              const previous = messages[index - 1];
+              const sameSenderAsPrevious =
+                previous?.kind === "message" &&
+                message.kind === "message" &&
+                previous.sender_kind === message.sender_kind &&
+                previous.sender_name === message.sender_name;
+              const genericStaffSender =
+                message.kind === "message" &&
+                message.sender_kind === "staff" &&
+                (message.sender_name === counterpart ||
+                  (thread?.school_name
+                    ? message.sender_name ===
+                      tm("ogsTeam", { school: thread.school_name })
+                    : false));
               return message.kind === "event" ? (
                 <ChatEventCard
                   key={message.id}
@@ -254,24 +288,46 @@ export function OgsConversation({
                       : message.body
                   }
                   createdAt={message.created_at}
+                  locale={locale}
                 />
               ) : message.kind === "request" ? (
-                <RequestItem key={message.id} message={message} />
+                <RequestItem
+                  key={message.id}
+                  message={message}
+                  locale={locale}
+                />
               ) : (
                 <ChatBubble
                   key={message.id}
                   body={message.body}
                   own={message.sender_kind === "guardian"}
-                  senderName={message.sender_name}
+                  senderName={
+                    message.sender_kind === "staff" &&
+                    message.sender_name === counterpart &&
+                    thread?.school_name
+                      ? tm("ogsTeam", { school: thread.school_name })
+                      : message.sender_name
+                  }
                   createdAt={message.created_at}
+                  locale={locale}
                   // The parent's own bubbles are always the logged-in guardian
                   // (one guardian account per thread), so drop the redundant name
                   // and keep just the time. Staff bubbles still show "Vorname N.".
                   showOwnSenderName={false}
+                  showSenderName={!genericStaffSender && !sameSenderAsPrevious}
                   tone="parent"
-                  readReceiptLabel={
-                    message.sender_kind === "guardian" && message.read_by_staff
-                      ? t("readByStaff")
+                  deliveryStatus={
+                    message.sender_kind === "guardian"
+                      ? message.read_by_staff
+                        ? "read"
+                        : "sent"
+                      : undefined
+                  }
+                  deliveryStatusLabel={
+                    message.sender_kind === "guardian"
+                      ? message.read_by_staff
+                        ? tm("readByOgs")
+                        : tm("sent")
                       : undefined
                   }
                 />
@@ -286,7 +342,7 @@ export function OgsConversation({
 
         {/* Angeheftet am unteren Rand, mit Sicherheitsbereich des Geraets:
             auf dem Handy darf nichts unter dem Home-Indikator kleben. */}
-        <div className="border-t border-gray-100 px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pb-4">
+        <div className="border-t border-gray-100 px-3 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-5 sm:pb-3">
           {sendError ? (
             <div className="mb-3">
               <Alert type="error" message={sendError} />
@@ -295,6 +351,7 @@ export function OgsConversation({
           <QuickActions
             features={care.features}
             loading={care.loading}
+            childName={thread?.student_name}
             onPick={(key) => setActiveModal(key)}
           />
           {/* Only show the free-text composer when the school has parent notes
@@ -307,7 +364,9 @@ export function OgsConversation({
               (notes_enabled = false) until getChildFeatures resolves, so without
               this guard a messaging-enabled school would flash the read-only
               fallback on first paint before flipping to the composer. */}
-          {care.loading ? null : care.features.notes_enabled ? (
+          {care.loading ? (
+            <ConversationComposerSkeleton />
+          ) : care.features.notes_enabled ? (
             <MessageComposer
               value={draft}
               onChange={setDraft}
@@ -367,7 +426,10 @@ export function OgsConversation({
 // no diff (messages no longer carry one) and no withdraw button (withdrawal now
 // happens on the Stammdaten page). New request activity shows up as
 // non-interactive "event" pills instead.
-function RequestItem({ message }: Readonly<{ message: ParentMessage }>) {
+function RequestItem({
+  message,
+  locale,
+}: Readonly<{ message: ParentMessage; locale: string }>) {
   const t = useTranslations("parentOgsMessaging");
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -377,8 +439,8 @@ function RequestItem({ message }: Readonly<{ message: ParentMessage }>) {
             {t(parentRequestTypeI18nKey(message.request_type))}
           </p>
           <p className="mt-1 text-xs text-gray-500">
-            {formatChatTime(message.created_at)}
-            {message.read_by_staff ? ` · ${t("readByStaff")}` : ""}
+            {formatChatTime(message.created_at, locale)}
+            {message.read_by_staff ? `, ${t("readByStaff")}` : ""}
           </p>
         </div>
         <RequestStatusBadge
@@ -406,19 +468,26 @@ function RequestItem({ message }: Readonly<{ message: ParentMessage }>) {
 function QuickActions({
   features,
   loading,
+  childName,
   onPick,
 }: Readonly<{
   features: ChildFeatures;
   loading: boolean;
+  childName?: string;
   onPick: (key: OgsActionKey) => void;
 }>) {
-  if (loading) return <div className="mb-3 h-12" aria-hidden="true" />;
+  if (loading) return <div className="mb-3 h-9" aria-hidden="true" />;
   const actions = getOgsActions(features).filter((action) => action.enabled);
   if (actions.length === 0) return null;
   return (
     <div className="mb-3 flex flex-wrap gap-2">
       {actions.map((action) => (
-        <QuickActionPill key={action.key} action={action} onPick={onPick} />
+        <QuickActionPill
+          key={action.key}
+          action={action}
+          childName={childName}
+          onPick={onPick}
+        />
       ))}
     </div>
   );
@@ -426,21 +495,45 @@ function QuickActions({
 
 function QuickActionPill({
   action,
+  childName,
   onPick,
 }: Readonly<{
   action: ReturnType<typeof getOgsActions>[number];
+  childName?: string;
   onPick: (key: OgsActionKey) => void;
 }>) {
-  const t = useTranslations("parentChildCare");
+  const careT = useTranslations("parentChildCare");
+  const todayT = useTranslations("parentToday");
+  const firstName = childName?.trim().split(/\s+/)[0];
+  const label = firstName
+    ? action.key === "sick"
+      ? todayT("actions.sick", { name: firstName })
+      : todayT("actions.pickup", { name: firstName })
+    : careT(`actions.${action.key}.shortLabel`);
   return (
     <button
       type="button"
       onClick={() => onPick(action.key)}
-      title={t(`actions.${action.key}.hint`)}
-      className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-[17px] font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 active:bg-gray-100 focus-visible:ring-2 focus-visible:ring-[#5080D8] focus-visible:outline-none"
+      title={careT(`actions.${action.key}.hint`)}
+      className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-100 sm:px-3.5"
     >
-      <MotoConceptIcon concept={action.concept} size={18} />
-      {t(`actions.${action.key}.shortLabel`)}
+      {action.key === "sick" ? (
+        <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
+      ) : (
+        <MotoConceptIcon
+          concept={action.concept}
+          size={20}
+          aria-hidden="true"
+        />
+      )}
+      <span className="sm:hidden">
+        {todayT(
+          action.key === "sick"
+            ? "actions.sickCompact"
+            : "actions.pickupCompact",
+        )}
+      </span>
+      <span className="hidden sm:inline">{label}</span>
     </button>
   );
 }
@@ -449,10 +542,10 @@ function EmptyThread() {
   const tm = useTranslations("parentMessages");
   return (
     <div className="flex h-full flex-col items-center justify-center py-10 text-center">
-      <h2 className="text-[17px] font-semibold text-gray-900">
+      <h2 className="text-sm font-semibold text-gray-900">
         {tm("emptyThreadTitle")}
       </h2>
-      <p className="mt-1 text-[15px] leading-6 text-gray-600">
+      <p className="mt-1 text-sm leading-6 text-gray-600">
         {tm("emptyThreadDescription")}
       </p>
     </div>
@@ -469,6 +562,21 @@ function ThreadSkeleton() {
   );
 }
 
+function ConversationComposerSkeleton() {
+  return (
+    <div
+      data-testid="parent-conversation-composer-skeleton"
+      className="rounded-xl border border-gray-200 bg-white p-3"
+      aria-hidden="true"
+    >
+      <Skeleton className="h-16 w-full rounded-lg" />
+      <div className="mt-3 flex justify-end">
+        <Skeleton className="h-9 w-24 rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
 // Always-visible parents-portal back link. The kit BackButton/MobileBackButton
 // don't fit here: BackButton routes via useTenantRouter (the tenant portal) and
 // both are mobile-only by design, whereas this affordance must work on desktop in
@@ -479,9 +587,9 @@ function BackBar() {
   return (
     <Link
       href={parentPath("/parents/messages")}
-      className="inline-flex min-h-12 w-fit items-center gap-2 rounded-lg px-2 text-[17px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-[#5080D8] focus-visible:outline-none"
+      className="inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
     >
-      <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       {tm("back")}
     </Link>
   );

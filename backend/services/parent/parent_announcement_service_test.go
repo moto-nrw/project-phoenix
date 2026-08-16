@@ -104,12 +104,12 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, unread)
 
-	// Reading it clears the unread badge.
+	// Reading alone does not clear the badge while confirmation is still due.
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, ann.ID, *ann.PublishedAt))
 
 	unread, err = svc.UnreadAnnouncementCount(ctx, chain.AccountID)
 	require.NoError(t, err)
-	assert.Zero(t, unread)
+	assert.Equal(t, 1, unread)
 
 	feed, err = svc.ListAnnouncements(ctx, chain.AccountID)
 	require.NoError(t, err)
@@ -118,6 +118,9 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 
 	// Acknowledge is valid because the announcement requires it.
 	require.NoError(t, svc.AcknowledgeAnnouncement(ctx, chain.AccountID, ann.ID, *ann.PublishedAt))
+	unread, err = svc.UnreadAnnouncementCount(ctx, chain.AccountID)
+	require.NoError(t, err)
+	assert.Zero(t, unread)
 
 	feed, err = svc.ListAnnouncements(ctx, chain.AccountID)
 	require.NoError(t, err)

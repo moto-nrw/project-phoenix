@@ -61,7 +61,6 @@ type fakeParentService struct {
 	gotCareStudent   int64
 	gotCareDate      timezone.Date
 	gotCarePickup    *time.Time
-	gotCareArrival   *time.Time
 	gotCareReason    string
 
 	todayStatus     *parentService.TodayStatus
@@ -194,16 +193,11 @@ func (f *fakeParentService) WithdrawOfferingChangeRequest(context.Context, int64
 	return nil, nil
 }
 
-func (f *fakeParentService) SubmitCareException(context.Context, int64, int64, timezone.Date, *time.Time, *time.Time) (*parentService.CareException, error) {
-	return nil, nil
-}
-
-func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, accountID, studentID int64, date timezone.Date, pickup, arrival *time.Time, reason string) (*parentService.CareException, error) {
+func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, accountID, studentID int64, date timezone.Date, pickup *time.Time, reason string) (*parentService.CareException, error) {
 	f.gotCareAccount = accountID
 	f.gotCareStudent = studentID
 	f.gotCareDate = date
 	f.gotCarePickup = pickup
-	f.gotCareArrival = arrival
 	f.gotCareReason = reason
 	return f.careException, f.careExceptionErr
 }
@@ -241,6 +235,10 @@ func (f *fakeParentService) ListMyMasterDataRequests(context.Context, int64, int
 }
 
 func (f *fakeParentService) ListChildGuardians(context.Context, int64, int64) ([]*parentService.ChildGuardian, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) CreateGuardianContact(context.Context, int64, int64, parentService.CreateGuardianContactInput) (*parentService.ChildGuardian, error) {
 	return nil, nil
 }
 
@@ -412,6 +410,18 @@ func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"reason":"Abholung durch die Großeltern"`)
 }
 
+func TestSubmitCareException_RejectsArrivalChange(t *testing.T) {
+	service := &fakeParentService{}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","arrival_time":"10:30","reason":"Arzttermin"}`))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Nil(t, service.gotCarePickup)
+	assert.Empty(t, service.gotCareReason)
+}
+
 func TestSubmitCareException_MapsMissingReasonToStableCode(t *testing.T) {
 	service := &fakeParentService{careExceptionErr: parentService.ErrCareExceptionReasonRequired}
 	rs := &Resource{ParentService: service}
@@ -450,7 +460,12 @@ func TestGetMyProfile_ReturnsNullWhenNeverChosen(t *testing.T) {
 
 func TestGetMyProfile_ReturnsExplicitLocale(t *testing.T) {
 	rs := &Resource{ParentService: &fakeParentService{
-		getProfile: &parentService.Profile{Locale: "en", Explicit: true},
+		getProfile: &parentService.Profile{
+			FirstName: "Karin",
+			LastName:  "Klein",
+			Locale:    "en",
+			Explicit:  true,
+		},
 	}}
 	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/profile", nil), 1234)
 	w := httptest.NewRecorder()
@@ -459,6 +474,8 @@ func TestGetMyProfile_ReturnsExplicitLocale(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"portal_locale":"en"`)
+	assert.Contains(t, w.Body.String(), `"first_name":"Karin"`)
+	assert.Contains(t, w.Body.String(), `"last_name":"Klein"`)
 }
 
 func TestGetMyProfile_PropagatesServiceError(t *testing.T) {

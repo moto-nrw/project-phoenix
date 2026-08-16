@@ -153,6 +153,34 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	assert.Equal(t, "2017-12-24", person.Birthday.String())
 }
 
+func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() {
+		require.NoError(t, db.Close())
+	}()
+	repos := repositories.NewFactory(db)
+	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, slog.Default())
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	row := insertPendingChange(t, db, repos, chain, userModels.DataChangeTargetStudent, "school_class", `"1a"`, `"2b"`)
+
+	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{
+			RequestID:  row.ID,
+			Approve:    true,
+			ReviewedBy: chain.AccountID,
+		})
+		return decideErr
+	})
+	require.NoError(t, err)
+
+	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	assert.Equal(t, "2b", student.SchoolClass)
+}
+
 func TestMasterDataReview_ConcurrentPersonFieldApprovalsDoNotOverwrite(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() {

@@ -47,11 +47,13 @@
   "parentNav": {
     "start": "Start",
     "children": "Kinder",
+    "childSingle": "Mein Kind",
+    "childrenMultiple": "Meine Kinder",
     "mealPlan": "Essensplan",
     "comingSoon": "Bald im Elternportal",
     "calendar": "Kalender",
     "messages": "Nachrichten",
-    "news": "Aus der OGS",
+    "news": "Elternbriefe",
     "notifications": "Benachrichtigungen",
     "language": "Sprache",
     "contactData": "Kontaktdaten",
@@ -68,18 +70,33 @@
     "settings": "Einstellungen",
     "enroll": "Neue Anmeldung",
     "mainNav": "Hauptnavigation",
-    "more": "Mehr"
+    "accountNav": "Kontonavigation",
+    "more": "Mehr",
+    "unreadCount": "{count} ungelesen",
+    "openCount": "{count} offen",
+    "noticeCount": "{count} Hinweise"
   },
   "parentMealPlan": {
+    "kicker": "Essen in der OGS",
     "title": "Essensplan",
-    "subtitle": "Was es in der Betreuung zu essen gibt.",
+    "subtitle": "Sehen Sie, was diese und nächste Woche auf dem Speiseplan steht.",
     "thisWeek": "Diese Woche",
     "nextWeek": "Nächste Woche",
     "today": "Heute",
     "noMeal": "Kein Essen eingetragen",
-    "empty": "Für Ihre Schule ist derzeit kein Essensplan verfügbar.",
+    "noLinkedChildrenTitle": "Noch kein Kind verknüpft",
+    "noLinkedChildren": "Sobald ein Kind mit Ihrem Konto verknüpft ist, sehen Sie hier den Essensplan der Schule.",
+    "emptyTitle": "Kein Essensplan verfügbar",
+    "empty": "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+    "loading": "Essensplan wird geladen",
     "loadError": "Essensplan konnte nicht geladen werden.",
-    "emptyWeek": "Für diese Woche ist noch kein Essensplan eingetragen.",
+    "emptyThisWeekTitle": "Für diese Woche ist noch kein Essensplan eingetragen",
+    "emptyNextWeekTitle": "Für nächste Woche ist noch kein Essensplan eingetragen",
+    "emptyWeek": "Sobald die OGS einen Plan einträgt, sehen Sie ihn hier.",
+    "weekNavigation": "Kalenderwoche wechseln",
+    "previousWeek": "Vorherige Woche",
+    "calendarWeek": "KW {week}",
+    "dateRange": "{start} bis {end}",
     "weekHeading": "Diese Woche",
     "school": "Schule",
     "week": "Woche"
@@ -106,27 +123,41 @@
       "rejected": "Abgelehnt",
       "withdrawn": "Zurückgezogen"
     },
-    "newsNew": "Neue Mitteilung",
+    "newsNew": "Neuer Elternbrief",
+    "newsOutstanding": "Offen",
+    "newsLetter": "Elternbrief",
     "newsImportant": "Wichtig",
-    "newsAcknowledge": "Gelesen und bestätigt",
+    "newsAcknowledge": "Gelesen bestätigen",
+    "newsAcknowledgeSaving": "Wird bestätigt …",
     "newsAcknowledged": "Bestätigt",
+    "newsAcknowledgement": "Lesebestätigung",
+    "newsAcknowledgementHint": "Damit bestätigen Sie nur, dass Sie den Elternbrief gelesen haben.",
+    "newsMessageFrom": "Elternbrief von {school}",
     "newsRead": "Gelesen",
     "newsActionError": "Aktion fehlgeschlagen. Bitte erneut versuchen.",
-    "newsStaleError": "Diese Mitteilung ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
+    "newsStaleError": "Dieser Elternbrief ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
     "newsPoll": "Umfrage",
     "newsPollDeadline": "Antwort bis {date}",
     "newsPollClosed": "Umfrage geschlossen",
     "newsPollMulti": "Mehrfachauswahl möglich",
     "newsPollOpen": "Antwort offen",
     "newsPollAnswered": "Antwort gespeichert",
+    "newsPollDone": "Beantwortet",
+    "newsPollContinue": "Antwort vervollständigen",
+    "newsPollNoAnswer": "Nicht beantwortet",
+    "newsPollAnswerSummary": "Antwort: {answer}",
+    "newsPollChildAnswer": "{name}: {answer}",
+    "newsPollAnsweredCount": "{answered} von {total} beantwortet",
     "newsPollSave": "Antwort speichern",
     "newsPollSaving": "Wird gespeichert …",
     "newsPollUnsaved": "Noch nicht gespeichert",
+    "newsPollClear": "Auswahl aufheben",
     "newsPollNeedsAnswer": "Antwort nötig",
     "newsNeedsAcknowledgement": "Bitte bestätigen",
     "newsAnswer": "Antworten",
     "newsReadAndConfirm": "Gelesen bestätigen",
     "newsReadAnnouncement": "Lesen",
+    "newsExternalLink": "Weitere Informationen öffnen",
     "newsClose": "Schließen"
   },
   "parentNotificationSetup": {
@@ -137,21 +168,95 @@
     "enableError": "Die Benachrichtigungen konnten nicht aktiviert werden. Bitte versuchen Sie es erneut.",
     "denied": "Benachrichtigungen sind im Browser blockiert. Öffnen Sie die Browser-Einstellungen, erlauben Sie Benachrichtigungen für moto und versuchen Sie es anschließend unter Einstellungen erneut.",
     "installTitle": "moto zum Home-Bildschirm hinzufügen",
-    "installIntro": "Auf iPhone und iPad funktionieren Benachrichtigungen erst, wenn moto auf dem Home-Bildschirm liegt.",
-    "installStep1": "Tippen Sie unten in Safari auf das Teilen-Symbol.",
-    "installStep2": "Wählen Sie „Zum Home-Bildschirm“.",
-    "installStep3": "Tippen Sie auf „Hinzufügen“.",
-    "installOutro": "Danach öffnen Sie moto wie eine App, und wir können Ihnen Nachrichten der OGS als Mitteilung schicken.",
+    "installAndroidTitle": "moto als App installieren",
+    "installAndroidIntro": "Installieren Sie moto auf Ihrem Startbildschirm. Danach öffnen Sie moto wie eine App und können Benachrichtigungen einschalten.",
+    "installAndroidManual": "Öffnen Sie das Browser-Menü und wählen Sie „App installieren“ oder „Zum Startbildschirm hinzufügen“.",
+    "installApp": "App installieren",
+    "installing": "Wird installiert …",
+    "installError": "moto konnte nicht installiert werden. Bitte versuchen Sie es erneut.",
     "understood": "Verstanden",
+    "closeGuide": "Anleitung schließen",
     "close": "Dialog schließen"
+  },
+  "pushNotifications": {
+    "title": "Benachrichtigungen auf diesem Gerät",
+    "installIntro": "Auf iPhone und iPad funktionieren Benachrichtigungen nur, wenn Sie moto vom Home-Bildschirm öffnen.",
+    "installStepsLabel": "moto zum Home-Bildschirm hinzufügen",
+    "installStep1": "Öffnen Sie moto in Safari und tippen Sie auf Teilen.",
+    "installStep2": "Scrollen Sie im Menü nach unten und wählen Sie „Zum Home-Bildschirm“.",
+    "installStep3": "Tippen Sie auf „Hinzufügen“. Öffnen Sie moto danach über das neue Symbol.",
+    "installOutro": "Öffnen Sie in der installierten App wieder die Einstellungen. Dort können Sie Benachrichtigungen mit einem Tipp einschalten.",
+    "unsupportedBody": "Öffnen Sie moto in Safari, Chrome, Edge oder Firefox und versuchen Sie es dort erneut.",
+    "blockedTitle": "Benachrichtigungen sind blockiert",
+    "blockedBody": "Öffnen Sie die Einstellungen Ihres Geräts oder Browsers, suchen Sie nach moto und erlauben Sie Benachrichtigungen. Kehren Sie danach hierher zurück.",
+    "checkAgain": "Status erneut prüfen",
+    "offBody": "moto informiert Sie über wichtige Neuigkeiten, auch wenn die App geschlossen ist.",
+    "permissionHint": "Nach dem Tippen fragt Ihr Gerät einmal nach Ihrer Erlaubnis. Wählen Sie „Erlauben“.",
+    "enable": "Benachrichtigungen einschalten",
+    "enableShort": "Aktivieren",
+    "enabling": "Wird eingeschaltet …",
+    "onBody": "Dieses Gerät zeigt neue Benachrichtigungen von moto an.",
+    "disable": "Benachrichtigungen ausschalten",
+    "disableShort": "Deaktivieren",
+    "enabledMessage": "Benachrichtigungen sind auf diesem Gerät eingeschaltet.",
+    "disabledMessage": "Benachrichtigungen sind auf diesem Gerät ausgeschaltet.",
+    "enableError": "Die Benachrichtigungen konnten nicht eingeschaltet werden. Bitte versuchen Sie es erneut.",
+    "disableError": "Die Benachrichtigungen konnten nicht ausgeschaltet werden. Bitte versuchen Sie es erneut.",
+    "sendTest": "Testbenachrichtigung senden",
+    "testing": "Wird gesendet …",
+    "testSent": "Testbenachrichtigung wurde gesendet.",
+    "testError": "Die Testbenachrichtigung konnte nicht gesendet werden. Bitte versuchen Sie es erneut."
   },
   "parentSettings": {
     "eyebrow": "Ihr Konto",
     "title": "Einstellungen",
-    "description": "Legen Sie hier fest, worüber moto Sie informiert und auf welchem Gerät."
+    "description": "Legen Sie Sprache und Benachrichtigungen für Ihr Konto fest.",
+    "languageTitle": "Sprache",
+    "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird."
+  },
+  "notificationPreferences": {
+    "title": "Benachrichtigungen",
+    "description": "Bleiben Sie über Nachrichten und wichtige Änderungen zu Ihrem Kind informiert.",
+    "allEnabled": "Alle aktiviert",
+    "enableAll": "Alle aktivieren",
+    "enablingAll": "Wird aktiviert ...",
+    "disableAll": "Alle deaktivieren",
+    "loadError": "Die Einstellungen konnten nicht geladen werden.",
+    "saveError": "Die Einstellung konnte nicht gespeichert werden.",
+    "bulkError": "Die Einstellungen konnten nicht geändert werden.",
+    "tenantDisabled": "Ihre Schule hat Benachrichtigungen derzeit deaktiviert. Ihre Auswahl wird gespeichert und gilt, sobald die Schule sie wieder einschaltet.",
+    "typeUnavailable": "Von Ihrer Schule derzeit deaktiviert.",
+    "groups": {
+      "kinder": "Kinder",
+      "mitteilungen": "Mitteilungen",
+      "termine": "Termine"
+    },
+    "types": {
+      "parent_announcement": {
+        "label": "Neue Mitteilung der Schule",
+        "description": "Wenn die Schule eine neue Mitteilung im Elternportal veröffentlicht."
+      },
+      "parent_message": {
+        "label": "Neue Nachricht der OGS",
+        "description": "Wenn die OGS Ihnen zu einem Kind schreibt."
+      },
+      "parent_appointment": {
+        "label": "Neuer oder geänderter Termin",
+        "description": "Wenn ein Termin für Sie angelegt, geändert oder abgesagt wird."
+      },
+      "parent_appointment_reminder": {
+        "label": "Terminerinnerung",
+        "description": "Kurz vor einem Termin, zu dem Sie eingeladen sind."
+      },
+      "parent_request_decided": {
+        "label": "Entscheidung über Ihre Anfrage",
+        "description": "Wenn die OGS über eine Ihrer Anfragen entschieden hat."
+      }
+    }
   },
   "parentEnroll": {
     "back": "Zurück zum Elternportal",
+    "kicker": "Anmeldung für die OGS-Betreuung",
     "title": "Neue Anmeldung",
     "description": "Wählen Sie eine Schule und eine Anmeldephase, um Ihr Kind anzumelden.",
     "loading": "Anmeldephasen werden geladen …",
@@ -169,6 +274,10 @@
     "rangeConnector": "bis",
     "openPhase": "Anmeldung öffnen"
   },
+  "parentVisibility": {
+    "ogs": "Für die OGS sichtbar",
+    "ogsDescription": "Diese Angaben kann Ihre OGS sehen."
+  },
   "parentChildDetail": {
     "unknownError": "Unbekannter Fehler",
     "loadError": "Die Kinderdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite oder versuchen Sie es später erneut.",
@@ -182,6 +291,18 @@
     "guardians": {
       "title": "Eltern und Abholberechtigte",
       "description": "Wer zu Ihrem Kind gehört, wer es abholen darf und wer Zugang zur App hat.",
+      "contactsTitle": "Abholberechtigte und Kontakte",
+      "contactsDescription": "Kontaktpersonen und Personen, die Ihr Kind abholen dürfen.",
+      "addPerson": "Person hinzufügen",
+      "addPersonIntro": "Wählen Sie, ob Sie eine Kontaktperson ohne Konto anlegen oder einer Person Zugang zur App geben möchten.",
+      "addContact": "Kontakt oder Abholperson hinzufügen",
+      "addContactDescription": "Zum Beispiel Oma oder Opa. Die Person braucht kein Konto.",
+      "contactCreated": "Kontakt wurde hinzugefügt.",
+      "createContactTitle": "Kontakt hinzufügen",
+      "createContact": "Kontakt hinzufügen",
+      "createContactIntro": "Dieser Kontakt wird für Ihr Kind hinterlegt und ist für die OGS sichtbar. Es wird kein Konto erstellt und keine Einladung gesendet.",
+      "relationshipLabel": "Beziehung zum Kind",
+      "emailDoesNotInvite": "Die E-Mail-Adresse dient nur als Kontaktdatum. Sie können später separat App-Zugang geben.",
       "loadError": "Kontakte konnten nicht geladen werden.",
       "loading": "Wird geladen…",
       "empty": "Noch keine Kontakte hinterlegt.",
@@ -221,6 +342,15 @@
         "work": "Geschäftlich",
         "other": "Sonstige"
       },
+      "roles": {
+        "primary_guardian": "Hauptberechtigt",
+        "legal_guardian": "Erziehungsberechtigt",
+        "co_guardian": "Mitberechtigt",
+        "emergency_contact": "Notfallkontakt",
+        "pickup_only": "Nur Abholung",
+        "social_worker": "Sozialdienst",
+        "custom": "Individuell"
+      },
       "removePhone": "Telefonnummer entfernen",
       "addPhone": "Nummer hinzufügen",
       "nameRequired": "Vor- und Nachname sind erforderlich.",
@@ -246,10 +376,20 @@
         "managementDisabled": "Die Verwaltung von Kontakten ist für diese Schule deaktiviert."
       },
       "access": {
-        "invite": "Person einladen",
+        "title": "Verbundene Konten",
+        "description": "Wer in der Eltern-App Zugriff auf dieses Kind hat.",
+        "empty": "Noch keine Konten verbunden.",
+        "invite": "App-Zugang geben",
+        "inviteShort": "Einladen",
+        "choiceDescription": "Die Person erhält per E-Mail Zugang zur Eltern-App.",
+        "inviteIntro": "Sie geben dieser Person Zugriff auf die Informationen und verfügbaren Funktionen für dieses Kind.",
+        "inviteDetails": "Hat die Person bereits ein Konto, wird es verbunden. Andernfalls erhält sie eine Einladung per E-Mail. Je nach Einstellung prüft die OGS Ihre Anfrage zuerst.",
         "emailPlaceholder": "E-Mail-Adresse",
         "emailLabel": "E-Mail-Adresse der Person, die Sie einladen möchten",
+        "emailHint": "Verwenden Sie die persönliche E-Mail-Adresse der Person.",
+        "closeInvite": "Einladung schließen",
         "send": "Einladung senden",
+        "inviteLoading": "Einladung wird gesendet…",
         "invitePending": "Ihre Anfrage ist bei der OGS. Sie wird dort geprüft.",
         "inviteSent": "Einladung an {email} gesendet.",
         "inviteLinked": "Die Person ist jetzt verbunden.",
@@ -298,25 +438,30 @@
     "close": "Schließen",
     "cancel": "Abbrechen",
     "sick": {
-      "title": "Krank melden",
-      "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Die OGS wird sofort informiert.",
-      "introApproval": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Eine Krankmeldung sieht die OGS sofort; eine entschuldigte Abmeldung bestätigt das Team erst.",
-      "kindLabel": "Ist Ihr Kind krank?",
-      "kindSick": "Krank",
-      "kindExcused": "Entschuldigt",
-      "from": "Von",
-      "to": "Bis",
-      "daysCount": "{count, plural, one {# Tag wird gemeldet.} other {# Tage werden gemeldet.}}",
-      "reasonLabel": "Warum? (freiwillig)",
-      "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
+      "title": "Abwesenheit melden",
+      "intro": "Melden Sie der OGS, dass Ihr Kind an den ausgewählten Tagen nicht an der Betreuung teilnimmt. Die Anmeldung bei der OGS bleibt unverändert.",
+      "introApproval": "Melden Sie der OGS, dass Ihr Kind an den ausgewählten Tagen nicht an der Betreuung teilnimmt. Krankmeldungen gelten sofort, entschuldigte Abwesenheiten bestätigt die OGS. Die Anmeldung bei der OGS bleibt unverändert.",
+      "kindLabel": "Grund der Abwesenheit",
+      "kindSick": "Krank melden",
+      "kindExcused": "Entschuldigen",
+      "kindHintSick": "Für Krankheitstage. Die OGS sieht die Krankmeldung sofort.",
+      "kindHintExcused": "Für Termine oder andere geplante Abwesenheiten. Geben Sie den Grund kurz an.",
+      "periodLabel": "Tage der Abwesenheit",
+      "from": "Erster Tag",
+      "to": "Letzter Tag",
+      "daysCount": "{count, plural, one {Ihr Kind wird für diesen Tag abgemeldet.} other {Ihr Kind wird für # Tage abgemeldet.}}",
+      "reasonLabel": "Hinweis an die OGS",
+      "reasonPlaceholder": "Zum Beispiel Fieber oder Arzttermin",
       "invalidDate": "Bitte wählen Sie ein gültiges Datum. Das Bis-Datum darf nicht vor dem Von-Datum liegen.",
       "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
       "submittedButRefreshFailed": "Die Abmeldung wurde gesendet, konnte aber nicht angezeigt werden. Bitte laden Sie die Seite neu.",
       "overlapError": "Für einen dieser Tage liegt bereits eine offene Abmeldung vor.",
-      "submit": "Krankmeldung senden",
-      "reasonLabelRequired": "Warum? *",
-      "reasonRequiredError": "Bitte schreiben Sie kurz, warum Ihr Kind fehlt.",
-      "approvalHint": "Diese Abmeldung muss vom Team bestätigt werden."
+      "submit": "Abwesenheit melden",
+      "submitSick": "Krankmeldung an die OGS senden",
+      "submitExcused": "Entschuldigung an die OGS senden",
+      "reasonLabelRequired": "Grund / Hinweis an die OGS",
+      "reasonRequiredError": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
+      "approvalHint": "Die OGS muss diese entschuldigte Abwesenheit bestätigen."
     },
     "summary": {
       "none": "Keine Abmeldung",
@@ -332,27 +477,26 @@
       "reasonPrefix": "Grund"
     },
     "pickup": {
-      "title": "Abholung ändern",
-      "intro": "Tragen Sie die neue Abholzeit für einen einzelnen Tag ein. Die OGS wird sofort informiert.",
+      "title": "Abholzeit ändern",
+      "intro": "Legen Sie für einen einzelnen Tag eine abweichende Abholzeit fest. Der reguläre Wochenplan bleibt unverändert. Die OGS wird sofort informiert.",
       "dateLabel": "Tag",
-      "pickupLabel": "Neue Abholzeit",
-      "arrivalLabel": "Ankunftszeit",
-      "noTime": "Bitte tragen Sie eine Uhrzeit ein.",
-      "reasonLabel": "Warum? *",
-      "reasonPlaceholder": "Zum Beispiel Arzttermin oder Abholung durch die Großeltern",
-      "reasonRequired": "Bitte schreiben Sie kurz, warum sich die Abholung ändert.",
+      "pickupLabel": "Abholzeit",
+      "noTime": "Bitte tragen Sie eine Abholzeit ein.",
+      "reasonLabel": "Grund für die Änderung",
+      "reasonPlaceholder": "Zum Beispiel Arzttermin oder frühere Abholung",
+      "reasonRequired": "Bitte geben Sie kurz an, warum sich die Abholzeit ändert.",
       "reasonTooLong": "Der Grund darf höchstens 255 Zeichen lang sein.",
       "saveError": "Die Änderung konnte nicht gespeichert werden.",
       "loadError": "Die aktuell hinterlegten Zeiten konnten nicht geladen werden. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
-      "errorDisabled": "Das Ändern der Abholzeit ist für diese Einrichtung nicht aktiviert.",
-      "errorStaffConflict": "Für diesen Tag hat die Einrichtung bereits abweichende Zeiten festgelegt. Bitte wenden Sie sich an das Team.",
+      "errorDisabled": "Das Ändern der Abholzeit ist für diese OGS nicht aktiviert.",
+      "errorStaffConflict": "Für diesen Tag hat die Einrichtung bereits eine abweichende Abholzeit festgelegt. Bitte wenden Sie sich an das Team.",
       "errorRaced": "Dieser Tag wurde gerade geändert. Bitte laden Sie die Seite neu und versuchen Sie es erneut.",
       "errorPastDate": "Für vergangene Tage kann keine Änderung gespeichert werden.",
       "errorTooFar": "Der Tag liegt zu weit in der Zukunft. Bitte wählen Sie einen Tag innerhalb der nächsten zwei Monate.",
-      "staffSet": "Für diesen Tag hat die Einrichtung bereits abweichende Zeiten festgelegt (Abholzeit: {pickup}, Ankunftszeit: {arrival}).",
+      "staffSet": "Für diesen Tag hat die Einrichtung bereits eine abweichende Abholzeit festgelegt: {pickup} Uhr.",
       "existingHint": "Für den {date} ist bereits eine Änderung hinterlegt. Speichern überschreibt sie.",
       "reset": "Änderung zurücknehmen",
-      "submit": "Abholung ändern"
+      "submit": "Abholzeit ändern"
     },
     "actions": {
       "sick": {
@@ -361,9 +505,9 @@
         "hint": "Kind für einen oder mehrere Tage krankmelden"
       },
       "pickup": {
-        "label": "Abholung für einen Tag",
-        "shortLabel": "Abholung",
-        "hint": "Abhol- oder Bringzeit an einem einzelnen Tag anpassen"
+        "label": "Abholzeit für einen Tag ändern",
+        "shortLabel": "Abholzeit ändern",
+        "hint": "Abholzeit an einem einzelnen Tag anpassen"
       }
     },
     "request": {
@@ -533,6 +677,7 @@
     "statusText": "Nach dem Absenden öffnet sich Ihre Statusseite. Speichern Sie den Link oder die Bestätigungs-E-Mail, damit Sie später wieder darauf zugreifen können.",
     "backToPicker": "Andere Anmeldung wählen",
     "backToPortal": "Zurück zum Elternportal",
+    "parentEmbeddedKicker": "Anmeldung für die OGS-Betreuung",
     "formEyebrow": "Formular ausfüllen",
     "formTitleFallback": "Anmeldung",
     "formDescription": "Bitte füllen Sie alle Pflichtfelder aus. Wenn Sie mehrere Kinder anmelden möchten, können Sie sie direkt in diesem Formular hinzufügen.",
@@ -945,26 +1090,44 @@
   },
   "parentMasterData": {
     "title": "Daten und Betreuung",
-    "subtitle": "Prüfen Sie die Angaben zu Ihrem Kind und die gebuchten Betreuungsangebote. Änderungen mit Prüfbedarf werden deutlich gekennzeichnet.",
+    "subtitle": "Prüfen Sie die Angaben zu Ihrem Kind und die gebuchte Betreuung. Änderungen mit Prüfbedarf werden deutlich gekennzeichnet.",
     "back": "Zurück",
-    "loadError": "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+    "loadError": "Die Angaben konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
     "saved": "Gespeichert",
     "saveError": "Die Änderung konnte nicht gespeichert werden.",
     "editableHint": "Änderungen werden automatisch gespeichert.",
+    "healthDirectHint": "Änderungen werden direkt gespeichert. Das OGS-Team sieht die Hinweise sofort.",
+    "healthPlaceholder": "Zum Beispiel Allergien, Unverträglichkeiten oder wichtige Medikamente.",
+    "dataDescription": "Persönliche Angaben, Klasse und wichtige Gesundheitshinweise.",
+    "identityDescription": "Diese Angaben können nur nach Prüfung durch die OGS geändert werden.",
+    "identityRequestButton": "Änderungen anfragen",
     "requestHint": "Diese Änderungen prüft das Team, bevor sie übernommen werden.",
+    "departureDescription": "Legen Sie für jeden Wochentag fest, ob Ihr Kind abgeholt wird, allein geht oder den Bus nimmt. Änderungen prüft die OGS.",
     "requestButton": "Änderung anfragen",
     "requestSubmitted": "Anfrage gesendet. Das Team prüft Ihre Änderung.",
     "requestError": "Die Anfrage konnte nicht gesendet werden.",
     "pendingBadge": "In Prüfung",
     "pendingNotice": "Eine Änderung an diesem Feld wartet auf Bestätigung durch das Team.",
-    "editDisabled": "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
+    "editDisabled": "Das Bearbeiten dieser Angaben ist bei dieser OGS deaktiviert.",
     "requestDisabled": "Änderungsanfragen sind bei dieser OGS deaktiviert.",
     "notSet": "Nicht angegeben",
+    "identityModal": {
+      "title": "Persönliche Angaben ändern",
+      "close": "Dialog schließen",
+      "intro": "Ändern Sie nur Angaben, die nicht mehr stimmen.",
+      "noticeTitle": "Anfrage an die OGS",
+      "noticeBody": "Die OGS prüft Ihre Anfrage. Bis zur Bestätigung bleiben die bisherigen Angaben gültig.",
+      "submit": "Anfrage an OGS senden",
+      "submitting": "Anfrage wird gesendet…",
+      "cancel": "Abbrechen",
+      "noChange": "Bitte ändern Sie mindestens eine Angabe.",
+      "required": "Eine geänderte Angabe darf nicht leer sein."
+    },
     "sections": {
-      "child": "Angaben zum Kind",
+      "child": "Persönliche Angaben",
       "health": "Gesundheit",
       "contact": "Ihre Kontaktdaten",
-      "departure": "Dauerhafte Gehzeiten",
+      "departure": "So geht {name} nach Hause",
       "careOfferings": "Gebuchte Betreuung"
     },
     "fields": {
@@ -974,7 +1137,7 @@
       "schoolClass": "Klasse",
       "status": "Status",
       "carePeriod": "Betreuungszeitraum",
-      "healthInfo": "Gesundheitshinweise / Allergien",
+      "healthInfo": "Gesundheitshinweise und Allergien",
       "email": "E-Mail-Adresse",
       "addressStreet": "Straße und Hausnummer",
       "addressCity": "Ort",
@@ -1005,11 +1168,14 @@
       "fri": "Fr"
     },
     "careOfferings": {
-      "hint": "Diese Betreuungsangebote sind für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
-      "loadError": "Die Betreuungsangebote konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "hint": "Diese Betreuung ist für Ihr Kind gebucht. Änderungen prüft das Team, bevor sie gelten.",
+      "loadError": "Die gebuchte Betreuung konnte nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       "period": "Betreuungszeitraum {name} ({from} bis {until})",
-      "offeringsTitle": "Gebuchte Betreuungsangebote",
-      "noOfferings": "Für Ihr Kind sind derzeit keine Betreuungsangebote gebucht.",
+      "offeringsTitle": "Gebuchte Betreuung",
+      "offeringsDescription": "Hier sehen Sie weitere Angaben zur Betreuung, zum Beispiel Mittagessen oder Ferienbetreuung.",
+      "noOfferings": "Für {name} ist derzeit keine Betreuung ausgewählt.",
+      "scheduleOnlyTitle": "Der Wochenplan ist hinterlegt.",
+      "scheduleOnlyDescription": "{name} besucht die OGS zu den oben angegebenen Zeiten. Weitere Buchungsdetails sind nicht hinterlegt.",
       "allDays": "alle Betreuungstage",
       "notBooked": "nicht gebucht",
       "removed": "abgemeldet",
@@ -1027,12 +1193,12 @@
       "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
       "withdrawConfirmTitle": "Anfrage zurückziehen?",
       "withdrawConfirmBody": "Möchten Sie Ihre Änderungsanfrage wirklich zurückziehen? Die gebuchten Angebote bleiben unverändert.",
-      "requestButton": "Änderung anfragen",
-      "disabledNoEnrollment": "Für Ihr Kind liegt keine Anmeldung vor, über die eine Änderung beantragt werden kann. Wenden Sie sich bitte direkt an die Betreuung.",
+      "requestButton": "Betreuung ändern",
+      "disabledNoEnrollment": "Für {name} sind keine weiteren Angaben zur Betreuung hinterlegt.",
       "disabledNoPermission": "Sie haben keine Berechtigung, Änderungen für dieses Kind zu beantragen.",
       "disabledSchoolOff": "Diese Betreuung nimmt Änderungswünsche nicht über die App an. Wenden Sie sich bitte direkt an das Team.",
       "disabledPeriodOver": "Der Betreuungszeitraum ist abgelaufen. Für den neuen Zeitraum melden Sie Ihr Kind bitte neu an.",
-      "requestsTitle": "Änderungsanfragen",
+      "requestsTitle": "Beantragte Änderung",
       "decisionApproved": "Änderung übernommen",
       "decisionApprovedFrom": "Gültig ab {date}",
       "decisionRejected": "Anfrage abgelehnt",
@@ -1042,10 +1208,10 @@
       "decisionRequested": "Beantragt war:"
     },
     "careOfferingsModal": {
-      "title": "Änderung der Betreuungsangebote anfragen",
+      "title": "Gebuchte Betreuung ändern",
       "intro": "Wählen Sie, welche Angebote Ihr Kind künftig besuchen soll, und ab wann die Änderung gelten soll. Das Team prüft Ihre Anfrage.",
       "loadError": "Die verfügbaren Angebote konnten nicht geladen werden.",
-      "noOfferings": "Für diesen Zeitraum sind keine Betreuungsangebote verfügbar.",
+      "noOfferings": "Für diesen Zeitraum ist keine Betreuung buchbar.",
       "effectiveFromLabel": "Änderung gilt ab",
       "effectiveFromHint": "Frühestens {date}. Wählen Sie einen Termin innerhalb eines bestätigten Betreuungszeitraums.",
       "daysLabel": "Tage",
@@ -1073,10 +1239,49 @@
       "7": "So"
     },
     "careSchedule": {
-      "arrival": "Bringzeit",
       "pickup": "Abholzeit",
       "modes": "Abholart",
-      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite."
+      "loadError": "Die Betreuungszeiten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+      "requestButton": "Änderungen anfragen",
+      "requestTitle": "Änderung am Wochenplan anfragen",
+      "close": "Dialog schließen",
+      "requestIntro": "Wählen Sie, was künftig an jedem Wochentag regelmäßig gelten soll.",
+      "requestNoticeTitle": "Anfrage an die OGS",
+      "requestNoticeBody": "Die Änderung ist dauerhaft und gilt jede Woche. Die OGS prüft Ihre Anfrage. Bis zur Bestätigung bleibt der bisherige Wochenplan gültig.",
+      "requestSubmit": "Anfrage an OGS senden",
+      "requestSubmitting": "Anfrage wird gesendet…",
+      "cancel": "Abbrechen",
+      "requestNoChange": "Bitte ändern Sie mindestens einen Betreuungstag, eine Abholzeit oder eine Abholart.",
+      "requestMissingPlan": "Wählen Sie für neue Betreuungstage eine Abholzeit und eine Abholart.",
+      "requestError": "Die Anfrage konnte nicht gesendet werden.",
+      "requestAlreadyPending": "Für dieses Kind wird bereits eine Änderung geprüft.",
+      "requestDisabled": "Diese Änderung ist für Ihre OGS nicht freigeschaltet.",
+      "requestInvalid": "Bitte prüfen Sie die ausgewählten Betreuungstage, Abholzeiten und Abholarten.",
+      "modeUnchanged": "Abholart wählen",
+      "modeCurrent": "Aktuell: {modes}",
+      "careDay": "Betreuung an diesem Tag",
+      "inCare": "{firstName} geht in die OGS",
+      "notInCare": "Keine Betreuung",
+      "unknownCareDay": "Keine Angaben verfügbar",
+      "notSet": "Nicht hinterlegt",
+      "timeValue": "{time} Uhr",
+      "weekdays": {
+        "mon": "Montag",
+        "tue": "Dienstag",
+        "wed": "Mittwoch",
+        "thu": "Donnerstag",
+        "fri": "Freitag"
+      },
+      "modeAria": "Abholart am {day}",
+      "timeHint": "Uhrzeit im Format 15:30",
+      "timeExample": "z. B. 15:30",
+      "pendingBadge": "In Prüfung",
+      "pendingNotice": "Die OGS prüft Ihre Änderung. Bis zur Bestätigung bleibt der bisherige Wochenplan gültig.",
+      "requestedAt": "Angefragt am {date}",
+      "withdraw": "Anfrage zurückziehen",
+      "withdrawError": "Die Anfrage konnte nicht zurückgezogen werden.",
+      "withdrawConfirmTitle": "Anfrage zurückziehen?",
+      "withdrawConfirmBody": "Möchten Sie die Anfrage zur Änderung der Abholung wirklich zurückziehen?"
     }
   },
   "parentOgsMessaging": {
@@ -1097,8 +1302,8 @@
     "eventRequestRejected": "Anfrage abgelehnt",
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
-    "eventRequestCreatedCareOffering": "Anfrage zu Betreuungsangeboten gestellt",
-    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
+    "eventRequestCreatedCareOffering": "Anfrage zur gebuchten Betreuung gestellt",
+    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, gebuchte Betreuung wird umgestellt"
   },
   "parentFeedback": {
     "kicker": "Rückmeldung",
@@ -1134,6 +1339,10 @@
     "descriptionPlaceholder": "Beschreiben Sie Ihre Rückmeldung..."
   },
   "parentToday": {
+    "today": "Heute",
+    "sectionTitle": "Heute",
+    "sectionDescription": "Tagesstatus und wichtige Aktionen auf einen Blick.",
+    "statusLabel": "Aktueller Status",
     "atOgs": "In der OGS",
     "notAtOgs": "Nicht in der OGS",
     "state": {
@@ -1150,12 +1359,20 @@
       "unknown": "Status derzeit nicht verfügbar"
     },
     "actions": {
-      "sick": "Krank melden",
-      "pickup": "Abholung ändern",
-      "message": "OGS schreiben"
+      "profile": "Profil ansehen",
+      "sick": "{name} abmelden",
+      "sickCompact": "Abmelden",
+      "sickHint": "Krank melden oder entschuldigen",
+      "pickup": "Abholzeit für {name} ändern",
+      "pickupCompact": "Abholzeit ändern",
+      "pickupHint": "Abholzeit für einen Tag anpassen",
+      "message": "Nachrichten schreiben",
+      "messageCompact": "Nachricht schreiben",
+      "messageHint": "OGS für {name} kontaktieren"
     }
   },
   "parentStart": {
+    "kicker": "Elternportal",
     "greeting": {
       "morning": "Guten Morgen, {name}",
       "morningPlain": "Guten Morgen",
@@ -1164,33 +1381,71 @@
       "evening": "Guten Abend, {name}",
       "eveningPlain": "Guten Abend"
     },
+    "subtitle": "Das Wichtigste für heute auf einen Blick.",
     "todo": {
       "title": "Zu erledigen",
+      "description": "Offene Nachrichten, Termine und Rückmeldungen auf einen Blick.",
+      "openCount": "{count} offen",
+      "unread": "Ungelesen",
+      "today": "Heute",
+      "allDay": "Ganztägig",
       "emptyTitle": "Alles erledigt",
       "emptyDescription": "Es gibt gerade nichts zu tun.",
-      "messageTitle": "Neue Nachricht der OGS",
-      "messageContext": "Zu {name}",
+      "messageTitleOne": "Neue Nachricht",
+      "messageTitleMany": "{count} neue Nachrichten",
+      "messageContext": "OGS · Zu {name}",
       "pollContext": "Umfrage · {school}",
-      "newsContext": "Aus der OGS · {school}",
-      "appointmentContext": "{name} · {date}",
-      "appointmentContextPlain": "Termin am {date}",
-      "partialLoadError": "Einige Punkte konnten gerade nicht geladen werden."
+      "newsContext": "Elternbrief · {school}",
+      "ackContext": "Bestätigung erforderlich · {school}",
+      "appointmentContext": "Termin für {name}",
+      "appointmentContextPlain": "Termin",
+      "partialLoadError": "Einige Punkte konnten gerade nicht geladen werden.",
+      "showMoreOne": "Einen weiteren Punkt anzeigen",
+      "showMoreMany": "{count} weitere Punkte anzeigen",
+      "showLess": "Weniger anzeigen",
+      "loading": "Aufgaben werden geladen"
     },
+    "childrenLoading": "Kinder werden geladen",
     "loadError": "Ihre Übersicht konnte gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten."
   },
   "parentChild": {
     "switcherLabel": "Kind auswählen",
+    "overviewKicker": "Kinder im Überblick",
+    "overviewDescription": "Wählen Sie ein Kind aus, um Betreuung, Daten und Kontakte zu sehen.",
+    "ogsLabel": "OGS",
     "loadError": "Die Angaben zu Ihrem Kind konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
     "sections": {
       "today": "Heute",
-      "care": "Gebuchte Betreuung",
-      "data": "Daten von {name}",
+      "care": "Betreuung in der OGS",
+      "data": "Angaben zum Kind",
       "people": "Eltern und Abholberechtigte"
     },
+    "areas": {
+      "label": "Bereiche zum Kind",
+      "open": "Ansehen",
+      "openLabel": "{area} ansehen",
+      "back": "Zur Übersicht",
+      "care": {
+        "title": "Betreuung & Wochenplan",
+        "shortTitle": "Betreuung",
+        "description": "Buchungen, regelmäßige Abholzeiten und Heimweg."
+      },
+      "data": {
+        "title": "Angaben zum Kind",
+        "shortTitle": "Angaben",
+        "description": "Persönliche Angaben, Klasse und Gesundheit."
+      },
+      "contacts": {
+        "title": "Kontakte & Abholung",
+        "shortTitle": "Kontakte",
+        "description": "Erziehungsberechtigte, Abholrechte und App-Zugänge."
+      }
+    },
     "today": {
+      "pickupLabel": "Abholung",
       "pickup": "Abholung heute um {time} Uhr",
       "pickupChanged": "Abholung heute um {time} Uhr, geändert für heute",
       "pickupAbsent": "Heute abgemeldet, keine Abholung",
@@ -1198,18 +1453,22 @@
       "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
     },
     "care": {
-      "weekTitle": "Ihre Woche",
-      "arrivalReadOnly": "Diese Zeiten pflegt die OGS. Wenn etwas nicht stimmt, schreiben Sie bitte der OGS."
+      "weekTitle": "Wochenplan der OGS"
     }
   },
   "parentMessages": {
+    "kicker": "Austausch mit der OGS",
     "title": "Nachrichten",
+    "description": "Lesen Sie Nachrichten und schreiben Sie direkt an die OGS.",
     "loadError": "Die Nachrichten konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Sobald ein Kind verknüpft ist, können Sie hier mit der OGS schreiben.",
-    "noMessagesYet": "Noch keine Nachrichten. Tippen Sie, um zu schreiben.",
+    "noMessagesYet": "Tippen Sie, um zu schreiben.",
     "previewFromOgs": "OGS: {text}",
     "previewFromYou": "Sie: {text}",
-    "aboutChild": "Zu {name}",
+    "ogsTeam": "OGS-Team der {school}",
+    "sent": "Gesendet",
+    "readByOgs": "Von der OGS gelesen",
+    "aboutChild": "Für {name}",
     "back": "Zurück",
     "composerPlaceholder": "Nachricht an die OGS schreiben",
     "composerLabel": "Nachricht",
@@ -1217,12 +1476,18 @@
     "sending": "Wird gesendet",
     "writingDisabled": "Für dieses Kind können Sie nicht schreiben. Den Verlauf können Sie weiterhin lesen.",
     "emptyThreadTitle": "Noch keine Nachrichten",
-    "emptyThreadDescription": "Schreiben Sie die erste Nachricht an die OGS."
+    "emptyThreadDescription": "Schreiben Sie die erste Nachricht an die OGS.",
+    "sendError": "Die Nachricht konnte nicht gesendet werden.",
+    "sessionExpired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+    "permissionDenied": "Sie dürfen für dieses Kind keine Nachricht senden.",
+    "invalidRequest": "Die Nachricht konnte nicht verarbeitet werden. Bitte prüfen Sie Ihre Eingabe."
   },
   "parentCalendar": {
+    "kicker": "Termine im Blick",
     "title": "Kalender",
+    "description": "Termine und Veranstaltungen Ihrer Kinder auf einen Blick.",
     "loadError": "Die Termine konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
-    "empty": "In den nächsten drei Monaten steht kein Termin an.",
+    "empty": "In den nächsten 3 Monaten stehen keine Termine an.",
     "groups": {
       "thisWeek": "Diese Woche",
       "nextWeek": "Nächste Woche",
@@ -1231,6 +1496,11 @@
     "when": "{date} um {time} Uhr",
     "whenAllDay": "{date}, ganztägig",
     "forChild": "Für {name}",
+    "types": {
+      "care": "Betreuungszeit",
+      "invitation": "Einladung",
+      "appointment": "Termin"
+    },
     "accept": "Zusagen",
     "decline": "Absagen",
     "accepted": "Termin zugesagt.",
@@ -1239,7 +1509,12 @@
     "answeredDeclined": "Abgesagt",
     "respondError": "Ihre Antwort konnte nicht gespeichert werden. Bitte versuchen Sie es noch einmal.",
     "cancelledByOgs": "Von der OGS abgesagt",
-    "monthHint": "Ein Punkt bedeutet: an diesem Tag steht etwas an.",
+    "previousMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "close": "Schließen",
+    "allDay": "Ganztägig",
+    "moreEvents": "+ {count} weitere",
+    "responseRequired": "Antwort erforderlich",
     "weekdayShort": {
       "1": "Mo",
       "2": "Di",
@@ -1261,6 +1536,7 @@
     "copyFailed": "Kopieren nicht möglich. Bitte markieren Sie den Link von Hand.",
     "linkOnce": "Aus Sicherheitsgründen sehen Sie diesen Link nur jetzt. Kopieren Sie ihn gleich in Ihren Kalender.",
     "howToTitle": "So geht es:",
+    "howToMac": "Mac: Erscheint kein Abo-Dialog, wählen Sie in Kalender unter Einstellungen, Allgemein, Apple Kalender als Standard-Kalender-App. Alternativ: Ablage, Neues Kalenderabonnement, Abo-Link einfügen.",
     "howToApple": "iPhone/iPad: Einstellungen, Kalender, Accounts, Account hinzufügen, Andere, Kalenderabo hinzufügen, dann den Link einfügen.",
     "howToAndroid": "Android: In Google Kalender am Computer, Weitere Kalender, Per URL, dann den Link einfügen. Der Kalender wird danach auch auf dem Handy angezeigt.",
     "regenerate": "Link neu erstellen",
@@ -1271,7 +1547,12 @@
     "createNew": "Neuen Abo-Link erstellen"
   },
   "parentNews": {
-    "title": "Aus der OGS",
-    "empty": "Derzeit gibt es nichts Neues aus der OGS."
+    "kicker": "Post von der OGS",
+    "title": "Elternbriefe",
+    "description": "Mitteilungen, Umfragen und wichtige Informationen Ihrer OGS.",
+    "empty": "Derzeit gibt es keine neuen Elternbriefe.",
+    "open": "Offen",
+    "openLabel": "Offen, {count}",
+    "completed": "Erledigt"
   }
 }

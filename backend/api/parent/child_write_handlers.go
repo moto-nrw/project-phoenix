@@ -29,7 +29,8 @@ const (
 // SubmitSickNoteRequest is the wire shape for POST
 // /parent/me/children/{studentId}/sick-note. Status is the absence kind the
 // parent chose: "sick" (Krankmeldung) or "excused" (Termin/Abwesenheit). An
-// empty status defaults to "sick" so older clients keep working.
+// empty status defaults to "sick" so older clients keep working. Reason is
+// required for both absence kinds.
 type SubmitSickNoteRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason"`
@@ -269,6 +270,8 @@ type ChildFeaturesResponse struct {
 	NotesEnabled                 bool `json:"notes_enabled"`
 	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
+	PickupManageAllowed          bool `json:"pickup_manage_allowed"`
+	GuardianContactManageAllowed bool `json:"guardian_contact_manage_allowed"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
@@ -305,6 +308,8 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		NotesEnabled:                 flags.NotesEnabled,
 		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
+		PickupManageAllowed:          flags.PickupManageAllowed,
+		GuardianContactManageAllowed: flags.GuardianContactManageAllowed,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 		MasterDataEditEnabled:        flags.MasterDataEditEnabled,

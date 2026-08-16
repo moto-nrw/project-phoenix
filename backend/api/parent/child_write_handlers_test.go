@@ -372,8 +372,8 @@ func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
-// TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted pins the backward-compat
-// default: an older client that omits "status" still files a Krankmeldung.
+// TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted pins the status default:
+// a client that omits "status" still files a Krankmeldung.
 func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -384,13 +384,12 @@ func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 	sid := strconv.FormatInt(chain.StudentID, 10)
 
 	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
-		map[string]any{"dates": []string{nowISO()}})
+		map[string]any{"dates": []string{nowISO()}, "reason": "Fieber"})
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	// An older client that omits status hits the direct-write path → bare array.
-	// This is exactly the shape (and .map() target) such a client expects.
+	// A client that omits status hits the direct-write path → bare array.
 	var days []map[string]any
 	require.NoError(t, json.Unmarshal(env.Data, &days))
 	require.Len(t, days, 1)

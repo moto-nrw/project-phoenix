@@ -129,6 +129,32 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 	assert.Contains(t, preview, "Guten Tag")
 }
 
+func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
+	f := newEmailFixture(t, nil)
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	_, err := db.NewUpdate().
+		TableExpr("users.guardian_profiles").
+		Set("portal_locale = ?", "en").
+		Where("account_id = ?", f.chain.AccountID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	_, err = f.svc.StartThread(adminCtx(f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
+	require.NoError(t, err)
+	require.True(t, f.mailer.WaitForMessages(1, 2*time.Second))
+
+	msg := f.mailer.Messages()[0]
+	assert.Equal(t, "New message from the OGS", msg.Subject)
+	content := mailContent(t, msg)
+	assert.Equal(t, "New message", content["BrandKicker"])
+	assert.Equal(t, "Reply", content["ReplyLabel"])
+	assert.Contains(t, content["IntroText"], "sent you a message")
+	assert.Equal(t, "Powered by", content["PoweredByLabel"])
+	assert.Contains(t, content["FooterText"], "This email was sent")
+	assert.NotContains(t, content["FooterText"], "Diese E-Mail")
+}
+
 // TestPostMessage_ShortensThePreview keeps the mail a pointer into the portal:
 // the full conversation stays behind the login, the mail carries a taste of it.
 func TestPostMessage_ShortensThePreview(t *testing.T) {

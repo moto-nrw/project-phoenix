@@ -1958,8 +1958,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
-		StudentEnrollmentRepo:    repos.StudentEnrollment,
-		ActivityGroupRepo:        repos.ActivityGroup,
 		OfferingChanges:          offeringChangeRequestService,
 		DB:                       db,
 		Logger:                   logger.With("service", "parent"),

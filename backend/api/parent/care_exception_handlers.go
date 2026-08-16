@@ -47,23 +47,25 @@ func formatCareExceptionTime(t *time.Time) *string {
 
 // SubmitCareExceptionRequest is the wire shape for POST
 // /parent/me/children/{studentId}/care-exception. Parent requests require a
-// pickup time and a short explanation for the school team.
+// pickup time and a short explanation for the school team. ArrivalTime is
+// retained only to reject outdated clients explicitly.
 type SubmitCareExceptionRequest struct {
 	Date        string  `json:"date"`         // YYYY-MM-DD
-	PickupTime  *string `json:"pickup_time"`  // HH:MM, optional
-	ArrivalTime *string `json:"arrival_time"` // HH:MM, optional
+	PickupTime  *string `json:"pickup_time"`  // HH:MM, required
+	ArrivalTime *string `json:"arrival_time"` // Unsupported for parents
 	Reason      string  `json:"reason"`
 }
 
 // CareExceptionResponse is one day's merged pickup/arrival override, projected
 // for the parent UI: stringified times, date as YYYY-MM-DD.
 type CareExceptionResponse struct {
-	Date        string    `json:"date"`
-	PickupTime  *string   `json:"pickup_time,omitempty"`
-	ArrivalTime *string   `json:"arrival_time,omitempty"`
-	Reason      *string   `json:"reason,omitempty"`
-	Source      string    `json:"source"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	Date         string    `json:"date"`
+	PickupTime   *string   `json:"pickup_time,omitempty"`
+	ArrivalTime  *string   `json:"arrival_time,omitempty"`
+	Reason       *string   `json:"reason,omitempty"`
+	Source       string    `json:"source"`
+	PickupSource string    `json:"pickup_source"`
+	UpdatedAt    time.Time `json:"updated_at"`
 	// PickupAbsent marks a staff "not coming today" pickup exception (a pickup
 	// row with no time). The parent tile resolves it as an absence instead of
 	// falling back to the base-plan pickup. Omitted (false) for ordinary rows,
@@ -83,14 +85,15 @@ func toCareExceptionResponse(c *parentService.CareException) CareExceptionRespon
 		ArrivalTime:   formatCareExceptionTime(c.ArrivalTime),
 		Reason:        c.Reason,
 		Source:        c.Source,
+		PickupSource:  c.PickupSource,
 		UpdatedAt:     c.UpdatedAt,
 		PickupAbsent:  c.PickupAbsent,
 		ArrivalAbsent: c.ArrivalAbsent,
 	}
 }
 
-// submitCareException sets a one-day pickup and/or arrival override for the
-// parent's child. Auth: parent-scope JWT; ownership verified in the service.
+// submitCareException sets a one-day pickup override for the parent's child.
+// The service verifies the relationship-level pickup permission.
 func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
@@ -117,13 +120,12 @@ func (rs *Resource) submitCareException(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	arrival, err := parseCareExceptionTime(req.ArrivalTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	if req.ArrivalTime != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("parents cannot change arrival times")))
 		return
 	}
 
-	result, err := rs.ParentService.SubmitCareExceptionWithReason(r.Context(), accountID, studentID, date, pickup, arrival, req.Reason)
+	result, err := rs.ParentService.SubmitCareExceptionWithReason(r.Context(), accountID, studentID, date, pickup, req.Reason)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

@@ -228,6 +228,17 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 			"consent has to be read for the type actually being sent")
 	})
 
+	t.Run("uses the guardian portal locale", func(t *testing.T) {
+		notifier := &dispatchNotifier{}
+		s := &service{cfg: Config{Notifier: notifier, Preferences: &dispatchPreferences{}}}
+
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentCancelled, accounts, students, "en")
+		require.NoError(t, err)
+		assert.True(t, dispatched)
+		require.Len(t, notifier.events, 1)
+		assert.Equal(t, "Appointment cancelled", notifier.events[0].Title)
+	})
+
 	t.Run("a failed dispatch is reported as not delivered", func(t *testing.T) {
 		dispatchErr := errors.New("push service unreachable")
 		s := &service{cfg: Config{

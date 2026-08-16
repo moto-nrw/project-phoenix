@@ -270,7 +270,11 @@ func localePtr(s string) *string { return &s }
 
 func TestService_GetProfile_ExplicitLocale(t *testing.T) {
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{PortalLocale: localePtr("en")},
+		findResult: &userModels.GuardianProfile{
+			FirstName:    "Karin",
+			LastName:     "Klein",
+			PortalLocale: localePtr("en"),
+		},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -279,6 +283,8 @@ func TestService_GetProfile_ExplicitLocale(t *testing.T) {
 	require.NotNil(t, profile)
 	assert.True(t, profile.Explicit, "a stored portal_locale must be reported as an explicit choice")
 	assert.Equal(t, "en", profile.Locale)
+	assert.Equal(t, "Karin", profile.FirstName)
+	assert.Equal(t, "Klein", profile.LastName)
 	assert.Equal(t, int64(1234), repo.gotFindAccountIDArg, "account_id must reach the repo unmodified")
 }
 

@@ -44,6 +44,7 @@ export function StatusBadge({
   label,
   tone,
   title,
+  showDot = true,
 }: {
   readonly label: string;
   readonly tone: StatusBadgeTone;
@@ -54,6 +55,7 @@ export function StatusBadge({
    * carries the text.
    */
   readonly title?: string;
+  readonly showDot?: boolean;
 }) {
   const styles = TONES[tone];
   return (
@@ -62,11 +64,13 @@ export function StatusBadge({
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
       style={{ backgroundColor: styles.bg, color: styles.text }}
     >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-        aria-hidden="true"
-      />
+      {showDot && (
+        <span
+          className="h-1.5 w-1.5 rounded-full"
+          style={{ backgroundColor: styles.dot }}
+          aria-hidden="true"
+        />
+      )}
       {label}
     </span>
   );

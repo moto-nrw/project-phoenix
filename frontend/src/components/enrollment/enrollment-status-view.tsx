@@ -24,6 +24,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
 
@@ -286,9 +287,12 @@ export function EnrollmentStatusView({
 
   if (loading) {
     return (
-      <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
-        {t("loading")}
-      </div>
+      <>
+        <span role="status" className="sr-only">
+          {t("loading")}
+        </span>
+        <PublicEnrollmentContentSkeleton sections={2} />
+      </>
     );
   }
 

@@ -1,7 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { ParentProviders } from "./providers";
 import { ParentAuthGuard } from "./auth-guard";
+import { getLocale } from "next-intl/server";
+import { getParentAppMetadata } from "~/i18n/parent-app-metadata";
+import type { AppLocale } from "~/i18n/locales";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 /**
  * Erlaubt iOS, die Eltern-App ausserhalb des Browser-Rahmens zu starten.
@@ -16,13 +25,19 @@ import { ParentAuthGuard } from "./auth-guard";
  * Ohne appleWebApp oeffnet iOS die Seite trotz Manifest im Browser-Rahmen, und
  * ohne eigenstaendigen Start gibt es dort keine Web-Push-Benachrichtigungen.
  */
-export const metadata: Metadata = {
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "moto Eltern",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = (await getLocale()) as AppLocale;
+  const copy = getParentAppMetadata(locale);
+  return {
+    title: copy.name,
+    description: copy.description,
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: copy.name,
+    },
+  };
+}
 
 /**
  * Server layout for parent routes.

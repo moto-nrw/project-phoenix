@@ -20,6 +20,7 @@ type TodayStatusResponse struct {
 	Since        string `json:"since,omitempty"`
 	Until        string `json:"until,omitempty"`
 	ExpectedFrom string `json:"expected_from,omitempty"`
+	PickupTime   string `json:"pickup_time,omitempty"`
 }
 
 // getChildTodayStatus liefert den reduzierten Betreuungsstatus des laufenden
@@ -46,5 +47,6 @@ func (rs *Resource) getChildTodayStatus(w http.ResponseWriter, r *http.Request) 
 		Since:        status.Since,
 		Until:        status.Until,
 		ExpectedFrom: status.ExpectedFrom,
+		PickupTime:   status.PickupTime,
 	}, "Today status retrieved")
 }

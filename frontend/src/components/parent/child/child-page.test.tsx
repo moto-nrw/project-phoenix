@@ -1,15 +1,18 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
-import { listMyChildren } from "~/lib/parent-api";
+import { getChildToday, listMyChildren } from "~/lib/parent-api";
 import { ChildPage } from "./child-page";
 
-const pushMock = vi.fn();
+let mockSearchParams = new URLSearchParams();
+const mockMasterDataMount = vi.fn();
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: pushMock, replace: vi.fn(), prefetch: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useSearchParams: () => mockSearchParams,
 }));
 
 vi.mock("~/lib/parent-url", () => ({
@@ -28,9 +31,24 @@ vi.mock("~/components/parent/child/booked-care-section", () => ({
   BookedCareSection: () => <div data-testid="section-care">Betreuung</div>,
 }));
 vi.mock("~/components/parent/child-master-data", () => ({
-  ChildMasterDataView: ({ childName }: { childName: string }) => (
-    <div data-testid="section-data">Daten von {childName}</div>
-  ),
+  ChildMasterDataView: ({
+    childName,
+    area,
+  }: {
+    childName: string;
+    area: "details" | "departure" | "contact";
+  }) => {
+    useEffect(() => {
+      mockMasterDataMount();
+    }, []);
+    return (
+      <div data-testid={`section-${area}`}>
+        {area === "details" && `Angaben zu ${childName}`}
+        {area === "departure" && `Heimweg von ${childName}`}
+        {area === "contact" && "Ihre Kontaktdaten"}
+      </div>
+    );
+  },
 }));
 vi.mock("~/components/parent/guardians-panel", () => ({
   default: () => <div data-testid="section-people">Eltern</div>,
@@ -61,6 +79,7 @@ vi.mock("~/components/parent/child-care", () => ({
 }));
 
 const mockedChildren = vi.mocked(listMyChildren);
+const mockedToday = vi.mocked(getChildToday);
 
 const felix = {
   student_id: "42",
@@ -85,16 +104,20 @@ function renderPage(studentId?: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockSearchParams = new URLSearchParams();
   mockedChildren.mockResolvedValue([felix]);
+  mockedToday.mockResolvedValue({ at_ogs: null, state: "unknown" });
 });
 
 describe("ChildPage", () => {
+  // Ein Kind heisst kein Umschalter. "tablist" meint auf dieser Seite nur die
+  // Inhalts-Reiter, die es immer gibt.
   it("zeigt bei einem Kind weder Liste noch Umschalter", async () => {
     renderPage();
     expect(
       await screen.findByRole("heading", { level: 1, name: "Felix Schneider" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("child-selection")).not.toBeInTheDocument();
   });
 
   // Der Name steht als Seitentitel; die Tageskarte darunter wiederholt ihn nicht.
@@ -104,38 +127,135 @@ describe("ChildPage", () => {
     expect(screen.getAllByText("Felix Schneider")).toHaveLength(1);
   });
 
-  it("zeigt bei mehreren Kindern einen Umschalter und wechselt den Inhalt", async () => {
+  it("zeigt bei mehreren Kindern zuerst eine eigene Auswahlseite", async () => {
     mockedChildren.mockResolvedValue([felix, mia]);
-    renderPage("42");
-    expect(await screen.findByRole("tablist")).toBeInTheDocument();
-    expect(screen.getByTestId("section-data")).toHaveTextContent(
-      "Daten von Felix Schneider",
+    mockedToday.mockImplementation(async (studentId) =>
+      studentId === "42"
+        ? { at_ogs: true, state: "present", since: "10:23" }
+        : { at_ogs: false, state: "no_care" },
     );
-
-    fireEvent.click(screen.getByRole("tab", { name: "Mia Schneider" }));
-    expect(pushMock).toHaveBeenCalledWith("/parents/children/43");
+    renderPage();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Meine Kinder" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Kinder im Überblick")).toBeInTheDocument();
+    expect(screen.getByTestId("child-selection")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Felix Schneider/ }),
+    ).toHaveAttribute("href", "/parents/children/42");
+    expect(screen.getByRole("link", { name: /Mia Schneider/ })).toHaveAttribute(
+      "href",
+      "/parents/children/43",
+    );
+    expect(
+      screen.queryByTestId("child-day-state-icon"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    expect(screen.queryByText("Elternportal")).not.toBeInTheDocument();
+    expect(screen.queryByText("FS")).not.toBeInTheDocument();
+    expect(screen.queryByText("MS")).not.toBeInTheDocument();
+    expect(
+      document.querySelectorAll('[data-moto-duotone-tone="greenVivid"]'),
+    ).toHaveLength(2);
+    expect(screen.getByText("In der OGS")).toBeInTheDocument();
+    expect(screen.getByText("Nicht in der OGS")).toBeInTheDocument();
   });
 
-  it("stellt die vier Abschnitte in der festgelegten Reihenfolge", async () => {
+  it("zeigt im Profil nur das aktive Kind als Seitentitel", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    renderPage("42");
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Felix Schneider",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Mia Schneider")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("child-selection")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Meine Kinder" })).toHaveAttribute(
+      "href",
+      "/parents/children",
+    );
+    expect(screen.getByText("1a · Schule am Berg")).toBeInTheDocument();
+    expect(screen.getByTestId("child-profile-icon")).toBeInTheDocument();
+    expect(screen.queryByText("OGS")).not.toBeInTheDocument();
+    expect(screen.queryByText("PARENTCHILD.OGSLABEL")).not.toBeInTheDocument();
+  });
+
+  it("gliedert die Inhalte mit drei verstaendlichen Reitern auf derselben Seite", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    renderPage("42");
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
+
+    expect(
+      screen.getByRole("tablist", { name: "Bereiche zum Kind" }),
+    ).toBeInTheDocument();
+    for (const label of [
+      "Betreuung & Wochenplan",
+      "Angaben zum Kind",
+      "Kontakte & Abholung",
+    ]) {
+      expect(screen.getByRole("tab", { name: label })).toBeInTheDocument();
+    }
+    expect(
+      screen.getByRole("tab", { name: "Betreuung & Wochenplan" }),
+    ).toHaveAttribute("aria-selected", "true");
+    for (const [name, visibleLabel] of [
+      ["Betreuung & Wochenplan", "Betreuung"],
+      ["Angaben zum Kind", "Angaben"],
+      ["Kontakte & Abholung", "Kontakte"],
+    ] as const) {
+      expect(screen.getByRole("tab", { name })).toHaveTextContent(
+        visibleLabel ?? "",
+      );
+    }
+  });
+
+  it("zeigt Heute und standardmaessig die Betreuung", async () => {
     renderPage();
     await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
-    const headings = screen
-      .getAllByRole("heading", { level: 2 })
-      .map((node) => node.textContent);
-    expect(headings[0]).toBe("Heute");
 
-    const sections = [
-      screen.getByText("Heute"),
-      screen.getByTestId("section-care"),
-      screen.getByTestId("section-data"),
-      screen.getByTestId("section-people"),
-    ];
-    for (let i = 1; i < sections.length; i++) {
-      expect(
-        sections[i - 1]!.compareDocumentPosition(sections[i]!) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
-    }
+    expect(screen.getByTestId("child-day-state-icon")).toBeInTheDocument();
+    expect(screen.getByText("Abholung")).toBeInTheDocument();
+    expect(screen.getByText("Abholung heute um 15:00 Uhr")).toBeInTheDocument();
+
+    expect(screen.getByTestId("section-care")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("section-details").closest('[role="tabpanel"]'),
+    ).toHaveAttribute("data-state", "inactive");
+    expect(
+      screen.getByTestId("section-people").closest('[role="tabpanel"]'),
+    ).toHaveAttribute("data-state", "inactive");
+  });
+
+  it("wechselt Bereiche lokal und behaelt den Tagesstatus sichtbar", async () => {
+    const user = userEvent.setup();
+    renderPage("42");
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
+
+    await user.click(screen.getByRole("tab", { name: "Angaben zum Kind" }));
+    expect(screen.getByTestId("section-details")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("section-care").closest('[role="tabpanel"]'),
+    ).toHaveAttribute("data-state", "inactive");
+    expect(screen.getByTestId("child-day-state-icon")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Kontakte & Abholung" }));
+    expect(screen.queryByTestId("section-contact")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-people")).toBeInTheDocument();
+    expect(screen.getByTestId("child-day-state-icon")).toBeInTheDocument();
+  });
+
+  it("laedt Angaben und Kontakte beim erneuten Tabwechsel nicht neu", async () => {
+    const user = userEvent.setup();
+    renderPage("42");
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
+
+    await user.click(screen.getByRole("tab", { name: "Angaben zum Kind" }));
+    await user.click(screen.getByRole("tab", { name: "Kontakte & Abholung" }));
+    await user.click(screen.getByRole("tab", { name: "Angaben zum Kind" }));
+
+    expect(mockMasterDataMount).toHaveBeenCalledTimes(1);
   });
 
   it("nennt die geplante Abholung im Klartext", async () => {

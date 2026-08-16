@@ -2,26 +2,13 @@
 
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
 import { parentPath } from "~/lib/parent-url";
 import { ParentShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { ParentShell } from "~/components/parent/shell/parent-shell";
-import { Loading } from "~/components/ui/loading";
+import { ParentPageSkeleton } from "~/components/parent/parent-page";
 import { ParentRealtimeBridge } from "~/components/parent/parent-realtime-bridge";
 import { ParentNotificationOnboarding } from "~/components/parent/parent-notification-onboarding";
-
-function FullPageLoading() {
-  // Always rendered under the parents-portal NextIntlClientProvider, so the
-  // localized loading label is safe here. Loading keeps its German default for
-  // the German staff/operator portals that also use it.
-  const t = useTranslations("parentNav");
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <Loading message={t("loading")} />
-    </div>
-  );
-}
 
 /**
  * Client-side auth guard for parent routes. Mirrors OperatorAuthGuard.
@@ -71,23 +58,19 @@ export function ParentAuthGuard({
     redirect(parentPath("/parents/login"));
   }
 
-  if (status === "loading") {
-    return <FullPageLoading />;
-  }
-
-  if (!session) {
-    return <FullPageLoading />;
-  }
+  const sessionLoading = status === "loading" || !session;
 
   // Locale handling lives in the single ParentLocaleProvider mounted by
   // ParentProviders; it picks up the now-authenticated session on its own.
   return (
     <ParentShellProvider>
       <BreadcrumbProvider>
-        <ParentRealtimeBridge />
+        {!sessionLoading ? <ParentRealtimeBridge /> : null}
         <ParentShell>
-          {children}
-          <ParentNotificationOnboarding accountId={session.user.id} />
+          {sessionLoading ? <ParentPageSkeleton rows={2} /> : children}
+          {!sessionLoading ? (
+            <ParentNotificationOnboarding accountId={session.user.id} />
+          ) : null}
         </ParentShell>
       </BreadcrumbProvider>
     </ParentShellProvider>

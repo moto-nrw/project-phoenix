@@ -124,9 +124,8 @@ func (s *service) attachPollData(ctx context.Context, accountID int64, items []*
 	return nil
 }
 
-// UnreadAnnouncementCount returns how many feed announcements the guardian has
-// not read across all their (news-enabled) children's schools — the parent
-// portal's Neuigkeiten badge. Cross-tenant.
+// UnreadAnnouncementCount returns how many feed announcements still need the
+// guardian's attention across all news-enabled schools. Cross-tenant.
 func (s *service) UnreadAnnouncementCount(ctx context.Context, accountID int64) (int, error) {
 	if accountID <= 0 {
 		return 0, fmt.Errorf("parent: account_id must be positive")

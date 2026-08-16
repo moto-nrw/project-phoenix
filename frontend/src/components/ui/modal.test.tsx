@@ -694,6 +694,54 @@ describe("ConfirmationModal", () => {
     expect(confirmButton).toHaveClass("bg-red-600");
   });
 
+  it("renders an opted-in modal as a dismissible bottom sheet on phones", async () => {
+    const onClose = vi.fn();
+    const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) =>
+        ({
+          matches: query === "(max-width: 639px)",
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as MediaQueryList,
+    );
+
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          mobileSheet
+          isOpen={true}
+          onClose={onClose}
+          onConfirm={vi.fn()}
+          title="Abwesenheit melden"
+        >
+          <p>Inhalt</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => undefined);
+
+    expect(document.querySelector('[data-mobile-sheet="true"]')).toBeTruthy();
+    expect(document.querySelector('[data-drawer-handle="true"]')).toBeTruthy();
+    const closeButton = screen.getByRole("button", {
+      name: "Modal schließen",
+    });
+    expect(closeButton).toHaveClass("size-11");
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
+      "hidden",
+    );
+
+    fireEvent.click(closeButton);
+    expect(onClose).toHaveBeenCalledOnce();
+
+    matchMedia.mockRestore();
+  });
+
   it("should not render when isOpen is false", () => {
     render(
       <TestWrapper>

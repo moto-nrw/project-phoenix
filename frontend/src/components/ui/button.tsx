@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { cn } from "~/lib/utils";
 
 type ButtonVariant =
   | "primary"
@@ -9,11 +10,13 @@ type ButtonVariant =
   | "outline_danger"
   | "danger"
   | "success"
+  | "surface"
   | "ghost";
 type ButtonSize =
   "sm" | "md" | "base" | "lg" | "xl" | "touch" | "compact" | "icon";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: React.Ref<HTMLButtonElement>;
   isLoading?: boolean;
   loadingText?: string;
   variant?: ButtonVariant;
@@ -74,12 +77,21 @@ function buttonClassName({
       "bg-moto-red text-white shadow-md hover:bg-moto-red-strong hover:shadow-lg",
     success:
       "bg-moto-green text-gray-950 shadow-md hover:bg-moto-green-hover hover:shadow-lg active:scale-95",
-    ghost: "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+    surface:
+      "bg-white text-gray-700 ring-1 ring-gray-200 shadow-sm hover:bg-gray-50 hover:ring-gray-300 active:bg-gray-100",
+    ghost:
+      "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200",
   };
   const baseStyles =
     "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity,transform] duration-200 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50";
 
-  return `${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${textSizes[size]} ${className}`;
+  return cn(
+    baseStyles,
+    sizeStyles[size],
+    variantStyles[variant],
+    textSizes[size],
+    className,
+  );
 }
 
 export function Button({

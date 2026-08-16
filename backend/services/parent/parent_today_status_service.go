@@ -58,6 +58,18 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 		facts.AttendanceLoaded = true
 		applyAttendanceRows(&facts, rows)
 
+		if !facts.HasAbsence && facts.HasAttendanceToday && facts.CheckOut == "" && s.PickupSchedules != nil {
+			pickup, pickupErr := s.PickupSchedules.GetEffectivePickupTimeForDate(txCtx, studentID, today)
+			if pickupErr != nil {
+				s.Logger.Warn("parent_today_status_pickup_unreadable",
+					"student_id", studentID,
+					"error", pickupErr.Error(),
+				)
+			} else if pickup != nil && pickup.PickupTime != nil {
+				facts.PickupTime = hhmm(*pickup.PickupTime)
+			}
+		}
+
 		history, histErr := s.AttendanceRepo.FindByStudentAndDateRange(
 			txCtx, studentID, today.AddDays(-attendanceCultureLookbackDays), today,
 		)

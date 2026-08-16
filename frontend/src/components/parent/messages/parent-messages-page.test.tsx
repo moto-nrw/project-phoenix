@@ -54,6 +54,19 @@ beforeEach(() => {
 });
 
 describe("ParentMessagesPage", () => {
+  it("zeigt Seitenkopf und Zeilengeometrie schon waehrend des Ladens", () => {
+    mockedChildren.mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+
+    expect(
+      screen.getByRole("heading", { name: "Nachrichten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByTestId("parent-page-section-row-skeleton"),
+    ).toHaveLength(3);
+  });
+
   it("ist bei einem Kind selbst die Unterhaltung, ohne Zwischenschritt", async () => {
     mockedChildren.mockResolvedValue([felix]);
     renderPage();
@@ -80,25 +93,123 @@ describe("ParentMessagesPage", () => {
 
     renderPage();
 
+    expect(
+      await screen.findByText("Austausch mit der OGS"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Nachrichten", level: 1 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Lesen Sie Nachrichten und schreiben Sie direkt an die OGS.",
+      ),
+    ).toBeInTheDocument();
+
     const link = await screen.findByRole("link", { name: /Mia Schneider/ });
     expect(link).toHaveAttribute("href", "/parents/messages/43");
     expect(
-      screen.getByText("OGS: Bitte an die Trinkflasche denken."),
+      screen.getByText("Bitte an die Trinkflasche denken."),
     ).toBeInTheDocument();
+    expect(screen.getByText("Für Mia Schneider")).toBeInTheDocument();
+    expect(screen.getAllByText("OGS-Team der Schule am Berg")).toHaveLength(2);
     expect(screen.getByText("2")).toBeInTheDocument();
     // Ein Kind ohne Unterhaltung bekommt trotzdem seine Zeile.
     expect(
       screen.getByRole("link", { name: /Felix Schneider/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Noch keine Nachrichten. Tippen Sie, um zu schreiben."),
+      screen.getByText("Tippen Sie, um zu schreiben."),
     ).toBeInTheDocument();
   });
 
-  it("haelt die Zeilen auf mindestens 72 px", async () => {
+  it("zeigt fuer eine eigene ungelesene Nachricht zwei graue Versandhaken", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    mockedThreads.mockResolvedValue([
+      {
+        thread_id: "t1",
+        student_id: "42",
+        student_name: "Felix Schneider",
+        school_name: "Schule am Berg",
+        counterpart_name: "OGS Schule am Berg",
+        last_message_at: "2026-08-17T05:00:00Z",
+        last_sender_kind: "guardian",
+        last_message_body: "Können Sie kurz zurückrufen?",
+        last_message_kind: "message",
+        last_message_read_by_staff: false,
+        unread: 0,
+      },
+    ]);
+
+    renderPage();
+
+    const sent = await screen.findByLabelText("Gesendet", { selector: "span" });
+    expect(sent.className).toContain("text-gray-500");
+  });
+
+  it("haelt die Zeilen als gut treffbare Chatvorschau", async () => {
     mockedChildren.mockResolvedValue([felix, mia]);
     renderPage();
     const link = await screen.findByRole("link", { name: /Felix Schneider/ });
-    expect(link.className).toContain("min-h-[72px]");
+    expect(link.className).toContain("min-h-[88px]");
+  });
+
+  it("zeigt die OGS als Gegenueber und den Lesestatus der letzten eigenen Nachricht", async () => {
+    mockedChildren.mockResolvedValue([felix, mia]);
+    mockedThreads.mockResolvedValue([
+      {
+        thread_id: "t1",
+        student_id: "43",
+        student_name: "Mia Schneider",
+        school_name: "Schule am Berg",
+        counterpart_name: "OGS Schule am Berg",
+        last_message_at: "2026-08-17T06:00:00Z",
+        last_sender_kind: "staff",
+        last_message_body: "Bitte an die Trinkflasche denken.",
+        last_message_kind: "message",
+        last_message_read_by_staff: false,
+        unread: 2,
+      },
+      {
+        thread_id: "t2",
+        student_id: "42",
+        student_name: "Felix Schneider",
+        school_name: "Schule am Berg",
+        counterpart_name: "OGS Schule am Berg",
+        last_message_at: "2026-08-17T05:00:00Z",
+        last_sender_kind: "guardian",
+        last_message_body: "Danke für die Rückmeldung.",
+        last_message_kind: "message",
+        last_message_read_by_staff: true,
+        unread: 0,
+      },
+    ]);
+
+    renderPage();
+
+    const unreadLink = await screen.findByRole("link", {
+      name: /Mia Schneider.*OGS-Team der Schule am Berg/,
+    });
+    expect(unreadLink).toHaveAttribute("href", "/parents/messages/43");
+    expect(
+      screen.getAllByText("OGS-Team der Schule am Berg")[0]?.className,
+    ).toContain("font-bold");
+    expect(
+      screen.getByText("Bitte an die Trinkflasche denken."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("17.08.2026, 08:00").className).toContain(
+      "text-moto-blue",
+    );
+
+    const readLink = screen.getByRole("link", {
+      name: /Felix Schneider.*OGS-Team der Schule am Berg/,
+    });
+    expect(readLink).toHaveAttribute("href", "/parents/messages/42");
+    const readReceipt = screen.getByLabelText("Von der OGS gelesen", {
+      selector: "span",
+    });
+    expect(readReceipt).toBeInTheDocument();
+    expect(readReceipt.className).toContain("text-moto-blue");
+    expect(screen.getByText("Sie: Danke für die Rückmeldung.")).toBeVisible();
+    expect(screen.queryByText(/Zu .* ·/)).not.toBeInTheDocument();
   });
 });

@@ -2,11 +2,13 @@ package messaging
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/localization"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
@@ -20,10 +22,24 @@ import (
 const parentMessageEmailPreviewRunes = 160
 
 const (
-	parentMessageEmailSubject  = "Neue Nachricht von der OGS"
 	parentMessageEmailTemplate = "parent-message-notification.html"
 	parentMessageEmailType     = "parent_message"
 )
+
+type parentMessageEmailCopy struct {
+	Subject            string
+	Kicker             string
+	Greeting           string
+	Intro              string
+	Reply              string
+	FallbackHint       string
+	PreferenceHint     string
+	FooterText         string
+	PoweredByLabel     string
+	SchoolLogoAlt      string
+	DefaultBrandKicker string
+	DefaultSchoolName  string
+}
 
 // GuardianProfileFinder resolves the guardian's e-mail address and name inside
 // the current tenant transaction.
@@ -88,21 +104,38 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 	}
 
 	schoolName, logoURL := s.resolveSchoolBrand(ctx, thread.TenantID)
+	childName := s.resolveChildName(ctx, thread.ID)
+	locale := localization.DefaultLocale()
+	if profile.PortalLocale != nil {
+		locale = localization.NormalizeLocale(*profile.PortalLocale)
+	}
+	copy := messageEmailCopy(locale, profile.FirstName, profile.LastName, schoolName, childName)
 	message := email.Message{
 		From:     s.DefaultFrom,
 		To:       email.NewEmail(strings.TrimSpace(profile.FirstName+" "+profile.LastName), recipient),
-		Subject:  parentMessageEmailSubject,
+		Subject:  copy.Subject,
 		Template: parentMessageEmailTemplate,
 		Content: map[string]any{
-			"GuardianFirstName": profile.FirstName,
-			"GuardianLastName":  profile.LastName,
-			"SchoolName":        schoolName,
-			"BrandKicker":       "Neue Nachricht",
-			"ChildName":         s.resolveChildName(ctx, thread.ID),
-			"Preview":           messagePreview(body),
-			"MessagesURL":       s.ParentsURL + "/messages",
-			"LogoURL":           logoURL,
-			"MotoLogoURL":       emailbranding.MotoLogoURL(s.ParentsURL),
+			"Subject":            copy.Subject,
+			"GuardianFirstName":  profile.FirstName,
+			"GuardianLastName":   profile.LastName,
+			"SchoolName":         schoolName,
+			"BrandKicker":        copy.Kicker,
+			"Greeting":           copy.Greeting,
+			"IntroText":          copy.Intro,
+			"ReplyLabel":         copy.Reply,
+			"FallbackHint":       copy.FallbackHint,
+			"PreferenceHint":     copy.PreferenceHint,
+			"FooterText":         copy.FooterText,
+			"PoweredByLabel":     copy.PoweredByLabel,
+			"SchoolLogoAlt":      copy.SchoolLogoAlt,
+			"DefaultBrandKicker": copy.DefaultBrandKicker,
+			"DefaultSchoolName":  copy.DefaultSchoolName,
+			"ChildName":          childName,
+			"Preview":            messagePreview(body),
+			"MessagesURL":        s.ParentsURL + "/messages",
+			"LogoURL":            logoURL,
+			"MotoLogoURL":        emailbranding.MotoLogoURL(s.ParentsURL),
 		},
 	}
 
@@ -118,6 +151,82 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 	tenant.RegisterAfterCommit(ctx, func() {
 		dispatcher.Dispatch(context.Background(), request)
 	})
+}
+
+func messageEmailCopy(locale, firstName, lastName, schoolName, childName string) parentMessageEmailCopy {
+	name := strings.TrimSpace(firstName + " " + lastName)
+	school := strings.TrimSpace(schoolName)
+	child := strings.TrimSpace(childName)
+	switch localization.NormalizeLocale(locale) {
+	case "en":
+		return parentMessageEmailCopy{
+			Subject: "New message from the OGS", Kicker: "New message",
+			Greeting: localizedGreeting("Hello", name, ","),
+			Intro:    localizedMessageIntro("The OGS", school, "sent you a message", "about", child),
+			Reply:    "Reply", FallbackHint: "If the button does not work, copy this link:",
+			PreferenceHint: "You are receiving this email because you are registered as a guardian in moto. You can choose which notifications you receive in the app under Notifications.",
+			FooterText:     localizedEmailFooter("This email was sent on behalf of", school, "This email was sent automatically."),
+			PoweredByLabel: "Powered by", SchoolLogoAlt: "School logo",
+			DefaultBrandKicker: "Parent portal", DefaultSchoolName: "Your OGS",
+		}
+	case "ru":
+		return parentMessageEmailCopy{
+			Subject: "Новое сообщение от продлёнки", Kicker: "Новое сообщение",
+			Greeting: localizedGreeting("Здравствуйте", name, "!"),
+			Intro:    localizedMessageIntro("Продлёнка", school, "отправила вам сообщение", "о ребёнке", child),
+			Reply:    "Ответить", FallbackHint: "Если кнопка не работает, скопируйте эту ссылку:",
+			PreferenceHint: "Вы получили это письмо, потому что указаны в moto как законный представитель. В разделе «Уведомления» приложения можно выбрать, о чём мы будем вас информировать.",
+			FooterText:     localizedEmailFooter("Это письмо отправлено от имени", school, "Это письмо отправлено автоматически."),
+			PoweredByLabel: "При поддержке", SchoolLogoAlt: "Логотип школы",
+			DefaultBrandKicker: "Родительский портал", DefaultSchoolName: "Ваша продлёнка",
+		}
+	case "sq":
+		return parentMessageEmailCopy{
+			Subject: "Mesazh i ri nga OGS-ja", Kicker: "Mesazh i ri",
+			Greeting: localizedGreeting("Përshëndetje", name, ","),
+			Intro:    localizedMessageIntro("OGS-ja", school, "ju ka dërguar një mesazh", "për", child),
+			Reply:    "Përgjigju", FallbackHint: "Nëse butoni nuk funksionon, kopjoni këtë lidhje:",
+			PreferenceHint: "Po e merrni këtë email sepse jeni regjistruar si kujdestar në moto. Te Njoftimet në aplikacion mund të zgjidhni për çfarë dëshironi të njoftoheni.",
+			FooterText:     localizedEmailFooter("Ky email u dërgua në emër të", school, "Ky email u dërgua automatikisht."),
+			PoweredByLabel: "Mundësuar nga", SchoolLogoAlt: "Logoja e shkollës",
+			DefaultBrandKicker: "Portali i prindërve", DefaultSchoolName: "OGS-ja juaj",
+		}
+	default:
+		return parentMessageEmailCopy{
+			Subject: "Neue Nachricht von der OGS", Kicker: "Neue Nachricht",
+			Greeting: localizedGreeting("Guten Tag", name, ","),
+			Intro:    localizedMessageIntro("Die OGS", school, "hat Ihnen eine Nachricht geschrieben", "zu", child),
+			Reply:    "Antworten", FallbackHint: "Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:",
+			PreferenceHint: "Sie erhalten diese E-Mail, weil Sie in moto als sorgeberechtigte Person hinterlegt sind. In der App können Sie unter „Benachrichtigungen“ einstellen, worüber wir Sie informieren.",
+			FooterText:     localizedEmailFooter("Diese E-Mail wurde im Auftrag von", school, "Diese E-Mail wurde automatisch versendet."),
+			PoweredByLabel: "Unterstützt von", SchoolLogoAlt: "Logo der Schule",
+			DefaultBrandKicker: "Elternportal", DefaultSchoolName: "Ihre OGS",
+		}
+	}
+}
+
+func localizedEmailFooter(prefix, school, fallback string) string {
+	if school == "" {
+		return fallback
+	}
+	return prefix + " " + school + "."
+}
+
+func localizedGreeting(prefix, name, suffix string) string {
+	if name == "" {
+		return prefix + suffix
+	}
+	return prefix + " " + name + suffix
+}
+
+func localizedMessageIntro(sender, school, action, childConnector, child string) string {
+	if school != "" {
+		sender += " " + school
+	}
+	if child != "" {
+		return fmt.Sprintf("%s %s %s %s:", sender, action, childConnector, child)
+	}
+	return fmt.Sprintf("%s %s:", sender, action)
 }
 
 // guardianAcceptsMessageMail reports whether the guardian has NOT declined the

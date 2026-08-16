@@ -6,9 +6,8 @@ import { useId } from "react";
  * Ein Uhrzeitfeld mit sichtbarem Format.
  *
  * Das native `<input type="time">` zeigt leer ein rohes "--:--" und oeffnet je
- * nach Browser ein Systemrad, das auf dem Handy schwer zu treffen ist. Dieses
- * Feld ist ein normales Textfeld: 48 px hoch, 17 px Schrift, mit sichtbarem
- * Hinweis auf das Format und automatischem Doppelpunkt nach zwei Ziffern.
+ * nach Browser ein Systemrad. Dieses Feld ist ein normales Textfeld mit
+ * sichtbarem Formathinweis und automatischem Doppelpunkt nach zwei Ziffern.
  *
  * Der Wert bleibt "HH:MM" wie beim nativen Feld, damit aufrufender Code und
  * Schnittstelle unveraendert bleiben.
@@ -48,7 +47,7 @@ export function TimeField({
 
   return (
     <label className="block">
-      <span className="mb-1 block text-[15px] font-medium text-gray-700">
+      <span className="mb-1 block text-sm font-medium text-gray-700">
         {label}
         {required && <span aria-hidden="true"> *</span>}
       </span>
@@ -65,13 +64,13 @@ export function TimeField({
         aria-invalid={invalid}
         aria-describedby={[describedBy, hintId].filter(Boolean).join(" ")}
         onChange={(event) => onChange(normalize(event.target.value))}
-        className={`h-12 w-full rounded-lg border px-3 text-[17px] text-gray-900 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none ${
+        className={`h-10 w-full rounded-lg border px-3 text-base text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
           invalid
             ? "border-parent-red focus-visible:border-parent-red"
             : "border-gray-300 focus-visible:border-gray-400"
         }`}
       />
-      <span id={hintId} className="mt-1 block text-[15px] text-gray-500">
+      <span id={hintId} className="mt-1 block text-xs text-gray-500">
         {hint}
       </span>
     </label>

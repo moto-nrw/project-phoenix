@@ -62,7 +62,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	date := today.AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
-	exc, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, &pickup, nil)
+	exc, err := svc.SubmitCareExceptionWithReason(context.Background(), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")
 	require.NoError(t, err)
 	require.NotNil(t, exc)
 
@@ -122,7 +122,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	date := timezone.TodayDate().AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
-	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, &pickup, nil)
+	_, err := svc.SubmitCareExceptionWithReason(context.Background(), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")
 	require.NoError(t, err)
 
 	guardianCalls := emitterBC.CallsByMethod("guardian")

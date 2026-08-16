@@ -9,6 +9,10 @@ vi.mock("~/lib/parent-url", () => ({
   parentPath: (path: string) => path,
 }));
 
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => "2026-05-14",
+}));
+
 const child: ChildDayCardChild = {
   studentId: "42",
   firstName: "Felix",
@@ -41,6 +45,32 @@ describe("ChildDayCard", () => {
     renderCard({ at_ogs: true, state: "present", since: "12:38" });
     expect(screen.getByText("Felix Schneider")).toBeInTheDocument();
     expect(screen.getByText("Klasse 1a")).toBeInTheDocument();
+    expect(screen.getByTestId("child-card-profile-icon")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Profil ansehen" }),
+    ).toHaveAttribute("href", "/parents/children/42");
+  });
+
+  it("verlinkt auf der Profilseite nicht auf sich selbst", () => {
+    render(
+      <NextIntlClientProvider locale="de" messages={deMessages}>
+        <ChildDayCard
+          child={child}
+          today={{ at_ogs: true, state: "present", since: "12:38" }}
+          features={allFeatures}
+          hideIdentity
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(
+      screen.queryByRole("link", { name: "Profil ansehen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Heute" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Tagesstatus und wichtige Aktionen auf einen Blick."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Aktueller Status")).toBeInTheDocument();
+    expect(screen.getByText("Donnerstag, 14. Mai 2026")).toBeInTheDocument();
   });
 
   describe("Ebene 1 kommt ausschliesslich aus at_ogs", () => {
@@ -89,23 +119,69 @@ describe("ChildDayCard", () => {
     });
   });
 
-  it("gibt jedem Zustand ein Icon, damit Farbe nie allein traegt", () => {
+  it("benennt jeden Zustand im Text und ergaenzt ihn mit einem Icon", () => {
     renderCard({ at_ogs: false, state: "absent" });
+    expect(screen.getByText("Heute abgemeldet")).toBeInTheDocument();
     expect(screen.getByTestId("child-day-state-icon")).toBeInTheDocument();
   });
 
   describe("Aktionen", () => {
+    it("zeigt in Uebersichten kompakte einzeilige Aktionen", () => {
+      render(
+        <NextIntlClientProvider locale="de" messages={deMessages}>
+          <ChildDayCard
+            child={child}
+            today={{ at_ogs: true, state: "present", since: "12:38" }}
+            features={allFeatures}
+            actionDisplay="compact"
+          />
+        </NextIntlClientProvider>,
+      );
+
+      const sickAction = screen.getByRole("link", {
+        name: "Felix abmelden",
+      });
+      expect(
+        screen.getByRole("link", { name: "Abholzeit ändern" }),
+      ).toBeInTheDocument();
+      const messageAction = screen.getByRole("link", {
+        name: "Nachricht schreiben",
+      });
+      expect(sickAction.parentElement).toHaveClass(
+        "@md:grid-cols-2",
+        "@2xl:grid-cols-3",
+      );
+      expect(messageAction).toHaveClass("@md:col-span-2", "@2xl:col-span-1");
+      expect(screen.getByText("Felix abmelden")).toHaveClass(
+        "min-w-0",
+        "text-center",
+      );
+      expect(
+        screen.queryByText("Krank melden oder entschuldigen"),
+      ).not.toBeInTheDocument();
+    });
+
     it("bietet alle drei an, wenn die Schule sie erlaubt", () => {
       renderCard({ at_ogs: true, state: "present", since: "12:38" });
+      const sickAction = screen.getByRole("link", {
+        name: "Felix abmelden Krank melden oder entschuldigen",
+      });
+      expect(sickAction).toBeInTheDocument();
       expect(
-        screen.getByRole("link", { name: "Krank melden" }),
+        screen.getByRole("link", {
+          name: "Abholzeit für Felix ändern Abholzeit für einen Tag anpassen",
+        }),
       ).toBeInTheDocument();
-      expect(
-        screen.getByRole("link", { name: "Abholung ändern" }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("link", { name: "OGS schreiben" }),
-      ).toBeInTheDocument();
+      const messageAction = screen.getByRole("link", {
+        name: "Nachrichten schreiben OGS für Felix kontaktieren",
+      });
+      expect(messageAction).toBeInTheDocument();
+
+      expect(sickAction.parentElement).toHaveClass(
+        "@md:grid-cols-2",
+        "@3xl:grid-cols-3",
+      );
+      expect(messageAction).toHaveClass("@md:col-span-2", "@3xl:col-span-1");
     });
 
     it("laesst weg, was die Schule nicht erlaubt", () => {
@@ -114,13 +190,19 @@ describe("ChildDayCard", () => {
         noFeatures,
       );
       expect(
-        screen.queryByRole("link", { name: "Krank melden" }),
+        screen.queryByRole("link", {
+          name: "Felix abmelden Krank melden oder entschuldigen",
+        }),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByRole("link", { name: "Abholung ändern" }),
+        screen.queryByRole("link", {
+          name: "Abholzeit für Felix ändern Abholzeit für einen Tag anpassen",
+        }),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByRole("link", { name: "OGS schreiben" }),
+        screen.queryByRole("link", {
+          name: "Nachrichten schreiben OGS für Felix kontaktieren",
+        }),
       ).not.toBeInTheDocument();
     });
 
@@ -138,8 +220,16 @@ describe("ChildDayCard", () => {
           />
         </NextIntlClientProvider>,
       );
-      screen.getByRole("button", { name: "Krank melden" }).click();
-      screen.getByRole("button", { name: "Abholung ändern" }).click();
+      screen
+        .getByRole("button", {
+          name: "Felix abmelden Krank melden oder entschuldigen",
+        })
+        .click();
+      screen
+        .getByRole("button", {
+          name: "Abholzeit für Felix ändern Abholzeit für einen Tag anpassen",
+        })
+        .click();
       expect(onSick).toHaveBeenCalledOnce();
       expect(onPickup).toHaveBeenCalledOnce();
     });

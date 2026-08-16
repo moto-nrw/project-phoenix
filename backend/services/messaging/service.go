@@ -686,11 +686,24 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 	if len(optedIn) == 0 {
 		return
 	}
+	locale := ""
+	if s.GuardianProfiles != nil {
+		profile, profileErr := s.GuardianProfiles.FindByAccountID(ctx, thread.GuardianAccountID)
+		if profileErr != nil {
+			s.Logger.Warn("messaging: load guardian locale for push failed",
+				slog.Int64("thread_id", thread.ID),
+				slog.String("error", profileErr.Error()),
+			)
+		} else if profile != nil && profile.PortalLocale != nil {
+			locale = *profile.PortalLocale
+		}
+	}
+	title, notificationBody := notifications.ParentMessageCopy(locale)
 
 	err = s.Notifier.Notify(ctx, notifications.Event{
 		Type:     notifications.TypeParentMessage,
-		Title:    "Neue Nachricht der OGS",
-		Body:     "Sie haben eine neue Nachricht im Elternportal.",
+		Title:    title,
+		Body:     notificationBody,
 		DeepLink: "/messages",
 		Priority: notifications.PriorityNormal,
 		Audience: notifications.Audience{

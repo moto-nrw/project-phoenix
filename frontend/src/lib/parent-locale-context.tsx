@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import type { AppLocale } from "~/i18n/locales";
@@ -17,6 +16,7 @@ import { normalizeLocale, writeLocaleCookie } from "~/i18n/locales";
 import { fetchParentProfile, updateParentPortalLocale } from "~/lib/parent-api";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { reloadForLocaleChange } from "~/lib/parent-locale-navigation";
 
 const logger = createLogger({ component: "ParentLocaleContext" });
 const UNSYNCED_LOCALE_STORAGE_KEY = "phoenix_parent_unsynced_locale";
@@ -74,7 +74,6 @@ function clearUnsyncedLocale(storageKey: string): void {
 export function ParentLocaleProvider({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const router = useRouter();
   // Authentication state is derived from the parent session, not passed in.
   // This provider always sits inside ParentProviders' SessionProvider, so it
   // can read the session directly — a single instance covers anonymous pages
@@ -135,7 +134,7 @@ export function ParentLocaleProvider({
             setLocaleState(effectiveLocalChoice);
             writeLocaleCookie(effectiveLocalChoice);
             if (effectiveLocalChoice !== intlLocale) {
-              router.refresh();
+              reloadForLocaleChange();
             }
             return;
           }
@@ -167,10 +166,9 @@ export function ParentLocaleProvider({
         writeLocaleCookie(stored);
         // The page was server-rendered with intlLocale. When the stored
         // preference differs, refresh the server tree so the whole portal
-        // re-renders in it. router.refresh() re-runs the server locale
-        // resolution with the now-updated cookie — no full document reload.
+        // re-renders in it after the locale cookie changes.
         if (stored !== intlLocale) {
-          router.refresh();
+          reloadForLocaleChange();
         }
       } catch (error: unknown) {
         logger.warn("parent_profile_language_load_failed", {
@@ -186,7 +184,6 @@ export function ParentLocaleProvider({
     authenticated,
     intlLocale,
     persistParentLocale,
-    router,
     unsyncedLocaleStorageKey,
   ]);
 
@@ -227,20 +224,12 @@ export function ParentLocaleProvider({
           toast.error(t("saveError"));
         }
       }
-      // Soft refresh: re-runs server locale resolution with the new cookie and
-      // re-renders the tree in the chosen language without a full reload.
+      // A document reload guarantees the server tree reads the new cookie.
       if (localeChoiceSequenceRef.current === choiceSequence) {
-        router.refresh();
+        reloadForLocaleChange();
       }
     },
-    [
-      authenticated,
-      persistParentLocale,
-      router,
-      toast,
-      t,
-      unsyncedLocaleStorageKey,
-    ],
+    [authenticated, persistParentLocale, toast, t, unsyncedLocaleStorageKey],
   );
 
   const value = useMemo(

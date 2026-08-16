@@ -46,7 +46,7 @@ type CareScheduleRequestCapabilities struct {
 }
 
 func (c CareScheduleRequestCapabilities) Any() bool {
-	return c.Arrival || c.Pickup || c.DepartureMode
+	return c.Pickup || c.DepartureMode
 }
 
 // CareScheduleWeekday is one weekday (1=Mon..5=Fri) of the child's current
@@ -55,6 +55,7 @@ func (c CareScheduleRequestCapabilities) Any() bool {
 // configured set, matching the diff convention).
 type CareScheduleWeekday struct {
 	Weekday int
+	Status  scheduleService.CareDayStatus
 	Arrival string
 	Pickup  string
 	Modes   []string
@@ -148,7 +149,8 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	}
 	if (requested.Arrival && !capabilities.Arrival) ||
 		(requested.Pickup && !capabilities.Pickup) ||
-		(requested.DepartureMode && !capabilities.DepartureMode) {
+		(requested.DepartureMode && !capabilities.DepartureMode) ||
+		(requested.Scheduled && (!capabilities.Pickup || !capabilities.DepartureMode)) {
 		return nil, ErrCareRequestFieldDisabled
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
@@ -213,10 +215,6 @@ func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, te
 		}
 		return s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
 	}
-	arrival, err := resolve(configModels.KeyParentCareArrivalRequestEnabled)
-	if err != nil {
-		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve arrival request setting: %w", err)
-	}
 	pickup, err := resolve(configModels.KeyParentCarePickupRequestEnabled)
 	if err != nil {
 		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve pickup request setting: %w", err)
@@ -225,7 +223,7 @@ func (s *service) resolveCareScheduleRequestCapabilities(ctx context.Context, te
 	if err != nil {
 		return CareScheduleRequestCapabilities{}, fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
 	}
-	return CareScheduleRequestCapabilities{Arrival: arrival, Pickup: pickup, DepartureMode: mode}, nil
+	return CareScheduleRequestCapabilities{Pickup: pickup, DepartureMode: mode}, nil
 }
 
 // buildCareScheduleView loads the weekly plan + pending request inside the
@@ -255,16 +253,18 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 	for _, p := range pickups {
 		pickupByDay[p.Weekday] = p.PickupTime.Format("15:04")
 	}
+	hasCarePlan := len(arrivalByDay) > 0 || len(pickupByDay) > 0
 
 	weekdays := make([]CareScheduleWeekday, 0, len(usersModels.PickupDayOrder))
 	for i, abbrev := range usersModels.PickupDayOrder {
 		wd := i + 1
+		status := careDayStatus(hasCarePlan, arrivalByDay[wd], pickupByDay[wd])
 		modes := student.AllowedDepartureModes[abbrev]
 		keys := make([]string, 0, len(modes))
 		for _, m := range modes {
 			keys = append(keys, string(m))
 		}
-		if len(keys) == 0 {
+		if len(keys) == 0 && status == scheduleService.CareDayScheduled {
 			// An empty configured set means the child goes home alone — surface
 			// that explicitly instead of an ambiguous empty list (matches the
 			// request-diff convention).
@@ -272,6 +272,7 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		}
 		weekdays = append(weekdays, CareScheduleWeekday{
 			Weekday: wd,
+			Status:  status,
 			Arrival: arrivalByDay[wd],
 			Pickup:  pickupByDay[wd],
 			Modes:   keys,
@@ -292,6 +293,16 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		}
 	}
 	return nil
+}
+
+func careDayStatus(hasCarePlan bool, arrival, pickup string) scheduleService.CareDayStatus {
+	if arrival != "" || pickup != "" {
+		return scheduleService.CareDayScheduled
+	}
+	if hasCarePlan {
+		return scheduleService.CareDayNotScheduled
+	}
+	return scheduleService.CareDayUnknown
 }
 
 // hasActiveAbsenceToday reports whether the child has any active scheduled

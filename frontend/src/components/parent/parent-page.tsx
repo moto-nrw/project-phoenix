@@ -46,7 +46,7 @@ export function ParentPageHeader({
   backHref,
   backLabel,
   media,
-  variant = "surface",
+  prominent = false,
 }: Readonly<{
   kicker?: string;
   title: string;
@@ -56,17 +56,11 @@ export function ParentPageHeader({
   backLabel?: string;
   /** Optional leading element, e.g. a child's initials avatar. */
   media?: React.ReactNode;
-  /** A quiet page introduction for dashboards that already sit inside app chrome. */
-  variant?: "surface" | "plain";
+  /** Gives dashboard greetings one clear step above section headings. */
+  prominent?: boolean;
 }>) {
   return (
-    <header
-      className={
-        variant === "plain"
-          ? "space-y-2 px-1 py-1"
-          : "moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md"
-      }
-    >
+    <header className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
       {backHref && backLabel && (
         <ParentBackLink href={backHref} label={backLabel} />
       )}
@@ -75,12 +69,12 @@ export function ParentPageHeader({
           {media}
           <div className="min-w-0">
             {kicker && (
-              <p className="text-[15px] font-semibold text-[#5080D8]">
+              <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
                 {kicker}
               </p>
             )}
             <h1
-              className={`text-xl font-semibold text-balance break-words text-gray-900 sm:text-2xl ${kicker ? "mt-1" : ""}`}
+              className={`${prominent ? "text-2xl sm:text-[28px]" : "text-xl sm:text-2xl"} leading-tight font-semibold tracking-tight text-balance break-words text-gray-900 ${kicker ? "mt-1" : ""}`}
             >
               {title}
             </h1>
@@ -125,10 +119,62 @@ function ParentBackLink({
 export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
   return (
     <ParentPage>
-      <Skeleton className="h-28 w-full rounded-2xl" />
+      <div
+        data-testid="parent-page-header-skeleton"
+        className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+        aria-hidden="true"
+      >
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="mt-2 h-7 w-56 max-w-3/4" />
+        <Skeleton className="mt-2 h-4 w-full max-w-xl" />
+        <Skeleton className="mt-2 h-4 w-2/3 max-w-md" />
+      </div>
       {Array.from({ length: rows }, (_, index) => (
-        <Skeleton key={index} className="h-40 w-full rounded-2xl" />
+        <ParentSectionSkeleton key={index} />
       ))}
     </ParentPage>
+  );
+}
+
+export function ParentSectionSkeleton({
+  rows = 3,
+  showHeader = true,
+  className = "",
+}: Readonly<{
+  rows?: number;
+  showHeader?: boolean;
+  className?: string;
+}>) {
+  return (
+    <div
+      data-testid="parent-page-section-skeleton"
+      className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm ${className}`}
+      aria-hidden="true"
+    >
+      {showHeader ? (
+        <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">
+          <Skeleton className="size-10 shrink-0 rounded-xl" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-5 w-40 max-w-2/3" />
+            <Skeleton className="h-3 w-56 max-w-full" />
+          </div>
+        </div>
+      ) : null}
+      <div className="divide-y divide-gray-100 px-4 sm:px-5">
+        {Array.from({ length: rows }, (_, rowIndex) => (
+          <div
+            key={rowIndex}
+            data-testid="parent-page-section-row-skeleton"
+            className="flex min-h-16 items-center gap-3 py-3"
+          >
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <Skeleton className="h-8 w-12 shrink-0 rounded-lg" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

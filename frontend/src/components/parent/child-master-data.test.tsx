@@ -78,6 +78,7 @@ function features(overrides: Partial<ChildFeatures> = {}): ChildFeatures {
     excused_requires_approval: false,
     request_submit_enabled: true,
     pickup_change_enabled: true,
+    guardian_contact_manage_allowed: true,
     related_accounts_invite_enabled: true,
     related_accounts_remove_enabled: true,
     master_data_edit_enabled: true,
@@ -126,19 +127,44 @@ describe("ChildMasterDataView", () => {
     mockSubmit.mockResolvedValue([]);
   });
 
-  it("loads and renders editable master data with departure matrix", async () => {
+  it("loads and renders the editable child details", async () => {
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     expect(
-      await screen.findByRole("heading", { name: "Daten von Lina Muster" }),
+      await screen.findByRole("heading", { name: "Persönliche Angaben" }),
     ).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Lara")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Gesundheit" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Lara")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Allergie")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Änderungen werden direkt gespeichert. Das OGS-Team sieht die Hinweise sofort.",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "Betreuungszeiten" }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByText("Wird abgeholt").length).toBeGreaterThan(0);
-    // The matrix IS the saved state — every checked box is a stored mode.
+    expect(screen.queryByText("Wird abgeholt")).not.toBeInTheDocument();
+  });
+
+  it("renders the permanent way home as a separate care area", async () => {
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "So geht Lina Muster nach Hause",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Lara")).not.toBeInTheDocument();
+    // The matrix IS the saved state: every checked box is a stored mode.
     // Fixture: Mo = pickup, Di = bus + alone, Mi = nothing.
     expect(screen.getByLabelText("Mo Wird abgeholt")).toBeChecked();
     expect(screen.getByLabelText("Di Bus")).toBeChecked();
@@ -167,27 +193,49 @@ describe("ChildMasterDataView", () => {
     expect(await screen.findByText("Gespeichert")).toBeInTheDocument();
   });
 
-  it("gives editable fields accessible names", async () => {
+  it("gives child fields accessible names without mixing in parent contact data", async () => {
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
     expect(
-      await screen.findByLabelText("Gesundheitshinweise / Allergien"),
+      await screen.findByLabelText("Gesundheitshinweise und Allergien"),
     ).toHaveValue("Allergie");
-    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    expect(screen.getByLabelText("Vorname")).toHaveValue("Lara");
+    expect(screen.getByLabelText("Geburtsdatum")).toHaveValue("2018-03-04");
+    expect(screen.queryByLabelText("E-Mail-Adresse")).not.toBeInTheDocument();
+  });
+
+  it("renders parent contact data in its own area", async () => {
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="contact"
+      />,
+    );
+
+    expect(await screen.findByLabelText("E-Mail-Adresse")).toHaveValue(
       "parent@example.test",
     );
+    expect(screen.getByText("Für die OGS sichtbar")).toBeInTheDocument();
     expect(
       screen.getByRole("combobox", { name: "Bevorzugter Kontaktweg" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("combobox", { name: "Sprache" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Vorname")).toHaveValue("Lara");
-    expect(screen.getByLabelText("Geburtsdatum")).toHaveValue("2018-03-04");
   });
 
   it("auto-saves contact method and language controls", async () => {
-    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="contact"
+      />,
+    );
 
     const method = await screen.findByRole("combobox", {
       name: "Bevorzugter Kontaktweg",
@@ -230,42 +278,47 @@ describe("ChildMasterDataView", () => {
         }),
     );
 
-    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
-
-    const health = await screen.findByLabelText(
-      "Gesundheitshinweise / Allergien",
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="contact"
+      />,
     );
-    const email = screen.getByLabelText("E-Mail-Adresse");
 
-    fireEvent.change(health, { target: { value: "Neue Info" } });
-    fireEvent.blur(health);
+    const email = await screen.findByLabelText("E-Mail-Adresse");
+    const city = screen.getByLabelText("Ort");
+
     fireEvent.change(email, { target: { value: "neu@example.test" } });
     fireEvent.blur(email);
+    fireEvent.change(city, { target: { value: "Bonn" } });
+    fireEvent.blur(city);
 
     await waitFor(() => expect(mockUpdateField).toHaveBeenCalledTimes(2));
-    expect(resolvers.map((r) => r.field)).toEqual(["health_info", "email"]);
+    expect(resolvers.map((r) => r.field)).toEqual(["email", "address_city"]);
 
     await act(async () => {
       resolvers[1]!.resolve(
         masterData({
           health_info: "Allergie",
-          email: "neu@example.test",
+          email: "parent@example.test",
+          address_city: "Bonn",
         }),
       );
     });
-    expect(email).toHaveValue("neu@example.test");
+    expect(city).toHaveValue("Bonn");
 
     await act(async () => {
       resolvers[0]!.resolve(
         masterData({
-          health_info: "Neue Info",
-          email: "parent@example.test",
+          email: "neu@example.test",
+          address_city: "Köln",
         }),
       );
     });
 
-    expect(health).toHaveValue("Neue Info");
     expect(email).toHaveValue("neu@example.test");
+    expect(city).toHaveValue("Bonn");
   });
 
   it("does not duplicate a blur save while the debounced save is in flight", async () => {
@@ -412,20 +465,14 @@ describe("ChildMasterDataView", () => {
 
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
-    const firstName = await screen.findByDisplayValue("Lara");
-    const identityHeading = screen.getByRole("heading", {
-      name: "Angaben zum Kind",
-    });
-    const identitySection = identityHeading.closest("section");
-    if (!identitySection) {
-      throw new Error("identity section not found");
-    }
-
+    await screen.findByRole("heading", { name: "Persönliche Angaben" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
     fireEvent.click(
-      within(identitySection).getByRole("button", {
-        name: "Änderung anfragen",
-      }),
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
     );
 
     await waitFor(() =>
@@ -433,20 +480,12 @@ describe("ChildMasterDataView", () => {
         { target: "person", field_key: "first_name", value: "Lea" },
       ]),
     );
-    expect(
-      await screen.findByText(
-        "Anfrage gesendet. Das Team prüft Ihre Änderung.",
-      ),
-    ).toBeInTheDocument();
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("Lara")).toBeDisabled();
 
     fireEvent.click(
-      within(identitySection).getByRole("button", {
-        name: "Änderung anfragen",
-      }),
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
     );
-    expect(mockSubmit).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Vorname")).toBeDisabled();
   });
 
   it("keeps identity request success when the pending refresh fails", async () => {
@@ -467,29 +506,17 @@ describe("ChildMasterDataView", () => {
 
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
-    const firstName = await screen.findByLabelText("Vorname");
-    const identityHeading = screen.getByRole("heading", {
-      name: "Angaben zum Kind",
-    });
-    const identitySection = identityHeading.closest("section");
-    if (!identitySection) {
-      throw new Error("identity section not found");
-    }
-
+    await screen.findByRole("heading", { name: "Persönliche Angaben" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
     fireEvent.click(
-      within(identitySection).getByRole("button", {
-        name: "Änderung anfragen",
-      }),
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
     );
 
-    expect(
-      await screen.findByText(
-        "Anfrage gesendet. Das Team prüft Ihre Änderung.",
-      ),
-    ).toBeInTheDocument();
     expect(await screen.findByText("In Prüfung")).toBeInTheDocument();
-    expect(screen.getByLabelText("Vorname")).toBeDisabled();
     expect(
       screen.queryByText("Die Anfrage konnte nicht gesendet werden."),
     ).not.toBeInTheDocument();
@@ -516,10 +543,16 @@ describe("ChildMasterDataView", () => {
       }),
     );
 
-    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
 
     const departureSection = await screen.findByRole("heading", {
-      name: "Dauerhafte Gehzeiten",
+      name: "So geht Lina Muster nach Hause",
     });
     const section = departureSection.closest("section");
     if (!section) {
@@ -563,10 +596,16 @@ describe("ChildMasterDataView", () => {
       .mockResolvedValueOnce(masterData())
       .mockRejectedValueOnce(new Error("refresh failed"));
 
-    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
 
     const departureSection = await screen.findByRole("heading", {
-      name: "Dauerhafte Gehzeiten",
+      name: "So geht Lina Muster nach Hause",
     });
     const section = departureSection.closest("section");
     if (!section) {
@@ -597,7 +636,11 @@ describe("ChildMasterDataView", () => {
 
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
-    const firstName = await screen.findByDisplayValue("Lara");
+    await screen.findByRole("heading", { name: "Persönliche Angaben" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    const firstName = screen.getByLabelText("Vorname");
     fireEvent.change(firstName, { target: { value: "Lea" } });
 
     const health = screen.getByDisplayValue("Allergie");
@@ -608,21 +651,70 @@ describe("ChildMasterDataView", () => {
     expect(firstName).toHaveValue("Lea");
   });
 
-  it("preserves dirty departure drafts across unrelated direct-edit refreshes", async () => {
-    mockUpdateField.mockResolvedValue(masterData({ health_info: "Neue Info" }));
-
+  it("requests class changes through the same review dialog", async () => {
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 
-    await screen.findByRole("heading", { name: "Dauerhafte Gehzeiten" });
+    await screen.findByRole("heading", { name: "Persönliche Angaben" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Klasse"), {
+      target: { value: "3b" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
+    );
+
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith("42", [
+        { target: "student", field_key: "school_class", value: "3b" },
+      ]),
+    );
+  });
+
+  it("does not send a cleared birth date", async () => {
+    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+
+    await screen.findByRole("heading", { name: "Persönliche Angaben" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Geburtsdatum"), {
+      target: { value: "" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
+    );
+
+    expect(
+      await screen.findByText("Eine geänderte Angabe darf nicht leer sein."),
+    ).toBeInTheDocument();
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("preserves dirty departure drafts across parent rerenders", async () => {
+    const { rerender } = render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
+
+    await screen.findByRole("heading", {
+      name: "So geht Lina Muster nach Hause",
+    });
     const wedPickup = screen.getByLabelText("Mi Wird abgeholt");
     fireEvent.click(wedPickup);
     expect(wedPickup).toBeChecked();
 
-    const health = screen.getByDisplayValue("Allergie");
-    fireEvent.change(health, { target: { value: "Neue Info" } });
-    fireEvent.blur(health);
-
-    await waitFor(() => expect(mockUpdateField).toHaveBeenCalled());
+    rerender(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
     expect(wedPickup).toBeChecked();
   });
 
@@ -635,10 +727,16 @@ describe("ChildMasterDataView", () => {
       }),
     );
 
-    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="departure"
+      />,
+    );
 
     const departureSection = await screen.findByRole("heading", {
-      name: "Dauerhafte Gehzeiten",
+      name: "So geht Lina Muster nach Hause",
     });
     const section = departureSection.closest("section");
     if (!section) {
@@ -668,23 +766,25 @@ describe("ChildMasterDataView", () => {
     await screen.findAllByText(
       "Änderungsanfragen sind bei dieser OGS deaktiviert.",
     );
-    expect(
-      screen.getByText(
-        "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
-      ),
-    ).toBeInTheDocument();
     expect(screen.getByDisplayValue("Allergie")).toBeDisabled();
   });
 
-  it("keeps health editable but disables contact fields when contact edits are off", async () => {
+  it("disables contact fields in the separate contact area", async () => {
     mockGetFeatures.mockResolvedValue(
       features({ master_data_contact_edit_enabled: false }),
     );
 
-    render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
+    render(
+      <ChildMasterDataView
+        studentId="42"
+        childName="Lina Muster"
+        area="contact"
+      />,
+    );
 
-    expect(await screen.findByDisplayValue("Allergie")).not.toBeDisabled();
-    expect(screen.getByDisplayValue("parent@example.test")).toBeDisabled();
+    expect(
+      await screen.findByDisplayValue("parent@example.test"),
+    ).toBeDisabled();
     expect(screen.getByDisplayValue("+491234")).toBeDisabled();
     expect(
       screen.getByRole("combobox", { name: "Bevorzugter Kontaktweg" }),
@@ -693,7 +793,7 @@ describe("ChildMasterDataView", () => {
     expect(screen.getByDisplayValue("Musterweg 1")).toBeDisabled();
     expect(
       screen.getByText(
-        "Das Bearbeiten der Stammdaten ist bei dieser OGS deaktiviert.",
+        "Das Bearbeiten dieser Angaben ist bei dieser OGS deaktiviert.",
       ),
     ).toBeInTheDocument();
   });
@@ -705,7 +805,7 @@ describe("ChildMasterDataView", () => {
 
     expect(
       await screen.findByText(
-        "Die Stammdaten konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
+        "Die Angaben konnten nicht geladen werden. Bitte aktualisieren Sie die Seite.",
       ),
     ).toBeInTheDocument();
   });
@@ -723,20 +823,14 @@ describe("ChildMasterDataView", () => {
       await screen.findByText("Die Änderung konnte nicht gespeichert werden."),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByDisplayValue("Lara"), {
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen anfragen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Vorname"), {
       target: { value: "Lea" },
     });
-    const identityHeading = screen.getByRole("heading", {
-      name: "Angaben zum Kind",
-    });
-    const identitySection = identityHeading.closest("section");
-    if (!identitySection) {
-      throw new Error("identity section not found");
-    }
     fireEvent.click(
-      within(identitySection).getByRole("button", {
-        name: "Änderung anfragen",
-      }),
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
     );
 
     expect(

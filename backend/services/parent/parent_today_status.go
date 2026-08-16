@@ -34,6 +34,7 @@ type TodayStatus struct {
 	Since        string
 	Until        string
 	ExpectedFrom string
+	PickupTime   string
 }
 
 func atOgsFlag(v bool) *bool { return &v }
@@ -59,6 +60,7 @@ type todayStatusFacts struct {
 	CheckIn            string
 	CheckOut           string
 	ExpectedArrival    string
+	PickupTime         string
 	NowHHMM            string
 }
 
@@ -74,7 +76,12 @@ func deriveTodayStatus(f todayStatusFacts) TodayStatus {
 	}
 	if f.HasAttendanceToday {
 		if f.CheckOut == "" {
-			return TodayStatus{AtOgs: atOgsFlag(true), State: DayStatePresent, Since: f.CheckIn}
+			return TodayStatus{
+				AtOgs:      atOgsFlag(true),
+				State:      DayStatePresent,
+				Since:      f.CheckIn,
+				PickupTime: f.PickupTime,
+			}
 		}
 		return TodayStatus{AtOgs: atOgsFlag(false), State: DayStateLeft, Until: f.CheckOut}
 	}

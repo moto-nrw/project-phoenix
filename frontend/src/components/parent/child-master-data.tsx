@@ -1,19 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Check, Clock, Loader2 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { AlertCircle, Check, Loader2 } from "lucide-react";
+import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
+import { useLocale, useTranslations } from "next-intl";
 
-import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
-import { Skeleton } from "~/components/ui/skeleton";
-import { todayISO } from "~/lib/date-helpers";
-import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { SUPPORTED_LOCALES } from "~/i18n/locales";
+import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ChildFeatures,
@@ -26,6 +25,10 @@ import {
   updateMasterDataField,
 } from "~/lib/parent-api";
 import { ParentSection } from "~/components/parent/shell/parent-section";
+import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
+import { ParentSectionSkeleton } from "~/components/parent/parent-page";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { ChildMasterDataRequestModal } from "~/components/parent/child-master-data-request-modal";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -38,17 +41,22 @@ type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 interface Props {
   readonly studentId: string;
-  /** Der Name des Kindes fuer die Ueberschrift "Daten von {Name}". */
+  /** Der Name des Kindes fuer die Ueberschrift "Angaben zu {Name}". */
   readonly childName: string;
+  readonly area?: "details" | "departure" | "contact";
 }
 
 /**
- * "Daten von {Name}": die bisherigen Stammdaten in Elternsprache.
+ * "Angaben zu {Name}": die bisherigen internen Datenfelder in Elternsprache.
  *
  * Liegt seit dem Umbau als Abschnitt IM Kinderbereich statt auf einer eigenen
  * Unterseite; eine Seite pro Datenfeldgruppe hat Eltern nur Klicks gekostet.
  */
-export function ChildMasterDataView({ studentId, childName }: Props) {
+export function ChildMasterDataView({
+  studentId,
+  childName,
+  area = "details",
+}: Props) {
   const t = useTranslations("parentMasterData");
   const [data, setData] = useState<ChildMasterData | null>(null);
   const [features, setFeatures] = useState<ChildFeatures | null>(null);
@@ -82,7 +90,20 @@ export function ChildMasterDataView({ studentId, childName }: Props) {
   }, [load]);
 
   if (loading) {
-    return <Skeleton className="h-64 w-full rounded-2xl" />;
+    if (area === "details") {
+      return (
+        <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2 [&_.animate-pulse]:animate-none">
+          <ParentSectionSkeleton rows={2} />
+          <ParentSectionSkeleton rows={2} />
+        </div>
+      );
+    }
+    return (
+      <ParentSectionSkeleton
+        rows={area === "contact" ? 5 : 3}
+        className="[&_.animate-pulse]:animate-none"
+      />
+    );
   }
 
   if (error || !data || !features) {
@@ -93,6 +114,7 @@ export function ChildMasterDataView({ studentId, childName }: Props) {
     <ChildMasterDataContent
       studentId={studentId}
       childName={childName}
+      area={area}
       data={data}
       features={features}
       onApplied={setData}
@@ -110,6 +132,7 @@ export function ChildMasterDataView({ studentId, childName }: Props) {
 function ChildMasterDataContent({
   studentId,
   childName,
+  area,
   data,
   features,
   onApplied,
@@ -117,6 +140,7 @@ function ChildMasterDataContent({
 }: Readonly<{
   studentId: string;
   childName: string;
+  area: "details" | "departure" | "contact";
   data: ChildMasterData;
   features: ChildFeatures;
   onApplied: (next: ChildMasterData) => void;
@@ -127,8 +151,6 @@ function ChildMasterDataContent({
   ) => void;
 }>) {
   const t = useTranslations("parentMasterData");
-  const tc = useTranslations("parentChild");
-
   const pendingByField = useMemo(() => {
     const map = new Map<string, MasterDataChange>();
     for (const c of data.pending_changes) {
@@ -146,41 +168,27 @@ function ChildMasterDataContent({
     [studentId, onDirectApplied],
   );
 
-  return (
-    <div className="space-y-5">
-      <h2 className="text-[20px] leading-tight font-semibold text-gray-900">
-        {tc("sections.data", { name: childName })}
-      </h2>
-
-      {/* Track B — child identity (approval required) */}
-      <IdentitySection
+  if (area === "departure") {
+    return (
+      <DepartureSection
         studentId={studentId}
+        childName={childName}
         data={data}
         features={features}
-        pendingByField={pendingByField}
+        pending={pendingByField.get("departure/allowed_departure_modes")}
         onApplied={onApplied}
       />
+    );
+  }
 
-      {/* Track A — health (direct edit) */}
-      <ParentSection
-        level={3}
-        title={t("sections.health")}
-        description={t("editableHint")}
-      >
-        <AutoSaveField
-          label={t("fields.healthInfo")}
-          value={data.health_info ?? ""}
-          disabled={!features.master_data_edit_enabled}
-          onSave={(v) => saveField("student", "health_info", v)}
-        />
-      </ParentSection>
-
-      {/* Track A — guardian contact (direct edit) */}
-      <ParentSection
-        level={3}
-        title={t("sections.contact")}
-        description={t("editableHint")}
-      >
+  const contactSection = (
+    <ParentSection
+      title={t("sections.contact")}
+      description={t("editableHint")}
+      concept="accounts"
+      actions={<OgsVisibleBadge />}
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <AutoSaveField
           label={t("fields.email")}
           type="email"
@@ -194,66 +202,91 @@ function ChildMasterDataContent({
           disabled={!contactEditEnabled}
           onSave={(v) => saveField("guardian_phone", "primary", v)}
         />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <AutoSaveSelect
-            label={t("fields.contactMethod")}
-            value={data.preferred_contact_method}
-            options={CONTACT_METHODS.map((method) => ({
-              value: method,
-              label: t(`contactMethods.${method}`),
-            }))}
-            disabled={!contactEditEnabled}
-            onSave={(v) =>
-              saveField("guardian_profile", "preferred_contact_method", v)
-            }
-          />
-          <AutoSaveSelect
-            label={t("fields.language")}
-            value={data.language_preference}
-            options={SUPPORTED_LOCALES.map((locale) => ({
-              value: locale.code,
-              label: locale.label,
-            }))}
-            disabled={!contactEditEnabled}
-            onSave={(v) =>
-              saveField("guardian_profile", "language_preference", v)
-            }
-          />
-        </div>
-        <AutoSaveField
-          label={t("fields.addressStreet")}
-          value={data.address_street ?? ""}
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <AutoSaveSelect
+          label={t("fields.contactMethod")}
+          value={data.preferred_contact_method}
+          options={CONTACT_METHODS.map((method) => ({
+            value: method,
+            label: t(`contactMethods.${method}`),
+          }))}
           disabled={!contactEditEnabled}
-          onSave={(v) => saveField("guardian_profile", "address_street", v)}
+          onSave={(v) =>
+            saveField("guardian_profile", "preferred_contact_method", v)
+          }
         />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
-          <AutoSaveField
-            label={t("fields.addressPostalCode")}
-            value={data.address_postal_code ?? ""}
-            disabled={!contactEditEnabled}
-            onSave={(v) =>
-              saveField("guardian_profile", "address_postal_code", v)
-            }
-          />
-          <AutoSaveField
-            label={t("fields.addressCity")}
-            value={data.address_city ?? ""}
-            disabled={!contactEditEnabled}
-            onSave={(v) => saveField("guardian_profile", "address_city", v)}
-          />
-        </div>
-        {!contactEditEnabled && (
-          <p className="text-xs text-gray-500">{t("editDisabled")}</p>
-        )}
-      </ParentSection>
+        <AutoSaveSelect
+          label={t("fields.language")}
+          value={data.language_preference}
+          options={SUPPORTED_LOCALES.map((locale) => ({
+            value: locale.code,
+            label: locale.label,
+          }))}
+          disabled={!contactEditEnabled}
+          onSave={(v) =>
+            saveField("guardian_profile", "language_preference", v)
+          }
+        />
+      </div>
+      <AutoSaveField
+        label={t("fields.addressStreet")}
+        value={data.address_street ?? ""}
+        disabled={!contactEditEnabled}
+        onSave={(v) => saveField("guardian_profile", "address_street", v)}
+      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
+        <AutoSaveField
+          label={t("fields.addressPostalCode")}
+          value={data.address_postal_code ?? ""}
+          disabled={!contactEditEnabled}
+          onSave={(v) =>
+            saveField("guardian_profile", "address_postal_code", v)
+          }
+        />
+        <AutoSaveField
+          label={t("fields.addressCity")}
+          value={data.address_city ?? ""}
+          disabled={!contactEditEnabled}
+          onSave={(v) => saveField("guardian_profile", "address_city", v)}
+        />
+      </div>
+      {!contactEditEnabled && (
+        <p className="text-xs text-gray-500">{t("editDisabled")}</p>
+      )}
+    </ParentSection>
+  );
 
-      <DepartureSection
+  if (area === "contact") return contactSection;
+
+  return (
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+      <IdentitySection
         studentId={studentId}
         data={data}
         features={features}
-        pending={pendingByField.get("departure/allowed_departure_modes")}
+        pendingByField={pendingByField}
         onApplied={onApplied}
       />
+
+      <ParentSection
+        title={t("sections.health")}
+        description={t("healthDirectHint")}
+        concept="sick"
+      >
+        <AutoSaveField
+          label={t("fields.healthInfo")}
+          value={data.health_info ?? ""}
+          name="health_info"
+          multiline
+          placeholder={t("healthPlaceholder")}
+          disabled={!features.master_data_edit_enabled}
+          onSave={(v) => saveField("student", "health_info", v)}
+        />
+        {!features.master_data_edit_enabled && (
+          <p className="text-xs text-gray-500">{t("editDisabled")}</p>
+        )}
+      </ParentSection>
     </div>
   );
 }
@@ -272,187 +305,132 @@ function IdentitySection({
   onApplied: (next: ChildMasterData) => void;
 }>) {
   const t = useTranslations("parentMasterData");
-  const [firstName, setFirstName] = useState(data.first_name);
-  const [lastName, setLastName] = useState(data.last_name);
-  const [birthday, setBirthday] = useState(data.birthday ?? "");
-  const [status, setStatus] = useState<SaveStatus>("idle");
-  const [message, setMessage] = useState<string | null>(null);
+  const locale = useLocale();
+  const [modalOpen, setModalOpen] = useState(false);
 
   const requestable = features.master_data_request_enabled;
   const firstNamePending = pendingByField.has("person/first_name");
   const lastNamePending = pendingByField.has("person/last_name");
   const birthdayPending = pendingByField.has("person/birthday");
-  const identityBase = useRef({
-    firstName: data.first_name,
-    lastName: data.last_name,
-    birthday: data.birthday ?? "",
-  });
+  const schoolClassPending = pendingByField.has("student/school_class");
 
-  useEffect(() => {
-    const previous = identityBase.current;
-    const next = {
-      firstName: data.first_name,
-      lastName: data.last_name,
-      birthday: data.birthday ?? "",
-    };
-    setFirstName((current) =>
-      current === previous.firstName || firstNamePending
-        ? next.firstName
-        : current,
-    );
-    setLastName((current) =>
-      current === previous.lastName || lastNamePending
-        ? next.lastName
-        : current,
-    );
-    setBirthday((current) =>
-      current === previous.birthday || birthdayPending
-        ? next.birthday
-        : current,
-    );
-    identityBase.current = next;
-  }, [
-    data.first_name,
-    data.last_name,
-    data.birthday,
-    firstNamePending,
-    lastNamePending,
-    birthdayPending,
-  ]);
-
-  const changes = useMemo<MasterDataChangeInput[]>(() => {
-    const out: MasterDataChangeInput[] = [];
-    if (
-      !firstNamePending &&
-      firstName.trim() &&
-      firstName !== data.first_name
-    ) {
-      out.push({ target: "person", field_key: "first_name", value: firstName });
-    }
-    if (!lastNamePending && lastName.trim() && lastName !== data.last_name) {
-      out.push({ target: "person", field_key: "last_name", value: lastName });
-    }
-    if (!birthdayPending && birthday && birthday !== (data.birthday ?? "")) {
-      out.push({ target: "person", field_key: "birthday", value: birthday });
-    }
-    return out;
-  }, [
-    firstName,
-    firstNamePending,
-    lastName,
-    lastNamePending,
-    birthday,
-    birthdayPending,
-    data.first_name,
-    data.last_name,
-    data.birthday,
-  ]);
-
-  const submit = useCallback(async () => {
-    if (changes.length === 0) return;
-    setStatus("saving");
-    setMessage(null);
+  const submit = async (changes: MasterDataChangeInput[]) => {
+    const submitted = await submitMasterDataRequest(studentId, changes);
+    onApplied({
+      ...data,
+      pending_changes: mergePendingChanges(data.pending_changes, submitted),
+    });
     try {
-      const submitted = await submitMasterDataRequest(studentId, changes);
-      setStatus("saved");
-      setMessage(t("requestSubmitted"));
-      onApplied({
-        ...data,
-        pending_changes: mergePendingChanges(data.pending_changes, submitted),
-      });
-      try {
-        const next = await getChildMasterData(studentId);
-        onApplied(next);
-      } catch (refreshErr) {
-        const refreshText =
-          refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
-        logger.warn("master_data_request_refresh_failed", {
-          error: refreshText,
-          student_id: studentId,
-        });
-      }
-    } catch (err) {
-      const text = err instanceof Error ? err.message : String(err);
-      logger.warn("master_data_request_failed", {
-        error: text,
+      onApplied(await getChildMasterData(studentId));
+    } catch (refreshErr) {
+      const refreshText =
+        refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+      logger.warn("master_data_request_refresh_failed", {
+        error: refreshText,
         student_id: studentId,
       });
-      setStatus("error");
-      setMessage(t("requestError"));
     }
-  }, [changes, data, studentId, onApplied, t]);
+  };
+
+  const pendingFields = new Set<IdentityFieldKey>();
+  if (firstNamePending) pendingFields.add("first_name");
+  if (lastNamePending) pendingFields.add("last_name");
+  if (birthdayPending) pendingFields.add("birthday");
+  if (schoolClassPending) pendingFields.add("school_class");
 
   return (
     <ParentSection
-      level={3}
       title={t("sections.child")}
-      description={t("requestHint")}
-    >
-      <RequestField
-        label={t("fields.firstName")}
-        value={firstName}
-        onChange={setFirstName}
-        disabled={!requestable || firstNamePending}
-        pending={pendingByField.get("person/first_name")}
-      />
-      <RequestField
-        label={t("fields.lastName")}
-        value={lastName}
-        onChange={setLastName}
-        disabled={!requestable || lastNamePending}
-        pending={pendingByField.get("person/last_name")}
-      />
-      <RequestField
-        label={t("fields.birthday")}
-        type="date"
-        value={birthday}
-        onChange={setBirthday}
-        disabled={!requestable || birthdayPending}
-        pending={pendingByField.get("person/birthday")}
-      />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <ReadField label={t("fields.schoolClass")} value={data.school_class} />
-      </div>
-
-      {requestable ? (
-        <div className="flex items-center gap-3">
+      description={t("identityDescription")}
+      concept="children"
+      actions={
+        requestable ? (
           <Button
             type="button"
-            variant="primary"
+            variant="surface"
             size="md"
-            disabled={changes.length === 0 || status === "saving"}
-            onClick={() => void submit()}
+            className="gap-2"
+            onClick={() => setModalOpen(true)}
           >
-            {t("requestButton")}
+            <PencilSimpleIcon size={20} weight="bold" aria-hidden="true" />
+            {t("identityRequestButton")}
           </Button>
-          {message && (
-            <span
-              className={
-                status === "error"
-                  ? "text-moto-red-strong text-sm"
-                  : "text-moto-green-strong text-sm"
-              }
-            >
-              {message}
-            </span>
-          )}
-        </div>
-      ) : (
+        ) : undefined
+      }
+    >
+      <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <IdentityFact
+          label={t("fields.firstName")}
+          value={data.first_name}
+          pending={firstNamePending}
+        />
+        <IdentityFact
+          label={t("fields.lastName")}
+          value={data.last_name}
+          pending={lastNamePending}
+        />
+        <IdentityFact
+          label={t("fields.birthday")}
+          value={
+            data.birthday
+              ? formatDate(data.birthday, false, locale)
+              : t("notSet")
+          }
+          pending={birthdayPending}
+        />
+        <IdentityFact
+          label={t("fields.schoolClass")}
+          value={data.school_class || t("notSet")}
+          pending={schoolClassPending}
+        />
+      </dl>
+      {!requestable && (
         <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
+      )}
+      {modalOpen && (
+        <ChildMasterDataRequestModal
+          data={data}
+          pendingFields={pendingFields}
+          onClose={() => setModalOpen(false)}
+          onSubmit={submit}
+        />
       )}
     </ParentSection>
   );
 }
 
+type IdentityFieldKey =
+  "first_name" | "last_name" | "birthday" | "school_class";
+
+function IdentityFact({
+  label,
+  value,
+  pending,
+}: Readonly<{ label: string; value: string; pending: boolean }>) {
+  const t = useTranslations("parentMasterData");
+  return (
+    <div className="min-w-0">
+      <dt className="flex min-h-6 items-center gap-2 text-sm text-gray-500">
+        <span>{label}</span>
+        {pending && <StatusBadge label={t("pendingBadge")} tone="orange" />}
+      </dt>
+      <dd className="mt-1 text-base font-medium break-words text-gray-900">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 function DepartureSection({
   studentId,
+  childName,
   data,
   features,
   pending,
   onApplied,
 }: Readonly<{
   studentId: string;
+  childName: string;
   data: ChildMasterData;
   features: ChildFeatures;
   pending?: MasterDataChange;
@@ -542,16 +520,11 @@ function DepartureSection({
 
   return (
     <ParentSection
-      level={3}
-      title={t("sections.departure")}
-      description={t("requestHint")}
+      title={t("sections.departure", { name: childName })}
+      description={t("departureDescription")}
+      concept="pickup"
     >
-      {pending && (
-        <p className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-          <Clock className="h-3 w-3" aria-hidden="true" />
-          {t("pendingBadge")}
-        </p>
-      )}
+      {pending && <StatusBadge label={t("pendingBadge")} tone="orange" />}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {DEPARTURE_DAYS.map((day) => (
           <fieldset
@@ -583,19 +556,10 @@ function DepartureSection({
         ))}
       </div>
       {features.master_data_request_enabled ? (
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            className="min-h-11"
-            disabled={!changed || !requestable || status === "saving"}
-            onClick={() => void submit()}
-          >
-            {t("requestButton")}
-          </Button>
+        <div className="flex flex-col-reverse items-stretch gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-end">
           {message && (
             <span
+              role="status"
               className={
                 status === "error"
                   ? "text-moto-red-strong text-sm"
@@ -605,6 +569,16 @@ function DepartureSection({
               {message}
             </span>
           )}
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="min-h-11 sm:min-h-0"
+            disabled={!changed || !requestable || status === "saving"}
+            onClick={() => void submit()}
+          >
+            {t("requestButton")}
+          </Button>
         </div>
       ) : (
         <p className="text-xs text-gray-500">{t("requestDisabled")}</p>
@@ -617,13 +591,19 @@ function DepartureSection({
 function AutoSaveField({
   label,
   value,
+  name,
   type = "text",
+  multiline = false,
+  placeholder,
   disabled = false,
   onSave,
 }: Readonly<{
   label: string;
   value: string;
+  name?: string;
   type?: string;
+  multiline?: boolean;
+  placeholder?: string;
   disabled?: boolean;
   onSave: (value: string) => Promise<void>;
 }>) {
@@ -718,18 +698,34 @@ function AutoSaveField({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-[15px] font-medium text-gray-700">{label}</span>
+        <span className="text-sm font-medium text-gray-700">{label}</span>
         <SaveIndicator status={status} />
       </div>
       <div className="mt-1">
-        <Input
-          aria-label={label}
-          type={type}
-          value={local}
-          disabled={disabled}
-          onChange={(e) => handleChange(e.target.value)}
-          onBlur={handleBlur}
-        />
+        {multiline ? (
+          <Textarea
+            name={name}
+            aria-label={label}
+            rows={5}
+            className="min-h-32"
+            placeholder={placeholder}
+            value={local}
+            disabled={disabled}
+            onChange={(e) => handleChange(e.target.value)}
+            onBlur={handleBlur}
+          />
+        ) : (
+          <Input
+            name={name}
+            aria-label={label}
+            controlSize="compact"
+            type={type}
+            value={local}
+            disabled={disabled}
+            onChange={(e) => handleChange(e.target.value)}
+            onBlur={handleBlur}
+          />
+        )}
       </div>
     </div>
   );
@@ -823,7 +819,7 @@ function AutoSaveSelect({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <span className="text-[15px] font-medium text-gray-700">{label}</span>
+        <span className="text-sm font-medium text-gray-700">{label}</span>
         <SaveIndicator status={status} />
       </div>
       <div className="mt-1">
@@ -835,82 +831,6 @@ function AutoSaveSelect({
           onChange={handleChange}
         />
       </div>
-    </div>
-  );
-}
-
-function RequestField({
-  label,
-  value,
-  onChange,
-  type = "text",
-  disabled = false,
-  pending,
-}: Readonly<{
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  disabled?: boolean;
-  pending?: MasterDataChange;
-}>) {
-  const t = useTranslations("parentMasterData");
-  const datePicker = useLocalizedDatePicker();
-  return (
-    <div>
-      <div className="flex items-center justify-between">
-        <span className="text-[15px] font-medium text-gray-700">{label}</span>
-        {pending && (
-          <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
-            <Clock className="h-3 w-3" aria-hidden="true" />
-            {t("pendingBadge")}
-          </span>
-        )}
-      </div>
-      <div className="mt-1">
-        {type === "date" ? (
-          // Only the birthday is a date field. It gets the kit calendar with
-          // month/year dropdowns (a birth year is far from today) and cannot be
-          // in the future.
-          <ISODatePicker
-            {...datePicker}
-            ariaLabel={label}
-            value={value}
-            disabled={disabled}
-            onChange={onChange}
-            monthYearNavigation
-            max={todayISO()}
-            calendarLayout="popover"
-            controlSize="lg"
-          />
-        ) : (
-          <Input
-            aria-label={label}
-            type={type}
-            value={value}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        )}
-      </div>
-      {pending && (
-        <p className="mt-1 text-xs text-gray-500">{t("pendingNotice")}</p>
-      )}
-    </div>
-  );
-}
-
-function ReadField({
-  label,
-  value,
-}: Readonly<{ label: string; value: string }>) {
-  const t = useTranslations("parentMasterData");
-  return (
-    <div className="min-w-0">
-      <span className="text-[15px] font-medium text-gray-700">{label}</span>
-      <p className="mt-1 text-sm font-medium text-gray-900">
-        {value || t("notSet")}
-      </p>
     </div>
   );
 }
@@ -1003,14 +923,20 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
   const t = useTranslations("parentMasterData");
   if (status === "saving") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+      <span
+        role="status"
+        className="inline-flex items-center gap-1 text-xs text-gray-500"
+      >
         <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
       </span>
     );
   }
   if (status === "saved") {
     return (
-      <span className="text-moto-green-strong inline-flex items-center gap-1 text-xs font-medium">
+      <span
+        role="status"
+        className="text-moto-green-strong inline-flex items-center gap-1 text-xs font-medium"
+      >
         <Check className="h-3 w-3" aria-hidden="true" />
         {t("saved")}
       </span>
@@ -1018,7 +944,10 @@ function SaveIndicator({ status }: Readonly<{ status: SaveStatus }>) {
   }
   if (status === "error") {
     return (
-      <span className="text-moto-red-strong inline-flex items-center gap-1 text-xs font-medium">
+      <span
+        role="status"
+        className="text-moto-red-strong inline-flex items-center gap-1 text-xs font-medium"
+      >
         <AlertCircle className="h-3 w-3" aria-hidden="true" />
         {t("saveError")}
       </span>

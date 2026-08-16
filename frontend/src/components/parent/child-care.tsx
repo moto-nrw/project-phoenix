@@ -124,6 +124,8 @@ const DEFAULT_FEATURES: ChildFeatures = {
   // a 403; the backend enforces the gate regardless.
   request_submit_enabled: false,
   pickup_change_enabled: false,
+  pickup_manage_allowed: false,
+  guardian_contact_manage_allowed: false,
   // Capability flags default to false on fetch failure (least privilege —
   // hide invite/remove if we can't confirm they're enabled; the backend
   // enforces the gate regardless).
@@ -270,7 +272,6 @@ export interface ChildCare {
   saveCareException(params: {
     date: string;
     pickupTime: string;
-    arrivalTime?: string;
     reason: string;
   }): Promise<void>;
   removeCareException(date: string): Promise<void>;
@@ -554,12 +555,7 @@ export function useChildCare(studentId: string): ChildCare {
   );
 
   const saveCareException = useCallback(
-    async (params: {
-      date: string;
-      pickupTime: string;
-      arrivalTime?: string;
-      reason: string;
-    }) => {
+    async (params: { date: string; pickupTime: string; reason: string }) => {
       const saved = await submitCareException(studentId, params);
       // Bail if we navigated to another child mid-save — A's override must not
       // land in B's exception list (#1725 review).
@@ -655,12 +651,11 @@ export function SickNoteModal({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const errorId = useId();
 
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
-  // For an excused absence the note is mandatory (the OGS needs the reason); a
-  // sick note keeps it optional.
-  const noteRequired = status === "excused";
-  const noteMissing = noteRequired && reason.trim() === "";
+  const noteMissing = reason.trim() === "";
 
   // Map submit failures to localized text; never surface a raw English backend
   // string to the German-only parent UI (mirrors PickupTimeModal.resolveError).
@@ -684,6 +679,7 @@ export function SickNoteModal({
     }
     if (noteMissing) {
       setError(t("sick.reasonRequiredError"));
+      reasonRef.current?.focus();
       return;
     }
     setSubmitting(true);
@@ -709,109 +705,127 @@ export function SickNoteModal({
         <>
           <Button
             type="button"
-            size="touch"
-            className="w-full gap-2 sm:w-auto"
-            onClick={() => void handleSubmit()}
-            disabled={submitting || noteMissing}
-          >
-            {submitting && (
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
-            )}
-            {t("sick.submit")}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="touch"
-            className="w-full sm:w-auto"
+            variant="outline"
+            size="md"
+            className="hidden sm:inline-flex"
             onClick={onClose}
           >
             {t("cancel")}
+          </Button>
+          <Button
+            type="button"
+            size="md"
+            className="w-full gap-2 sm:w-auto"
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+          >
+            {submitting && (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            )}
+            {status === "sick" ? t("sick.submitSick") : t("sick.submitExcused")}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
-        {/* Ein Satz oben, der die Folge benennt. Kein stummes Speichern. */}
-        <p className="text-[17px] leading-7 text-gray-700">
+        <p className="text-sm leading-6 text-gray-700">
           {excusedRequiresApproval ? t("sick.introApproval") : t("sick.intro")}
         </p>
-        <p className="text-[15px] text-gray-500">{t("requiredHint")}</p>
         <label className="block">
-          <span className="mb-1 block text-[15px] font-medium text-gray-700">
+          <span className="mb-1 block text-sm font-medium text-gray-700">
             {t("sick.kindLabel")}
           </span>
           <CustomSelect
             value={status}
             ariaLabel={t("sick.kindLabel")}
-            onChange={(value) => setStatus(value as StudentStatusKind)}
+            onChange={(value) => {
+              setStatus(value as StudentStatusKind);
+              setError(null);
+            }}
             options={[
               { value: "sick", label: t("sick.kindSick") },
               { value: "excused", label: t("sick.kindExcused") },
             ]}
           />
         </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block">
-            <span className="mb-1 block text-[15px] font-medium text-gray-700">
-              {t("sick.from")}
-            </span>
-            <ISODatePicker
-              {...datePicker}
-              ariaLabel={t("sick.from")}
-              value={from}
-              min={initial}
-              onChange={(next) => {
-                setFrom(next);
-                if (next > to) setTo(next);
-              }}
-              calendarLayout="popover"
-              hideClearButton
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[15px] font-medium text-gray-700">
-              {t("sick.to")}
-            </span>
-            <ISODatePicker
-              {...datePicker}
-              ariaLabel={t("sick.to")}
-              value={to}
-              min={from}
-              onChange={setTo}
-              calendarLayout="popover"
-              hideClearButton
-            />
-          </label>
-        </div>
-        <p className="text-[15px] text-gray-600">
+        <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
+          {status === "sick"
+            ? t("sick.kindHintSick")
+            : t("sick.kindHintExcused")}
+        </p>
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-gray-700">
+            {t("sick.periodLabel")}
+          </legend>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-gray-700">
+                {t("sick.from")}
+              </span>
+              <ISODatePicker
+                {...datePicker}
+                ariaLabel={t("sick.from")}
+                value={from}
+                min={initial}
+                onChange={(next) => {
+                  setFrom(next);
+                  if (next > to) setTo(next);
+                }}
+                calendarLayout="popover"
+                hideClearButton
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-gray-700">
+                {t("sick.to")}
+              </span>
+              <ISODatePicker
+                {...datePicker}
+                ariaLabel={t("sick.to")}
+                value={to}
+                min={from}
+                onChange={setTo}
+                calendarLayout="popover"
+                hideClearButton
+              />
+            </label>
+          </div>
+        </fieldset>
+        <p className="text-sm text-gray-600">
           {t("sick.daysCount", { count: dates.length })}
         </p>
-        {noteRequired && excusedRequiresApproval && (
-          <p className="bg-moto-orange-soft text-moto-orange-strong rounded-xl px-3 py-2 text-[15px]">
+        {status === "excused" && excusedRequiresApproval && (
+          <p className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2 text-sm">
             {t("sick.approvalHint")}
           </p>
         )}
         <label className="block">
-          <span className="mb-1 block text-[15px] font-medium text-gray-700">
-            {noteRequired
-              ? t("sick.reasonLabelRequired")
-              : t("sick.reasonLabel")}
+          <span className="mb-1 block text-sm font-medium text-gray-700">
+            {t("sick.reasonLabelRequired")} <span aria-hidden="true">*</span>
           </span>
           <textarea
+            ref={reasonRef}
             value={reason}
             maxLength={MAX_NOTE_LEN}
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => {
+              setReason(e.target.value);
+              if (error) setError(null);
+            }}
+            name="absence-reason"
+            autoComplete="off"
+            required
             rows={3}
             placeholder={t("sick.reasonPlaceholder")}
-            className="min-h-24 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-[17px] focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none"
+            aria-invalid={noteMissing && Boolean(error)}
+            aria-describedby={noteMissing && error ? errorId : undefined}
+            className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           />
         </label>
-        {/* Der Fehler steht am Formular, in Alltagssprache. */}
         {error && (
           <p
+            id={errorId}
             role="alert"
-            className="bg-parent-red-soft text-parent-red-strong rounded-xl px-3 py-2 text-[15px]"
+            className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
           >
             {error}
           </p>
@@ -838,7 +852,6 @@ export function PickupTimeModal({
   onSubmit: (params: {
     date: string;
     pickupTime: string;
-    arrivalTime?: string;
     reason: string;
   }) => Promise<void>;
   onRemove: (date: string) => Promise<void>;
@@ -850,7 +863,8 @@ export function PickupTimeModal({
   const initial = useMemo(() => {
     if (pickupChangeEnabled) return today;
     return (
-      careExceptions.find((entry) => entry.source === "guardian")?.date ?? today
+      careExceptions.find((entry) => entry.pickup_source === "guardian")
+        ?.date ?? today
     );
   }, [careExceptions, pickupChangeEnabled, today]);
   // Two calendar months ahead — mirrors the backend cap in SubmitCareException
@@ -877,7 +891,7 @@ export function PickupTimeModal({
     () => careExceptions.find((e) => e.date === date),
     [careExceptions, date],
   );
-  const staffOwned = existing?.source === "staff";
+  const staffOwned = existing?.pickup_source === "staff";
 
   // Map the backend's stable error code to a localized message; fall back to
   // the raw message (or a generic one) when the code is missing/unknown so the
@@ -942,7 +956,6 @@ export function PickupTimeModal({
       await onSubmit({
         date,
         pickupTime,
-        arrivalTime: existing?.arrival_time,
         reason: reason.trim(),
       });
       onClose();
@@ -975,9 +988,31 @@ export function PickupTimeModal({
       mobileSheet
       footer={
         <>
+          {existing?.pickup_source === "guardian" && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="md"
+              className="w-full gap-2 sm:w-auto"
+              onClick={() => void handleRemove()}
+              disabled={submitting}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              {t("pickup.reset")}
+            </Button>
+          )}
           <Button
             type="button"
-            size="touch"
+            variant="outline"
+            size="md"
+            className="hidden sm:inline-flex"
+            onClick={onClose}
+          >
+            {t("cancel")}
+          </Button>
+          <Button
+            type="button"
+            size="md"
             className="w-full gap-2 sm:w-auto"
             onClick={() => void handleSubmit()}
             disabled={
@@ -988,48 +1023,22 @@ export function PickupTimeModal({
             }
           >
             {submitting && (
-              <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
             )}
             {t("pickup.submit")}
-          </Button>
-          {existing && !staffOwned && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="touch"
-              className="w-full gap-2 sm:w-auto"
-              onClick={() => void handleRemove()}
-              disabled={submitting}
-            >
-              <Trash2 className="h-5 w-5" aria-hidden="true" />
-              {t("pickup.reset")}
-            </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="touch"
-            className="w-full sm:w-auto"
-            onClick={onClose}
-          >
-            {t("cancel")}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
-        {/* Die Folge steht oben, bevor irgendetwas ausgefuellt wird. */}
-        <p className="text-[17px] leading-7 text-gray-700">
-          {t("pickup.intro")}
-        </p>
-        <p className="text-[15px] text-gray-500">{t("requiredHint")}</p>
+        <p className="text-sm leading-6 text-gray-700">{t("pickup.intro")}</p>
         {!careExceptionsLoaded && (
-          <p className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[15px] text-gray-600">
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.loadError")}
           </p>
         )}
         <label className="block">
-          <span className="mb-1 block text-[15px] font-medium text-gray-700">
+          <span className="mb-1 block text-sm font-medium text-gray-700">
             {t("pickup.dateLabel")}
           </span>
           <ISODatePicker
@@ -1045,10 +1054,9 @@ export function PickupTimeModal({
         </label>
 
         {staffOwned ? (
-          <p className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[15px] text-gray-600">
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.staffSet", {
               pickup: existing?.pickup_time ?? "—",
-              arrival: existing?.arrival_time ?? "—",
             })}
           </p>
         ) : (
@@ -1071,7 +1079,7 @@ export function PickupTimeModal({
               describedBy={invalidField === "pickupTime" ? errorId : undefined}
             />
             <label className="block">
-              <span className="mb-1 block text-[15px] font-medium text-gray-700">
+              <span className="mb-1 block text-sm font-medium text-gray-700">
                 {t("pickup.reasonLabel")}
               </span>
               <textarea
@@ -1092,14 +1100,14 @@ export function PickupTimeModal({
                 aria-describedby={
                   invalidField === "reason" ? errorId : undefined
                 }
-                className="min-h-24 w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-[17px] focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-[#5080D8]/40 focus-visible:outline-none"
+                className="min-h-20 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
           </div>
         )}
 
-        {existing && !staffOwned && (
-          <p className="text-[15px] text-gray-500">
+        {existing?.pickup_source === "guardian" && (
+          <p className="text-sm text-gray-500">
             {t("pickup.existingHint", {
               date: formatLocaleDate(date, locale),
             })}
@@ -1110,7 +1118,7 @@ export function PickupTimeModal({
           <p
             id={errorId}
             role="alert"
-            className="bg-parent-red-soft text-parent-red-strong rounded-xl px-3 py-2 text-[15px]"
+            className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
           >
             {error}
           </p>

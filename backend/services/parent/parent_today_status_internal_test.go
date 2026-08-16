@@ -24,13 +24,14 @@ func berlinClock(t *testing.T, hour, minute int) time.Time {
 // Datenbank pruefbar bleibt.
 func TestDeriveTodayStatus(t *testing.T) {
 	cases := []struct {
-		name      string
-		facts     todayStatusFacts
-		wantState DayState
-		wantAtOgs *bool // nil bedeutet: keine Ja/Nein-Aussage
-		wantSince string
-		wantUntil string
-		wantFrom  string
+		name       string
+		facts      todayStatusFacts
+		wantState  DayState
+		wantAtOgs  *bool // nil bedeutet: keine Ja/Nein-Aussage
+		wantSince  string
+		wantUntil  string
+		wantFrom   string
+		wantPickup string
 	}{
 		{
 			name:      "Anwesenheit nicht ladbar ergibt unbekannt ohne Ja/Nein-Aussage",
@@ -61,11 +62,12 @@ func TestDeriveTodayStatus(t *testing.T) {
 			facts: todayStatusFacts{
 				AttendanceLoaded: true, SchoolTracksAttendance: true, CareDayResolved: true,
 				HasAttendanceToday: true, CheckIn: "12:38", CheckOut: "",
-				IsCareDay: true, NowHHMM: "13:00",
+				IsCareDay: true, PickupTime: "15:30", NowHHMM: "13:00",
 			},
-			wantState: DayStatePresent,
-			wantAtOgs: atOgsFlag(true),
-			wantSince: "12:38",
+			wantState:  DayStatePresent,
+			wantAtOgs:  atOgsFlag(true),
+			wantSince:  "12:38",
+			wantPickup: "15:30",
 		},
 		{
 			name: "geschlossene Anwesenheit ergibt abgeholt",
@@ -174,6 +176,9 @@ func TestDeriveTodayStatus(t *testing.T) {
 			}
 			if got.ExpectedFrom != tc.wantFrom {
 				t.Errorf("ExpectedFrom = %q, erwartet %q", got.ExpectedFrom, tc.wantFrom)
+			}
+			if got.PickupTime != tc.wantPickup {
+				t.Errorf("PickupTime = %q, erwartet %q", got.PickupTime, tc.wantPickup)
 			}
 		})
 	}

@@ -640,23 +640,13 @@ describe("submitSickNote", () => {
     expect(out.pending_request).toBeUndefined();
   });
 
-  it("sends an empty reason when none is supplied", async () => {
-    let seenBody = "";
-    mockFetch(async (_input, init) => {
-      seenBody = (init?.body as string) ?? "";
-      return jsonResponse({ data: { status_days: [] } }, { status: 201 });
-    });
-    await submitSickNote("84", ["2026-06-02"]);
-    expect(seenBody).toContain('"reason":""');
-  });
-
   it("defaults the status to a Krankmeldung (sick)", async () => {
     let seenBody = "";
     mockFetch(async (_input, init) => {
       seenBody = (init?.body as string) ?? "";
       return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
-    await submitSickNote("84", ["2026-06-02"]);
+    await submitSickNote("84", ["2026-06-02"], "Fieber");
     expect(seenBody).toContain('"status":"sick"');
   });
 
@@ -707,7 +697,7 @@ describe("submitSickNote", () => {
       seenURL = typeof input === "string" ? input : input.toString();
       return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
-    await submitSickNote("a/b", ["2026-06-02"]);
+    await submitSickNote("a/b", ["2026-06-02"], "Fieber");
     expect(seenURL).toContain("a%2Fb");
   });
 
@@ -715,9 +705,9 @@ describe("submitSickNote", () => {
     mockFetch(async () =>
       jsonResponse({ error: "Krankmeldung deaktiviert" }, { status: 403 }),
     );
-    await expect(submitSickNote("84", ["2026-06-02"])).rejects.toThrow(
-      /Krankmeldung deaktiviert/,
-    );
+    await expect(
+      submitSickNote("84", ["2026-06-02"], "Fieber"),
+    ).rejects.toThrow(/Krankmeldung deaktiviert/);
   });
 
   it("redirects to /parents/login on 401", async () => {
@@ -727,7 +717,9 @@ describe("submitSickNote", () => {
       value: { assign, host: "parents.localhost:3000" },
     });
     mockFetch(async () => new Response("", { status: 401 }));
-    await expect(submitSickNote("84", ["2026-06-02"])).rejects.toThrow();
+    await expect(
+      submitSickNote("84", ["2026-06-02"], "Fieber"),
+    ).rejects.toThrow();
     expect(assign).toHaveBeenCalledWith("/parents/login");
   });
 });
@@ -887,6 +879,7 @@ function mkThreadSummary(
     student_name: "Max Mustermann",
     school_name: "OGS A",
     counterpart_name: "OGS OGS A",
+    last_message_read_by_staff: false,
     unread: 0,
     ...overrides,
   };
@@ -1070,11 +1063,6 @@ describe("postChildMessage", () => {
     );
   });
 });
-
-// createChildRequest / withdrawChildRequest were removed in #1803: change
-// requests no longer flow through the chat. Care-schedule requests are now
-// created/withdrawn via the Stammdaten care-schedule endpoints
-// (submitCareScheduleRequest / withdrawCareScheduleRequest), covered elsewhere.
 
 function mkAnnouncement(
   overrides: Partial<ParentAnnouncement> = {},

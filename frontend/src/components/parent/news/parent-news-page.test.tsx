@@ -37,12 +37,32 @@ beforeEach(() => {
 });
 
 describe("ParentNewsPage", () => {
-  it("heisst 'Aus der OGS', nicht 'Neuigkeiten'", async () => {
+  it("bildet Gruppenueberschrift und Karten waehrend des Ladens ab", () => {
+    mocked.mockReturnValue(new Promise(() => {}));
+
+    render(<ParentNewsPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Elternbriefe" }),
+    ).toBeInTheDocument();
+    const skeleton = screen.getByTestId("parent-news-skeleton");
+    expect(skeleton.querySelectorAll(".rounded-2xl.border")).toHaveLength(2);
+    expect(skeleton.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
+      10,
+    );
+  });
+
+  it("zeigt Elternbriefe im gemeinsamen Seitenkopf", async () => {
     render(<ParentNewsPage />);
     expect(
-      await screen.findByRole("heading", { name: "Aus der OGS" }),
+      await screen.findByRole("heading", { name: "Elternbriefe" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Neuigkeiten")).not.toBeInTheDocument();
+    expect(screen.getByText("Post von der OGS")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Mitteilungen, Umfragen und wichtige Informationen Ihrer OGS.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("hebt eine ungelesene Meldung im Titelgewicht hervor", async () => {
@@ -50,10 +70,12 @@ describe("ParentNewsPage", () => {
     render(<ParentNewsPage />);
     const card = await screen.findByRole("button", { name: /Sommerfest/ });
     expect(screen.getByText("Sommerfest").className).toContain("font-semibold");
-    expect(card.querySelector('[data-moto-duotone-tone="blue"]')).not.toBeNull();
+    expect(
+      card.querySelector('[data-moto-duotone-tone="blue"]'),
+    ).not.toBeNull();
   });
 
-  it("markiert eine offene Umfrage als Ankuendigung und bietet Antworten", async () => {
+  it("zeigt eine offene Umfrage ohne Status-Pill und bietet Antworten", async () => {
     mocked.mockResolvedValue([
       announcement({
         response_type: "single_choice",
@@ -71,9 +93,11 @@ describe("ParentNewsPage", () => {
     render(<ParentNewsPage />);
     const card = await screen.findByRole("button", { name: /Sommerfest/ });
     expect(
-      card.querySelector('[data-moto-duotone-tone="amber"]'),
+      card.querySelector('[data-moto-duotone-tone="blue"]'),
     ).not.toBeNull();
+    expect(screen.getByText("Umfrage")).toBeInTheDocument();
     expect(screen.getByText("Antworten")).toBeInTheDocument();
+    expect(screen.queryByText("Antwort nötig")).not.toBeInTheDocument();
   });
 
   it("bietet bei bestaetigungspflichtigen Meldungen 'Gelesen bestätigen'", async () => {
@@ -84,10 +108,35 @@ describe("ParentNewsPage", () => {
     expect(await screen.findByText("Gelesen bestätigen")).toBeInTheDocument();
   });
 
+  it("gruppiert offene Elternbriefe vor erledigten Einträgen", async () => {
+    mocked.mockResolvedValue([
+      announcement({ id: "done", title: "Bereits gelesen", read: true }),
+      announcement({
+        id: "ack",
+        title: "Bestätigung fehlt",
+        read: true,
+        requires_acknowledgement: true,
+        acknowledged: false,
+      }),
+      announcement({ id: "new", title: "Noch ungelesen", read: false }),
+    ]);
+
+    render(<ParentNewsPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Offen, 2" }),
+    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Erledigt" })).toBeVisible();
+    const cards = screen.getAllByRole("button");
+    expect(cards[0]).toHaveTextContent("Bestätigung fehlt");
+    expect(cards[1]).toHaveTextContent("Noch ungelesen");
+    expect(cards[2]).toHaveTextContent("Bereits gelesen");
+  });
+
   it("sagt in Alltagssprache, wenn nichts anliegt", async () => {
     render(<ParentNewsPage />);
     expect(
-      await screen.findByText("Derzeit gibt es nichts Neues aus der OGS."),
+      await screen.findByText("Derzeit gibt es keine neuen Elternbriefe."),
     ).toBeInTheDocument();
   });
 });

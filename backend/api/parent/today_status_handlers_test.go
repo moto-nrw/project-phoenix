@@ -39,9 +39,10 @@ func TestTodayStatusEndpointReturnsPresent(t *testing.T) {
 	present := true
 	w := callTodayStatus(t, &fakeParentService{
 		todayStatus: &parentService.TodayStatus{
-			AtOgs: &present,
-			State: parentService.DayStatePresent,
-			Since: "12:38",
+			AtOgs:      &present,
+			State:      parentService.DayStatePresent,
+			Since:      "12:38",
+			PickupTime: "15:30",
 		},
 	})
 
@@ -55,6 +56,7 @@ func TestTodayStatusEndpointReturnsPresent(t *testing.T) {
 	assert.True(t, *body.Data.AtOgs)
 	assert.Equal(t, "present", body.Data.State)
 	assert.Equal(t, "12:38", body.Data.Since)
+	assert.Equal(t, "15:30", body.Data.PickupTime)
 	assert.Empty(t, body.Data.Until)
 }
 
@@ -96,7 +98,7 @@ func TestTodayStatusEndpointLeaksNoInternalFields(t *testing.T) {
 
 	allowed := map[string]bool{
 		"at_ogs": true, "state": true, "since": true,
-		"until": true, "expected_from": true,
+		"until": true, "expected_from": true, "pickup_time": true,
 	}
 	for key := range data {
 		assert.Truef(t, allowed[key], "unerwartetes Feld in der Elternantwort: %q", key)

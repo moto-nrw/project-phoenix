@@ -1,12 +1,19 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GuardiansPanel from "./guardians-panel";
-import type { ChildGuardian } from "~/lib/parent-api";
+import type { ChildGuardian, RelatedAccount } from "~/lib/parent-api";
 
 const mocks = vi.hoisted(() => ({
   listChildGuardians: vi.fn(),
   listRelatedAccounts: vi.fn(),
+  createGuardianContact: vi.fn(),
   inviteRelatedAccount: vi.fn(),
   removeRelatedAccount: vi.fn(),
   updateGuardianContact: vi.fn(),
@@ -30,6 +37,7 @@ vi.mock("~/lib/parent-api", () => {
     ParentApiError,
     listChildGuardians: mocks.listChildGuardians,
     listRelatedAccounts: mocks.listRelatedAccounts,
+    createGuardianContact: mocks.createGuardianContact,
     inviteRelatedAccount: mocks.inviteRelatedAccount,
     removeRelatedAccount: mocks.removeRelatedAccount,
     updateGuardianContact: mocks.updateGuardianContact,
@@ -82,10 +90,13 @@ describe("GuardiansPanel", () => {
     mocks.listRelatedAccounts.mockResolvedValue([]);
     mocks.updateGuardianContact.mockResolvedValue(editableGuardian);
     mocks.updateGuardianRelationship.mockResolvedValue(editableGuardian);
+    mocks.createGuardianContact.mockResolvedValue(editableGuardian);
   });
 
   it("preserves phone labels and the existing primary phone on contact save", async () => {
-    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     const emailInput = document.querySelector<HTMLInputElement>(
@@ -122,6 +133,209 @@ describe("GuardiansPanel", () => {
     );
   });
 
+  it("explains access in a dialog and sends the invitation", async () => {
+    mocks.inviteRelatedAccount.mockResolvedValue({
+      outcome: "invited",
+      guardian_profile_id: "8",
+    });
+
+    render(<GuardiansPanel studentId="42" canInvite canRemove={false} />);
+
+    expect(await screen.findByText("Für die OGS sichtbar")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Einladen" }));
+
+    const dialog = screen.getByRole("dialog", { name: "App-Zugang geben" });
+    expect(
+      within(dialog).getByText(
+        "Hat die Person bereits ein Konto, wird es verbunden. Andernfalls erhält sie eine Einladung per E-Mail. Je nach Einstellung prüft die OGS Ihre Anfrage zuerst.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      within(dialog).getByLabelText(
+        "E-Mail-Adresse der Person, die Sie einladen möchten",
+      ),
+      { target: { value: "person@example.test" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Einladung senden" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.inviteRelatedAccount).toHaveBeenCalledWith(
+        "42",
+        "person@example.test",
+        undefined,
+      );
+    });
+    expect(
+      await screen.findByText("Einladung an person@example.test gesendet."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "App-Zugang geben" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps invitation errors inside the dialog", async () => {
+    mocks.inviteRelatedAccount.mockRejectedValue(new Error("network"));
+
+    render(<GuardiansPanel studentId="42" canInvite canRemove={false} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Einladen" }));
+    const dialog = screen.getByRole("dialog", { name: "App-Zugang geben" });
+    fireEvent.change(
+      within(dialog).getByLabelText(
+        "E-Mail-Adresse der Person, die Sie einladen möchten",
+      ),
+      { target: { value: "person@example.test" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Einladung senden" }),
+    );
+
+    expect(
+      await within(dialog).findByText(
+        "Die Einladung konnte nicht gesendet werden.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("adds a pickup contact without inviting an account", async () => {
+    render(
+      <GuardiansPanel
+        studentId="42"
+        canInvite
+        canRemove={false}
+        canAddContact
+        canManagePickup
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Kontakt oder Abholperson hinzufügen/,
+      }),
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Kontakt hinzufügen" });
+    fireEvent.change(within(dialog).getByLabelText("Vorname"), {
+      target: { value: "Erika" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("Nachname"), {
+      target: { value: "Klein" },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", { name: /Darf abholen/ }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Kontakt hinzufügen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createGuardianContact).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({
+          first_name: "Erika",
+          last_name: "Klein",
+          relationship_type: "relative",
+          can_pickup: true,
+          is_emergency_contact: false,
+        }),
+      );
+    });
+    expect(mocks.inviteRelatedAccount).not.toHaveBeenCalled();
+  });
+
+  it("lists only active or invited accounts in connected accounts", async () => {
+    const relatedAccounts: RelatedAccount[] = [
+      {
+        guardian_profile_id: "21",
+        first_name: "Jürgen",
+        last_name: "Schulze",
+        email: "juergen@example.test",
+        relationship_type: "parent",
+        is_primary: true,
+        status: "active",
+        is_self: true,
+      },
+      {
+        guardian_profile_id: "22",
+        first_name: "Magdalena",
+        last_name: "Schulze",
+        email: "magdalena@example.test",
+        relationship_type: "relative",
+        is_primary: false,
+        status: "no_account",
+        is_self: false,
+      },
+      {
+        guardian_profile_id: "23",
+        first_name: "Klaus",
+        last_name: "Schulze",
+        email: "klaus@example.test",
+        relationship_type: "parent",
+        is_primary: false,
+        status: "active_no_access",
+        is_self: false,
+      },
+      {
+        guardian_profile_id: "24",
+        first_name: "Petra",
+        last_name: "Schulze",
+        email: "petra@example.test",
+        relationship_type: "parent",
+        is_primary: false,
+        status: "pending",
+        is_self: false,
+      },
+    ];
+    mocks.listRelatedAccounts.mockResolvedValue(relatedAccounts);
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Verbundene Konten" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("juergen@example.test")).toBeInTheDocument();
+    expect(screen.getByText("petra@example.test")).toBeInTheDocument();
+    expect(
+      screen.queryByText("magdalena@example.test"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("klaus@example.test")).not.toBeInTheDocument();
+  });
+
+  it("separates contacts and accounts with the standard section spacing", async () => {
+    mocks.listRelatedAccounts.mockResolvedValue([
+      {
+        guardian_profile_id: "7",
+        first_name: "Helga",
+        last_name: "Schneider",
+        email: "helga@example.test",
+        relationship_type: "relative",
+        is_primary: false,
+        status: "active",
+        is_self: false,
+      },
+    ] satisfies RelatedAccount[]);
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    const contacts = await screen.findByRole("heading", {
+      name: "Abholberechtigte und Kontakte",
+    });
+    const accounts = screen.getByRole("heading", {
+      name: "Verbundene Konten",
+    });
+    expect(contacts.closest("section")?.parentElement).toBe(
+      accounts.closest("section")?.parentElement,
+    );
+    expect(contacts.closest("section")?.parentElement).toHaveClass("space-y-5");
+  });
+
   it("maps parent API error codes to localized modal errors", async () => {
     const { ParentApiError } = await import("~/lib/parent-api");
     mocks.updateGuardianContact.mockRejectedValue(
@@ -132,7 +346,9 @@ describe("GuardiansPanel", () => {
       ),
     );
 
-    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -162,7 +378,9 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([noteOnlyGuardian]);
 
-    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
 
     // The note action is reachable (labelled as the pickup note, not "manage").
     fireEvent.click(
@@ -206,7 +424,9 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([lockedGuardian]);
 
-    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
 
     expect(await screen.findByText("Onkel Ali")).toBeInTheDocument();
     expect(
@@ -232,7 +452,9 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([noteEditableGuardian]);
 
-    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Hinweis zur Abholung" }),
@@ -273,7 +495,9 @@ describe("GuardiansPanel", () => {
     };
     mocks.listChildGuardians.mockResolvedValue([manageOnlyGuardian]);
 
-    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Abholrecht verwalten" }),
@@ -324,7 +548,9 @@ describe("GuardiansPanel", () => {
       lockedGuardian,
     ]);
 
-    render(<GuardiansPanel studentId="42" canInvite={false} canRemove={false} />);
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
 
     // The redacted guardian is still listed by name.
     expect(await screen.findByText("Mehmet Yilmaz")).toBeInTheDocument();

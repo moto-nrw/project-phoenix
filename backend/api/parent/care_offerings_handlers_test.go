@@ -1,6 +1,7 @@
 package parent
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,12 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
+
+func TestCareOfferingsResponseOmitsActivityGroups(t *testing.T) {
+	payload, err := json.Marshal(toCareOfferingsResponse(&parentService.ChildCareOfferings{}))
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), `"groups"`)
+}
 
 func TestToCareOfferingsResponseIncludesOfferingInterval(t *testing.T) {
 	starts := timezone.NewDate(2026, 10, 1)

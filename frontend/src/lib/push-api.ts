@@ -42,7 +42,7 @@ export function isPushSupported(): boolean {
 }
 
 /** True when the app runs installed (home screen / standalone mode). */
-function isStandalone(): boolean {
+export function isStandaloneApp(): boolean {
   if (typeof window === "undefined") return false;
   if (window.matchMedia("(display-mode: standalone)").matches) return true;
   // iOS Safari exposes the legacy navigator.standalone flag.
@@ -52,11 +52,7 @@ function isStandalone(): boolean {
   );
 }
 
-/**
- * True on iOS/iPadOS Safari where Web Push only exists after the app was
- * added to the home screen: push is unsupported AND we're on an Apple touch
- * device AND not running standalone.
- */
+/** True on iOS/iPadOS until the app is running from the home screen. */
 export function needsIOSInstall(): boolean {
   if (typeof window === "undefined") return false;
   const ua = window.navigator.userAgent;
@@ -64,7 +60,7 @@ export function needsIOSInstall(): boolean {
     /iPad|iPhone|iPod/.test(ua) ||
     // iPadOS 13+ reports as macOS but has touch support.
     (ua.includes("Macintosh") && window.navigator.maxTouchPoints > 1);
-  return isAppleMobile && !isStandalone() && !isPushSupported();
+  return isAppleMobile && !isStandaloneApp();
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -126,6 +122,12 @@ async function getPushPublicKey(
       "Der Web-Push-Schlüssel des Servers ist ungültig.",
     );
   }
+}
+
+export async function verifyPushConfiguration(
+  portal: PushPortal,
+): Promise<void> {
+  await getPushPublicKey(portal);
 }
 
 /** Registers /sw.js (idempotent) and returns the registration. */

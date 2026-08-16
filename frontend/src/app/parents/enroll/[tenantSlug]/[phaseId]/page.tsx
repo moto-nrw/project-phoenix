@@ -1,15 +1,19 @@
 "use client";
 
 import { Suspense, use, useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 // eslint-disable-next-line no-restricted-imports -- parent portal uses bare paths, no tenant-router
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { ArrowLeft } from "lucide-react";
 import {
   EnrollmentForm,
   type EnrollmentFormPrefetchedData,
 } from "~/components/enrollment/enrollment-form";
+import {
+  ParentPage,
+  ParentPageHeader,
+  ParentPageSkeleton,
+  ParentSectionSkeleton,
+} from "~/components/parent/parent-page";
 import { TenantProvider } from "~/lib/tenant-context";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
@@ -36,7 +40,7 @@ interface PageProps {
  */
 export default function ParentEnrollFormPage({ params }: PageProps) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<ParentPageSkeleton rows={3} />}>
       <ParentEnrollFormPageContent params={params} />
     </Suspense>
   );
@@ -117,26 +121,21 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
   );
 
   return (
-    <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
-      <header className="space-y-2">
-        <Link
-          href="/parents"
-          className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("backToPortal")}
-        </Link>
-        <h1 className="text-2xl font-semibold text-wrap text-gray-900">
-          {t("formEyebrow")}
-        </h1>
-        <p className="max-w-3xl text-sm leading-6 text-gray-600">
-          {t("parentEmbeddedDescription")}
-        </p>
-      </header>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("parentEmbeddedKicker")}
+        title={t("formEyebrow")}
+        description={t("parentEmbeddedDescription")}
+        backHref="/parents/enroll"
+        backLabel={t("backToPicker")}
+      />
 
       {loading ? (
-        <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
-          {t("detailsLoading")}
+        <div className="space-y-5" aria-busy="true">
+          <span className="sr-only">{t("detailsLoading")}</span>
+          <ParentSectionSkeleton rows={4} />
+          <ParentSectionSkeleton rows={5} />
+          <ParentSectionSkeleton rows={3} />
         </div>
       ) : error || !loaded ? (
         <div
@@ -159,7 +158,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
           />
         </TenantProvider>
       )}
-    </main>
+    </ParentPage>
   );
 }
 

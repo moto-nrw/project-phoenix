@@ -5,16 +5,18 @@ import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   NewsDetailModal,
   isOpenPoll,
 } from "~/components/parent/news/news-components";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
   UNKNOWN_CHILD_TODAY,
+  fetchParentProfile,
   getChildFeatures,
   getChildToday,
   listAnnouncements,
@@ -37,6 +39,77 @@ const logger = createLogger({ component: "ParentStartPage" });
 
 /** Wie weit nach vorn Termineinladungen fuer "Zu erledigen" gesucht werden. */
 const APPOINTMENT_LOOKAHEAD_DAYS = 90;
+
+const TODO_TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+const TODO_DATE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
+function todoTimeFormatter(locale: string): Intl.DateTimeFormat {
+  const cached = TODO_TIME_FORMATTERS.get(locale);
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat(locale, {
+    timeZone: "Europe/Berlin",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  TODO_TIME_FORMATTERS.set(locale, formatter);
+  return formatter;
+}
+
+function todoDateFormatter(
+  locale: string,
+  includeYear: boolean,
+): Intl.DateTimeFormat {
+  const key = `${locale}:${includeYear ? "year" : "short"}`;
+  const cached = TODO_DATE_FORMATTERS.get(key);
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat(locale, {
+    timeZone: "Europe/Berlin",
+    day: "2-digit",
+    month: "2-digit",
+    year: includeYear ? "2-digit" : undefined,
+  });
+  TODO_DATE_FORMATTERS.set(key, formatter);
+  return formatter;
+}
+
+function formatTodoTimestamp(
+  iso: string | undefined,
+  locale: string,
+  todayLabel: string,
+  now: Date = new Date(),
+): TodoItem["meta"] {
+  if (!iso) return undefined;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return undefined;
+
+  const dateKey = berlinTodayISO(date);
+  const todayKey = berlinTodayISO(now);
+  const time = todoTimeFormatter(locale).format(date);
+
+  if (dateKey === todayKey) return { date: todayLabel, time };
+
+  const includeYear = dateKey.slice(0, 4) !== todayKey.slice(0, 4);
+  const dateLabel = todoDateFormatter(locale, includeYear).format(date);
+  return { date: dateLabel, time };
+}
+
+function formatAppointmentTimestamp(
+  event: CalendarEvent,
+  locale: string,
+  todayLabel: string,
+  allDayLabel: string,
+): TodoItem["meta"] {
+  const today = berlinTodayISO();
+  const includeYear = event.start_date.slice(0, 4) !== today.slice(0, 4);
+  const date =
+    event.start_date === today
+      ? todayLabel
+      : todoDateFormatter(locale, includeYear).format(
+          new Date(`${event.start_date}T12:00:00Z`),
+        );
+  const time = event.all_day ? allDayLabel : event.start_time.slice(0, 5);
+  return { date, time };
+}
 
 /**
  * Die Stunde in Berlin, unabhaengig davon, wo das Geraet steht. Ein Elternteil
@@ -61,9 +134,15 @@ interface StartData {
   readonly children: readonly Child[];
   readonly features: Readonly<Record<string, ChildFeatures>>;
   readonly today: Readonly<Record<string, ChildToday>>;
+  readonly firstName: string;
 }
 
-const EMPTY_DATA: StartData = { children: [], features: {}, today: {} };
+const EMPTY_DATA: StartData = {
+  children: [],
+  features: {},
+  today: {},
+  firstName: "",
+};
 
 export function ParentStartPage() {
   const t = useTranslations("parentStart");
@@ -74,7 +153,10 @@ export function ParentStartPage() {
 
   const load = useCallback(async () => {
     try {
-      const children = await listMyChildren();
+      const [children, accountProfile] = await Promise.all([
+        listMyChildren(),
+        fetchParentProfile().catch(() => undefined),
+      ]);
       const perChild = await Promise.all(
         children.map(async (child) => {
           const [features, today] = await Promise.all([
@@ -92,6 +174,7 @@ export function ParentStartPage() {
             .map(([id, features]) => [id, features as ChildFeatures]),
         ),
         today: Object.fromEntries(perChild.map(([id, , today]) => [id, today])),
+        firstName: accountProfile?.first_name?.trim() ?? "",
       });
       setFailed(false);
     } catch (err) {
@@ -120,31 +203,34 @@ export function ParentStartPage() {
 
   const greeting = useMemo(() => {
     const key = greetingKey(berlinHour());
-    const name = profile?.firstName?.trim();
+    const name = data.firstName || profile?.firstName?.trim();
     return name ? t(`greeting.${key}`, { name }) : t(`greeting.${key}Plain`);
-  }, [profile?.firstName, t]);
+  }, [data.firstName, profile?.firstName, t]);
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-[30px] leading-tight font-extrabold tracking-tight text-balance text-gray-900">
-        {greeting}
-      </h1>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("kicker")}
+        title={greeting}
+        description={t("subtitle")}
+        prominent
+      />
 
-      {/* Ab 1024 px zwei Spalten: links, was zu tun ist, rechts die Kinder.
-          Sonst bliebe die rechte Bildschirmhaelfte leer, und das offene
-          Zeug rutschte auf breiten Schirmen weit nach oben weg. */}
-      <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0">
-        <div className="space-y-5">
-          <StartTodoSection />
-        </div>
+      {/* Untereinander, beide ueber die volle Inhaltsbreite. Zweispaltig mit
+          ungleichen Spalten las sich als Fehler: der schmale Block daneben
+          sah aus, als fehle ihm etwas. Nebeneinander gilt nur bei exakt
+          gleicher Breite; innerhalb eines Abschnitts liegen die Kinderkarten
+          weiter in einem auto-fit-Raster. */}
+      <div className="space-y-5">
+        <StartTodoSection />
 
         <div className="space-y-4">
           {failed && <Alert type="error" message={t("loadError")} />}
 
           {loading ? (
-            <Skeleton className="h-56 w-full rounded-2xl" />
+            <StartChildCardSkeleton />
           ) : data.children.length === 0 && !failed ? (
-            <p className="rounded-2xl border border-gray-200 bg-white p-5 text-[17px] text-gray-500 shadow-sm">
+            <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
               {t("noChildren")}
             </p>
           ) : (
@@ -153,14 +239,9 @@ export function ParentStartPage() {
                einem Kind die halbe Zeile leer. */
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4">
               {data.children.map((child) => (
-                <ChildDayCard
+                <StartChildCard
                   key={child.student_id}
-                  child={{
-                    studentId: child.student_id,
-                    firstName: child.first_name,
-                    lastName: child.last_name,
-                    schoolClass: child.school_class,
-                  }}
+                  child={child}
                   today={data.today[child.student_id] ?? UNKNOWN_CHILD_TODAY}
                   features={data.features[child.student_id]}
                 />
@@ -169,7 +250,95 @@ export function ParentStartPage() {
           )}
         </div>
       </div>
+    </ParentPage>
+  );
+}
+
+function StartChildCard({
+  child,
+  today,
+  features,
+}: Readonly<{
+  child: Child;
+  today: ChildToday;
+  features?: ChildFeatures;
+}>) {
+  const pickupAside =
+    today.at_ogs === true && today.pickup_time ? (
+      <StartPickupSummary time={today.pickup_time} />
+    ) : undefined;
+
+  return (
+    <ChildDayCard
+      child={{
+        studentId: child.student_id,
+        firstName: child.first_name,
+        lastName: child.last_name,
+        schoolClass: child.school_class,
+      }}
+      today={today}
+      features={features}
+      statusAside={pickupAside}
+      actionDisplay="compact"
+    />
+  );
+}
+
+function StartPickupSummary({ time }: Readonly<{ time: string }>) {
+  const t = useTranslations("parentChild");
+
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <MotoConceptIcon
+        concept="pickup"
+        size={28}
+        className="mt-0.5 shrink-0"
+        aria-hidden="true"
+      />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {t("today.pickupLabel")}
+        </p>
+        <p className="mt-1 text-sm leading-6 font-medium text-gray-900">
+          {t("today.pickup", { time })}
+        </p>
+      </div>
     </div>
+  );
+}
+
+function StartChildCardSkeleton() {
+  const t = useTranslations("parentStart");
+
+  return (
+    <article
+      role="status"
+      data-testid="parent-start-child-skeleton"
+      className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+    >
+      <span className="sr-only">{t("childrenLoading")}</span>
+      <div aria-hidden="true" className="space-y-5 p-5 sm:p-6">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <Skeleton className="size-11 shrink-0 rounded-xl" />
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-5 w-40 max-w-3/4" />
+              <Skeleton className="mt-2 h-4 w-20" />
+            </div>
+          </div>
+          <Skeleton className="h-11 w-28 shrink-0 rounded-lg" />
+        </div>
+
+        <div className="flex min-w-0 items-start gap-3 rounded-xl bg-gray-50 p-4">
+          <Skeleton className="size-8 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="mt-2 h-7 w-44 max-w-4/5" />
+            <Skeleton className="mt-2 h-4 w-32 max-w-2/3" />
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -278,7 +447,11 @@ function StartTodoSection() {
     null;
 
   if (!loaded) {
-    return <Skeleton className="h-32 w-full rounded-2xl" />;
+    return <StartTodoSkeleton />;
+  }
+
+  if (partialFailure && items.length === 0) {
+    return <Alert type="warning" message={t("todo.partialLoadError")} />;
   }
 
   return (
@@ -296,6 +469,24 @@ function StartTodoSection() {
         />
       )}
     </>
+  );
+}
+
+function StartTodoSkeleton() {
+  const t = useTranslations("parentStart");
+
+  return (
+    <section
+      role="status"
+      data-testid="parent-start-todo-skeleton"
+      className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+    >
+      <span className="sr-only">{t("todo.loading")}</span>
+      <div aria-hidden="true">
+        <Skeleton className="h-7 w-36" />
+        <Skeleton className="mt-1 h-6 w-72 max-w-full" />
+      </div>
+    </section>
   );
 }
 
@@ -341,32 +532,40 @@ function buildTodoItems(
 
   return [
     ...polls.map((item) =>
-      todoFromAnnouncement(item, t, true, openAnnouncement),
+      todoFromAnnouncement(item, locale, t, true, openAnnouncement),
     ),
     ...appointments.map((event) => todoFromAppointment(event, locale, t)),
-    ...threads.map((thread) => todoFromThread(thread, t)),
+    ...threads.map((thread) => todoFromThread(thread, locale, t)),
     ...notices.map((item) =>
-      todoFromAnnouncement(item, t, false, openAnnouncement),
+      todoFromAnnouncement(item, locale, t, false, openAnnouncement),
     ),
   ];
 }
 
 function todoFromAnnouncement(
   item: ParentAnnouncement,
+  locale: string,
   t: StartTranslator,
   poll: boolean,
   openAnnouncement: (id: string) => void,
 ): TodoItem {
+  const needsAcknowledgement =
+    item.requires_acknowledgement && !item.acknowledged;
   return {
     key: `announcement-${item.id}`,
-    // Eine offene Umfrage wartet auf eine Antwort und traegt deshalb den
-    // Aufmerksamkeits-Ton von "announcements"; ein gelesener Aushang ist
-    // reine Information und traegt den blauen Ton von "news".
-    concept: poll ? "announcements" : "news",
+    concept: poll
+      ? "polls"
+      : needsAcknowledgement
+        ? "confirmations"
+        : "parentMessages",
     title: item.title,
+    meta: formatTodoTimestamp(item.published_at, locale, t("todo.today")),
+    unread: !item.read,
     context: poll
       ? t("todo.pollContext", { school: item.school_name })
-      : t("todo.newsContext", { school: item.school_name }),
+      : needsAcknowledgement
+        ? t("todo.ackContext", { school: item.school_name })
+        : t("todo.newsContext", { school: item.school_name }),
     // Kein Ziel: der Aushang oeffnet sich an Ort und Stelle, damit Lesen und
     // Antworten die Startseite nicht verlassen.
     onSelect: () => openAnnouncement(item.id),
@@ -378,26 +577,40 @@ function todoFromAppointment(
   locale: string,
   t: StartTranslator,
 ): TodoItem {
-  const date = formatLocalizedDate(event.start_date, locale);
   return {
     key: `appointment-${event.id}`,
     concept: "calendar",
     title: event.title,
+    meta: formatAppointmentTimestamp(
+      event,
+      locale,
+      t("todo.today"),
+      t("todo.allDay"),
+    ),
     context: event.student_name
-      ? t("todo.appointmentContext", { name: event.student_name, date })
-      : t("todo.appointmentContextPlain", { date }),
+      ? t("todo.appointmentContext", { name: event.student_name })
+      : t("todo.appointmentContextPlain"),
     href: parentPath(
       `/parents/calendar?date=${encodeURIComponent(event.start_date)}`,
     ),
   };
 }
 
-function todoFromThread(thread: ThreadSummary, t: StartTranslator): TodoItem {
+function todoFromThread(
+  thread: ThreadSummary,
+  locale: string,
+  t: StartTranslator,
+): TodoItem {
   return {
     key: `thread-${thread.thread_id}`,
     concept: "parentConversations",
-    title: t("todo.messageTitle"),
+    title:
+      thread.unread === 1
+        ? t("todo.messageTitleOne")
+        : t("todo.messageTitleMany", { count: thread.unread }),
     context: t("todo.messageContext", { name: thread.student_name }),
+    meta: formatTodoTimestamp(thread.last_message_at, locale, t("todo.today")),
+    unread: true,
     href: parentPath(`/parents/messages/${thread.student_id}`),
   };
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,6 +25,18 @@ func TestToCareScheduleResponseIncludesResolvedFieldCapabilities(t *testing.T) {
 	assert.Equal(t, CareScheduleRequestCapabilitiesResponse{
 		Arrival: true, Pickup: false, DepartureMode: true,
 	}, response.RequestCapabilities)
+}
+
+func TestToCareScheduleResponseIncludesCareDayStatus(t *testing.T) {
+	response := toCareScheduleResponse(&parentService.ChildCareSchedule{
+		Weekdays: []parentService.CareScheduleWeekday{
+			{Weekday: 1, Status: scheduleService.CareDayScheduled},
+			{Weekday: 2, Status: scheduleService.CareDayNotScheduled},
+		},
+	})
+
+	assert.Equal(t, "scheduled", response.Weekdays[0].Status)
+	assert.Equal(t, "not_scheduled", response.Weekdays[1].Status)
 }
 
 func TestRenderParentWriteErrorMapsDisabledCareFieldToForbiddenCode(t *testing.T) {

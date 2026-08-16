@@ -5,10 +5,11 @@
  * paths like /children/123 instead of /parents/children/123. The proxy
  * rewrites these to the actual /parents/* routes internally.
  *
- * Mirrors operator-url.ts; see that file for the reference shape.
+ * Absolute cross-host helpers follow operator-url.ts. Parent navigation paths
+ * stay deterministic so server rendering and hydration produce the same HTML.
  */
 
-// Cache the result — window.location.host and the env var never change at runtime
+// Cache the result for client-only absolute URL helpers.
 let _isParents: boolean | undefined;
 
 function isParentsSubdomain(): boolean {
@@ -28,15 +29,12 @@ function isParentsSubdomain(): boolean {
 }
 
 /**
- * Returns the correct path for parent navigation:
- * - On parents subdomain: strips /parents prefix (clean URLs)
- * - On other hosts: keeps /parents prefix (so the proxy can redirect)
+ * Returns the public path for navigation inside the parents portal.
+ * The result must not depend on `window`, because links render on the server
+ * and hydrate on the client. Cross-host links use parentsPortalLoginUrl.
  */
 export function parentPath(path: string): string {
-  if (isParentsSubdomain()) {
-    return path.replace(/^\/parents/, "") || "/";
-  }
-  return path.startsWith("/parents") ? path : `/parents${path}`;
+  return path.replace(/^\/parents(?=\/|$)/, "") || "/";
 }
 
 /**
@@ -79,5 +77,10 @@ export function parentAbsoluteUrl(path: string): string {
       "parentAbsoluteUrl() is client-only. Use parentPath() on the server.",
     );
   }
-  return `${window.location.origin}${parentPath(path)}`;
+  const resolvedPath = isParentsSubdomain()
+    ? parentPath(path)
+    : path.startsWith("/parents")
+      ? path
+      : `/parents${path}`;
+  return `${window.location.origin}${resolvedPath}`;
 }

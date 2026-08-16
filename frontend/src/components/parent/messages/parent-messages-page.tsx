@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
 import { Alert } from "~/components/ui/alert";
-import { Avatar } from "~/components/ui/avatar";
-import { Skeleton } from "~/components/ui/skeleton";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
-import { ChevronRight } from "lucide-react";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   type Child,
@@ -18,8 +17,13 @@ import {
 } from "~/lib/parent-api";
 import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
-import { formatChatDateTime } from "~/lib/date-helpers";
+import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
+import {
+  ParentPage,
+  ParentPageHeader,
+  ParentSectionSkeleton,
+} from "~/components/parent/parent-page";
 
 const logger = createLogger({ component: "ParentMessagesPage" });
 
@@ -34,6 +38,7 @@ const logger = createLogger({ component: "ParentMessagesPage" });
 interface ChildConversation {
   readonly studentId: string;
   readonly studentName: string;
+  readonly schoolName: string;
   readonly lastMessageAt?: string;
   readonly lastSenderKind?: "guardian" | "staff";
   readonly lastMessageBody?: string;
@@ -41,6 +46,7 @@ interface ChildConversation {
   readonly lastEventType?: string;
   readonly lastRequestType?: string;
   readonly lastRequestStatus?: string;
+  readonly lastMessageReadByStaff: boolean;
   readonly unread: number;
 }
 
@@ -56,6 +62,7 @@ function buildRows(
     return {
       studentId: child.student_id,
       studentName: `${child.first_name} ${child.last_name}`.trim(),
+      schoolName: thread?.school_name ?? child.school_name,
       lastMessageAt: thread?.last_message_at,
       lastSenderKind: thread?.last_sender_kind,
       lastMessageBody: thread?.last_message_body,
@@ -63,6 +70,7 @@ function buildRows(
       lastEventType: thread?.last_event_type,
       lastRequestType: thread?.last_request_type,
       lastRequestStatus: thread?.last_request_status,
+      lastMessageReadByStaff: thread?.last_message_read_by_staff ?? false,
       unread: thread?.unread ?? 0,
     };
   });
@@ -146,27 +154,68 @@ export function ParentMessagesPage() {
     };
   }, [load]);
 
-  if (loading) return <Skeleton className="h-72 w-full rounded-2xl" />;
+  if (loading) {
+    return (
+      <ParentPage>
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+        <ParentSectionSkeleton rows={3} showHeader={false} />
+      </ParentPage>
+    );
+  }
 
-  if (error) return <Alert type="error" message={t("loadError")} />;
+  if (error) {
+    return (
+      <ParentPage>
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+        <Alert type="error" message={t("loadError")} />
+      </ParentPage>
+    );
+  }
 
   // Ein Kind: die Seite IST die Unterhaltung.
   if (children.length === 1) {
-    return <OgsConversation studentId={children[0]!.student_id} />;
+    return (
+      <ParentPage>
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+        <OgsConversation studentId={children[0]!.student_id} showChild />
+      </ParentPage>
+    );
   }
 
   if (children.length === 0) {
     return (
-      <p className="rounded-2xl border border-gray-200 bg-white p-5 text-[17px] text-gray-600 shadow-sm">
-        {t("noChildren")}
-      </p>
+      <ParentPage>
+        <ParentPageHeader
+          kicker={t("kicker")}
+          title={t("title")}
+          description={t("description")}
+        />
+        <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600 shadow-sm backdrop-blur-md">
+          {t("noChildren")}
+        </p>
+      </ParentPage>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Siehe Kalender: die Kopfzeile traegt den sichtbaren Titel. */}
-      <h1 className="sr-only">{t("title")}</h1>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("kicker")}
+        title={t("title")}
+        description={t("description")}
+      />
       <ul className="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         {rows.map((row) => (
           <li key={row.studentId}>
@@ -174,14 +223,18 @@ export function ParentMessagesPage() {
           </li>
         ))}
       </ul>
-    </div>
+    </ParentPage>
   );
 }
 
 function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
   const t = useTranslations("parentMessages");
   const tMsg = useTranslations("parentOgsMessaging");
-  const timestamp = formatChatDateTime(row.lastMessageAt);
+  const locale = useLocale();
+  const timestamp = formatChatDateTime(row.lastMessageAt, locale);
+  const compactTimestamp = row.lastMessageAt
+    ? formatChatClockTime(row.lastMessageAt, locale)
+    : "";
   // Systemtexte kommen deutsch von der Schnittstelle; aus den strukturierten
   // Feldern wird die Vorschau in der Sprache des Elternteils gebaut.
   const descriptor = parentThreadPreviewI18nDescriptor({
@@ -195,47 +248,79 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
     : (row.lastMessageBody ?? "");
   const preview = body
     ? row.lastSenderKind === "staff"
-      ? t("previewFromOgs", { text: body })
+      ? body
       : row.lastSenderKind === "guardian"
         ? t("previewFromYou", { text: body })
         : body
     : t("noMessagesYet");
   const unread = row.unread > 0;
+  const ownLastMessage = row.lastSenderKind === "guardian";
 
   return (
     <Link
       href={parentPath(`/parents/messages/${row.studentId}`)}
-      className="flex min-h-[72px] w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-[#5080D8] focus-visible:-outline-offset-2 focus-visible:outline-none active:bg-gray-100"
+      className="flex min-h-[88px] w-full items-center gap-3 px-4 py-3.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:-outline-offset-2 focus-visible:outline-none active:bg-gray-100 sm:px-5"
     >
-      <Avatar
-        name={row.studentName}
-        decorative
-        className="size-11 shrink-0 text-[15px]"
+      <ConceptIconTile
+        concept="messages"
+        variant="page"
+        className="rounded-full bg-[#EDF3FD]"
       />
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-baseline justify-between gap-2">
-          <span
-            className={`min-w-0 truncate text-[17px] text-gray-900 ${unread ? "font-bold" : "font-semibold"}`}
-          >
-            {row.studentName}
+      <span className="min-w-0 flex-1 space-y-0.5">
+        <span className="flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-xs font-medium text-gray-500">
+            {t("aboutChild", { name: row.studentName })}
           </span>
           {timestamp && (
-            <span className="shrink-0 text-[15px] text-gray-500">
-              {timestamp}
+            <span
+              aria-label={timestamp}
+              className={`shrink-0 text-xs tabular-nums ${unread ? "text-moto-blue font-semibold" : "text-gray-500"}`}
+            >
+              <span aria-hidden="true" className="sm:hidden">
+                {compactTimestamp}
+              </span>
+              <span aria-hidden="true" className="hidden sm:inline">
+                {timestamp}
+              </span>
             </span>
           )}
         </span>
-        <span className="mt-0.5 flex items-center gap-2">
+        <span className="flex min-w-0 items-center justify-between gap-2">
           <span
-            className={`min-w-0 flex-1 truncate text-[15px] ${unread ? "text-gray-700" : "text-gray-500"}`}
+            className={`min-w-0 truncate text-base text-gray-900 ${unread ? "font-bold" : "font-semibold"}`}
           >
-            {preview}
+            {t("ogsTeam", { school: row.schoolName })}
           </span>
           <UnreadBadge count={row.unread} />
         </span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {ownLastMessage && (
+            <span
+              className={
+                row.lastMessageReadByStaff
+                  ? "text-moto-blue shrink-0"
+                  : "shrink-0 text-gray-500"
+              }
+              role="img"
+              aria-label={
+                row.lastMessageReadByStaff ? t("readByOgs") : t("sent")
+              }
+              title={row.lastMessageReadByStaff ? t("readByOgs") : t("sent")}
+            >
+              <ChecksIcon size={17} weight="bold" aria-hidden="true" />
+            </span>
+          )}
+          <span
+            className={`min-w-0 flex-1 truncate text-sm ${unread ? "text-gray-700" : "text-gray-500"}`}
+          >
+            {preview}
+          </span>
+        </span>
       </span>
-      <ChevronRight
-        className="h-5 w-5 shrink-0 text-gray-400"
+      <CaretRightIcon
+        size={20}
+        weight="bold"
+        className="shrink-0 text-gray-400"
         aria-hidden="true"
       />
     </Link>

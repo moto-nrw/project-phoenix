@@ -657,7 +657,6 @@ func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
 
 func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T) {
 	for _, key := range []string{
-		config.KeyParentCareArrivalRequestEnabled,
 		config.KeyParentCarePickupRequestEnabled,
 		config.KeyParentCareModeRequestEnabled,
 	} {

@@ -215,13 +215,13 @@ export function ParentShellProvider({
     // ohne Anrede.
     const displayName = session?.user?.name?.trim() ?? "";
     const nameParts = displayName.includes("@") ? [] : displayName.split(" ");
-    const shellProfile: ShellProfile | null =
-      session?.user && nameParts.length > 0
-        ? {
-            firstName: nameParts[0],
-            lastName: nameParts.slice(1).join(" ") || undefined,
-          }
-        : null;
+    const firstName = session?.user?.firstName?.trim() || nameParts[0];
+    const shellProfile: ShellProfile | null = firstName
+      ? {
+          firstName,
+          lastName: nameParts.slice(1).join(" ") || undefined,
+        }
+      : null;
 
     const status: ShellStatus =
       sessionStatus === "loading"

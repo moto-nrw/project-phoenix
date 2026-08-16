@@ -77,3 +77,47 @@ sie nicht ausdrücklich mit anderen Sorgeberechtigten teilt.
 
 Der **Familienschutz** ist eine von der OGS verwaltete Regel für ein Kind, die
 das Teilen privater Anfrageangaben zwischen Sorgeberechtigten verhindert.
+
+## Personen rund um ein Kind
+
+Eine **Kontaktperson** ist eine Person, deren Kontaktdaten für ein Kind bei der
+OGS hinterlegt sind. Eine Kontaktperson benötigt kein Elternkonto.
+
+Die **Abholberechtigung** erlaubt einer Kontaktperson, ein bestimmtes Kind
+abzuholen. Sie ist unabhängig vom App-Zugang.
+
+Ein **Notfallkontakt** ist eine Kontaktperson, die die OGS bei einem Notfall des
+Kindes kontaktieren darf. Diese Eigenschaft ist unabhängig vom App-Zugang und
+von der Abholberechtigung.
+
+Der **App-Zugang** erlaubt einer Person, die für sie freigegebenen Informationen
+und Funktionen der Eltern-App für ein Kind zu nutzen. Er benötigt ein
+Elternkonto und verleiht keine Abholberechtigung.
+
+Eine **Kontoverbindung** ordnet ein Elternkonto einem Kind zu. Sie kann als
+Einladung offen oder aktiv sein. Nur eine aktive Kontoverbindung gewährt
+App-Zugang.
+
+## OGS-Betreuung
+
+Die **OGS-Betreuung** ist die grundsätzliche Anmeldung eines Kindes bei einer
+OGS. Sie besteht unabhängig davon, ob zusätzliche Betreuungsangebote ausgewählt
+sind.
+
+## Regelmäßiger Wochenplan
+
+Der **regelmäßige Wochenplan** beschreibt für jeden Wochentag, ob ein Kind an
+der OGS-Betreuung teilnimmt, wann es ankommt, wann es abgeholt wird und wie es
+die OGS verlässt. Änderungen durch Eltern sind Anfragen und werden erst nach
+Bestätigung durch die OGS wirksam.
+
+## Betreuungstag
+
+Ein **Betreuungstag** ist ein Wochentag, an dem das Kind laut regelmäßigem
+Wochenplan an der OGS-Betreuung teilnimmt.
+
+## Betreuungsangebot
+
+Ein **Betreuungsangebot** ist eine innerhalb der OGS-Betreuung auswählbare
+Leistung, etwa Mittagessen oder Ferienbetreuung. Eine Änderung der Auswahl ist
+eine Elternanfrage und wird erst nach Bestätigung durch die OGS wirksam.

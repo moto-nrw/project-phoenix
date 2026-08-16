@@ -20,7 +20,7 @@ import type { MotoConceptKey } from "~/lib/moto-concepts";
 export type ParentNavBadgeSource = "messages" | "news";
 
 /**
- * Ob ein Ziel ueberhaupt angeboten wird. Neuigkeiten und Essensplan gibt es
+ * Ob ein Ziel ueberhaupt angeboten wird. Elternbriefe und Essensplan gibt es
  * nur, wenn mindestens eine verknuepfte Schule sie fuehrt.
  */
 export type ParentNavGate = "news" | "mealPlan";
@@ -42,7 +42,7 @@ export type ParentMoreItem =
   | {
       readonly kind: "action";
       readonly key: string;
-      readonly action: "language" | "logout";
+      readonly action: "logout";
       readonly tKey: string;
       readonly concept: MotoConceptKey;
     };
@@ -79,8 +79,8 @@ export const PARENT_PRIMARY_NAV: readonly ParentNavItem[] = [
 /**
  * Hinter "Mehr". Alles, was nicht taeglich gebraucht wird.
  *
- * Der Ungelesen-Zaehler der Neuigkeiten wird auf das "Mehr"-Symbol
- * aufaddiert. Sonst bliebe ein ungelesener Aushang unsichtbar, weil sein
+ * Der Offen-Zaehler der Elternbriefe wird auf das "Mehr"-Symbol aufaddiert.
+ * Sonst bliebe eine ausstehende Aufgabe unsichtbar, weil ihr
  * Eintrag im Sheet liegt und die Bottom-Navigation ihn nicht zeigt.
  */
 export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
@@ -103,17 +103,10 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
   },
   {
     kind: "link",
-    key: "notifications",
+    key: "settings",
     href: "/parents/settings",
-    tKey: "notifications",
-    concept: "notifications",
-  },
-  {
-    kind: "action",
-    key: "language",
-    action: "language",
-    tKey: "language",
-    concept: "language",
+    tKey: "settings",
+    concept: "settings",
   },
   {
     kind: "link",

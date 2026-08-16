@@ -1,4 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { UserIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
@@ -6,6 +13,7 @@ import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { ParentBottomNav } from "./parent-bottom-nav";
 
 const pathnameMock = vi.fn(() => "/parents");
+const logoutMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathnameMock(),
@@ -27,12 +35,8 @@ vi.mock("~/lib/shell-auth-context", () => ({
     mode: "parent",
     homeUrl: "/parents",
     profileUrl: "/parents/settings",
-    logout: vi.fn(),
+    logout: logoutMock,
   }),
-}));
-
-vi.mock("~/components/parent/language-switcher", () => ({
-  LanguageSwitcher: () => <div data-testid="language-switcher" />,
 }));
 
 const mockedUseMediaQuery = vi.mocked(useMediaQuery);
@@ -45,6 +49,7 @@ function renderNav(
       <ParentBottomNav
         badges={{ messages: 0, news: 0 }}
         gates={{ news: true, mealPlan: true }}
+        childCount={2}
         {...overrides}
       />
     </NextIntlClientProvider>,
@@ -58,18 +63,29 @@ beforeEach(() => {
 });
 
 describe("ParentBottomNav", () => {
-  it("renders the four daily targets plus Mehr, each with a visible label", () => {
+  it("renders the four daily targets plus Mehr as named controls", () => {
     renderNav();
 
-    for (const label of [
-      "Start",
-      "Kinder",
-      "Nachrichten",
-      "Kalender",
-      "Mehr",
-    ]) {
-      expect(screen.getByText(label)).toBeVisible();
-    }
+    expect(screen.getByRole("link", { name: "Start" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Meine Kinder" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Nachrichten" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Kalender" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Mehr" })).toBeVisible();
+  });
+
+  it("uses the singular label for exactly one linked child", () => {
+    pathnameMock.mockReturnValue("/parents/children");
+    const { container } = renderNav({ childCount: 1 });
+
+    expect(screen.getByRole("link", { name: "Mein Kind" })).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Meine Kinder" }),
+    ).not.toBeInTheDocument();
+    const expected = render(<UserIcon weight="duotone" />);
+    expect(
+      container.querySelector('[data-parent-nav-item="children"] svg')
+        ?.innerHTML,
+    ).toBe(expected.container.querySelector("svg")?.innerHTML);
   });
 
   it("gives every target an icon next to its label", () => {
@@ -80,6 +96,11 @@ describe("ParentBottomNav", () => {
     for (const target of targets) {
       expect(target.querySelector("svg")).toBeInTheDocument();
     }
+    const expected = render(<UsersThreeIcon weight="regular" />);
+    expect(
+      container.querySelector('[data-parent-nav-item="children"] svg')
+        ?.innerHTML,
+    ).toBe(expected.container.querySelector("svg")?.innerHTML);
   });
 
   it("marks the current target as active and no other", () => {
@@ -100,12 +121,12 @@ describe("ParentBottomNav", () => {
     ).toHaveAttribute("data-active", "true");
   });
 
-  it("is not in the document from 1024px upwards", () => {
+  it("uses CSS to hide itself from 1024px without a hydration swap", () => {
     mockedUseMediaQuery.mockReturnValue(false);
     renderNav();
 
-    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
-    expect(screen.queryByText("Start")).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation")).toHaveClass("lg:hidden");
+    expect(screen.getByText("Start")).toBeInTheDocument();
   });
 
   it("shows the unread messages count on the Nachrichten target", () => {
@@ -127,32 +148,65 @@ describe("ParentBottomNav", () => {
   it("opens the Mehr sheet with the secondary targets", () => {
     renderNav();
 
-    fireEvent.click(screen.getByText("Mehr"));
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
-    expect(screen.getByText("Aus der OGS")).toBeVisible();
+    expect(screen.getByText("Elternbriefe")).toBeVisible();
     expect(screen.getByText("Essensplan")).toBeVisible();
-    expect(screen.getByText("Benachrichtigungen")).toBeVisible();
+    expect(screen.getByText("Einstellungen")).toBeVisible();
     expect(screen.getByText("Neue Anmeldung")).toBeVisible();
     expect(screen.getByText("Abmelden")).toBeVisible();
+    expect(screen.queryByText("Sprache")).not.toBeInTheDocument();
   });
 
-  it("hides Aus der OGS and Essensplan when no school offers them", () => {
-    renderNav({ gates: { news: false, mealPlan: false } });
-
-    fireEvent.click(screen.getByText("Mehr"));
-
-    expect(screen.queryByText("Aus der OGS")).not.toBeInTheDocument();
-    expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
-    expect(screen.getByText("Benachrichtigungen")).toBeVisible();
-  });
-  it("haelt die Eintraege des Mehr-Sheets auf 56 px und gibt Zielen einen Pfeil", () => {
+  it("separates account actions from the regular Mehr targets", () => {
     renderNav();
 
-    fireEvent.click(screen.getByText("Mehr"));
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+    const accountGroup = document.querySelector(
+      '[data-parent-nav-group="account"]',
+    );
+    expect(accountGroup).not.toBeNull();
+    expect(accountGroup).toHaveClass("border-t", "pt-5");
+    expect(accountGroup).toHaveTextContent("Einstellungen");
+  });
+
+  it("asks for confirmation before signing out from Mehr", async () => {
+    renderNav();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "Möchten Sie sich wirklich von Ihrem Konto abmelden?",
+      ),
+    ).toBeVisible();
+    expect(logoutMock).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abmelden" }));
+    await waitFor(() => expect(logoutMock).toHaveBeenCalledOnce());
+  });
+
+  it("hides Elternbriefe and Essensplan when no school offers them", () => {
+    renderNav({ gates: { news: false, mealPlan: false } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+    expect(screen.queryByText("Elternbriefe")).not.toBeInTheDocument();
+    expect(screen.queryByText("Essensplan")).not.toBeInTheDocument();
+    expect(screen.getByText("Einstellungen")).toBeVisible();
+  });
+  it("uses the development drawer row density and gives targets an arrow", () => {
+    renderNav();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
     const newsItem = document.querySelector('[data-parent-nav-item="news"]');
     expect(newsItem).not.toBeNull();
-    expect(newsItem!.className).toContain("min-h-14");
+    expect(newsItem!.className).toContain("px-4");
+    expect(newsItem!.className).toContain("py-3");
     expect(newsItem!.querySelector("svg")).not.toBeNull();
   });
 
@@ -160,7 +214,7 @@ describe("ParentBottomNav", () => {
   it("bietet kein Produktfeedback mehr an", () => {
     renderNav();
 
-    fireEvent.click(screen.getByText("Mehr"));
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
     expect(screen.queryByText(/Feedback/)).not.toBeInTheDocument();
     expect(

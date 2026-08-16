@@ -152,6 +152,44 @@ func TestListMessageThreads_ReturnsConversationAfterFirstMessage(t *testing.T) {
 	assert.NotEmpty(t, threads[0].SchoolName)
 }
 
+func TestListMessageThreads_ReportsWhetherStaffReadTheLastGuardianMessage(t *testing.T) {
+	svc, _, db, repos := buildReadService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	require.NoError(t, err)
+	require.Len(t, view.Messages, 1)
+
+	threads, err := svc.ListMessageThreads(context.Background(), chain.AccountID)
+	require.NoError(t, err)
+	require.Len(t, threads, 1)
+	assert.False(t, threads[0].LastMessageReadByStaff)
+
+	staff, staffAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, chain.TenantID, "Olivia", "Berg")
+	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
+	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID) })
+
+	message := view.Messages[0]
+	tenantCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	advanced, err := repos.ParentMessageRead.MarkReadUpTo(
+		tenantCtx,
+		chain.TenantID,
+		view.ThreadID,
+		staffAccount.ID,
+		message.CreatedAt,
+		message.ID,
+	)
+	require.NoError(t, err)
+	require.True(t, advanced)
+
+	threads, err = svc.ListMessageThreads(context.Background(), chain.AccountID)
+	require.NoError(t, err)
+	require.Len(t, threads, 1)
+	assert.True(t, threads[0].LastMessageReadByStaff)
+}
+
 func TestListChildThreads_FiltersToOneChild(t *testing.T) {
 	svc, _, db, repos := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

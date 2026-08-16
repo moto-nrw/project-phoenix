@@ -130,6 +130,17 @@ describe("ParentEnrollFormPage", () => {
     });
 
     const form = await screen.findByTestId("parent-enrollment-form");
+    expect(
+      screen.getByText("Anmeldung für die OGS-Betreuung"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zurück zum Elternportal" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Andere Anmeldung wählen" }),
+    ).toHaveAttribute("href", "/parents/enroll");
+    expect(form.closest(".w-full")).toBeInTheDocument();
+    expect(form.closest(".max-w-4xl")).not.toBeInTheDocument();
     expect(form).toHaveAttribute("data-grade-level-max", "13");
     expect(form).toHaveAttribute("data-has-profile", "true");
     expect(mocks.resolveTenant).toHaveBeenCalledWith("demo");

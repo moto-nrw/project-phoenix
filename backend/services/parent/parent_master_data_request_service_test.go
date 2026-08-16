@@ -58,6 +58,26 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 	assert.Equal(t, "Felix", person.FirstName)
 }
 
+func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
+	svc, db := buildRequestService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	rows, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{Target: usersModels.DataChangeTargetStudent, FieldKey: "school_class", Value: json.RawMessage(`"2b"`)},
+	})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, usersModels.DataChangeTargetStudent, rows[0].Target)
+	assert.Equal(t, "school_class", rows[0].FieldKey)
+	assert.JSONEq(t, `"1a"`, string(rows[0].OldValue))
+	assert.JSONEq(t, `"2b"`, string(rows[0].NewValue))
+
+	student, err := repositories.NewFactory(db).Student.FindByID(context.Background(), chain.StudentID)
+	require.NoError(t, err)
+	assert.Equal(t, "1a", student.SchoolClass)
+}
+
 func TestSubmitMasterDataChangeRequest_DepartureAndListRequests(t *testing.T) {
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

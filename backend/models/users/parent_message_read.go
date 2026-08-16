@@ -62,11 +62,12 @@ type InboxThread struct {
 	// localizes the preview from fields (the same way the full conversation
 	// localizes each card) instead of showing the German body until the next
 	// plain message arrives.
-	LastMessageKind   string `bun:"last_message_kind" json:"-"`
-	LastEventType     string `bun:"last_event_type" json:"-"`
-	LastRequestType   string `bun:"last_request_type" json:"-"`
-	LastRequestStatus string `bun:"last_request_status" json:"-"`
-	UnreadCount       int    `bun:"unread_count" json:"unread_count"`
+	LastMessageKind        string `bun:"last_message_kind" json:"-"`
+	LastEventType          string `bun:"last_event_type" json:"-"`
+	LastRequestType        string `bun:"last_request_type" json:"-"`
+	LastRequestStatus      string `bun:"last_request_status" json:"-"`
+	LastMessageReadByStaff bool   `bun:"last_message_read_by_staff" json:"-"`
+	UnreadCount            int    `bun:"unread_count" json:"unread_count"`
 }
 
 // ReadCursor is the composite position of a read cursor: the read instant and

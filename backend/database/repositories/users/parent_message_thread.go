@@ -173,6 +173,7 @@ func (r *ParentMessageThreadRepository) ListGuardiansForStudent(ctx context.Cont
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").
 		ColumnExpr("sg.relationship_type AS relationship_type").
 		ColumnExpr("sg.is_primary AS is_primary").
+		ColumnExpr("COALESCE(gp.portal_locale, 'de') AS portal_locale").
 		Join("JOIN users.guardian_profiles AS gp ON gp.id = sg.guardian_profile_id").
 		Join("JOIN auth.account_tenants AS at ON at.account_id = gp.account_id AND at.tenant_id = sg.tenant_id AND at.status = ?", auth.AccountTenantStatusActive).
 		Where("sg.student_id = ?", studentID).

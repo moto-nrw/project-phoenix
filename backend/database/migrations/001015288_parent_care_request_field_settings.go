@@ -36,7 +36,6 @@ func parentCareRequestFieldSettingsUp(ctx context.Context, db *bun.DB) error {
 			SELECT current.tenant_id, field_key, to_jsonb(current.enabled), NULL
 			FROM schools_and_effective_value AS current
 			CROSS JOIN (VALUES
-				('operations.parent_care_arrival_request_enabled'),
 				('operations.parent_care_pickup_request_enabled'),
 				('operations.parent_care_mode_request_enabled')
 			) AS fields(field_key)

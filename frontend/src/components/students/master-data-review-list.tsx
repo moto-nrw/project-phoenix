@@ -26,6 +26,7 @@ const FIELD_LABELS: Record<string, string> = {
   first_name: "Vorname",
   last_name: "Nachname",
   birthday: "Geburtsdatum",
+  school_class: "Klasse",
   health_info: "Gesundheitshinweise",
   email: "E-Mail",
   primary: "Telefonnummer",

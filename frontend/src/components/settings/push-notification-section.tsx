@@ -1,20 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
+import { PushInstallSteps } from "~/components/settings/push-install-steps";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { Skeleton } from "~/components/ui/skeleton";
 import { createLogger } from "~/lib/logger";
 import { sendTestNotification } from "~/lib/notification-api";
 import {
   isPushConfigurationMissing,
   isPushSupported,
+  isStandaloneApp,
   needsIOSInstall,
   subscribePush,
   syncExistingPushSubscription,
   unsubscribePush,
+  verifyPushConfiguration,
   type PushPortal,
 } from "~/lib/push-api";
+import {
+  canPromptInstall,
+  isAndroidDevice,
+  isInstallationCompleted,
+  subscribeInstallPrompt,
+  triggerInstallPrompt,
+} from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PushNotificationSection" });
 
@@ -25,7 +37,8 @@ interface PushNotificationSectionProps {
 type PushState =
   | "loading"
   | "unsupported"
-  | "needs-install"
+  | "needs-install-ios"
+  | "needs-install-android"
   | "disabled"
   | "denied"
   | "subscribed"
@@ -39,15 +52,58 @@ type PushState =
 export function PushNotificationSection({
   portal = "tenant",
 }: PushNotificationSectionProps) {
+  const t = useTranslations("pushNotifications");
+  const setupT = useTranslations("parentNotificationSetup");
   const [state, setState] = useState<PushState>("loading");
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [installAccepted, setInstallAccepted] = useState(false);
+  const installPromptReady = useSyncExternalStore(
+    subscribeInstallPrompt,
+    canPromptInstall,
+    () => false,
+  );
+  const installationCompleted = useSyncExternalStore(
+    subscribeInstallPrompt,
+    isInstallationCompleted,
+    () => false,
+  );
 
   const refresh = useCallback(async () => {
     if (needsIOSInstall()) {
-      setState("needs-install");
+      try {
+        await verifyPushConfiguration(portal);
+        setState("needs-install-ios");
+      } catch (err) {
+        if (!isPushConfigurationMissing(err)) {
+          logger.error("push_configuration_check_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        setState("disabled");
+      }
+      return;
+    }
+    if (
+      portal === "parent" &&
+      isAndroidDevice(window.navigator) &&
+      !isStandaloneApp() &&
+      !installationCompleted &&
+      !installAccepted
+    ) {
+      try {
+        await verifyPushConfiguration(portal);
+        setState("needs-install-android");
+      } catch (err) {
+        if (!isPushConfigurationMissing(err)) {
+          logger.error("push_configuration_check_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        setState("disabled");
+      }
       return;
     }
     if (!isPushSupported()) {
@@ -71,34 +127,11 @@ export function PushNotificationSection({
       });
       setState("unsubscribed");
     }
-  }, [portal]);
+  }, [installAccepted, installationCompleted, portal]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const headerAction =
-    state === "unsubscribed" ? (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={busy}
-        onClick={() => void enable()}
-      >
-        Einschalten
-      </Button>
-    ) : state === "subscribed" ? (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={busy}
-        onClick={() => void disable()}
-      >
-        Ausschalten
-      </Button>
-    ) : null;
 
   const enable = async () => {
     setBusy(true);
@@ -106,18 +139,32 @@ export function PushNotificationSection({
     setMessage(null);
     try {
       await subscribePush(portal);
-      setMessage("Benachrichtigungen sind auf diesem Gerät eingeschaltet.");
+      setMessage(t("enabledMessage"));
       await refresh();
     } catch (err) {
       logger.error("push_subscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      setError(t("enableError"));
       await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const installAndroid = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const outcome = await triggerInstallPrompt();
+      if (outcome === "accepted") {
+        setInstallAccepted(true);
+      }
+    } catch (err) {
+      logger.warn("parent_app_install_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(setupT("installError"));
     } finally {
       setBusy(false);
     }
@@ -129,17 +176,13 @@ export function PushNotificationSection({
     setMessage(null);
     try {
       await unsubscribePush(portal);
-      setMessage("Benachrichtigungen sind auf diesem Gerät ausgeschaltet.");
+      setMessage(t("disabledMessage"));
       await refresh();
     } catch (err) {
       logger.error("push_unsubscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      setError(t("disableError"));
     } finally {
       setBusy(false);
     }
@@ -152,21 +195,55 @@ export function PushNotificationSection({
     setMessage(null);
     try {
       await sendTestNotification();
-      setMessage("Testbenachrichtigung wurde gesendet.");
+      setMessage(t("testSent"));
     } catch (err) {
       logger.error("test_notification_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Das Senden hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
-      );
+      setError(err instanceof Error ? err.message : t("testError"));
     } finally {
       setTesting(false);
       setBusy(false);
     }
   };
+
+  if (state === "loading") return <PushNotificationSkeleton />;
+  if (state === "disabled") return null;
+
+  const headerAction =
+    state === "unsubscribed" ? (
+      <Button
+        type="button"
+        size="md"
+        aria-label={t("enable")}
+        isLoading={busy}
+        loadingText={t("enabling")}
+        onClick={() => void enable()}
+      >
+        {t("enableShort")}
+      </Button>
+    ) : state === "subscribed" ? (
+      <Button
+        type="button"
+        variant="surface"
+        size="md"
+        aria-label={t("disable")}
+        disabled={busy}
+        onClick={() => void disable()}
+      >
+        {t("disableShort")}
+      </Button>
+    ) : state === "needs-install-android" && installPromptReady ? (
+      <Button
+        type="button"
+        size="md"
+        isLoading={busy}
+        loadingText={setupT("installing")}
+        onClick={() => void installAndroid()}
+      >
+        {setupT("installApp")}
+      </Button>
+    ) : null;
 
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
@@ -174,9 +251,10 @@ export function PushNotificationSection({
         className="mb-4"
         // Geschwisterkarten auf /profile und /parents/settings sind h3.
         level={3}
-        title="Push-Benachrichtigungen"
+        title={t("title")}
         concept="notifications"
         actions={headerAction}
+        actionsClassName="ms-auto"
       />
 
       {error && (
@@ -190,48 +268,66 @@ export function PushNotificationSection({
         </div>
       )}
 
-      {state === "loading" && <p className="text-sm text-gray-500">Laden...</p>}
+      {state === "needs-install-ios" && <PushInstallSteps compact />}
 
-      {state === "needs-install" && (
-        <p className="text-sm text-gray-600">
-          Auf iPhone und iPad geht das nur, wenn moto auf dem Home-Bildschirm
-          liegt. So geht es: In Safari unten auf das Teilen-Symbol tippen, dann
-          {" „"}Zum Home-Bildschirm{"“"} wählen. Danach moto von dort öffnen und
-          die Benachrichtigungen hier einschalten.
-        </p>
+      {state === "needs-install-android" && (
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium text-gray-800">
+              {setupT("installAndroidTitle")}
+            </p>
+            <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+              {installPromptReady
+                ? setupT("installAndroidIntro")
+                : setupT("installAndroidManual")}
+            </p>
+          </div>
+        </div>
       )}
 
       {state === "unsupported" && (
-        <p className="text-sm text-gray-600">
-          Dieser Browser kann leider keine Benachrichtigungen anzeigen.
-        </p>
-      )}
-
-      {state === "disabled" && (
-        <p className="text-sm text-gray-600">
-          Benachrichtigungen sind hier zurzeit nicht verfügbar.
+        <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+          {t("unsupportedBody")}
         </p>
       )}
 
       {state === "denied" && (
-        <p className="text-sm text-gray-600">
-          Benachrichtigungen sind für moto blockiert. Sie können sie in den
-          Einstellungen Ihres Browsers wieder erlauben.
-        </p>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium text-gray-800">
+              {t("blockedTitle")}
+            </p>
+            <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+              {t("blockedBody")}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            disabled={busy}
+            onClick={() => void refresh()}
+          >
+            {t("checkAgain")}
+          </Button>
+        </div>
       )}
 
       {state === "unsubscribed" && (
-        <p className="text-sm text-gray-600">
-          Bekommen Sie Erinnerungen direkt auf dieses Gerät, auch wenn moto
-          gerade geschlossen ist.
-        </p>
+        <div className="space-y-1">
+          <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+            {t("offBody")}
+          </p>
+          <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+            {t("permissionHint")}
+          </p>
+        </div>
       )}
 
       {state === "subscribed" && (
         <div>
-          <p className="text-sm text-gray-600">
-            Benachrichtigungen sind auf diesem Gerät eingeschaltet. Erinnerungen
-            kommen auch an, wenn moto geschlossen ist.
+          <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
+            {t("onBody")}
           </p>
           {portal === "tenant" && (
             <Button
@@ -240,15 +336,33 @@ export function PushNotificationSection({
               size="compact"
               className="-ms-2.5 mt-2"
               isLoading={testing}
-              loadingText="Wird gesendet…"
+              loadingText={t("testing")}
               disabled={busy}
               onClick={() => void sendTest()}
             >
-              Testbenachrichtigung senden
+              {t("sendTest")}
             </Button>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function PushNotificationSkeleton() {
+  return (
+    <div
+      data-testid="push-notification-skeleton"
+      className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6"
+      aria-hidden="true"
+    >
+      <div className="flex items-center gap-3">
+        <Skeleton className="size-10 shrink-0 rounded-xl" />
+        <Skeleton className="h-5 w-44" />
+        <Skeleton className="ms-auto h-10 w-28 rounded-lg" />
+      </div>
+      <Skeleton className="mt-4 h-4 w-full max-w-2xl" />
+      <Skeleton className="mt-2 h-4 w-3/4 max-w-xl" />
     </div>
   );
 }

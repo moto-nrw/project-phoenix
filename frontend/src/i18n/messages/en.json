@@ -47,11 +47,13 @@
   "parentNav": {
     "start": "Home",
     "children": "Children",
+    "childSingle": "My child",
+    "childrenMultiple": "My children",
     "mealPlan": "Meal plan",
     "comingSoon": "Coming soon",
     "calendar": "Calendar",
     "messages": "Messages",
-    "news": "From the OGS",
+    "news": "Letters to parents",
     "notifications": "Notifications",
     "language": "Language",
     "contactData": "Contact details",
@@ -68,18 +70,33 @@
     "settings": "Settings",
     "enroll": "New enrollment",
     "mainNav": "Main navigation",
-    "more": "More"
+    "accountNav": "Account navigation",
+    "more": "More",
+    "unreadCount": "{count} unread",
+    "openCount": "{count} open",
+    "noticeCount": "{count} notices"
   },
   "parentMealPlan": {
+    "kicker": "Meals at after-school care",
     "title": "Meal plan",
-    "subtitle": "What's being served at care.",
+    "subtitle": "See what is on the menu this week and next.",
     "thisWeek": "This week",
     "nextWeek": "Next week",
     "today": "Today",
     "noMeal": "No meal entered",
-    "empty": "There is currently no meal plan available for your school.",
+    "noLinkedChildrenTitle": "No child linked yet",
+    "noLinkedChildren": "Once a child is linked to your account, you will see the school's meal plan here.",
+    "emptyTitle": "No meal plan available",
+    "empty": "The meal plan is currently not enabled for your school.",
+    "loading": "Meal plan is loading",
     "loadError": "The meal plan could not be loaded.",
-    "emptyWeek": "No meal plan has been entered for this week yet.",
+    "emptyThisWeekTitle": "No meal plan has been entered for this week yet",
+    "emptyNextWeekTitle": "No meal plan has been entered for next week yet",
+    "emptyWeek": "Once the after-school care team enters a plan, you will see it here.",
+    "weekNavigation": "Change calendar week",
+    "previousWeek": "Previous week",
+    "calendarWeek": "Week {week}",
+    "dateRange": "{start} to {end}",
     "weekHeading": "This week",
     "school": "School",
     "week": "Week"
@@ -106,10 +123,16 @@
       "rejected": "Rejected",
       "withdrawn": "Withdrawn"
     },
-    "newsNew": "New announcement",
+    "newsNew": "New letter to parents",
+    "newsOutstanding": "Open",
+    "newsLetter": "Letter to parents",
     "newsImportant": "Important",
-    "newsAcknowledge": "Read and confirmed",
+    "newsAcknowledge": "Confirm as read",
+    "newsAcknowledgeSaving": "Confirming …",
     "newsAcknowledged": "Confirmed",
+    "newsAcknowledgement": "Read confirmation",
+    "newsAcknowledgementHint": "This only confirms that you have read the announcement.",
+    "newsMessageFrom": "Message from {school}",
     "newsRead": "Read",
     "newsActionError": "Action failed. Please try again.",
     "newsStaleError": "This announcement is no longer current. Please reload the page.",
@@ -119,14 +142,22 @@
     "newsPollMulti": "Multiple answers possible",
     "newsPollOpen": "Answer pending",
     "newsPollAnswered": "Answer saved",
+    "newsPollDone": "Answered",
+    "newsPollContinue": "Complete answer",
+    "newsPollNoAnswer": "Not answered",
+    "newsPollAnswerSummary": "Answer: {answer}",
+    "newsPollChildAnswer": "{name}: {answer}",
+    "newsPollAnsweredCount": "{answered} of {total} answered",
     "newsPollSave": "Save answer",
     "newsPollSaving": "Saving …",
     "newsPollUnsaved": "Not saved yet",
+    "newsPollClear": "Clear selection",
     "newsPollNeedsAnswer": "Reply needed",
     "newsNeedsAcknowledgement": "Please confirm",
     "newsAnswer": "Answer",
     "newsReadAndConfirm": "Confirm as read",
     "newsReadAnnouncement": "Read",
+    "newsExternalLink": "Open more information",
     "newsClose": "Close"
   },
   "parentNotificationSetup": {
@@ -137,21 +168,95 @@
     "enableError": "Notifications could not be enabled. Please try again.",
     "denied": "Notifications are blocked in your browser. Open the browser settings, allow notifications for moto, then try again in Settings.",
     "installTitle": "Add moto to your Home Screen",
-    "installIntro": "On iPhone and iPad, notifications work after moto has been added to the Home Screen.",
-    "installStep1": "In Safari, tap the Share icon at the bottom.",
-    "installStep2": "Choose “Add to Home Screen”.",
-    "installStep3": "Tap “Add”.",
-    "installOutro": "moto then opens like an app, and we can send you messages from the OGS as notifications.",
+    "installAndroidTitle": "Install moto as an app",
+    "installAndroidIntro": "Install moto on your Home Screen. Then open moto like an app and turn on notifications.",
+    "installAndroidManual": "Open the browser menu and choose “Install app” or “Add to Home Screen”.",
+    "installApp": "Install app",
+    "installing": "Installing …",
+    "installError": "moto could not be installed. Please try again.",
     "understood": "Got it",
+    "closeGuide": "Close guide",
     "close": "Close dialog"
+  },
+  "pushNotifications": {
+    "title": "Notifications on this device",
+    "installIntro": "On iPhone and iPad, notifications only work when you open moto from the Home Screen.",
+    "installStepsLabel": "Add moto to the Home Screen",
+    "installStep1": "Open moto in Safari and tap Share.",
+    "installStep2": "Scroll down in the menu and choose “Add to Home Screen”.",
+    "installStep3": "Tap “Add”. Then open moto using the new icon.",
+    "installOutro": "Open Settings again in the installed app. You can turn on notifications there with one tap.",
+    "unsupportedBody": "Open moto in Safari, Chrome, Edge, or Firefox and try again there.",
+    "blockedTitle": "Notifications are blocked",
+    "blockedBody": "Open your device or browser settings, find moto, and allow notifications. Then return here.",
+    "checkAgain": "Check status again",
+    "offBody": "moto tells you about important updates, even when the app is closed.",
+    "permissionHint": "After you tap the button, your device asks for permission once. Choose “Allow”.",
+    "enable": "Turn on notifications",
+    "enableShort": "Turn on",
+    "enabling": "Turning on …",
+    "onBody": "This device shows new notifications from moto.",
+    "disable": "Turn off notifications",
+    "disableShort": "Turn off",
+    "enabledMessage": "Notifications are on for this device.",
+    "disabledMessage": "Notifications are off for this device.",
+    "enableError": "Notifications could not be turned on. Please try again.",
+    "disableError": "Notifications could not be turned off. Please try again.",
+    "sendTest": "Send test notification",
+    "testing": "Sending …",
+    "testSent": "Test notification sent.",
+    "testError": "The test notification could not be sent. Please try again."
   },
   "parentSettings": {
     "eyebrow": "Your account",
     "title": "Settings",
-    "description": "Choose what moto informs you about and on which device."
+    "description": "Choose the language and notifications for your account.",
+    "languageTitle": "Language",
+    "languageDescription": "Choose the language in which moto is displayed."
+  },
+  "notificationPreferences": {
+    "title": "Notifications",
+    "description": "Stay informed about messages and important changes concerning your child.",
+    "allEnabled": "All enabled",
+    "enableAll": "Enable all",
+    "enablingAll": "Enabling ...",
+    "disableAll": "Disable all",
+    "loadError": "The settings could not be loaded.",
+    "saveError": "The setting could not be saved.",
+    "bulkError": "The settings could not be changed.",
+    "tenantDisabled": "Your school has currently disabled notifications. Your selection will be saved and will apply when the school enables them again.",
+    "typeUnavailable": "Currently disabled by your school.",
+    "groups": {
+      "kinder": "Children",
+      "mitteilungen": "Messages",
+      "termine": "Appointments"
+    },
+    "types": {
+      "parent_announcement": {
+        "label": "New school announcement",
+        "description": "When the school publishes a new announcement in the parent portal."
+      },
+      "parent_message": {
+        "label": "New message from the OGS",
+        "description": "When the OGS writes to you about a child."
+      },
+      "parent_appointment": {
+        "label": "New or changed appointment",
+        "description": "When an appointment for you is created, changed or cancelled."
+      },
+      "parent_appointment_reminder": {
+        "label": "Appointment reminder",
+        "description": "Shortly before an appointment to which you are invited."
+      },
+      "parent_request_decided": {
+        "label": "Decision on your request",
+        "description": "When the OGS has decided on one of your requests."
+      }
+    }
   },
   "parentEnroll": {
     "back": "Back to the parent portal",
+    "kicker": "Enrollment for after-school care",
     "title": "New enrollment",
     "description": "Choose a school and enrollment phase to register your child.",
     "loading": "Loading enrollment phases …",
@@ -169,6 +274,10 @@
     "rangeConnector": "to",
     "openPhase": "Open enrollment"
   },
+  "parentVisibility": {
+    "ogs": "Visible to the OGS",
+    "ogsDescription": "Your OGS can see this information."
+  },
   "parentChildDetail": {
     "unknownError": "Unknown error",
     "loadError": "The child data could not be loaded. Please refresh the page or try again later.",
@@ -182,6 +291,18 @@
     "guardians": {
       "title": "Parents and pick-up contacts",
       "description": "Who belongs to your child, who may collect them, and who has access to the app.",
+      "contactsTitle": "Pick-up contacts and contacts",
+      "contactsDescription": "Contacts and people who are allowed to collect your child.",
+      "addPerson": "Add person",
+      "addPersonIntro": "Choose whether to add a contact without an account or give someone access to the app.",
+      "addContact": "Add contact or collector",
+      "addContactDescription": "For example, a grandparent. The person does not need an account.",
+      "contactCreated": "Contact added.",
+      "createContactTitle": "Add contact",
+      "createContact": "Add contact",
+      "createContactIntro": "This contact will be stored for your child and visible to the OGS. No account is created and no invitation is sent.",
+      "relationshipLabel": "Relationship to child",
+      "emailDoesNotInvite": "The email address is only contact information. You can grant app access separately later.",
       "loadError": "Contacts could not be loaded.",
       "loading": "Loading…",
       "empty": "No contacts have been added yet.",
@@ -221,6 +342,15 @@
         "work": "Work",
         "other": "Other"
       },
+      "roles": {
+        "primary_guardian": "Primary guardian",
+        "legal_guardian": "Legal guardian",
+        "co_guardian": "Co-guardian",
+        "emergency_contact": "Emergency contact",
+        "pickup_only": "Pick-up only",
+        "social_worker": "Social services",
+        "custom": "Custom"
+      },
       "removePhone": "Remove phone number",
       "addPhone": "Add number",
       "nameRequired": "First and last name are required.",
@@ -246,10 +376,20 @@
         "managementDisabled": "Contact management is disabled for this school."
       },
       "access": {
-        "invite": "Invite a person",
+        "title": "Connected accounts",
+        "description": "Who has access to this child in the parent app.",
+        "empty": "No accounts are connected yet.",
+        "invite": "Give app access",
+        "inviteShort": "Invite",
+        "choiceDescription": "The person receives access to the parent app by email.",
+        "inviteIntro": "You are giving this person access to the information and available features for this child.",
+        "inviteDetails": "If the person already has an account, it will be linked. Otherwise, they will receive an invitation by email. Depending on the settings, the OGS may review your request first.",
         "emailPlaceholder": "Email address",
         "emailLabel": "Email address of the person you want to invite",
+        "emailHint": "Use the person's personal email address.",
+        "closeInvite": "Close invitation",
         "send": "Send invitation",
+        "inviteLoading": "Sending invitation…",
         "invitePending": "Your request is with the OGS. They will review it.",
         "inviteSent": "Invitation sent to {email}.",
         "inviteLinked": "The person is now connected.",
@@ -298,25 +438,30 @@
     "close": "Close",
     "cancel": "Cancel",
     "sick": {
-      "title": "Report sick",
-      "intro": "Report your child absent for one or more days. The OGS is informed straight away.",
-      "introApproval": "Report your child absent for one or more days. A sick note reaches the OGS straight away; an excused absence has to be confirmed by the team first.",
-      "kindLabel": "Is your child sick?",
-      "kindSick": "Sick",
-      "kindExcused": "Excused",
-      "from": "From",
-      "to": "To",
-      "daysCount": "{count, plural, one {# day will be reported.} other {# days will be reported.}}",
-      "reasonLabel": "Why? (optional)",
-      "reasonPlaceholder": "e.g. fever, dentist appointment",
+      "title": "Report an absence",
+      "intro": "Tell the OGS that your child will not attend care on the selected days. Their OGS registration remains unchanged.",
+      "introApproval": "Tell the OGS that your child will not attend care on the selected days. Sick notes take effect immediately; the OGS confirms excused absences. Their OGS registration remains unchanged.",
+      "kindLabel": "Reason for the absence",
+      "kindSick": "Report sick",
+      "kindExcused": "Excuse absence",
+      "kindHintSick": "For days when your child is ill. The OGS sees the sick note immediately.",
+      "kindHintExcused": "For appointments or other planned absences. Briefly state the reason.",
+      "periodLabel": "Days of absence",
+      "from": "First day",
+      "to": "Last day",
+      "daysCount": "{count, plural, one {Your child will be reported absent for this day.} other {Your child will be reported absent for # days.}}",
+      "reasonLabel": "Note to the OGS",
+      "reasonPlaceholder": "For example, fever or a medical appointment",
       "invalidDate": "Please pick a valid date. The end date must not be before the start date.",
       "saveError": "The absence could not be saved.",
       "submittedButRefreshFailed": "The absence was submitted but could not be displayed. Please reload the page.",
       "overlapError": "One of these days already has an open absence request.",
-      "submit": "Send sick note",
-      "reasonLabelRequired": "Why? *",
-      "reasonRequiredError": "Please write briefly why your child is absent.",
-      "approvalHint": "This absence must be confirmed by the team."
+      "submit": "Report absence",
+      "submitSick": "Send sick note to the OGS",
+      "submitExcused": "Send excuse to the OGS",
+      "reasonLabelRequired": "Reason / note to the OGS",
+      "reasonRequiredError": "Enter a short note for the OGS.",
+      "approvalHint": "The OGS must confirm this excused absence."
     },
     "summary": {
       "none": "No absence",
@@ -332,27 +477,26 @@
       "reasonPrefix": "Reason"
     },
     "pickup": {
-      "title": "Change pick-up",
-      "intro": "Enter the new pick-up time for a single day. The OGS is informed straight away.",
+      "title": "Change pick-up time",
+      "intro": "Set a different pick-up time for one day. The regular weekly plan remains unchanged. The OGS is informed immediately.",
       "dateLabel": "Day",
-      "pickupLabel": "New pick-up time",
-      "arrivalLabel": "Arrival time",
-      "noTime": "Please enter a time.",
-      "reasonLabel": "Why? *",
-      "reasonPlaceholder": "For example, a medical appointment or pickup by grandparents",
-      "reasonRequired": "Please write briefly why the pick-up changes.",
+      "pickupLabel": "Pick-up time",
+      "noTime": "Enter a pick-up time.",
+      "reasonLabel": "Reason for the change",
+      "reasonPlaceholder": "For example, a medical appointment or early pick-up",
+      "reasonRequired": "Briefly state why the pick-up time is changing.",
       "reasonTooLong": "The reason may contain at most 255 characters.",
       "saveError": "The change could not be saved.",
       "loadError": "The currently saved times could not be loaded. Please reload the page and try again.",
       "errorDisabled": "Changing the pickup time is not enabled for this school.",
-      "errorStaffConflict": "The school has already set special times for this day. Please contact the team.",
+      "errorStaffConflict": "The school has already set a special pick-up time for this day. Please contact the team.",
       "errorRaced": "This day was just changed. Please reload the page and try again.",
       "errorPastDate": "Changes cannot be saved for days in the past.",
       "errorTooFar": "That day is too far in the future. Please pick a day within the next two months.",
-      "staffSet": "The school has already set special times for this day (pickup: {pickup}, arrival: {arrival}).",
+      "staffSet": "The school has already set a special pick-up time for this day: {pickup}.",
       "existingHint": "A change is already set for {date}. Saving overwrites it.",
       "reset": "Undo the change",
-      "submit": "Change pick-up"
+      "submit": "Change pick-up time"
     },
     "actions": {
       "sick": {
@@ -361,9 +505,9 @@
         "hint": "Report your child absent for one or more days"
       },
       "pickup": {
-        "label": "Pickup for one day",
-        "shortLabel": "Pickup",
-        "hint": "Adjust the pickup or arrival time for a single day"
+        "label": "Change pick-up time for one day",
+        "shortLabel": "Change pick-up time",
+        "hint": "Adjust the pick-up time for a single day"
       }
     },
     "request": {
@@ -533,6 +677,7 @@
     "statusText": "After submitting, your status page opens. Save the link or confirmation email so you can access it later.",
     "backToPicker": "Choose another enrollment",
     "backToPortal": "Back to the parent portal",
+    "parentEmbeddedKicker": "Enrollment for after-school care",
     "formEyebrow": "Fill in form",
     "formTitleFallback": "Enrollment",
     "formDescription": "Please fill in all required fields. If you want to enroll multiple children, you can add them directly in this form.",
@@ -945,26 +1090,44 @@
   },
   "parentMasterData": {
     "title": "Details and care",
-    "subtitle": "Review your child's details and booked care offerings. Changes that require approval are clearly marked.",
+    "subtitle": "Review your child's details and booked care. Changes that require approval are clearly marked.",
     "back": "Back",
-    "loadError": "The master data could not be loaded. Please refresh the page.",
+    "loadError": "The details could not be loaded. Please refresh the page.",
     "saved": "Saved",
     "saveError": "The change could not be saved.",
     "editableHint": "Changes are saved automatically.",
+    "healthDirectHint": "Changes are saved directly. The OGS team sees the information immediately.",
+    "healthPlaceholder": "For example allergies, intolerances or important medication.",
+    "dataDescription": "Personal details, class and important health information.",
+    "identityDescription": "These details can only be changed after review by the OGS.",
+    "identityRequestButton": "Request changes",
     "requestHint": "These changes are reviewed by the team before they are applied.",
+    "departureDescription": "Choose whether your child is picked up, walks home alone or takes the bus on each weekday. The OGS reviews changes.",
     "requestButton": "Request change",
     "requestSubmitted": "Request sent. The team will review your change.",
     "requestError": "The request could not be sent.",
     "pendingBadge": "Under review",
     "pendingNotice": "A change to this field is awaiting confirmation by the team.",
-    "editDisabled": "Editing master data is disabled for this OGS.",
+    "editDisabled": "Editing these details is disabled for this OGS.",
     "requestDisabled": "Change requests are disabled for this OGS.",
     "notSet": "Not provided",
+    "identityModal": {
+      "title": "Change personal details",
+      "close": "Close dialog",
+      "intro": "Only change details that are no longer correct.",
+      "noticeTitle": "Request to the OGS",
+      "noticeBody": "The OGS reviews your request. The current details remain valid until it is approved.",
+      "submit": "Send request to OGS",
+      "submitting": "Sending request…",
+      "cancel": "Cancel",
+      "noChange": "Please change at least one detail.",
+      "required": "A changed detail must not be empty."
+    },
     "sections": {
-      "child": "Child details",
+      "child": "Personal details",
       "health": "Health",
       "contact": "Your contact details",
-      "departure": "Permanent ways home",
+      "departure": "How {name} goes home",
       "careOfferings": "Booked care"
     },
     "fields": {
@@ -974,7 +1137,7 @@
       "schoolClass": "Class",
       "status": "Status",
       "carePeriod": "Care period",
-      "healthInfo": "Health notes / allergies",
+      "healthInfo": "Health information and allergies",
       "email": "Email address",
       "addressStreet": "Street and number",
       "addressCity": "City",
@@ -1005,11 +1168,14 @@
       "fri": "Fri"
     },
     "careOfferings": {
-      "hint": "These care offerings are booked for your child. Changes are reviewed by the team before they apply.",
-      "loadError": "The care offerings could not be loaded. Please refresh the page.",
+      "hint": "This care is booked for your child. Changes are reviewed by the team before they apply.",
+      "loadError": "The booked care could not be loaded. Please refresh the page.",
       "period": "Care period {name} ({from} to {until})",
-      "offeringsTitle": "Booked care offerings",
-      "noOfferings": "No care offerings are currently booked for your child.",
+      "offeringsTitle": "Booked care",
+      "offeringsDescription": "See further details about care, such as lunch or holiday care.",
+      "noOfferings": "No care has currently been selected for {name}.",
+      "scheduleOnlyTitle": "The weekly schedule is available.",
+      "scheduleOnlyDescription": "{name} attends OGS at the times shown above. No further booking details are available.",
       "allDays": "all care days",
       "notBooked": "not booked",
       "removed": "cancelled",
@@ -1027,12 +1193,12 @@
       "withdrawError": "The request could not be withdrawn.",
       "withdrawConfirmTitle": "Withdraw request?",
       "withdrawConfirmBody": "Do you really want to withdraw your change request? The booked offerings stay unchanged.",
-      "requestButton": "Request a change",
-      "disabledNoEnrollment": "There is no enrolment for your child that a change could be applied to. Please contact the care team directly.",
+      "requestButton": "Change care",
+      "disabledNoEnrollment": "No further care details are available for {name}.",
       "disabledNoPermission": "You are not allowed to request changes for this child.",
       "disabledSchoolOff": "This care team does not accept change requests through the app. Please contact them directly.",
       "disabledPeriodOver": "The care period has ended. Please enrol your child again for the new period.",
-      "requestsTitle": "Change requests",
+      "requestsTitle": "Requested change",
       "decisionApproved": "Change applied",
       "decisionApprovedFrom": "Valid from {date}",
       "decisionRejected": "Request rejected",
@@ -1042,10 +1208,10 @@
       "decisionRequested": "You had requested:"
     },
     "careOfferingsModal": {
-      "title": "Request a change to the care offerings",
+      "title": "Change booked care",
       "intro": "Choose which offerings your child should attend and when the change should take effect. The team reviews your request.",
       "loadError": "The available offerings could not be loaded.",
-      "noOfferings": "There are no care offerings available for this period.",
+      "noOfferings": "No care can be booked for this period.",
       "effectiveFromLabel": "Change applies from",
       "effectiveFromHint": "Earliest {date}. Please select a date within an approved care period.",
       "daysLabel": "Days",
@@ -1073,10 +1239,49 @@
       "7": "Sun"
     },
     "careSchedule": {
-      "arrival": "Drop-off time",
       "pickup": "Pick-up time",
       "modes": "Way home",
-      "loadError": "The care times could not be loaded. Please refresh the page."
+      "loadError": "The care times could not be loaded. Please refresh the page.",
+      "requestButton": "Request changes",
+      "requestTitle": "Request a weekly schedule change",
+      "close": "Close dialog",
+      "requestIntro": "Choose what should apply regularly on each weekday from now on.",
+      "requestNoticeTitle": "Request to the OGS",
+      "requestNoticeBody": "This is a permanent change that applies every week. The OGS reviews your request. Your current weekly schedule remains valid until it is approved.",
+      "requestSubmit": "Send request to OGS",
+      "requestSubmitting": "Sending request…",
+      "cancel": "Cancel",
+      "requestNoChange": "Change at least one care day, pick-up time, or way home.",
+      "requestMissingPlan": "Choose a pick-up time and way home for new care days.",
+      "requestError": "The request could not be sent.",
+      "requestAlreadyPending": "A change for this child is already being reviewed.",
+      "requestDisabled": "This change is not enabled by your OGS.",
+      "requestInvalid": "Please check the selected care days, pick-up times, and ways home.",
+      "modeUnchanged": "Choose way home",
+      "modeCurrent": "Current: {modes}",
+      "careDay": "Care on this day",
+      "inCare": "{firstName} attends OGS",
+      "notInCare": "No care",
+      "unknownCareDay": "No information available",
+      "notSet": "Not provided",
+      "timeValue": "{time}",
+      "weekdays": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday"
+      },
+      "modeAria": "Way home on {day}",
+      "timeHint": "Time in the format 15:30",
+      "timeExample": "e.g. 15:30",
+      "pendingBadge": "Under review",
+      "pendingNotice": "The OGS is reviewing the change. The current weekly plan remains valid until it is approved.",
+      "requestedAt": "Requested on {date}",
+      "withdraw": "Withdraw request",
+      "withdrawError": "The request could not be withdrawn.",
+      "withdrawConfirmTitle": "Withdraw request?",
+      "withdrawConfirmBody": "Do you really want to withdraw the pick-up change request?"
     }
   },
   "parentOgsMessaging": {
@@ -1134,6 +1339,10 @@
     "descriptionPlaceholder": "Describe your feedback..."
   },
   "parentToday": {
+    "today": "Today",
+    "sectionTitle": "Today",
+    "sectionDescription": "Today's status and important actions at a glance.",
+    "statusLabel": "Current status",
     "atOgs": "At the OGS",
     "notAtOgs": "Not at the OGS",
     "state": {
@@ -1150,12 +1359,20 @@
       "unknown": "Status not available right now"
     },
     "actions": {
-      "sick": "Report sick",
-      "pickup": "Change pick-up",
-      "message": "Message the OGS"
+      "profile": "View profile",
+      "sick": "Report {name} absent",
+      "sickCompact": "Report absent",
+      "sickHint": "Report sick or excuse an absence",
+      "pickup": "Change pick-up time for {name}",
+      "pickupCompact": "Change pick-up time",
+      "pickupHint": "Adjust the pick-up time for one day",
+      "message": "Write a message",
+      "messageCompact": "Write a message",
+      "messageHint": "Contact the OGS about {name}"
     }
   },
   "parentStart": {
+    "kicker": "Parent portal",
     "greeting": {
       "morning": "Good morning, {name}",
       "morningPlain": "Good morning",
@@ -1164,33 +1381,71 @@
       "evening": "Good evening, {name}",
       "eveningPlain": "Good evening"
     },
+    "subtitle": "Today's most important information at a glance.",
     "todo": {
       "title": "To do",
+      "description": "Open messages, appointments and replies at a glance.",
+      "openCount": "{count} open",
+      "unread": "Unread",
+      "today": "Today",
+      "allDay": "All day",
       "emptyTitle": "All done",
       "emptyDescription": "There is nothing to do right now.",
-      "messageTitle": "New message from the OGS",
-      "messageContext": "About {name}",
+      "messageTitleOne": "New message",
+      "messageTitleMany": "{count} new messages",
+      "messageContext": "OGS · About {name}",
       "pollContext": "Survey · {school}",
-      "newsContext": "From the OGS · {school}",
-      "appointmentContext": "{name} · {date}",
-      "appointmentContextPlain": "Appointment on {date}",
-      "partialLoadError": "Some entries could not be loaded right now."
+      "newsContext": "Letter to parents · {school}",
+      "ackContext": "Confirmation required · {school}",
+      "appointmentContext": "Appointment for {name}",
+      "appointmentContextPlain": "Appointment",
+      "partialLoadError": "Some entries could not be loaded right now.",
+      "showMoreOne": "Show one more item",
+      "showMoreMany": "Show {count} more items",
+      "showLess": "Show less",
+      "loading": "Loading tasks"
     },
+    "childrenLoading": "Loading children",
     "loadError": "Your overview could not be loaded right now. Please try again later.",
     "noChildren": "No child is linked to your account yet. Your school's OGS can set this up."
   },
   "parentChild": {
     "switcherLabel": "Choose a child",
+    "overviewKicker": "Children at a glance",
+    "overviewDescription": "Choose a child to view care, details and contacts.",
+    "ogsLabel": "OGS",
     "loadError": "Your child's details could not be loaded right now. Please try again later.",
     "notFound": "There is no child at this address in your account.",
     "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
     "sections": {
       "today": "Today",
-      "care": "Booked care",
-      "data": "{name}'s details",
+      "care": "Care at the OGS",
+      "data": "Child details",
       "people": "Parents and pick-up contacts"
     },
+    "areas": {
+      "label": "Child sections",
+      "open": "View",
+      "openLabel": "View {area}",
+      "back": "Back to overview",
+      "care": {
+        "title": "Care & weekly plan",
+        "shortTitle": "Care",
+        "description": "Bookings, regular pick-up times and the journey home."
+      },
+      "data": {
+        "title": "Child details",
+        "shortTitle": "Child details",
+        "description": "Personal details, class and health information."
+      },
+      "contacts": {
+        "title": "Contacts & pick-up",
+        "shortTitle": "Contacts",
+        "description": "Guardians, pick-up permissions and app access."
+      }
+    },
     "today": {
+      "pickupLabel": "Pick-up",
       "pickup": "Pick-up today at {time}",
       "pickupChanged": "Pick-up today at {time}, changed for today",
       "pickupAbsent": "Reported absent today, no pick-up",
@@ -1198,17 +1453,21 @@
       "pickupUnknown": "The pick-up time is not available right now"
     },
     "care": {
-      "weekTitle": "Your week",
-      "arrivalReadOnly": "These times are maintained by the OGS. If something is wrong, please write to the OGS."
+      "weekTitle": "OGS weekly schedule"
     }
   },
   "parentMessages": {
+    "kicker": "Exchange with the OGS",
     "title": "Messages",
+    "description": "Read messages and write directly to the OGS.",
     "loadError": "The messages could not be loaded right now. Please try again later.",
     "noChildren": "No child is linked to your account yet. Once a child is linked you can write to the OGS here.",
-    "noMessagesYet": "No messages yet. Tap to write.",
+    "noMessagesYet": "Tap to write.",
     "previewFromOgs": "OGS: {text}",
     "previewFromYou": "You: {text}",
+    "ogsTeam": "OGS team at {school}",
+    "sent": "Sent",
+    "readByOgs": "Read by the OGS",
     "aboutChild": "About {name}",
     "back": "Back",
     "composerPlaceholder": "Write a message to the OGS",
@@ -1217,12 +1476,18 @@
     "sending": "Sending",
     "writingDisabled": "You cannot write for this child. You can still read the history.",
     "emptyThreadTitle": "No messages yet",
-    "emptyThreadDescription": "Write the first message to the OGS."
+    "emptyThreadDescription": "Write the first message to the OGS.",
+    "sendError": "The message could not be sent.",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "permissionDenied": "You are not allowed to send a message for this child.",
+    "invalidRequest": "The message could not be processed. Please check your input."
   },
   "parentCalendar": {
+    "kicker": "Appointments at a glance",
     "title": "Calendar",
+    "description": "Appointments and events for your children at a glance.",
     "loadError": "The appointments could not be loaded right now. Please try again later.",
-    "empty": "There is no appointment in the next three months.",
+    "empty": "There are no appointments in the next 3 months.",
     "groups": {
       "thisWeek": "This week",
       "nextWeek": "Next week",
@@ -1231,6 +1496,11 @@
     "when": "{date} at {time}",
     "whenAllDay": "{date}, all day",
     "forChild": "For {name}",
+    "types": {
+      "care": "Care time",
+      "invitation": "Invitation",
+      "appointment": "Appointment"
+    },
     "accept": "Accept",
     "decline": "Decline",
     "accepted": "Appointment accepted.",
@@ -1239,7 +1509,12 @@
     "answeredDeclined": "Declined",
     "respondError": "Your answer could not be saved. Please try again.",
     "cancelledByOgs": "Cancelled by the OGS",
-    "monthHint": "A dot means something is happening on that day.",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "close": "Close",
+    "allDay": "All day",
+    "moreEvents": "+ {count} more",
+    "responseRequired": "Response required",
     "weekdayShort": {
       "1": "Mon",
       "2": "Tue",
@@ -1261,6 +1536,7 @@
     "copyFailed": "Copying is not possible. Please select the link by hand.",
     "linkOnce": "For security reasons you only see this link now. Copy it into your calendar right away.",
     "howToTitle": "How it works:",
+    "howToMac": "Mac: If no subscription dialog appears, open Calendar and choose Calendar, Settings, General, then select Apple Calendar as the default calendar app. Alternatively, choose File, New Calendar Subscription and paste the link.",
     "howToApple": "iPhone/iPad: Settings, Calendar, Accounts, Add account, Other, Add subscribed calendar, then paste the link.",
     "howToAndroid": "Android: In Google Calendar on a computer, Other calendars, From URL, then paste the link. The calendar then also shows on the phone.",
     "regenerate": "Create a new link",
@@ -1271,7 +1547,12 @@
     "createNew": "Create a new subscription link"
   },
   "parentNews": {
-    "title": "From the OGS",
-    "empty": "There is nothing new from the OGS right now."
+    "kicker": "Post from the OGS",
+    "title": "Letters to parents",
+    "description": "Notices, surveys and important information from your OGS.",
+    "empty": "There are no new letters to parents right now.",
+    "open": "Open",
+    "openLabel": "Open, {count}",
+    "completed": "Completed"
   }
 }

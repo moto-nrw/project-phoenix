@@ -85,6 +85,7 @@ const (
 	DiffCareKindArrival       = "arrival"
 	DiffCareKindPickup        = "pickup"
 	DiffCareKindDepartureMode = "departure_mode"
+	DiffCareKindScheduled     = "scheduled"
 )
 
 // RequestDiffEntry is one field-level "current → requested" comparison row in
@@ -634,7 +635,10 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 	}
 	before := *student
 
-	if err := s.applyDepartureModeChanges(ctx, student, changes.modes); err != nil {
+	if err := s.applyDepartureModeChanges(ctx, student, changes.modes, changes.scheduled); err != nil {
+		return false, err
+	}
+	if err := s.applyCareDayChanges(ctx, studentID, changes.scheduled); err != nil {
 		return false, err
 	}
 	if err := s.applyArrivalChanges(ctx, studentID, staffID, changes.arrivals); err != nil {
@@ -658,8 +662,8 @@ func (s *careScheduleRequestService) applyCareScheduleRequest(ctx context.Contex
 // allowed mode they had (multi-mode days like bus+pickup survive). The derived
 // exclusive/legacy fields are cleared so the repository re-derives them from
 // the merged allowed modes (the single source of truth).
-func (s *careScheduleRequestService) applyDepartureModeChanges(ctx context.Context, student *usersModels.Student, changes map[string]usersModels.DepartureMode) error {
-	if len(changes) == 0 {
+func (s *careScheduleRequestService) applyDepartureModeChanges(ctx context.Context, student *usersModels.Student, changes map[string]usersModels.DepartureMode, scheduled map[int]bool) error {
+	if len(changes) == 0 && len(scheduled) == 0 {
 		return nil
 	}
 	merged := usersModels.AllowedDepartureModes{}
@@ -668,6 +672,11 @@ func (s *careScheduleRequestService) applyDepartureModeChanges(ctx context.Conte
 	}
 	for day, mode := range changes {
 		merged[day] = []usersModels.DepartureMode{mode}
+	}
+	for weekday, active := range scheduled {
+		if !active {
+			delete(merged, usersModels.PickupDayOrder[weekday-1])
+		}
 	}
 	student.AllowedDepartureModes = merged
 	student.DepartureDays = nil
@@ -681,6 +690,40 @@ func (s *careScheduleRequestService) applyDepartureModeChanges(ctx context.Conte
 	// for a child whose accompanied day is answered by a link instead of the
 	// free-text note, even when this request touches a different weekday (#1694).
 	return s.studentRepo.Update(ctx, student)
+}
+
+func (s *careScheduleRequestService) applyCareDayChanges(ctx context.Context, studentID int64, changes map[int]bool) error {
+	if len(changes) == 0 {
+		return nil
+	}
+	arrivals, err := s.arrival.GetStudentArrivalSchedules(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("apply care days: load arrivals: %w", err)
+	}
+	pickups, err := s.pickup.GetStudentPickupSchedules(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("apply care days: load pickups: %w", err)
+	}
+	for weekday, active := range changes {
+		if active {
+			continue
+		}
+		for _, row := range arrivals {
+			if row.Weekday == weekday {
+				if err := s.arrival.DeleteStudentArrivalSchedule(ctx, row.ID); err != nil {
+					return fmt.Errorf("apply care day weekday %d: delete arrival: %w", weekday, err)
+				}
+			}
+		}
+		for _, row := range pickups {
+			if row.Weekday == weekday {
+				if err := s.pickup.DeleteStudentPickupSchedule(ctx, row.ID); err != nil {
+					return fmt.Errorf("apply care day weekday %d: delete pickup: %w", weekday, err)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // applyArrivalChanges upserts ONLY the weekdays this request changes, each via
@@ -812,10 +855,11 @@ func careScheduleAuditSummary(payload map[string]any) string {
 // "leave that aspect of this weekday unchanged", so the apply merges the
 // requested changes onto the child's current plan instead of replacing it.
 type careWeekdayPayload struct {
-	Weekday int    `json:"weekday"`
-	Mode    string `json:"mode,omitempty"`    // alone|bus|pickup, "" = unchanged
-	Arrival string `json:"arrival,omitempty"` // HH:MM, "" = unchanged
-	Pickup  string `json:"pickup,omitempty"`  // HH:MM, "" = unchanged
+	Weekday   int    `json:"weekday"`
+	Scheduled *bool  `json:"scheduled,omitempty"`
+	Mode      string `json:"mode,omitempty"`    // alone|bus|pickup, "" = unchanged
+	Arrival   string `json:"arrival,omitempty"` // HH:MM, "" = unchanged
+	Pickup    string `json:"pickup,omitempty"`  // HH:MM, "" = unchanged
 }
 
 type careSchedulePayload struct {
@@ -828,14 +872,16 @@ type careSchedulePayload struct {
 // buildCareScheduleChanges and consumed by both the create-time validation and
 // the approve-time apply.
 type careScheduleChanges struct {
-	modes    map[string]usersModels.DepartureMode
-	arrivals map[int]string
-	pickups  map[int]string
+	scheduled map[int]bool
+	modes     map[string]usersModels.DepartureMode
+	arrivals  map[int]string
+	pickups   map[int]string
 }
 
 // CareScheduleRequestedFields reports which independently configurable field
 // groups a validated permanent-care request contains.
 type CareScheduleRequestedFields struct {
+	Scheduled     bool
 	Arrival       bool
 	Pickup        bool
 	DepartureMode bool
@@ -853,6 +899,7 @@ func RequestedCareScheduleFields(payload map[string]any) (CareScheduleRequestedF
 		return CareScheduleRequestedFields{}, fmt.Errorf("%w: no changes", ErrInvalidCareRequestPayload)
 	}
 	return CareScheduleRequestedFields{
+		Scheduled:     len(changes.scheduled) > 0,
 		Arrival:       len(changes.arrivals) > 0,
 		Pickup:        len(changes.pickups) > 0,
 		DepartureMode: len(changes.modes) > 0,
@@ -860,7 +907,7 @@ func RequestedCareScheduleFields(payload map[string]any) (CareScheduleRequestedF
 }
 
 func (c careScheduleChanges) isEmpty() bool {
-	return len(c.modes) == 0 && len(c.arrivals) == 0 && len(c.pickups) == 0
+	return len(c.scheduled) == 0 && len(c.modes) == 0 && len(c.arrivals) == 0 && len(c.pickups) == 0
 }
 
 // toCanonicalPayload rebuilds the persistable payload from the bucketed
@@ -874,6 +921,10 @@ func (c careScheduleChanges) toCanonicalPayload() careSchedulePayload {
 		wd := i + 1
 		entry := careWeekdayPayload{Weekday: wd}
 		present := false
+		if scheduled, ok := c.scheduled[wd]; ok {
+			entry.Scheduled = &scheduled
+			present = true
+		}
 		if mode, ok := c.modes[abbrev]; ok {
 			entry.Mode = string(mode)
 			present = true
@@ -945,15 +996,19 @@ func buildCareScheduleChanges(payload map[string]any) (careScheduleChanges, erro
 		return careScheduleChanges{}, ErrInvalidCareRequestPayload
 	}
 	out := careScheduleChanges{
-		modes:    map[string]usersModels.DepartureMode{},
-		arrivals: map[int]string{},
-		pickups:  map[int]string{},
+		scheduled: map[int]bool{},
+		modes:     map[string]usersModels.DepartureMode{},
+		arrivals:  map[int]string{},
+		pickups:   map[int]string{},
 	}
 	for _, wd := range p.Weekdays {
 		if wd.Weekday < 1 || wd.Weekday > 5 {
 			return careScheduleChanges{}, fmt.Errorf("%w: weekday %d", ErrInvalidCareRequestPayload, wd.Weekday)
 		}
 		abbrev := usersModels.PickupDayOrder[wd.Weekday-1]
+		if wd.Scheduled != nil {
+			out.scheduled[wd.Weekday] = *wd.Scheduled
+		}
 		if wd.Mode != "" {
 			mode := usersModels.DepartureMode(wd.Mode)
 			switch mode {
@@ -980,6 +1035,18 @@ func buildCareScheduleChanges(payload map[string]any) (careScheduleChanges, erro
 				return careScheduleChanges{}, fmt.Errorf("%w: pickup %q", ErrInvalidCareRequestPayload, wd.Pickup)
 			}
 			out.pickups[wd.Weekday] = wd.Pickup
+		}
+	}
+	for weekday, active := range out.scheduled {
+		abbrev := usersModels.PickupDayOrder[weekday-1]
+		_, hasMode := out.modes[abbrev]
+		_, hasArrival := out.arrivals[weekday]
+		_, hasPickup := out.pickups[weekday]
+		if active && (!hasPickup || !hasMode) {
+			return careScheduleChanges{}, fmt.Errorf("%w: scheduled weekday %d needs pickup and mode", ErrInvalidCareRequestPayload, weekday)
+		}
+		if !active && (hasPickup || hasArrival || hasMode) {
+			return careScheduleChanges{}, fmt.Errorf("%w: inactive weekday %d contains plan values", ErrInvalidCareRequestPayload, weekday)
 		}
 	}
 	return out, nil
@@ -1075,6 +1142,7 @@ func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, s
 
 	arrivalMap := src.getArrival(ctx)
 	pickupMap := src.getPickup(ctx)
+	hasCarePlan := len(arrivalMap) > 0 || len(pickupMap) > 0
 
 	weekdays := append([]careWeekdayPayload(nil), p.Weekdays...)
 	sort.Slice(weekdays, func(i, j int) bool { return weekdays[i].Weekday < weekdays[j].Weekday })
@@ -1086,6 +1154,21 @@ func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, s
 		}
 		name := scheduleModels.WeekdayNames[wd.Weekday]
 		abbrev := usersModels.PickupDayOrder[wd.Weekday-1]
+		if wd.Scheduled != nil {
+			oldStatus := CareDayUnknown
+			if arrivalMap[wd.Weekday] != "" || pickupMap[wd.Weekday] != "" {
+				oldStatus = CareDayScheduled
+			} else if hasCarePlan {
+				oldStatus = CareDayNotScheduled
+			}
+			entries = append(entries, RequestDiffEntry{
+				Label:    name + " · Betreuungstag",
+				Old:      careDayStatusGermanLabel(oldStatus),
+				New:      careDayGermanLabel(*wd.Scheduled),
+				Weekday:  wd.Weekday,
+				CareKind: DiffCareKindScheduled,
+			})
+		}
 		if wd.Mode != "" {
 			entries = append(entries, RequestDiffEntry{
 				Label: name + " · Abholart",
@@ -1123,6 +1206,20 @@ func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, s
 		}
 	}
 	return entries, nil
+}
+
+func careDayStatusGermanLabel(status CareDayStatus) string {
+	if status == CareDayUnknown {
+		return "Keine Angaben"
+	}
+	return careDayGermanLabel(status == CareDayScheduled)
+}
+
+func careDayGermanLabel(scheduled bool) string {
+	if scheduled {
+		return "In der OGS"
+	}
+	return "Nicht in der OGS"
 }
 
 // germanAllowedDepartureModes renders a day's allowed departure modes (the

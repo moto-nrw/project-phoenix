@@ -9,6 +9,7 @@ const baseFeatures = {
   excused_requires_approval: false,
   request_submit_enabled: true,
   pickup_change_enabled: true,
+  guardian_contact_manage_allowed: true,
   related_accounts_invite_enabled: true,
   related_accounts_remove_enabled: true,
   master_data_edit_enabled: true,

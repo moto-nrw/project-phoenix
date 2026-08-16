@@ -583,19 +583,6 @@ func init() {
 	})
 
 	config.Register(config.Definition{
-		Key:             config.KeyParentCareArrivalRequestEnabled,
-		Label:           "Dauerhafte Ankunftszeiten durch Eltern ändern lassen",
-		Description:     "Wenn aktiviert, können Eltern Änderungen an den dauerhaften wöchentlichen Ankunftszeiten zur Freigabe einreichen.",
-		Type:            config.FieldBoolean,
-		Default:         true,
-		ReadPermission:  "config:read",
-		WritePermission: "config:update",
-		Tab:             "operations",
-		Category:        "elternportal",
-		SortOrder:       63,
-	})
-
-	config.Register(config.Definition{
 		Key:             config.KeyParentCarePickupRequestEnabled,
 		Label:           "Dauerhafte Abholzeiten durch Eltern ändern lassen",
 		Description:     "Wenn aktiviert, können Eltern Änderungen an den dauerhaften wöchentlichen Abholzeiten zur Freigabe einreichen.",
