@@ -161,6 +161,15 @@ interface BackendTimetableOperationCapabilities {
   web_spontaneous_activities_enabled?: boolean;
 }
 
+// Backend response for today's running timetable sessions (#2265)
+interface BackendActiveTimetableSession {
+  active_group_id: number;
+  instance_id: number;
+  title: string;
+  start_time: string;
+  end_time: string;
+}
+
 // Combined dashboard response type
 interface ActiveSupervisionDashboardResponse {
   // User's supervised active groups (with room info pre-loaded)
@@ -232,6 +241,15 @@ interface ActiveSupervisionDashboardResponse {
   capabilities?: {
     webSpontaneousActivitiesEnabled: boolean;
   };
+  // Plan windows of today's running sessions, keyed by active group, so tab
+  // labels can show "Aktivitätsname · Planzeit" (#2265)
+  activeSessions: Array<{
+    activeGroupId: string;
+    instanceId: string;
+    title: string;
+    startTime: string;
+    endTime: string;
+  }>;
   plannedNow: Array<{
     id: string;
     title: string;
@@ -291,6 +309,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       groupsResult,
       schulhofResult,
       plannedNowResult,
+      activeSessionsResult,
     ] = await Promise.all([
       // Try the all-groups operational endpoint first. It is available to
       // configured admins and to permission-bearing staff in open-care mode.
@@ -339,7 +358,25 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       ).catch(() => ({
         data: { instances: [] as BackendPlannedTimetableInstance[] },
       })),
+
+      // Plan windows of today's running sessions for tab labels (#2265).
+      // Older backends without the endpoint degrade to name-only labels.
+      apiGet<{ data: { sessions: BackendActiveTimetableSession[] } }>(
+        "/api/timetable/operations/active-sessions",
+        token,
+      ).catch(() => ({
+        data: { sessions: [] as BackendActiveTimetableSession[] },
+      })),
     ]);
+    const activeSessions = (activeSessionsResult.data?.sessions ?? []).map(
+      (s) => ({
+        activeGroupId: s.active_group_id.toString(),
+        instanceId: s.instance_id.toString(),
+        title: s.title,
+        startTime: s.start_time,
+        endTime: s.end_time,
+      }),
+    );
 
     // Extract data with null safety, sorted by room name for deterministic order
     const supervisedGroups = (
@@ -466,15 +503,12 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         firstRoomId: null,
         schulhofStatus,
         capabilities,
+        activeSessions,
         plannedNow,
       };
     }
 
-    // Step 2: Enrich supervised groups with room info and fetch visits for first room
-    const firstGroup = supervisedGroups[0];
-    const firstGroupId = firstGroup ? firstGroup.id.toString() : null;
-
-    // Prepare parallel requests for room info (for groups missing room data)
+    // Step 2: Enrich supervised groups with room info.
     const enrichedGroups = await Promise.all(
       supervisedGroups.map(async (group) => {
         // If room info already present, use it
@@ -529,6 +563,15 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       }),
     );
 
+    enrichedGroups.sort(
+      (a, b) =>
+        (a.room?.name ?? a.name ?? "").localeCompare(
+          b.room?.name ?? b.name ?? "",
+          "de",
+        ) || (a.name ?? "").localeCompare(b.name ?? "", "de"),
+    );
+    const firstGroupId = enrichedGroups[0]?.id ?? null;
+
     // Step 3: Fetch visits for first room (pre-load for immediate display)
     let firstRoomVisits: ActiveSupervisionDashboardResponse["firstRoomVisits"] =
       [];
@@ -582,6 +625,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       firstRoomId: firstGroupId,
       schulhofStatus,
       capabilities,
+      activeSessions,
       plannedNow,
     };
   },

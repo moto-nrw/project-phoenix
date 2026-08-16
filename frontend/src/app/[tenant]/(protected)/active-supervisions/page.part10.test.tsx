@@ -691,7 +691,7 @@ describe("Schulhof tab onTabChange callback", () => {
     // Should have called router.push with schulhof URL
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=schulhof",
+        "/test-tenant/active-supervisions?session=schulhof",
       );
     });
 
@@ -778,7 +778,7 @@ describe("Schulhof tab onTabChange callback", () => {
     // Should push to schulhof URL
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=schulhof",
+        "/test-tenant/active-supervisions?session=schulhof",
       );
     });
 
@@ -851,7 +851,7 @@ describe("Schulhof tab onTabChange callback", () => {
     // Should have called router.push with room URL
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=r1",
+        "/test-tenant/active-supervisions?session=room-1",
       );
     });
 

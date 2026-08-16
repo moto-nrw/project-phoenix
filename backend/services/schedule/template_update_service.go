@@ -29,6 +29,19 @@ var ErrTemplateWeekendWeekday = errors.New("timetable templates can only be sche
 // the same 404 as their preflight lookup.
 var ErrTemplateSegmentNotEditable = errors.New("template segment is not editable")
 
+// ErrTemplateStartNotEarlier rejects a start_date that does not pull the
+// series start forward (#2226): moving a start later, or "pulling forward" a
+// series that already begins with its period, is out of scope.
+var ErrTemplateStartNotEarlier = errors.New("start_date can only pull the series start to an earlier date")
+
+// ErrTemplateStartInPast rejects a pulled-forward series start before today —
+// past occurrences must never be created retroactively (#2226).
+var ErrTemplateStartInPast = errors.New("start_date must not lie in the past")
+
+// ErrTemplateStartPredecessorOverlap rejects a pulled-forward series start
+// that reaches into a capped predecessor segment's validity window (#2226).
+var ErrTemplateStartPredecessorOverlap = errors.New("start_date overlaps the predecessor segment's window")
+
 const (
 	updateTemplateOp       = "update template"
 	updateTemplateFieldsOp = "update template: update fields"
@@ -37,8 +50,10 @@ const (
 
 // TemplateUpdateInput carries the template fields, recurrence shape, and
 // roster edited by PUT /timetable/templates/{id}. The validity envelope is
-// deliberately not part of this input: it is an invariant of the existing
-// split-series segment and must survive an edit unchanged.
+// deliberately not part of this input — it is an invariant of the existing
+// split-series segment and survives an edit unchanged — with one narrow
+// exception: StartDate may pull a not-yet-started segment's valid_from
+// EARLIER (#2226).
 type TemplateUpdateInput struct {
 	TemplateID       int64
 	Fields           activitiesModel.TemplateFieldsUpdate
@@ -84,6 +99,13 @@ type TemplateUpdateInput struct {
 	// without this flag a newly mirrored supervisor row would stamp that lead
 	// onto the predecessor and outrank its own.
 	SeriesRosterPrimaryChanged bool
+	// StartDate pulls a not-yet-started series forward (#2226): the schedule
+	// envelope's inclusive valid_from and the series-managed roster move to
+	// this earlier date. Only earlier-than-stored, not-in-the-past dates that
+	// stay clear of every capped predecessor segment are accepted; equal to
+	// the stored start is an idempotent no-op. Nil keeps the stored envelope
+	// untouched, exactly as before.
+	StartDate *timezone.Date
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster
@@ -191,6 +213,10 @@ func (s *TimetableDataService) updateTemplateLocked(
 	if err != nil {
 		return err
 	}
+	validFrom, err = s.resolvePulledForwardStart(ctx, in, validFrom)
+	if err != nil {
+		return err
+	}
 	previousSchedules, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
 	if err != nil {
 		return &ScheduleError{Op: "update template: load previous schedules", Err: err}
@@ -227,15 +253,17 @@ func (s *TimetableDataService) updateTemplateLocked(
 	if err := s.propagateListKindToInstances(ctx, in.TemplateID, previousListKind, in.Fields.ListKind); err != nil {
 		return err
 	}
-	// Resync BEFORE the roster replacement: sourced rows are protected there
+	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
+		return err
+	}
+	// Resync AFTER the schedule replacement so a pulled-forward sourced series
+	// sees the widened envelope, but BEFORE the roster replacement: sourced rows
+	// are protected there
 	// (EnrollmentRequestChildID != nil), so a removed source must clear its
 	// rows first or a manually re-picked child would end up with no row at
 	// all (the protected row suppresses the manual create, then a later
 	// cleanup would delete it).
 	if err := s.resyncUpdatedTemplateOfferingRoster(ctx, in, previousSourceOfferingIDs, validFrom); err != nil {
-		return err
-	}
-	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
 		return err
 	}
 	if err := s.deleteRemovedLegacyWeekendInstances(ctx, in.TemplateID, previousSchedules, in.Weekdays); err != nil {
@@ -459,6 +487,67 @@ func (s *TimetableDataService) deleteRemovedLegacyWeekendInstances(ctx context.C
 		broadcastStaffingChanged(ctx, s.deps.Broadcaster, s.getLogger(), "template_legacy_weekend_cleanup")
 	}
 	return nil
+}
+
+// resolvePulledForwardStart applies the pull-forward series start (#2226) to
+// the loaded schedule envelope. Without a requested StartDate — or with one
+// equal to the stored start (idempotent PUT retries) — the stored valid_from
+// passes through untouched. An accepted pull returns the earlier date, which
+// the caller then stamps onto the replaced schedules and roster alike. The
+// rules mirror the issue's scope: only earlier (a nil stored start means the
+// series already begins with its period — nothing lies in front of it), never
+// into the past, and never into a capped predecessor segment's window.
+func (s *TimetableDataService) resolvePulledForwardStart(
+	ctx context.Context,
+	in TemplateUpdateInput,
+	storedFrom *timezone.Date,
+) (*timezone.Date, error) {
+	if in.StartDate == nil {
+		return storedFrom, nil
+	}
+	const op = "update template: pull series start forward"
+	newStart := *in.StartDate
+	if storedFrom != nil && newStart == *storedFrom {
+		return storedFrom, nil
+	}
+	if newStart.Before(timezone.TodayDate()) {
+		return nil, &ScheduleError{Op: op, Err: ErrTemplateStartInPast}
+	}
+	if storedFrom == nil || !newStart.Before(*storedFrom) {
+		return nil, &ScheduleError{Op: op, Err: ErrTemplateStartNotEarlier}
+	}
+	segments, err := loadTemplateSeriesSegments(
+		ctx,
+		s.deps.ActivityGroupRepo,
+		s.deps.ActivityScheduleRepo,
+		s.getLogger(),
+		in.TemplateID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	for i := range segments {
+		seg := &segments[i]
+		if seg.Group == nil || seg.Group.ID == in.TemplateID || seg.ValidUntil == nil {
+			continue
+		}
+		if seg.ValidFrom != nil && !seg.ValidFrom.Before(*seg.ValidUntil) {
+			continue // empty window, nothing to overlap
+		}
+		// Only segments that begin BEFORE the edited segment are its
+		// predecessors (same ordering rule as segmentIsReconcilablePredecessor).
+		// The editable segment is the chain's open tail, so anything else
+		// should satisfy this anyway — the filter guards against anomalies.
+		if seg.ValidFrom != nil && !seg.ValidFrom.Before(*storedFrom) {
+			continue
+		}
+		// valid_until is exclusive: a new start ON the predecessor's end is
+		// contiguous, anything before it overlaps.
+		if seg.ValidUntil.After(newStart) {
+			return nil, &ScheduleError{Op: op, Err: ErrTemplateStartPredecessorOverlap}
+		}
+	}
+	return in.StartDate, nil
 }
 
 func (s *TimetableDataService) loadEditableTemplateEnvelope(

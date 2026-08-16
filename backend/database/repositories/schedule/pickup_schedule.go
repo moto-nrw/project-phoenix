@@ -36,14 +36,22 @@ type StudentPickupScheduleRepository struct {
 }
 
 func NewStudentPickupScheduleRepository(db *bun.DB) schedule.StudentPickupScheduleRepository {
+	repo := newStudentScheduleRepository[*schedule.StudentPickupSchedule](
+		db,
+		pickupScheduleConfig,
+		"pickup_time",
+		"upsert schedule",
+		errors.New("schedule cannot be nil"),
+	)
+	// Provenance travels with every upsert: a manual save (source staff)
+	// reclaims an offering-sourced row, a reconciler save stamps its
+	// offering (#2290).
+	repo.extraUpsertSets = []string{
+		"source = EXCLUDED.source",
+		"care_offering_id = EXCLUDED.care_offering_id",
+	}
 	return &StudentPickupScheduleRepository{
-		studentScheduleRepository: newStudentScheduleRepository[*schedule.StudentPickupSchedule](
-			db,
-			pickupScheduleConfig,
-			"pickup_time",
-			"upsert schedule",
-			errors.New("schedule cannot be nil"),
-		),
+		studentScheduleRepository: repo,
 	}
 }
 

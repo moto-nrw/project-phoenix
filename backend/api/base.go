@@ -506,6 +506,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		OfferingChangeService:   api.Services.OfferingChanges,
 		ExcusedRequestService:   api.Services.ExcusedRequests,
 		StudentStatusDayService: api.Services.StudentStatusDays,
+		AbsenceOverview:         api.Services.AbsenceOverview,
 		StudentHistoryService:   api.Services.StudentHistory,
 		OGSGroupLiveService:     api.Services.OGSGroupLive,
 		ActivityService:         api.Services.Activities,

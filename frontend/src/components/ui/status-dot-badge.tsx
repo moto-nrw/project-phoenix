@@ -24,7 +24,7 @@ export function StatusDotBadge({
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap"
       style={{
         backgroundColor: tone.backgroundColor,
         color: tone.textColor,

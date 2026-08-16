@@ -220,6 +220,11 @@ func (rs *Resource) Router() chi.Router {
 				// this block — from another block or from the free pool (write).
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/{id}/staff-pool", rs.getStaffPool)
+			// #2283 Leseansicht: per-instance participant names for
+			// schedules:read holders, CanReadStudent-filtered — the narrow
+			// replacement for the users:read-gated tenant roster.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/{id}/participants", rs.getInstanceParticipants)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/move-staff", rs.moveStaff)
 
@@ -245,6 +250,11 @@ func (rs *Resource) Router() chi.Router {
 		// (information view), substitute is SchedulesManage (mutation).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/gaps", rs.getGaps)
+
+		// #2284 Sammel-Vertretung: one atomic save applying a day-wide absence
+		// or substitution for one person across several selected days.
+		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			Post("/substitutions/bulk", rs.applyBulkSubstitution)
 
 		// Änderungsprotokoll (#1886): append-only deviation history, read-only.
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
@@ -309,6 +319,8 @@ func (rs *Resource) Router() chi.Router {
 				Get("/capabilities", rs.operationsCapabilities)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/planned-now", rs.operationsPlannedNow)
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/active-sessions", rs.operationsActiveSessions)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/instances/{id}/roster", rs.operationsRoster)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).

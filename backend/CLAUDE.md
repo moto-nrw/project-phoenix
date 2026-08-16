@@ -101,7 +101,7 @@ The identity chain (Account → Person → Staff → Teacher → `GetMyGroups`/`
 - **Error strings returned by `/api/iot/*` are a cross-repo contract** — PyrePortal maps them to German UI text (see root `CLAUDE.md` Ecosystem)
 
 ### GDPR/Privacy Patterns
-- Student data visibility is permission-scoped: group supervisors see full data; the `gdpr.student_data_scope` setting controls read scope, with separate `has_full_access` (read) vs `has_write_access` (write) semantics
+- Student data visibility is permission-scoped: admins and verified staff see full data for every child of the tenant (#2329 removed the per-group scope); guest/guardian accounts stay redacted. The wire keeps separate `has_full_access` (read) vs `has_write_access` (write) flags
 - Per-student retention: `DataRetentionDays int` (notnull) — 1-31 days, default 30 via the `DefaultDataRetentionDays` const (`models/users/privacy_consent.go`)
 - Automated cleanup is scheduled per tenant via the `gdpr.data_cleanup_*` settings; manual dry-run: `go run . cleanup preview|stats` (see Development Commands for the exact CLI shapes — they differ per domain)
 - All deletions logged in `audit.data_deletions`

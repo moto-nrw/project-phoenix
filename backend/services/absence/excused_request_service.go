@@ -142,12 +142,8 @@ type excusedAbsenceRequestService struct {
 	emitter       *parentmessaging.Emitter
 	broadcaster   realtime.Broadcaster
 	absenceNotify notificationsService.AbsenceNotifier
-	// settings resolves operations.group_mode for the absence write gate. nil
-	// (tests, partial wiring) makes the gate fall back to supervisor-only,
-	// never to the permissive open-care branch.
-	settings authorize.StudentAbsenceSettings
-	logger   *slog.Logger
-	db       *bun.DB
+	logger        *slog.Logger
+	db            *bun.DB
 }
 
 // NewExcusedAbsenceRequestService wires the excused-request service.
@@ -159,12 +155,11 @@ func NewExcusedAbsenceRequestService(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
-	settings authorize.StudentAbsenceSettings,
 	logger *slog.Logger,
 ) ExcusedAbsenceRequestService {
 	return newExcusedAbsenceRequestService(
 		requestRepo, statusDayRepo, nil, studentRepo, personRepo,
-		userContext, emitter, broadcaster, settings, logger, nil,
+		userContext, emitter, broadcaster, logger, nil,
 	)
 }
 
@@ -179,13 +174,12 @@ func NewExcusedAbsenceRequestServiceWithPartialAbsences(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
-	settings authorize.StudentAbsenceSettings,
 	logger *slog.Logger,
 	db *bun.DB,
 ) ExcusedAbsenceRequestService {
 	return newExcusedAbsenceRequestService(
 		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
-		userContext, emitter, broadcaster, settings, logger, db,
+		userContext, emitter, broadcaster, logger, db,
 	)
 }
 
@@ -198,7 +192,6 @@ func newExcusedAbsenceRequestService(
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
-	settings authorize.StudentAbsenceSettings,
 	logger *slog.Logger,
 	db *bun.DB,
 ) ExcusedAbsenceRequestService {
@@ -214,7 +207,6 @@ func newExcusedAbsenceRequestService(
 		userContext:   userContext,
 		emitter:       emitter,
 		broadcaster:   broadcaster,
-		settings:      settings,
 		logger:        logger,
 		db:            db,
 	}
@@ -222,10 +214,9 @@ func newExcusedAbsenceRequestService(
 
 // absenceWritable is the per-child visibility predicate shared by the review
 // queue and the pending badge: the caller may see a request exactly when they
-// could decide it (admin, the child's group supervisor, or — in a school
-// without fixed groups — a staff member holding users:absence, #2232).
+// could decide it (admin or verified staff, #2329).
 func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) func(*usersModels.Student) bool {
-	return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext, s.settings, s.logger)
+	return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.
@@ -527,7 +518,7 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	if student.IsAlumnus() {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
-	if ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext, s.settings, s.logger); !ok {
+	if ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
 		return nil, ErrExcusedRequestForbidden
 	}
 

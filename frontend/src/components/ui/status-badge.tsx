@@ -59,7 +59,7 @@ export function StatusBadge({
   return (
     <span
       title={title}
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap"
       style={{ backgroundColor: styles.bg, color: styles.text }}
     >
       <span

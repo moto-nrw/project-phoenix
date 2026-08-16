@@ -241,7 +241,7 @@ func (s *reportService) classDayStatuses(ctx context.Context, studentIDs []int64
 // without an enrollment phase: full class list and group names — every
 // "Keine Anmeldung" default the roster row builder produces for a nil
 // enrollment. No companion links: the day view renders departures
-// exclusively from classDayDepartures, the roster's week-summary departure
+// exclusively from classDayDepartures, the roster's per-day departure map
 // never reaches the sheet.
 func (s *reportService) classDayRosterRows(ctx context.Context, students []*userModels.Student) ([]ClassRosterRow, error) {
 	if s.PersonRepo == nil || s.EducationGroupRepo == nil {
@@ -402,7 +402,8 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 const classDayDepartureUnknown = "Keine Angabe"
 
 // classDayModeLabels are the day-view labels for a single day's departure
-// modes; unlike the roster's week summary there is no day prefix.
+// modes for the handoff sheet; the roster cells use their own lowercase
+// phrasing (classRosterDayModeLabels).
 var classDayModeLabels = map[userModels.DepartureMode]string{
 	userModels.DepartureAlone:       "Geht alleine",
 	userModels.DepartureBus:         "Bus",
@@ -530,8 +531,8 @@ func classDayCompanionsOnSheet(links []userModels.CompanionLink, onSheet map[int
 // whose purpose is "wer geht wie nach Hause", missing data must not read as
 // the instruction to let the child leave unaccompanied. The empty string
 // makes buildClassDayReport render classDayDepartureUnknown — deliberately
-// NOT the roster's form answer, whose week summary is never empty and
-// floors at "Geht alleine" itself.
+// NOT the roster's form answer, whose per-day map is never empty and
+// floors at "geht alleine" itself.
 //
 // onSheet holds the students of the class being served; an accompanied
 // departure names only companions from that set. The free-text
@@ -605,12 +606,11 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		// parents struck from the plan beats the approved offering — the
 		// same source the effective times above already come from.
 		stays := len(offerings) > 0 && status == "" && !notScheduled[row.StudentID]
-		// The per-day plan is the ONLY departure source. The roster's week
-		// summary (row.Departure) is never empty — classRosterFormatDeparture
-		// floors at "Geht alleine" — so falling back to it would fabricate an
-		// unaccompanied departure for a child without any plan, or print the
-		// whole week ("Mo: Bus, Di: Abholung") on a sheet that answers one
-		// day. Missing data renders as explicit "Keine Angabe"; on a
+		// The per-day plan is the ONLY departure source. The roster's map
+		// (row.DepartureByDay) is never empty — classRosterFormatDepartureByDay
+		// floors every day at "geht alleine" — so falling back to it would
+		// fabricate an unaccompanied departure for a child without any plan.
+		// Missing data renders as explicit "Keine Angabe"; on a
 		// non-school day the column stays empty entirely (mirror of the
 		// zeroed totals below) — a weekend request must not serve any
 		// departure instruction to non-UI consumers either.

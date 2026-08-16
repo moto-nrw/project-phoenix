@@ -8,7 +8,13 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import { AlertTriangle, Download, Search, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarRange,
+  Download,
+  Search,
+  Users,
+} from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -639,9 +645,9 @@ const NO_COMPANION_GROUP_LABEL = "Ohne Laufgemeinschaft";
  * A child whose links the caller may not see. The backend only resolves the
  * Laufgemeinschaft of full-access children (`collectFullAccessStudentIDs`), so
  * for a restricted child an empty list means "not readable", NOT "walks alone" —
- * with `gdpr.student_data_scope=group_supervisors_only` that is every child
- * outside the caller's own groups. Filing them under "Ohne Laufgemeinschaft"
- * would state as fact the one thing this page cannot know.
+ * since #2329 that only affects guest/guardian callers, whose view stays
+ * redacted. Filing them under "Ohne Laufgemeinschaft" would state as fact the
+ * one thing this page cannot know.
  */
 const UNKNOWN_COMPANION_GROUP_LABEL = "Nicht einsehbar";
 
@@ -2608,6 +2614,14 @@ function SearchPageContent() {
           filterSections={filterSections}
           onClearAllFilters={clearAllFilters}
           overflowMenu={[
+            {
+              // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+              // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+              // ohnehin nach einem Kind sucht.
+              label: "Abwesenheiten",
+              icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+              onClick: () => router.push("/absences"),
+            },
             {
               label: "Exportieren",
               icon: <Download className="h-4 w-4" aria-hidden />,

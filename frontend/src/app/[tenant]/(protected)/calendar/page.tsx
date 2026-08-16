@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Trash2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 
 import {
@@ -16,9 +17,11 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import { Loading } from "~/components/ui/loading";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
 import {
   cancelStaffAppointment,
@@ -265,10 +268,26 @@ function buildTargetGroups(
   }));
 }
 
+// Betreuungsplan-Leseansicht (#2283) als zweiter Tab der einen
+// Kalenderfläche für Nicht-Admins. Dynamisch geladen, damit der große
+// Planer-Code das Bundle der reinen Kalender-Nutzung nicht belastet.
+const SchoolPlanReadView = dynamic(
+  () =>
+    import("~/components/timetable/betreuungsplan-view").then(
+      (mod) => mod.BetreuungsplanView,
+    ),
+  { ssr: false, loading: () => <Loading /> },
+);
+
 export default function StaffCalendarPage() {
   const toast = useToast();
   const { data: session } = useSession();
   const canManageCalendar = hasPermission(session, "calendar:manage");
+  // Eine Kalenderfläche (#2283): Nicht-Admins mit schedules:read sehen den
+  // Betreuungsplan (Leseansicht) als zweiten Tab statt als eigene Seite.
+  // Admins behalten den vollwertigen Planungsbereich in der Sidebar.
+  const showSchoolPlanTab =
+    !isAdmin(session) && hasPermission(session, "schedules:read");
   // Focal date defaults to today; the calendar component derives the week
   // range for week view, so today shows the current week / month / day
   // correctly (not the start of the week or the wrong month at boundaries).
@@ -615,37 +634,55 @@ export default function StaffCalendarPage() {
     }
   };
 
+  const personalCalendar = (
+    <PersonalCalendar
+      title="Mein Kalender"
+      subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
+      // On a load error SWR may still hold the previous range's data; don't
+      // render stale appointments under the new date label.
+      events={calendarError ? [] : (data?.events ?? [])}
+      referenceDate={referenceDate}
+      viewMode={viewMode}
+      loading={isLoading}
+      error={
+        calendarError
+          ? errorMessage(calendarError, "Kalender konnte nicht geladen werden.")
+          : null
+      }
+      onDateChange={setReferenceDate}
+      onViewModeChange={setViewMode}
+      onCreate={canManageCalendar ? handleCreate : undefined}
+      onShowOverview={handleShowOverview}
+      onRespond={handleRespond}
+      respondingRecipientId={respondingRecipientId}
+      onEdit={canManageCalendar ? handleEdit : undefined}
+      onCancel={canManageCalendar ? handleCancel : undefined}
+      onDelete={canManageCalendar ? handleDelete : undefined}
+      busyAppointmentId={busyAppointmentId}
+      icsHrefBase="/api/calendar/appointments"
+    />
+  );
+
   return (
     <div className="w-full">
-      <PersonalCalendar
-        title="Mein Kalender"
-        subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
-        // On a load error SWR may still hold the previous range's data; don't
-        // render stale appointments under the new date label.
-        events={calendarError ? [] : (data?.events ?? [])}
-        referenceDate={referenceDate}
-        viewMode={viewMode}
-        loading={isLoading}
-        error={
-          calendarError
-            ? errorMessage(
-                calendarError,
-                "Kalender konnte nicht geladen werden.",
-              )
-            : null
-        }
-        onDateChange={setReferenceDate}
-        onViewModeChange={setViewMode}
-        onCreate={canManageCalendar ? handleCreate : undefined}
-        onShowOverview={handleShowOverview}
-        onRespond={handleRespond}
-        respondingRecipientId={respondingRecipientId}
-        onEdit={canManageCalendar ? handleEdit : undefined}
-        onCancel={canManageCalendar ? handleCancel : undefined}
-        onDelete={canManageCalendar ? handleDelete : undefined}
-        busyAppointmentId={busyAppointmentId}
-        icsHrefBase="/api/calendar/appointments"
-      />
+      {showSchoolPlanTab ? (
+        <Tabs defaultValue="meine">
+          <TabsList variant="line" className="mb-4">
+            <TabsTrigger value="meine">Meine Termine</TabsTrigger>
+            <TabsTrigger value="schule">Betreuungsplan</TabsTrigger>
+          </TabsList>
+          <TabsContent value="meine">{personalCalendar}</TabsContent>
+          <TabsContent value="schule">
+            {/* BetreuungsplanView liest Search-Params (d/view/block) und
+                braucht deshalb eine Suspense-Grenze. */}
+            <Suspense fallback={null}>
+              <SchoolPlanReadView />
+            </Suspense>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        personalCalendar
+      )}
 
       <Modal
         isOpen={formOpen && canManageCalendar}

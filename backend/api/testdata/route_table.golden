@@ -176,6 +176,7 @@ GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
 GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
+GET /api/enrollment/care-offerings/{id}/pickup-rollout
 GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/legal/{tenantSlug}
 GET /api/enrollment/legal/{tenantSlug}/{phaseId}
@@ -342,6 +343,7 @@ GET /api/students/master-data-change-requests
 GET /api/students/offering-change-requests
 GET /api/students/ogs-group-live
 GET /api/students/school-classes
+GET /api/students/status-days
 GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
@@ -391,10 +393,12 @@ GET /api/timetable/exception-conflicts
 GET /api/timetable/gaps
 GET /api/timetable/instances/
 GET /api/timetable/instances/edited-in-window
+GET /api/timetable/instances/{id}/participants
 GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/offering-sources
 GET /api/timetable/offering-sources/combined-counts
 GET /api/timetable/operations/active-groups/{id}/roster
+GET /api/timetable/operations/active-sessions
 GET /api/timetable/operations/capabilities
 GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
@@ -572,6 +576,7 @@ POST /api/enrollment/admin/requests/{id}/restore
 POST /api/enrollment/admin/students/{studentId}/requests/export
 POST /api/enrollment/care-offerings/
 POST /api/enrollment/care-offerings/{id}/clone
+POST /api/enrollment/care-offerings/{id}/pickup-rollout
 POST /api/enrollment/legal-documents
 POST /api/enrollment/phases/
 POST /api/enrollment/phases/{id}/export
@@ -680,6 +685,7 @@ POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
+POST /api/students/{id}/pickup-schedules/reset-offering
 POST /api/students/{id}/rfid
 POST /api/students/{id}/school-checkin
 POST /api/students/{id}/status-days
@@ -723,6 +729,7 @@ POST /api/timetable/periods/bootstrap
 POST /api/timetable/planning-tracks/
 POST /api/timetable/planning-tracks/{id}/restore
 POST /api/timetable/shift-coverage
+POST /api/timetable/substitutions/bulk
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
 POST /api/timetable/templates/{id}/split

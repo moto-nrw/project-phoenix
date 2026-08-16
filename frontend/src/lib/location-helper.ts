@@ -750,7 +750,7 @@ export function canSeeDetailedLocation(
   userGroups?: string[],
   _supervisedRooms?: string[],
 ): boolean {
-  // Backend grants full read access via student_data_scope setting
+  // Backend grants full read access to admins and verified staff (#2329)
   if (student.has_full_access) {
     return true;
   }

@@ -119,6 +119,72 @@ export async function fetchStudentStatusDays(
   return data.map(mapStatusDay);
 }
 
+/**
+ * One row of the tenant-wide absence overview (#2288). IDs arrive as strings
+ * from the backend already; no mapping needed.
+ */
+export interface StatusDayOverviewEntry {
+  id: string;
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  group_id: string;
+  group_name: string;
+  date: string;
+  status: StudentStatusKind;
+  label: string;
+  reported_at: string;
+  source: string;
+}
+
+export interface StatusDayOverview {
+  from: string;
+  to: string;
+  groups: Array<{ id: string; name: string }>;
+  entries: StatusDayOverviewEntry[];
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
+/** Thrown when the account has no staff link (backend 403). */
+export class StatusDayOverviewForbiddenError extends Error {
+  constructor() {
+    super(
+      "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
+    );
+    this.name = "StatusDayOverviewForbiddenError";
+  }
+}
+
+export async function fetchStatusDayOverview(
+  from: string,
+  to: string,
+  filters: { page: number; query: string; status: string; groupId: string },
+): Promise<StatusDayOverview> {
+  const params = new URLSearchParams({
+    from,
+    to,
+    page: filters.page.toString(),
+    page_size: "50",
+  });
+  if (filters.query.trim()) params.set("q", filters.query.trim());
+  if (filters.status !== "all") params.set("status", filters.status);
+  if (filters.groupId !== "all") params.set("group_id", filters.groupId);
+  const response = await fetch(`/api/students/status-days?${params}`);
+  if (response.status === 403) {
+    throw new StatusDayOverviewForbiddenError();
+  }
+  if (!response.ok) {
+    throw new Error("Abwesenheiten konnten nicht geladen werden");
+  }
+  return parseApiResult<StatusDayOverview>(
+    response,
+    "Abwesenheiten konnten nicht geladen werden",
+  );
+}
+
 export async function createStudentStatusDays(
   studentId: string,
   status: StudentStatusKind,

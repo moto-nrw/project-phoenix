@@ -1,20 +1,15 @@
 package authorize
 
 // Pure-logic tests for student_access.go. The package's existing tests use
-// real DB fixtures; this file mocks the narrow user-context and settings
-// interfaces so the branch coverage stays in-package (cross-package callers
-// don't credit this file under SonarCloud's new-code metric).
+// real DB fixtures; this file mocks the narrow user-context interface so the
+// branch coverage stays in-package (cross-package callers don't credit this
+// file under SonarCloud's new-code metric).
 
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,42 +18,14 @@ import (
 // --- stubs --------------------------------------------------------------
 
 type stubUserCtx struct {
-	staff        *users.Staff
-	staffErr     error
-	groups       []*education.Group
-	groupsErr    error
-	activeGroups []*active.Group
-	activeErr    error
-	staffCalls   int
-	groupsCalls  int
-	activeCalls  int
+	staff      *users.Staff
+	staffErr   error
+	staffCalls int
 }
 
 func (s *stubUserCtx) GetCurrentStaff(_ context.Context) (*users.Staff, error) {
 	s.staffCalls++
 	return s.staff, s.staffErr
-}
-func (s *stubUserCtx) GetMyGroups(_ context.Context) ([]*education.Group, error) {
-	s.groupsCalls++
-	return s.groups, s.groupsErr
-}
-func (s *stubUserCtx) GetMyActiveGroups(_ context.Context) ([]*active.Group, error) {
-	s.activeCalls++
-	return s.activeGroups, s.activeErr
-}
-
-type stubSettings struct {
-	hasOverride bool
-	hasErr      error
-	value       string
-	valueErr    error
-}
-
-func (s *stubSettings) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return s.hasOverride, s.hasErr
-}
-func (s *stubSettings) ResolveString(_ context.Context, _ string) (string, error) {
-	return s.value, s.valueErr
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -85,81 +52,26 @@ func TestHasAdminPermissions(t *testing.T) {
 	})
 }
 
-// --- resolveStudentDataScope -------------------------------------------
-
-func TestResolveStudentDataScope_NilSettingsReturnsRestrictiveDefault(t *testing.T) {
-	got := resolveStudentDataScope(context.Background(), nil, nil)
-	assert.Equal(t, configModel.StudentDataScopeGroupSupervisorsOnly, got,
-		"missing settings must NEVER fall through to the permissive value")
-}
-
-func TestResolveStudentDataScope_OverrideCheckErrorFallsBack(t *testing.T) {
-	got := resolveStudentDataScope(
-		context.Background(),
-		&stubSettings{hasErr: errors.New("settings unreachable")},
-		slog.Default(),
-	)
-	assert.Equal(t, configModel.StudentDataScopeGroupSupervisorsOnly, got)
-}
-
-func TestResolveStudentDataScope_NoOverrideReturnsDefault(t *testing.T) {
-	got := resolveStudentDataScope(
-		context.Background(),
-		&stubSettings{hasOverride: false},
-		nil,
-	)
-	assert.Equal(t, configModel.StudentDataScopeGroupSupervisorsOnly, got)
-}
-
-func TestResolveStudentDataScope_ResolveErrorFallsBack(t *testing.T) {
-	got := resolveStudentDataScope(
-		context.Background(),
-		&stubSettings{hasOverride: true, valueErr: errors.New("decode failure")},
-		slog.Default(),
-	)
-	assert.Equal(t, configModel.StudentDataScopeGroupSupervisorsOnly, got)
-}
-
-func TestResolveStudentDataScope_EmptyValueFallsBack(t *testing.T) {
-	got := resolveStudentDataScope(
-		context.Background(),
-		&stubSettings{hasOverride: true, value: ""},
-		nil,
-	)
-	assert.Equal(t, configModel.StudentDataScopeGroupSupervisorsOnly, got)
-}
-
-func TestResolveStudentDataScope_HappyPath(t *testing.T) {
-	got := resolveStudentDataScope(
-		context.Background(),
-		&stubSettings{hasOverride: true, value: configModel.StudentDataScopeAllStaff},
-		nil,
-	)
-	assert.Equal(t, configModel.StudentDataScopeAllStaff, got)
-}
-
 // --- CanReadStudent ----------------------------------------------------
 
 func TestCanReadStudent_NilStudent(t *testing.T) {
-	assert.False(t, CanReadStudent(context.Background(), nil, nil, nil, nil, nil))
+	assert.False(t, CanReadStudent(context.Background(), nil, nil, nil))
+	assert.False(t, CanReadStudent(context.Background(), []string{"admin:*"}, nil, nil),
+		"a missing student is never readable, not even for an admin")
 }
 
 func TestCanReadStudent_AdminAlwaysWins(t *testing.T) {
-	// No userCtx, no settings — admin permission alone is enough.
+	// No userCtx — the admin permission alone is enough.
 	got := CanReadStudent(
 		context.Background(),
 		[]string{"admin:*"},
 		studentInGroup(1),
 		nil,
-		nil,
-		nil,
 	)
 	assert.True(t, got)
 }
 
-func TestCanReadStudent_AllStaffScopeRequiresStaffRecord(t *testing.T) {
-	settings := &stubSettings{hasOverride: true, value: configModel.StudentDataScopeAllStaff}
-
+func TestCanReadStudent_StaffRecordRequired(t *testing.T) {
 	// Guest / guardian — has users:read but is NOT a staff member.
 	guest := &stubUserCtx{staffErr: errors.New("no staff record")}
 	got := CanReadStudent(
@@ -167,76 +79,50 @@ func TestCanReadStudent_AllStaffScopeRequiresStaffRecord(t *testing.T) {
 		[]string{"users:read"},
 		studentInGroup(99),
 		guest,
-		settings,
-		nil,
 	)
-	assert.False(t, got, "all_staff scope must NOT promote non-staff callers")
+	assert.False(t, got, "users:read must NOT promote non-staff callers")
 
-	// Staff member — same scope, now permitted.
+	// Staff member — permitted for any child of the tenant (#2329).
 	staffer := &stubUserCtx{staff: &users.Staff{}}
 	got = CanReadStudent(
 		context.Background(),
 		[]string{"users:read"},
 		studentInGroup(99),
 		staffer,
-		settings,
-		nil,
 	)
 	assert.True(t, got)
 }
 
-func TestCanReadStudent_NoGroupRequiresAdmin(t *testing.T) {
+func TestCanReadStudent_GrouplessStudentReadableByStaff(t *testing.T) {
+	// #2329: a child without a group is an ordinary child, not an admin-only one.
 	uc := &stubUserCtx{staff: &users.Staff{}}
 	got := CanReadStudent(
 		context.Background(),
 		[]string{"users:read"},
 		&users.Student{}, // no GroupID
 		uc,
-		nil,
-		nil,
-	)
-	assert.False(t, got, "students without a group are admin-only under the restrictive default")
-}
-
-func TestCanReadStudent_GroupSupervisorPasses(t *testing.T) {
-	uc := &stubUserCtx{
-		groups: []*education.Group{{Model: base.Model{ID: 42}}},
-	}
-	got := CanReadStudent(
-		context.Background(),
-		[]string{"users:read"},
-		studentInGroup(42),
-		uc,
-		nil,
-		nil,
 	)
 	assert.True(t, got)
 }
 
-func TestCanReadStudent_GroupsErrorDenies(t *testing.T) {
-	uc := &stubUserCtx{groupsErr: errors.New("DB outage")}
+func TestCanReadStudent_NilUserContextDenies(t *testing.T) {
+	assert.False(t, CanReadStudent(
+		context.Background(),
+		[]string{"users:read"},
+		studentInGroup(42),
+		nil,
+	), "without a user context the staff record cannot be verified — fail closed")
+}
+
+func TestCanReadStudent_StaffLookupErrorDenies(t *testing.T) {
+	uc := &stubUserCtx{staffErr: errors.New("DB outage")}
 	got := CanReadStudent(
 		context.Background(),
 		[]string{"users:read"},
 		studentInGroup(42),
 		uc,
-		nil,
-		nil,
 	)
-	assert.False(t, got, "errors on supervised-groups lookup must fail closed")
-}
-
-func TestCanReadStudent_NonSupervisedGroupDenies(t *testing.T) {
-	uc := &stubUserCtx{groups: []*education.Group{{Model: base.Model{ID: 1}}, {Model: base.Model{ID: 2}}}}
-	got := CanReadStudent(
-		context.Background(),
-		[]string{"users:read"},
-		studentInGroup(99),
-		uc,
-		nil,
-		nil,
-	)
-	assert.False(t, got)
+	assert.False(t, got, "errors on the staff lookup must fail closed")
 }
 
 // --- CanModifyStudent --------------------------------------------------
@@ -251,11 +137,12 @@ func TestCanModifyStudent_NilStudentDenies(t *testing.T) {
 	ok, err := CanModifyStudent(context.Background(), []string{"users:update"}, nil, nil, "update")
 	assert.False(t, ok)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "without assigned groups")
+	assert.Contains(t, err.Error(), "insufficient permissions")
 	assert.Contains(t, err.Error(), "update", "message must surface the operation verb")
 }
 
-func TestCanModifyStudent_GrouplessStudent(t *testing.T) {
+func TestCanModifyStudent_GrouplessStudentWritableByStaff(t *testing.T) {
+	// #2329: group membership no longer participates in the decision.
 	ok, err := CanModifyStudent(
 		context.Background(),
 		[]string{"users:update"},
@@ -263,9 +150,8 @@ func TestCanModifyStudent_GrouplessStudent(t *testing.T) {
 		&stubUserCtx{staff: &users.Staff{}},
 		"delete",
 	)
-	assert.False(t, ok)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "delete")
+	assert.True(t, ok)
+	require.NoError(t, err)
 }
 
 func TestCanModifyStudent_NilUserContextDenies(t *testing.T) {
@@ -278,7 +164,7 @@ func TestCanModifyStudent_NilUserContextDenies(t *testing.T) {
 	)
 	assert.False(t, ok)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "insufficient permissions")
+	assert.Contains(t, err.Error(), "only staff members can update")
 }
 
 func TestCanModifyStudent_StaffLookupErrorDenies(t *testing.T) {
@@ -301,17 +187,17 @@ func TestCanModifyStudent_StaffNilDenies(t *testing.T) {
 		[]string{"users:update"},
 		studentInGroup(7),
 		uc,
-		"update",
+		"delete",
 	)
 	assert.False(t, ok)
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only staff members can delete")
 }
 
-func TestCanModifyStudent_SupervisorPasses(t *testing.T) {
-	uc := &stubUserCtx{
-		staff:  &users.Staff{},
-		groups: []*education.Group{{Model: base.Model{ID: 7}}},
-	}
+func TestCanModifyStudent_StaffWithoutSupervisionPasses(t *testing.T) {
+	// #2329: any verified staff member of the tenant may write any child; the
+	// route-level permission decides WHICH writes they reach.
+	uc := &stubUserCtx{staff: &users.Staff{}}
 	ok, err := CanModifyStudent(
 		context.Background(),
 		[]string{"users:update"},
@@ -321,24 +207,6 @@ func TestCanModifyStudent_SupervisorPasses(t *testing.T) {
 	)
 	assert.True(t, ok)
 	require.NoError(t, err)
-}
-
-func TestCanModifyStudent_NonSupervisorDenies(t *testing.T) {
-	uc := &stubUserCtx{
-		staff:  &users.Staff{},
-		groups: []*education.Group{{Model: base.Model{ID: 1}}},
-	}
-	ok, err := CanModifyStudent(
-		context.Background(),
-		[]string{"users:update"},
-		studentInGroup(7),
-		uc,
-		"delete",
-	)
-	assert.False(t, ok)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "groups you supervise")
-	assert.Contains(t, err.Error(), "delete")
 }
 
 func TestWritableStudentFilter(t *testing.T) {
@@ -346,94 +214,45 @@ func TestWritableStudentFilter(t *testing.T) {
 	admin := WritableStudentFilter(context.Background(), []string{"admin:*"}, nil)
 	assert.True(t, admin(studentInGroup(7)))
 	assert.True(t, admin(&users.Student{}))
-	assert.True(t, admin(nil))
+	assert.False(t, admin(nil))
 
 	// Nil user context (non-admin): nothing writable.
 	none := WritableStudentFilter(context.Background(), []string{"users:update"}, nil)
 	assert.False(t, none(studentInGroup(7)))
 
-	// Supervisor of group 7 (education group): only students in group 7.
-	sup := WritableStudentFilter(
-		context.Background(),
-		[]string{"users:update"},
-		&stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 7}}}},
-	)
-	assert.True(t, sup(studentInGroup(7)))
-	assert.False(t, sup(studentInGroup(8)))
-	assert.False(t, sup(&users.Student{}), "a groupless student is admin-only")
-	assert.False(t, sup(nil))
+	// Verified staff: every child of the tenant, resolved once.
+	uc := &stubUserCtx{staff: &users.Staff{}}
+	staffFilter := WritableStudentFilter(context.Background(), []string{"users:update"}, uc)
+	assert.True(t, staffFilter(studentInGroup(7)))
+	assert.True(t, staffFilter(studentInGroup(8)))
+	assert.True(t, staffFilter(&users.Student{}))
+	assert.False(t, staffFilter(nil))
+	assert.Equal(t, 1, uc.staffCalls, "the staff record must be resolved once, not per student")
 }
 
 func TestCanUpdateStudent_Wrapper(t *testing.T) {
-	// Happy path: supervises group 5.
-	uc := &stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 5}}}}
+	uc := &stubUserCtx{staff: &users.Staff{}}
 	ok, err := CanUpdateStudent(context.Background(), []string{"users:update"}, studentInGroup(5), uc)
 	assert.True(t, ok)
 	require.NoError(t, err)
 
-	// Sad path: does NOT supervise the student's group — wrapper must
-	// surface the "update" verb in the error message.
-	other := &stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 99}}}}
-	ok, err = CanUpdateStudent(context.Background(), nil, studentInGroup(5), other)
+	// Sad path: no staff record — the wrapper must surface the "update" verb.
+	guest := &stubUserCtx{}
+	ok, err = CanUpdateStudent(context.Background(), nil, studentInGroup(5), guest)
 	assert.False(t, ok)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "update")
 }
 
 func TestCanDeleteStudent_Wrapper(t *testing.T) {
-	uc := &stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 5}}}}
+	uc := &stubUserCtx{staff: &users.Staff{}}
 	ok, err := CanDeleteStudent(context.Background(), []string{"users:update"}, studentInGroup(5), uc)
 	assert.True(t, ok)
 	require.NoError(t, err)
 
-	other := &stubUserCtx{staff: &users.Staff{}, groups: []*education.Group{{Model: base.Model{ID: 99}}}}
-	ok, err = CanDeleteStudent(context.Background(), nil, studentInGroup(5), other)
+	guest := &stubUserCtx{}
+	ok, err = CanDeleteStudent(context.Background(), nil, studentInGroup(5), guest)
 	assert.False(t, ok)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "delete")
-}
-
-// --- IsGroupSupervisor -------------------------------------------------
-
-func TestIsGroupSupervisor_NilUserContext(t *testing.T) {
-	assert.False(t, IsGroupSupervisor(context.Background(), 1, nil))
-}
-
-func TestIsGroupSupervisor_EducationGroupMatch(t *testing.T) {
-	uc := &stubUserCtx{groups: []*education.Group{{Model: base.Model{ID: 11}}, {Model: base.Model{ID: 22}}}}
-	assert.True(t, IsGroupSupervisor(context.Background(), 22, uc))
-}
-
-func TestIsGroupSupervisor_ActiveGroupTemplateMatch(t *testing.T) {
-	// Persistent group lookup errs, but active-group fallback finds the
-	// matching template ID — supervisor stands.
-	uc := &stubUserCtx{
-		groupsErr:    errors.New("DB error on education groups"),
-		activeGroups: []*active.Group{{GroupID: ptr(int64(33))}},
-	}
-	assert.True(t, IsGroupSupervisor(context.Background(), 33, uc))
-}
-
-func TestIsGroupSupervisor_SpontaneousActiveGroupIgnored(t *testing.T) {
-	// Spontaneous sessions (GroupID == nil) must NOT match a caller-supplied
-	// template ID — otherwise any session would grant supervision.
-	uc := &stubUserCtx{activeGroups: []*active.Group{{GroupID: nil}}}
-	assert.False(t, IsGroupSupervisor(context.Background(), 33, uc))
-}
-
-func TestIsGroupSupervisor_NoMatch(t *testing.T) {
-	uc := &stubUserCtx{
-		groups:       []*education.Group{{Model: base.Model{ID: 1}}},
-		activeGroups: []*active.Group{{GroupID: ptr(int64(2))}},
-	}
-	assert.False(t, IsGroupSupervisor(context.Background(), 99, uc))
-}
-
-func TestIsGroupSupervisor_ActiveGroupsErrorIgnored(t *testing.T) {
-	// Education-group match wins even when active-group lookup would error.
-	uc := &stubUserCtx{
-		groups:    []*education.Group{{Model: base.Model{ID: 5}}},
-		activeErr: errors.New("active group store offline"),
-	}
-	assert.True(t, IsGroupSupervisor(context.Background(), 5, uc))
 }

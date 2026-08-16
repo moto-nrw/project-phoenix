@@ -423,8 +423,9 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 // Authorization Tests (Tests that exercise authorization code paths)
 // =============================================================================
 
-// TestToggleStudentAttendance_WebAuthorizationPath tests the web authorization code path
-// This exercises authorizeWebToggle and checkTeacherOrRoomSupervisorAccess
+// TestToggleStudentAttendance_WebAuthorizationPath tests the web authorization
+// code path (authorizeWebToggle). Since #2329 any staff member may toggle any
+// student — the former education-group / room-supervision gate is gone.
 func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -432,7 +433,7 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
 
-	t.Run("web authorization fails when staff has no access to student", func(t *testing.T) {
+	t.Run("web toggle succeeds for staff without group relationship", func(t *testing.T) {
 		// ARRANGE: Create student and staff with NO relationship
 		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "5a")
 		staff := testpkg.CreateTestStaff(t, db, "NoAccess", "Staff")
@@ -440,11 +441,13 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 
 		// ACT: Toggle attendance without skipAuthCheck
 		// In a normal (non-IoT) context, this triggers the web toggle path
-		_, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, 0, false)
+		result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, 0, false)
 
-		// ASSERT: Should fail authorization
-		assert.Error(t, err, "Expected authorization error")
-		assert.Contains(t, err.Error(), "teacher does not have access", "Expected access denied message")
+		// ASSERT: The toggle checks the student in, attributed to the staff member
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "checked_in", result.Action)
+		assert.Equal(t, student.ID, result.StudentID)
 	})
 }
 

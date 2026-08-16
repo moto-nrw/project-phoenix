@@ -66,7 +66,15 @@ const WIZARD_STEPS = ["Termin", "Wiederholung", "Personal und Kinder"] as const;
  * the hook's validateForm — this is only a mapping.
  */
 const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
-  ["title", "date", "startTime", "endTime", "roomId", "categoryId"],
+  [
+    "title",
+    "date",
+    "seriesStartDate",
+    "startTime",
+    "endTime",
+    "roomId",
+    "categoryId",
+  ],
   ["weekdays", "calendarPeriodId", "weekPattern"],
   ["targetGradeLevel", "targetSchoolClass", "educationGroupId"],
 ];
@@ -212,6 +220,7 @@ export function TimetableEventModal({
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
+    seriesStartEdit,
     canDeleteSeries,
     gradeLevelMax,
     targetGradeOptions,
@@ -317,12 +326,18 @@ export function TimetableEventModal({
     // Periodenstart.
     const from = initialSeries ? today : form.date;
     const validity = initialSeries?.schedules[0];
+    const requestedValidFrom =
+      initialSeries &&
+      form.seriesStartDate !== "" &&
+      form.seriesStartDate < (validity?.validFrom ?? "")
+        ? form.seriesStartDate
+        : validity?.validFrom;
     const dates = materializedRecurrenceDates({
       period,
       fromISO: from,
       weekdays: form.weekdays,
       weekPattern: form.weekPattern,
-      validFrom: validity?.validFrom,
+      validFrom: requestedValidFrom,
       validUntil: validity?.validUntil,
     });
     // Converting preserves the concrete seed occurrence even when its date is
@@ -338,6 +353,7 @@ export function TimetableEventModal({
     convertInstance,
     form.calendarPeriodId,
     form.date,
+    form.seriesStartDate,
     form.weekPattern,
     form.weekdays,
     initialSeries,
@@ -559,6 +575,7 @@ export function TimetableEventModal({
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
                 isEditingSeries={isEditingSeries}
+                seriesStartEdit={seriesStartEdit}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}

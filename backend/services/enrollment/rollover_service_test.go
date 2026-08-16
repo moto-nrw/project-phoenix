@@ -25,14 +25,15 @@ import (
 // in request_service_test.go so we get tenant + form schema + base
 // phase out of the box.
 type rolloverTestEnv struct {
-	db          *bun.DB
-	repos       *repositories.Factory
-	rolloverSvc enrollmentService.RolloverService
-	requestSvc  enrollmentService.RequestService
-	settings    *stubRequestSettings
-	outbox      *recordingOutbox
-	sourcePhase *enrollmentModels.Phase
-	creatorID   int64
+	db             *bun.DB
+	repos          *repositories.Factory
+	rolloverSvc    enrollmentService.RolloverService
+	requestSvc     enrollmentService.RequestService
+	offeringCloner enrollmentService.RolloverOfferingCatalogCloner
+	settings       *stubRequestSettings
+	outbox         *recordingOutbox
+	sourcePhase    *enrollmentModels.Phase
+	creatorID      int64
 }
 
 func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
@@ -86,11 +87,27 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Logger:                   slog.Default(),
 	})
 
+	careOfferingSvc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
+		Repo:                     repoFactory.CareOffering,
+		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
+		ActivityGroupRepo:        repoFactory.ActivityGroup,
+		ActivityScheduleRepo:     repoFactory.ActivitySchedule,
+		CalendarPeriodRepo:       repoFactory.CalendarPeriod,
+		TimeframeRepo:            repoFactory.Timeframe,
+		ActivityExceptionRepo:    repoFactory.ActivityException,
+		PhaseRepo:                repoFactory.Phase,
+		Settings:                 settings,
+		Logger:                   slog.Default(),
+	})
+	offeringCloner, ok := careOfferingSvc.(enrollmentService.RolloverOfferingCatalogCloner)
+	require.True(t, ok, "care offering service must implement RolloverOfferingCatalogCloner")
+
 	rolloverSvc := enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
 		PhaseRepo:                repoFactory.Phase,
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
 		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
+		OfferingCatalogCloner:    offeringCloner,
 		OutboxEnqueuer:           outbox,
 		Settings:                 settings,
 		ParentsURL:               "http://parents.localhost:3000",
@@ -123,14 +140,15 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	require.NoError(t, repoFactory.Phase.Create(ctx, sourcePhase))
 
 	env := &rolloverTestEnv{
-		db:          db,
-		repos:       repoFactory,
-		rolloverSvc: rolloverSvc,
-		requestSvc:  requestSvc,
-		settings:    settings,
-		outbox:      outbox,
-		sourcePhase: sourcePhase,
-		creatorID:   account.ID,
+		db:             db,
+		repos:          repoFactory,
+		rolloverSvc:    rolloverSvc,
+		requestSvc:     requestSvc,
+		offeringCloner: offeringCloner,
+		settings:       settings,
+		outbox:         outbox,
+		sourcePhase:    sourcePhase,
+		creatorID:      account.ID,
 	}
 
 	cleanup := func() {
@@ -251,6 +269,7 @@ func rolloverServiceWithSettings(
 		RequestRepo:              env.repos.Request,
 		RequestChildRepo:         env.repos.RequestChild,
 		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		OfferingCatalogCloner:    env.offeringCloner,
 		OutboxEnqueuer:           env.outbox,
 		Settings:                 settings,
 		ParentsURL:               "http://parents.localhost:3000",

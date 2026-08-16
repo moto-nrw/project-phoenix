@@ -331,7 +331,7 @@ func (s *service) loadStudents(ctx context.Context, state *buildState) error {
 	if err != nil {
 		return fmt.Errorf("resolve student photos setting: %w", err)
 	}
-	access := userContextService.ResolveStudentAccess(ctx, s.deps.UserContext, s.deps.Settings, s.deps.Logger)
+	access := userContextService.ResolveStudentAccess(ctx, s.deps.UserContext)
 	state.projected = projectStudents(students, data, access, photosEnabled)
 	return s.applyStatusDays(ctx, state)
 }

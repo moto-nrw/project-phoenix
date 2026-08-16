@@ -82,10 +82,10 @@ export function checkoutConfirmationRoom(
 
 /**
  * Detects the 403 the school-checkin endpoint returns when the caller may not
- * touch this student — the default `attendance.web_checkin_access` setting
- * ("Nur Gruppenbetreuer des Kindes") denies cross-group check-ins. authFetch
- * folds the status into the message ("API error (403): Forbidden"), which is
- * the same shape `getApiErrorMessage` matches on.
+ * use web check-in at all (missing users:checkin permission or web attendance
+ * disabled). authFetch folds the status into the message
+ * ("API error (403): Forbidden"), which is the same shape
+ * `getApiErrorMessage` matches on.
  */
 function isForbiddenError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("403");
@@ -200,13 +200,13 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           error: message,
         });
         if (isForbiddenError(error)) {
-          // Naming the reason matters here: with the default access setting a
-          // cross-group tap always fails, and a bare "bitte erneut versuchen"
-          // would invite endless retries (#2220).
+          // Naming the reason matters here: a permission 403 fails on every
+          // retry, and a bare "bitte erneut versuchen" would invite endless
+          // retries (#2220).
           toast.error(
             action === "in"
-              ? "Keine Berechtigung: Dieses Kind kann nur von seiner Gruppenbetreuung angemeldet werden."
-              : "Keine Berechtigung: Dieses Kind kann nur von seiner Gruppenbetreuung abgemeldet werden.",
+              ? "Keine Berechtigung, Kinder anzumelden."
+              : "Keine Berechtigung, Kinder abzumelden.",
           );
         } else {
           toast.error(

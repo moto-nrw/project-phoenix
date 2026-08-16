@@ -259,7 +259,10 @@ func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissi
 }
 
 func parseStatusDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
-	today := timezone.TodayDate()
+	return parseStatusDayRangeAt(r, timezone.TodayDate())
+}
+
+func parseStatusDayRangeAt(r *http.Request, today timezone.Date) (timezone.Date, timezone.Date, error) {
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")
 

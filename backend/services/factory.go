@@ -165,6 +165,7 @@ type Factory struct {
 	OfferingChanges         enrollment.OfferingChangeRequestService
 	ExcusedRequests         absence.ExcusedAbsenceRequestService
 	StudentStatusDays       *active.StudentStatusDayService
+	AbsenceOverview         *active.StudentStatusDayOverviewService
 	StudentHistory          active.StudentHistoryService
 	OGSGroupLive            ogsgrouplive.Getter
 	TimetableData           *schedule.TimetableDataService
@@ -1561,6 +1562,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentFieldEdit,
 		logger.With("service", "student_audit"),
 	)
+	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
+	// enrollment writes that change a child's live care data.
+	pillEmitter := parentmessaging.NewEmitter(
+		db,
+		repos.ParentMessageThread,
+		repos.ParentMessage,
+		settingsService,
+		realtimeHub,
+		logger.With("service", "parent-events"),
+	)
 
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		RequestRepo:              repos.Request,
@@ -1596,6 +1607,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OutboxEnqueuer:           emailOutboxService,
 		StudentAudit:             studentAuditService,
 		Broadcaster:              realtimeHub,
+		PickupGuardianNotifier:   pillEmitter,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,
@@ -1751,11 +1763,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Rollover service depends on DecisionService for the
 	// rollover_auto_approve=true deadline path.
+	enrollmentRolloverCatalogCloner, ok := enrollmentCareOfferingService.(enrollment.RolloverOfferingCatalogCloner)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement rollover catalog cloning")
+	}
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
 		PhaseRepo:                repos.Phase,
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
+		OfferingCatalogCloner:    enrollmentRolloverCatalogCloner,
 		SchoolRepo:               repos.School,
 		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
@@ -1764,18 +1781,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
-
-	// Chat-pill emitter (#1803): posts non-interactive notification events
-	// into parent-OGS threads on behalf of the request/self-service flows.
-	// Best-effort and transactionally detached — see parentmessaging.Emitter.
-	pillEmitter := parentmessaging.NewEmitter(
-		db,
-		repos.ParentMessageThread,
-		repos.ParentMessage,
-		settingsService,
-		realtimeHub,
-		logger.With("service", "parent-events"),
-	)
 
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
@@ -1825,7 +1830,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		userContextService,
 		pillEmitter,
 		realtimeHub,
-		settingsService,
 		logger.With("service", "excused-requests"),
 		db,
 	)
@@ -2071,7 +2075,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
-		Groups:      userContextService,
 		Logger:      logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
@@ -2079,7 +2082,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// keeps the per-minute cost flat in the number of staff.
 		BulkSupervision:   repos.GroupSupervisor,
 		BulkVisits:        repos.ActiveVisit,
-		BulkGroups:        repos.Group,
 		BulkInstanceStaff: repos.InstanceStaff,
 	})
 
@@ -2090,6 +2092,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupException,
 		db,
 	)
+	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
 		People:          usersService,
 		Education:       educationService,
@@ -2250,6 +2253,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OfferingChanges:         offeringChangeRequestService,
 		ExcusedRequests:         excusedRequestService,
 		StudentStatusDays:       studentStatusDayService,
+		AbsenceOverview:         studentStatusDayOverviewService,
 		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		OGSGroupLive:            ogsGroupLiveService,
 		TimetableData:           timetableDataService,

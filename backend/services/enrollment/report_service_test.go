@@ -11,11 +11,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 func TestCareUsageRowCountsEffectiveDaysAsUnion(t *testing.T) {
@@ -122,8 +125,8 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	assert.Equal(t, []string{"Randstunde"}, row.OfferingsByDay["mon"])
 	assert.Equal(t, "11:30", row.ArrivalByDay["mon"])
 	assert.Equal(t, "14:30", row.PickupByDay["mon"])
-	assert.Contains(t, row.Departure, "Mo: Abholung, Mit anderem Kind")
-	assert.Contains(t, row.Departure, "(mit: Mia)")
+	assert.Equal(t, "wird abgeholt / mit anderem Kind (mit: Mia)", row.DepartureByDay["mon"])
+	assert.Equal(t, "geht alleine", row.DepartureByDay["tue"])
 }
 
 func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
@@ -339,7 +342,10 @@ func TestClassRosterRowMarksMissingEnrollmentAsNoRegistration(t *testing.T) {
 	assert.Equal(t, "Keine Anmeldung", row.EnrollmentSummary)
 	assert.Equal(t, []string{}, row.CareDays)
 	assert.Equal(t, map[string][]string{}, row.OfferingsByDay)
-	assert.Equal(t, "Geht alleine", row.Departure)
+	assert.Equal(t, map[string]string{
+		"mon": "geht alleine", "tue": "geht alleine", "wed": "geht alleine",
+		"thu": "geht alleine", "fri": "geht alleine",
+	}, row.DepartureByDay)
 	assert.Equal(t, []ClassRosterGuardian{{Name: "Eva Ohne", Email: "eva@example.test", Phone: "02551 123"}}, row.Guardians)
 }
 
@@ -1074,10 +1080,16 @@ func (r *fakeClassRosterChildRepo) ListByRequestIDs(_ context.Context, _ []int64
 
 type fakeClassRosterRequestGuardianRepo struct {
 	enrollmentModels.RequestGuardianRepository
-	guardians []*enrollmentModels.RequestGuardian
+	guardians  []*enrollmentModels.RequestGuardian
+	err        error
+	requestIDs []int64
 }
 
 func (r *fakeClassRosterRequestGuardianRepo) ListByRequestIDs(_ context.Context, requestIDs []int64) ([]*enrollmentModels.RequestGuardian, error) {
+	r.requestIDs = append([]int64(nil), requestIDs...)
+	if r.err != nil {
+		return nil, r.err
+	}
 	seen := map[int64]bool{}
 	for _, id := range requestIDs {
 		seen[id] = true
@@ -1208,12 +1220,14 @@ func TestClassRosterRowNamesStructuredCompanions(t *testing.T) {
 	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions, true)
 
 	require.NoError(t, err)
-	assert.Equal(t, "Mo: Mit anderem Kind (mit: Mia Schulz (Mo))", row.Departure)
+	assert.Equal(t, "mit anderem Kind (mit: Mia Schulz)", row.DepartureByDay["mon"])
+	assert.Equal(t, "geht alleine", row.DepartureByDay["tue"])
 }
 
 // TestClassRosterRowCombinesCompanionsAndNote pins that a child using both
 // sources keeps both: the link answers Monday, the note answers the day no link
-// covers.
+// covers: Monday prints the link, Tuesday falls back to the note — the note
+// never repeats on a day a link already names.
 func TestClassRosterRowCombinesCompanionsAndNote(t *testing.T) {
 	note := "Dienstags mit Nachbarskind Tom"
 	student := &userModels.Student{
@@ -1234,15 +1248,16 @@ func TestClassRosterRowCombinesCompanionsAndNote(t *testing.T) {
 	row, err := classRosterRow(student, person, "", nil, nil, nil, nil, companions, true)
 
 	require.NoError(t, err)
-	assert.Equal(t, "Mo: Mit anderem Kind, Di: Mit anderem Kind (mit: Mia Schulz (Mo); Dienstags mit Nachbarskind Tom)", row.Departure)
+	assert.Equal(t, "mit anderem Kind (mit: Mia Schulz)", row.DepartureByDay["mon"])
+	assert.Equal(t, "mit anderem Kind (mit: Dienstags mit Nachbarskind Tom)", row.DepartureByDay["tue"])
 }
 
 // TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan pins that the roster
 // never prints a "läuft mit" day the plan on the same line forbids. The plan
 // comes from the approved enrollment phase while the links belong to the live
 // child and follow every later Stammdaten edit, so the two sources can disagree
-// — and a sheet that says "Di: Bus" and "dienstags mit Mia" at once is worse
-// than one that says nothing about Tuesday (#1694).
+// — and a Tuesday cell that says "fährt Bus" and "dienstags mit Mia" at once
+// is worse than one that says nothing about Tuesday (#1694).
 func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	schemaID := int64(88)
 	req := &enrollmentModels.Request{
@@ -1284,5 +1299,184 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	row, err := classRosterRow(student, person, "", enrollment, nil, schemas, nil, companions, true)
 
 	require.NoError(t, err)
-	assert.Equal(t, "Mo: Mit anderem Kind, Di: Bus (mit: Mia Schulz (Mo))", row.Departure)
+	assert.Equal(t, "mit anderem Kind (mit: Mia Schulz)", row.DepartureByDay["mon"])
+	assert.Equal(t, "fährt Bus", row.DepartureByDay["tue"])
+}
+
+// --- CareUsage display enrichment (#2215) ------------------------------
+
+type fakeCareUsageRequestRepo struct {
+	enrollmentModels.RequestRepository
+	requests []*enrollmentModels.Request
+}
+
+func (r *fakeCareUsageRequestRepo) ListAdmin(_ context.Context, _ enrollmentModels.RequestListFilters) ([]*enrollmentModels.Request, error) {
+	return r.requests, nil
+}
+
+type fakeCareUsagePickupScheduleSvc struct {
+	scheduleService.PickupScheduleService
+	rows       []*scheduleModels.StudentPickupSchedule
+	err        error
+	studentIDs []int64
+}
+
+func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDs(_ context.Context, studentIDs []int64) ([]*scheduleModels.StudentPickupSchedule, error) {
+	s.studentIDs = append([]int64(nil), studentIDs...)
+	return s.rows, s.err
+}
+
+func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
+	studentID := int64(700)
+	excludedStudentID := int64(701)
+	guardianEmail := "max@example.org"
+	guardianRepo := &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentModels.RequestGuardian{{
+		RequestID: 11,
+		FirstName: "Max",
+		LastName:  "Muster",
+		Email:     &guardianEmail,
+	}}}
+	pickupSvc := &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+		StudentID:  studentID,
+		Weekday:    scheduleModels.WeekdayMonday,
+		PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
+	}}}
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		RequestRepo: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+			Model:             baseModels.Model{ID: 11},
+			GuardianFirstName: "Eva",
+			GuardianLastName:  "Muster",
+			GuardianEmail:     "eva@example.org",
+			SubmittedAt:       time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}, {
+			Model: baseModels.Model{ID: 12}, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}}},
+		RequestChildRepo: &fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
+			Model:            baseModels.Model{ID: 21},
+			RequestID:        11,
+			FirstName:        "Lina",
+			LastName:         "Muster",
+			Status:           enrollmentModels.ChildStatusApproved,
+			CreatedStudentID: &studentID,
+		}, {
+			Model: baseModels.Model{ID: 22}, RequestID: 12, FirstName: "Nicht", LastName: "Enthalten",
+			Status: enrollmentModels.ChildStatusApproved, CreatedStudentID: &excludedStudentID,
+		}}},
+		RequestGuardianRepo:      guardianRepo,
+		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		PhaseRepo:                &fakeClassRosterPhaseRepo{},
+		PickupScheduleSvc:        pickupSvc,
+	}}
+
+	report, err := svc.careUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all", Search: "Lina"}, true)
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	row := report.Rows[0]
+	// Maintained Kind-Gehzeit of the linked student is attached for
+	// display; the snapshot PickupByDay stays untouched.
+	assert.Equal(t, "14:30", row.SchedulePickupByDay["mon"])
+	assert.Empty(t, row.PickupByDay["mon"])
+	assert.Equal(t, []string{"mon", "tue", "wed", "thu", "fri"}, row.CareDays)
+	// All request guardians, primary first.
+	require.Len(t, row.Guardians, 2)
+	assert.Equal(t, "Eva Muster", row.Guardians[0].Name)
+	assert.Equal(t, "Max Muster", row.Guardians[1].Name)
+	assert.Equal(t, guardianEmail, row.Guardians[1].Email)
+	assert.Equal(t, []int64{11}, guardianRepo.requestIDs)
+	assert.Equal(t, []int64{studentID}, pickupSvc.studentIDs)
+}
+
+func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {
+	studentID := int64(700)
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		RequestRepo: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+			Model:       baseModels.Model{ID: 11},
+			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}}},
+		RequestChildRepo: &fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
+			Model:            baseModels.Model{ID: 21},
+			RequestID:        11,
+			FirstName:        "Lina",
+			LastName:         "Muster",
+			Status:           enrollmentModels.ChildStatusSubmitted,
+			MatchedStudentID: &studentID,
+		}}},
+		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		PhaseRepo:                &fakeClassRosterPhaseRepo{},
+		PickupScheduleSvc: &fakeCareUsagePickupScheduleSvc{rows: []*scheduleModels.StudentPickupSchedule{{
+			StudentID:  studentID,
+			Weekday:    scheduleModels.WeekdayMonday,
+			PickupTime: time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
+		}}},
+	}}
+
+	report, err := svc.careUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"}, true)
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Empty(t, report.Rows[0].SchedulePickupByDay)
+}
+
+func TestCareUsageSkipsCompactEnrichment(t *testing.T) {
+	enrichmentErr := errors.New("enrichment unavailable")
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		RequestRepo: &fakeCareUsageRequestRepo{requests: []*enrollmentModels.Request{{
+			Model:       baseModels.Model{ID: 11},
+			SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
+		}}},
+		RequestChildRepo: &fakeClassRosterChildRepo{children: []*enrollmentModels.RequestChild{{
+			Model: baseModels.Model{ID: 21}, RequestID: 11, FirstName: "Lina", LastName: "Muster",
+		}}},
+		RequestGuardianRepo:      &fakeClassRosterRequestGuardianRepo{err: enrichmentErr},
+		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
+		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
+		PhaseRepo:                &fakeClassRosterPhaseRepo{},
+		PickupScheduleSvc:        &fakeCareUsagePickupScheduleSvc{err: enrichmentErr},
+	}}
+
+	report, err := svc.CareUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all"})
+
+	require.NoError(t, err)
+	require.Len(t, report.Rows, 1)
+	assert.Nil(t, report.Rows[0].CareDays)
+	assert.Nil(t, report.Rows[0].SchedulePickupByDay)
+}
+
+type fakeCareUsageAccessLogRepo struct {
+	auditModels.DataAccessLogRepository
+	entries []*auditModels.DataAccessLog
+}
+
+func (r *fakeCareUsageAccessLogRepo) Create(_ context.Context, entry *auditModels.DataAccessLog) error {
+	r.entries = append(r.entries, entry)
+	return nil
+}
+
+func TestRecordCareUsageExportAuditIncludesLayout(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		compact bool
+		want    string
+	}{
+		{name: "detailed", compact: false, want: "detailed"},
+		{name: "compact", compact: true, want: "compact"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeCareUsageAccessLogRepo{}
+			svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+				DataAccessLogRepo: repo,
+				PhaseRepo:         &fakeClassRosterPhaseRepo{},
+			}}
+			report := &CareUsageReport{Phase: CareUsagePhase{ID: 55}}
+
+			err := svc.recordCareUsageExportAudit(context.Background(), report, 42, "admin", "pdf", tc.compact)
+
+			require.NoError(t, err)
+			require.Len(t, repo.entries, 1)
+			assert.Equal(t, tc.want, repo.entries[0].GetMetadata()["layout"])
+		})
+	}
 }

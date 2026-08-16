@@ -827,6 +827,42 @@ export interface BackendApplyDeviationsResponse {
 }
 
 /**
+ * #2284 Sammel-Vertretung: one person's day-wide absence — optionally covered
+ * by one substitute — applied to several selected days in ONE atomic save via
+ * POST /substitutions/bulk. `substituteStaffId` undefined marks the person
+ * absent without assigning cover. `dates` are "YYYY-MM-DD" strings.
+ */
+export interface BulkSubstitutionInput {
+  absentStaffId: string;
+  substituteStaffId?: string;
+  dates: string[];
+  reason?: string;
+}
+
+interface BulkSubstitutionDayResult {
+  date: string;
+  affectedInstances: SubstituteAffectedInstance[];
+  warningCount: number;
+}
+
+export interface BulkSubstitutionResponse {
+  days: BulkSubstitutionDayResult[];
+  totalAffected: number;
+  warningCount: number;
+}
+
+interface BackendBulkSubstitutionDay {
+  date: string;
+  affected_instances: BackendSubstituteAffectedInstance[];
+  warnings: unknown[];
+}
+
+export interface BackendBulkSubstitutionResponse {
+  days: BackendBulkSubstitutionDay[];
+  total_affected: number;
+}
+
+/**
  * #1884 Personalpool: every staff member categorized against one block's
  * time window. Categories are mutually exclusive; `assignedElsewhere`
  * entries carry the overlapping blocks they could be moved away from.
@@ -1022,6 +1058,14 @@ export type UpdateTemplateBody = Omit<
   CreateTemplateBody,
   "materialize_from" | "materialize_to" | "list_kind" | "start_date"
 > & {
+  /**
+   * Pulls a not-yet-started series forward (#2226): schedule envelope and
+   * series-managed roster move to this earlier date. The backend accepts only
+   * dates before the stored series start, not in the past, within the pinned
+   * period and clear of a predecessor segment's window. Omitted = the stored
+   * series start stays untouched (the pre-#2226 behavior).
+   */
+  start_date?: string;
   /**
    * Listenart classification. A value sets it; explicit `null` clears it. On the
    * split ("Diesen und folgende") endpoint, omitting the field keeps the existing

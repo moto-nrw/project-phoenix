@@ -49,9 +49,9 @@ const ERROR_MESSAGES: Record<DayLogErrorCode, string> = {
   feature_disabled:
     "Das Anwesenheitsprotokoll ist für diese Schule nicht aktiviert. Eine Administration kann es unter Einstellungen → Datenschutz einschalten.",
   not_group_supervisor:
-    "Sie haben keinen Zugriff auf diese Gruppe. Sichtbar sind nur Gruppen, die Sie betreuen.",
+    "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
   no_permitted_groups:
-    "Ihrem Konto ist keine Gruppe zugeordnet. Die Tagesauswertung zeigt nur Gruppen, die Sie betreuen.",
+    "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
   invalid_request:
     "Die Tagesauswertung ist nur für den aktuellen Tag verfügbar.",
   unknown: "Die Tagesauswertung konnte nicht geladen werden.",
