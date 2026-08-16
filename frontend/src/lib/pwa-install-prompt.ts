@@ -110,11 +110,16 @@ function isCurrentProtectedParentPath(): boolean {
   );
 }
 
+// Never suppress Chrome unless the replacement card can actually render, or the
+// visitor is left with no install affordance at all.
 function canCaptureInstallPrompt(): boolean {
   if (isCurrentTenantInstallHost()) {
     return isCurrentProtectedTenantPath() && isInstallHintEligible(window);
   }
-  return isCurrentParentInstallHost() && isCurrentProtectedParentPath();
+  if (isCurrentParentInstallHost()) {
+    return isCurrentProtectedParentPath() && isInstallHintEligible(window);
+  }
+  return false;
 }
 
 function isCurrentInstallHost(): boolean {

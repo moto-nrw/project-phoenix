@@ -17,6 +17,7 @@ describe("instrumentation-client", () => {
     vi.resetModules();
     vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_TENANT_DOMAIN", "moto-app.de");
+    vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
     vi.stubGlobal("navigator", { userAgent: ANDROID_UA });
     window.location.href = "https://school-a.moto-app.de/dashboard";
     localStorage.clear();
@@ -204,11 +205,73 @@ describe("instrumentation-client", () => {
 
   it.each([
     "https://operator.moto-app.de/",
-    "https://eltern.moto-app.de/",
     "https://moto-app.de/",
     "https://help.moto-app.de/",
   ])("leaves Chrome's native install prompt enabled on %s", async (url) => {
     window.location.href = url;
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(canPromptInstall()).toBe(false);
+  });
+
+  // The parents app is installable in its own right, so it owns the prompt on
+  // its host under exactly the tenant rules: Android, a protected path, and a
+  // card that is eligible to render.
+  it("suppresses Chrome's native prompt on the parents host", async () => {
+    window.location.href = "https://eltern.moto-app.de/";
+    await import("./instrumentation-client");
+    const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+    const event = Object.assign(
+      new Event("beforeinstallprompt", { cancelable: true }),
+      {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: "accepted" as const }),
+      },
+    );
+
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(canPromptInstall()).toBe(true);
+  });
+
+  it.each(["/login", "/reset-password", "/enroll/status/abc"])(
+    "leaves the native prompt uncaptured on public parent path %s",
+    async (path) => {
+      window.location.href = `https://eltern.moto-app.de${path}`;
+      await import("./instrumentation-client");
+      const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+      const event = Object.assign(
+        new Event("beforeinstallprompt", { cancelable: true }),
+        {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          userChoice: Promise.resolve({ outcome: "accepted" as const }),
+        },
+      );
+
+      window.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(canPromptInstall()).toBe(false);
+    },
+  );
+
+  // Regression guard: without the eligibility check the parents host would lose
+  // Chrome's prompt while our own card stays hidden, leaving no way to install.
+  it("leaves the native prompt enabled on the parents host after a dismissal", async () => {
+    window.location.href = "https://eltern.moto-app.de/";
+    localStorage.setItem("moto-pwa-install-hint-dismissed", "1");
     await import("./instrumentation-client");
     const { canPromptInstall } = await import("./lib/pwa-install-prompt");
     const event = Object.assign(
