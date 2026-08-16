@@ -79,11 +79,18 @@ func (s *decisionService) PreviewOfferingPickupRollout(ctx context.Context, offe
 	if !s.hasOfferingPickupDependencies() {
 		return nil, fmt.Errorf("offering pickup rollout: repositories not configured")
 	}
+	preview := &OfferingPickupRolloutPreview{Conflicts: []OfferingPickupConflict{}}
+	active, err := s.offeringPickupRolloutActiveToday(ctx, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	if !active {
+		return preview, nil
+	}
 	studentIDs, err := s.offeringPickupAffectedStudents(ctx, offeringID)
 	if err != nil {
 		return nil, err
 	}
-	preview := &OfferingPickupRolloutPreview{Conflicts: []OfferingPickupConflict{}}
 	if len(studentIDs) == 0 {
 		return preview, nil
 	}
@@ -144,11 +151,18 @@ func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeri
 	if !s.hasOfferingPickupDependencies() {
 		return nil, fmt.Errorf("offering pickup rollout: repositories not configured")
 	}
+	result := &OfferingPickupRolloutResult{}
+	active, err := s.offeringPickupRolloutActiveToday(ctx, offeringID)
+	if err != nil {
+		return nil, err
+	}
+	if !active {
+		return result, nil
+	}
 	studentIDs, err := s.offeringPickupAffectedStudents(ctx, offeringID)
 	if err != nil {
 		return nil, err
 	}
-	result := &OfferingPickupRolloutResult{}
 	if len(studentIDs) == 0 {
 		return result, nil
 	}
@@ -181,6 +195,25 @@ func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeri
 		slog.Int("skipped_students", result.SkippedStudents),
 	)
 	return result, nil
+}
+
+func (s *decisionService) offeringPickupRolloutActiveToday(ctx context.Context, offeringID int64) (bool, error) {
+	if offeringID <= 0 {
+		return false, fmt.Errorf("%w: offering id is required", ErrCareOfferingInvalid)
+	}
+	offering, err := s.CareOfferingRepo.FindByID(ctx, offeringID)
+	if err != nil || offering == nil {
+		return false, ErrCareOfferingNotFound
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+	if err != nil {
+		return false, fmt.Errorf("load offering phase for pickup rollout: %w", err)
+	}
+	if phase == nil {
+		return false, fmt.Errorf("load offering phase for pickup rollout: phase not found")
+	}
+	today := timezone.TodayDate()
+	return !phase.ServiceStartDate.After(today) && !phase.ServiceEndDate.Before(today), nil
 }
 
 func (s *decisionService) ReconcileOfferingPickupForStudents(ctx context.Context, studentIDs []int64, createdByStaffID int64) error {

@@ -187,13 +187,32 @@ func TestOfferingPickupRollout_FuturePhaseDoesNotOverwriteCurrentSchedule(t *tes
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(30))
 	ctx := testpkg.TenantContext(1)
 
-	offering := createPickupTimeOffering(t, env, "gehzeit-future-rollout",
+	current := createPickupTimeOffering(t, env, "gehzeit-current-rollout",
+		[]string{"mon"}, map[string]string{"mon": "13:30"})
+	future := createPickupTimeOffering(t, env, "gehzeit-future-rollout",
 		[]string{"mon"}, map[string]string{"mon": "16:00"})
-	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "gehzeit-future-rollout@example.com", "Rolla", 2)
+	studentID, childID := submitAndApproveOfferingChild(t, env, current.ID, "gehzeit-future-rollout@example.com", "Rolla", 2)
+	attachOfferingLink(t, env, childID, future.ID, []string{"mon"})
+	_, err := env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChildOffering)(nil)).
+		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		Set("valid_from = ?", env.sourcePhase.ServiceStartDate).
+		Where(`"request_child_offering".request_child_id = ?`, childID).
+		Where(`"request_child_offering".care_offering_id = ?`, future.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		Model((*enrollmentModels.RequestChildOffering)(nil)).
+		ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).
+		Set("valid_from = NULL").
+		Where(`"request_child_offering".request_child_id = ?`, childID).
+		Where(`"request_child_offering".care_offering_id = ?`, current.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Aktuell")
 	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, author.ID, "14:30")
 
-	result, err := pickupTimeService(t, env).RolloutOfferingPickupTimes(ctx, offering.ID, nil, rolloutActorAccountID(t, env))
+	result, err := pickupTimeService(t, env).RolloutOfferingPickupTimes(ctx, future.ID, nil, rolloutActorAccountID(t, env))
 	require.NoError(t, err)
 	assert.Zero(t, result.UpdatedRows)
 	assert.Zero(t, result.DeletedRows)
