@@ -2251,6 +2251,9 @@ function MeinRaumPageContent() {
           filterConfigs={filterConfigs}
           activeFilters={activeFilters}
         />
+        {/* The day review must survive the empty state: after the last block
+            ends, supervisors land exactly here (#2335). */}
+        <PastBlocksSection />
       </div>
     );
   }

@@ -41,7 +41,11 @@ function pastRosterDotColor(row: TimetableRosterRow): string {
   if (row.currentlyPresent) return LOCATION_COLORS.GROUP_ROOM;
   if (row.status === "present") return LOCATION_COLORS.HOME;
   if (!isCareDayExpected(row.careDayStatus)) return LOCATION_COLORS.UNKNOWN;
-  return LOCATION_COLORS.DANGER;
+  if (row.status === "absent") return LOCATION_COLORS.DANGER;
+  // "Nicht erschienen" must not share the hex with "Abwesend" (two states on
+  // one list, see the color rule); the never-arrived case wears the
+  // "Kommt heute nicht" navy.
+  return LOCATION_COLORS.NOT_ARRIVAL;
 }
 
 export function PastBlocksSection() {
