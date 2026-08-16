@@ -16,14 +16,6 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => mockRedirect(url),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-full-page={fullPage}>
-      Loading...
-    </div>
-  ),
-}));
-
 // Mock useSettingsTabs — returns null by default (no access)
 const mockUseSettingsTabs = vi.fn();
 vi.mock("~/components/settings/settings-page", () => ({
@@ -64,7 +56,9 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Einstellungen werden geladen…"),
+    ).toBeInTheDocument();
   });
 
   it("should redirect when unauthenticated", () => {

@@ -25,6 +25,7 @@ import {
 } from "~/components/ui/concept-section-header";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 
 const logger = createLogger({ component: "OperatorOperatorsPage" });
 
@@ -61,9 +62,9 @@ export default function OperatorOperatorsPage() {
       )}
 
       {isLoading && (
-        <div className="flex items-center justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
-        </div>
+        <SkeletonRegion label="Operatoren werden geladen">
+          <ListSkeleton rows={4} avatar={false} />
+        </SkeletonRegion>
       )}
 
       {data && (

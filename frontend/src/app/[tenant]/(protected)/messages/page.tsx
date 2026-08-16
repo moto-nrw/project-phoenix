@@ -84,19 +84,25 @@ function MessagesInboxContent() {
     );
   }, [threads, searchTerm]);
 
-  // Skeleton only on the very first load (no cached data yet).
-  if (isLoading && !threads) {
-    return <MessagesSkeleton />;
-  }
+  // Skeleton only on the very first load (no cached data yet). The header,
+  // filter bar, and compose entry point are real chrome and render
+  // immediately regardless — only the thread list skeletonizes.
+  const showSkeleton = isLoading && !threads;
 
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Nachrichten"
-        badge={{
-          icon: <MotoConceptIcon concept="parentConversations" size={20} />,
-          count: filteredThreads.length,
-        }}
+        badge={
+          showSkeleton
+            ? undefined
+            : {
+                icon: (
+                  <MotoConceptIcon concept="parentConversations" size={20} />
+                ),
+                count: filteredThreads.length,
+              }
+        }
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
@@ -129,93 +135,100 @@ function MessagesInboxContent() {
         )}
       </div>
 
-      {error && (
-        <div className="mb-4">
-          <Alert
-            type="error"
-            message="Nachrichten konnten nicht geladen werden."
-          />
-        </div>
-      )}
-
-      {filteredThreads.length === 0 ? (
-        <div className="py-12 text-center">
-          <div className="flex flex-col items-center gap-4">
-            <MotoConceptIcon concept="parentConversations" size={48} />
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                Noch keine Nachrichten
-              </h3>
-              <p className="text-gray-600">
-                {messagingEnabled ? (
-                  <>
-                    Hier erscheinen Unterhaltungen mit den Eltern. Über{" "}
-                    <span className="font-medium text-gray-700">
-                      Neue Nachricht
-                    </span>{" "}
-                    können Sie selbst eine beginnen.
-                  </>
-                ) : (
-                  "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."
-                )}
-              </p>
-            </div>
-            {messagingEnabled && (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={() => setComposeOpen(true)}
-              >
-                Neue Nachricht
-              </Button>
-            )}
-          </div>
-        </div>
+      {showSkeleton ? (
+        <MessagesSkeleton />
       ) : (
-        <ul className="space-y-3">
-          {filteredThreads.map((thread) => {
-            const navigate = () => router.push(`/messages/${thread.thread_id}`);
+        <>
+          {error && (
+            <div className="mb-4">
+              <Alert
+                type="error"
+                message="Nachrichten konnten nicht geladen werden."
+              />
+            </div>
+          )}
 
-            return (
-              <li key={thread.thread_id}>
-                <button
-                  type="button"
-                  onClick={navigate}
-                  className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                        <h3 className="truncate text-base font-semibold text-gray-900">
-                          {thread.guardian_name}
-                        </h3>
-                        <span className="truncate text-sm text-gray-500">
-                          {relationshipLabel(thread.relationship_type)} von{" "}
-                          {thread.student_name}
-                        </span>
-                        <UnreadBadge count={thread.unread_count} />
-                      </div>
-                      {thread.last_message_body && (
-                        <p className="mt-1 truncate text-sm text-gray-600">
-                          {thread.last_sender_kind === "staff" && (
-                            <span className="text-gray-500">Sie: </span>
-                          )}
-                          {thread.last_message_body}
-                        </p>
-                      )}
-                    </div>
-                    {thread.last_message_at && (
-                      <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-                        {formatChatDateTime(thread.last_message_at)}
-                      </span>
+          {filteredThreads.length === 0 ? (
+            <div className="py-12 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <MotoConceptIcon concept="parentConversations" size={48} />
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Noch keine Nachrichten
+                  </h3>
+                  <p className="text-gray-600">
+                    {messagingEnabled ? (
+                      <>
+                        Hier erscheinen Unterhaltungen mit den Eltern. Über{" "}
+                        <span className="font-medium text-gray-700">
+                          Neue Nachricht
+                        </span>{" "}
+                        können Sie selbst eine beginnen.
+                      </>
+                    ) : (
+                      "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."
                     )}
-                  </div>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                  </p>
+                </div>
+                {messagingEnabled && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => setComposeOpen(true)}
+                  >
+                    Neue Nachricht
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {filteredThreads.map((thread) => {
+                const navigate = () =>
+                  router.push(`/messages/${thread.thread_id}`);
+
+                return (
+                  <li key={thread.thread_id}>
+                    <button
+                      type="button"
+                      onClick={navigate}
+                      className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                            <h3 className="truncate text-base font-semibold text-gray-900">
+                              {thread.guardian_name}
+                            </h3>
+                            <span className="truncate text-sm text-gray-500">
+                              {relationshipLabel(thread.relationship_type)} von{" "}
+                              {thread.student_name}
+                            </span>
+                            <UnreadBadge count={thread.unread_count} />
+                          </div>
+                          {thread.last_message_body && (
+                            <p className="mt-1 truncate text-sm text-gray-600">
+                              {thread.last_sender_kind === "staff" && (
+                                <span className="text-gray-500">Sie: </span>
+                              )}
+                              {thread.last_message_body}
+                            </p>
+                          )}
+                        </div>
+                        {thread.last_message_at && (
+                          <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                            {formatChatDateTime(thread.last_message_at)}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
 
       {composeOpen && (

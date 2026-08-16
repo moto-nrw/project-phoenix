@@ -3,9 +3,20 @@
 import { Suspense } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Loading } from "~/components/ui/loading";
+import {
+  SkeletonRegion,
+  PageHeaderSkeleton,
+  FormSkeleton,
+} from "~/components/ui/page-skeletons";
 import { SettingsLayout } from "~/components/shared/settings-layout";
 import { useSettingsTabs } from "~/components/settings/settings-page";
+
+const settingsLoadingFallback = (
+  <SkeletonRegion label="Einstellungen werden geladen…">
+    <PageHeaderSkeleton search={false} />
+    <FormSkeleton />
+  </SkeletonRegion>
+);
 
 function SettingsContent() {
   const { data: session, status } = useSession({
@@ -15,7 +26,7 @@ function SettingsContent() {
   const settingsTabs = useSettingsTabs();
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return settingsLoadingFallback;
   }
 
   if (!session?.user) {
@@ -31,7 +42,7 @@ function SettingsContent() {
   }
 
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={settingsLoadingFallback}>
       <SettingsLayout
         tabs={settingsTabs.tabs}
         renderTab={settingsTabs.renderTab}
@@ -42,7 +53,7 @@ function SettingsContent() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={settingsLoadingFallback}>
       <SettingsContent />
     </Suspense>
   );

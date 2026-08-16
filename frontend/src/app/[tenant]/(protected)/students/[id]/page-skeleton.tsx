@@ -1,11 +1,20 @@
 "use client";
 
+import { BackButton } from "~/components/ui/back-button";
 import { Skeleton } from "~/components/ui/skeleton";
 
 // Mirrors StudentDetailHeader (avatar + name + meta rows + location badge),
 // the checkout/checkin action-card row, the tab bar, and a Stammdaten-shaped
 // field section, so the loaded page swaps in without layout shift.
-export function StudentDetailSkeleton() {
+//
+// `referrer` is real chrome, not data-bound (it comes straight off the
+// `?from=` query param) — when the caller already knows it, render the real
+// BackButton instead of a placeholder so it's clickable immediately. The
+// route-level loading.tsx renders this with no `referrer` (it has no access
+// to the page's search params), so that placeholder path stays.
+export function StudentDetailSkeleton({
+  referrer,
+}: Readonly<{ referrer?: string }>) {
   return (
     <div
       role="status"
@@ -14,7 +23,11 @@ export function StudentDetailSkeleton() {
       data-testid="student-detail-skeleton"
       className="mx-auto max-w-7xl"
     >
-      <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
+      {referrer ? (
+        <BackButton referrer={referrer} />
+      ) : (
+        <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
+      )}
 
       <div className="mb-6 flex items-end justify-between gap-4">
         <div className="ml-6 flex flex-1 items-center gap-4">

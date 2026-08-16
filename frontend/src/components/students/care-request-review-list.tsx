@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Loading } from "~/components/ui/loading";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -172,7 +172,13 @@ export function CareRequestReviewList() {
     [reasons],
   );
 
-  if (loading) return <Loading fullPage={false} />;
+  if (loading) {
+    return (
+      <SkeletonRegion label="Betreuungszeit-Anfragen werden geladen">
+        <ListSkeleton rows={3} avatar={false} />
+      </SkeletonRegion>
+    );
+  }
 
   return (
     <div className="space-y-3">

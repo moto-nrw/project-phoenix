@@ -5,7 +5,11 @@ import useSWR from "swr";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
+import {
+  SkeletonRegion,
+  CardSkeleton,
+  TableSkeleton,
+} from "~/components/ui/page-skeletons";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import {
@@ -31,6 +35,19 @@ const UNIT_OPTIONS = [
   { value: "stunden", label: "Stunden" },
   { value: "tage", label: "Tage" },
 ];
+
+/** Data-region-only skeleton: header/chrome renders immediately, only this swaps in. */
+function PayrollDataSkeleton() {
+  return (
+    <SkeletonRegion label="Abrechnung wird geladen">
+      <div className="space-y-5">
+        <CardSkeleton rows={3} />
+        <TableSkeleton rows={4} columns={3} />
+        <CardSkeleton rows={2} />
+      </div>
+    </SkeletonRegion>
+  );
+}
 
 export default function PayrollPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
@@ -73,25 +90,12 @@ export default function PayrollPage() {
     [mutate],
   );
 
-  if (permissionLoading || !isReady) {
-    return <Loading fullPage />;
-  }
-  if (error) {
-    return (
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch title="Abrechnung" />
-        <Alert
-          type="error"
-          message="Die Abrechnungs-Konfiguration konnte nicht geladen werden."
-        />
-      </div>
-    );
-  }
-  if (!status) {
-    return <Loading fullPage />;
-  }
+  // Permission-loading joins the data-loading condition below instead of an
+  // early return before the header, so the real PageHeaderWithSearch renders
+  // immediately and only the data region skeletonizes.
+  const showSkeleton = permissionLoading || !isReady || (!error && !status);
 
-  const duplicates = duplicateLohnartNumbers(status);
+  const duplicates = status ? duplicateLohnartNumbers(status) : [];
 
   return (
     // Volle Inhaltsbreite und Abstände wie auf den übrigen Seiten: die eigene
@@ -100,26 +104,37 @@ export default function PayrollPage() {
     // Desktop in der Breadcrumb, PageHeaderWithSearch zeigt ihn nur mobil.
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch title="Abrechnung" />
-      <div className="space-y-5">
-        <p className="max-w-3xl text-sm text-gray-600">
-          Zuordnung der Zeiterfassungs-Kategorien zu den Lohnarten des
-          Lohnsystems und DATEV-Mandantendaten. Grundlage für den späteren
-          DATEV-Export (LODAS und Lohn und Gehalt).
-        </p>
+      {showSkeleton ? (
+        <PayrollDataSkeleton />
+      ) : error ? (
+        <Alert
+          type="error"
+          message="Die Abrechnungs-Konfiguration konnte nicht geladen werden."
+        />
+      ) : (
+        status && (
+          <div className="space-y-5">
+            <p className="max-w-3xl text-sm text-gray-600">
+              Zuordnung der Zeiterfassungs-Kategorien zu den Lohnarten des
+              Lohnsystems und DATEV-Mandantendaten. Grundlage für den späteren
+              DATEV-Export (LODAS und Lohn und Gehalt).
+            </p>
 
-        <ReadinessCard status={status} />
+            <ReadinessCard status={status} />
 
-        {saveError && <Alert type="error" message={saveError} />}
-        {duplicates.length > 0 && (
-          <Alert
-            type="warning"
-            message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden — bitte prüfen.`}
-          />
-        )}
+            {saveError && <Alert type="error" message={saveError} />}
+            {duplicates.length > 0 && (
+              <Alert
+                type="warning"
+                message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden — bitte prüfen.`}
+              />
+            )}
 
-        <LohnartenCard status={status} onSave={save} />
-        <DatevCard status={status} onSave={save} />
-      </div>
+            <LohnartenCard status={status} onSave={save} />
+            <DatevCard status={status} onSave={save} />
+          </div>
+        )
+      )}
     </div>
   );
 }

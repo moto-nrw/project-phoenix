@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
 import {
@@ -52,7 +52,9 @@ export default function RemindersPage() {
       )}
 
       {isLoading && !reminders.length ? (
-        <Loading message="Erinnerungen werden geladen…" fullPage={false} />
+        <SkeletonRegion label="Erinnerungen werden geladen…">
+          <ListSkeleton rows={5} avatar={false} />
+        </SkeletonRegion>
       ) : error && !data ? null : count === 0 ? (
         data?.enabled === false ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center shadow-sm">

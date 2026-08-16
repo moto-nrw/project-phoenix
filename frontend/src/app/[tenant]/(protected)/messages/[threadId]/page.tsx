@@ -244,12 +244,15 @@ function MessageThreadContent() {
     Boolean(thread) && !isLoading,
   );
 
-  // Full-page skeleton only for a direct deep-link with no cached seed.
-  if (!thread && isLoading) {
-    return <ThreadSkeleton />;
-  }
+  // Skeleton only for a direct deep-link with no cached seed. The back nav
+  // and card frame are real chrome and render immediately regardless; only
+  // the header (guardian name, "Zum Kinderprofil") and message list are
+  // data-bound and skeletonize. The composer stays real — its structural
+  // frame doesn't depend on thread data, and `disabled` already covers the
+  // loading window via `snapshotUnavailable`.
+  const showSkeleton = !thread && isLoading;
 
-  if (!thread) {
+  if (!showSkeleton && !thread) {
     return (
       <div className="-mt-1.5 w-full">
         <MessagesBackNav />
@@ -273,86 +276,99 @@ function MessageThreadContent() {
       <MessagesBackNav />
 
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
-              {thread.guardian_name}
-            </h1>
-            <p className="mt-0.5 truncate text-sm text-gray-500">
-              {relationshipLabel(thread.relationship_type)} von{" "}
-              {thread.student_name}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() =>
-              router.push(`/students/${thread.student_id}?from=/messages`)
-            }
-            className="flex-shrink-0"
-          >
-            <MotoConceptIcon concept="children" size={18} className="mr-1.5" />
-            Zum Kinderprofil
-          </Button>
-        </div>
+        {showSkeleton ? (
+          <ThreadSkeleton />
+        ) : (
+          <>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
+                  {thread?.guardian_name}
+                </h1>
+                <p className="mt-0.5 truncate text-sm text-gray-500">
+                  {thread ? relationshipLabel(thread.relationship_type) : ""}{" "}
+                  von {thread?.student_name}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() =>
+                  thread &&
+                  router.push(`/students/${thread.student_id}?from=/messages`)
+                }
+                className="flex-shrink-0"
+              >
+                <MotoConceptIcon
+                  concept="children"
+                  size={18}
+                  className="mr-1.5"
+                />
+                Zum Kinderprofil
+              </Button>
+            </div>
 
-        <div
-          ref={scrollRef}
-          className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
-        >
-          {messagesLoading ? (
-            <p className="py-6 text-center text-sm text-gray-400">
-              Verlauf wird geladen...
-            </p>
-          ) : messages.length > 0 ? (
-            messages.map((message) =>
-              message.kind === "request" ? (
-                <RequestHistoryCard key={message.id} message={message} />
-              ) : message.kind === "event" ? (
-                <ChatEventCard
-                  key={message.id}
-                  body={message.body}
-                  createdAt={message.created_at}
-                  action={
-                    canReviewRequests && requestStillOpen(message)
-                      ? {
-                          label: "Anfrage bearbeiten",
-                          onClick: () => router.push("/admin/change-requests"),
-                        }
-                      : undefined
-                  }
+            <div
+              ref={scrollRef}
+              className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
+            >
+              {messagesLoading ? (
+                <p className="py-6 text-center text-sm text-gray-400">
+                  Verlauf wird geladen...
+                </p>
+              ) : messages.length > 0 ? (
+                messages.map((message) =>
+                  message.kind === "request" ? (
+                    <RequestHistoryCard key={message.id} message={message} />
+                  ) : message.kind === "event" ? (
+                    <ChatEventCard
+                      key={message.id}
+                      body={message.body}
+                      createdAt={message.created_at}
+                      action={
+                        canReviewRequests && requestStillOpen(message)
+                          ? {
+                              label: "Anfrage bearbeiten",
+                              onClick: () =>
+                                router.push("/admin/change-requests"),
+                            }
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <ChatBubble
+                      key={message.id}
+                      body={message.body}
+                      own={message.sender_kind === "staff"}
+                      senderName={message.sender_name}
+                      createdAt={message.created_at}
+                      readReceiptLabel={
+                        message.sender_kind === "staff" &&
+                        message.read_by_guardian
+                          ? "Gelesen"
+                          : undefined
+                      }
+                    />
+                  ),
+                )
+              ) : loadError ? (
+                // The header seed (fallbackData) keeps `thread` truthy with an empty
+                // messages array, so a failed history fetch would otherwise render the
+                // "no messages" empty state for a thread that actually has history.
+                // Surface the load failure instead of a misleading empty conversation.
+                <Alert
+                  type="error"
+                  message="Nachrichtenverlauf konnte nicht geladen werden."
                 />
               ) : (
-                <ChatBubble
-                  key={message.id}
-                  body={message.body}
-                  own={message.sender_kind === "staff"}
-                  senderName={message.sender_name}
-                  createdAt={message.created_at}
-                  readReceiptLabel={
-                    message.sender_kind === "staff" && message.read_by_guardian
-                      ? "Gelesen"
-                      : undefined
-                  }
-                />
-              ),
-            )
-          ) : loadError ? (
-            // The header seed (fallbackData) keeps `thread` truthy with an empty
-            // messages array, so a failed history fetch would otherwise render the
-            // "no messages" empty state for a thread that actually has history.
-            // Surface the load failure instead of a misleading empty conversation.
-            <Alert
-              type="error"
-              message="Nachrichtenverlauf konnte nicht geladen werden."
-            />
-          ) : (
-            <p className="py-6 text-center text-sm text-gray-500">
-              Noch keine Nachrichten in dieser Unterhaltung.
-            </p>
-          )}
-        </div>
+                <p className="py-6 text-center text-sm text-gray-500">
+                  Noch keine Nachrichten in dieser Unterhaltung.
+                </p>
+              )}
+            </div>
+          </>
+        )}
 
         {sendError && (
           <div className="mt-3">

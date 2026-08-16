@@ -2,9 +2,13 @@
 
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { Loading } from "~/components/ui/loading";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import {
+  FormSkeleton,
+  PageHeaderSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
@@ -19,6 +23,18 @@ interface OperatorProfile {
 function isEmail(value: string | null | undefined): value is string {
   return typeof value === "string" && value.includes("@");
 }
+
+const operatorSettingsLoadingFallback = (
+  <SkeletonRegion
+    label="Profileinstellungen werden geladen"
+    className="-mt-1.5 w-full"
+  >
+    <PageHeaderSkeleton search={false} />
+    <div className="mx-auto max-w-2xl px-4 pb-8 md:px-6">
+      <FormSkeleton fields={2} />
+    </div>
+  </SkeletonRegion>
+);
 
 function OperatorSettingsContent() {
   const { data: session, status, update: updateSession } = useSession();
@@ -198,7 +214,7 @@ function OperatorSettingsContent() {
   };
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return operatorSettingsLoadingFallback;
   }
 
   const initials = formData.displayName
@@ -456,7 +472,7 @@ function OperatorSettingsContent() {
 
 export default function OperatorSettingsPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={operatorSettingsLoadingFallback}>
       <OperatorSettingsContent />
     </Suspense>
   );

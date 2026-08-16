@@ -242,6 +242,8 @@ function EmptyPhases() {
 }
 
 function ParentEnrollSkeleton() {
+  // Mirrors SchoolCard above: icon-tile header row over a divide-y list of
+  // PhaseRow-shaped lines, instead of two blank blocks.
   return (
     <div
       data-testid="parent-enroll-skeleton"
@@ -249,26 +251,30 @@ function ParentEnrollSkeleton() {
       aria-hidden="true"
     >
       <Skeleton className="ml-1 h-5 w-32" />
-      {[0, 1].map((item) => (
+      {[0, 1].map((card) => (
         <div
-          key={item}
+          key={card}
           className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
         >
           <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
             <Skeleton className="size-11 shrink-0 rounded-xl" />
             <Skeleton className="h-5 w-48 max-w-2/3" />
           </div>
-          <div className="flex items-center gap-4 p-4 sm:px-6">
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex gap-2">
-                <Skeleton className="h-4 w-36" />
-                <Skeleton className="h-5 w-20 rounded-full" />
-              </div>
-              <Skeleton className="h-4 w-56 max-w-full" />
-              <Skeleton className="h-3 w-40" />
-            </div>
-            <Skeleton className="size-5 shrink-0 rounded" />
-          </div>
+          <ul className="divide-y divide-gray-100">
+            {[0, 1].map((row) => (
+              <li key={row} className="flex items-center gap-4 p-4 sm:px-6">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex gap-2">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </div>
+                  <Skeleton className="h-4 w-56 max-w-full" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+                <Skeleton className="size-5 shrink-0 rounded" />
+              </li>
+            ))}
+          </ul>
         </div>
       ))}
     </div>

@@ -10,6 +10,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
 import { DatePicker } from "~/components/ui/date-picker";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
@@ -437,7 +438,11 @@ export default function OperatorAnnouncementsPage() {
         }
       />
 
-      {isLoading && <AnnouncementSkeletons />}
+      {isLoading && (
+        <SkeletonRegion label="Ankündigungen werden geladen">
+          <AnnouncementSkeletons />
+        </SkeletonRegion>
+      )}
       {!isLoading && filteredAnnouncements.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-12 text-center">
           <svg

@@ -65,11 +65,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
-}));
-
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
 vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: vi.fn(
@@ -978,7 +973,9 @@ describe("RoleGuard integration", () => {
 
     render(<MeinRaumPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
+    ).toBeInTheDocument();
   });
 });
 

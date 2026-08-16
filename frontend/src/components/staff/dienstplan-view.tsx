@@ -44,10 +44,7 @@ import {
 } from "~/lib/timetable-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 
-import {
-  DienstplanGridSkeleton,
-  DienstplanPageSkeleton,
-} from "./dienstplan-skeleton";
+import { DienstplanGridSkeleton } from "./dienstplan-skeleton";
 
 const logger = createLogger({ component: "DienstplanView" });
 
@@ -264,13 +261,15 @@ function DienstplanContent() {
     redirect(tenantPath("/staff"));
   }
 
-  // Solange das Settings-Schema lädt, ist noch nicht entscheidbar, ob das
-  // Feature aktiv ist — Skeleton statt kurz aufblitzender Seite.
-  if (sessionStatus === "loading" || settingsSchemaLoading) {
-    return <DienstplanPageSkeleton />;
-  }
+  // Solange die Session oder das Settings-Schema lädt, ist noch nicht
+  // entscheidbar, ob das Feature aktiv ist und welche Aktionen erlaubt sind.
+  // Die PlanningContextBar (Titel, Wochen-Navigation) rendert trotzdem sofort
+  // — nur der Inhaltsbereich unten fällt auf das Grid-Skeleton zurück, und
+  // datenabhängige Toolbar-Teile (Ansichts-Umschalter, Export-Knopf) bleiben
+  // aus, bis die Berechtigungen feststehen.
+  const showSkeleton = sessionStatus === "loading" || settingsSchemaLoading;
 
-  if (timetableDisabled) {
+  if (!showSkeleton && timetableDisabled) {
     return <DienstplanDisabledState />;
   }
 
@@ -322,7 +321,7 @@ function DienstplanContent() {
         </div>
       </div>
     );
-  } else if (scheduleLoading) {
+  } else if (showSkeleton || scheduleLoading) {
     content = <DienstplanGridSkeleton />;
   } else if (sortedStaff.length === 0) {
     content = (
@@ -469,7 +468,7 @@ function DienstplanContent() {
         <PeriodSwitcherDropdown
           periods={periods ?? []}
           weekDays={weekDayDates}
-          isLoading={periodsLoading}
+          isLoading={showSkeleton || periodsLoading}
           onCreate={() => {
             setEditingPeriod(null);
             setPeriodModalOpen(true);

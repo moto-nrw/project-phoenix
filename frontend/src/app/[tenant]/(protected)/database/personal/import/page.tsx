@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, X } from "lucide-react";
-import { Loading } from "~/components/ui/loading";
+import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
@@ -355,7 +355,11 @@ export default function StaffImportPage() {
   };
 
   if (status === "loading") {
-    return <Loading fullPage={false} />;
+    return (
+      <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
+        <FormSkeleton fields={2} />
+      </SkeletonRegion>
+    );
   }
 
   return (

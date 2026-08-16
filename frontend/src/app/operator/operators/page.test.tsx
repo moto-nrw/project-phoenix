@@ -132,12 +132,13 @@ describe("OperatorOperatorsPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows loading spinner when loading", () => {
+  it("shows loading skeleton when loading", () => {
     setupSWR(undefined, { isLoading: true });
     render(<OperatorOperatorsPage />);
 
-    const spinner = document.querySelector(".animate-spin");
-    expect(spinner).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Operatoren werden geladen"),
+    ).toBeInTheDocument();
   });
 
   it("displays pending invitations and operators", () => {

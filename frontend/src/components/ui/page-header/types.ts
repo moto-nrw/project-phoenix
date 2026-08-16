@@ -37,6 +37,8 @@ export interface PageHeaderWithSearchProps {
     readonly onChange: (value: string) => void;
     readonly placeholder?: string;
     readonly className?: string;
+    /** Forwarded to the underlying `<input>` (combobox role, ARIA wiring, disabled state, etc.). */
+    readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
   };
 
   // Filter configuration

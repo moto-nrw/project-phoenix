@@ -837,12 +837,15 @@ function OGSGroupPageContent() {
     return filters;
   }, [sortMode, searchTerm, attendanceFilter]);
 
-  if (isLoading || hasAccess === null) {
-    return <OgsGroupsPageSkeleton />;
-  }
+  // Loading joins the access-unknown state below instead of an early return
+  // before the header, so the real PageHeaderWithSearch (title, tabs,
+  // actions) renders immediately and only the student-grid area
+  // skeletonizes. Permission/access early-returns below only run once
+  // showSkeleton clears.
+  const showSkeleton = isLoading || hasAccess === null;
 
   // If user doesn't have access, show empty state
-  if (!hasAccess) {
+  if (!showSkeleton && !hasAccess) {
     return (
       <div className="-mt-1.5 w-full">
         <PageHeaderWithSearch title="Meine Gruppe" />
@@ -905,7 +908,7 @@ function OGSGroupPageContent() {
 
   // Render helper for student grid content
   const renderStudentContent = () => {
-    if (isLoading) {
+    if (showSkeleton) {
       return <StudentCardGridSkeleton />;
     }
     if (students.length === 0) {
@@ -1166,7 +1169,7 @@ function OGSGroupPageContent() {
           </div>
         )}
 
-        {currentGroup ? (
+        {currentGroup && !showSkeleton ? (
           <GroupAbsenceOverview
             totalStudents={groupAbsenceOverview.totalStudents}
             sickCount={groupAbsenceOverview.sickCount}

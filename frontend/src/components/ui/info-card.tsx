@@ -1,8 +1,14 @@
 import type React from "react";
 
+import { Skeleton } from "~/components/ui/skeleton";
+
 /**
  * Mobile-optimized info card component
- * Displays a card with an icon, title, and content
+ * Displays a card with an icon, title, and content.
+ *
+ * While `loading` is true the static chrome (icon, eyebrow, title) renders
+ * real and only the content area shows InfoItem-shaped bars — the skeleton
+ * is this card's own markup, so it cannot drift from the loaded state.
  */
 export function InfoCard({
   title,
@@ -10,12 +16,16 @@ export function InfoCard({
   icon,
   eyebrow,
   headingLevel = 2,
+  loading = false,
+  loadingRows = 3,
 }: Readonly<{
   title: string;
   children: React.ReactNode;
   icon: React.ReactNode;
   eyebrow?: string;
   headingLevel?: 1 | 2;
+  loading?: boolean;
+  loadingRows?: number;
 }>) {
   const Heading = headingLevel === 1 ? "h1" : "h2";
 
@@ -38,7 +48,40 @@ export function InfoCard({
       </div>
       {/* flex-1 lets a child opt into bottom-pinning via mt-auto (e.g. an action
           row that should align across cards of different content length). */}
-      <div className="flex flex-1 flex-col space-y-3">{children}</div>
+      <div className="flex flex-1 flex-col space-y-3">
+        {loading ? (
+          <>
+            <output aria-live="polite" className="sr-only">
+              Wird geladen…
+            </output>
+            {Array.from({ length: loadingRows }, (_, i) => (
+              <InfoItemSkeleton key={i} />
+            ))}
+          </>
+        ) : (
+          children
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Loading twin of InfoItem, colocated so the two share one markup shape:
+ * same row layout, same label/value stack, bars instead of text.
+ */
+function InfoItemSkeleton({ icon = false }: Readonly<{ icon?: boolean }>) {
+  return (
+    <div className="flex items-start gap-3" aria-hidden="true">
+      {icon && <Skeleton className="mt-0.5 h-4 w-4 flex-shrink-0 rounded" />}
+      <div className="min-w-0 flex-1">
+        <p className="mb-1 text-xs text-gray-500">
+          <Skeleton className="h-3 w-20 rounded" />
+        </p>
+        <div className="text-sm font-medium text-gray-900">
+          <Skeleton className="h-4 w-2/3 rounded" />
+        </div>
+      </div>
     </div>
   );
 }

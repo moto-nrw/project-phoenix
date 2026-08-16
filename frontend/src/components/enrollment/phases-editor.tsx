@@ -708,14 +708,6 @@ export function PhasesEditor() {
     ],
   );
 
-  if (loading) {
-    return (
-      <div className="moto-content-surface rounded-2xl border px-5 py-10 text-center text-sm text-gray-500 shadow-sm">
-        Anmeldephasen werden geladen...
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {error && (
@@ -783,7 +775,15 @@ export function PhasesEditor() {
         />
       )}
 
-      {phases.length === 0 && !editingId && !rolloverSource ? (
+      {loading && !editingId && !rolloverSource ? (
+        <DataTable
+          columns={columns}
+          rows={[]}
+          isLoading
+          loadingRowCount={5}
+          getRowKey={(phase) => phase.id}
+        />
+      ) : phases.length === 0 && !editingId && !rolloverSource ? (
         <EmptyPhasesState onCreate={startCreate} />
       ) : phases.length > 0 && !editingId && !rolloverSource ? (
         <DataTable

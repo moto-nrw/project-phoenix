@@ -81,14 +81,6 @@ vi.mock("~/components/ui/password-change-modal", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-full-page={fullPage}>
-      Loading...
-    </div>
-  ),
-}));
-
 vi.mock("~/components/settings/passkey-settings-section", () => ({
   PasskeySettingsSection: () => <div data-testid="passkey-settings" />,
 }));
@@ -238,7 +230,7 @@ describe("ProfilePage", () => {
 
       render(<ProfilePage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(screen.getByLabelText("Profil wird geladen…")).toBeInTheDocument();
     });
   });
 

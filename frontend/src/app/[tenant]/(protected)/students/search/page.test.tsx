@@ -1317,8 +1317,11 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
+      // Real chrome (page header) renders immediately; only the results
+      // region skeletonizes while the session resolves (colocation pattern).
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
       expect(
-        screen.getByTestId("students-search-skeleton"),
+        screen.getByTestId("student-card-grid-skeleton"),
       ).toBeInTheDocument();
     });
 
@@ -1821,9 +1824,12 @@ describe("StudentSearchPage", () => {
 
       render(<StudentSearchPage />);
 
-      // Should show loading, NOT empty state
+      // Should show loading, NOT empty state. Real chrome (page header)
+      // renders immediately; only the results region skeletonizes
+      // (colocation pattern).
+      expect(screen.getByTestId("page-header")).toBeInTheDocument();
       expect(
-        screen.getByTestId("students-search-skeleton"),
+        screen.getByTestId("student-card-grid-skeleton"),
       ).toBeInTheDocument();
       expect(
         screen.queryByText("Keine Kinder gefunden"),
