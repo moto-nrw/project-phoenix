@@ -12,11 +12,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// StudentStatusDayService exposes student status-day persistence to the api
-// layer (issue #584: handlers must not hold repositories). CONTRACT:
-// repository results and errors are returned VERBATIM — the handlers keep
-// their transaction wrappers, mutual-exclusion logic, and live-flag updates,
-// so behaviour is byte-identical.
+// StudentStatusDayService owns status-day persistence and the absence-overview
+// data assembly. Simple persistence operations return repository results and
+// errors verbatim; GetOverview also joins roster and person data and applies
+// enrollment eligibility for each row.
 type StudentStatusDayService struct {
 	repo             activeModels.StudentStatusDayRepository
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository

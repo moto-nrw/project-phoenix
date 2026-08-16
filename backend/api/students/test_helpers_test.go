@@ -78,6 +78,7 @@ func setupTestContext(t *testing.T) *testContext {
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
+		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		// The three users:update-gated review queues, wired so the combined
 		// pending-count endpoint can be exercised end to end (#2232).

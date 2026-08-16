@@ -13,6 +13,9 @@ const (
 	// (issue #1456): per-group daily statuses of many children at once.
 	// StudentID stays NULL; metadata carries the group scope.
 	ResourceTypeAttendanceDayLog = "attendance_day_log"
+	// ResourceTypeStudentStatusDayOverview records a group-scoped bulk view of
+	// registered student absences over a requested date range.
+	ResourceTypeStudentStatusDayOverview = "student_status_day_overview"
 	// ResourceTypeEnrollmentPhaseExport records a bulk export of every
 	// registration (guardian + child PII) in one enrollment phase. The
 	// row's range_start/range_end carry the phase's service window —

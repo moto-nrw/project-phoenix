@@ -8,7 +8,13 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import { AlertTriangle, Download, Search, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarRange,
+  Download,
+  Search,
+  Users,
+} from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -2608,6 +2614,14 @@ function SearchPageContent() {
           filterSections={filterSections}
           onClearAllFilters={clearAllFilters}
           overflowMenu={[
+            {
+              // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+              // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+              // ohnehin nach einem Kind sucht.
+              label: "Abwesenheiten",
+              icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+              onClick: () => router.push("/absences"),
+            },
             {
               label: "Exportieren",
               icon: <Download className="h-4 w-4" aria-hidden />,
