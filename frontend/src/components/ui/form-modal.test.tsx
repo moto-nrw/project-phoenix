@@ -224,6 +224,48 @@ describe("FormModal", () => {
     );
   });
 
+  it("keeps the modal open when a save queued during the exit delay fails fast", async () => {
+    const onClose = vi.fn();
+    const modal = (closeDisabled: boolean) => (
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={onClose}
+          title="Test"
+          closeDisabled={closeDisabled}
+        >
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>
+    );
+    const { rerender } = render(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+
+    // Save clicked within the 250ms exit delay ...
+    rerender(modal(true));
+    await act(async () => {
+      vi.advanceTimersByTime(50);
+    });
+    // ... and the request fails fast, resetting closeDisabled before the
+    // queued close would have fired.
+    rerender(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(document.querySelector('[role="dialog"]')).toHaveClass(
+      "animate-modalEnter",
+    );
+  });
+
   it("should render footer when provided", async () => {
     render(
       <TestWrapper>
