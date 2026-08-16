@@ -14,7 +14,11 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -45,6 +49,106 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentSer
 		Logger: slog.Default(),
 	})
 	return svc, db
+}
+
+// buildPickupChangeServiceWithRequests adds the real request service, so the
+// submit/list/withdraw round trip runs against actual rows.
+func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, *bun.DB, *repositories.Factory) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	repos := repositories.NewFactory(db)
+	sf, err := services.NewFactory(repos, db, slog.Default())
+	require.NoError(t, err)
+
+	careRequests := scheduleSvc.NewCareScheduleRequestServiceWithPickupChanges(
+		repos.CareScheduleChangeRequest,
+		repos.Student,
+		repos.Person,
+		sf.ArrivalSchedule,
+		sf.PickupSchedule,
+		repos.StudentPickupException,
+		sf.UserContext,
+		nil, // emitter — best-effort, after commit
+		nil, // broadcaster — cache fan-out
+		slog.Default(),
+		sf.StudentAudit,
+	)
+
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		PickupExceptionRepo: repos.StudentPickupException,
+		AttendanceRepo:      repos.Attendance,
+		CareRequests:        careRequests,
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentPickupChangeEnabled: true,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		DB:     db,
+		Logger: slog.Default(),
+	})
+	return svc, db, repos
+}
+
+// TestPickupChangeRoundTrip walks the flow a parent actually performs: submit a
+// change, see it in their own list, then take it back.
+func TestPickupChangeRoundTrip(t *testing.T) {
+	svc, db, repos := buildPickupChangeServiceWithRequests(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	ctx := context.Background()
+	date := timezone.TodayDate().AddDays(3)
+	pickup := timezone.WallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
+
+	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "Arzttermin")
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, scheduleModels.CareRequestStatusPending, created.Status)
+
+	listed, err := svc.ListPickupChangeRequests(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	found := false
+	for _, row := range listed {
+		if row.ID == created.ID {
+			found = true
+		}
+	}
+	assert.True(t, found, "die eigene Anfrage steht in der Liste")
+
+	withdrawn, err := svc.WithdrawPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusWithdrawn, withdrawn.Status)
+
+	// Nothing was applied: only a staff approval may move a pickup time.
+	applied, err := repos.StudentPickupException.FindByStudentIDAndDate(
+		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, date)
+	require.NoError(t, err)
+	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
+}
+
+// A second open request for the same day would leave staff with two answers to
+// give, so the first one has to block it.
+func TestPickupChangeRejectsASecondOpenRequestForTheSameDay(t *testing.T) {
+	svc, db, _ := buildPickupChangeServiceWithRequests(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	ctx := context.Background()
+	date := timezone.TodayDate().AddDays(4)
+	pickup := timezone.WallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
+
+	_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "Arzttermin")
+	require.NoError(t, err)
+
+	_, err = svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "Noch ein Termin")
+	require.Error(t, err, "eine zweite offene Anfrage fuer denselben Tag muss abgewiesen werden")
 }
 
 // The input checks run before anything is resolved, so they need no child and
