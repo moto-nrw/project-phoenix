@@ -1420,7 +1420,9 @@ export const appChapters: readonly GuideChapter[] = [
           "`PDF` und `Word-Dokument` erzeugen eine gut lesbare Datei mit einem Block pro Kind, gruppiert nach Status und innerhalb jeder Gruppe alphabetisch nach Nachname, inklusive Kontaktdaten, gewählten Angeboten, Zustimmungen und allen Formularangaben.",
           "`Excel-Datei` erzeugt eine Tabelle mit Gruppenzeilen pro Status, einer Datenzeile pro Kind und jedem Feld in einer eigenen Spalte - für Weiterverarbeitung oder Archiv.",
           "Über das `Status`-Auswahlfeld nur einen Teil exportieren (zum Beispiel nur `Bestätigt`); der Export übernimmt den gerade gewählten Status. `Alle` exportiert alles.",
-          "Für eine Auswertung nach Betreuungsangeboten, Betreuungstagen, Wochentag oder Gehzeit nutzt du die Filter und die Karte `Auswertung exportieren`; dort wählst du `Excel`, `PDF` oder `Word-Dokument` für genau diese gefilterte Ansicht. PDF und Word beginnen mit einer Einsatzplanung nach Wochentag und Gehzeit.",
+          "Für eine Auswertung zuerst die passenden Filter setzen. Danach `Auswertung exportieren` öffnen.",
+          "`Excel-Datei` erstellt eine Tabelle für die gefilterten Kinder. Bei `PDF` und `Word-Dokument` wählst du zwischen `ausführlich` und `kompakte Tabelle`.",
+          "Die ausführliche Datei zeigt zuerst die Planung nach Wochentag und Gehzeit. Danach folgt ein Block pro Kind. Die kompakte Tabelle zeigt jedes Kind in einer Zeile. Sie enthält Klasse, Betreuungstage mit Gehzeit und Erziehungsberechtigte.",
           "Für die Übergabe an Klassenlehrkräfte nutzt du in der Phase `Klasse für Klassenliste` und `Klassenliste exportieren`; diese Liste ist pro Klasse aufgebaut und zeigt pro Wochentag die Gehzeit des Kindes (einschließlich einer am Betreuungsangebot hinterlegten Gehzeit), ersatzweise die Abholzeit aus dem Anmeldeformular oder das gebuchte Betreuungsangebot, und `—` ohne Betreuung, plus Geh-/Abholweise und Erziehungsberechtigte. Mit `Alle Klassen` exportierst du alle Klassenlisten in einer Datei, mit eigener Überschrift je Klasse und im PDF auf jeweils einer neuen Seite.",
         ],
         callout: {
@@ -1428,7 +1430,8 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Die Datei enthält alle Kontakt- und Kinderdaten der Phase gebündelt an einem Ort. Jede erzeugte Datei trägt einen Vertraulichkeitshinweis in der Fußzeile. Drucke und Dateien bitte sicher verwahren und nicht unkontrolliert weitergeben.",
           tone: "orange",
         },
-        screenshot: "Anmeldephase mit Export-Menü sowie dem Status-Filter.",
+        screenshot:
+          "Gefilterte Anmeldeauswertung mit geöffnetem Export-Menü für Excel, ausführliche PDF- und Word-Dateien sowie kompakte Tabellen.",
         image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {
