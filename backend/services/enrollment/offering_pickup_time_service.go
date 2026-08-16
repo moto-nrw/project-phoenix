@@ -12,6 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // OfferingPickupTimeService materializes Angebots-Gehzeiten
@@ -25,9 +27,10 @@ type OfferingPickupTimeService interface {
 	// confirmation dialog renders it.
 	PreviewOfferingPickupRollout(ctx context.Context, offeringID int64) (*OfferingPickupRolloutPreview, error)
 	// RolloutOfferingPickupTimes reconciles every student booked into the
-	// offering. Staff-maintained rows are overwritten (flipping their source)
-	// unless the student is listed in skipStudentIDs — the dialog's
-	// per-child opt-out. reviewedBy is the acting account id.
+	// offering. Staff-maintained rows are overwritten only where this offering
+	// supplies the winning Gehzeit, unless the student is listed in
+	// skipStudentIDs — the dialog's per-child opt-out. reviewedBy is the acting
+	// account id.
 	RolloutOfferingPickupTimes(ctx context.Context, offeringID int64, skipStudentIDs []int64, reviewedBy int64) (*OfferingPickupRolloutResult, error)
 	// ReconcileOfferingPickupForStudents recomputes the offering-sourced rows
 	// of the given students without touching staff-maintained rows. Booking
@@ -121,6 +124,9 @@ func (s *decisionService) PreviewOfferingPickupRollout(ctx context.Context, offe
 					preview.UpdatedRows++
 				}
 			case hasWant && row.Source == scheduleModels.PickupScheduleSourceStaff:
+				if want.offeringID != offeringID {
+					continue
+				}
 				affected[studentID] = true
 				if row.PickupTime.Format("15:04") != want.hhmm {
 					preview.Conflicts = append(preview.Conflicts, OfferingPickupConflict{
@@ -175,10 +181,11 @@ func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeri
 		skip[id] = true
 	}
 	stats, err := s.reconcileOfferingPickupRows(ctx, studentIDs, offeringPickupReconcileOptions{
-		overwriteStaff: true,
-		skipStudents:   skip,
-		createdBy:      createdBy,
-		onDate:         timezone.TodayDate(),
+		overwriteStaff:           true,
+		overwriteStaffOfferingID: offeringID,
+		skipStudents:             skip,
+		createdBy:                createdBy,
+		onDate:                   timezone.TodayDate(),
 	})
 	if err != nil {
 		return nil, err
@@ -187,6 +194,7 @@ func (s *decisionService) RolloutOfferingPickupTimes(ctx context.Context, offeri
 	result.UpdatedRows = stats.updated
 	result.DeletedRows = stats.deleted
 	result.SkippedStudents = stats.skippedStudents
+	s.deferPickupRolloutBroadcasts(ctx, stats.changedStudentIDs())
 	s.Logger.Info("offering pickup rollout executed",
 		slog.Int64("care_offering_id", offeringID),
 		slog.Int("created_rows", result.CreatedRows),
@@ -283,15 +291,33 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 }
 
 type offeringPickupReconcileOptions struct {
-	overwriteStaff bool
-	skipStudents   map[int64]bool
-	createdBy      int64
-	onDate         timezone.Date
+	overwriteStaff           bool
+	overwriteStaffOfferingID int64
+	skipStudents             map[int64]bool
+	createdBy                int64
+	onDate                   timezone.Date
 }
 
 type offeringPickupReconcileStats struct {
 	created, updated, deleted int
 	skippedStudents           int
+	changedStudents           map[int64]bool
+}
+
+func (s *offeringPickupReconcileStats) markChanged(studentID int64) {
+	if s.changedStudents == nil {
+		s.changedStudents = make(map[int64]bool)
+	}
+	s.changedStudents[studentID] = true
+}
+
+func (s *offeringPickupReconcileStats) changedStudentIDs() []int64 {
+	ids := make([]int64, 0, len(s.changedStudents))
+	for id := range s.changedStudents {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // reconcileOfferingPickupRows is the core reconciler: it aligns the
@@ -325,6 +351,7 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 					return nil, err
 				}
 				stats.created++
+				stats.markChanged(studentID)
 			case hasWant && row.Source == scheduleModels.PickupScheduleSourceCareOffering:
 				if pickupRowMatchesDesired(row, want) {
 					continue
@@ -333,23 +360,53 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 					return nil, err
 				}
 				stats.updated++
+				stats.markChanged(studentID)
 			case hasWant && row.Source == scheduleModels.PickupScheduleSourceStaff:
-				if !opts.overwriteStaff || row.PickupTime.Format("15:04") == want.hhmm {
+				if !opts.overwriteStaff || want.offeringID != opts.overwriteStaffOfferingID || row.PickupTime.Format("15:04") == want.hhmm {
 					continue
 				}
 				if err := s.upsertOfferingPickupRow(ctx, studentID, weekday, want, pickupRowAuthor(row, opts.createdBy), row); err != nil {
 					return nil, err
 				}
 				stats.updated++
+				stats.markChanged(studentID)
 			case !hasWant && row != nil && row.Source == scheduleModels.PickupScheduleSourceCareOffering:
 				if err := s.PickupScheduleRepo.Delete(ctx, row.ID); err != nil {
 					return nil, fmt.Errorf("delete stale offering pickup row: %w", err)
 				}
 				stats.deleted++
+				stats.markChanged(studentID)
 			}
 		}
 	}
 	return stats, nil
+}
+
+func (s *decisionService) deferPickupRolloutBroadcasts(ctx context.Context, studentIDs []int64) {
+	if len(studentIDs) == 0 || (s.Broadcaster == nil && s.PickupGuardianNotifier == nil) {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		if tenantID <= 0 {
+			return
+		}
+		if s.Broadcaster != nil {
+			source := "offering_pickup_rollout"
+			event := realtime.NewEvent(realtime.EventPickupScheduleChanged, "", realtime.EventData{Source: &source})
+			if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+				s.Logger.Warn("offering pickup rollout: failed to broadcast schedule change",
+					slog.Int64("tenant_id", tenantID),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+		if s.PickupGuardianNotifier != nil {
+			for _, studentID := range studentIDs {
+				s.PickupGuardianNotifier.BroadcastChildUpdateToGuardians(tenantID, studentID)
+			}
+		}
+	})
 }
 
 func (s *decisionService) upsertOfferingPickupRow(ctx context.Context, studentID int64, weekday int, want offeringPickupDesired, createdBy int64, previous *scheduleModels.StudentPickupSchedule) error {

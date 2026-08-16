@@ -364,6 +364,10 @@ type StudentRolloverAuditor interface {
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after users.StudentStatus) error
 }
 
+type PickupGuardianNotifier interface {
+	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
+}
+
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -402,10 +406,11 @@ type DecisionServiceConfig struct {
 	// that can trim "läuft mit" links). Nil-safe: without it the sync still
 	// works, open student and companion views just stay stale until their next
 	// manual refresh.
-	Broadcaster realtime.Broadcaster
-	FrontendURL string                   // not used by parent-facing emails today; kept for future admin links
-	ParentsURL  string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
-	Settings    DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
+	Broadcaster            realtime.Broadcaster
+	PickupGuardianNotifier PickupGuardianNotifier
+	FrontendURL            string                   // not used by parent-facing emails today; kept for future admin links
+	ParentsURL             string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	Settings               DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
 	// LockTemplateRecurrence serializes sourced roster writes with template
 	// split/end/materialization. Production wires the schedule service's
 	// transaction-scoped tenant recurrence gate; tests may leave it nil.
