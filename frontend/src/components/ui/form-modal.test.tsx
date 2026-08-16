@@ -266,6 +266,54 @@ describe("FormModal", () => {
     );
   });
 
+  it("clears an earlier queued close when dismissed again during the exit delay", async () => {
+    const onClose = vi.fn();
+    const modal = (closeDisabled: boolean) => (
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={onClose}
+          title="Test"
+          closeDisabled={closeDisabled}
+        >
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>
+    );
+    const { rerender } = render(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // Dismiss twice in quick succession: without cleanup the first timer
+    // would keep running untracked next to the second one.
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+
+    // Save clicked within the exit delay ...
+    rerender(modal(true));
+    await act(async () => {
+      vi.advanceTimersByTime(50);
+    });
+    // ... and the request fails fast: only the tracked (newest) timer was
+    // cancelled — the first dismissal's timer must not close the modal now.
+    rerender(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(document.querySelector('[role="dialog"]')).toHaveClass(
+      "animate-modalEnter",
+    );
+  });
+
   it("should render footer when provided", async () => {
     render(
       <TestWrapper>

@@ -65,7 +65,10 @@ export function FormModal({
     setIsExiting(true);
     setIsAnimating(false);
 
-    // Delay actual close to allow exit animation
+    // Delay actual close to allow exit animation. Clear a previously queued
+    // timer first: repeated dismissals must never leave an untracked timer
+    // behind that could still fire after a save cancelled the newest one.
+    if (pendingCloseTimer.current) clearTimeout(pendingCloseTimer.current);
     pendingCloseTimer.current = setTimeout(() => {
       pendingCloseTimer.current = null;
       // A save started during the exit delay wins over the queued close:
