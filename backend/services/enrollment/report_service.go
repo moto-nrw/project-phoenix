@@ -106,13 +106,27 @@ type CareUsageRow struct {
 	Status            string                 `json:"status"`
 	Offerings         []CareUsageRowOffering `json:"offerings"`
 	EffectiveDays     []string               `json:"effective_days"`
-	DayCount          int                    `json:"day_count"`
-	PickupByDay       map[string]string      `json:"pickup_by_day"`
-	GuardianFirstName string                 `json:"guardian_first_name"`
-	GuardianLastName  string                 `json:"guardian_last_name"`
-	GuardianEmail     string                 `json:"guardian_email"`
-	GuardianPhone     *string                `json:"guardian_phone,omitempty"`
-	SubmittedAt       time.Time              `json:"submitted_at"`
+	// CareDays is the display-only set of weekdays used by the compact
+	// export. Unlike EffectiveDays, it includes every weekday when care is
+	// not constrained by an active offering catalog.
+	CareDays          []string          `json:"-"`
+	DayCount          int               `json:"day_count"`
+	PickupByDay       map[string]string `json:"pickup_by_day"`
+	GuardianFirstName string            `json:"guardian_first_name"`
+	GuardianLastName  string            `json:"guardian_last_name"`
+	GuardianEmail     string            `json:"guardian_email"`
+	GuardianPhone     *string           `json:"guardian_phone,omitempty"`
+	SubmittedAt       time.Time         `json:"submitted_at"`
+	// SchedulePickupByDay is the maintained Kind-Gehzeit (manual rows and
+	// rolled-out Angebots-Gehzeiten, #2290) of the student linked to this
+	// request child, when one exists. Display-only enrichment for the
+	// compact export (#2215): filters and totals keep using the
+	// enrollment-form snapshot in PickupByDay.
+	SchedulePickupByDay map[string]string `json:"schedule_pickup_by_day"`
+	// Guardians are all guardian contacts on the request (primary plus
+	// additional request guardians), mirroring the class-roster contact
+	// column. The flat Guardian* fields above stay the submitting guardian.
+	Guardians []ClassRosterGuardian `json:"guardians"`
 }
 
 type CareUsageRowOffering struct {
@@ -193,7 +207,7 @@ type ClassRosterGuardian struct {
 
 type ReportService interface {
 	CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error)
-	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error)
+	ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string, compact bool) (*CareUsageReport, error)
 	ExportClassRoster(ctx context.Context, filters ClassRosterFilters, actorAccountID int64, actorRole, format string) (*ClassRosterReport, error)
 	// ClassDay is the read-only per-class day view for the Lehrkraft handoff
 	// (#1772). Every call writes a GDPR access-log row for the actor;
@@ -292,6 +306,10 @@ func reportOfferingDate(phase *enrollmentModels.Phase) timezone.Date {
 }
 
 func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters) (*CareUsageReport, error) {
+	return s.careUsage(ctx, filters, false)
+}
+
+func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters, enrichCompact bool) (*CareUsageReport, error) {
 	filters = normalizeCareUsageFilters(filters)
 	if err := validateCareUsageFilters(filters); err != nil {
 		return nil, err
@@ -338,7 +356,6 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list offerings: %w", err)
 	}
-
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
@@ -427,7 +444,57 @@ func (s *reportService) CareUsage(ctx context.Context, filters CareUsageFilters)
 	report.ByOffering = careUsageOfferingStats(offeringStats)
 	report.FilterOptions.GradeLevels = careUsageGradeOptions(gradeSeen)
 	report.FilterOptions.PickupTimes = sortedPickupTimes(pickupTimeSeen)
+	if enrichCompact {
+		if err := s.enrichCompactCareUsage(ctx, report, children, requestByID, offeringByID); err != nil {
+			return nil, err
+		}
+	}
 	return report, nil
+}
+
+func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*enrollmentModels.RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering) error {
+	requestIDs := make([]int64, 0, len(report.Rows))
+	childByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
+	for _, child := range children {
+		childByID[child.ID] = child
+	}
+	studentIDs := make([]int64, 0, len(report.Rows))
+	for _, row := range report.Rows {
+		requestIDs = append(requestIDs, row.RequestID)
+		if id := careUsageStudentID(childByID[row.ChildID]); id != 0 {
+			studentIDs = append(studentIDs, id)
+		}
+	}
+
+	guardiansByRequest := map[int64][]*enrollmentModels.RequestGuardian{}
+	if s.RequestGuardianRepo != nil && len(requestIDs) > 0 {
+		guardians, err := s.RequestGuardianRepo.ListByRequestIDs(ctx, requestIDs)
+		if err != nil {
+			return fmt.Errorf("care usage report: list request guardians: %w", err)
+		}
+		guardiansByRequest = classRosterRequestGuardiansByRequestID(guardians)
+	}
+	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("care usage report: %w", err)
+	}
+	careOfferingsEnabled := true
+	if s.Settings != nil {
+		careOfferingsEnabled, err = s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
+		if err != nil {
+			return fmt.Errorf("care usage report: resolve %s: %w", configModel.KeyEnrollmentCareOfferingsEnabled, err)
+		}
+	}
+
+	for i := range report.Rows {
+		row := &report.Rows[i]
+		row.CareDays = classRosterCareDays(row.EffectiveDays, offeringByID, careOfferingsEnabled)
+		row.Guardians = classRosterEnrollmentGuardians(requestByID[row.RequestID], guardiansByRequest[row.RequestID])
+		if byDay := schedulePickup[careUsageStudentID(childByID[row.ChildID])]; byDay != nil {
+			row.SchedulePickupByDay = byDay
+		}
+	}
+	return nil
 }
 
 func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*enrollmentModels.Request) (map[int64]*enrollmentModels.FormSchema, error) {
@@ -451,12 +518,12 @@ func (s *reportService) loadCareUsageSchemas(ctx context.Context, requests []*en
 	return schemas, nil
 }
 
-func (s *reportService) ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string) (*CareUsageReport, error) {
-	report, err := s.CareUsage(ctx, filters)
+func (s *reportService) ExportCareUsage(ctx context.Context, filters CareUsageFilters, actorAccountID int64, actorRole, format string, compact bool) (*CareUsageReport, error) {
+	report, err := s.careUsage(ctx, filters, compact)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.recordCareUsageExportAudit(ctx, report, actorAccountID, actorRole, format); err != nil {
+	if err := s.recordCareUsageExportAudit(ctx, report, actorAccountID, actorRole, format, compact); err != nil {
 		return nil, err
 	}
 	return report, nil
@@ -1896,7 +1963,7 @@ func sortedPickupTimes(seen map[string]bool) []string {
 	return out
 }
 
-func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *CareUsageReport, actorAccountID int64, actorRole, format string) error {
+func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *CareUsageReport, actorAccountID int64, actorRole, format string, compact bool) error {
 	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("care usage report export audit: data access log repo not configured")
 	}
@@ -1916,6 +1983,11 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	entry.SetMetadata("phase_id", report.Phase.ID)
 	entry.SetMetadata("report", "care_usage")
 	entry.SetMetadata("format", format)
+	layout := "detailed"
+	if compact {
+		layout = "compact"
+	}
+	entry.SetMetadata("layout", layout)
 	entry.SetMetadata("status_filter", report.Filters.Status)
 	entry.SetMetadata("care_offering_ids", report.Filters.CareOfferingIDs)
 	if report.Filters.DayCount != nil {
@@ -1970,19 +2042,45 @@ var classRosterISOWeekdayDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "
 // rows (schedule.student_pickup_schedules) for the roster students (#2290).
 // Nil-safe: wirings without the schedule service render without the column.
 func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, students []*userModels.Student) (map[int64]map[string]string, error) {
-	out := map[int64]map[string]string{}
-	if s.PickupScheduleSvc == nil || len(students) == 0 {
-		return out, nil
-	}
 	studentIDs := make([]int64, 0, len(students))
 	for _, student := range students {
 		if student != nil {
 			studentIDs = append(studentIDs, student.ID)
 		}
 	}
+	out, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: %w", err)
+	}
+	return out, nil
+}
+
+// careUsageStudentID resolves the student of an approved request child
+// (rollout-created or matched existing student). Unapproved children return
+// 0 because their form snapshot must not be replaced by live student data.
+func careUsageStudentID(child *enrollmentModels.RequestChild) int64 {
+	if child == nil || child.Status != enrollmentModels.ChildStatusApproved {
+		return 0
+	}
+	if child.CreatedStudentID != nil {
+		return *child.CreatedStudentID
+	}
+	if child.MatchedStudentID != nil {
+		return *child.MatchedStudentID
+	}
+	return 0
+}
+
+// schedulePickupByStudentIDs maps student ID -> day code -> maintained
+// pickup time (HH:MM), shared by the class-roster and care-usage reports.
+func (s *reportService) schedulePickupByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]map[string]string, error) {
+	out := map[int64]map[string]string{}
+	if s.PickupScheduleSvc == nil || len(studentIDs) == 0 {
+		return out, nil
+	}
 	rows, err := s.PickupScheduleSvc.GetWeeklySchedulesByStudentIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, fmt.Errorf("class roster report: list pickup schedules: %w", err)
+		return nil, fmt.Errorf("list pickup schedules: %w", err)
 	}
 	for _, row := range rows {
 		day, ok := classRosterISOWeekdayDay[row.Weekday]
