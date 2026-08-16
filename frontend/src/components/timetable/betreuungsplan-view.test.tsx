@@ -282,7 +282,7 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
     gapInstanceIds,
   }: {
     weekDays: Date[];
-    instances: Array<{ id: string }>;
+    instances: Array<{ id: string; conflictWarnings: unknown[] }>;
     onInstanceClick: (instance: { id: string } | null) => void;
     onSlotClick?: (dateISO: string, hour: number) => void;
     gapInstanceIds?: ReadonlySet<string>;
@@ -291,6 +291,12 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
       <span data-testid="grid-week-days">{weekDays.length}</span>
       <span data-testid="grid-gap-ids">
         {gapInstanceIds ? [...gapInstanceIds].join(",") : ""}
+      </span>
+      <span data-testid="grid-conflict-count">
+        {instances.reduce(
+          (count, item) => count + item.conflictWarnings.length,
+          0,
+        )}
       </span>
       <button
         type="button"
@@ -913,6 +919,16 @@ describe("BetreuungsplanView", () => {
 
     expect(screen.queryByText("add-instance")).not.toBeInTheDocument();
     expect(screen.getByText("Nur ansehen")).toBeInTheDocument();
+  });
+
+  it("removes conflict warnings from read-only calendar instances", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read"] } },
+    });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("grid-conflict-count")).toHaveTextContent("0");
   });
 
   it("does not bootstrap periods for read-only staff", () => {

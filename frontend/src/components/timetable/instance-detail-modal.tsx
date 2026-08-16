@@ -399,18 +399,23 @@ function ParticipantNamesLoader({
   instanceId: string;
   children: (names: InstanceParticipantNames) => React.ReactNode;
 }>) {
-  const { data } = useSWRAuth(`timetable-participants-${instanceId}`, () =>
-    timetableService.getInstanceParticipants(instanceId),
+  const { data, error } = useSWRAuth(
+    `timetable-participants-${instanceId}`,
+    () => timetableService.getInstanceParticipants(instanceId),
   );
+  if (data) return <>{children(data)}</>;
+  if (error) {
+    return (
+      <Alert
+        type="error"
+        message="Die Teilnehmenden konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
+      />
+    );
+  }
   return (
-    <>
-      {children(
-        data ?? {
-          studentNames: EMPTY_STUDENT_NAMES,
-          staffNames: EMPTY_STAFF_NAMES,
-        },
-      )}
-    </>
+    <p role="status" className="text-sm text-gray-500">
+      Teilnehmende werden geladen…
+    </p>
   );
 }
 

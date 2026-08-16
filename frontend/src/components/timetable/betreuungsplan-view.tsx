@@ -716,12 +716,16 @@ function TimetablesContent() {
     [conflictEntries, ackedFingerprints],
   );
 
-  // Quittierte Konflikte verschwinden auch von den Terminkarten und aus dem
-  // Detail-Modal — sonst zählt der Banner anders als das Raster markiert.
+  // Die Leseansicht zeigt keine Konflikthinweise. Für Planende verschwinden
+  // quittierte Konflikte auch von den Terminkarten und aus dem Detail-Modal —
+  // sonst zählt der Banner anders als das Raster markiert.
   const visibleInstances = useMemo(
     () =>
-      instances.map((inst) =>
-        inst.conflictWarnings.some(
+      instances.map((inst) => {
+        if (!canManageSchedules && inst.conflictWarnings.length > 0) {
+          return { ...inst, conflictWarnings: [] };
+        }
+        return inst.conflictWarnings.some(
           (warning) =>
             warning.fingerprint && ackedFingerprints.has(warning.fingerprint),
         )
@@ -733,9 +737,9 @@ function TimetablesContent() {
                   !ackedFingerprints.has(warning.fingerprint),
               ),
             }
-          : inst,
-      ),
-    [instances, ackedFingerprints],
+          : inst;
+      }),
+    [instances, ackedFingerprints, canManageSchedules],
   );
 
   const handleHideConflict = useCallback(
