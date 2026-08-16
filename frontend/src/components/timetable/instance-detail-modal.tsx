@@ -388,8 +388,9 @@ function AssignedStaffSection({
  * Leseansicht (#2283): lädt die Kindernamen pro Termin über den schmalen
  * Teilnehmer-Endpunkt (schedules:read). Eigene Komponente statt Hook im
  * Modal, damit der Session-abhängige SWR-Aufruf nur gemountet wird, wenn
- * die Leseansicht ihn wirklich braucht; gefilterte Kinder fallen in der
- * Anzeige auf "Kind #ID" zurück.
+ * die Leseansicht ihn wirklich braucht. Die zurückgegebenen IDs sind zugleich
+ * die serverseitig autorisierte Sichtmenge; ausgelassene Kinder dürfen daher
+ * auch nicht anonymisiert als "Kind #ID" erscheinen.
  */
 function ParticipantNamesLoader({
   instanceId,
@@ -967,25 +968,45 @@ export function InstanceDetailModal({
 
           {fetchParticipantNames ? (
             <ParticipantNamesLoader instanceId={instance.id}>
-              {(names) => (
-                <>
-                  <AssignedStaffSection
-                    instance={instance}
-                    staffNames={names.staffNames}
-                    onOpenPool={poolAvailable ? onOpenPool : undefined}
-                    canManageStaffPool={canManageStaffPool}
-                  />
-                  <InstanceStudentsSection
-                    groupedStudents={groupedStudents}
-                    handleAttendancePatch={handleAttendancePatch}
-                    instance={instance}
-                    onAttendancePatch={attendancePatch}
-                    pendingStudentId={pendingStudentId}
-                    studentNames={names.studentNames}
-                    students={students}
-                  />
-                </>
-              )}
+              {(names) => {
+                const visibleStudents = students.filter((student) =>
+                  names.studentNames.has(student.studentId),
+                );
+                const visibleGroupedStudents = {
+                  expected: groupedStudents.expected.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                  notScheduled: groupedStudents.notScheduled.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                  present: groupedStudents.present.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                  absent: groupedStudents.absent.filter((student) =>
+                    names.studentNames.has(student.studentId),
+                  ),
+                };
+
+                return (
+                  <>
+                    <AssignedStaffSection
+                      instance={instance}
+                      staffNames={names.staffNames}
+                      onOpenPool={poolAvailable ? onOpenPool : undefined}
+                      canManageStaffPool={canManageStaffPool}
+                    />
+                    <InstanceStudentsSection
+                      groupedStudents={visibleGroupedStudents}
+                      handleAttendancePatch={handleAttendancePatch}
+                      instance={instance}
+                      onAttendancePatch={attendancePatch}
+                      pendingStudentId={pendingStudentId}
+                      studentNames={names.studentNames}
+                      students={visibleStudents}
+                    />
+                  </>
+                );
+              }}
             </ParticipantNamesLoader>
           ) : (
             <>
