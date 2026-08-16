@@ -1331,3 +1331,126 @@ describe("staff pool + move (#1884)", () => {
     );
   });
 });
+
+describe("timetableService.applyBulkSubstitution (#2284)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockGetSession.mockResolvedValue({
+      user: { token: "jwt" },
+      expires: "2099-01-01",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("posts the snake_case body with substitute and reason and maps the result", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          days: [
+            {
+              date: "2026-08-18",
+              affected_instances: [
+                {
+                  instance_id: 43,
+                  title: "Mensa",
+                  start_time: "12:00",
+                  action: "substituted",
+                },
+              ],
+              warnings: [{}],
+            },
+          ],
+          total_affected: 1,
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.applyBulkSubstitution({
+        absentStaffId: "11",
+        substituteStaffId: "12",
+        dates: ["2026-08-18", "2026-08-19"],
+        reason: "Krankheit",
+      }),
+    ).resolves.toEqual({
+      days: [
+        {
+          date: "2026-08-18",
+          affectedInstances: [
+            {
+              instanceId: "43",
+              title: "Mensa",
+              startTime: "12:00",
+              action: "substituted",
+            },
+          ],
+          warningCount: 1,
+        },
+      ],
+      totalAffected: 1,
+      warningCount: 1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/substitutions/bulk",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          absent_staff_id: 11,
+          dates: ["2026-08-18", "2026-08-19"],
+          substitute_staff_id: 12,
+          reason: "Krankheit",
+        }),
+      }),
+    );
+  });
+
+  it("omits substitute and reason for an absence-only save", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: { days: [], total_affected: 0 } }),
+    );
+
+    await expect(
+      timetableService.applyBulkSubstitution({
+        absentStaffId: "11",
+        dates: ["2026-08-18"],
+      }),
+    ).resolves.toEqual({ days: [], totalAffected: 0, warningCount: 0 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/substitutions/bulk",
+      expect.objectContaining({
+        body: JSON.stringify({ absent_staff_id: 11, dates: ["2026-08-18"] }),
+      }),
+    );
+  });
+
+  it("surfaces the backend error message of the all-or-nothing reject", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          error:
+            "18.08.2026: die Ersatzperson ist am 18.08.2026 selbst abwesend",
+        },
+        { status: 400 },
+      ),
+    );
+
+    await expect(
+      timetableService.applyBulkSubstitution({
+        absentStaffId: "11",
+        substituteStaffId: "12",
+        dates: ["2026-08-18"],
+      }),
+    ).rejects.toThrow(
+      "18.08.2026: die Ersatzperson ist am 18.08.2026 selbst abwesend",
+    );
+  });
+});
