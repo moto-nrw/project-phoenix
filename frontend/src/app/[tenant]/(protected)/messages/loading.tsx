@@ -14,7 +14,11 @@ export default function MessagesLoading() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Nachrichten"
-        search={{ value: "", onChange: () => {} }}
+        search={{
+          value: "",
+          onChange: () => {},
+          inputProps: { disabled: true },
+        }}
       />
       <MessagesSkeleton />
     </div>

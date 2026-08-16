@@ -14,7 +14,11 @@ export default function StaffLoading() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Mitarbeiter"
-        search={{ value: "", onChange: () => {} }}
+        search={{
+          value: "",
+          onChange: () => {},
+          inputProps: { disabled: true },
+        }}
       />
       <StaffCardsSkeleton />
     </div>

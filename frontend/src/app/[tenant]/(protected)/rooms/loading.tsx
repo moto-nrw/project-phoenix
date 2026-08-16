@@ -14,7 +14,11 @@ export default function RoomsLoading() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Räume"
-        search={{ value: "", onChange: () => {} }}
+        search={{
+          value: "",
+          onChange: () => {},
+          inputProps: { disabled: true },
+        }}
       />
       <RoomsGridSkeleton />
     </div>

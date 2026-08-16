@@ -412,7 +412,7 @@ export function StammdatenTab({
           description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen."
           action={
             <EditAction
-              visible={canManagePayroll && !payrollLoading}
+              visible={!payrollLoading}
               onClick={() => setOpenModal("payroll")}
             />
           }
