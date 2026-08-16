@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, History } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { isCareDayExpected } from "~/lib/timetable-types";
@@ -20,10 +22,9 @@ const logger = createLogger({ component: "PastBlocksSection" });
 // blocks whose end time passed without a start. Everything here is display
 // only — no start button, no attendance actions.
 
-function isPastBlockCompleted(instance: PlannedTimetableInstance): boolean {
-  return instance.status === "completed";
-}
-
+// Deliberately local, not shared with planned-now-section's rosterStatusLabel:
+// that one describes the LIVE state of an upcoming block ("Erwartet"), these
+// describe the FINAL state of a finished one ("Gegangen", "Nicht erschienen").
 function pastRosterStatusLabel(row: TimetableRosterRow): string {
   if (row.currentlyPresent) return "Anwesend";
   if (row.status === "present") return "Gegangen";
@@ -136,7 +137,7 @@ function PastBlockCard({
   const [roster, setRoster] = useState<TimetableRoster | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const completed = isPastBlockCompleted(block);
+  const completed = block.status === "completed";
 
   const loadRoster = useCallback(() => {
     setIsLoading(true);
@@ -168,13 +169,9 @@ function PastBlockCard({
             {block.title}
           </h3>
           {completed ? (
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-              Beendet
-            </span>
+            <StatusBadge label="Beendet" tone="gray" />
           ) : (
-            <span className="bg-moto-amber/20 text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
-              Nicht gestartet
-            </span>
+            <StatusBadge label="Nicht gestartet" tone="orange" />
           )}
         </div>
         <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
@@ -255,14 +252,10 @@ function PastRosterRow({
           </p>
         </div>
         {showStatus ? (
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: pastRosterDotColor(row) }}
-              aria-hidden="true"
-            />
-            {pastRosterStatusLabel(row)}
-          </span>
+          <StatusDotBadge
+            label={pastRosterStatusLabel(row)}
+            color={pastRosterDotColor(row)}
+          />
         ) : null}
       </div>
     </div>
