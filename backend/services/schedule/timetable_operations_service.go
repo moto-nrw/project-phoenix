@@ -79,10 +79,18 @@ type TimetableOperationsService interface {
 	PatchAttendance(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64, patch scheduleModel.AttendanceFieldPatch) (*OperationRosterRow, error)
 }
 
+// PlannedNowScopePast flips PlannedNow to the complement of its default
+// window (#2335): today's finished blocks — completed ones, and planned ones
+// whose end time has passed without ever being started (no job moves them out
+// of "planned", so a status filter alone would miss them).
+const PlannedNowScopePast = "past"
+
 type PlannedNowOptions struct {
 	HorizonMinutes int
 	Limit          int
 	IncludeRoster  bool
+	// Scope is "" for the default upcoming window or PlannedNowScopePast.
+	Scope string
 }
 
 type TimetableOperationsDependencies struct {
@@ -270,9 +278,14 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	if startLead > horizon {
 		horizon = startLead
 	}
+	past := opts.Scope == PlannedNowScopePast
 	candidates := make([]plannedNowCandidate, 0, len(instances))
 	for _, inst := range instances {
-		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, horizon) {
+		if past {
+			if !plannedPastToday(inst, now) {
+				continue
+			}
+		} else if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, horizon) {
 			continue
 		}
 		roomName := roomNames[inst.RoomID]
@@ -306,11 +319,15 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	out := make([]OperationPlannedInstance, 0, len(candidates))
 	for _, candidate := range candidates {
 		mapped := mapPlannedInstance(candidate.instance, candidate.staffRows, candidate.studentRows, now, staffID, candidate.roomName, careDay)
-		availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
-		mapped.CanStart = availability.CanStart
-		mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
-		if !candidate.instance.IsSpontaneous {
-			mapped.StartExpiresAt = availability.CompleteAvailableAt.Format(time.RFC3339)
+		// Past blocks are read-only: no start lifecycle, the zero-value
+		// CanStart/StartAvailableAt/StartExpiresAt say so.
+		if !past {
+			availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
+			mapped.CanStart = availability.CanStart
+			mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
+			if !candidate.instance.IsSpontaneous {
+				mapped.StartExpiresAt = availability.CompleteAvailableAt.Format(time.RFC3339)
+			}
 		}
 		if opts.IncludeRoster {
 			roster, err := s.buildRosterWithCareDay(ctx, candidate.instance.ID, careDay)
@@ -1207,6 +1224,23 @@ func plannedNowWindow(inst *scheduleModel.ActivityInstance, now time.Time, horiz
 		return false
 	}
 	return (start.After(now.Add(-15*time.Minute)) && start.Before(now.Add(time.Duration(horizonMinutes)*time.Minute))) || start.Before(now)
+}
+
+// plannedPastToday is the scope=past complement of plannedNowWindow (#2335):
+// completed blocks, plus non-spontaneous planned blocks whose end time has
+// passed — those never started and stay "planned" forever, so a pure status
+// filter would hide them. Spontaneous planned instances stay in the default
+// scope (plannedNowWindow keeps them startable past their end), and cancelled
+// and running instances belong to neither list.
+func plannedPastToday(inst *scheduleModel.ActivityInstance, now time.Time) bool {
+	switch inst.Status {
+	case scheduleModel.InstanceStatusCompleted:
+		return true
+	case scheduleModel.InstanceStatusPlanned:
+		return !inst.IsSpontaneous && !now.Before(instanceEndAt(inst, now.Location()))
+	default:
+		return false
+	}
 }
 
 func instanceEndAt(inst *scheduleModel.ActivityInstance, loc *time.Location) time.Time {

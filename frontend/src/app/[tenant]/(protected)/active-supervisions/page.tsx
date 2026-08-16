@@ -84,6 +84,7 @@ import {
   ReleaseSupervisionModal,
   SchulhofNotSupervisingView,
 } from "~/components/active-supervisions/states";
+import { PastBlocksSection } from "~/components/active-supervisions/past-blocks-section";
 import { PlannedNowSection } from "~/components/active-supervisions/planned-now-section";
 import {
   SpontaneousActivityStart,
@@ -2684,6 +2685,9 @@ function MeinRaumPageContent() {
       {/* Student Grid - Mobile Optimized */}
       {(!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) &&
         renderStudentContent()}
+
+      {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
+      <PastBlocksSection />
     </div>
   );
 }

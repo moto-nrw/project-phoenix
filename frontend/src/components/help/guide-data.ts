@@ -701,6 +701,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
           "Erfasst Ihre Einrichtung Anwesenheit ohne Raum- oder Aktivitätszuordnung, erscheinen weder dieser Bereich noch `Räume` und `Aktivitäten` in der Seitenleiste. Ist die Schulhof-Funktion aktiviert, kann der Schulhof trotzdem zusätzlich erfasst werden. Diesen Modus stellt das moto-Team ein.",
+          "Ganz unten zeigt der Bereich `Beendete und abgelaufene Blöcke` zur Kontrolle die heutigen Blöcke, die bereits vorbei sind. Beim Aufklappen erscheint pro Block die Kinderliste zum Nachlesen: bei beendeten Blöcken mit dem letzten Stand (Anwesend, Gegangen, Abwesend), bei nie gestarteten Blöcken die geplante Liste mit dem Hinweis, dass keine Anwesenheit erfasst wurde. Ändern lässt sich hier nichts.",
         ],
         callout: {
           title: "Warum steht ein Kind auf `Nicht eingeplant`?",

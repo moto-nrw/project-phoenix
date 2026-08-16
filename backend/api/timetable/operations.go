@@ -115,6 +115,13 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 		}
 		opts.Limit = value
 	}
+	if raw := query.Get("scope"); raw != "" {
+		if raw != scheduleSvc.PlannedNowScopePast {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid scope")))
+			return opts, false
+		}
+		opts.Scope = raw
+	}
 	if raw := query.Get("include_roster"); raw != "" {
 		value, err := strconv.ParseBool(raw)
 		if err != nil {

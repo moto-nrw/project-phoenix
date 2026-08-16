@@ -22,6 +22,8 @@ interface PlannedNowOptions {
   horizonMinutes?: number;
   limit?: number;
   includeRoster?: boolean;
+  /** "past" lists today's finished blocks instead of the upcoming window (#2335). */
+  scope?: "past";
 }
 
 export class TimetableOperationsApiError extends Error {
@@ -87,6 +89,7 @@ export const timetableOperationsApi = {
     if (options?.includeRoster !== undefined) {
       params.set("include_roster", String(options.includeRoster));
     }
+    if (options?.scope) params.set("scope", options.scope);
     const suffix = params.size > 0 ? `?${params.toString()}` : "";
     const raw = await unwrap<{
       instances: Parameters<typeof mapPlannedInstance>[0][];
