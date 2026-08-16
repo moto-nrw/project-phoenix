@@ -765,7 +765,6 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 		{ID: listexport.ColumnWeeklyWednesday, Label: "Mittwoch"},
 		{ID: listexport.ColumnWeeklyThursday, Label: "Donnerstag"},
 		{ID: listexport.ColumnWeeklyFriday, Label: "Freitag"},
-		{ID: listexport.ColumnDeparture, Label: "Geh-/Abholweise"},
 		{ID: listexport.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
 	}
 	rows := make([]listexport.Row, 0, len(report.Rows))
@@ -787,7 +786,6 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 			listexport.ColumnWeeklyWednesday:  classRosterWeeklyCell(row, "wed"),
 			listexport.ColumnWeeklyThursday:   classRosterWeeklyCell(row, "thu"),
 			listexport.ColumnWeeklyFriday:     classRosterWeeklyCell(row, "fri"),
-			listexport.ColumnDeparture:        row.Departure,
 			listexport.ColumnGuardianContacts: classRosterGuardianContactsLabel(row.Guardians),
 		}})
 	}
@@ -840,13 +838,25 @@ func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []stri
 	}
 }
 
+// classRosterWeeklyCell renders one weekday cell: the pickup time plus the
+// day's own Geh-/Abholregelung ("14:30 Uhr, wird abgeholt"). The former
+// summarized "Geh-/Abholweise" week column is folded in here per day (#2254);
+// days without care stay "—" and carry no departure text.
 func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
-	return weeklyPickupCell(
-		containsReportDay(row.CareDays, day),
+	isCareDay := containsReportDay(row.CareDays, day)
+	cell := weeklyPickupCell(
+		isCareDay,
 		row.SchedulePickupByDay[day],
 		row.PickupByDay[day],
 		classRosterDailyOfferings(row, day),
 	)
+	if !isCareDay {
+		return cell
+	}
+	if rule := strings.TrimSpace(row.DepartureByDay[day]); rule != "" {
+		cell += ", " + rule
+	}
+	return cell
 }
 
 // weeklyPickupCell renders one weekday cell of the roster-style tables

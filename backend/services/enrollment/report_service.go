@@ -194,9 +194,13 @@ type ClassRosterRow struct {
 	// schedule.student_pickup_schedules (manual rows and rolled-out
 	// Angebots-Gehzeiten). It outranks the enrollment-form answer in the
 	// weekday cells (#2290).
-	SchedulePickupByDay map[string]string     `json:"schedule_pickup_by_day"`
-	Departure           string                `json:"departure"`
-	Guardians           []ClassRosterGuardian `json:"guardians"`
+	SchedulePickupByDay map[string]string `json:"schedule_pickup_by_day"`
+	// DepartureByDay carries the compact Geh-/Abholregelung per weekday code
+	// ("mon".."fri"), e.g. "wird abgeholt" — the weekday cells print it next
+	// to the pickup time (#2254). Every weekday has an entry; a day without an
+	// explicit rule carries the business default "geht alleine".
+	DepartureByDay map[string]string     `json:"departure_by_day"`
+	Guardians      []ClassRosterGuardian `json:"guardians"`
 }
 
 type ClassRosterGuardian struct {
@@ -1208,7 +1212,7 @@ func classRosterRow(
 		row.FirstName = person.FirstName
 		row.LastName = person.LastName
 	}
-	row.Departure = classRosterDepartureFromStudent(student, companions)
+	row.DepartureByDay = classRosterDepartureByDayFromStudent(student, companions)
 	if enrollment == nil || enrollment.request == nil || enrollment.child == nil {
 		return row, nil
 	}
@@ -1221,7 +1225,7 @@ func classRosterRow(
 	if err != nil {
 		return row, fmt.Errorf("class roster report: child %d arrival schedule: %w", enrollment.child.ID, err)
 	}
-	departure, err := classRosterDeparture(enrollment.request, enrollment.child, schemas, student, companions)
+	departureByDay, err := classRosterDepartureByDay(enrollment.request, enrollment.child, schemas, student, companions)
 	if err != nil {
 		return row, fmt.Errorf("class roster report: child %d departure: %w", enrollment.child.ID, err)
 	}
@@ -1236,7 +1240,7 @@ func classRosterRow(
 	row.CareDays = classRosterCareDays(careRow.EffectiveDays, offeringByID, careOfferingsEnabled)
 	row.PickupByDay = pickupByDay
 	row.ArrivalByDay = arrivalByDay
-	row.Departure = departure
+	row.DepartureByDay = departureByDay
 	row.Guardians = classRosterEnrollmentGuardians(enrollment.request, enrollment.guardians)
 	if len(row.Guardians) == 0 {
 		row.Guardians = studentContactGuardians
@@ -1520,18 +1524,18 @@ func classRosterEnrollmentSummary(offerings []CareUsageRowOffering) string {
 	return "Angemeldet: " + strings.Join(names, ", ")
 }
 
-func classRosterDeparture(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema, student *userModels.Student, companions []userModels.CompanionLink) (string, error) {
+func classRosterDepartureByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema, student *userModels.Student, companions []userModels.CompanionLink) (map[string]string, error) {
 	allowed, fallback, note, ok, err := classRosterDepartureFromPhase(req, child, schemas)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if ok {
 		// The phase form answered the plan, but the "läuft mit" links belong to
 		// the CHILD and are the current, structured answer to "mit wem" either
 		// way — the roster prints both sources.
-		return classRosterFormatDeparture(allowed, fallback, note, companions), nil
+		return classRosterFormatDepartureByDay(allowed, fallback, note, companions), nil
 	}
-	return classRosterDepartureFromStudent(student, companions), nil
+	return classRosterDepartureByDayFromStudent(student, companions), nil
 }
 
 func classRosterDepartureFromPhase(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema) (userModels.AllowedDepartureModes, userModels.DepartureDays, *string, bool, error) {
@@ -1656,75 +1660,82 @@ func classRosterCompanionNote(child *enrollmentModels.RequestChild) *string {
 	return &note
 }
 
-func classRosterDepartureFromStudent(student *userModels.Student, companions []userModels.CompanionLink) string {
+func classRosterDepartureByDayFromStudent(student *userModels.Student, companions []userModels.CompanionLink) map[string]string {
 	if student == nil {
-		return "Geht alleine"
+		return classRosterFormatDepartureByDay(nil, nil, nil, nil)
 	}
-	return classRosterFormatDeparture(student.AllowedDepartureModes, student.DepartureDays, student.DepartureCompanionNote, companions)
+	return classRosterFormatDepartureByDay(student.AllowedDepartureModes, student.DepartureDays, student.DepartureCompanionNote, companions)
 }
 
-// classRosterFormatDeparture renders the plan plus the "mit wem" detail.
+// classRosterDayModeLabels phrase the departure modes so they read naturally
+// after a pickup time in a weekday cell ("14:30 Uhr, wird abgeholt").
+var classRosterDayModeLabels = map[userModels.DepartureMode]string{
+	userModels.DepartureAlone:       "geht alleine",
+	userModels.DepartureBus:         "fährt Bus",
+	userModels.DeparturePickup:      "wird abgeholt",
+	userModels.DepartureAccompanied: "mit anderem Kind",
+}
+
+// classRosterFormatDepartureByDay renders the plan plus the "mit wem" detail,
+// keyed by weekday code — the weekday cells print each day's own rule instead
+// of one summarized week column (#2254). Every weekday gets an entry; a day
+// without an explicit rule carries the business default "geht alleine".
 //
-// Both sources travel: a child whose Laufgemeinschaft answers "mit wem" needs
-// no free-text note (the note requirement is satisfied per weekday by a link),
-// so a roster built from the note alone would print "Mit anderem Kind" with no
-// name on the sheet staff carry to the door.
+// Both "mit wem" sources travel: a child whose Laufgemeinschaft answers
+// "mit wem" needs no free-text note (the note requirement is satisfied per
+// weekday by a link), so cells built from the note alone would print
+// "mit anderem Kind" with no name on the sheet staff carry to the door.
 //
-// The links are printed only for the weekdays the rendered plan actually allows
+// The links are printed only on the weekdays the rendered plan actually allows
 // "Anderes Kind". They are the CURRENT links of the live child, while the plan
 // may come from the approved enrollment phase — a plan that says Monday
-// accompanied and Tuesday bus, next to a link the child gained on Tuesday since,
-// would contradict itself on the same line. Filtering is the honest reading: a
-// day the printed plan does not allow has no "mit wem" to print.
-func classRosterFormatDeparture(allowed userModels.AllowedDepartureModes, fallback userModels.DepartureDays, companionNote *string, companions []userModels.CompanionLink) string {
-	modeLabels := map[userModels.DepartureMode]string{
-		userModels.DepartureAlone:       "zu Fuß",
-		userModels.DepartureBus:         "Bus",
-		userModels.DeparturePickup:      "Abholung",
-		userModels.DepartureAccompanied: "Mit anderem Kind",
-	}
-	shortDay := map[string]string{
-		userModels.PickupDayMonday:    "Mo",
-		userModels.PickupDayTuesday:   "Di",
-		userModels.PickupDayWednesday: "Mi",
-		userModels.PickupDayThursday:  "Do",
-		userModels.PickupDayFriday:    "Fr",
-	}
+// accompanied and Tuesday bus, next to a link the child gained on Tuesday
+// since, would contradict itself in the Tuesday cell. Filtering is the honest
+// reading: a day the printed plan does not allow has no "mit wem" to print.
+// The free-text note answers the accompanied days no link covers — a day a
+// link already names does not repeat the note (#2254).
+func classRosterFormatDepartureByDay(allowed userModels.AllowedDepartureModes, fallback userModels.DepartureDays, companionNote *string, companions []userModels.CompanionLink) map[string]string {
 	allowed = allowed.Normalize()
 	if !allowed.HasAny() {
 		allowed = userModels.AllowedDepartureModesFromDeparture(fallback)
 	}
-	parts := make([]string, 0, len(userModels.PickupDayOrder))
+	note := ""
+	if companionNote != nil {
+		note = strings.TrimSpace(*companionNote)
+	}
+	out := make(map[string]string, len(userModels.PickupDayOrder))
 	for _, day := range userModels.PickupDayOrder {
 		modes := allowed[day]
 		if len(modes) == 0 {
+			out[day] = classRosterDayModeLabels[userModels.DepartureAlone]
 			continue
 		}
 		labels := make([]string, 0, len(modes))
+		accompanied := false
 		for _, mode := range modes {
-			labels = append(labels, modeLabels[mode])
+			if mode == userModels.DepartureAccompanied {
+				accompanied = true
+			}
+			labels = append(labels, classRosterDayModeLabels[mode])
 		}
-		parts = append(parts, shortDay[day]+": "+strings.Join(labels, ", "))
+		cell := strings.Join(labels, " / ")
+		if accompanied {
+			onDay := userModels.FilterCompanionLinksToDays(companions, map[string]bool{day: true})
+			names := make([]string, 0, len(onDay))
+			for _, link := range onDay {
+				names = append(names, userModels.CompanionDisplayName(link))
+			}
+			detail := strings.Join(names, ", ")
+			if detail == "" {
+				detail = note
+			}
+			if detail != "" {
+				cell += " (mit: " + detail + ")"
+			}
+		}
+		out[day] = cell
 	}
-	summary := "Geht alleine"
-	if len(parts) > 0 {
-		summary = strings.Join(parts, ", ")
-	}
-	details := make([]string, 0, 2)
-	// Read off `allowed` alone: the summary above is rendered from it, and the
-	// exclusive fallback was already folded into it when it was empty. Passing
-	// the fallback here as well could admit a day the summary never printed.
-	onPlan := userModels.FilterCompanionLinksToDays(companions, userModels.AccompaniedWeekdays(allowed, nil))
-	if linked := userModels.FormatCompanionLinks(onPlan); linked != "" {
-		details = append(details, linked)
-	}
-	if companionNote != nil && strings.TrimSpace(*companionNote) != "" {
-		details = append(details, strings.TrimSpace(*companionNote))
-	}
-	if len(details) == 0 || !allowed.HasMode(userModels.DepartureAccompanied) {
-		return summary
-	}
-	return summary + " (mit: " + strings.Join(details, "; ") + ")"
+	return out
 }
 
 func careUsagePickupByDay(req *enrollmentModels.Request, child *enrollmentModels.RequestChild, schemas map[int64]*enrollmentModels.FormSchema) (map[string]string, error) {
