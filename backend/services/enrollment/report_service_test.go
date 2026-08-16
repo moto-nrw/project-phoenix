@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -1435,4 +1436,40 @@ func TestCareUsageSkipsCompactEnrichment(t *testing.T) {
 	require.Len(t, report.Rows, 1)
 	assert.Nil(t, report.Rows[0].CareDays)
 	assert.Nil(t, report.Rows[0].SchedulePickupByDay)
+}
+
+type fakeCareUsageAccessLogRepo struct {
+	auditModels.DataAccessLogRepository
+	entries []*auditModels.DataAccessLog
+}
+
+func (r *fakeCareUsageAccessLogRepo) Create(_ context.Context, entry *auditModels.DataAccessLog) error {
+	r.entries = append(r.entries, entry)
+	return nil
+}
+
+func TestRecordCareUsageExportAuditIncludesLayout(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		compact bool
+		want    string
+	}{
+		{name: "detailed", compact: false, want: "detailed"},
+		{name: "compact", compact: true, want: "compact"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeCareUsageAccessLogRepo{}
+			svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+				DataAccessLogRepo: repo,
+				PhaseRepo:         &fakeClassRosterPhaseRepo{},
+			}}
+			report := &CareUsageReport{Phase: CareUsagePhase{ID: 55}}
+
+			err := svc.recordCareUsageExportAudit(context.Background(), report, 42, "admin", "pdf", tc.compact)
+
+			require.NoError(t, err)
+			require.Len(t, repo.entries, 1)
+			assert.Equal(t, tc.want, repo.entries[0].GetMetadata()["layout"])
+		})
+	}
 }

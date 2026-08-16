@@ -523,7 +523,7 @@ func (s *reportService) ExportCareUsage(ctx context.Context, filters CareUsageFi
 	if err != nil {
 		return nil, err
 	}
-	if err := s.recordCareUsageExportAudit(ctx, report, actorAccountID, actorRole, format); err != nil {
+	if err := s.recordCareUsageExportAudit(ctx, report, actorAccountID, actorRole, format, compact); err != nil {
 		return nil, err
 	}
 	return report, nil
@@ -1963,7 +1963,7 @@ func sortedPickupTimes(seen map[string]bool) []string {
 	return out
 }
 
-func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *CareUsageReport, actorAccountID int64, actorRole, format string) error {
+func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *CareUsageReport, actorAccountID int64, actorRole, format string, compact bool) error {
 	if s.DataAccessLogRepo == nil {
 		return fmt.Errorf("care usage report export audit: data access log repo not configured")
 	}
@@ -1983,6 +1983,11 @@ func (s *reportService) recordCareUsageExportAudit(ctx context.Context, report *
 	entry.SetMetadata("phase_id", report.Phase.ID)
 	entry.SetMetadata("report", "care_usage")
 	entry.SetMetadata("format", format)
+	layout := "detailed"
+	if compact {
+		layout = "compact"
+	}
+	entry.SetMetadata("layout", layout)
 	entry.SetMetadata("status_filter", report.Filters.Status)
 	entry.SetMetadata("care_offering_ids", report.Filters.CareOfferingIDs)
 	if report.Filters.DayCount != nil {
