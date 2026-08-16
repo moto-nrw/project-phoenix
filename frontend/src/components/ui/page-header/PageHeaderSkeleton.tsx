@@ -1,15 +1,36 @@
 import { Skeleton } from "~/components/ui/skeleton";
 
 /**
- * Placeholder for the PageHeaderWithSearch strip (search field + action
- * button), shared by page-shell skeletons so the loaded header swaps in
- * without layout shift.
+ * Placeholder for PageHeaderWithSearch, shared by page-shell skeletons so
+ * there is one header geometry to maintain.
  */
-export function PageHeaderSkeleton() {
+export function PageHeaderSkeleton({
+  search = true,
+  chips = 0,
+  actions = 0,
+}: Readonly<{ search?: boolean; chips?: number; actions?: number }> = {}) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-3">
-      <Skeleton className="h-10 w-full max-w-md rounded-lg" />
-      <Skeleton className="h-10 w-32 flex-shrink-0 rounded-lg" />
+    <div className="mb-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <Skeleton className="h-6 w-32 rounded" />
+        {search ? (
+          <Skeleton className="h-10 w-full max-w-sm flex-1 rounded-lg sm:max-w-md" />
+        ) : null}
+        {actions > 0 ? (
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {Array.from({ length: actions }, (_, index) => (
+              <Skeleton key={index} className="h-10 w-28 rounded-lg" />
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {chips > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: chips }, (_, index) => (
+            <Skeleton key={index} className="h-8 w-24 rounded-full" />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

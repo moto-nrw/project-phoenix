@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "~/components/ui/skeleton";
+import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 
 function DatabaseCardSkeleton() {
   // Mirrors a database section card: icon block, count badge, title,
@@ -31,6 +32,9 @@ export function DatabaseIndexSkeleton() {
       data-testid="database-index-skeleton"
       className="w-full"
     >
+      <div className="md:hidden">
+        <PageHeaderSkeleton search={false} />
+      </div>
       <div className="min-h-[60vh]">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 8 }, (_, i) => (

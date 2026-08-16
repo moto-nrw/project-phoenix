@@ -113,6 +113,21 @@ describe("DatabasePage", () => {
     });
   });
 
+  it("shows the card-grid skeleton during the initial counts request", () => {
+    vi.mocked(useSWR).mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: true,
+      isValidating: true,
+      mutate: vi.fn(),
+    } as never);
+
+    render(<DatabasePage />);
+
+    expect(screen.getByTestId("database-index-skeleton")).toBeVisible();
+    expect(screen.queryByText("Kinder")).not.toBeInTheDocument();
+  });
+
   it("displays data sections with counts after loading", async () => {
     render(<DatabasePage />);
 
