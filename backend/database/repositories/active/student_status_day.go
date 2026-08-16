@@ -25,7 +25,7 @@ type StudentStatusDayRepository struct {
 	slotRepo scheduleModels.InstanceStudentRepository
 }
 
-func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayRepository {
+func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayOverviewRepository {
 	repo := base.NewRepository[*active.StudentStatusDay](db, "active.student_status_days", "StudentStatusDay")
 	repo.TenantScoped = true
 	return &StudentStatusDayRepository{

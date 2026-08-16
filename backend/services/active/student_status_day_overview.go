@@ -17,6 +17,17 @@ type statusDayOverviewPeople interface {
 	GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
 }
 
+// StudentStatusDayOverviewService owns the fully configured read model for
+// the tenant-wide absence overview.
+type StudentStatusDayOverviewService struct {
+	repo   activeModels.StudentStatusDayOverviewRepository
+	people statusDayOverviewPeople
+}
+
+func NewStudentStatusDayOverviewService(repo activeModels.StudentStatusDayOverviewRepository, people statusDayOverviewPeople) *StudentStatusDayOverviewService {
+	return &StudentStatusDayOverviewService{repo: repo, people: people}
+}
+
 type StatusDayOverviewEntry struct {
 	StatusDay *activeModels.StudentStatusDay
 	Student   *userModels.Student
@@ -39,8 +50,8 @@ type StatusDayOverview struct {
 // GetOverview loads and assembles the absence rows for the authorized groups.
 // Enrollment is evaluated on each status-day date; lifecycle status is used
 // only for legacy students without enrollment bounds.
-func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*educationModels.Group, from, to, today timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
-	if s.people == nil || s.overviewRepo == nil {
+func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, groups []*educationModels.Group, from, to, today timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
+	if s.people == nil || s.repo == nil {
 		return nil, errors.New("student status day overview dependencies are not configured")
 	}
 	groupIDs, groupsByID := indexOverviewGroups(groups)
@@ -58,11 +69,11 @@ func (s *StudentStatusDayService) GetOverview(ctx context.Context, groups []*edu
 		return &StatusDayOverview{Entries: []StatusDayOverviewEntry{}}, nil
 	}
 	options := statusDayOverviewOptions(studentIDs, studentsByID, from, to, today, filters)
-	total, err := s.overviewRepo.CountWithOptions(ctx, options)
+	total, err := s.repo.CountWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.overviewRepo.ListOverviewWithOptions(ctx, options)
+	rows, err := s.repo.ListOverviewWithOptions(ctx, options)
 	if err != nil {
 		return nil, err
 	}

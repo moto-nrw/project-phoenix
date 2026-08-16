@@ -88,7 +88,6 @@ const COLUMNS: DataTableColumn<StatusDayOverviewEntry>[] = [
     key: "date",
     header: "Datum",
     render: (row) => formatDate(row.date, true),
-    sortValue: (row) => row.date,
   },
   {
     key: "child",
@@ -98,19 +97,16 @@ const COLUMNS: DataTableColumn<StatusDayOverviewEntry>[] = [
         {row.last_name}, {row.first_name}
       </span>
     ),
-    sortValue: (row) => `${row.last_name} ${row.first_name}`,
   },
   {
     key: "school_class",
     header: "Klasse",
     render: (row) => row.school_class,
-    sortValue: (row) => row.school_class,
   },
   {
     key: "group",
     header: "Gruppe",
     render: (row) => row.group_name,
-    sortValue: (row) => row.group_name,
   },
   {
     key: "status",
@@ -118,7 +114,6 @@ const COLUMNS: DataTableColumn<StatusDayOverviewEntry>[] = [
     render: (row) => (
       <StatusDotBadge label={row.label} color={STATUS_COLORS[row.status]} />
     ),
-    sortValue: (row) => row.label,
   },
   {
     key: "reported",
@@ -315,8 +310,6 @@ export default function AbsencesPage() {
               onRowClick={(row) =>
                 router.push(`/students/${row.student_id}?from=/absences`)
               }
-              defaultSortKey="date"
-              defaultSortDirection="asc"
               caption={`${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${displayedPage}`}
               emptyState={
                 <EmptyState

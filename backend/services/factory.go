@@ -165,6 +165,7 @@ type Factory struct {
 	OfferingChanges         enrollment.OfferingChangeRequestService
 	ExcusedRequests         absence.ExcusedAbsenceRequestService
 	StudentStatusDays       *active.StudentStatusDayService
+	AbsenceOverview         *active.StudentStatusDayOverviewService
 	StudentHistory          active.StudentHistoryService
 	OGSGroupLive            ogsgrouplive.Getter
 	TimetableData           *schedule.TimetableDataService
@@ -2090,8 +2091,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentStatusDay,
 		repos.StudentPickupException,
 		db,
-		usersService,
 	)
+	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
 		People:          usersService,
 		Education:       educationService,
@@ -2252,6 +2253,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OfferingChanges:         offeringChangeRequestService,
 		ExcusedRequests:         excusedRequestService,
 		StudentStatusDays:       studentStatusDayService,
+		AbsenceOverview:         studentStatusDayOverviewService,
 		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		OGSGroupLive:            ogsGroupLiveService,
 		TimetableData:           timetableDataService,

@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/uptrace/bun"
 )
@@ -21,20 +20,12 @@ type StudentStatusDayService struct {
 	repo             activeModels.StudentStatusDayRepository
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository
 	db               *bun.DB
-	people           statusDayOverviewPeople
-	overviewRepo     statusDayOverviewRepository
-}
-
-type statusDayOverviewRepository interface {
-	ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*activeModels.StudentStatusDay, error)
-	CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error)
 }
 
 // NewStudentStatusDayService creates a StudentStatusDayService backed by the
 // status-day repository.
 func NewStudentStatusDayService(repo activeModels.StudentStatusDayRepository) *StudentStatusDayService {
-	overviewRepo, _ := repo.(statusDayOverviewRepository)
-	return &StudentStatusDayService{repo: repo, overviewRepo: overviewRepo}
+	return &StudentStatusDayService{repo: repo}
 }
 
 // NewStudentStatusDayServiceWithPartialAbsences also prevents a full-day
@@ -43,10 +34,8 @@ func NewStudentStatusDayServiceWithPartialAbsences(
 	repo activeModels.StudentStatusDayRepository,
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
 	db *bun.DB,
-	people statusDayOverviewPeople,
 ) *StudentStatusDayService {
-	overviewRepo, _ := repo.(statusDayOverviewRepository)
-	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db, people: people, overviewRepo: overviewRepo}
+	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db}
 }
 
 // GetActiveByStudentIDsAndDate returns the active status rows of many
