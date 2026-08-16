@@ -70,9 +70,7 @@ export function InfoCard({
  * Loading twin of InfoItem, colocated so the two share one markup shape:
  * same row layout, same label/value stack, bars instead of text.
  */
-export function InfoItemSkeleton({
-  icon = false,
-}: Readonly<{ icon?: boolean }>) {
+function InfoItemSkeleton({ icon = false }: Readonly<{ icon?: boolean }>) {
   return (
     <div className="flex items-start gap-3" aria-hidden="true">
       {icon && <Skeleton className="mt-0.5 h-4 w-4 flex-shrink-0 rounded" />}

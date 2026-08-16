@@ -64,6 +64,10 @@ export function SkeletonRegion({
  * bracket makes the fake content inert and invisible to assistive tech.
  * Scope: text-heavy detail/form surfaces only; never on screens with
  * images, charts, or many controls.
+ *
+ * @public Kept exported without a call site yet — this is the approach-4
+ * utility from docs/skeleton-loading-research.md, provided for the first
+ * matching detail surface.
  */
 export function SkeletonMask({
   children,
