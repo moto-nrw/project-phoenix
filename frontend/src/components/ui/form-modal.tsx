@@ -19,6 +19,9 @@ interface FormModalProps {
   // Where to position the modal on mobile viewports
   // 'bottom' mimics a bottom sheet; 'center' behaves like a classic modal
   readonly mobilePosition?: "bottom" | "center";
+  // Blocks every dismissal path (close icon, backdrop, Escape): for modals
+  // whose in-flight request must not look cancelled while it still commits.
+  readonly closeDisabled?: boolean;
 }
 
 export function FormModal({
@@ -29,6 +32,7 @@ export function FormModal({
   footer,
   size = "lg",
   mobilePosition = "bottom",
+  closeDisabled = false,
 }: FormModalProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -50,8 +54,13 @@ export function FormModal({
     xl: "max-w-4xl",
   };
 
+  // Ref keeps handleClose referentially stable when the flag flips mid-save,
+  // so the open/close effect below does not re-run and re-dispatch events.
+  const closeDisabledRef = useLatest(closeDisabled);
+
   // Enhanced close handler with exit animation
   const handleClose = useCallback(() => {
+    if (closeDisabledRef.current) return;
     setIsExiting(true);
     setIsAnimating(false);
 
@@ -59,7 +68,7 @@ export function FormModal({
     setTimeout(() => {
       onClose();
     }, 250);
-  }, [onClose]);
+  }, [onClose, closeDisabledRef]);
 
   // Handle modal context state for blur overlay
   useEffect(() => {

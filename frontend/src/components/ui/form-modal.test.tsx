@@ -160,6 +160,34 @@ describe("FormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("blocks close icon, backdrop, and Escape while closeDisabled", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={onClose} title="Test" closeDisabled>
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+  });
+
   it("should render footer when provided", async () => {
     render(
       <TestWrapper>

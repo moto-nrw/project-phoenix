@@ -17,7 +17,7 @@
  * Tag, damit er abgewählt werden kann.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -27,7 +27,8 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useToast } from "~/contexts/ToastContext";
-import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
+import { formatDate, parseISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
@@ -36,8 +37,17 @@ import type { EnrichedInstance } from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "BulkSubstitutionModal" });
 
-/** Obergrenze des Zeitraums; spiegelt MaxBulkSubstitutionDates im Backend. */
-const MAX_RANGE_DAYS = 31;
+/** Obergrenze der GEWÄHLTEN Tage; spiegelt MaxBulkSubstitutionDates im Backend. */
+const MAX_SELECTED_DATES = 31;
+
+/**
+ * Obergrenze des Vorschau-Zeitraums in inklusiven Kalendertagen; spiegelt
+ * maxInstanceListRangeDays des Range-Reads. Der Zeitraum darf LÄNGER sein als
+ * das Save-Limit: 31 planbare Termintage können sich über mehr als 31
+ * Kalendertage verteilen (Wochenenden, Ferien). Begrenzt wird die Auswahl,
+ * nicht der Kalender.
+ */
+const MAX_RANGE_DAYS = 56;
 
 interface StaffOption {
   id: string;
@@ -75,7 +85,11 @@ export function BulkSubstitutionModal({
   onSaved,
 }: BulkSubstitutionModalProps) {
   const toast = useToast();
-  const today = todayISO();
+  // Berliner Kalendertag, nicht Browser-Lokalzeit: das Backend validiert gegen
+  // timezone.TodayDate() (Berlin); ein Browser in einer anderen Zeitzone wäre
+  // um Mitternacht sonst einen Tag daneben. Der Hook rollt um Berliner
+  // Mitternacht weiter, das Modal bleibt über die Seite dauerhaft gemountet.
+  const today = useBerlinToday();
 
   const [absentStaffId, setAbsentStaffId] = useState("");
   const [fromISO, setFromISO] = useState(today);
@@ -87,15 +101,22 @@ export function BulkSubstitutionModal({
   const [deselected, setDeselected] = useState<ReadonlySet<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
+  // Nach dem Tagesübergang wären Von/Bis-Werte von gestern ungültige
+  // Vergangenheit; auf den neuen Berliner "heute"-Anker nachziehen.
+  useEffect(() => {
+    setFromISO((prev) => (prev !== "" && prev < today ? today : prev));
+    setToISO((prev) => (prev !== "" && prev < today ? today : prev));
+  }, [today]);
+
   const rangeValid =
     fromISO !== "" &&
     toISO !== "" &&
     fromISO <= toISO &&
-    rangeDays(fromISO, toISO) < MAX_RANGE_DAYS;
+    rangeDays(fromISO, toISO) + 1 <= MAX_RANGE_DAYS;
   const rangeTooLong =
     fromISO !== "" &&
     toISO !== "" &&
-    rangeDays(fromISO, toISO) >= MAX_RANGE_DAYS;
+    rangeDays(fromISO, toISO) + 1 > MAX_RANGE_DAYS;
 
   // Termine des Zeitraums laden, sobald Person und gültiger Zeitraum stehen.
   // Der Key trägt beide Daten; die Personenfilterung ist clientseitig, damit
@@ -183,8 +204,16 @@ export function BulkSubstitutionModal({
     onClose();
   };
 
+  // Das Backend nimmt höchstens 31 Daten pro Save: gezählt werden die
+  // GEWÄHLTEN Tage, nicht die Kalenderspanne.
+  const tooManyDates = selectedDates.length > MAX_SELECTED_DATES;
+
   const canSave =
-    !saving && absentStaffId !== "" && rangeValid && selectedDates.length > 0;
+    !saving &&
+    absentStaffId !== "" &&
+    rangeValid &&
+    selectedDates.length > 0 &&
+    !tooManyDates;
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -229,6 +258,10 @@ export function BulkSubstitutionModal({
     <FormModal
       isOpen={isOpen}
       onClose={resetAndClose}
+      // Der Save ist EIN atomarer Request: ein während des Speicherns
+      // geschlossenes Modal sähe abgebrochen aus, während der Server noch
+      // committet; alle Schließwege bleiben bis zur Antwort blockiert.
+      closeDisabled={saving}
       title="Sammel-Vertretung"
       size="lg"
       footer={
@@ -384,6 +417,14 @@ export function BulkSubstitutionModal({
                   );
                 })}
               </ul>
+            )}
+            {tooManyDates && (
+              <div className="mt-2">
+                <Alert
+                  type="error"
+                  message={`Höchstens ${MAX_SELECTED_DATES} Tage pro Speichern. Bitte einzelne Tage abwählen.`}
+                />
+              </div>
             )}
           </div>
         )}

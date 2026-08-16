@@ -57,18 +57,26 @@ vi.mock("~/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
 }));
 
+// Der Mock macht das closeDisabled-Prop als data-Attribut sichtbar; dass
+// FormModal damit wirklich alle Schließwege blockiert, prüft der eigene
+// FormModal-Test.
 vi.mock("~/components/ui/form-modal", () => ({
   FormModal: ({
     isOpen,
     children,
     footer,
+    closeDisabled,
   }: {
     isOpen: boolean;
     children: ReactNode;
     footer?: ReactNode;
+    closeDisabled?: boolean;
   }) =>
     isOpen ? (
-      <div>
+      <div
+        data-testid="form-modal"
+        data-close-disabled={closeDisabled ? "true" : "false"}
+      >
         {children}
         {footer}
       </div>
@@ -76,7 +84,7 @@ vi.mock("~/components/ui/form-modal", () => ({
 }));
 
 import { BulkSubstitutionModal } from "./bulk-substitution-modal";
-import { todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 
 const STAFF_OPTIONS = [
   { id: "11", name: "Anna Alt" },
@@ -84,9 +92,13 @@ const STAFF_OPTIONS = [
   { id: "13", name: "Carla Klar" },
 ];
 
-/** ISO-Datum `offset` Tage nach heute — hält die Fixtures zukunftsfest. */
+/**
+ * ISO-Datum `offset` Tage nach heute — hält die Fixtures zukunftsfest.
+ * Berlin-verankert wie der "heute"-Anker der Komponente, damit die Tests um
+ * Mitternacht in Nicht-Berlin-Zeitzonen nicht kippen.
+ */
 function futureISO(offset: number): string {
-  const d = new Date();
+  const d = parseISODate(berlinTodayISO());
   d.setDate(d.getDate() + offset);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -314,13 +326,82 @@ describe("BulkSubstitutionModal", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
-  it("lehnt einen zu langen Zeitraum ab", () => {
+  it("lehnt einen zu langen Vorschau-Zeitraum ab (mehr als 56 Kalendertage)", () => {
+    renderModal();
+    pickOption("Abwesende Person", "Anna Alt");
+    setRange(futureISO(1), futureISO(60));
+
+    expect(screen.getByText(/höchstens 56 Tage/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("erlaubt einen Zeitraum über 31 Kalendertage, begrenzt aber die GEWÄHLTEN Tage auf 31", () => {
+    // 32 Termintage in einem 40-Tage-Fenster: der Zeitraum ist gültig
+    // (≤ 56 Tage Vorschau), aber die Auswahl überschreitet das Save-Limit.
+    mockGetWeek.mockReturnValue(
+      weekResponse(
+        Array.from({ length: 32 }, (_, i) =>
+          makeInstance({ id: String(i + 1), date: futureISO(i + 1) }),
+        ),
+      ),
+    );
     renderModal();
     pickOption("Abwesende Person", "Anna Alt");
     setRange(futureISO(1), futureISO(40));
 
-    expect(screen.getByText(/höchstens 31 Tage/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(
+      screen.getByText(/Höchstens 31 Tage pro Speichern/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Für 32 Tag(e) speichern" }),
+    ).toBeDisabled();
+
+    // Einen Tag abwählen → 31 gewählte Tage sind wieder speicherbar.
+    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    expect(
+      screen.queryByText(/Höchstens 31 Tage pro Speichern/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Für 31 Tag(e) speichern" }),
+    ).toBeEnabled();
+  });
+
+  it("blockiert das Schließen des Modals, solange der Save läuft", async () => {
+    mockGetWeek.mockReturnValue(
+      weekResponse([makeInstance({ id: "1", date: futureISO(1) })]),
+    );
+    let resolveSave: (value: BulkSubstitutionResponse) => void = () => {};
+    mockApplyBulk.mockImplementation(
+      () =>
+        new Promise<BulkSubstitutionResponse>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    renderModal();
+
+    pickOption("Abwesende Person", "Anna Alt");
+    setRange(futureISO(1), futureISO(1));
+    expect(screen.getByTestId("form-modal")).toHaveAttribute(
+      "data-close-disabled",
+      "false",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Für 1 Tag(e) speichern" }),
+    );
+    expect(screen.getByTestId("form-modal")).toHaveAttribute(
+      "data-close-disabled",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+
+    resolveSave(
+      bulkResponse({
+        days: [{ date: futureISO(1), affectedInstances: [], warningCount: 0 }],
+        totalAffected: 1,
+      }),
+    );
+    await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledOnce());
   });
 
   it("markiert Tage, an denen die Person bereits überall abwesend gemeldet ist", () => {
@@ -347,9 +428,9 @@ describe("BulkSubstitutionModal", () => {
     expect(screen.getByText("bereits abwesend gemeldet")).toBeInTheDocument();
   });
 
-  it("heute als Standardzeitraum vorbelegt", () => {
+  it("heute (Berliner Kalendertag) als Standardzeitraum vorbelegt", () => {
     renderModal();
-    expect(screen.getByLabelText("Von")).toHaveValue(todayISO());
-    expect(screen.getByLabelText("Bis")).toHaveValue(todayISO());
+    expect(screen.getByLabelText("Von")).toHaveValue(berlinTodayISO());
+    expect(screen.getByLabelText("Bis")).toHaveValue(berlinTodayISO());
   });
 });
