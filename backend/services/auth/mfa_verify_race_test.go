@@ -83,6 +83,7 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	now := time.Now()
 	challenge := &authmodel.MFAEmailChallenge{
 		AccountID: acc.ID,
+		Scope:     authjwt.MFAChallengeScopeTenant,
 		CodeHash:  hash,
 		ExpiresAt: now.Add(auth.MFAChallengeTTL),
 		IPAddress: net.ParseIP("203.0.113.99"),
@@ -92,9 +93,12 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 		_, _ = db.NewDelete().Table("auth.mfa_email_challenges").Where("account_id = ?", acc.ID).Exec(context.Background())
 	})
 
+	// ChallengeID mirrors what StartChallenge stamps: the verify path resolves
+	// the exact row the token names, so a hand-built token must name it too.
 	challengeJWT, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
-		AccountID: acc.ID,
-		Scope:     authjwt.MFAChallengeScopeTenant,
+		AccountID:   acc.ID,
+		Scope:       authjwt.MFAChallengeScopeTenant,
+		ChallengeID: challenge.ID,
 	}, auth.MFAChallengeTTL)
 	require.NoError(t, err)
 
@@ -140,6 +144,7 @@ func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 
 	challenge := &authmodel.MFAEmailChallenge{
 		AccountID: acc.ID,
+		Scope:     authjwt.MFAChallengeScopeTenant,
 		CodeHash:  hash,
 		ExpiresAt: time.Now().Add(auth.MFAChallengeTTL),
 	}
@@ -148,7 +153,7 @@ func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 		_, _ = db.NewDelete().Table("auth.mfa_email_challenges").Where("account_id = ?", acc.ID).Exec(context.Background())
 	})
 
-	err = svc.VerifyCodeForAccount(ctx, acc.ID, plaintext)
+	err = svc.VerifyCodeForAccount(ctx, acc.ID, 0, plaintext, authjwt.MFAChallengeScopeTenant)
 	assert.ErrorIs(t, err, auth.ErrMFACodeInvalid,
 		"VerifyCodeForAccount must refuse the race-loser with the generic invalid-code error")
 	assert.Equal(t, 1, stub.markCalls)

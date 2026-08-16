@@ -338,6 +338,32 @@ describe("timetableService", () => {
     );
   });
 
+  it("passes start_date through to the update body (#2226)", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ data: backendTemplate }));
+
+    const body = {
+      name: "Yoga",
+      type: "activity" as const,
+      weekdays: [1],
+      start_time: "14:00",
+      end_time: "15:00",
+      room_id: 3,
+      category_id: 2,
+      calendar_period_id: 5,
+      start_date: "2026-08-12",
+    };
+
+    await timetableService.updateTemplate("7", body);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/templates/7",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    );
+  });
+
   it("loads a single template, splits a template, and ends it from an effective date", async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ data: backendTemplate }))
@@ -692,7 +718,7 @@ describe("timetableService", () => {
       instanceId: "42",
       activeGroupId: "99",
     });
-    await expect(timetableService.complete("42")).resolves.toMatchObject({
+    await expect(timetableService.complete("42", [])).resolves.toMatchObject({
       instanceId: "42",
       status: "completed",
     });
@@ -1252,5 +1278,127 @@ describe("staff pool + move (#1884)", () => {
     expect(result.action).toBe("assigned");
     const [, init] = fetchMock.mock.calls.at(-1) as [string, RequestInit];
     expect(JSON.parse(String(init.body))).toEqual({ staff_id: 9 });
+  });
+
+  it("posts confirmed present ids and reopens a completed instance", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            status: "completed",
+            completed_at: "2026-05-04T13:00:00Z",
+            reopen_until: "2026-05-04T13:05:00Z",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            status: "active",
+            active_group_id: 99,
+            started_at: "2026-05-04T13:01:00Z",
+            warnings: [],
+          },
+        }),
+      );
+
+    await expect(
+      timetableService.complete("42", ["21", "22"]),
+    ).resolves.toMatchObject({
+      instanceId: "42",
+      status: "completed",
+      reopenUntil: "2026-05-04T13:05:00Z",
+    });
+    await expect(timetableService.reopen("42")).resolves.toMatchObject({
+      instanceId: "42",
+      activeGroupId: "99",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/instances/42/complete",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ confirmed_present_student_ids: [21, 22] }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/instances/42/reopen",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+});
+
+describe("instance participants (#2283)", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    mockGetSession.mockResolvedValue({
+      user: { token: "jwt" },
+      expires: "2099-01-01",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("loads participant and staff names as string-keyed maps", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: {
+          participants: [
+            { student_id: 21, display_name: "Mia M." },
+            { student_id: 22, display_name: "Ben B." },
+          ],
+          staff: [{ staff_id: 11, display_name: "Frau Weber" }],
+        },
+      }),
+    );
+
+    const names = await timetableService.getInstanceParticipants("42");
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/timetable/instances/42/participants",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+    expect(names.studentNames.get("21")).toBe("Mia M.");
+    expect(names.studentNames.get("22")).toBe("Ben B.");
+    expect(names.staffNames.get("11")).toBe("Frau Weber");
+    expect(names.studentNames.size).toBe(2);
+    expect(names.staffNames.size).toBe(1);
+  });
+
+  it("returns empty maps when the block has no participants", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        status: "success",
+        data: { participants: [], staff: [] },
+      }),
+    );
+
+    const names = await timetableService.getInstanceParticipants("42");
+    expect(names.studentNames.size).toBe(0);
+    expect(names.staffNames.size).toBe(0);
+  });
+
+  it("surfaces backend errors via TimetableApiError", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        { error: "Zugriff verweigert", code: "FORBIDDEN" },
+        { status: 403 },
+      ),
+    );
+
+    await expect(
+      timetableService.getInstanceParticipants("42"),
+    ).rejects.toMatchObject({ httpStatus: 403, code: "FORBIDDEN" });
   });
 });

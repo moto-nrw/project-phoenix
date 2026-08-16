@@ -94,6 +94,7 @@ func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollmen
 		Set("availability_rule = ?", offering.AvailabilityRule).
 		Set("selection_group = ?", offering.SelectionGroup).
 		Set("selection_rule = ?", offering.SelectionRule).
+		Set("pickup_times = ?", offering.PickupTimes).
 		Set("sort_order = ?", offering.SortOrder).
 		Set("updated_at = NOW()").
 		Where(`"care_offering".id = ?`, offering.ID).
@@ -205,8 +206,9 @@ func (r *CareOfferingRepository) ListByPhase(ctx context.Context, phaseID int64)
 }
 
 // ListByIDs returns the exact care offerings referenced by ids. It is not
-// phase-scoped because rollover request children can intentionally carry
-// source-phase offering IDs into the target phase.
+// phase-scoped: callers like the decision path resolve whatever IDs are
+// persisted on a request child, and legacy pre-#2249 rollover rows may
+// still carry source-phase offering IDs.
 func (r *CareOfferingRepository) ListByIDs(ctx context.Context, ids []int64) ([]*enrollment.CareOffering, error) {
 	if len(ids) == 0 {
 		return []*enrollment.CareOffering{}, nil

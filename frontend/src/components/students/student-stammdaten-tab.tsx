@@ -18,6 +18,7 @@ import {
 } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
 import { StudentPhotoSection } from "./student-photo-section";
+import { StudentDepartureErrorBoundary } from "./student-departure-error-boundary";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
@@ -1154,50 +1155,52 @@ export function StudentStammdatenTab({
         hasError={enrollmentExtraLoadError}
       />
 
-      <DepartureSection
-        days={formData.allowed_departure_modes}
-        onChange={(value) => {
-          const allowed = normalizeAllowedDepartureModes(value);
-          const departure = allowedDepartureToDepartureDays(allowed);
-          const busDays = allowedDepartureToBusDays(allowed);
-          const pickupDays = allowedDepartureToPickupDays(allowed);
-          setFormData((prev) => ({
-            ...prev,
-            allowed_departure_modes: allowed,
-            departure_days: departure,
-            // Keep the derived legacy fields consistent for any reader.
-            bus_days: busDays,
-            bus: busDaysHaveAny(busDays),
-            pickup_days: pickupDays,
-            pickup_status: pickupDaysHaveAny(pickupDays)
-              ? "Wird abgeholt"
-              : "Geht alleine nach Hause",
-          }));
-        }}
-        companionNote={formData.departure_companion_note}
-        onCompanionNoteChange={(value) =>
-          setFormData((prev) => ({
-            ...prev,
-            departure_companion_note: value,
-          }))
-        }
-        companionNoteError={errors.departure_companion_note}
-        companions={companions}
-        // Hidden until the stored links are known (the section drops the picker
-        // without a change handler): an edit made against a pending or failed
-        // load would be silently discarded on save, since the list only travels
-        // when it is the stored one.
-        onCompanionsChange={
-          companionsStatus === "ready" ? setCompanions : undefined
-        }
-        companionStudentId={String(student.id)}
-        onCompanionExtensionConfirmed={(confirmation) => {
-          setExtendCompanionPlans(true);
-          setConfirmedExtensions((current) =>
-            mergeCompanionConfirmations(current, [confirmation]),
-          );
-        }}
-      />
+      <StudentDepartureErrorBoundary key={String(student.id)}>
+        <DepartureSection
+          days={formData.allowed_departure_modes}
+          onChange={(value) => {
+            const allowed = normalizeAllowedDepartureModes(value);
+            const departure = allowedDepartureToDepartureDays(allowed);
+            const busDays = allowedDepartureToBusDays(allowed);
+            const pickupDays = allowedDepartureToPickupDays(allowed);
+            setFormData((prev) => ({
+              ...prev,
+              allowed_departure_modes: allowed,
+              departure_days: departure,
+              // Keep the derived legacy fields consistent for any reader.
+              bus_days: busDays,
+              bus: busDaysHaveAny(busDays),
+              pickup_days: pickupDays,
+              pickup_status: pickupDaysHaveAny(pickupDays)
+                ? "Wird abgeholt"
+                : "Geht alleine nach Hause",
+            }));
+          }}
+          companionNote={formData.departure_companion_note}
+          onCompanionNoteChange={(value) =>
+            setFormData((prev) => ({
+              ...prev,
+              departure_companion_note: value,
+            }))
+          }
+          companionNoteError={errors.departure_companion_note}
+          companions={companions}
+          // Hidden until the stored links are known (the section drops the picker
+          // without a change handler): an edit made against a pending or failed
+          // load would be silently discarded on save, since the list only travels
+          // when it is the stored one.
+          onCompanionsChange={
+            companionsStatus === "ready" ? setCompanions : undefined
+          }
+          companionStudentId={String(student.id)}
+          onCompanionExtensionConfirmed={(confirmation) => {
+            setExtendCompanionPlans(true);
+            setConfirmedExtensions((current) =>
+              mergeCompanionConfirmations(current, [confirmation]),
+            );
+          }}
+        />
+      </StudentDepartureErrorBoundary>
 
       <EnrollmentConsentsSection
         agbAcceptedAt={student.agb_accepted_at}

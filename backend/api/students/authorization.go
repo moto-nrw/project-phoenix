@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -25,69 +26,61 @@ func canDeleteStudent(ctx context.Context, userPermissions []string, student *us
 	return authorize.CanDeleteStudent(ctx, userPermissions, student, ucs)
 }
 
-func isGroupSupervisor(ctx context.Context, groupID int64, ucs userContextService.UserContextService) bool {
-	return authorize.IsGroupSupervisor(ctx, groupID, ucs)
+// canManageStudentAbsence is the action-scoped write gate for the absence
+// statuses (krank, entschuldigt, Klassenfahrt): CanUpdateStudent plus the
+// users:absence read-pair prerequisite, so a custom role limited to absence
+// writes never reaches further than its users:read footing (#2232, #2329).
+func (rs *Resource) canManageStudentAbsence(ctx context.Context, userPermissions []string, student *users.Student) (bool, error) {
+	return authorize.CanManageStudentAbsence(ctx, userPermissions, student, rs.UserContextService)
+}
+
+// checkStudentAbsenceWriteAccess is the boolean form for the detail response's
+// has_absence_write_access flag, which the frontend uses to show or hide the
+// Krankmeldung / Entschuldigung / Klassenfahrt actions independently of the
+// Stammdaten edit affordances (has_write_access).
+func (rs *Resource) checkStudentAbsenceWriteAccess(r *http.Request, student *users.Student) bool {
+	ok, _ := rs.canManageStudentAbsence(r.Context(), jwt.PermissionsFromCtx(r.Context()), student)
+	return ok
 }
 
 // checkStudentFullAccess determines if the current user has full access to
-// a student's data for write operations (update, delete, privacy consent, etc.).
-// Returns true if the user is an admin or supervises the student's group.
+// a student's data for write operations (update, privacy consent, pickup
+// exceptions, etc.): admin, or verified staff holding users:update (#2329).
 //
-// The gdpr.student_data_scope setting intentionally does NOT apply here.
-// write operations remain restricted to group supervisors regardless of scope.
-// For read access checks, use checkStudentReadAccess instead.
+// The permission is part of the answer on purpose: this predicate also feeds
+// the detail response's has_write_access flag, and a flag that says "yes" to a
+// caller the users:update route gate then refuses would light up Stammdaten
+// edit affordances that can only 403 (e.g. a custom role holding just
+// users:read + users:absence).
 func (rs *Resource) checkStudentFullAccess(r *http.Request, student *users.Student) bool {
-	return rs.isGroupSupervisorOrAdmin(r, student)
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	if !authorize.HasAdminWildcard(userPermissions) &&
+		!authorize.HasPermission(permissions.UsersUpdate, userPermissions) {
+		return false
+	}
+	ok, _ := authorize.CanUpdateStudent(
+		r.Context(),
+		userPermissions,
+		student,
+		rs.UserContextService,
+	)
+	return ok
 }
 
 // checkStudentReadAccess determines if the current user has full read access
 // to a student's data (profile, location, visit info, privacy details, pickup
-// schedules). Returns true if the user is an admin, a verified staff member
-// when the tenant's student_data_scope is set to all_staff, or a supervisor
-// of the student's education group.
-//
-// This function MUST only be used on read paths. Write operations must use
-// checkStudentFullAccess which ignores the scope setting.
+// schedules): admin or verified staff. Other roles (guest, guardian) stay
+// redacted.
 //
 // Delegates to authorize.CanReadStudent so the same predicate is reusable
-// from other handlers (timetable, per-student day view) without duplicating
-// the scope/admin/supervisor logic.
+// from other handlers (timetable, per-student day view).
 func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Student) bool {
 	return authorize.CanReadStudent(
 		r.Context(),
 		jwt.PermissionsFromCtx(r.Context()),
 		student,
 		rs.UserContextService,
-		rs.SettingsService,
-		rs.Logger,
 	)
-}
-
-// isGroupSupervisorOrAdmin checks if the caller is an admin or supervises the
-// student's education group. This is the core authorization logic shared by
-// both read and write access paths (before scope overrides are applied).
-func (rs *Resource) isGroupSupervisorOrAdmin(r *http.Request, student *users.Student) bool {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if authorize.HasAdminWildcard(userPermissions) {
-		return true
-	}
-
-	if student.GroupID == nil {
-		return false
-	}
-
-	educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-	if err != nil {
-		return false
-	}
-
-	for _, group := range educationGroups {
-		if group.ID == *student.GroupID {
-			return true
-		}
-	}
-
-	return false
 }
 
 // buildSupervisorContacts creates supervisor contact list from group teachers

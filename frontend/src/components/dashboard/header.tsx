@@ -99,6 +99,15 @@ export function Header() {
       return tParentNav("settings");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
       return tParentNav("mealPlan");
+    if (pathname === "/parents/calendar" || pathname === "/calendar")
+      return tParentNav("calendar");
+    if (pathname === "/parents/feedback" || pathname === "/feedback")
+      return tParentNav("feedback");
+    if (
+      matchesPathPrefix(pathname, "/parents/enroll") ||
+      matchesPathPrefix(pathname, "/enroll")
+    )
+      return tParentNav("enroll");
     return null;
   })();
   const displayedPageTitle = parentPageTitle ?? pageTitle;
@@ -205,9 +214,18 @@ export function Header() {
                 isScrolled={isScrolled}
                 href={homeUrl}
                 label={brandLabel}
+                hideLabelOnMobile={mode === "parent"}
               />
             )}
             <BreadcrumbDivider />
+            {/* Elternportal: Seitentitel auch auf Mobilgeräten anzeigen —
+                die Breadcrumb-Komponenten sind hidden md:flex, ohne diesen
+                Titel fehlt unterhalb md jede Ortsangabe (#Elternapp-Audit). */}
+            {mode === "parent" && (
+              <span className="min-w-0 truncate text-sm font-semibold text-gray-900 md:hidden">
+                {displayedPageTitle}
+              </span>
+            )}
             <HeaderBreadcrumb
               pathname={pathname}
               pageTitle={displayedPageTitle}
@@ -291,6 +309,10 @@ function enrichReferrerWithParam(referrer: string): string {
     if (groupId) return `/ogs-groups?group=${groupId}`;
   }
   if (referrer === "/active-supervisions") {
+    // Prefer the precise session key (#2265); the room key is the legacy
+    // fallback for state written before session tracking existed.
+    const sessionId = localStorage.getItem("supervision-last-session");
+    if (sessionId) return `/active-supervisions?session=${sessionId}`;
     const roomId = localStorage.getItem("sidebar-last-room");
     if (roomId) return `/active-supervisions?room=${roomId}`;
   }

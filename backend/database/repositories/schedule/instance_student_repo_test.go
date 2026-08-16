@@ -1018,6 +1018,34 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, got.Substatus)
 		assert.Nil(t, got.Note)
+		require.NotNil(t, got.ManualStatusAt,
+			"substatus-only staff edits must stamp manual ownership")
+	})
+
+	t.Run("substatus-only edit clears partial provenance and stamps manual", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Substatus-%d", time.Now().UnixNano()))
+		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+		partial := testpkg.CreateTestPickupException(t, db, student.ID, inst.Date, staff.ID, "13:00", "Termin")
+		defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
+
+		row.PickupExceptionID = &partial.ID
+		row.Status = scheduleModels.AttendanceStatusAbsent
+		excused := scheduleModels.AttendanceSubstatusExcused
+		row.Substatus = &excused
+		row.ManualStatusAt = nil
+		require.NoError(t, repo.Update(ctx, row))
+
+		late := scheduleModels.AttendanceSubstatusLate
+		require.NoError(t, repo.UpdateAttendanceFields(ctx, row.ID, scheduleModels.AttendanceFieldPatch{
+			Substatus: &late,
+		}))
+
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.PickupExceptionID)
+		require.NotNil(t, got.ManualStatusAt)
+		require.NotNil(t, got.Substatus)
+		assert.Equal(t, scheduleModels.AttendanceSubstatusLate, *got.Substatus)
 	})
 
 	t.Run("empty patch is a no-op (defensive)", func(t *testing.T) {
@@ -1910,7 +1938,8 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	sickened := testpkg.CreateTestStudent(t, db, "WirdKrank", fmt.Sprintf("D1-%d", suffix), "4a")
 	recovered := testpkg.CreateTestStudent(t, db, "WirdGesund", fmt.Sprintf("D2-%d", suffix), "4a")
 	unbooked := testpkg.CreateTestStudent(t, db, "OhneBuchung", fmt.Sprintf("D3-%d", suffix), "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, sickened.ID, recovered.ID, unbooked.ID)
+	partiallyExcused := testpkg.CreateTestStudent(t, db, "Teilentschuldigt", fmt.Sprintf("D4-%d", suffix), "4a")
+	defer testpkg.CleanupActivityFixtures(t, db, sickened.ID, recovered.ID, unbooked.ID, partiallyExcused.ID)
 
 	// The state at apply time: `recovered` was already down for a planned
 	// sickness, the other two were plain plan rows.
@@ -1925,13 +1954,15 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	unbookedRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, unbooked.ID,
 		scheduleModels.AttendanceStatusExpected,
 		testpkg.InstanceStudentOpts{NotScheduled: true})
+	partialRow := testpkg.CreateTestInstanceStudent(t, db, inst.ID, partiallyExcused.ID,
+		scheduleModels.AttendanceStatusExpected)
 	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students",
-		sickenedRow.ID, recoveredRow.ID, unbookedRow.ID)
+		sickenedRow.ID, recoveredRow.ID, unbookedRow.ID, partialRow.ID)
 
-	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID}
+	graduates := []int64{sickened.ID, recovered.ID, unbooked.ID, partiallyExcused.ID}
 	removed, err := repo.ArchivePlannedByStudentIDsFrom(ctx, transition.ID, graduates, today, time.Now())
 	require.NoError(t, err)
-	require.Equal(t, 3, removed, "all three plan rows are archived on apply")
+	require.Equal(t, 4, removed, "all four plan rows are archived on apply")
 
 	// The alumnus window: one child is reported sick, the other's sickness is
 	// cleared. Neither change could reach the archived snapshot.
@@ -1940,10 +1971,19 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	_, err = db.NewRaw(`UPDATE active.student_status_days SET cleared_at = NOW() WHERE id = ?`,
 		oldStatusDay.ID).Exec(ctx)
 	require.NoError(t, err)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Owner-%d", suffix))
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	partial := testpkg.CreateTestPickupException(t, db, partiallyExcused.ID, soon, staff.ID, "13:00", "Termin")
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	partial.ExcusedFrom = &from
+	partial.ExcusedCreatedBy = &staff.ID
+	partial.ExcusedOwnsPickupTime = true
+	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
 
 	replayed, err := repo.RestoreArchivedByTransition(ctx, transition.ID, graduates, today)
 	require.NoError(t, err)
-	require.Equal(t, 3, replayed)
+	require.Equal(t, 4, replayed)
 
 	get := func(studentID int64) *scheduleModels.InstanceStudent {
 		got, gErr := repo.FindByInstanceAndStudent(ctx, inst.ID, studentID)
@@ -1972,4 +2012,216 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 	assert.True(t, gotUnbooked.NotScheduled, "the non-booking marker is structural and replays verbatim")
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotUnbooked.Status)
 	assert.Nil(t, gotUnbooked.StudentStatusDayID)
+
+	gotPartial := get(partiallyExcused.ID)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotPartial.Status,
+		"a partial excusal created while the child was an alumnus must be replayed")
+	require.NotNil(t, gotPartial.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *gotPartial.Substatus)
+	assert.Nil(t, gotPartial.StudentStatusDayID)
+	require.NotNil(t, gotPartial.PickupExceptionID)
+	assert.Equal(t, partial.ID, *gotPartial.PickupExceptionID)
+}
+
+// A race after materialization discovers an instance and cancels it before
+// ApplyActivePartialAbsencesForInstance runs must not stamp cancelled
+// attendance rows. Mirror ApplyPartialAbsence's status <> cancelled guard.
+func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInstance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	date := timezone.NewDate(2026, 11, 5)
+
+	activeInst, cleanupActive := createInstanceFixture(t, db, "partial-active", date)
+	defer cleanupActive()
+	cancelledInst, cleanupCancelled := createInstanceFixture(t, db, "partial-cxl", date)
+	defer cleanupCancelled()
+	cancelledInst.Status = scheduleModels.InstanceStatusCancelled
+	require.NoError(t, instanceRepo.Update(ctx, cancelledInst))
+
+	student := testpkg.CreateTestStudent(t, db, "Cancel", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Cancel-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+
+	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID,
+		scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", activeRow.ID)
+	cancelledRow := testpkg.CreateTestInstanceStudent(t, db, cancelledInst.ID, student.ID,
+		scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", cancelledRow.ID)
+
+	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	partial.ExcusedFrom = &from
+	partial.ExcusedCreatedBy = &staff.ID
+	partial.ExcusedOwnsPickupTime = true
+	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
+
+	n, err := repo.ApplyActivePartialAbsencesForInstance(ctx, cancelledInst.ID, date)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "cancelled instance must not receive partial projection")
+
+	gotCancelled, err := repo.FindByID(ctx, cancelledRow.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotCancelled.Status)
+	assert.Nil(t, gotCancelled.PickupExceptionID)
+
+	n, err = repo.ApplyActivePartialAbsencesForInstance(ctx, activeInst.ID, date)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	gotActive, err := repo.FindByID(ctx, activeRow.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotActive.Status)
+	require.NotNil(t, gotActive.PickupExceptionID)
+	assert.Equal(t, partial.ID, *gotActive.PickupExceptionID)
+}
+
+// The session-end bridge flips expected → absent without care-day locks.
+// ApplyPartialAbsence must still claim those bare absences so release can
+// reconcile them by pickup_exception_id.
+func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	date := timezone.NewDate(2026, 11, 4)
+
+	// createInstanceFixture starts at 14:00 — after a 13:00 cutoff.
+	inst, cleanupInst := createInstanceFixture(t, db, "partial-bridge", date)
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Bridge", fmt.Sprintf("Bare-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Bridge-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+
+	// Session-end bridge already stamped a bare absence (no provenance).
+	row := testpkg.CreateTestInstanceStudent(t, db, inst.ID, student.ID,
+		scheduleModels.AttendanceStatusAbsent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	partial.ExcusedFrom = &from
+	partial.ExcusedCreatedBy = &staff.ID
+	partial.ExcusedOwnsPickupTime = true
+	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
+
+	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "bridge bare absence after the cutoff must be claimed")
+
+	got, err := repo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status)
+	require.NotNil(t, got.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *got.Substatus)
+	require.NotNil(t, got.PickupExceptionID)
+	assert.Equal(t, partial.ID, *got.PickupExceptionID)
+
+	// Hand the row to a broad day status; partial must not steal it back.
+	released, err := repo.ReleasePartialAbsence(ctx, partial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, released)
+	statusDay := testpkg.CreateTestStudentStatusDay(t, db, student.ID, date, "sick")
+	defer testpkg.CleanupStudentStatusDays(t, db, statusDay.ID)
+	applied, err := repo.ApplyStatusDay(ctx, student.ID, date, statusDay.ID, scheduleModels.AttendanceSubstatusSick)
+	require.NoError(t, err)
+	assert.Equal(t, 1, applied)
+
+	n, err = repo.ApplyPartialAbsence(ctx, partial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "status-day owned absences must not be claimed by a partial")
+
+	got, err = repo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.StudentStatusDayID)
+	assert.Equal(t, statusDay.ID, *got.StudentStatusDayID)
+	assert.Nil(t, got.PickupExceptionID)
+}
+
+// Parallel-presence lookup (#2265): only rows in OTHER instances that are
+// currently active on the same day and hold the student as 'present' count.
+func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Paula", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Otto", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+1), "1a")
+	checkedOut := testpkg.CreateTestStudent(t, db, "Carla", fmt.Sprintf("Parallel-%d", time.Now().UnixNano()+2), "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, other.ID, checkedOut.ID)
+
+	day := timezone.NewDate(2026, 9, 21)
+	instTarget, cleanTarget := createInstanceFixture(t, db, "par-target", day)
+	defer cleanTarget()
+	instActive, cleanActive := createInstanceFixture(t, db, "par-active", day)
+	defer cleanActive()
+	instPlanned, cleanPlanned := createInstanceFixture(t, db, "par-planned", day)
+	defer cleanPlanned()
+
+	activate := func(inst *scheduleModels.ActivityInstance, title string) {
+		inst.Status = scheduleModels.InstanceStatusActive
+		inst.Title = title
+		inst.StartTime = time.Date(2024, 1, 1, 12, 45, 0, 0, time.UTC)
+		inst.EndTime = time.Date(2024, 1, 1, 13, 45, 0, 0, time.UTC)
+		require.NoError(t, instRepo.Update(ctx, inst))
+	}
+	activate(instTarget, "Lernzeit JG 1")
+	activate(instActive, "GT 1")
+
+	mkRow := func(instID, studentID int64, status string) *scheduleModels.InstanceStudent {
+		row := &scheduleModels.InstanceStudent{InstanceID: instID, StudentID: studentID, Status: status}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		return row
+	}
+	// Present in the target itself — must be excluded.
+	rTarget := mkRow(instTarget.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rTarget.ID)
+	// Present in another ACTIVE instance — the one expected hit.
+	rActive := mkRow(instActive.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rActive.ID)
+	// Present in a PLANNED instance — not running, excluded.
+	rPlanned := mkRow(instPlanned.ID, student.ID, scheduleModels.AttendanceStatusPresent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rPlanned.ID)
+	// Only expected in the other active instance — excluded.
+	rExpected := mkRow(instActive.ID, other.ID, scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rExpected.ID)
+	// A checked-out row retains status='present' but is no longer current.
+	checkedOutAt := time.Date(2026, 9, 21, 13, 0, 0, 0, time.UTC)
+	rCheckedOut := &scheduleModels.InstanceStudent{
+		InstanceID:   instActive.ID,
+		StudentID:    checkedOut.ID,
+		Status:       scheduleModels.AttendanceStatusPresent,
+		CheckedOutAt: &checkedOutAt,
+	}
+	rCheckedOut.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, rCheckedOut))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rCheckedOut.ID)
+
+	got, err := repo.FindPresentInOtherActiveInstances(ctx, instTarget.ID, day, []int64{student.ID, other.ID, checkedOut.ID})
+	require.NoError(t, err)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, student.ID, got[0].StudentID)
+	assert.Equal(t, instActive.ID, got[0].InstanceID)
+	assert.Equal(t, "GT 1", got[0].Title)
+	assert.Equal(t, "12:45", got[0].StartTime.Format("15:04"))
+	assert.Equal(t, "13:45", got[0].EndTime.Format("15:04"))
+
+	empty, err := repo.FindPresentInOtherActiveInstances(ctx, instTarget.ID, day, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
 }

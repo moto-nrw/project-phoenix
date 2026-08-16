@@ -5,10 +5,15 @@ import (
 	"time"
 )
 
-// MFA challenge scope values — distinguish tenant accounts from platform operators.
+// MFA challenge scope values — distinguish tenant accounts from platform
+// operators and school-portal (Lehrkraft) logins. The school scope (#2207)
+// exists so a challenge started at /school/auth/login can only ever be
+// redeemed for school-scope tokens: the tenant verify endpoint refuses it
+// and vice versa.
 const (
 	MFAChallengeScopeTenant   = "tenant"
 	MFAChallengeScopePlatform = "platform"
+	MFAChallengeScopeSchool   = "school"
 )
 
 // MFAChallengeClaims represents a short-lived JWT issued after a successful
@@ -31,6 +36,14 @@ type MFAChallengeClaims struct {
 	// repository calls in the correct tenant tx. Zero on platform tokens.
 	TenantID int64 `json:"tenant_id,omitempty"`
 
+	// ChallengeID pins the token to the exact auth.mfa_email_challenges row
+	// it was minted for. Without it the verify path had to fall back to
+	// "newest active code for this account", which is ambiguous the moment
+	// one account has two challenges in flight — a tenant login and a school
+	// login, say — and let the code emailed for one portal be redeemed at the
+	// other. Zero only on tokens minted before this claim existed.
+	ChallengeID int64 `json:"challenge_id,omitempty"`
+
 	// MFAPending must be true on every challenge token — middleware uses this
 	// to reject challenge tokens at endpoints that expect a fully
 	// authenticated session.
@@ -51,6 +64,7 @@ func (c *MFAChallengeClaims) ParseClaims(claims map[string]any) error {
 		foreignFlagErr: "token is a pending-MFA-enrollment token, not a challenge",
 		scopeTenant:    MFAChallengeScopeTenant,
 		scopePlatform:  MFAChallengeScopePlatform,
+		scopeSchool:    MFAChallengeScopeSchool,
 		pendingFlagKey: "mfa_pending",
 		notPendingErr:  "token is not a pending-MFA challenge",
 	}, &c.CommonClaims)
@@ -60,6 +74,7 @@ func (c *MFAChallengeClaims) ParseClaims(claims map[string]any) error {
 	c.AccountID = accountID
 	c.TenantID = tenantID
 	c.Scope = scope
+	c.ChallengeID = getOptionalInt64(claims, "challenge_id")
 	c.MFAPending = true
 	return nil
 }
@@ -82,6 +97,9 @@ func (a *TokenAuth) CreateMFAChallengeJWT(c MFAChallengeClaims, ttl time.Duratio
 	}
 	if c.TenantID != 0 {
 		claims["tenant_id"] = c.TenantID
+	}
+	if c.ChallengeID != 0 {
+		claims["challenge_id"] = c.ChallengeID
 	}
 
 	_, tokenString, err := a.JwtAuth.Encode(claims)

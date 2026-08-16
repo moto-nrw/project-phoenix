@@ -8,11 +8,14 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -48,6 +51,10 @@ type PersonServiceDependencies struct {
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
 	TeacherRepo userModels.TeacherRepository
+	// RoleRepo answers which roles the staff member's account holds. Required
+	// by the caregiver-profile paths: the Lehrkraft role (#1772) is provisioned
+	// without a profile on purpose and must not be handed one here.
+	RoleRepo auth.RoleRepository
 	// PersonnelNumberAudit is required for UpdatePersonnelNumber; the write
 	// path refuses to run without it (no change without a trace, #1417).
 	PersonnelNumberAudit auditModels.PersonnelNumberChangeCreator
@@ -618,33 +625,59 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 // CreateStaffWithTeacher creates a staff record and, when requested, a teacher
 // record in one tenant transaction. A failed teacher creation is deliberately
 // non-fatal: the staff row still persists (historical api/staff behaviour).
+//
+// A person that already carries a live staff record adopts it instead of
+// getting a second one. Since #2222 the account-creating paths provision the
+// person → staff chain themselves, so the staff creation that follows in the
+// same flow finds its row already there; adopting turns what would be a
+// duplicate row into the detail update the caller meant.
+//
+// The returned teacher record reports the state the staff member is actually
+// in, not the state the request asked for: an adopted staff row can already
+// carry a live caregiver profile, and a request that did not ask for one does
+// not remove it (see liveTeacherForStaff).
 func (s *personService) CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
-	staff := &userModels.Staff{
-		PersonID:   input.PersonID,
-		StaffNotes: input.StaffNotes,
-	}
-
+	var staff *userModels.Staff
 	var teacher *userModels.Teacher
 	teacherCreationFailed := false
 
 	tenantID := tenant.FromContext(ctx)
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := s.StaffRepo.Create(ctx, staff); err != nil {
+		if err := s.refuseCaregiverProfileForLehrkraft(ctx, input.PersonID, input.IsTeacher); err != nil {
 			return err
 		}
 
+		existing, err := s.StaffRepo.FindByPersonID(ctx, input.PersonID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if existing != nil && existing.DeletedAt == nil {
+			// Adoption is an edit of a record that is already in the directory,
+			// so it owes users:update — the create permission this route is
+			// gated on does not cover overwriting someone's notes or writing
+			// a caregiver profile onto them.
+			if !authorize.HasPermission(permissions.UsersUpdate, input.ActorPermissions) {
+				return ErrStaffAdoptionNotPermitted
+			}
+			existing.StaffNotes = input.StaffNotes
+			if err := s.StaffRepo.Update(ctx, existing); err != nil {
+				return err
+			}
+			staff = existing
+		} else {
+			staff = &userModels.Staff{
+				PersonID:   input.PersonID,
+				StaffNotes: input.StaffNotes,
+			}
+			if err := s.StaffRepo.Create(ctx, staff); err != nil {
+				return err
+			}
+		}
+
 		if input.IsTeacher {
-			teacher = &userModels.Teacher{
-				StaffID:        staff.ID,
-				Specialization: strings.TrimSpace(input.Specialization),
-				Role:           input.Role,
-				Qualifications: input.Qualifications,
-			}
-			if s.TeacherRepo.Create(ctx, teacher) != nil {
-				// Still return the staff member even if teacher creation fails
-				teacher = nil
-				teacherCreationFailed = true
-			}
+			teacher, teacherCreationFailed = s.ensureTeacherForStaff(ctx, staff.ID, input)
+		} else {
+			teacher = s.liveTeacherForStaff(ctx, staff.ID)
 		}
 
 		return nil
@@ -653,6 +686,107 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 	}
 
 	return staff, teacher, teacherCreationFailed, nil
+}
+
+// refuseCaregiverProfileForLehrkraft rejects a request that would give a
+// caregiver profile to an account holding the Lehrkraft system role (#1772).
+//
+// The role-assignment paths already refuse the combination from the other
+// direction: AssignRoleToAccount, the operator role change and the invitation
+// flow all reject Lehrkraft on an account that carries a live profile. Staff
+// creation was the open side of the same door — a Lehrkraft account is
+// provisioned with a staff record and deliberately without a profile, so
+// POST /api/staff with is_teacher:true found the record, adopted it and
+// created exactly the profile the other paths forbid, along with the caregiver
+// permissions the create handler grants on that basis.
+//
+// Runs inside the caller's transaction, before anything is written.
+//
+// Fails closed: a person without an account cannot be a Lehrkraft, but an
+// unreadable role set is not permission to write the profile — the same call
+// the default-permission grant makes when it cannot resolve the roles.
+func (s *personService) refuseCaregiverProfileForLehrkraft(ctx context.Context, personID int64, isTeacher bool) error {
+	if !isTeacher {
+		return nil
+	}
+
+	person, err := s.PersonRepo.FindByID(ctx, personID)
+	if err != nil {
+		return err
+	}
+	if person == nil || person.AccountID == nil {
+		return nil
+	}
+
+	if s.RoleRepo == nil {
+		return errors.New("role repository is required to decide the caregiver profile")
+	}
+	roles, err := s.RoleRepo.FindByAccountID(ctx, *person.AccountID)
+	if err != nil {
+		return err
+	}
+	for _, role := range roles {
+		if authSvc.IsLehrkraftSystemRole(role) {
+			return ErrStaffLehrkraftCaregiverProfile
+		}
+	}
+	return nil
+}
+
+// liveTeacherForStaff returns the caregiver profile the staff record already
+// carries, or nil.
+//
+// Read when the request did NOT ask for one, which is not the same as asking
+// for it to be gone. Adopting an existing staff row can find a live
+// users.teachers row underneath, and reporting that staff member back as
+// "no caregiver profile" was wrong twice over: the caller renders a plain staff
+// record for someone whose caregiver screens work, and the create handler hands
+// out the non-caregiver default permissions on that basis.
+//
+// Deleting the profile instead is not this path's call, and deliberately so:
+// the row carries group supervisions, and removing it is what staff offboarding
+// does — the same reason the operator paths refuse a Lehrkraft role change
+// rather than clearing the profile out from under it. UpdateStaffWithTeacher
+// answers the identical question the identical way (TeacherActionExisting).
+//
+// Lookup errors are swallowed to nil, matching the non-fatal contract of
+// everything else touching the teacher record here: a failed read must not sink
+// a staff record that persisted.
+func (s *personService) liveTeacherForStaff(ctx context.Context, staffID int64) *userModels.Teacher {
+	existing, err := s.TeacherRepo.FindByStaffID(ctx, staffID)
+	if err != nil || existing == nil || existing.DeletedAt != nil {
+		return nil
+	}
+	return existing
+}
+
+// ensureTeacherForStaff creates the caregiver profile or updates the live one.
+// Failures are non-fatal by design (see CreateStaffWithTeacher).
+func (s *personService) ensureTeacherForStaff(ctx context.Context, staffID int64, input CreateStaffInput) (*userModels.Teacher, bool) {
+	existing, err := s.TeacherRepo.FindByStaffID(ctx, staffID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, true
+	}
+	if existing != nil && existing.DeletedAt == nil {
+		existing.Specialization = strings.TrimSpace(input.Specialization)
+		existing.Role = input.Role
+		existing.Qualifications = input.Qualifications
+		if s.TeacherRepo.Update(ctx, existing) != nil {
+			return nil, true
+		}
+		return existing, false
+	}
+
+	teacher := &userModels.Teacher{
+		StaffID:        staffID,
+		Specialization: strings.TrimSpace(input.Specialization),
+		Role:           input.Role,
+		Qualifications: input.Qualifications,
+	}
+	if s.TeacherRepo.Create(ctx, teacher) != nil {
+		return nil, true
+	}
+	return teacher, false
 }
 
 // UpdateStaffWithTeacher applies the mutable directory fields to a freshly
@@ -667,6 +801,12 @@ func (s *personService) UpdateStaffWithTeacher(ctx context.Context, staff *userM
 	if err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		currentStaff, err := s.StaffRepo.FindByIDForUpdate(ctx, staff.ID)
 		if err != nil {
+			return err
+		}
+
+		// Same guard as the create path: the edit form must not be the way a
+		// Lehrkraft account acquires the caregiver profile its role excludes.
+		if err := s.refuseCaregiverProfileForLehrkraft(ctx, currentStaff.PersonID, isTeacher); err != nil {
 			return err
 		}
 		currentStaff.PersonID = staff.PersonID

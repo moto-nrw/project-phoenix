@@ -26,7 +26,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -86,9 +85,6 @@ func (stubSlotListSettings) ResolveBool(_ context.Context, key string) (bool, er
 }
 
 func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModels.KeyStudentDataScope {
-		return configModels.StudentDataScopeAllStaff, nil
-	}
 	if v, ok := s[key]; ok {
 		return v, nil
 	}
@@ -107,9 +103,6 @@ func (s stubSlotListSettings) ResolveString(_ context.Context, key string) (stri
 }
 
 func (s stubSlotListSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	if key == configModels.KeyStudentDataScope {
-		return true, nil
-	}
 	_, ok := s[key]
 	return ok, nil
 }
@@ -146,38 +139,6 @@ func (failingSlotListSettings) HasTenantOverride(context.Context, string) (bool,
 
 func (failingSlotListSettings) LockSlotListCutoffPairShared(context.Context) error { return nil }
 
-type groupSupervisorOnlySlotListSettings struct{}
-
-func (groupSupervisorOnlySlotListSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	if key == configModels.KeyTimetableEnabled {
-		return true, nil
-	}
-	return false, fmt.Errorf("unexpected boolean setting %q", key)
-}
-
-func (groupSupervisorOnlySlotListSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModels.KeyStudentDataScope {
-		return configModels.StudentDataScopeGroupSupervisorsOnly, nil
-	}
-	// The default read scope stub still needs valid cutoffs so a pickup list built
-	// under it does not fail before the read-scope logic runs.
-	switch key {
-	case configModels.KeySlotListShortDayCutoff:
-		return "14:30", nil
-	case configModels.KeySlotListLongDayCutoff:
-		return "16:00", nil
-	}
-	return "", nil
-}
-
-func (groupSupervisorOnlySlotListSettings) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	return key == configModels.KeyStudentDataScope, nil
-}
-
-func (groupSupervisorOnlySlotListSettings) LockSlotListCutoffPairShared(context.Context) error {
-	return nil
-}
-
 func TestSlotListEntryPointsRejectDisabledTimetable(t *testing.T) {
 	svc := slotlists.NewService(slotlists.Dependencies{
 		Settings: disabledTimetableSlotListSettings{
@@ -202,15 +163,10 @@ func TestSlotListEntryPointsRejectDisabledTimetable(t *testing.T) {
 
 type slotListUserContext struct {
 	currentStaff *userModels.Staff
-	groups       []*educationModels.Group
 }
 
 func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
 	return u.currentStaff, nil
-}
-
-func (u slotListUserContext) GetMyGroups(context.Context) ([]*educationModels.Group, error) {
-	return u.groups, nil
 }
 
 type failingRoomRepo struct {
@@ -265,11 +221,12 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			PickupSchedules:   scheduleRepo.NewStudentPickupScheduleRepository(db),
 			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
 		}),
-		PickupScheduleRepo: scheduleRepo.NewStudentPickupScheduleRepository(db),
-		StudentRepo:        usersRepo.NewStudentRepository(db),
-		PersonRepo:         usersRepo.NewPersonRepository(db),
-		EducationGroupRepo: educationRepo.NewGroupRepository(db),
-		RoomRepo:           roomRepo,
+		PickupExceptionRepo: scheduleRepo.NewStudentPickupExceptionRepository(db),
+		PickupScheduleRepo:  scheduleRepo.NewStudentPickupScheduleRepository(db),
+		StudentRepo:         usersRepo.NewStudentRepository(db),
+		PersonRepo:          usersRepo.NewPersonRepository(db),
+		EducationGroupRepo:  educationRepo.NewGroupRepository(db),
+		RoomRepo:            roomRepo,
 		PickupService: scheduleSvc.NewPickupScheduleServiceWithBulk(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
@@ -782,12 +739,17 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 	assert.Equal(t, 1, byKind[slotlists.ListKindLearningTime].RowCount)
 }
 
-func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing.T) {
+// TestBuildList_StaffReadsEveryStudentRow pins the #2329 read scope from both
+// ends: a caller with a staff record reads every child on the list whatever
+// education group they belong to, while a caller WITHOUT a staff record (guest,
+// guardian) reads none of them — a slot list must never become the back door
+// around the per-child gate.
+func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 	f := buildMensaFixture(t)
 	ctx := testpkg.TenantContext(1)
 
-	allowedGroup := testpkg.CreateTestEducationGroup(t, f.db, "SL-Allowed")
-	deniedGroup := testpkg.CreateTestEducationGroup(t, f.db, "SL-Denied")
+	groupA := testpkg.CreateTestEducationGroup(t, f.db, "SL-GroupA")
+	groupB := testpkg.CreateTestEducationGroup(t, f.db, "SL-GroupB")
 	t.Cleanup(func() {
 		_, err := f.db.NewUpdate().
 			TableExpr(`users.students`).
@@ -795,13 +757,13 @@ func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing
 			Where(`id IN (?)`, bun.List([]int64{f.plannedID, f.missingID, f.walkInID})).
 			Exec(ctx)
 		require.NoError(t, err)
-		testpkg.CleanupTableRecords(t, f.db, "education.groups", allowedGroup.ID, deniedGroup.ID)
+		testpkg.CleanupTableRecords(t, f.db, "education.groups", groupA.ID, groupB.ID)
 	})
 
 	for studentID, groupID := range map[int64]int64{
-		f.plannedID: allowedGroup.ID,
-		f.missingID: deniedGroup.ID,
-		f.walkInID:  deniedGroup.ID,
+		f.plannedID: groupA.ID,
+		f.missingID: groupB.ID,
+		f.walkInID:  groupB.ID,
 	} {
 		_, err := f.db.NewUpdate().
 			TableExpr(`users.students`).
@@ -811,31 +773,39 @@ func TestBuildList_GroupSupervisorScopeFiltersUnsupervisedStudentRows(t *testing
 		require.NoError(t, err)
 	}
 
-	svc := newTestServiceWithCustomAccess(
-		f.db,
-		facilitiesRepo.NewRoomRepository(f.db),
-		groupSupervisorOnlySlotListSettings{},
-		slotListUserContext{
-			currentStaff: &userModels.Staff{},
-			groups:       []*educationModels.Group{allowedGroup},
-		},
-	)
-
-	result, err := svc.BuildList(ctx, slotlists.Params{
+	params := slotlists.Params{
 		Date:   listDate,
 		Target: slotlists.TargetSlots,
 		Source: slotlists.SourceReconciliation,
-	})
+	}
+
+	// A staff member supervising none of the two groups still reads every row.
+	staffSvc := newTestServiceWithCustomAccess(
+		f.db,
+		facilitiesRepo.NewRoomRepository(f.db),
+		stubSlotListSettings{},
+		slotListUserContext{currentStaff: &userModels.Staff{}},
+	)
+	result, err := staffSvc.BuildList(ctx, params)
 	require.NoError(t, err)
 
-	require.Len(t, result.Rows, 1)
-	assert.Equal(t, f.plannedID, result.Rows[0].StudentID)
-	assert.Equal(t, 1, result.Counters.Planned)
-	assert.Equal(t, 1, result.Counters.Present)
-	assert.Equal(t, 0, result.Counters.Missing)
-	assert.Equal(t, 0, result.Counters.Unplanned)
-	require.Len(t, result.Groups, 1)
-	assert.Equal(t, allowedGroup.ID, result.Groups[0].ID)
+	require.Len(t, result.Rows, 3)
+	assert.Equal(t, 2, result.Counters.Planned)
+	assert.Equal(t, 2, result.Counters.Present)
+	assert.Equal(t, 1, result.Counters.Missing)
+	assert.Equal(t, 1, result.Counters.Unplanned)
+	require.Len(t, result.Groups, 2, "both education groups surface, not just a supervised one")
+
+	// No staff record → no child rows at all.
+	outsiderSvc := newTestServiceWithCustomAccess(
+		f.db,
+		facilitiesRepo.NewRoomRepository(f.db),
+		stubSlotListSettings{},
+		slotListUserContext{},
+	)
+	outsiderResult, err := outsiderSvc.BuildList(ctx, params)
+	require.NoError(t, err)
+	assert.Empty(t, outsiderResult.Rows, "a caller without a staff record must read no child rows")
 }
 
 func TestBuildList_SlotFilter(t *testing.T) {
@@ -1476,6 +1446,79 @@ func TestRenderList_PDFSmoke(t *testing.T) {
 	assert.Equal(t, "application/pdf", file.ContentType)
 	assert.NotEmpty(t, file.Data)
 	assert.Contains(t, file.Filename, "tagesliste-abgleich-freie-angebotsauswahl")
+}
+
+// A partial-day excusal (student_pickup_exceptions.excused_from) must sign a
+// child off on the Ganztag Abgleich after the cutoff. Without that evidence a
+// child who left early (or was never expected after the cutoff) is labelled
+// "Fehlt" and inflates the missing counter.
+func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	ctx := testpkg.TenantContext(1)
+	suffix := time.Now().UnixNano()
+	weekday := int(pickupDate.Weekday())
+
+	partial := testpkg.CreateTestStudent(t, db, "SL-Partial", fmt.Sprintf("P-%d", suffix), "2b")
+	missing := testpkg.CreateTestStudent(t, db, "SL-Missing", fmt.Sprintf("M-%d", suffix), "2b")
+	staff := testpkg.CreateTestStaff(t, db, "SL-Staff", fmt.Sprintf("PA-%d", suffix))
+
+	pickupRepo := scheduleRepo.NewStudentPickupScheduleRepository(db)
+	exceptionRepo := scheduleRepo.NewStudentPickupExceptionRepository(db)
+	var pickupIDs []int64
+	for _, row := range []*scheduleModels.StudentPickupSchedule{
+		{StudentID: partial.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+		{StudentID: missing.ID, Weekday: weekday, PickupTime: time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC), CreatedBy: staff.ID},
+	} {
+		row.SetTenantID(1)
+		require.NoError(t, pickupRepo.Create(ctx, row))
+		pickupIDs = append(pickupIDs, row.ID)
+	}
+
+	// 15:00 is long-day (short cutoff 14:30, long cutoff 16:00). Owning the
+	// pickup time at the partial cutoff keeps the child in that cohort.
+	from := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	exc := &scheduleModels.StudentPickupException{
+		StudentID:             partial.ID,
+		ExceptionDate:         pickupDate,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staff.ID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	exc.SetTenantID(1)
+	require.NoError(t, exceptionRepo.Create(ctx, exc))
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", exc.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_schedules", pickupIDs...)
+		testpkg.CleanupActivityFixtures(t, db, partial.ID, staff.ID)
+		testpkg.CleanupActivityFixtures(t, db, missing.ID)
+	})
+
+	svc := newTestService(db)
+	result, err := svc.BuildList(ctx, slotlists.Params{
+		Date:         pickupDate,
+		Target:       slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortLongDay,
+		Source:       slotlists.SourceReconciliation,
+	})
+	require.NoError(t, err)
+
+	partialRow := rowByStudent(result.Rows, partial.ID)
+	require.NotNil(t, partialRow, "partial-excused child stays in the cohort")
+	assert.True(t, partialRow.Excused, "excused_from covering the pickup is registered sign-off")
+	assert.Equal(t, "Abgemeldet (entschuldigt)", partialRow.StatusLabel)
+
+	missingRow := rowByStudent(result.Rows, missing.ID)
+	require.NotNil(t, missingRow)
+	assert.False(t, missingRow.Excused)
+	assert.Equal(t, "Fehlt", missingRow.StatusLabel)
+
+	assert.Equal(t, 1, result.Counters.Excused)
+	assert.Equal(t, 1, result.Counters.Missing)
 }
 
 // A registered sick/excused/class-trip day (active.student_status_days) must

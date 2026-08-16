@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -8,9 +9,11 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // ============================================================================
@@ -258,6 +261,27 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	})
 }
 
+func TestTokenRepository_HasLiveTokensCreatedAfter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "liveAfterToken")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
+	defer testpkg.CleanupTableRecords(t, db, "auth.tokens", token.ID)
+
+	has, err := repo.HasLiveTokensCreatedAfter(ctx, account.ID, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.True(t, has)
+
+	has, err = repo.HasLiveTokensCreatedAfter(ctx, account.ID, time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	assert.False(t, has)
+}
+
 func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -318,8 +342,9 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 		token2 := testpkg.CreateTestToken(t, db, account.ID, "access")
 		defer cleanupAccountRecords(t, db, account.ID)
 
-		err := repo.DeleteByAccountID(ctx, account.ID)
+		deleted, err := repo.DeleteByAccountIDReturning(ctx, account.ID)
 		require.NoError(t, err)
+		require.Len(t, deleted, 2)
 
 		// Verify tokens are gone
 		_, err = repo.FindByID(ctx, token1.ID)
@@ -327,6 +352,106 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 		_, err = repo.FindByID(ctx, token2.ID)
 		require.Error(t, err)
 	})
+}
+
+func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	account := testpkg.CreateTestAccount(t, db, "adminTxTenantDelete")
+	defer cleanupAccountRecords(t, db, account.ID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+
+	local := testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
+	other := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err := db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		deleted, delErr := repo.DeleteByAccountIDReturning(adminCtx, account.ID)
+		require.NoError(t, delErr)
+		require.Len(t, deleted, 1)
+		require.Equal(t, local.ID, deleted[0].ID)
+		return nil
+	}))
+
+	_, err = repo.FindByID(testpkg.TenantContext(secondaryTenantID), other.ID)
+	require.NoError(t, err)
+}
+
+func TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	account := testpkg.CreateTestAccount(t, db, "deleteAllAccountTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+	secondaryTenantID, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.MapAccountToTenant(t, db, account.ID, secondaryTenantID)
+
+	_ = testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
+	other := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	other.SetTenantID(secondaryTenantID)
+	_, err := db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
+	require.NoError(t, err)
+
+	deleted, err := repo.DeleteAllByAccountIDReturning(ctx, account.ID)
+	require.NoError(t, err)
+	require.Len(t, deleted, 2)
+}
+
+func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cutoffRefreshSuccessor")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	familyID := uuid.Must(uuid.NewV4()).String()
+	newFamilyID := uuid.Must(uuid.NewV4()).String()
+	cutoff := time.Now().Add(-time.Minute)
+	_, err := db.NewRaw(`
+		INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope, family_id, generation, created_at)
+		VALUES
+			(?, ?, ?, 1, ?, ?, 0, ?),
+			(?, ?, ?, 1, ?, ?, 1, ?),
+			(?, ?, ?, 1, ?, ?, 1, ?),
+			(?, ?, ?, 1, ?, ?, 0, ?)
+	`,
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, familyID, cutoff.Add(-time.Minute),
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, familyID, cutoff.Add(time.Minute),
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, uuid.Must(uuid.NewV4()).String(), cutoff.Add(time.Minute),
+		account.ID, uuid.Must(uuid.NewV4()).String(), time.Now().Add(time.Hour), auth.PortalScopeTenant, newFamilyID, cutoff.Add(time.Minute),
+	).Exec(ctx)
+	require.NoError(t, err)
+
+	deleted, err := repo.DeleteByAccountIDCreatedAtOrBeforeReturning(ctx, account.ID, cutoff)
+	require.NoError(t, err)
+	require.Len(t, deleted, 3)
+
+	remaining, err := repo.FindByFamilyID(ctx, newFamilyID)
+	require.NoError(t, err)
+	require.Len(t, remaining, 1)
+	assert.Equal(t, 0, remaining[0].Generation)
 }
 
 // ============================================================================
@@ -407,8 +532,9 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 		require.NoError(t, err)
 
 		// Delete family
-		err = repo.DeleteByFamilyID(ctx, familyID)
+		deleted, err := repo.DeleteByFamilyIDReturning(ctx, familyID)
 		require.NoError(t, err)
+		require.Len(t, deleted, 2)
 
 		// Verify tokens are gone
 		tokens, err := repo.FindByFamilyID(ctx, familyID)
@@ -453,7 +579,9 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, expired))
 
-	require.NoError(t, repo.CleanupOldTokensForAccount(ctx, account.ID, 5))
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeUnknown, 5)
+	require.NoError(t, err)
+	require.Empty(t, deleted)
 	for _, token := range activeTokens {
 		_, err := repo.FindByID(ctx, token.ID)
 		require.NoError(t, err, "rotated and expired rows must not displace active sessions")
@@ -465,10 +593,12 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 		Expiry:    time.Now().Add(time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, newest))
-	require.NoError(t, repo.CleanupOldTokensForAccount(ctx, account.ID, 5))
+	deleted, err = repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeUnknown, 5)
+	require.NoError(t, err)
+	require.Len(t, deleted, 1)
 
 	var currentIDs []int64
-	err := db.NewSelect().
+	err = db.NewSelect().
 		TableExpr("auth.tokens").
 		Column("id").
 		Where("account_id = ?", account.ID).
@@ -485,6 +615,190 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	require.NoError(t, err, "session-cap cleanup must leave recovery handoffs alone")
 	_, err = repo.FindByID(ctx, expired.ID)
 	require.NoError(t, err, "session-cap cleanup must leave expired-token cleanup to its own lifecycle")
+}
+
+func TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupPortalTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	parent := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeParent,
+	}
+	require.NoError(t, repo.Create(ctx, parent))
+
+	for i := 0; i < 5; i++ {
+		token := &auth.Token{
+			AccountID:   account.ID,
+			Token:       fmt.Sprintf("portal-cap-token-%d-%d", time.Now().UnixNano(), i),
+			Expiry:      time.Now().Add(time.Hour),
+			PortalScope: auth.PortalScopeTenant,
+		}
+		require.NoError(t, repo.Create(ctx, token))
+	}
+
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeTenant, 5)
+	require.NoError(t, err)
+	require.Empty(t, deleted)
+
+	_, err = repo.FindByID(ctx, parent.ID)
+	require.NoError(t, err, "a parent-portal session must not be evicted by the tenant session cap")
+}
+
+func TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupUnknownPortalTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	var unknown []*auth.Token
+	for i := 0; i < 5; i++ {
+		token := &auth.Token{
+			AccountID:   account.ID,
+			Token:       fmt.Sprintf("unknown-cap-token-%d-%d", time.Now().UnixNano(), i),
+			Expiry:      time.Now().Add(time.Hour),
+			PortalScope: auth.PortalScopeUnknown,
+		}
+		require.NoError(t, repo.Create(ctx, token))
+		unknown = append(unknown, token)
+	}
+
+	newest := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	require.NoError(t, repo.Create(ctx, newest))
+
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeTenant, 5)
+	require.NoError(t, err)
+	require.Empty(t, deleted)
+
+	for _, token := range unknown {
+		_, err = repo.FindByID(ctx, token.ID)
+		require.NoError(t, err, "unknown sessions must stay outside a known portal cap")
+	}
+	_, err = repo.FindByID(ctx, newest.ID)
+	require.NoError(t, err)
+}
+
+func TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupStaffGroupTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	var orgTokens []*auth.Token
+	for i := 0; i < 5; i++ {
+		token := &auth.Token{
+			AccountID:   account.ID,
+			Token:       fmt.Sprintf("org-cap-token-%d-%d", time.Now().UnixNano(), i),
+			Expiry:      time.Now().Add(time.Hour),
+			PortalScope: auth.PortalScopeOrg,
+		}
+		require.NoError(t, repo.Create(ctx, token))
+		orgTokens = append(orgTokens, token)
+	}
+
+	newest := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	require.NoError(t, repo.Create(ctx, newest))
+
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, auth.PortalScopeTenant, 5)
+	require.NoError(t, err)
+	require.Len(t, deleted, 1)
+	require.Equal(t, orgTokens[0].ID, deleted[0].ID)
+
+	_, err = repo.FindByID(ctx, newest.ID)
+	require.NoError(t, err)
+}
+
+func TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupAdminCapTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
+	testpkg.EnsureTestTenant(t, db, 2)
+	testpkg.MapAccountToTenant(t, db, account.ID, 2)
+
+	var firstSchool []*auth.Token
+	for i := 0; i < 5; i++ {
+		token := &auth.Token{
+			AccountID:   account.ID,
+			Token:       fmt.Sprintf("admin-cap-t1-%d-%d", time.Now().UnixNano(), i),
+			Expiry:      time.Now().Add(time.Hour),
+			PortalScope: auth.PortalScopeTenant,
+		}
+		require.NoError(t, repo.Create(ctx, token))
+		firstSchool = append(firstSchool, token)
+	}
+	other := &auth.Token{
+		AccountID:   account.ID,
+		Token:       uuid.Must(uuid.NewV4()).String(),
+		Expiry:      time.Now().Add(time.Hour),
+		PortalScope: auth.PortalScopeTenant,
+	}
+	other.SetTenantID(2)
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		return repo.Create(adminCtx, other)
+	}))
+
+	var deleted []*auth.Token
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
+		var err error
+		deleted, err = repo.CleanupOldTokensForAccountReturning(adminCtx, account.ID, auth.PortalScopeTenant, 5)
+		return err
+	}))
+	require.Len(t, deleted, 1)
+	require.Equal(t, firstSchool[0].ID, deleted[0].ID)
+}
+
+func TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupEmptyPortalScope")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	var created []*auth.Token
+	for i := 0; i < 6; i++ {
+		token := &auth.Token{
+			AccountID: account.ID,
+			Token:     fmt.Sprintf("empty-scope-token-%d-%d", time.Now().UnixNano(), i),
+			Expiry:    time.Now().Add(time.Hour),
+		}
+		require.NoError(t, repo.Create(ctx, token))
+		created = append(created, token)
+	}
+
+	deleted, err := repo.CleanupOldTokensForAccountReturning(ctx, account.ID, "", 5)
+	require.NoError(t, err)
+	require.Len(t, deleted, 1)
+	require.Equal(t, created[0].ID, deleted[0].ID)
+	require.Equal(t, auth.PortalScopeUnknown, deleted[0].PortalScope)
 }
 
 func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
@@ -682,11 +996,11 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 
 		// ACT
 		ctx := testpkg.TenantContext(tenantID)
-		count, err := repo.DeleteByTenantID(ctx, tenantID)
+		deleted, err := repo.DeleteByTenantIDReturning(ctx, tenantID)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.Equal(t, 1, count)
+		assert.Len(t, deleted, 1)
 
 		// Verify the token is actually gone
 		_, findErr := repo.FindByID(ctx, token.ID)
@@ -699,8 +1013,8 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 		testpkg.EnsureTestTenant(t, db, tenantID)
 		ctx := testpkg.TenantContext(tenantID)
 
-		count, err := repo.DeleteByTenantID(ctx, tenantID)
+		deleted, err := repo.DeleteByTenantIDReturning(ctx, tenantID)
 		require.NoError(t, err)
-		assert.Equal(t, 0, count)
+		assert.Empty(t, deleted)
 	})
 }

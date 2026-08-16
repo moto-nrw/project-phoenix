@@ -21,14 +21,17 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // excusedRequestMaxReasonLen bounds the staff reject reason (in runes).
@@ -61,12 +64,11 @@ var (
 	// can't cover the same day with contradictory outcomes. Disjoint date sets are
 	// allowed. Maps to a 409 on the parent write path.
 	ErrExcusedRequestOverlap = errors.New("active: excused request overlaps an existing pending request")
-	// ErrExcusedRequestStatusConflict means the child's absence for one of the
-	// requested dates was created or changed AFTER this request was filed — a
-	// newer sick / class-trip / excused record staff (or another flow) set in the
-	// meantime. Approving would silently overwrite that newer decision, so the
-	// approval is refused; staff resolve it by rejecting the stale request (or
-	// clearing the newer status first). Maps to a 409 on the staff decide path.
+	// ErrExcusedRequestStatusConflict means a full-day excused request cannot
+	// proceed for one of the requested dates because a competing absence already
+	// owns that day: either a newer sick / class-trip / excused status (approval
+	// would overwrite it), or a planned partial-day excusal (create and approve
+	// both refuse so a pending request cannot sit unusable). Maps to a 409.
 	ErrExcusedRequestStatusConflict = errors.New("active: excused request superseded by a newer status")
 	// ErrExcusedRequestNoDates means the request carried no dates.
 	ErrExcusedRequestNoDates = errors.New("active: excused request requires at least one date")
@@ -133,6 +135,7 @@ type AbsenceNotifierSetter interface {
 type excusedAbsenceRequestService struct {
 	requestRepo   activeModels.ExcusedAbsenceRequestRepository
 	statusDayRepo activeModels.StudentStatusDayRepository
+	pickupRepo    scheduleModels.StudentPickupExceptionRepository
 	studentRepo   usersModels.StudentRepository
 	personRepo    usersModels.PersonRepository
 	userContext   userContextService.UserContextService
@@ -140,6 +143,7 @@ type excusedAbsenceRequestService struct {
 	broadcaster   realtime.Broadcaster
 	absenceNotify notificationsService.AbsenceNotifier
 	logger        *slog.Logger
+	db            *bun.DB
 }
 
 // NewExcusedAbsenceRequestService wires the excused-request service.
@@ -153,19 +157,66 @@ func NewExcusedAbsenceRequestService(
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) ExcusedAbsenceRequestService {
+	return newExcusedAbsenceRequestService(
+		requestRepo, statusDayRepo, nil, studentRepo, personRepo,
+		userContext, emitter, broadcaster, logger, nil,
+	)
+}
+
+// NewExcusedAbsenceRequestServiceWithPartialAbsences wires the production
+// variant that also serializes approvals with time-specific excusals.
+func NewExcusedAbsenceRequestServiceWithPartialAbsences(
+	requestRepo activeModels.ExcusedAbsenceRequestRepository,
+	statusDayRepo activeModels.StudentStatusDayRepository,
+	pickupRepo scheduleModels.StudentPickupExceptionRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+	db *bun.DB,
+) ExcusedAbsenceRequestService {
+	return newExcusedAbsenceRequestService(
+		requestRepo, statusDayRepo, pickupRepo, studentRepo, personRepo,
+		userContext, emitter, broadcaster, logger, db,
+	)
+}
+
+func newExcusedAbsenceRequestService(
+	requestRepo activeModels.ExcusedAbsenceRequestRepository,
+	statusDayRepo activeModels.StudentStatusDayRepository,
+	pickupRepo scheduleModels.StudentPickupExceptionRepository,
+	studentRepo usersModels.StudentRepository,
+	personRepo usersModels.PersonRepository,
+	userContext userContextService.UserContextService,
+	emitter *parentmessaging.Emitter,
+	broadcaster realtime.Broadcaster,
+	logger *slog.Logger,
+	db *bun.DB,
+) ExcusedAbsenceRequestService {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &excusedAbsenceRequestService{
 		requestRepo:   requestRepo,
 		statusDayRepo: statusDayRepo,
+		pickupRepo:    pickupRepo,
 		studentRepo:   studentRepo,
 		personRepo:    personRepo,
 		userContext:   userContext,
 		emitter:       emitter,
 		broadcaster:   broadcaster,
 		logger:        logger,
+		db:            db,
 	}
+}
+
+// absenceWritable is the per-child visibility predicate shared by the review
+// queue and the pending badge: the caller may see a request exactly when they
+// could decide it (admin or verified staff, #2329).
+func (s *excusedAbsenceRequestService) absenceWritable(ctx context.Context) func(*usersModels.Student) bool {
+	return authorize.AbsenceWritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.
@@ -187,6 +238,16 @@ func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studen
 
 	sorted := dedupeSortedDates(dates)
 
+	// Care-day locks first (shared with partial-absence / full-day writers), then
+	// the per-student pending-request key. Holding care-day across the check and
+	// insert prevents a concurrent partial absence from landing between them and
+	// leaving a pending request that approval must refuse.
+	if err := s.ensureNoPartialAbsence(ctx, &activeModels.ExcusedAbsenceRequest{
+		StudentID: studentID,
+		Dates:     sorted,
+	}); err != nil {
+		return nil, err
+	}
 	// Serialize concurrent submissions for the same child so the idempotent-retry
 	// and overlap checks below (read pending, then insert) can't race two rows
 	// through. The advisory lock releases at the end of the ambient transaction.
@@ -342,10 +403,10 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*Excu
 		return nil, fmt.Errorf("active: load persons for excused requests: %w", err)
 	}
 
-	// Scope the queue to children the caller may WRITE (admin, or the child's
-	// group supervisor) — the same gate as Decide, so a staffer only ever sees
-	// requests they can act on. This also scopes the sidebar badge.
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	// Scope the queue to children whose absences the caller may WRITE — the
+	// same gate as Decide, so a staffer only ever sees requests they can act
+	// on. This also scopes the sidebar badge.
+	writable := s.absenceWritable(ctx)
 
 	items := make([]*ExcusedRequestReviewItem, 0, len(rows))
 	for _, r := range rows {
@@ -400,7 +461,7 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("active: load students for pending excused badges: %w", err)
 	}
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	writable := s.absenceWritable(ctx)
 	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(candidates))
 	for studentID, req := range candidates {
 		// Alumni are excluded for the same reason as in the review queue: a
@@ -435,7 +496,8 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	// Per-child write authorization: the caller may decide only if they could
-	// edit the child directly — admin, or the child's group supervisor.
+	// report the same absence directly — admin, the child's group supervisor,
+	// or a users:absence holder in a school without fixed groups (#2232).
 	//
 	// Taken FOR UPDATE so the alumnus gate below decides on a state a concurrent
 	// grade transition cannot change underneath it: the transition apply locks
@@ -456,11 +518,14 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	if student.IsAlumnus() {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
-	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
+	if ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {
 		return nil, ErrExcusedRequestForbidden
 	}
 
 	if input.Approve {
+		if err := s.ensureNoPartialAbsence(ctx, req); err != nil {
+			return nil, err
+		}
 		// Refuse to APPLY when the submitting guardian has lost access to the
 		// child (unlinked or parent_portal.access revoked) since the request was
 		// filed. Approving writes parent-sourced excused status days and posts a
@@ -572,6 +637,54 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		}
 	}
 	return item, nil
+}
+
+func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
+	ctx context.Context, req *activeModels.ExcusedAbsenceRequest,
+) error {
+	if len(req.Dates) == 0 {
+		return nil
+	}
+	if s.db == nil && s.pickupRepo == nil {
+		return nil
+	}
+	if s.db == nil {
+		return errors.New("active: database is not configured")
+	}
+	if s.pickupRepo == nil {
+		return errors.New("active: pickup exception repository is not configured")
+	}
+	// Sort before locking so multi-day writers always take care-day keys in
+	// the same order (avoids AB-BA deadlocks across concurrent requests).
+	// Student row first, then care-day — same order as partial-absence writes
+	// (LockStudentAndExceptionDay). Care-day-only here deadlocks when the
+	// request INSERT's student FK waits on a partial writer that holds the
+	// student row and is waiting for care-day.
+	sortedDates := append([]timezone.Date(nil), req.Dates...)
+	sort.Slice(sortedDates, func(i, j int) bool {
+		return sortedDates[i].Before(sortedDates[j])
+	})
+	for _, date := range sortedDates {
+		if err := careplanning.LockStudentAndExceptionDay(ctx, s.db, req.StudentID, date); err != nil {
+			return err
+		}
+	}
+	rows, err := s.pickupRepo.FindByStudentIDAndDateRange(
+		ctx, req.StudentID, sortedDates[0], sortedDates[len(sortedDates)-1],
+	)
+	if err != nil {
+		return err
+	}
+	requested := make(map[timezone.Date]struct{}, len(req.Dates))
+	for _, date := range req.Dates {
+		requested[date] = struct{}{}
+	}
+	for _, row := range rows {
+		if _, ok := requested[row.ExceptionDate]; ok && row.ExcusedFrom != nil {
+			return ErrExcusedRequestStatusConflict
+		}
+	}
+	return nil
 }
 
 // ensureNoNewerStatus refuses the approval when any ACTIVE status day on a

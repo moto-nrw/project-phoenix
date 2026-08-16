@@ -28,6 +28,14 @@ import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
+import {
+  previewCareOfferingPickupRollout,
+  rolloutCareOfferingPickupTimes,
+  type OfferingPickupRolloutPreview,
+} from "~/lib/care-offering-api";
+import { Modal } from "~/components/ui/modal";
+import { Checkbox } from "~/components/ui/checkbox";
+import { Button } from "~/components/ui/button";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -129,6 +137,7 @@ function blankInput(phaseId: number): CareOfferingInput {
     sort_order: 0,
     selection_group: "",
     selection_rule: "optional",
+    pickup_times: {},
   };
 }
 
@@ -157,6 +166,7 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     sort_order: offering.sort_order,
     selection_group: offering.selection_group ?? "",
     selection_rule: offering.selection_rule ?? "optional",
+    pickup_times: { ...(offering.pickup_times ?? {}) },
   };
 }
 
@@ -388,6 +398,13 @@ export function CareOfferingsEditor() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pickupRollout, setPickupRollout] = useState<{
+    offeringId: string;
+    offeringName: string;
+    preview: OfferingPickupRolloutPreview;
+    skipIds: Set<string>;
+  } | null>(null);
+  const [rollingOut, setRollingOut] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
   // Booking stats are display-only (#2186): the availability-rule editor uses
@@ -580,15 +597,19 @@ export function CareOfferingsEditor() {
     setSaving(true);
     setError(null);
     try {
+      let savedOffering: CareOffering | null = null;
       if (editingId === "new") {
-        const created = await createCareOffering(draft);
-        toast.success(`Betreuungsangebot „${created.name}" erstellt.`);
+        savedOffering = await createCareOffering(draft);
+        toast.success(`Betreuungsangebot „${savedOffering.name}" erstellt.`);
       } else if (editingId) {
-        const updated = await updateCareOffering(editingId, draft);
-        toast.success(`Betreuungsangebot „${updated.name}" gespeichert.`);
+        savedOffering = await updateCareOffering(editingId, draft);
+        toast.success(`Betreuungsangebot „${savedOffering.name}" gespeichert.`);
       }
       cancelFocusMode();
       await loadAll();
+      if (savedOffering) {
+        await maybeOfferPickupRollout(savedOffering);
+      }
     } catch (err) {
       const technicalMessage =
         err instanceof Error ? err.message : "Unbekannter Speicherfehler";
@@ -598,6 +619,58 @@ export function CareOfferingsEditor() {
       toast.error(message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Nach dem Speichern: Trockenlauf der Gehzeit-Übertragung. Nur wenn sich
+  // dadurch etwas ändern würde, erscheint der Bestätigungsdialog (#2290).
+  const maybeOfferPickupRollout = async (offering: CareOffering) => {
+    try {
+      const preview = await previewCareOfferingPickupRollout(offering.id);
+      const changes =
+        preview.new_rows +
+        preview.updated_rows +
+        preview.removed_rows +
+        preview.conflicts.length;
+      if (changes === 0) return;
+      setPickupRollout({
+        offeringId: offering.id,
+        offeringName: offering.name,
+        preview,
+        skipIds: new Set<string>(),
+      });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Gehzeit-Vorschau fehlgeschlagen";
+      logger.error("care_offering_pickup_preview_failed", { error: message });
+      toast.error(message);
+    }
+  };
+
+  const confirmPickupRollout = async () => {
+    if (!pickupRollout) return;
+    setRollingOut(true);
+    try {
+      const result = await rolloutCareOfferingPickupTimes(
+        pickupRollout.offeringId,
+        [...pickupRollout.skipIds],
+      );
+      const parts = [
+        `${result.created_rows + result.updated_rows} Gehzeiten übertragen`,
+      ];
+      if (result.deleted_rows > 0)
+        parts.push(`${result.deleted_rows} entfernt`);
+      if (result.skipped_students > 0)
+        parts.push(`${result.skipped_students} Kinder ausgenommen`);
+      toast.success(parts.join(", ") + ".");
+      setPickupRollout(null);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Gehzeit-Ausrollen fehlgeschlagen";
+      logger.error("care_offering_pickup_rollout_failed", { error: message });
+      toast.error(message);
+    } finally {
+      setRollingOut(false);
     }
   };
 
@@ -865,7 +938,136 @@ export function CareOfferingsEditor() {
           ) : null}
         </>
       )}
+      <OfferingPickupRolloutDialog
+        state={pickupRollout}
+        busy={rollingOut}
+        onToggleSkip={(studentId, overwrite) =>
+          setPickupRollout((current) => {
+            if (!current) return current;
+            const skipIds = new Set(current.skipIds);
+            if (overwrite) {
+              skipIds.delete(studentId);
+            } else {
+              skipIds.add(studentId);
+            }
+            return { ...current, skipIds };
+          })
+        }
+        onConfirm={() => void confirmPickupRollout()}
+        onCancel={() => {
+          setPickupRollout(null);
+          toast.info(
+            "Gehzeit gespeichert, aber nicht auf die Kinder übertragen.",
+          );
+        }}
+      />
     </div>
+  );
+}
+
+// Bestätigungsdialog für das Ausrollen der Angebots-Gehzeit (#2290):
+// Kinder mit abweichender manuell gepflegter Gehzeit sind gelistet und
+// standardmäßig zum Überschreiben angehakt; einzelne lassen sich ausnehmen.
+function OfferingPickupRolloutDialog({
+  state,
+  busy,
+  onToggleSkip,
+  onConfirm,
+  onCancel,
+}: Readonly<{
+  state: {
+    offeringName: string;
+    preview: OfferingPickupRolloutPreview;
+    skipIds: Set<string>;
+  } | null;
+  busy: boolean;
+  onToggleSkip: (studentId: string, overwrite: boolean) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}>) {
+  if (!state) return null;
+  const { preview } = state;
+  return (
+    <Modal
+      isOpen
+      onClose={onCancel}
+      title="Gehzeit auf Kinder übertragen"
+      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-700">
+          Die Gehzeit von „{state.offeringName}“ wird auf{" "}
+          <strong>{preview.affected_students}</strong>{" "}
+          {preview.affected_students === 1 ? "Kind" : "Kinder"} übertragen
+          {preview.removed_rows > 0
+            ? `; ${preview.removed_rows} nicht mehr passende Gehzeiten werden entfernt`
+            : ""}
+          .
+        </p>
+        {preview.conflicts.length > 0 ? (
+          <div>
+            <p className="text-sm font-medium text-gray-900">
+              {preview.conflicts.length === 1
+                ? "1 Kind hat eine abweichende, von Hand gepflegte Gehzeit:"
+                : `${preview.conflicts.length} Kinder haben abweichende, von Hand gepflegte Gehzeiten:`}
+            </p>
+            <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+              {preview.conflicts.map((conflict) => {
+                const key = `${conflict.student_id}-${conflict.weekday}`;
+                const overwrite = !state.skipIds.has(conflict.student_id);
+                return (
+                  <li key={key}>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm">
+                      <Checkbox
+                        checked={overwrite}
+                        onChange={(event) =>
+                          onToggleSkip(
+                            conflict.student_id,
+                            event.target.checked,
+                          )
+                        }
+                      />
+                      <span className="flex-1 text-gray-900">
+                        {conflict.student_name}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {ISO_WEEKDAY_LABELS[conflict.weekday] ??
+                          `Tag ${conflict.weekday}`}{" "}
+                        {conflict.current_time} → {conflict.new_time} Uhr
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-2 text-xs text-gray-500">
+              Angehakte Kinder werden überschrieben; abgehakte behalten ihre
+              Gehzeit.
+            </p>
+          </div>
+        ) : null}
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onCancel}
+            disabled={busy}
+          >
+            Nicht übertragen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? "Überträgt…" : "Übertragen"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1433,9 +1635,25 @@ function CareOfferingWeekdayFields({
 }>) {
   const toggleDay = (day: string) => {
     const nextDays = toggleSetValue(draft.available_days, day);
-    onChange({
+    const patch: Partial<CareOfferingInput> = {
       available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
-    });
+    };
+    // Ein abgewählter Tag nimmt seine Gehzeit mit.
+    if (!nextDays.has(day) && draft.pickup_times?.[day]) {
+      const nextTimes = { ...draft.pickup_times };
+      delete nextTimes[day];
+      patch.pickup_times = nextTimes;
+    }
+    onChange(patch);
+  };
+  const setPickupTime = (day: string, value: string) => {
+    const nextTimes = { ...(draft.pickup_times ?? {}) };
+    if (value) {
+      nextTimes[day] = value;
+    } else {
+      delete nextTimes[day];
+    }
+    onChange({ pickup_times: nextTimes });
   };
   const nameMismatch = nameWeekdayMismatchWarning(draft);
 
@@ -1468,6 +1686,30 @@ function CareOfferingWeekdayFields({
         <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border px-3 py-2 text-xs">
           {nameMismatch}
         </p>
+      ) : null}
+      {draft.available_days.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs font-medium text-gray-700">
+            Gehzeit je Wochentag (optional)
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            Wird beim Speichern auf alle Kinder mit diesem Angebot übertragen
+            und erscheint in Klassenliste und Kinderdetails.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {draft.available_days.map((day) => (
+              <label key={day} className="flex items-center gap-2 text-xs">
+                <span className="w-6 text-gray-700">{DAY_LABELS[day]}</span>
+                <input
+                  type="time"
+                  value={draft.pickup_times?.[day] ?? ""}
+                  onChange={(event) => setPickupTime(day, event.target.value)}
+                  className="rounded-md border border-gray-200 px-2 py-1.5 text-xs focus:border-gray-400 focus:outline-none"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
       ) : null}
       <div className="mt-3">
         <CareOfferingCheckbox

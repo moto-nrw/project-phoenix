@@ -592,6 +592,75 @@ func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
 		"a regular staff account keeps the groups:read default")
 }
 
+// POST /api/staff is gated on users:create alone, but a person that already
+// carries a staff record adopts it — an edit of someone who is already in the
+// directory. That write belongs to users:update, so a create-only caller is
+// refused (#2222 review).
+func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "Vorhandene", "Kraft")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	body := map[string]interface{}{
+		"person_id":   staff.PersonID,
+		"staff_notes": "Fremde Notiz",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
+		testutil.WithJWTBearer(authToken(t, "users:create")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertForbidden(t, rr)
+
+	// And the same request goes through once the caller may update.
+	req = testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
+		testutil.WithJWTBearer(authToken(t, "users:create", "users:update")))
+
+	rr = testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
+}
+
+// A Lehrkraft account (#1772) is provisioned without a caregiver profile on
+// purpose. The role-assignment paths refuse the combination from the other
+// direction; staff creation must not be the way around it (#2222 review).
+func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	person, account := testpkg.CreateTestPersonWithAccount(t, ctx.db, "LehrkraftProfil"+uniqueSuffix, "Person")
+	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
+	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
+	testpkg.EnsureAccountTenant(t, ctx.db, account.ID, 1)
+	assignSystemRoleToAccount(t, ctx.db, account.ID, 1, "lehrkraft")
+
+	body := map[string]interface{}{
+		"person_id":      person.ID,
+		"is_teacher":     true,
+		"specialization": "Betreuung",
+	}
+
+	req := testutil.NewAuthenticatedRequest(t, "POST", "/staff", body,
+		testutil.WithJWTBearer(authToken(t, "users:create", "users:update")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	assert.Equal(t, http.StatusConflict, rr.Code,
+		"a Lehrkraft account may not be given a caregiver profile")
+
+	count, err := ctx.db.NewSelect().
+		TableExpr(`users.staff AS s`).
+		Join(`JOIN users.teachers AS t ON t.staff_id = s.id`).
+		Where(`s.person_id = ?`, person.ID).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, count, "nothing may be written for a refused request")
+}
+
 func TestCreateStaff_PersonNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()

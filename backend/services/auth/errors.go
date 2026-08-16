@@ -76,6 +76,13 @@ var (
 	ErrParentMustUseParentPortal = errors.New("guardian accounts must log in at the parents portal")
 	ErrAccountNoGuardianRole     = errors.New("account is not a guardian at any school")
 
+	// School portal split (#2207). Returned when an account without a
+	// school-portal role (today: the lehrkraft system role) tries to log
+	// in at the school portal. Deliberately named after the portal, not
+	// the role — a future Schulleitung role widens isSchoolPortalRole
+	// without renaming this sentinel or its wire code.
+	ErrAccountNoSchoolPortalRole = errors.New("account has no school portal role at any school")
+
 	// Invitation errors
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")

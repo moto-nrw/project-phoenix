@@ -136,6 +136,12 @@ async function unwrap<T>(response: Response): Promise<T> {
   return envelope.data;
 }
 
+/** Namens-Maps (ID → Anzeigename) aus dem Teilnehmer-Endpunkt (#2283). */
+export interface InstanceParticipantNames {
+  studentNames: Map<string, string>;
+  staffNames: Map<string, string>;
+}
+
 class TimetableService {
   /**
    * GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD.
@@ -578,11 +584,34 @@ class TimetableService {
    * Transitions an active instance to completed. Closes the active.group,
    * marks remaining expected students as absent.
    */
-  async complete(instanceId: string): Promise<InstanceStatusResult> {
-    return this.lifecycle<BackendInstanceStatusResult, InstanceStatusResult>(
+  async complete(
+    instanceId: string,
+    confirmedPresentStudentIds: string[],
+  ): Promise<InstanceStatusResult> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/complete`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          confirmed_present_student_ids: confirmedPresentStudentIds.map(Number),
+        }),
+      },
+    );
+    return mapInstanceStatusResult(
+      await unwrap<BackendInstanceStatusResult>(response),
+    );
+  }
+
+  async reopen(instanceId: string): Promise<StartInstanceResult> {
+    return this.lifecycle<BackendStartInstanceResult, StartInstanceResult>(
       instanceId,
-      "complete",
-      mapInstanceStatusResult,
+      "reopen",
+      mapStartInstanceResult,
     );
   }
 
@@ -605,7 +634,7 @@ class TimetableService {
 
   private async lifecycle<TBackend, TFront>(
     instanceId: string,
-    action: "start" | "complete" | "cancel",
+    action: "start" | "complete" | "cancel" | "reopen",
     mapper: (raw: TBackend) => TFront,
     body: Record<string, unknown> = {},
   ): Promise<TFront> {
@@ -842,6 +871,38 @@ class TimetableService {
     );
     const raw = await unwrap<BackendStaffPoolResponse>(response);
     return mapStaffPool(raw);
+  }
+
+  /**
+   * GET /api/timetable/instances/{id}/participants — Teilnehmer- und
+   * Personal-Namen eines Blocks für die Leseansicht (#2283). schedules:read
+   * genügt; Kindernamen filtert das Backend pro Kind über
+   * gdpr.student_data_scope (gefilterte Kinder fehlen still), Personal-Namen
+   * kommen ungefiltert.
+   */
+  async getInstanceParticipants(
+    instanceId: string,
+  ): Promise<InstanceParticipantNames> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/participants`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    const raw = await unwrap<{
+      participants: { student_id: number; display_name: string }[];
+      staff: { staff_id: number; display_name: string }[];
+    }>(response);
+    return {
+      studentNames: new Map(
+        raw.participants.map((p) => [p.student_id.toString(), p.display_name]),
+      ),
+      staffNames: new Map(
+        raw.staff.map((s) => [s.staff_id.toString(), s.display_name]),
+      ),
+    };
   }
 
   /**

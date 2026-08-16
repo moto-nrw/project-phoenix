@@ -108,6 +108,21 @@ func TestParsePagination_LargeValues(t *testing.T) {
 	assert.Equal(t, 1000, pageSize)
 }
 
+func TestParsePagination_ClampsOutOfRangeValues(t *testing.T) {
+	// Every consumer turns the pair into (page-1)*pageSize. Unclamped, that
+	// product overflows into a negative offset — a negative SQL OFFSET and a
+	// negative slice index, both a 500 (#2218 review).
+	r := httptest.NewRequest("GET", "/test?page=9223372036854775807&page_size=9223372036854775807", nil)
+
+	page, pageSize := common.ParsePagination(r)
+
+	assert.Equal(t, common.MaxPage, page)
+	assert.Equal(t, common.MaxPageSize, pageSize)
+
+	offset := (page - 1) * pageSize
+	assert.Positive(t, offset, "the clamped window must still produce a non-negative offset")
+}
+
 // =============================================================================
 // ParseIDParam Tests
 // =============================================================================

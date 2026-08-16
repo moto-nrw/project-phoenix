@@ -106,6 +106,68 @@ func (r *PermissionRepository) FindByAccountIDForTenant(ctx context.Context, acc
 	return permissions, nil
 }
 
+// LockAccountPermissionSourcesForTenant takes FOR SHARE row locks on every row
+// that feeds an account's effective permission set at one tenant: the direct
+// grants in auth.account_permissions and the auth.role_permissions rows of the
+// roles the account holds there. Must be called inside a transaction; it
+// returns no data, only the locks.
+//
+// FindByAccountIDForTenant reads through two CTEs and a UNION, which Postgres
+// refuses to attach a locking clause to. Taking the locks in two plain
+// statements first is equivalent for the purpose they serve: once they are
+// held, no concurrent revocation can commit until this transaction ends, so
+// the permission set read afterwards — and written into a JWT — is provably
+// the one that still existed at commit time. Role revocation and membership
+// revocation are already pinned this way (FindByAccountIDForTenantForShare,
+// ExistsActiveByAccountAndTenantForShare); without this the permission half of
+// the same token was still read from an unlocked snapshot.
+//
+// Only revocations are serialized, deliberately: a FOR SHARE lock cannot cover
+// rows that do not exist yet, so a permission GRANTED mid-mint may or may not
+// make it into the token. That direction is harmless — the next token has it.
+//
+// LOCK ORDER — callers must already hold the account row (auth.accounts FOR
+// UPDATE) and take these locks AFTER the account-role read, matching the order
+// every revocation path walks (account → roles → permissions; see
+// operator_account_access.go and staff_offboarding.go).
+// Both statements are consumed with Scan into a throwaway slice rather than
+// Exec. A locking SELECT returns rows, and pgdriver's Exec path (readQuery)
+// has no case for the DataRow message — it survives today only because the
+// protocol tag 'D' collides with Describe, which that switch happens to
+// discard. Scanning the rows uses readQueryData, which handles them by
+// contract instead of by coincidence. Do not "simplify" this back to Exec.
+func (r *PermissionRepository) LockAccountPermissionSourcesForTenant(ctx context.Context, accountID int64, tenantID int64) error {
+	db := base.GetDB(ctx, r.db)
+
+	var lockedDirect []int
+	if err := db.NewSelect().
+		ColumnExpr("1").
+		TableExpr("auth.account_permissions AS ap").
+		Where("ap.account_id = ? AND ap.tenant_id = ?", accountID, tenantID).
+		For("SHARE OF ap").
+		Scan(ctx, &lockedDirect); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "lock direct account permissions",
+			Err: err,
+		}
+	}
+
+	var lockedFromRoles []int
+	if err := db.NewSelect().
+		ColumnExpr("1").
+		TableExpr(rolePermissionsTable+" AS rp").
+		Where(`rp.role_id IN (SELECT ar.role_id FROM auth.account_roles AS ar WHERE ar.account_id = ? AND ar.tenant_id = ?)`, accountID, tenantID).
+		For("SHARE OF rp").
+		Scan(ctx, &lockedFromRoles); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "lock role permissions",
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
 // FindDirectByAccountID retrieves only direct permissions assigned to an account (not role-based)
 func (r *PermissionRepository) FindDirectByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
 	var permissions []*auth.Permission

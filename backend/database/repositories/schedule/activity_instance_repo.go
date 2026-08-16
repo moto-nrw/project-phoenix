@@ -354,7 +354,9 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 // one of the given active.groups as completed and returns the number of rows
 // changed. Custom method (backend-conventions Rule 2): lifecycle bulk update
 // keyed on the active-group bridge, paired with MarkCompleted's
-// column-restricted shape. Used by the scheduler's daily session-end bridge.
+// column-restricted shape. Used by the scheduler's daily session-end bridge
+// and by kiosk/session end. Recovery state is deliberately omitted: those
+// completions are the end of the live session, not a planner undo.
 func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
 	if len(activeGroupIDs) == 0 {
 		return 0, nil

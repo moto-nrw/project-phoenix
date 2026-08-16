@@ -103,15 +103,17 @@ type ParentMessageReadRepository interface {
 	// advanced, so the read-receipt SSE push can fire only on a real move and not
 	// ping-pong with the refetch it triggers on the counterpart.
 	MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error)
+	// MarkStaffHandledUpTo advances the team-wide handled boundary to the newest
+	// guardian activity covered by a staff reply. It never moves backward.
+	MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error
 	// UnreadMessageCountForStaff counts unread guardian MESSAGES the staff reader
-	// has not seen (sent by the other side), within the given student scope — the
-	// sidebar badge source. Counts messages, not threads, so the badge matches the
-	// per-thread unread pills. allStudents = whole tenant; otherwise scoped to
-	// groupIDs.
-	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error)
+	// has not seen (sent by the other side) — the sidebar badge source. Counts
+	// messages, not threads, so the badge matches the per-thread unread pills.
+	// allStudents = whole tenant (admin / verified staff); false = nothing.
+	UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error)
 	// ListInboxForStaff returns the staff member's readable threads,
 	// newest-activity first; unread counts guardian messages.
-	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*InboxThread, error)
+	ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*InboxThread, error)
 	// ListThreadsForGuardianStudent returns the guardian's own threads about one
 	// of their children in the current tenant; unread counts staff messages. Runs
 	// under the child's tenant tx (the caller resolves ownership first).

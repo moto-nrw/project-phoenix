@@ -22,6 +22,9 @@ import (
 type PickupScheduleService interface {
 	GetStudentPickupSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentPickupSchedule, error)
 	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error)
+	// GetWeeklySchedulesByStudentIDs returns every weekday row for the given
+	// students in one query (class-roster export, #2290).
+	GetWeeklySchedulesByStudentIDs(ctx context.Context, studentIDs []int64) ([]*schedule.StudentPickupSchedule, error)
 	GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error
 	UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error
@@ -283,6 +286,13 @@ func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 	return s.core.WeeklySchedulesByStudentIDsAndWeekday(ctx, studentIDs, weekday)
 }
 
+func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDs(
+	ctx context.Context,
+	studentIDs []int64,
+) ([]*schedule.StudentPickupSchedule, error) {
+	return s.core.WeeklySchedulesByStudentIDs(ctx, studentIDs)
+}
+
 func (s *pickupScheduleService) GetStudentPickupScheduleForWeekday(
 	ctx context.Context,
 	studentID int64,
@@ -303,7 +313,49 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
 	studentID int64,
 	rows []*schedule.StudentPickupSchedule,
 ) error {
+	if err := s.preserveOfferingProvenance(ctx, studentID, rows); err != nil {
+		return err
+	}
 	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+}
+
+// preserveOfferingProvenance keeps the Angebots-Gehzeit ownership of weekly
+// rows a wholesale replacement does not actually change (#2290): a day whose
+// incoming time equals the existing care_offering-sourced row keeps
+// source/care_offering_id; a changed time flips to staff ownership (the
+// incoming rows' zero-value source).
+func (s *pickupScheduleService) preserveOfferingProvenance(
+	ctx context.Context,
+	studentID int64,
+	rows []*schedule.StudentPickupSchedule,
+) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	existing, err := s.core.Schedules(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	sourcedByWeekday := make(map[int]*schedule.StudentPickupSchedule)
+	for _, row := range existing {
+		if row.Source == schedule.PickupScheduleSourceCareOffering {
+			sourcedByWeekday[row.Weekday] = row
+		}
+	}
+	for _, row := range rows {
+		if row.Source != "" && row.Source != schedule.PickupScheduleSourceStaff {
+			continue
+		}
+		previous := sourcedByWeekday[row.Weekday]
+		if previous == nil {
+			continue
+		}
+		if previous.PickupTime.Format("15:04") == row.PickupTime.Format("15:04") {
+			row.Source = schedule.PickupScheduleSourceCareOffering
+			row.CareOfferingID = previous.CareOfferingID
+		}
+	}
+	return nil
 }
 
 func (s *pickupScheduleService) DeleteStudentPickupSchedule(

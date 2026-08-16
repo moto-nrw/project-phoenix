@@ -105,32 +105,36 @@ func (r *OperatorRefreshTokenRepository) Delete(ctx context.Context, id any) err
 	return nil
 }
 
-func (r *OperatorRefreshTokenRepository) DeleteByOperatorID(ctx context.Context, operatorID int64) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
+// DeleteByOperatorIDReturning uses DELETE ... RETURNING so operator revocation
+// and its per-family audit evidence commit atomically; generic CRUD cannot.
+func (r *OperatorRefreshTokenRepository) DeleteByOperatorIDReturning(ctx context.Context, operatorID int64) ([]*platform.OperatorRefreshToken, error) {
+	var deleted []*platform.OperatorRefreshToken
+	err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*platform.OperatorRefreshToken)(nil)).
 		ModelTableExpr(operatorRefreshTokenTableAlias).
 		Where(`"operator_refresh_token".operator_id = ?`, operatorID).
-		Exec(ctx)
+		Returning("*").
+		Scan(ctx, &deleted)
 	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete operator refresh tokens by operator ID", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return operator refresh tokens", Err: err}
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count deleted operator refresh tokens", Err: err}
-	}
-	return int(affected), nil
+	return deleted, nil
 }
 
-func (r *OperatorRefreshTokenRepository) DeleteByFamilyID(ctx context.Context, familyID string) error {
-	_, err := base.GetDB(ctx, r.db).NewDelete().
+// DeleteByFamilyIDReturning uses DELETE ... RETURNING so operator-family
+// revocation and audit evidence share one transaction; generic CRUD cannot.
+func (r *OperatorRefreshTokenRepository) DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*platform.OperatorRefreshToken, error) {
+	var deleted []*platform.OperatorRefreshToken
+	err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*platform.OperatorRefreshToken)(nil)).
 		ModelTableExpr(operatorRefreshTokenTableAlias).
 		Where(`"operator_refresh_token".family_id = ?`, familyID).
-		Exec(ctx)
+		Returning("*").
+		Scan(ctx, &deleted)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete operator refresh token family", Err: err}
+		return nil, &modelBase.DatabaseError{Op: "delete and return operator refresh-token family", Err: err}
 	}
-	return nil
+	return deleted, nil
 }
 
 func (r *OperatorRefreshTokenRepository) GetLatestTokenInFamily(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error) {

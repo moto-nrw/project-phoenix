@@ -82,6 +82,9 @@ type InstanceStudent struct {
 	// Manual slot decisions keep this nil and therefore win over later broad
 	// status changes.
 	StudentStatusDayID *int64 `bun:"student_status_day_id" json:"-"`
+	// PickupExceptionID marks a partial excusal that owns the slot absence.
+	// Actual attendance and manual slot decisions clear this provenance.
+	PickupExceptionID *int64 `bun:"pickup_exception_id" json:"-"`
 }
 
 // Validate ensures the attendance row is well-formed.
@@ -158,10 +161,30 @@ func (p AttendanceFieldPatch) HasChanges() bool {
 		p.Note != nil || p.NoteClear
 }
 
+// ParallelPresence reports that a student is recorded status='present' in
+// another activity instance that is currently running on the same day. It
+// exists so a roster can surface the overlap when consecutive blocks of the
+// same lane run in parallel (#2265).
+type ParallelPresence struct {
+	StudentID  int64
+	InstanceID int64
+	Title      string
+	StartTime  time.Time
+	EndTime    time.Time
+}
+
 // InstanceStudentRepository defines operations for managing expected/actual
 // attendance on materialized activity instances.
 type InstanceStudentRepository interface {
 	base.Repository[*InstanceStudent]
+
+	// FindPresentInOtherActiveInstances returns, for the given students, rows
+	// where the student is recorded status='present' in another instance
+	// (id != excludeInstanceID) with status='active' on the given date,
+	// tenant-scoped. Ordered by the other instance's start_time DESC, id DESC
+	// so callers taking the first row per student get the latest running
+	// block. Empty studentIDs returns an empty slice without hitting the DB.
+	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date timezone.Date, studentIDs []int64) ([]ParallelPresence, error)
 
 	// FindByInstanceID returns all attendance rows for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStudent, error)
@@ -274,6 +297,9 @@ type InstanceStudentRepository interface {
 	ApplyStatusDay(ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string) (int, error)
 	ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error)
 	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
+	ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
+	ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
+	ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
 
 	// UpdateAttendanceFields writes only the fields carried by the patch.
 	// Callers (the PATCH handler) must validate cross-field invariants

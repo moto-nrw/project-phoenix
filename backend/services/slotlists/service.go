@@ -110,6 +110,13 @@ type careDayReader interface {
 	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]scheduleSvc.CareDayStatus, error)
 }
 
+// partialAbsenceReader loads same-day pickup exceptions so partial-day
+// excusals (excused_from set) can sign a child off on pickup lists after the
+// cutoff, matching full-day status days and cancelled care days.
+type partialAbsenceReader interface {
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentPickupException, error)
+}
+
 // regularPickupReader returns the recurring weekly pickup rows (no exceptions
 // applied). Used to place a cancelled child into a cohort by their normal
 // pickup bucket when a same-day exception cleared their effective time.
@@ -163,6 +170,7 @@ type Dependencies struct {
 	AttendanceRepo      attendanceReader
 	StatusDayRepo       statusDayReader
 	CareDayService      careDayReader
+	PickupExceptionRepo partialAbsenceReader
 	PickupScheduleRepo  regularPickupReader
 	StudentRepo         studentReader
 	PersonRepo          personReader
@@ -172,7 +180,7 @@ type Dependencies struct {
 	ArrivalService      arrivalTimeReader
 	ListExport          *listexport.RendererService
 	Settings            settingsReader
-	UserContext         authorize.StudentReadUserContext
+	UserContext         authorize.StudentAccessUserContext
 	Logger              *slog.Logger
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
@@ -186,6 +194,7 @@ type service struct {
 	attendanceRepo      attendanceReader
 	statusDayRepo       statusDayReader
 	careDayService      careDayReader
+	pickupExceptionRepo partialAbsenceReader
 	pickupScheduleRepo  regularPickupReader
 	studentRepo         studentReader
 	personRepo          personReader
@@ -195,7 +204,7 @@ type service struct {
 	arrivalService      arrivalTimeReader
 	listExport          *listexport.RendererService
 	settings            settingsReader
-	userContext         authorize.StudentReadUserContext
+	userContext         authorize.StudentAccessUserContext
 	logger              *slog.Logger
 	// now is the clock the service reads "today" and "has this slot started
 	// yet" from. Production leaves it nil (→ time.Now); tests inject a fixed
@@ -224,6 +233,7 @@ func NewService(deps Dependencies) Service {
 		attendanceRepo:      deps.AttendanceRepo,
 		statusDayRepo:       deps.StatusDayRepo,
 		careDayService:      deps.CareDayService,
+		pickupExceptionRepo: deps.PickupExceptionRepo,
 		pickupScheduleRepo:  deps.PickupScheduleRepo,
 		studentRepo:         deps.StudentRepo,
 		personRepo:          deps.PersonRepo,
@@ -361,55 +371,7 @@ func (s *service) resolveStudentReadAccess(ctx context.Context) (studentReadAcce
 	if staff == nil {
 		return studentReadAccess{groupIDs: map[int64]struct{}{}}, nil
 	}
-
-	scope, err := s.resolveStringSetting(
-		ctx,
-		configModel.KeyStudentDataScope,
-		configModel.StudentDataScopeGroupSupervisorsOnly,
-	)
-	if err != nil {
-		return studentReadAccess{}, err
-	}
-	if scope == configModel.StudentDataScopeAllStaff {
-		return studentReadAccess{unrestricted: true}, nil
-	}
-
-	educationGroups, err := s.userContext.GetMyGroups(ctx)
-	if err != nil {
-		return studentReadAccess{}, fmt.Errorf("resolve supervised groups: %w", err)
-	}
-	groupIDs := make(map[int64]struct{}, len(educationGroups))
-	for _, group := range educationGroups {
-		groupIDs[group.ID] = struct{}{}
-	}
-	return studentReadAccess{groupIDs: groupIDs}, nil
-}
-
-// resolveStringSetting returns the tenant override for key, or fallback when no
-// override exists (or the override is empty). A settings lookup FAILURE is not a
-// fallback: it propagates so the caller fails loudly. For the GDPR read scope a
-// silent fallback to the narrower group_supervisors_only would emit a
-// preview/export that omits every unsupervised child while looking like a valid,
-// authoritative daily list (#1565 review).
-func (s *service) resolveStringSetting(ctx context.Context, key, fallback string) (string, error) {
-	if s.settings == nil {
-		return fallback, nil
-	}
-	has, err := s.settings.HasTenantOverride(ctx, key)
-	if err != nil {
-		return "", fmt.Errorf("check tenant override for %s: %w", key, err)
-	}
-	if !has {
-		return fallback, nil
-	}
-	val, err := s.settings.ResolveString(ctx, key)
-	if err != nil {
-		return "", fmt.Errorf("resolve setting %s: %w", key, err)
-	}
-	if val == "" {
-		return fallback, nil
-	}
-	return val, nil
+	return studentReadAccess{unrestricted: true}, nil
 }
 
 func normalizeHHMM(value string) (string, error) {
@@ -1910,6 +1872,24 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, bucke
 		statusByStudent[day.StudentID] = day.Status
 	}
 
+	// Partial-day excusals live on student_pickup_exceptions.excused_from.
+	// After that cutoff the child is signed off for remaining care; without
+	// this evidence a partial-excused child with a pickup time at/after the
+	// cutoff would show as unexplained "Fehlt" on the Abgleich.
+	partialCutoffByStudent := map[int64]string{}
+	if s.pickupExceptionRepo != nil && len(studentIDs) > 0 {
+		exceptions, loadErr := s.pickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, params.Date)
+		if loadErr != nil {
+			return nil, fmt.Errorf("load pickup exceptions for partial absences: %w", loadErr)
+		}
+		for _, exc := range exceptions {
+			if exc == nil || exc.ExcusedFrom == nil {
+				continue
+			}
+			partialCutoffByStudent[exc.StudentID] = timezone.WallClock(*exc.ExcusedFrom).Format(timeLayout)
+		}
+	}
+
 	// A cancelled care day ("Kommt heute nicht") is also a registered absence,
 	// but it lives in the arrival/pickup exceptions, not in a status day. Its
 	// effective pickup may be nil (a timeless pickup exception) or the regular
@@ -1942,17 +1922,18 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, bucke
 		cohort[student.ID] = struct{}{}
 		_, present := presentSet[student.ID]
 		_, hasStatusDay := statusByStudent[student.ID]
+		partialCovers := partialCoversPickup(hhmm, partialCutoffByStudent[student.ID])
 		// Defer a not-yet-arrived child on today's Abgleich: with no check-in yet
 		// and their effective arrival time still ahead, an empty attendance row is
 		// not a no-show, so emitting a planned row here would false-report the
 		// child as "Fehlt" and inflate the missing counter before they were ever
-		// expected (#1565 review pass 1). Registered absences (a cancelled care day
-		// or a sick/excused/trip status day) are sign-offs valid all day and still
-		// render "Abgemeldet", so only the would-be-"Fehlt" case defers. The child
-		// stays in `cohort` (already recorded above) so the unplanned sweep does not
-		// re-add them. Past dates are refused upstream; future dates too — so this
-		// only ever fires on today.
-		if params.Source == SourceReconciliation && !present && !cancelled && !hasStatusDay &&
+		// expected (#1565 review pass 1). Registered absences (a cancelled care day,
+		// a sick/excused/trip status day, or a partial-day excusal covering this
+		// pickup) are sign-offs and still render "Abgemeldet", so only the
+		// would-be-"Fehlt" case defers. The child stays in `cohort` (already
+		// recorded above) so the unplanned sweep does not re-add them. Past dates
+		// are refused upstream; future dates too — so this only ever fires on today.
+		if params.Source == SourceReconciliation && !present && !cancelled && !hasStatusDay && !partialCovers &&
 			s.beforeEffectiveArrival(params.Date, arrivalTimes[student.ID]) {
 			continue
 		}
@@ -1982,8 +1963,9 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, bucke
 		}
 		if !present {
 			// A signed-off absence carries absence evidence (sick / excused /
-			// class trip, or a cancelled care day below), the shape
-			// signedOffAbsence reads to render "Abgemeldet" instead of "Fehlt".
+			// class trip, a cancelled care day, or a partial-day excusal covering
+			// this pickup), the shape signedOffAbsence reads to render
+			// "Abgemeldet" instead of "Fehlt".
 			if status, ok := statusByStudent[student.ID]; ok {
 				statusCopy := status
 				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
@@ -1992,6 +1974,10 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, bucke
 				cancelledSubstatus := string(scheduleSvc.CareDayCancelled)
 				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
 				entry.PlannedSubstatus = &cancelledSubstatus
+			} else if partialCovers {
+				excused := scheduleModel.AttendanceSubstatusExcused
+				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
+				entry.PlannedSubstatus = &excused
 			}
 		}
 		entries = append(entries, entry)
@@ -2233,7 +2219,7 @@ func signedOffAbsence(entry mergedEntry) bool {
 	}
 	switch *entry.PlannedSubstatus {
 	case scheduleModel.AttendanceSubstatusSick, // instance substatus / status day
-		scheduleModel.AttendanceSubstatusExcused,   // instance substatus / status day
+		scheduleModel.AttendanceSubstatusExcused,   // instance substatus / status day / partial-day excusal
 		scheduleModel.AttendanceSubstatusFieldTrip, // instance substatus
 		activeModel.StudentStatusDayClassTrip,      // status day
 		string(scheduleSvc.CareDayCancelled):       // cancelled care day
@@ -2241,6 +2227,17 @@ func signedOffAbsence(entry mergedEntry) bool {
 	default:
 		return false
 	}
+}
+
+// partialCoversPickup reports whether a partial-day excusal cutoff is at or
+// before the child's cohort pickup time. Mirrors ApplyPartialAbsence's
+// start_time >= excused_from predicate for slots: earlier pickups remain
+// expected; pickups at/after the cutoff are signed off.
+func partialCoversPickup(pickupHHMM, excusedFromHHMM string) bool {
+	if pickupHHMM == "" || excusedFromHHMM == "" {
+		return false
+	}
+	return pickupHHMM >= excusedFromHHMM
 }
 
 // voidPlanRegisteredAbsence reports whether a deferred (not-yet-started) slot's

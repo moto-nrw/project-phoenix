@@ -69,6 +69,7 @@ func setupTestContext(t *testing.T) *testContext {
 		ActiveService:           svc.Active,
 		IoTService:              svc.IoT,
 		PickupScheduleService:   svc.PickupSchedule,
+		PartialAbsenceService:   svc.PartialAbsence,
 		ArrivalScheduleService:  svc.ArrivalSchedule,
 		SchoolService:           svc.Schools,
 		SettingsService:         svc.Settings,
@@ -76,8 +77,13 @@ func setupTestContext(t *testing.T) *testContext {
 		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
-		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
 		ExcusedRequestService:   svc.ExcusedRequests,
+		// The three users:update-gated review queues, wired so the combined
+		// pending-count endpoint can be exercised end to end (#2232).
+		MasterDataReviewService: svc.MasterDataReview,
+		CareRequestService:      svc.CareRequests,
+		OfferingChangeService:   svc.OfferingChanges,
 		Broadcaster:             broadcaster,
 		ParentEventEmitter:      parentEventEmitter,
 		StudentPhotos:           studentPhotos,

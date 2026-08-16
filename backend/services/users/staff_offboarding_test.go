@@ -67,6 +67,7 @@ func newOffboardingScenario(t *testing.T) *offboardingScenario {
 		InstanceStaffRepo:      repos.InstanceStaff,
 		StaffShiftRepo:         repos.StaffShift,
 		StaffAbsenceRepo:       repos.StaffAbsence,
+		AccountRepo:            repos.Account,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
 		AccountPermissionRepo:  repos.AccountPermission,
@@ -305,11 +306,14 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		PersonRepo:        sc.repos.Person,
 		StaffRepo:         sc.repos.Staff,
 		TeacherRepo:       sc.repos.Teacher,
-		SchoolRepo:        sc.repos.School,
-		Mailer:            email.NewMockMailer(),
-		FrontendURL:       "http://localhost:3000",
-		InvitationExpiry:  time.Hour,
-		DB:                sc.db,
+		// Accepting onto an existing person checks that person is not a child's
+		// record, so the repository is required, not optional (#2222).
+		StudentRepo:      sc.repos.Student,
+		SchoolRepo:       sc.repos.School,
+		Mailer:           email.NewMockMailer(),
+		FrontendURL:      "http://localhost:3000",
+		InvitationExpiry: time.Hour,
+		DB:               sc.db,
 	})
 
 	oldCredential := offboardingCredential("Offboard", "123")
@@ -943,4 +947,57 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 
 	require.NoError(t, sc.repos.WorkTimeModel.Delete(sc.ctx, model.ID),
 		"work-time-model deletion must succeed once the offboarded staff no longer references it")
+}
+
+// TestOffboardStaff_LocksAccountBeforeRevokingRoles pins the LOCK ORDER the
+// school-portal mint guard depends on (#2207): auth.accounts is taken FOR
+// UPDATE before any role, permission or mapping row of that account is
+// touched. The guard walks the same rows account-first because it has to
+// decide against a locked account; offboarding used to walk them in the
+// opposite direction and only update auth.accounts at the very end, which is
+// the textbook setup for a PostgreSQL deadlock (40P01) between an admin
+// offboarding a Lehrkraft and that same person logging into the school portal.
+//
+// The proof is indirect but exact: while another transaction holds the account
+// row, offboarding must not get as far as deleting the role mapping.
+func TestOffboardStaff_LocksAccountBeforeRevokingRoles(t *testing.T) {
+	sc := newOffboardingScenario(t)
+
+	credential := offboardingCredential("Offboard", "789")
+	emailAddr := fmt.Sprintf("offboard-lockorder-%d@test.local", time.Now().UnixNano())
+	account := testpkg.CreateTestAccountWithPassword(t, sc.db, emailAddr, credential)
+	person := testpkg.CreateTestPersonWithAccountID(t, sc.db, "Lock", "Order", account.ID)
+	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
+	testpkg.MapAccountToTenant(t, sc.db, account.ID, offboardingFixtureTenant)
+	role := testpkg.GetOrCreateTestRole(t, sc.db, "user")
+	assignTenantRole(t, sc.db, account.ID, role.ID)
+	t.Cleanup(func() {
+		cleanupOffboardedStaffChain(t, sc.db, staff.ID, person.ID, &account.ID)
+	})
+
+	holder, err := sc.db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	_, err = holder.ExecContext(context.Background(),
+		`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID)
+	require.NoError(t, err)
+
+	blockedCtx, cancel := context.WithTimeout(sc.ctx, 2*time.Second)
+	defer cancel()
+	err = sc.svc.OffboardStaff(blockedCtx, staff.ID, staff.ID, "test-admin")
+	require.Error(t, err, "offboarding must block on the account row, not walk past it")
+
+	var roleCount int
+	require.NoError(t, sc.db.NewSelect().
+		TableExpr(`auth.account_roles`).
+		ColumnExpr(`COUNT(*)`).
+		Where(`account_id = ?`, account.ID).
+		Scan(context.Background(), &roleCount))
+	assert.Equal(t, 1, roleCount,
+		"role removal must happen AFTER the account lock: with the account held elsewhere, no role may be gone")
+
+	require.NoError(t, holder.Rollback())
+
+	// With the lock released the very same offboarding runs to completion —
+	// the block above was contention, not a broken code path.
+	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 }

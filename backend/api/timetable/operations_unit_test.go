@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -98,22 +99,63 @@ func TestOperationsInstanceEndpoints(t *testing.T) {
 		method string
 		path   string
 		fn     http.HandlerFunc
+		body   any
 	}{
-		{"roster", http.MethodGet, "/instances/230/roster", res.operationsRoster},
-		{"start", http.MethodPost, "/instances/231/start", res.operationsStart},
-		{"complete", http.MethodPost, "/instances/232/complete", res.operationsComplete},
+		{"roster", http.MethodGet, "/instances/230/roster", res.operationsRoster, nil},
+		{"start", http.MethodPost, "/instances/231/start", res.operationsStart, nil},
+		{"complete", http.MethodPost, "/instances/232/complete", res.operationsComplete, map[string]any{"confirmed_present_student_ids": []int64{}}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			router := operationRouter(tc.method, "/instances/{id}/"+lastPathSegment(tc.path), tc.fn)
 
-			rr := executeOperationRequest(router, tc.method, tc.path, nil)
+			rr := executeOperationRequest(router, tc.method, tc.path, tc.body)
 
 			assert.Equal(t, http.StatusOK, rr.Code)
 		})
 	}
 	assert.Equal(t, int64(232), service.lastInstanceID)
+}
+
+func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
+	started := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
+	started.ID = 231
+	service := &fakeOperationsService{
+		start: &scheduleSvc.StartInstanceResult{
+			Instance:      started,
+			ActiveGroupID: 341,
+		},
+	}
+	res := NewResource(Dependencies{OperationsService: service})
+	router := operationRouter(http.MethodPost, "/instances/{id}/reopen", res.operationsReopen)
+
+	cases := []struct {
+		name        string
+		isAdmin     bool
+		permissions []string
+		wantAdmin   bool
+	}{
+		{name: "wildcard admin without admin role", permissions: []string{"admin:*"}, wantAdmin: true},
+		{name: "full-access wildcard", permissions: []string{"*:*"}, wantAdmin: true},
+		{name: "literal admin role", isAdmin: true, permissions: []string{"schedules:manage"}, wantAdmin: true},
+		{name: "ordinary staff", permissions: []string{"schedules:manage"}, wantAdmin: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service.lastIsAdmin = false
+			req := httptest.NewRequest(http.MethodPost, "/instances/231/reopen", nil)
+			testutil.WithClaims(jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: 1})(req)
+			testutil.WithPermissions(tc.permissions...)(req)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+			assert.Equal(t, int64(120), service.lastAccountID)
+			assert.Equal(t, tc.wantAdmin, service.lastIsAdmin)
+		})
+	}
 }
 
 func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
@@ -771,6 +813,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 		{scheduleSvc.ErrInstanceNotFound, http.StatusNotFound},
 		{activeSvc.ErrStudentAlreadyActive, http.StatusConflict},
 		{activeSvc.ErrRoomConflict, http.StatusConflict},
+		{activeSvc.ErrRoomCapacityExceeded, http.StatusConflict},
 		{activeSvc.ErrStudentNotFound, http.StatusNotFound},
 		{activeSvc.ErrVisitNotFound, http.StatusNotFound},
 		{activeSvc.ErrInvalidData, http.StatusBadRequest},
@@ -791,6 +834,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 
 type fakeOperationsService struct {
 	planned  []scheduleSvc.OperationPlannedInstance
+	sessions []scheduleSvc.OperationActiveSession
 	roster   *scheduleSvc.OperationRoster
 	start    *scheduleSvc.StartInstanceResult
 	complete *schedule.ActivityInstance
@@ -1015,6 +1059,11 @@ func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, i
 	return s.planned, s.err
 }
 
+func (s *fakeOperationsService) ActiveSessions(_ context.Context, date timezone.Date) ([]scheduleSvc.OperationActiveSession, error) {
+	s.lastDate = date
+	return s.sessions, s.err
+}
+
 func (s *fakeOperationsService) Start(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.StartInstanceResult, error) {
 	s.lastAccountID = accountID
 	s.lastIsAdmin = isAdmin
@@ -1041,6 +1090,13 @@ func (s *fakeOperationsService) Complete(_ context.Context, accountID int64, isA
 	s.lastIsAdmin = isAdmin
 	s.lastInstanceID = instanceID
 	return s.complete, s.err
+}
+
+func (s *fakeOperationsService) Reopen(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.StartInstanceResult, error) {
+	s.lastAccountID = accountID
+	s.lastIsAdmin = isAdmin
+	s.lastInstanceID = instanceID
+	return s.start, s.err
 }
 
 func (s *fakeOperationsService) Roster(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.OperationRoster, error) {

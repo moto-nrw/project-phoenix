@@ -7,6 +7,7 @@ import {
   extractPrivacyConsent,
   isEmptyValue,
   validateNumberMin,
+  validateNumberMax,
   validateField,
   validateFormFields,
   DatabaseForm,
@@ -45,11 +46,21 @@ describe("getDefaultValueForField", () => {
     expect(getDefaultValueForField(field)).toBe(30);
   });
 
-  it("returns 0 for other number fields", () => {
+  it("returns an empty string for optional number fields", () => {
     const field: FormField = {
       name: "age",
       label: "Alter",
       type: "number",
+    };
+    expect(getDefaultValueForField(field)).toBe("");
+  });
+
+  it("returns 0 for required number fields", () => {
+    const field: FormField = {
+      name: "age",
+      label: "Alter",
+      type: "number",
+      required: true,
     };
     expect(getDefaultValueForField(field)).toBe(0);
   });
@@ -380,6 +391,18 @@ describe("validateNumberMin", () => {
   });
 });
 
+describe("validateNumberMax", () => {
+  it("returns null when the value meets the maximum", () => {
+    expect(validateNumberMax(50, 50, "Anzahl")).toBeNull();
+  });
+
+  it("returns an error when the value exceeds the maximum", () => {
+    expect(validateNumberMax(51, 50, "Anzahl")).toBe(
+      "Anzahl darf höchstens 50 sein.",
+    );
+  });
+});
+
 // =============================================================================
 // validateField Tests
 // =============================================================================
@@ -429,6 +452,38 @@ describe("validateField", () => {
     expect(validateField(field, 0)).toBe("Alter muss mindestens 1 sein.");
     expect(validateField(field, 1)).toBeNull();
     expect(validateField(field, 25)).toBeNull();
+  });
+
+  it("rejects fractional values for integer number fields", () => {
+    const field: FormField = {
+      name: "capacity",
+      label: "Kapazität",
+      type: "number",
+      min: 1,
+    };
+
+    expect(validateField(field, 1.5)).toBe(
+      "Kapazität muss eine ganze Zahl sein.",
+    );
+    expect(validateField(field, "1.5")).toBe(
+      "Kapazität muss eine ganze Zahl sein.",
+    );
+    expect(validateField(field, 2)).toBeNull();
+  });
+
+  it("validates a non-empty optional number field", () => {
+    const field: FormField = {
+      name: "capacity",
+      label: "Maximale Belegung",
+      type: "number",
+      min: 1,
+    };
+
+    expect(validateField(field, "")).toBeNull();
+    expect(validateField(field, 0)).toBe(
+      "Maximale Belegung muss mindestens 1 sein.",
+    );
+    expect(validateField(field, 43)).toBeNull();
   });
 
   it("runs custom validation function", () => {
@@ -835,6 +890,44 @@ describe("DatabaseForm", () => {
     expect(numberInput).toHaveValue(42);
   });
 
+  it("submits an emptied optional number field", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const sectionsWithCapacity: FormSection[] = [
+      {
+        title: "Raum",
+        fields: [
+          {
+            name: "capacity",
+            label: "Maximale Belegung",
+            type: "number",
+            min: 1,
+          },
+        ],
+      },
+    ];
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={sectionsWithCapacity}
+        initialData={{ capacity: 2 }}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const capacityInput = screen.getByRole("spinbutton", {
+      name: "Maximale Belegung",
+    });
+    fireEvent.change(capacityInput, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ capacity: "" }),
+      ),
+    );
+  });
+
   it("renders with initial data", async () => {
     render(
       <DatabaseForm
@@ -846,6 +939,41 @@ describe("DatabaseForm", () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/Test Field/)).toHaveValue("initial value");
     });
+  });
+
+  it("preserves a null initial number as an empty field", async () => {
+    const sections: FormSection[] = [
+      {
+        title: "Kapazität",
+        fields: [
+          {
+            name: "max_participant",
+            label: "Maximale Teilnehmer",
+            type: "number",
+            required: false,
+            min: 1,
+          },
+        ],
+      },
+    ];
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <DatabaseForm
+        {...defaultProps}
+        sections={sections}
+        initialData={{ max_participant: null }}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const input = screen.getByRole("spinbutton");
+    await waitFor(() => expect(input).toHaveValue(null));
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({ max_participant: null }),
+    );
   });
 
   it("preserves unsaved edits when privacy consent revalidates", async () => {

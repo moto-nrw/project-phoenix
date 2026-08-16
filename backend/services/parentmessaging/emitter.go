@@ -248,6 +248,9 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 			RefID:           ev.RefID,
 		}
 		msg.SetTenantID(thread.TenantID)
+		if err := e.threadRepo.LockForMessageAppend(txCtx, thread.ID); err != nil {
+			return err
+		}
 		if err := e.messageRepo.Create(txCtx, msg); err != nil {
 			return err
 		}

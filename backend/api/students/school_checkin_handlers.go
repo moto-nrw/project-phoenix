@@ -5,18 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // schoolCheckinRequest is the payload for POST /api/students/{id}/school-checkin.
@@ -54,9 +49,9 @@ const (
 // Authorization layers:
 //  1. JWT + users:checkin permission (route middleware)
 //  2. Tenant scoping: student belongs to caller's tenant (middleware + repo)
-//  3. attendance.web_checkin_access setting:
-//     - "all_staff"          → any caller with the permission passes
-//     - "group_supervisors"  → caller must supervise the student's educational group
+//
+// Any verified staff member may toggle any student (#2329) — the former
+// attendance.web_checkin_access per-group gate is gone.
 func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request) {
 	logger := rs.getLogger().With(slog.String("handler", "schoolCheckin"))
 
@@ -77,17 +72,6 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorForbidden(err))
-		return
-	}
-
-	// One batch query for both access-gate settings read below (issue #2065).
-	r = r.WithContext(common.PrefetchSettings(r.Context(), rs.SettingsService,
-		configModel.KeyWebCheckinAccess,
-		configModel.KeyGroupMode,
-	))
-
-	if err := rs.enforceWebCheckinAccess(r.Context(), staffID, student.ID); err != nil {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
@@ -121,67 +105,6 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 	)
 
 	common.Respond(w, r, http.StatusOK, resp, "School checkin toggled successfully")
-}
-
-// evaluateWebCheckinAccess is the pure decision layer of the access gate:
-// given the resolved mode and whether the caller supervises the student's
-// educational group, decide whether to allow or deny. Extracted for
-// hermetic unit testing without mocking a SettingsService or ActiveService.
-// Returns nil on allow, an error on deny.
-func evaluateWebCheckinAccess(mode string, supervisorHasAccess bool) error {
-	if mode == configModel.WebCheckinAccessAllStaff {
-		return nil
-	}
-	// group_supervisors (default) — caller must supervise the student's
-	// educational group.
-	if !supervisorHasAccess {
-		return errors.New("caller is not a supervisor of this student's educational group")
-	}
-	return nil
-}
-
-// enforceWebCheckinAccess enforces the attendance.web_checkin_access setting
-// for a given caller+student pair. Returns nil on allow, an error on deny.
-//
-// Admins (admin:* or *:* in JWT claims) bypass this gate entirely — same
-// pattern as the sibling helpers (isGroupSupervisorOrAdmin, canModifyStudent)
-// in this package, where tenant admins are trusted on every student-scoped
-// path regardless of supervision. Without this short-circuit, an admin who
-// happens not to teach the student's group would get a 403 in
-// `group_supervisors` mode, which contradicts the rest of the admin model.
-func (rs *Resource) enforceWebCheckinAccess(ctx context.Context, staffID, studentID int64) error {
-	if authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)) {
-		return nil
-	}
-
-	mode := configSvc.ResolveStringOrDefault(
-		ctx,
-		rs.SettingsService,
-		configModel.KeyWebCheckinAccess,
-		configModel.WebCheckinAccessGroupSupervisors,
-		rs.getLogger(),
-	)
-	if rs.SettingsService == nil {
-		return errors.New("settings service is not configured")
-	}
-	groupMode, groupModeErr := rs.SettingsService.ResolveString(ctx, configModel.KeyGroupMode)
-	if groupModeErr != nil {
-		return fmt.Errorf("group mode resolution failed: %w", groupModeErr)
-	}
-	if groupMode == configModel.GroupModeOpenCare {
-		return nil
-	}
-	if mode == configModel.WebCheckinAccessAllStaff {
-		return evaluateWebCheckinAccess(mode, false)
-	}
-
-	// group_supervisors path requires the supervisor check. CheckTeacherStudentAccess
-	// encapsulates the lookup (staff -> teacher -> teacher_groups -> student.group_id).
-	hasAccess, err := rs.ActiveService.CheckTeacherStudentAccess(ctx, staffID, studentID)
-	if err != nil {
-		return fmt.Errorf("access check failed: %w", err)
-	}
-	return evaluateWebCheckinAccess(mode, hasAccess)
 }
 
 // isIdempotentSchoolCheckin reports whether the requested action is already

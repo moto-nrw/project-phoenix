@@ -6,6 +6,8 @@ import {
   updateCareOffering,
   deleteCareOffering,
   cloneCareOffering,
+  previewCareOfferingPickupRollout,
+  rolloutCareOfferingPickupTimes,
   type CareOffering,
   type CareOfferingInput,
 } from "./care-offering-api";
@@ -264,5 +266,52 @@ describe("cloneCareOffering", () => {
     await expect(
       cloneCareOffering("1234", { target_phase_id: 5 }),
     ).rejects.toThrow(/Klonen fehlgeschlagen/);
+  });
+});
+
+describe("care offering pickup rollout", () => {
+  it("previews and applies pickup times through the rollout endpoint", async () => {
+    const requests: Array<{ input: string; init?: RequestInit }> = [];
+    mockFetch(async (input, init) => {
+      requests.push({ input: input.toString(), init });
+      if (init?.method === "POST") {
+        return jsonResponse({
+          data: {
+            created_rows: 1,
+            updated_rows: 2,
+            deleted_rows: 0,
+            skipped_students: 1,
+          },
+        });
+      }
+      return jsonResponse({
+        data: {
+          affected_students: 3,
+          new_rows: 1,
+          updated_rows: 2,
+          removed_rows: 0,
+          conflicts: [],
+        },
+      });
+    });
+
+    await expect(
+      previewCareOfferingPickupRollout("a/b"),
+    ).resolves.toMatchObject({ affected_students: 3, new_rows: 1 });
+    await expect(
+      rolloutCareOfferingPickupTimes("a/b", ["17"]),
+    ).resolves.toMatchObject({ created_rows: 1, skipped_students: 1 });
+
+    expect(requests[0]).toMatchObject({
+      input: "/api/enrollment/care-offerings/a%2Fb/pickup-rollout",
+      init: { cache: "no-store" },
+    });
+    expect(requests[1]).toMatchObject({
+      input: "/api/enrollment/care-offerings/a%2Fb/pickup-rollout",
+      init: {
+        method: "POST",
+        body: JSON.stringify({ skip_student_ids: ["17"] }),
+      },
+    });
   });
 });

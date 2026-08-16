@@ -49,6 +49,7 @@ DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
 DELETE /api/students/{id}/documents/{documentId}
+DELETE /api/students/{id}/partial-absences/{partialAbsenceId}
 DELETE /api/students/{id}/photo
 DELETE /api/students/{id}/pickup-exceptions/{exceptionId}
 DELETE /api/students/{id}/pickup-notes/{noteId}
@@ -176,6 +177,7 @@ GET /api/enrollment/care-offerings/
 GET /api/enrollment/care-offerings/booking-stats
 GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
+GET /api/enrollment/care-offerings/{id}/pickup-rollout
 GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/legal/{tenantSlug}
 GET /api/enrollment/legal/{tenantSlug}/{phaseId}
@@ -355,6 +357,7 @@ GET /api/students/{id}/documents
 GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/in-group-room
+GET /api/students/{id}/partial-absences
 GET /api/students/{id}/photo/{filename}
 GET /api/students/{id}/pickup-schedules
 GET /api/students/{id}/privacy-consent
@@ -390,10 +393,12 @@ GET /api/timetable/exception-conflicts
 GET /api/timetable/gaps
 GET /api/timetable/instances/
 GET /api/timetable/instances/edited-in-window
+GET /api/timetable/instances/{id}/participants
 GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/offering-sources
 GET /api/timetable/offering-sources/combined-counts
 GET /api/timetable/operations/active-groups/{id}/roster
+GET /api/timetable/operations/active-sessions
 GET /api/timetable/operations/capabilities
 GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
@@ -513,6 +518,8 @@ GET /public/calendar/{token}
 GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
+GET /school/class-day/
+GET /school/class-day/classes
 HEAD /internal/metrics
 OPTIONS /internal/metrics
 PATCH /api/display/{id}/
@@ -569,6 +576,7 @@ POST /api/enrollment/admin/requests/{id}/restore
 POST /api/enrollment/admin/students/{studentId}/requests/export
 POST /api/enrollment/care-offerings/
 POST /api/enrollment/care-offerings/{id}/clone
+POST /api/enrollment/care-offerings/{id}/pickup-rollout
 POST /api/enrollment/legal-documents
 POST /api/enrollment/phases/
 POST /api/enrollment/phases/{id}/export
@@ -673,9 +681,11 @@ POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
 POST /api/students/{id}/documents
+POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
+POST /api/students/{id}/pickup-schedules/reset-offering
 POST /api/students/{id}/rfid
 POST /api/students/{id}/school-checkin
 POST /api/students/{id}/status-days
@@ -702,12 +712,14 @@ POST /api/timetable/instances/{id}/complete
 POST /api/timetable/instances/{id}/convert-to-series
 POST /api/timetable/instances/{id}/deviations
 POST /api/timetable/instances/{id}/move-staff
+POST /api/timetable/instances/{id}/reopen
 POST /api/timetable/instances/{id}/start
 POST /api/timetable/lists/export
 POST /api/timetable/lists/options
 POST /api/timetable/lists/preview
 POST /api/timetable/materialize
 POST /api/timetable/operations/instances/{id}/complete
+POST /api/timetable/operations/instances/{id}/reopen
 POST /api/timetable/operations/instances/{id}/start
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-in
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
@@ -813,6 +825,12 @@ POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
 POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
+POST /school/auth/login
+POST /school/auth/mfa/enroll/confirm
+POST /school/auth/mfa/enroll/start
+POST /school/auth/mfa/resend
+POST /school/auth/mfa/verify
+POST /school/auth/switch-school
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
@@ -867,6 +885,7 @@ PUT /api/students/{id}
 PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
 PUT /api/students/{id}/arrival-schedules
+PUT /api/students/{id}/partial-absences/{partialAbsenceId}
 PUT /api/students/{id}/pickup-exceptions/{exceptionId}
 PUT /api/students/{id}/pickup-notes/{noteId}
 PUT /api/students/{id}/pickup-schedules

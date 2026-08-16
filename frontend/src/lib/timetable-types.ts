@@ -185,6 +185,9 @@ export interface EnrichedInstance {
    */
   requiredStaffOverride?: number;
   conflictWarnings: ConflictWarning[];
+  canReopen?: boolean;
+  canComplete?: boolean;
+  completeAvailableAt?: string;
 }
 
 interface EmptyRosterReason {
@@ -272,6 +275,9 @@ export interface BackendEnrichedInstance {
     overlap_start?: string;
     overlap_end?: string;
   }>;
+  can_reopen?: boolean;
+  can_complete?: boolean;
+  complete_available_at?: string;
 }
 
 export interface BackendWeeklyInstancesResponse {
@@ -439,7 +445,7 @@ export interface TimetableTemplate {
   educationGroupId?: string;
   educationGroupName?: string;
   isOpen: boolean;
-  maxParticipants: number;
+  maxParticipants: number | null;
   /** Durable Wochennotiz for the series (activities.groups.notes, #1837). */
   notes?: string;
   /** Category's mapped Dienstplan-Schichtart (#1836/#1837); empty = unmapped. */
@@ -528,7 +534,7 @@ export interface BackendTimetableTemplate {
   education_group_id?: number;
   education_group_name?: string;
   is_open: boolean;
-  max_participants: number;
+  max_participants: number | null;
   notes?: string;
   shift_type_name?: string;
   shift_type_color?: string;
@@ -647,6 +653,7 @@ export type EditedChange =
   | "time"
   | "staff"
   | "students"
+  | "attendance"
   | "list_kind"
   | "deleted";
 
@@ -693,6 +700,7 @@ export interface InstanceStatusResult {
   instanceId: string;
   status: InstanceStatus;
   completedAt?: string;
+  reopenUntil?: string;
 }
 
 export interface BackendStartInstanceResult {
@@ -712,6 +720,7 @@ export interface BackendInstanceStatusResult {
   instance_id: number;
   status: InstanceStatus;
   completed_at?: string;
+  reopen_until?: string;
 }
 
 export interface AttendancePatchBody {
@@ -959,7 +968,7 @@ export interface CreateTemplateBody {
   /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
   notes?: string;
   education_group_id?: number;
-  max_participants?: number;
+  max_participants?: number | null;
   /** Manual Personalbedarf override (#1839); null/omitted = derive. */
   required_staff?: number | null;
   week_pattern?: number;
@@ -1013,6 +1022,14 @@ export type UpdateTemplateBody = Omit<
   CreateTemplateBody,
   "materialize_from" | "materialize_to" | "list_kind" | "start_date"
 > & {
+  /**
+   * Pulls a not-yet-started series forward (#2226): schedule envelope and
+   * series-managed roster move to this earlier date. The backend accepts only
+   * dates before the stored series start, not in the past, within the pinned
+   * period and clear of a predecessor segment's window. Omitted = the stored
+   * series start stays untouched (the pre-#2226 behavior).
+   */
+  start_date?: string;
   /**
    * Listenart classification. A value sets it; explicit `null` clears it. On the
    * split ("Diesen und folgende") endpoint, omitting the field keeps the existing

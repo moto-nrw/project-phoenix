@@ -3,7 +3,11 @@
 import { useCallback, useReducer, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import { useToast } from "~/contexts/ToastContext";
-import { isHomeLocation, isSchoolyardLocation } from "~/lib/location-helper";
+import {
+  isHomeLocation,
+  isSchoolyardLocation,
+  parseLocation,
+} from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   schoolCheckinStudent,
@@ -54,6 +58,37 @@ export function deriveCheckinState(
  */
 function actionForState(state: StudentCheckinState): SchoolCheckinAction {
   return state === "anwesend" || state === "schulhof" ? "out" : "in";
+}
+
+/**
+ * Room a checkout would interrupt, or null when there is none (#2220).
+ *
+ * Detailed-mode tenants resolve a present student's location to
+ * "Anwesend - {Raum}" whenever an open `active.visits` row points at a room.
+ * Checking such a student out of care also ends that visit (the backend does
+ * it in the same transaction), so the UI asks first and names the room.
+ *
+ * Returns null for every state that carries no room: absent students, the
+ * roomless "Unterwegs"/"Anwesend" states, and every binary-mode label — those
+ * check out on a single tap, exactly like before.
+ */
+export function checkoutConfirmationRoom(
+  currentLocation?: string | null,
+): string | null {
+  if (deriveCheckinState(currentLocation) !== "anwesend") return null;
+  const { room } = parseLocation(currentLocation);
+  return room && room.length > 0 ? room : null;
+}
+
+/**
+ * Detects the 403 the school-checkin endpoint returns when the caller may not
+ * use web check-in at all (missing users:checkin permission or web attendance
+ * disabled). authFetch folds the status into the message
+ * ("API error (403): Forbidden"), which is the same shape
+ * `getApiErrorMessage` matches on.
+ */
+function isForbiddenError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("403");
 }
 
 interface CheckinModeSession {
@@ -164,11 +199,22 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           action,
           error: message,
         });
-        toast.error(
-          action === "in"
-            ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
-            : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
-        );
+        if (isForbiddenError(error)) {
+          // Naming the reason matters here: a permission 403 fails on every
+          // retry, and a bare "bitte erneut versuchen" would invite endless
+          // retries (#2220).
+          toast.error(
+            action === "in"
+              ? "Keine Berechtigung, Kinder anzumelden."
+              : "Keine Berechtigung, Kinder abzumelden.",
+          );
+        } else {
+          toast.error(
+            action === "in"
+              ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
+              : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
+          );
+        }
       } finally {
         setPendingIds((prev) => {
           const next = new Set(prev);

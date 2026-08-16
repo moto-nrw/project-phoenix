@@ -52,6 +52,7 @@ const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
   time: "Zeit/Datum",
   staff: "Personal",
   students: "Kinder",
+  attendance: "Anwesenheit",
   list_kind: "Listenart",
   deleted: "Gelöschter Termin",
 };
@@ -65,7 +66,15 @@ const WIZARD_STEPS = ["Termin", "Wiederholung", "Personal und Kinder"] as const;
  * the hook's validateForm — this is only a mapping.
  */
 const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
-  ["title", "date", "startTime", "endTime", "roomId", "categoryId"],
+  [
+    "title",
+    "date",
+    "seriesStartDate",
+    "startTime",
+    "endTime",
+    "roomId",
+    "categoryId",
+  ],
   ["weekdays", "calendarPeriodId", "weekPattern"],
   ["targetGradeLevel", "targetSchoolClass", "educationGroupId"],
 ];
@@ -193,7 +202,10 @@ export function TimetableEventModal({
     handleConfirmSeriesDelete,
     expanded,
     choiceDialogOpen,
+    scopeSelectionRequired,
+    isScopedSeriesEdit,
     setPendingSeriesEdit,
+    handleInitialScopeSelect,
     handleScopeSelect,
     scopeClosingDayWarning,
     setScopeClosingDayWarning,
@@ -208,6 +220,7 @@ export function TimetableEventModal({
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
+    seriesStartEdit,
     canDeleteSeries,
     gradeLevelMax,
     targetGradeOptions,
@@ -313,12 +326,18 @@ export function TimetableEventModal({
     // Periodenstart.
     const from = initialSeries ? today : form.date;
     const validity = initialSeries?.schedules[0];
+    const requestedValidFrom =
+      initialSeries &&
+      form.seriesStartDate !== "" &&
+      form.seriesStartDate < (validity?.validFrom ?? "")
+        ? form.seriesStartDate
+        : validity?.validFrom;
     const dates = materializedRecurrenceDates({
       period,
       fromISO: from,
       weekdays: form.weekdays,
       weekPattern: form.weekPattern,
-      validFrom: validity?.validFrom,
+      validFrom: requestedValidFrom,
       validUntil: validity?.validUntil,
     });
     // Converting preserves the concrete seed occurrence even when its date is
@@ -334,6 +353,7 @@ export function TimetableEventModal({
     convertInstance,
     form.calendarPeriodId,
     form.date,
+    form.seriesStartDate,
     form.weekPattern,
     form.weekdays,
     initialSeries,
@@ -401,6 +421,37 @@ export function TimetableEventModal({
     // `step` is read, not tracked: only a fresh validation result may move it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fieldErrors]);
+
+  if (scopeSelectionRequired && initialInstance) {
+    return (
+      <ChoiceModal
+        isOpen={isOpen && choiceDialogOpen}
+        onClose={onClose}
+        title="Wiederholenden Termin ändern"
+        description={`Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin. Wählen Sie zuerst, welchen Umfang Sie bearbeiten möchten.${validationError ? ` ${validationError}` : ""}`}
+        options={[
+          {
+            value: "single",
+            label: "Nur diese Woche",
+            description: `Öffnet nur den Termin am ${formatDate(initialInstance.date)}.`,
+          },
+          {
+            value: "following",
+            label: "Ab jetzt dauerhaft",
+            description: `Lädt den ab ${formatDate(initialInstance.date)} wirksamen Serienteil.`,
+          },
+          {
+            value: "all",
+            label: "Alle Termine der Serie",
+            description:
+              "Lädt Rhythmus, Zeitraum sowie Kinder- und Personalzuordnungen der Serie.",
+          },
+        ]}
+        onSelect={(value) => void handleInitialScopeSelect(value)}
+        isBusy={submitting}
+      />
+    );
+  }
 
   return (
     <SlideOver
@@ -470,6 +521,7 @@ export function TimetableEventModal({
             // sonst stünde sie vor den Pflichtfeld-Fehlern.
             if (
               closingDayConflict !== null &&
+              !isScopedSeriesEdit &&
               closingDayConfirmationKey !== null &&
               confirmedClosingConflict.current !== closingDayConfirmationKey &&
               !submitting &&
@@ -505,7 +557,9 @@ export function TimetableEventModal({
 
             {isEditingSeries && (
               <p className="text-xs text-gray-500">
-                Änderungen gelten für alle Termine dieser Serie.
+                {isScopedSeriesEdit
+                  ? "Änderungen gelten für den gewählten Serienumfang."
+                  : "Änderungen gelten für alle Termine dieser Serie."}
               </p>
             )}
 
@@ -521,6 +575,7 @@ export function TimetableEventModal({
                 expanded={expanded}
                 isSeriesFlow={isSeriesFlow}
                 isEditingSeries={isEditingSeries}
+                seriesStartEdit={seriesStartEdit}
                 quickPreset={quickPreset}
                 listKindTouched={listKindTouched}
                 canManageCategories={canManageCategories}

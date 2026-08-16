@@ -44,6 +44,9 @@ var (
 	ErrEmptyBody = errors.New("messaging: message body must not be empty")
 	// ErrBodyTooLong means the message exceeded maxMessageLen.
 	ErrBodyTooLong = errors.New("messaging: message body too long")
+	// ErrHandledBoundaryRequired means the replying client did not identify the
+	// message snapshot its team reply covers.
+	ErrHandledBoundaryRequired = errors.New("messaging: handled message boundary required")
 	// ErrInvalidGuardian means the chosen recipient is not an account-holding
 	// guardian of the child.
 	ErrInvalidGuardian = errors.New("messaging: recipient is not a guardian of this child")
@@ -101,9 +104,9 @@ func NewService(cfg Config) *Service {
 	return &Service{Config: cfg}
 }
 
-func (s *Service) scope(ctx context.Context) (bool, []int64) {
+func (s *Service) scope(ctx context.Context) bool {
 	perms := jwt.PermissionsFromCtx(ctx)
-	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext, s.Settings, s.Logger)
+	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext)
 }
 
 func accountIDFromCtx(ctx context.Context) int64 {
@@ -112,8 +115,8 @@ func accountIDFromCtx(ctx context.Context) int64 {
 
 func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
 	accountID := accountIDFromCtx(ctx)
-	allStudents, groupIDs := s.scope(ctx)
-	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread)
+	allStudents := s.scope(ctx)
+	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
@@ -179,8 +182,8 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 	accountID := accountIDFromCtx(ctx)
-	allStudents, groupIDs := s.scope(ctx)
-	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
+	allStudents := s.scope(ctx)
+	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}
@@ -210,7 +213,7 @@ func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
 		return ErrForbidden
 	}
 	perms := jwt.PermissionsFromCtx(ctx)
-	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext, s.Settings, s.Logger) {
+	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext) {
 		return ErrForbidden
 	}
 	return nil
@@ -333,7 +336,7 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 }
 
 // PostMessage appends a staff reply and returns the refreshed thread messages.
-func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error) {
+func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, handledUpToMessageID int64) ([]*usersModels.ParentMessage, error) {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		return nil, ErrEmptyBody
@@ -354,6 +357,26 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err := s.requireLinkedGuardian(ctx, thread); err != nil {
 		return nil, err
 	}
+	visibleMessages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("messaging: list visible messages: %w", err)
+	}
+	boundaryFound := handledUpToMessageID <= 0
+	for _, message := range visibleMessages {
+		if message.ID == handledUpToMessageID {
+			boundaryFound = true
+		}
+	}
+	if !boundaryFound {
+		return nil, ErrHandledBoundaryRequired
+	}
+	if handledUpToMessageID <= 0 {
+		for _, message := range visibleMessages {
+			if usersModels.IsCounterpartMessage(message, true) {
+				return nil, ErrHandledBoundaryRequired
+			}
+		}
+	}
 
 	accountID := accountIDFromCtx(ctx)
 	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
@@ -363,6 +386,9 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
+	}
+	if err := parentmessaging.MarkStaffHandledToVisible(ctx, s.ReadRepo, thread.TenantID, thread.ID, handledUpToMessageID, visibleMessages); err != nil {
+		return nil, fmt.Errorf("messaging: mark handled: %w", err)
 	}
 	// Advance the staff reader's cursor over this returned snapshot, exactly as the
 	// GET path (markReadAndBuild) does. The client applies this list with
@@ -432,6 +458,10 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
 		return nil, err
 	}
+	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("messaging: list messages: %w", err)
+	}
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread)
 	s.Logger.Info("staff sent parent message",
@@ -447,7 +477,10 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	// refetch. Snapshot-bounded (never NOW()) via markReadAndBuild. The advance flag
 	// is ignored: this is a SEND path, and broadcastAfterCommit above already wakes
 	// the guardian with the new message (which refreshes receipts too).
-	detail, _, err := s.markReadAndBuild(ctx, thread)
+	if _, err := parentmessaging.MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
+		return nil, fmt.Errorf("messaging: mark read: %w", err)
+	}
+	detail, err := s.buildDetailFromMessages(ctx, thread, messages)
 	return detail, err
 }
 

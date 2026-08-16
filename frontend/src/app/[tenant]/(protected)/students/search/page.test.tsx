@@ -59,9 +59,10 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   }: {
     filters: Array<{
       id: string;
-      value: string;
-      onChange: (v: string) => void;
+      value: string | string[];
+      onChange: (v: string | string[]) => void;
       options?: Array<{ value: string; label: string }>;
+      multiSelect?: boolean;
     }>;
     activeFilters: Array<{ id: string; label: string }>;
     onClearAllFilters: () => void;
@@ -78,8 +79,15 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         <select
           key={f.id}
           data-testid={`filter-${f.id}`}
+          multiple={f.multiSelect}
           value={f.value}
-          onChange={(e) => f.onChange(e.target.value)}
+          onChange={(e) =>
+            f.onChange(
+              f.multiSelect
+                ? Array.from(e.target.selectedOptions, (option) => option.value)
+                : e.target.value,
+            )
+          }
         >
           {f.options ? (
             f.options.map((opt) => (
@@ -221,6 +229,7 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     toggle: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",
+  checkoutConfirmationRoom: () => null,
 }));
 
 // Mock student-helpers
@@ -267,6 +276,7 @@ const mockStudents = [
     arrival_time: "08:00",
     pickup_time: "15:30",
     pickup_status: "Geht alleine nach Hause",
+    departure_modes: ["alone"],
     bus: true,
     photo_consent_given: true,
     photo_consent_given_at: "2026-01-01T10:00:00Z",
@@ -281,6 +291,7 @@ const mockStudents = [
     current_location: "Zuhause",
     arrival_time: "08:30",
     pickup_status: "Wird abgeholt",
+    departure_modes: ["pickup"],
     bus: false,
     photo_consent_given: false,
     has_full_access: true,
@@ -295,6 +306,7 @@ const mockStudents = [
     arrival_time: "08:15",
     pickup_time: "16:00",
     pickup_status: "Geht alleine nach Hause",
+    departure_modes: ["alone"],
     bus: true,
     photo_consent_given: false,
     has_full_access: true,
@@ -308,6 +320,7 @@ const mockStudents = [
     current_location: "Schulhof",
     arrival_time: "09:00",
     pickup_status: "Wird abgeholt",
+    departure_modes: ["pickup"],
     bus: false,
     photo_consent_given: true,
     photo_consent_given_at: "2026-01-02T10:00:00Z",
@@ -348,6 +361,17 @@ vi.mock("~/lib/usercontext-api", () => ({
     getMySupervisedGroups: vi.fn(() => Promise.resolve([])),
   },
 }));
+
+// Selects several options of a multi-select filter (#2218) and fires the one
+// change event the real control would. fireEvent.change with a plain `value`
+// can only ever select a single option.
+function selectFilterOptions(select: HTMLElement, values: string[]) {
+  const element = select as HTMLSelectElement;
+  for (const option of Array.from(element.options)) {
+    option.selected = values.includes(option.value);
+  }
+  fireEvent.change(element);
+}
 
 function mockUseSWRAuthWithStudents(
   swrModule: typeof import("~/lib/swr"),
@@ -422,6 +446,7 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("status");
     mockSearchParams.delete("year");
     mockSearchParams.delete("group_id");
+    mockSearchParams.delete("school_class");
     mockSearchParams.delete("room_id");
     mockSearchParams.delete("room_name");
     mockSearchParams.delete("bus");
@@ -591,8 +616,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("1");
-        expect(screen.getByTestId("filter-group")).toHaveValue("1");
+        expect(screen.getByTestId("filter-year")).toHaveValue(["1"]);
+        expect(screen.getByTestId("filter-group")).toHaveValue(["1"]);
         expect(screen.getByTestId("filter-room")).toHaveValue("101");
         expect(screen.getByTestId("filter-bus")).toHaveValue("yes");
         expect(screen.getByTestId("filter-photoConsent")).toHaveValue("no");
@@ -738,6 +763,120 @@ describe("StudentSearchPage", () => {
       });
     });
 
+    it("restores a multi-value class and group selection from the URL (#2218)", async () => {
+      // Two groups working together are filtered as one list, so the link the
+      // group leader bookmarks has to carry both values back.
+      mockSearchParams.set("school_class", "1a,2b");
+      mockSearchParams.set("group_id", "1,2");
+      mockSearchParams.set("year", "3,4");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-schoolClass")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({
+        school_class: "1a,2b",
+        group_id: "1,2",
+        year: "3,4",
+      });
+    });
+
+    it("keeps a class whose name contains the separator in one piece (#2218)", async () => {
+      // school_class is free text, so a class may be called "A,B". Escaped it
+      // stays one selection all the way into the export payload; unescaped it
+      // would arrive as the two classes A and B and filter for neither.
+      mockSearchParams.set("school_class", "A\\,B,3a");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-schoolClass")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({ school_class: "A\\,B,3a" });
+    });
+
+    it("restores every occurrence of a repeated filter parameter (#2218)", async () => {
+      // We write the selection comma-separated, but a hand-written link (and a
+      // plain form submit) repeats the parameter instead — a shape the backend
+      // accepts too. Reading only the first occurrence would drop the second
+      // class, group and year without a trace.
+      mockSearchParams.append("school_class", "1a");
+      mockSearchParams.append("school_class", "2b");
+      mockSearchParams.append("group_id", "1");
+      mockSearchParams.append("group_id", "2");
+      mockSearchParams.append("year", "3");
+      mockSearchParams.append("year", "4");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-schoolClass")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({
+        school_class: "1a,2b",
+        group_id: "1,2",
+        year: "3,4",
+      });
+    });
+
+    it("writes a multi-group selection back into the URL and the export payload (#2218)", async () => {
+      window.history.replaceState({ preserved: true }, "", "/students/search");
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("filter-group")).toBeInTheDocument();
+      });
+
+      selectFilterOptions(screen.getByTestId("filter-group"), ["1", "2"]);
+
+      expect(new URL(window.location.href).searchParams.get("group_id")).toBe(
+        "1,2",
+      );
+
+      fireEvent.click(screen.getByTestId("overflow-Exportieren"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("export-modal")).toBeInTheDocument();
+      });
+
+      const exportFilters = JSON.parse(
+        screen.getByTestId("export-modal").getAttribute("data-filters") ?? "{}",
+      ) as Record<string, string>;
+      expect(exportFilters).toMatchObject({ group_id: "1,2" });
+    });
+
     it("restores filters from localStorage when opening without URL params", async () => {
       localStorage.setItem(
         STUDENT_SEARCH_FILTER_STORAGE_KEY,
@@ -758,8 +897,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("2");
-        expect(screen.getByTestId("filter-group")).toHaveValue("2");
+        expect(screen.getByTestId("filter-year")).toHaveValue(["2"]);
+        expect(screen.getByTestId("filter-group")).toHaveValue(["2"]);
         expect(screen.getByTestId("filter-room")).toHaveValue("101");
         expect(screen.getByTestId("filter-bus")).toHaveValue("no");
         expect(screen.getByTestId("filter-photoConsent")).toHaveValue("yes");
@@ -798,8 +937,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("1");
-        expect(screen.getByTestId("filter-group")).toHaveValue("1");
+        expect(screen.getByTestId("filter-year")).toHaveValue(["1"]);
+        expect(screen.getByTestId("filter-group")).toHaveValue(["1"]);
         expect(screen.getByTestId("filter-attendance")).toHaveValue("anwesend");
       });
 
@@ -820,8 +959,8 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-year")).toHaveValue("all");
-        expect(screen.getByTestId("filter-group")).toHaveValue("");
+        expect(screen.getByTestId("filter-year")).toHaveValue([]);
+        expect(screen.getByTestId("filter-group")).toHaveValue([]);
         expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
       });
 
@@ -856,8 +995,8 @@ describe("StudentSearchPage", () => {
         render(<StudentSearchPage />);
 
         await waitFor(() => {
-          expect(screen.getByTestId("filter-year")).toHaveValue("all");
-          expect(screen.getByTestId("filter-group")).toHaveValue("");
+          expect(screen.getByTestId("filter-year")).toHaveValue([]);
+          expect(screen.getByTestId("filter-group")).toHaveValue([]);
           expect(screen.getByTestId("filter-attendance")).toHaveValue("all");
         });
 
@@ -1100,7 +1239,7 @@ describe("StudentSearchPage", () => {
   });
 
   describe("Year Filtering", () => {
-    it("renders the school year filter as a stage dropdown", async () => {
+    it("renders the school year filter as a stage multi-select", async () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
@@ -1108,36 +1247,62 @@ describe("StudentSearchPage", () => {
       });
 
       expect(
-        screen.getByRole("option", { name: "Alle Stufen" }),
-      ).toBeInTheDocument();
-      expect(
         screen.getByRole("option", { name: "Stufe 1" }),
       ).toBeInTheDocument();
+      // No neutral "Alle Stufen" entry: an empty selection already means that,
+      // and a checkable pseudo-option could be combined with a real stage
+      // (#2218).
+      expect(
+        screen.queryByRole("option", { name: "Alle Stufen" }),
+      ).not.toBeInTheDocument();
     });
 
-    it("filters students by school year when year filter changes", async () => {
+    it("asks the backend for the selected school year", async () => {
+      // The stage filter is applied server-side (#2218) so the reported count
+      // covers the whole selection instead of only the fetched page.
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // All 4 students should be visible initially
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.getByText("Anna")).toBeInTheDocument();
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        expect(screen.getByText("Lisa")).toBeInTheDocument();
+        expect(screen.getByTestId("filter-year")).toBeInTheDocument();
       });
 
-      // Change year filter to "1" (should show only Max and Tom with class 1a)
-      const yearFilter = screen.getByTestId("filter-year");
-      fireEvent.change(yearFilter, { target: { value: "1" } });
+      fireEvent.change(screen.getByTestId("filter-year"), {
+        target: { value: "1" },
+      });
+
+      await fetcher.current!();
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ gradeLevel: ["1"] }),
+      );
+    });
+
+    it("keeps two school years in one list and in the URL (#2218)", async () => {
+      const { studentService } = await import("~/lib/api");
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
 
       await waitFor(() => {
-        // Max (1a) and Tom (1a) should be visible
-        expect(screen.getByText("Max")).toBeInTheDocument();
-        expect(screen.getByText("Tom")).toBeInTheDocument();
-        // Anna (2b) and Lisa (3c) should be filtered out
-        expect(screen.queryByText("Anna")).not.toBeInTheDocument();
-        expect(screen.queryByText("Lisa")).not.toBeInTheDocument();
+        expect(screen.getByTestId("filter-year")).toBeInTheDocument();
       });
+
+      selectFilterOptions(screen.getByTestId("filter-year"), ["3", "4"]);
+
+      await fetcher.current!();
+      expect(studentService.getStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ gradeLevel: ["3", "4"] }),
+      );
+      expect(new URL(window.location.href).searchParams.get("year")).toBe(
+        "3,4",
+      );
+      expect(screen.getByTestId("active-filter-year")).toHaveTextContent(
+        "Jahr 3, 4",
+      );
     });
   });
 
@@ -1299,6 +1464,39 @@ describe("StudentSearchPage", () => {
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith(
           "/test-tenant/students/1?from=/students/search",
+        );
+      });
+    });
+
+    it("keeps the multi-value class, group and year filters in the back-link", async () => {
+      mockSearchParams.set("school_class", "3a,4b");
+      mockSearchParams.set("group_id", "1,2");
+      mockSearchParams.set("year", "3,4");
+
+      const mockPush = vi.fn();
+      const useRouter = await import("next/navigation");
+      vi.mocked(useRouter.useRouter).mockReturnValue({
+        push: mockPush,
+        replace: vi.fn(),
+        back: vi.fn(),
+        forward: vi.fn(),
+        refresh: vi.fn(),
+        prefetch: vi.fn(),
+      });
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText("Max").closest("button")!);
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith(
+          `/test-tenant/students/1?from=${encodeURIComponent(
+            "/students/search?group_id=1%2C2&school_class=3a%2C4b&year=3%2C4",
+          )}`,
         );
       });
     });
@@ -1479,6 +1677,9 @@ describe("StudentSearchPage", () => {
         // rollover where the date is unchanged but semantics flip (#1939).
         requestDate: expect.any(String),
         requestIsToday: expect.any(Boolean),
+        // Null whenever the page walk loaded the whole selection, which is the
+        // case here: a response without pagination counts as one page (#2218).
+        truncatedTotal: null,
       });
       expect(mockGetStudents).toHaveBeenCalledWith(
         expect.objectContaining({ dayStatus: "not_coming_today" }),
@@ -1765,7 +1966,7 @@ describe("StudentSearchPage", () => {
       fireEvent.click(activeFilter);
 
       await waitFor(() => {
-        expect(screen.getByTestId("filter-group")).toHaveValue("");
+        expect(screen.getByTestId("filter-group")).toHaveValue([]);
         expect(
           screen.queryByTestId("active-filter-group"),
         ).not.toBeInTheDocument();
@@ -1951,16 +2152,16 @@ describe("StudentSearchPage", () => {
     });
 
     it.each([
-      { rawGroupId: "007", expectedGroupId: "7", expectedScope: "g7" },
-      { rawGroupId: "0", expectedGroupId: "", expectedScope: "gall" },
+      { rawGroupId: "007", expectedGroupIds: ["7"], expectedScope: "g7" },
+      { rawGroupId: "0", expectedGroupIds: [], expectedScope: "gall" },
       {
         rawGroupId: "not-a-group",
-        expectedGroupId: "",
+        expectedGroupIds: [],
         expectedScope: "gall",
       },
     ])(
       "normalizes URL group_id '$rawGroupId' to the backend-effective SSE scope",
-      async ({ rawGroupId, expectedGroupId, expectedScope }) => {
+      async ({ rawGroupId, expectedGroupIds, expectedScope }) => {
         mockSearchParams.set("group_id", rawGroupId);
         const { studentService } = await import("~/lib/api");
         const swrModule = await import("~/lib/swr");
@@ -2001,7 +2202,7 @@ describe("StudentSearchPage", () => {
         });
         await fetcher.current!();
         expect(studentService.getStudents).toHaveBeenCalledWith(
-          expect.objectContaining({ groupId: expectedGroupId }),
+          expect.objectContaining({ groupId: expectedGroupIds }),
         );
       },
     );
@@ -2086,6 +2287,171 @@ describe("StudentSearchPage", () => {
       expect(mockGetStudents).not.toHaveBeenCalledWith(
         expect.objectContaining({ page: 2 }),
       );
+    });
+
+    it("walks every page when the selection is larger than one response (#2218)", async () => {
+      // This view has no pagination control, so a selection the proxy route
+      // cannot fit into its 1000-row page has to be walked here — otherwise
+      // every child past the first page is unreachable.
+      const studentService = await import("~/lib/api");
+      const mockGetStudents = vi.fn();
+      mockGetStudents.mockImplementation((filters: { page?: number }) => {
+        const page = filters.page ?? 1;
+        return Promise.resolve({
+          students: [
+            {
+              ...mockStudents[0]!,
+              id: `seite-${page}`,
+              first_name: `Seite${page}`,
+            },
+          ],
+          pagination: {
+            current_page: page,
+            page_size: 1000,
+            total_pages: 3,
+            total_records: 3,
+          },
+        });
+      });
+      vi.mocked(studentService.studentService.getStudents).mockImplementation(
+        mockGetStudents,
+      );
+
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      const result = (await fetcher.current!()) as {
+        students: { id: string }[];
+      };
+
+      expect(mockGetStudents).toHaveBeenCalledTimes(3);
+      // The first request stays free of a page parameter, so the common
+      // single-page case is unchanged on the wire.
+      expect(mockGetStudents.mock.calls[0]?.[0]).not.toHaveProperty("page");
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+      expect(mockGetStudents).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 3 }),
+      );
+      expect(result.students.map((student) => student.id)).toEqual([
+        "seite-1",
+        "seite-2",
+        "seite-3",
+      ]);
+    });
+
+    it("reports an incomplete result when the page walk hits its bound (#2218)", async () => {
+      // Past the bound the loaded rows are only a part of the selection. The
+      // count badge, the grouping and the export all read those rows, so the
+      // shortfall has to leave the fetcher instead of ending in the log.
+      const studentService = await import("~/lib/api");
+      const mockGetStudents = vi.fn();
+      mockGetStudents.mockImplementation((filters: { page?: number }) => {
+        const page = filters.page ?? 1;
+        return Promise.resolve({
+          students: [
+            {
+              ...mockStudents[0]!,
+              id: `seite-${page}`,
+              first_name: `Seite${page}`,
+            },
+          ],
+          pagination: {
+            current_page: page,
+            page_size: 1000,
+            total_pages: 25,
+            total_records: 25000,
+          },
+        });
+      });
+      vi.mocked(studentService.studentService.getStudents).mockImplementation(
+        mockGetStudents,
+      );
+
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      const result = (await fetcher.current!()) as {
+        students: { id: string }[];
+        truncatedTotal: number | null;
+      };
+
+      // 20 pages is the bound, not the 25 the backend counted.
+      expect(mockGetStudents).toHaveBeenCalledTimes(20);
+      expect(result.students).toHaveLength(20);
+      expect(result.truncatedTotal).toBe(25000);
+    });
+
+    it("keeps truncatedTotal null when every page was loaded (#2218)", async () => {
+      const studentService = await import("~/lib/api");
+      vi.mocked(studentService.studentService.getStudents).mockResolvedValue({
+        students: [mockStudents[0]!],
+        pagination: {
+          current_page: 1,
+          page_size: 1000,
+          total_pages: 1,
+          total_records: 1,
+        },
+      } as unknown as Awaited<
+        ReturnType<typeof studentService.studentService.getStudents>
+      >);
+
+      const swrModule = await import("~/lib/swr");
+      const fetcher = captureStudentsFetcher(swrModule);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => expect(fetcher.current).not.toBeNull());
+      const result = (await fetcher.current!()) as {
+        truncatedTotal: number | null;
+      };
+
+      expect(result.truncatedTotal).toBeNull();
+    });
+
+    it("names the incomplete result on screen (#2218)", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [mockStudents[0]!, mockStudents[1]!],
+          truncatedTotal: 25000,
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /Es werden nur die ersten 2 von 25000 Kindern geladen/,
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("stays quiet when the result is complete (#2218)", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: { students: [mockStudents[0]!], truncatedTotal: null },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Max")).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Kindern geladen/)).not.toBeInTheDocument();
     });
 
     it("uses consistent default labels for administrative filters", async () => {
@@ -2515,7 +2881,7 @@ describe("StudentSearchPage", () => {
     // GDPR exclusion of redacted students from the pickup-status filter is
     // enforced and tested server-side now (see backend applyAdministrativeFilters).
 
-    it("groups students by permanent pickup status", async () => {
+    it("groups students by the selected day's departure modes", async () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
@@ -2535,6 +2901,72 @@ describe("StudentSearchPage", () => {
       expect(
         screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent),
       ).toEqual(["Geht alleine nach Hause", "Wird abgeholt"]);
+    });
+
+    it("shows every allowed departure mode and a placeholder for a missing rule", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              departure_modes: ["alone", "bus", "pickup", "accompanied"],
+            },
+            {
+              ...mockStudents[1]!,
+              departure_modes: [],
+            },
+            {
+              ...mockStudents[2]!,
+              id: "restricted",
+              first_name: "Restricted",
+              second_name: "Child",
+              departure_modes: ["pickup"],
+              has_full_access: false,
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      } as never);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText(
+          "Heimweg: Geht alleine nach Hause, Bus, Wird abgeholt, Mit anderem Kind",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Heimweg: -")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Restricted Child/ }),
+      ).not.toHaveTextContent("Heimweg:");
+    });
+
+    it("shows an unknown legacy departure rule without treating it as self-going", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              departure_modes: [],
+              departure_label: "Taxi mit Begleitperson",
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      } as never);
+
+      render(<StudentSearchPage />);
+
+      expect(
+        await screen.findByText("Heimweg: Taxi mit Begleitperson"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Heimweg: Geht alleine nach Hause")).toBeNull();
     });
 
     it("groups students by status in operational order", async () => {

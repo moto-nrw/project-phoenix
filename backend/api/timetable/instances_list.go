@@ -21,8 +21,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -127,6 +130,9 @@ type enrichedInstance struct {
 	// number; RequiredStaffCount above already folds the inheritance in.
 	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
+	CanReopen             bool                                  `json:"can_reopen,omitempty"`
+	CanComplete           bool                                  `json:"can_complete"`
+	CompleteAvailableAt   string                                `json:"complete_available_at"`
 }
 
 type emptyRosterReason struct {
@@ -465,6 +471,13 @@ func (rs *Resource) enrichInstance(
 
 	assignedStaff := len(staffRows) - absentCount
 	childrenCount := attendance.expected + attendance.present
+	enforcePlannedEnd, err := rs.enforcePlannedEnd(ctx)
+	if err != nil {
+		return enrichedInstance{}, nil, nil, err
+	}
+	availability := scheduleSvc.EvaluateLifecycleAvailability(
+		inst, time.Now(), 0, enforcePlannedEnd,
+	)
 
 	item := enrichedInstance{
 		ID:                     inst.ID,
@@ -503,8 +516,17 @@ func (rs *Resource) enrichInstance(
 		AssignedStaffCount:     assignedStaff,
 		RequiredStaffOverride:  inst.RequiredStaff,
 		ConflictWarnings:       []scheduleSvc.InstanceConflictWarning{},
+		CanReopen:              reopenEligibility(ctx, inst, studentRows),
+		CanComplete:            availability.CanComplete,
+		CompleteAvailableAt:    availability.CompleteAvailableAt.Format(time.RFC3339),
 	}
 	return item, staffRows, studentRows, nil
+}
+
+func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance, attendance []*scheduleModel.InstanceStudent) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), authorize.HasEffectiveAdminScope(ctx), time.Now()) &&
+		scheduleSvc.AttendanceUnchangedSinceCompletion(inst, attendance)
 }
 
 // dayConflictWarningsFor computes the #2139 window conflicts for ONE instance

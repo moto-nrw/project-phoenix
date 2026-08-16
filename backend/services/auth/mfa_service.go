@@ -104,6 +104,24 @@ type MFAService interface {
 	// transaction middleware, so the caller is responsible for plumbing
 	// the tenant explicitly instead of relying on tenant.FromContext.
 	IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error)
+	// ResolvePolicy is IsRequired with the role predicate left unapplied: it
+	// performs the database reads (admin overrides, security.mfa_mode) and
+	// hands back a pure MFAPolicy, ready to be applied to a concrete role set.
+	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
+	// ResolvePolicyInTx is ResolvePolicy for a caller that is already inside a
+	// transaction and must re-decide the gate there: it reads the overrides on
+	// the ambient transaction and the tenant's mfa_mode past every cache, so
+	// the verdict reflects committed state as of NOW rather than whatever the
+	// same request resolved before the transaction opened.
+	//
+	// The school mint guard uses it. Re-applying the policy the login had
+	// already resolved was not enough: an admin switching security.mfa_mode
+	// from off to required while a login is in flight left the guard
+	// evaluating the stale "off" and minting a session with no second factor.
+	//
+	// Requires an ambient phoenix_admin transaction (the token mint runs in
+	// one); see config.SettingsService.ResolveStringForTenantInTx.
+	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
 	// AccountBelongsToTenant reports whether the account has a tenant mapping
 	// for the given school — the operator MFA admin endpoints gate on this
@@ -113,20 +131,47 @@ type MFAService interface {
 	// Email-code challenge flow.
 	StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
 	VerifyChallenge(ctx context.Context, challengeToken, code string) (*VerifiedChallenge, error)
+	// VerifyChallengeForScope is the scope-parameterized sibling of
+	// VerifyChallenge (#2207). A challenge is only redeemable at the
+	// portal surface it was started for: the tenant verify endpoint
+	// passes the tenant scope, the school portal endpoint the school
+	// scope. VerifyChallenge is a thin wrapper pinning the tenant scope.
+	VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*VerifiedChallenge, error)
+	// VerifyChallengeForOwner additionally pins the challenge to an account
+	// and a school the caller has already authenticated by other means (the
+	// school enrollment token, #2207). Mismatches are refused before the
+	// code is compared, so a foreign challenge is never consumed on its way
+	// to a 401 — checking the returned VerifiedChallenge afterwards burns
+	// it. Use it on every surface where the challenge token is not the sole
+	// credential in the request.
+	VerifyChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*VerifiedChallenge, error)
 	// ResendChallenge re-issues an email code for the still-active
 	// challenge and returns the *new* JWT token. The previous token
 	// remains valid until its own expiry, but the frontend must
 	// replace the in-flight token because the next verify must travel
 	// with the renewed JWT (otherwise the user sees a fresh emailed
 	// code that cannot be verified once the old JWT expires).
+	//
+	// NOT for HTTP surfaces: it accepts a challenge of ANY scope. Every
+	// portal endpoint uses ResendChallengeForScope with its own scope.
 	ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error)
+	// ResendChallengeForScope is the scope-enforcing sibling of
+	// ResendChallenge (#2207) and the variant every portal resend endpoint
+	// must call: no surface may re-drive a foreign-portal challenge (and
+	// burn its 3-codes/15-min budget). Scope mismatch is refused before any
+	// code is sent.
+	ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 
 	// VerifyCodeForAccount is the JWT-less sibling of VerifyChallenge used by
-	// enrollment confirmation, where the user is already authenticated and a
-	// challenge JWT would just be ceremony. Returns ErrMFACodeInvalid on a
-	// mismatch and otherwise mirrors VerifyChallenge's audit + lockout
-	// bookkeeping.
-	VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error
+	// enrollment confirmation and passkey registration, where the user is
+	// already authenticated and a challenge JWT would just be ceremony.
+	// Returns ErrMFACodeInvalid on a mismatch and otherwise mirrors
+	// VerifyChallenge's audit + lockout bookkeeping.
+	//
+	// expectedScope and tenantID scope the lookup to the calling portal —
+	// mandatory, because without a challenge id this resolves the account's
+	// newest active code and would otherwise reach across portals.
+	VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
 
 	// Enrollment / lifecycle.
 	Enroll(ctx context.Context, accountID int64) error
@@ -286,9 +331,70 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 
 // ===== Inquiry =====
 
+// MFAPolicy is the MFA decision for one account at one school with the
+// account's ROLES still factored out: everything that has to be read from the
+// database (admin overrides, the tenant's security.mfa_mode) resolved once,
+// and the role predicate left as a pure function of a role set.
+//
+// The split exists because the school-portal mint guard has to settle the gate
+// under the account lock it already holds (see schoolMintGuard): it resolves
+// the policy freshly in its own transaction (ResolvePolicyInTx) and applies it
+// to the role set it read under that lock. Both halves can change while a
+// login is in flight — an admin role granted after `required_admins` came back
+// false, or the tenant's mfa_mode switched on — and neither may slip a session
+// through without a second factor.
+//
+// The zero value requires nothing, which is what a nil MFA service means.
+type MFAPolicy struct {
+	// override, when set, is the admin override's verdict and wins outright.
+	override *bool
+	mode     string
+}
+
+// MFAPolicyForced is the policy an admin override produces: required or not,
+// regardless of roles and tenant mode.
+func MFAPolicyForced(required bool) MFAPolicy { return MFAPolicy{override: &required} }
+
+// MFAPolicyForMode is the policy a tenant's security.mfa_mode produces.
+func MFAPolicyForMode(mode string) MFAPolicy { return MFAPolicy{mode: mode} }
+
+// RequiredFor applies the resolved policy to a concrete role set. Pure — no
+// database access, safe to call from inside a transaction holding locks.
+func (p MFAPolicy) RequiredFor(account *auth.Account) bool {
+	if p.override != nil {
+		return *p.override
+	}
+	switch p.mode {
+	case configModel.MFAModeRequiredAll:
+		return true
+	case configModel.MFAModeRequiredAdmins:
+		return authorize.AccountHasRole(account, "admin")
+	default:
+		// Off, unset, or an unknown value — ResolvePolicy has already warned
+		// about the latter.
+		return false
+	}
+}
+
 // IsRequired evaluates the tenant's security.mfa_mode setting against the
 // account's roles. Operator (platform-scope) sessions are handled by the
 // platform service in a later phase — this implementation rejects them.
+//
+// Thin wrapper over ResolvePolicy + MFAPolicy.RequiredFor; see there for the
+// override resolution order.
+func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error) {
+	if account == nil {
+		return false, errors.New("account is required")
+	}
+	policy, err := s.ResolvePolicy(ctx, account.ID, tenantID)
+	if err != nil {
+		return false, err
+	}
+	return policy.RequiredFor(account), nil
+}
+
+// ResolvePolicy performs every database read the MFA gate needs and returns
+// the verdict with the role predicate left unapplied.
 //
 // Override resolution (#1430 review round 2 — closes cross-tenant
 // override bleed):
@@ -305,10 +411,19 @@ func NewMFAService(cfg MFAServiceConfig) (MFAService, error) {
 // infra error) for the same reason the enrollment-lookup is: if we
 // can't tell whether the override is force_off, we must not silently
 // honor it.
-func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tenantID int64) (bool, error) {
-	if account == nil {
-		return false, errors.New("account is required")
-	}
+func (s *mfaService) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
+	return s.resolvePolicy(ctx, accountID, tenantID, false)
+}
+
+// ResolvePolicyInTx re-resolves the policy from inside the caller's
+// transaction, past the request-scoped settings cache — see the interface doc.
+// Same reads, same fail-closed semantics; only the transaction handling and
+// the cache bypass differ.
+func (s *mfaService) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error) {
+	return s.resolvePolicy(ctx, accountID, tenantID, true)
+}
+
+func (s *mfaService) resolvePolicy(ctx context.Context, accountID, tenantID int64, inTx bool) (MFAPolicy, error) {
 	// Both override lookups must run as phoenix_admin (BYPASSRLS).
 	// The login flow has no tenant transaction yet, so app.current_tenant_id
 	// is unset and the RLS policy on auth.mfa_overrides hides every
@@ -321,43 +436,57 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 		global         *auth.MFAOverride
 		tenantOverride *auth.MFAOverride
 	)
-	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+	// In-transaction resolution reuses the caller's admin transaction
+	// (WithAdminTxOrDirect) instead of opening a second one: taking another
+	// pooled connection while the mint transaction holds one risks exhausting
+	// the pool, and a statement in the caller's own transaction already sees
+	// everything committed up to now, which is exactly the freshness the
+	// re-read is for.
+	loadOverrides := func(txCtx context.Context) error {
 		var err error
-		global, err = s.Repos.MFAOverride.FindGlobal(txCtx, account.ID)
+		global, err = s.Repos.MFAOverride.FindGlobal(txCtx, accountID)
 		if err != nil {
 			return err
 		}
 		if tenantID > 0 {
-			tenantOverride, err = s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, account.ID, tenantID)
+			tenantOverride, err = s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, accountID, tenantID)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	})
+	}
+	var txErr error
+	if inTx {
+		txErr = tenant.WithAdminTxOrDirect(ctx, s.DB, loadOverrides)
+	} else {
+		txErr = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+			return loadOverrides(txCtx)
+		})
+	}
 	if txErr != nil {
 		s.Logger.Warn("mfa override lookup failed; refusing login",
-			slog.Int64("account_id", account.ID),
+			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", txErr.Error()))
-		return false, ErrMFAStatusUnavailable
+		return MFAPolicy{}, ErrMFAStatusUnavailable
 	}
 	// Step 1: platform-wide override (operator emergency switch) wins.
 	if global != nil {
 		switch global.Override {
 		case MFAAdminOverrideForceOff:
-			return false, nil
+			return MFAPolicyForced(false), nil
 		case MFAAdminOverrideForceOn:
-			return true, nil
+			return MFAPolicyForced(true), nil
 		}
 	}
 	// Step 2: tenant-scoped override (tenant admin per-school).
 	if tenantOverride != nil {
 		switch tenantOverride.Override {
 		case MFAAdminOverrideForceOff:
-			return false, nil
+			return MFAPolicyForced(false), nil
 		case MFAAdminOverrideForceOn:
-			return true, nil
+			return MFAPolicyForced(true), nil
 		}
 	}
 	mode := configModel.MFAModeOff
@@ -370,9 +499,15 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 			val string
 			err error
 		)
-		if tenantID > 0 {
+		switch {
+		case tenantID > 0 && inTx:
+			// Past the request-scoped memo cache: the same request already
+			// resolved this key before the transaction opened, and returning
+			// that memoized value would make the re-read a no-op.
+			val, err = s.Settings.ResolveStringForTenantInTx(ctx, tenantID, configModel.KeyMFAMode)
+		case tenantID > 0:
 			val, err = s.Settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyMFAMode)
-		} else {
+		default:
 			val, err = s.Settings.ResolveString(ctx, configModel.KeyMFAMode)
 		}
 		if err != nil {
@@ -384,22 +519,17 @@ func (s *mfaService) IsRequired(ctx context.Context, account *auth.Account, tena
 			s.Logger.Warn("mfa_mode resolve failed; refusing login",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()))
-			return false, ErrMFAStatusUnavailable
+			return MFAPolicy{}, ErrMFAStatusUnavailable
 		} else if val != "" {
 			mode = val
 		}
 	}
 	switch mode {
-	case configModel.MFAModeOff:
-		return false, nil
-	case configModel.MFAModeRequiredAll:
-		return true, nil
-	case configModel.MFAModeRequiredAdmins:
-		return authorize.AccountHasRole(account, "admin"), nil
+	case configModel.MFAModeOff, configModel.MFAModeRequiredAll, configModel.MFAModeRequiredAdmins:
 	default:
 		s.Logger.Warn("unknown mfa_mode value; treating as off", slog.String("value", mode))
-		return false, nil
 	}
+	return MFAPolicyForMode(mode), nil
 }
 
 func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
@@ -424,7 +554,7 @@ func (s *mfaService) HasEnrollment(ctx context.Context, accountID int64) (bool, 
 // ===== Challenge / verify =====
 
 func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	if scope != authjwt.MFAChallengeScopeTenant {
+	if scope != authjwt.MFAChallengeScopeTenant && scope != authjwt.MFAChallengeScopeSchool {
 		return "", ErrMFAUnsupportedScope
 	}
 
@@ -439,9 +569,21 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 	// Rate-limit code issuance. Cooldown is per-tenant configurable but the
 	// hard cap (3 codes / 15 min) stays in code — it's an abuse defense, not
 	// a UX knob.
+	//
+	// A failed count is refused, not waved through: challenge creation and the
+	// email dispatch below do not depend on this query, so ignoring the error
+	// meant every repeat request under a struggling database issued another
+	// code — the cap silently stopped existing exactly when the system was
+	// least healthy. Same fail-closed contract as HasEnrollment above.
 	since := time.Now().Add(-MFAEmailRateLimitWindow)
 	count, err := s.Repos.MFAEmailChallenge.CountRecentByAccountID(ctx, accountID, since)
-	if err == nil && count >= MFAEmailRateLimitMaxSent {
+	if err != nil {
+		s.Logger.Warn("mfa code rate-limit lookup failed; refusing to issue a code",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()))
+		return "", ErrMFAStatusUnavailable
+	}
+	if count >= MFAEmailRateLimitMaxSent {
 		return "", ErrMFARateLimited
 	}
 
@@ -454,8 +596,14 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		return "", fmt.Errorf("hash email code: %w", err)
 	}
 
+	// Scope + tenant travel with the ROW, not just with the JWT: the
+	// enrollment-confirm and passkey-registration paths look a challenge up
+	// by account instead of by id, and only these columns keep that lookup
+	// from reaching another portal's in-flight code.
 	challenge := &auth.MFAEmailChallenge{
 		AccountID: accountID,
+		Scope:     scope,
+		TenantID:  tenantID,
 		CodeHash:  codeHash,
 		ExpiresAt: time.Now().Add(MFAChallengeTTL),
 		IPAddress: ip,
@@ -469,10 +617,13 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 		"challenge_id": challenge.ID,
 	})
 
+	// The token names the row it belongs to — see MFAChallengeClaims.ChallengeID
+	// for why "newest active code for this account" is not a safe lookup key.
 	tokenString, err := s.TokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
-		AccountID: accountID,
-		Scope:     scope,
-		TenantID:  tenantID,
+		AccountID:   accountID,
+		Scope:       scope,
+		TenantID:    tenantID,
+		ChallengeID: challenge.ID,
 	}, MFAChallengeTTL)
 	if err != nil {
 		return "", fmt.Errorf("mint challenge jwt: %w", err)
@@ -481,12 +632,51 @@ func (s *mfaService) StartChallenge(ctx context.Context, accountID, tenantID int
 }
 
 func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code string) (*VerifiedChallenge, error) {
+	return s.VerifyChallengeForScope(ctx, challengeToken, code, authjwt.MFAChallengeScopeTenant)
+}
+
+// VerifyChallengeForScope verifies an email-code challenge and enforces that
+// the challenge was started for the expected portal scope. Scope mismatch is
+// refused before any code comparison so a school challenge can never be
+// burned (or redeemed) at the tenant endpoint and vice versa.
+func (s *mfaService) VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*VerifiedChallenge, error) {
+	return s.verifyChallengeBound(ctx, challengeToken, code, expectedScope, nil)
+}
+
+// challengeOwner pins a challenge to the identity the CALLER already
+// authenticated out-of-band, for surfaces where the challenge token is not
+// the only credential in the request.
+type challengeOwner struct {
+	accountID int64
+	tenantID  int64
+}
+
+// VerifyChallengeForOwner is VerifyChallengeForScope for surfaces that already
+// know whose challenge this must be — today the school enrollment confirm,
+// which arrives with an enrollment token naming account and school.
+//
+// The ownership check runs BEFORE the code comparison and therefore before the
+// single-use consume. Comparing afterwards (what the enrollment handler used to
+// do with the returned VerifiedChallenge) is too late: a valid challenge
+// belonging to a different account or a different school is burned on its way
+// to the 401, so the rightful owner's in-flight login dies with a code that is
+// suddenly "invalid" and no explanation anywhere.
+func (s *mfaService) VerifyChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*VerifiedChallenge, error) {
+	return s.verifyChallengeBound(ctx, challengeToken, code, expectedScope, &challengeOwner{accountID: accountID, tenantID: tenantID})
+}
+
+func (s *mfaService) verifyChallengeBound(ctx context.Context, challengeToken, code, expectedScope string, owner *challengeOwner) (*VerifiedChallenge, error) {
 	claims, err := s.parseChallengeToken(challengeToken)
 	if err != nil {
 		return nil, ErrMFAChallengeTokenInvalid
 	}
-	if claims.Scope != authjwt.MFAChallengeScopeTenant {
+	if claims.Scope != expectedScope {
 		return nil, ErrMFAUnsupportedScope
+	}
+	// Foreign challenge — refuse it while it is still redeemable by whoever
+	// it was minted for.
+	if owner != nil && (claims.AccountID != owner.accountID || claims.TenantID != owner.tenantID) {
+		return nil, ErrMFAChallengeTokenInvalid
 	}
 
 	account, err := s.Repos.Account.FindByID(ctx, claims.AccountID)
@@ -497,10 +687,31 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 		return nil, ErrMFALocked
 	}
 
-	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountID(ctx, claims.AccountID)
+	// Resolve the EXACT challenge this token was minted for. Falling back to
+	// "newest active code for the account" would let two concurrent challenges
+	// — a tenant login and a school login of the same person, say — redeem
+	// each other's code: the scope check above passes because it only inspects
+	// the JWT, and the code check would then run against the wrong row.
+	// A token without the claim predates it and is refused rather than
+	// downgraded to the ambiguous lookup; the challenge TTL is 5 minutes, so
+	// the only cost is one re-login inside the deploy window.
+	if claims.ChallengeID == 0 {
+		return nil, ErrMFAChallengeTokenInvalid
+	}
+	active, err := s.Repos.MFAEmailChallenge.FindActiveByIDForAccount(ctx, claims.ChallengeID, claims.AccountID)
 	if err != nil || active == nil {
 		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return nil, ErrMFACodeInvalid
+	}
+	// The scope check above trusts the JWT alone. Re-check it against the
+	// stored row so a token whose claims disagree with the challenge it names
+	// — a forged or mixed-up pairing — is refused before the code comparison
+	// rather than after it. Rows written before the portal binding existed
+	// carry no scope/tenant and are refused too; the challenge TTL is five
+	// minutes, so the cost is one re-login inside the deploy window.
+	if active.Scope != expectedScope || (claims.TenantID > 0 && active.TenantID != claims.TenantID) {
+		s.recordAuthEvent(ctx, claims.AccountID, claims.TenantID, audit.EventTypeMFAFailed, false, nil, "challenge portal mismatch", nil)
+		return nil, ErrMFAUnsupportedScope
 	}
 
 	ok, verifyErr := VerifyShortCode(code, active.CodeHash)
@@ -552,8 +763,17 @@ func (s *mfaService) VerifyChallenge(ctx context.Context, challengeToken, code s
 
 // VerifyCodeForAccount runs the same verify pipeline as VerifyChallenge but
 // without the JWT round-trip — the caller has already authenticated the user
-// out-of-band (typically a regular access token from /auth/mfa/enroll/confirm).
-func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error {
+// out-of-band (an enrollment token at /auth/mfa/enroll/confirm, a tenant
+// session at passkey registration).
+//
+// Because there is no challenge JWT, the row cannot be named by id; it is
+// resolved as "the newest active code of this account". That key is only safe
+// once it is narrowed to the portal asking: expectedScope and tenantID are
+// therefore required, not decorative. Without them a Lehrkraft with a
+// school-portal login challenge in one tab and a tenant enrollment in another
+// could have the school code consumed here — and a tenant session minted from
+// a second factor that was issued for a different portal (#2207).
+func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
 	account, err := s.Repos.Account.FindByID(ctx, accountID)
 	if err != nil {
 		return ErrMFACodeInvalid
@@ -561,11 +781,12 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	if s.isMFALocked(account, time.Now()) {
 		return ErrMFALocked
 	}
-	// VerifyCodeForAccount runs INSIDE TenantTxMiddleware (called from
-	// authenticated /auth/mfa/enroll/confirm), so tenant.FromContext(ctx)
-	// is set. Pass 0 below; recordAuthEvent + handleFailedAttempt fall
-	// back to the context tenant.
-	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountID(ctx, accountID)
+	// Callers run INSIDE a tenant context (TenantTxMiddleware, or an
+	// explicitly injected tenant on the enrollment routes), so 0 below lets
+	// recordAuthEvent + handleFailedAttempt fall back to the context tenant.
+	// The tenantID argument narrows the challenge LOOKUP, which is a
+	// different job.
+	active, err := s.Repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, expectedScope)
 	if err != nil || active == nil {
 		s.recordAuthEvent(ctx, accountID, 0, audit.EventTypeMFAFailed, false, nil, "no active challenge", nil)
 		return ErrMFACodeInvalid
@@ -598,11 +819,29 @@ func (s *mfaService) VerifyCodeForAccount(ctx context.Context, accountID int64, 
 	return nil
 }
 
+// ResendChallengeForScope refuses the resend when the challenge was started
+// for a different portal scope — checked straight after parsing, before any
+// account lookup or email dispatch.
+func (s *mfaService) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
+	claims, err := s.parseChallengeToken(challengeToken)
+	if err != nil {
+		return "", ErrMFAChallengeTokenInvalid
+	}
+	if claims.Scope != expectedScope {
+		return "", ErrMFAUnsupportedScope
+	}
+	return s.resendParsedChallenge(ctx, claims, ip)
+}
+
 func (s *mfaService) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	claims, err := s.parseChallengeToken(challengeToken)
 	if err != nil {
 		return "", ErrMFAChallengeTokenInvalid
 	}
+	return s.resendParsedChallenge(ctx, claims, ip)
+}
+
+func (s *mfaService) resendParsedChallenge(ctx context.Context, claims *authjwt.MFAChallengeClaims, ip net.IP) (string, error) {
 
 	// No per-resend cooldown gate — the sliding-window cap inside
 	// StartChallenge (3 codes / 15 min) remains as the abuse defense.
@@ -1125,6 +1364,9 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 
 	previous := MFAAdminOverrideNone
 	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
+			return err
+		}
 		existing, err := s.Repos.MFAOverride.FindByAccountAndTenant(txCtx, targetAccountID, targetTenantID)
 		if err != nil {
 			return fmt.Errorf("load existing tenant override: %w", err)
@@ -1186,6 +1428,38 @@ func (s *mfaService) setMFAOverrideCore(ctx context.Context, actorType string, a
 	return nil
 }
 
+// lockAccountForOverrideWrite takes auth.accounts FOR UPDATE before an MFA
+// admin override is read and written.
+//
+// An override is the per-account half of the MFA policy, and a session mint
+// resolves it (ResolvePolicyInTx) while holding exactly this row FOR UPDATE
+// from its precondition check until commit. Without this lock the two are
+// unordered: a login can resolve "no override, MFA off", an admin can commit
+// force_on, and the login still mints a session that never saw a second factor
+// (#2207 review). Taking the row here makes the writer wait for that mint to
+// finish — the next login then sees the override — or, when the write wins the
+// row, the mint's own re-read observes it.
+//
+// The row is taken FIRST in this transaction, matching the account-first order
+// every revocation path walks (RevokeAccountTenantAccess, staff offboarding,
+// schoolMintGuard). The rows written afterwards (auth.mfa_overrides,
+// auth.mfa_trusted_devices) both carry a foreign key to auth.accounts and would
+// otherwise take that same row late, from the opposite direction.
+//
+// A missing account is not rejected here: the caller's audit pipeline and the
+// foreign keys on the rows below already produce the error, and turning a
+// lookup failure into a different one would change the surfaced error for a
+// case that cannot happen through the admin endpoints.
+func (s *mfaService) lockAccountForOverrideWrite(ctx context.Context, accountID int64) error {
+	if _, err := s.Repos.Account.FindByIDForUpdate(ctx, accountID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("lock account %d for mfa override write: %w", accountID, err)
+	}
+	return nil
+}
+
 // OperatorSetGlobalMFAOverride writes (or clears) the platform-wide
 // override row. This is the explicit "account-wide emergency switch"
 // surface — set force_off when the user has lost mailbox access in a
@@ -1225,6 +1499,9 @@ func (s *mfaService) OperatorSetGlobalMFAOverride(ctx context.Context, operatorI
 
 	previous := MFAAdminOverrideNone
 	txErr := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.lockAccountForOverrideWrite(txCtx, targetAccountID); err != nil {
+			return err
+		}
 		existing, err := s.Repos.MFAOverride.FindGlobal(txCtx, targetAccountID)
 		if err != nil {
 			return fmt.Errorf("load existing global override: %w", err)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -103,6 +105,7 @@ type Factory struct {
 	ShiftTypes               schedule.ShiftTypeService
 	PlanningTracks           schedule.PlanningTrackService
 	PickupSchedule           schedule.PickupScheduleService
+	PartialAbsence           schedule.PartialAbsenceService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	CareDay                  schedule.CareDayService
@@ -398,6 +401,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
+		RoleRepo:             repos.Role,
 		PersonnelNumberAudit: repos.PersonnelNumberChange,
 
 		// Staff Stammdaten (#1423)
@@ -886,6 +890,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
+	partialAbsenceService := schedule.NewPartialAbsenceService(
+		repos.StudentPickupException,
+		repos.StudentStatusDay,
+		repos.ExcusedAbsenceRequest,
+		repos.InstanceStudent,
+		db,
+	)
 
 	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
 	// active/users/facilities/activities services plus the daily-checkout gate
@@ -954,6 +965,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
+	recoveryRepo := scheduleRepo.NewActivityRecoveryRepository(db)
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
@@ -973,6 +985,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "instance-lifecycle"),
+		Settings:           settingsService,
+		RecoveryRepo:       recoveryRepo,
+		// E2E fixtures start future weekday instances. Dedicated unit tests
+		// construct the service with EnforceTimePolicy: true.
+		EnforceTimePolicy: os.Getenv("APP_ENV") != "test",
 	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
@@ -1078,6 +1095,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Broadcaster:        realtimeHub,
 		DB:                 db,
 		Logger:             logger.With("service", "timetable-operations"),
+		RecoveryRepo:       recoveryRepo,
 	})
 
 	// Initialize auth service with validated config
@@ -1148,6 +1166,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:        repos.Person,
 		StaffRepo:         repos.Staff,
 		TeacherRepo:       repos.Teacher,
+		StudentRepo:       repos.Student,
 		SchoolRepo:        repos.School,
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
@@ -1274,6 +1293,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffShiftRepo:         repos.StaffShift,
 		StaffShiftSeriesRepo:   repos.StaffShiftSeries,
 		StaffAbsenceRepo:       repos.StaffAbsence,
+		AccountRepo:            repos.Account,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
 		AccountPermissionRepo:  repos.AccountPermission,
@@ -1541,6 +1561,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentFieldEdit,
 		logger.With("service", "student_audit"),
 	)
+	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
+	// enrollment writes that change a child's live care data.
+	pillEmitter := parentmessaging.NewEmitter(
+		db,
+		repos.ParentMessageThread,
+		repos.ParentMessage,
+		settingsService,
+		realtimeHub,
+		logger.With("service", "parent-events"),
+	)
 
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		RequestRepo:              repos.Request,
@@ -1576,6 +1606,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OutboxEnqueuer:           emailOutboxService,
 		StudentAudit:             studentAuditService,
 		Broadcaster:              realtimeHub,
+		PickupGuardianNotifier:   pillEmitter,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,
@@ -1666,6 +1697,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupScheduleSvc:        pickupScheduleService,
 		ArrivalScheduleSvc:       arrivalScheduleService,
 		CareDaySvc:               careDayService,
+		Settings:                 settingsService,
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
@@ -1730,11 +1762,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Rollover service depends on DecisionService for the
 	// rollover_auto_approve=true deadline path.
+	enrollmentRolloverCatalogCloner, ok := enrollmentCareOfferingService.(enrollment.RolloverOfferingCatalogCloner)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement rollover catalog cloning")
+	}
 	enrollmentRolloverService := enrollment.NewRolloverService(enrollment.RolloverServiceConfig{
 		PhaseRepo:                repos.Phase,
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
+		OfferingCatalogCloner:    enrollmentRolloverCatalogCloner,
 		SchoolRepo:               repos.School,
 		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
@@ -1743,18 +1780,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
-
-	// Chat-pill emitter (#1803): posts non-interactive notification events
-	// into parent-OGS threads on behalf of the request/self-service flows.
-	// Best-effort and transactionally detached — see parentmessaging.Emitter.
-	pillEmitter := parentmessaging.NewEmitter(
-		db,
-		repos.ParentMessageThread,
-		repos.ParentMessage,
-		settingsService,
-		realtimeHub,
-		logger.With("service", "parent-events"),
-	)
 
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
@@ -1795,15 +1820,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// gate for parent-submitted excused absences. Reuses the same review queue,
 	// badge and pill machinery as the care-schedule requests above; on approval
 	// it writes the excused status days directly.
-	excusedRequestService := absence.NewExcusedAbsenceRequestService(
+	excusedRequestService := absence.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
+		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
 		logger.With("service", "excused-requests"),
+		db,
 	)
 
 	// The notification router and the consent service are built here, ahead of
@@ -1950,6 +1977,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffRepo:             repos.Staff,
 		AccountRepo:           repos.Account,
 		TeacherRepo:           repos.Teacher,
+		StudentRepo:           repos.Student,
 		GroupSupervisorRepo:   repos.GroupSupervisor,
 		ActiveGroupRepo:       repos.ActiveGroup,
 		Settings:              settingsService,
@@ -1977,6 +2005,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AttendanceRepo:      repos.Attendance,
 		StatusDayRepo:       repos.StudentStatusDay,
 		CareDayService:      careDayService,
+		PickupExceptionRepo: repos.StudentPickupException,
 		PickupScheduleRepo:  repos.StudentPickupSchedule,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,
@@ -2045,7 +2074,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
-		Groups:      userContextService,
 		Logger:      logger.With("service", "reminders"),
 
 		// Bulk readers for ComputeBatch. They answer the three genuinely
@@ -2053,13 +2081,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// keeps the per-minute cost flat in the number of staff.
 		BulkSupervision:   repos.GroupSupervisor,
 		BulkVisits:        repos.ActiveVisit,
-		BulkGroups:        repos.Group,
 		BulkInstanceStaff: repos.InstanceStaff,
 	})
 
 	workTimeModelService := config.NewWorkTimeModelService(repos.WorkTimeModel)
 	workTimeModelService.SetBroadcaster(realtimeHub)
-	studentStatusDayService := active.NewStudentStatusDayService(repos.StudentStatusDay)
+	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
+		repos.StudentStatusDay,
+		repos.StudentPickupException,
+		db,
+	)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
 		People:          usersService,
 		Education:       educationService,
@@ -2104,6 +2135,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ValidateOfferingSource:     careOfferingSeriesValidator.ValidateTemplateOfferingSource,
 		DeviationEventRepo:         repos.DeviationEvent,
 		ConflictAckRepo:            repos.TimetableConflictAck,
+		RecoveryRepo:               recoveryRepo,
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "timetable-data"),
 		DB:                         db,
@@ -2154,6 +2186,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ShiftTypes:               shiftTypeService,
 		PlanningTracks:           planningTrackService,
 		PickupSchedule:           pickupScheduleService,
+		PartialAbsence:           partialAbsenceService,
 		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CareDay:                  careDayService,

@@ -7,8 +7,9 @@ package parent_test
 // WithdrawChildRequest) onto the decoupled Stammdaten request flow (#1803):
 //   - submitting a change request requires parent_portal.request.submit — NOT
 //     the parent_portal.notes.write that plain chat needs,
-//   - creating needs messaging enabled, but withdraw stays available after the
-//     school disables it so outstanding requests can be wound down.
+//   - messaging and permanent-care request rights are independent,
+//   - disabled field groups reject the whole manipulated request,
+//   - withdraw stays available after a school disables request fields.
 //
 // Reuses parentSettingsStub from parent_settings_stub_test.go and the shared
 // testpkg.RecordingBroadcaster.
@@ -48,6 +49,17 @@ func buildCareScheduleService(t *testing.T, notesEnabled bool) (parentService.Se
 // fresh SetupTestDB instead would point the rebuilt service at an empty schema.
 func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory, notesEnabled bool) parentService.Service {
 	t.Helper()
+	return careScheduleServiceWithSettings(t, db, repos, map[string]bool{
+		configModels.KeyParentSickNoteEnabled:           true,
+		configModels.KeyParentNotesEnabled:              notesEnabled,
+		configModels.KeyParentCareArrivalRequestEnabled: true,
+		configModels.KeyParentCarePickupRequestEnabled:  true,
+		configModels.KeyParentCareModeRequestEnabled:    true,
+	})
+}
+
+func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositories.Factory, boolValues map[string]bool) parentService.Service {
+	t.Helper()
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
 	return parentService.NewService(parentService.ServiceConfig{
@@ -56,10 +68,7 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled: true,
-				configModels.KeyParentNotesEnabled:    notesEnabled,
-			},
+			boolValues: boolValues,
 			stringValues: map[string]string{
 				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
 			},
@@ -117,16 +126,55 @@ func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
 		"submitting a care-schedule change request requires request.submit, not just notes.write")
 }
 
-// TestCreateCareScheduleRequest_DisabledRefused: creating a request needs
-// messaging enabled (the chat pill is its feedback channel), so with the feature
-// off it is ErrNotesDisabled.
-func TestCreateCareScheduleRequest_DisabledRefused(t *testing.T) {
+// TestCreateCareScheduleRequest_MessagingDisabledStillAllowed pins that messages
+// and permanent-data requests are independent capabilities.
+func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
 	svc, db, _ := buildCareScheduleService(t, false) // messaging OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	_, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
-	require.ErrorIs(t, err, parentService.ErrNotesDisabled)
+	view, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	require.NoError(t, err)
+	require.NotNil(t, view.PendingRequest)
+}
+
+func TestCreateCareScheduleRequest_RejectsMixedPayloadWhenOneFieldIsDisabled(t *testing.T) {
+	_, db, repos := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{
+		configModels.KeyParentCareArrivalRequestEnabled: true,
+		configModels.KeyParentCarePickupRequestEnabled:  false,
+		configModels.KeyParentCareModeRequestEnabled:    true,
+	})
+	payload := map[string]any{"weekdays": []any{map[string]any{
+		"weekday": 1, "arrival": "08:00", "pickup": "16:00",
+	}}}
+	_, err := svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, payload)
+	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
+
+	var count int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM schedule.care_schedule_change_requests
+		WHERE tenant_id = ? AND student_id = ?
+	`, chain.TenantID, chain.StudentID).Scan(context.Background(), &count))
+	assert.Zero(t, count, "a mixed allowed/disabled payload must be rejected atomically")
+}
+
+func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
+	_, db, repos := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{})
+	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.False(t, view.CanRequest)
+	assert.Equal(t, parentService.CareScheduleRequestCapabilities{}, view.RequestCapabilities)
+
+	_, err = svc.CreateCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, carePayload())
+	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
 }
 
 // TestWithdrawCareScheduleRequest_WorksWhenDisabled is the documented contract
@@ -142,12 +190,11 @@ func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
 	require.NoError(t, err)
 	reqID := created.PendingRequest.ID
 
-	// Rebuild the service with messaging OFF against the SAME db/repos, so the
-	// guardian chain and pending request created above are still visible.
-	disabled := careScheduleServiceOn(t, db, repos, false)
+	// Rebuild against the SAME db/repos with every permanent-care field disabled.
+	disabled := careScheduleServiceWithSettings(t, db, repos, map[string]bool{})
 
 	view, err := disabled.WithdrawCareScheduleRequest(context.Background(), chain.AccountID, chain.StudentID, reqID)
-	require.NoError(t, err, "withdraw must stay available even with messaging disabled")
+	require.NoError(t, err, "withdraw must stay available after request fields are disabled")
 	assert.Nil(t, view.PendingRequest, "the withdrawn request no longer appears on the read view")
 }
 

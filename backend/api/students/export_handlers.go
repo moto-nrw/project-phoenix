@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -114,7 +115,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	responses = applyExportFilters(responses, req.Filters, req.Preset)
+	responses = applyExportFilters(responses, req.Filters, req.Preset, planningDate)
 	// The cap is applied to the rows that actually land in the document, after
 	// every requested filter has run — so a narrow list still exports at a large
 	// school and only a genuinely oversized result is refused.
@@ -323,17 +324,15 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
-		schoolClass:         strings.TrimSpace(req.Filters.SchoolClass),
+		// Class and group travel comma-separated so an export mirrors a
+		// multi-selection made in the Kindersuche (#2218).
+		schoolClasses: parseMultiValueParam([]string{req.Filters.SchoolClass}),
 		// The birthday-month and search filters run in memory after the fetch,
 		// so pull every SQL-matching row: a paginated page would drop matching
 		// children past the boundary and silently shorten the list.
 		fetchAll: true,
 	}
-	if req.Filters.GroupID != "" {
-		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
-			params.groupID = groupID
-		}
-	}
+	params.groupIDs = parseGroupIDList([]string{req.Filters.GroupID})
 	if req.Filters.RoomID != "" {
 		if roomID, err := strconv.ParseInt(req.Filters.RoomID, 10, 64); err == nil {
 			params.roomID = roomID
@@ -400,7 +399,28 @@ func matchesTimeFilter(planned *string, isException bool, filter string) bool {
 	return planned != nil && *planned == filter
 }
 
-func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset listexport.Preset) []StudentResponse {
+// exportYearFilterValues resolves the school-year ("Stufe") export filter into
+// the set of years an export is restricted to. Several years may be selected at
+// once (#2218) and travel comma-separated; empty and the neutral "all" sentinel
+// both mean "no restriction".
+func exportYearFilterValues(raw string) []string {
+	if !isActiveFilterValue(strings.TrimSpace(raw)) {
+		return nil
+	}
+	return parseMultiValueParam([]string{raw})
+}
+
+// matchesExportYearFilter reports whether a child's class falls into any of the
+// selected school years.
+func matchesExportYearFilter(schoolClass, raw string) bool {
+	years := exportYearFilterValues(raw)
+	if len(years) == 0 {
+		return true
+	}
+	return slices.Contains(years, schoolYear(schoolClass))
+}
+
+func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset listexport.Preset, planningDate timezone.Date) []StudentResponse {
 	// Months were validated when the request was decoded.
 	months, _ := parseExportMonths(filters.Months)
 	// The birthday preset demands a birthday even without a month filter, so a
@@ -408,7 +428,7 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 	byBirthday := preset == listexport.PresetBirthdayList || len(months) > 0
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		if exportStudentMatchesFilters(student, filters, byBirthday, months) {
+		if exportStudentMatchesFilters(student, filters, byBirthday, months, planningDate) {
 			filtered = append(filtered, student)
 		}
 	}
@@ -417,17 +437,17 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 
 // exportStudentMatchesFilters reports whether one child survives every requested
 // export filter. byBirthday and months are precomputed by applyExportFilters.
-func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool) bool {
+func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool, planningDate timezone.Date) bool {
 	if byBirthday && !birthdayExportMatch(student, months) {
 		return false
 	}
-	if filters.Year != "" && filters.Year != "all" && schoolYear(student.SchoolClass) != filters.Year {
+	if !matchesExportYearFilter(student.SchoolClass, filters.Year) {
 		return false
 	}
 	if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
 		return false
 	}
-	if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus) {
+	if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus, planningDate) {
 		return false
 	}
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
@@ -844,7 +864,7 @@ func collectResponseIDs(students []StudentResponse) []int64 {
 }
 
 func (rs *Resource) exportSubtitle(r *http.Request, count int) string {
-	name := "Kindersuche"
+	name := "Alle Kinder"
 	if tenantID := tenant.FromContext(r.Context()); tenantID > 0 && rs.SchoolService != nil {
 		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && school.Name != "" {
 			name = school.Name
@@ -905,11 +925,11 @@ func exportIdentityFilterLabels(filters studentExportFilters, planningDate timez
 	if filters.GroupID != "" {
 		labels = append(labels, "Gruppe gefiltert")
 	}
-	if filters.Year != "" && filters.Year != "all" {
-		labels = append(labels, "Stufe: "+filters.Year)
+	if years := exportYearFilterValues(filters.Year); len(years) > 0 {
+		labels = append(labels, "Stufe: "+strings.Join(years, ", "))
 	}
-	if strings.TrimSpace(filters.SchoolClass) != "" {
-		labels = append(labels, "Klasse: "+strings.TrimSpace(filters.SchoolClass))
+	if classes := parseMultiValueParam([]string{filters.SchoolClass}); len(classes) > 0 {
+		labels = append(labels, "Klasse: "+strings.Join(classes, ", "))
 	}
 	if filters.Status != "" && filters.Status != "all" {
 		// Only the location-derived buckets are a snapshot of right now; on a

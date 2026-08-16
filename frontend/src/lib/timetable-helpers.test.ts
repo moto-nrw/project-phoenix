@@ -870,6 +870,63 @@ describe("backend mappers", () => {
     expect(withNeither.seriesNotes).toBeUndefined();
   });
 
+  it("maps actor-aware reopen eligibility", () => {
+    expect(
+      mapInstance({
+        id: 42,
+        date: "2026-05-04",
+        start_time: "12:00",
+        end_time: "13:00",
+        title: "Mensa",
+        status: "completed",
+        is_spontaneous: false,
+        is_live: false,
+        activity_type: "care",
+        room_id: 3,
+        room_name: "Mensa",
+        staff: [],
+        students: [],
+        staff_count: 0,
+        absent_staff_count: 0,
+        expected_students_count: 0,
+        present_students_count: 0,
+        required_staff_count: 0,
+        assigned_staff_count: 0,
+        can_reopen: true,
+        can_complete: true,
+        complete_available_at: "2026-05-04T13:00:00+02:00",
+      }).canReopen,
+    ).toBe(true);
+    expect(
+      mapInstance({
+        id: 42,
+        date: "2026-05-04",
+        start_time: "12:00",
+        end_time: "13:00",
+        title: "Mensa",
+        status: "active",
+        is_spontaneous: false,
+        is_live: true,
+        activity_type: "care",
+        room_id: 3,
+        room_name: "Mensa",
+        staff: [],
+        students: [],
+        staff_count: 0,
+        absent_staff_count: 0,
+        expected_students_count: 0,
+        present_students_count: 0,
+        required_staff_count: 0,
+        assigned_staff_count: 0,
+        can_complete: false,
+        complete_available_at: "2026-05-04T13:00:00+02:00",
+      }),
+    ).toMatchObject({
+      canComplete: false,
+      completeAvailableAt: "2026-05-04T13:00:00+02:00",
+    });
+  });
+
   it("maps templates", () => {
     expect(
       mapTemplates({

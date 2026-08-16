@@ -123,7 +123,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		EducationGroupID:            educationGroupIDFromRow(row),
 		EducationGroupName:          row.EducationGroupName.String,
 		IsOpen:                      row.IsOpen,
-		MaxParticipants:             row.MaxParticipants,
+		MaxParticipants:             activities.ParticipantLimitPtr(row.MaxParticipants),
 		CalendarPeriodID:            nullableTemplateInt64(row.TemplateCalendarPeriodID.Valid, row.TemplateCalendarPeriodID.Int64),
 		TargetGroupType:             row.TargetGroupType,
 		TargetGradeLevel:            nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
@@ -251,7 +251,7 @@ type templateResponse struct {
 	EducationGroupID       *int64 `json:"education_group_id,omitempty"`
 	EducationGroupName     string `json:"education_group_name,omitempty"`
 	IsOpen                 bool   `json:"is_open"`
-	MaxParticipants        int    `json:"max_participants"`
+	MaxParticipants        *int   `json:"max_participants"`
 	// CalendarPeriodID is the template's OWN period pin (distinct from each
 	// schedule's own calendar_period_id in templateScheduleResponse).
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`

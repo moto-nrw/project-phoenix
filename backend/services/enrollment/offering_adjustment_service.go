@@ -291,6 +291,11 @@ func (s *decisionService) updateChildOfferings(
 	if err := s.OfferingAdjustmentRepo.Create(ctx, entry); err != nil {
 		return nil, fmt.Errorf("decision: create offering adjustment audit: %w", err)
 	}
+	// The booking changed: realign the student's Angebots-Gehzeit rows
+	// (#2290). Staff-maintained rows stay untouched.
+	if err := s.ReconcileOfferingPickupForStudentsByAccount(ctx, []int64{*child.CreatedStudentID}, input.ActorAccountID); err != nil {
+		return nil, fmt.Errorf("decision: reconcile offering pickup times: %w", err)
+	}
 	return s.RequestChildRepo.FindByID(ctx, child.ID)
 }
 

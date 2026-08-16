@@ -15,6 +15,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -82,15 +83,17 @@ func buildAbsenceService(t *testing.T) (absenceSvc.ExcusedAbsenceRequestService,
 		bc,
 		slog.Default(),
 	)
-	svc := absenceSvc.NewExcusedAbsenceRequestService(
+	svc := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,
+		repos.StudentPickupException,
 		repos.Student,
 		repos.Person,
 		nil, // userContext: admin:* perms in the ctx short-circuit the write gate
 		emitter,
 		bc,
 		nil, // logger: nil-safe, falls back to slog.Default()
+		db,
 	)
 	return svc, bc, db
 }
@@ -260,7 +263,7 @@ func TestPendingByStudentForDate_DedupesPerStudent(t *testing.T) {
 }
 
 // TestDecide_ForbiddenWithoutWriteAccess verifies a caller who cannot write the
-// child (no admin perms, no supervision) is refused even on a valid pending id.
+// child (no admin perms, no staff record) is refused even on a valid pending id.
 func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -588,6 +591,89 @@ func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestDecide_ApproveRefusedWhenPartialAbsenceExists(t *testing.T) {
+	svc, _, db := buildAbsenceService(t)
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, chain)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	})
+
+	day := timezone.TodayDate().AddDays(3)
+	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
+	from := timezone.WallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
+	staffID := staff.ID
+	pickup := &scheduleModels.StudentPickupException{
+		StudentID:             chain.StudentID,
+		ExceptionDate:         day,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	pickup.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+			RequestID:  pending.ID,
+			Approve:    true,
+			ReviewedBy: chain.AccountID,
+		})
+		return decideErr
+	})
+	require.ErrorIs(t, err, absenceSvc.ErrExcusedRequestStatusConflict)
+
+	rows, findErr := repos.StudentStatusDay.FindActiveByStudentAndDateRange(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, day, day,
+	)
+	require.NoError(t, findErr)
+	assert.Empty(t, rows)
+}
+
+func TestCreateRequest_RefusedWhenPartialAbsenceExists(t *testing.T) {
+	svc, _, db := buildAbsenceService(t)
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Create", "Partial")
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, chain)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	})
+
+	day := timezone.TodayDate().AddDays(4)
+	from := timezone.WallClock(time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC))
+	staffID := staff.ID
+	pickup := &scheduleModels.StudentPickupException{
+		StudentID:             chain.StudentID,
+		ExceptionDate:         day,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	pickup.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, createErr := svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{day}, "Arzttermin")
+		return createErr
+	})
+	require.ErrorIs(t, err, absenceSvc.ErrExcusedRequestStatusConflict)
+
+	pending, listErr := repos.ExcusedAbsenceRequest.ListPendingForStudent(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID,
+	)
+	require.NoError(t, listErr)
+	assert.Empty(t, pending, "partial absence must block pending request creation")
 }
 
 // TestDecide_ApproveOverwritesOlderStatus is the complement: an OLDER status (set

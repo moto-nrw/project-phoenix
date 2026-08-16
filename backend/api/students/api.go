@@ -53,6 +53,7 @@ type ResourceConfig struct {
 	IoTService             iotSvc.Service
 	StaffPINAuthenticator  authService.StaffPINAuthenticator
 	PickupScheduleService  scheduleService.PickupScheduleService
+	PartialAbsenceService  scheduleService.PartialAbsenceService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
 	InstanceService        scheduleService.InstanceService
 	// CareDayService gates the day-planning timetable signal on the child's
@@ -143,6 +144,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/day-log/export", rs.exportStudentsDayLog)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history", rs.getStudentAttendanceHistory)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/attendance-history/export", rs.exportStudentAttendanceHistory)
+		// Planned absence days. users:read like every other read here — an
+		// absence writer always holds it, because users:absence is a write scope
+		// on top of the children a caller may see and grants nothing on its own
+		// (authorize.CanManageStudentAbsence). Widening this route instead would
+		// have let a caller without any read permission pull absence data out of
+		// the tenant while the child's list entry and detail page stayed closed
+		// to them either way.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/status-days", rs.getStudentStatusDays)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/enrollment-extra-fields", rs.getStudentEnrollmentExtraFields)
 		// Per-child change history (issue #1455). Full access (admin / group
@@ -174,22 +182,36 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
 		// Excused-absence approval requests (#1845): staff review queue.
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/excused-absence-requests/{requestId}/decide", rs.decideExcusedAbsenceRequest)
+		// Deciding one writes status days, so it is gated like the staff-side
+		// absence actions: users:update OR users:absence at the route, with the
+		// per-child absence gate deciding inside the service (#2232).
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/excused-absence-requests/{requestId}/decide", rs.decideExcusedAbsenceRequest)
 
 		// Combined pending count across both review queues, driving the
-		// Änderungsanfragen sidebar badge. Same users:update gate + per-child
-		// scope as the queues it summarizes (the count sums their scoped lists).
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
+		// Änderungsanfragen sidebar badge. Same gate + per-child scope as the
+		// queues it summarizes (the count sums their scoped lists), including
+		// the excused queue's users:absence path — a caller who only holds that
+		// permission counts excused requests and nothing else.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
 
-		// Routes requiring users:update permission
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateStudent)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
+		// Routes requiring users:update permission. The absence surfaces accept
+		// users:absence as well — it is the permission a school without fixed
+		// groups grants for exactly these writes (#2232). The coarse route gate
+		// only decides who may knock; per-child authority is decided in the
+		// handlers (authorizeStudentUpdate / canManageStudentAbsence).
+		//
+		// PUT /{id} carries both the Krankmeldung and every Stammdaten field, so
+		// it re-checks the permission itself: the full write needs users:update,
+		// and a users:absence holder gets nothing but a payload of sick/excused
+		// past it, no matter which groups they supervise.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Put("/{id}", rs.updateStudent)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)
@@ -212,11 +234,16 @@ func (rs *Resource) Router() chi.Router {
 
 		// Pickup schedule routes (full access required - checked in handlers)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/partial-absences", rs.getStudentPartialAbsences)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/reset-offering", rs.resetStudentPickupToOffering)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/pickup-schedules/bulk", rs.bulkUpsertPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-exceptions/{exceptionId}", rs.updateStudentPickupException)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-exceptions/{exceptionId}", rs.deleteStudentPickupException)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/partial-absences", rs.createStudentPartialAbsence)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/partial-absences/{partialAbsenceId}", rs.updateStudentPartialAbsence)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/partial-absences/{partialAbsenceId}", rs.deleteStudentPartialAbsence)
 
 		// Pickup note routes (full access required - checked in handlers)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-notes", rs.createStudentPickupNote)
@@ -243,9 +270,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
 
 		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
-		// The users:checkin permission is the coarse gate; the
-		// attendance.web_checkin_access setting is the fine gate enforced inside
-		// the handler (group_supervisors vs all_staff).
+		// The users:checkin permission is the gate; any verified staff member may
+		// toggle any student (#2329).
 		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
 
 		// Student photo (Datenverwaltung). upload + delete: users:update;

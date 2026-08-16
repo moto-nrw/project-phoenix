@@ -14,6 +14,8 @@ interface TemplateListProps {
   onEdit: (template: TimetableTemplate) => void;
   onApply: (template: TimetableTemplate) => void;
   onArchive: (template: TimetableTemplate) => void;
+  /** Leseansicht (#2283): false blendet Anlegen und Karten-Aktionen aus. */
+  canManage?: boolean;
 }
 
 export function TemplateList({
@@ -22,6 +24,7 @@ export function TemplateList({
   onEdit,
   onApply,
   onArchive,
+  canManage = true,
 }: TemplateListProps) {
   if (templates.length === 0) {
     return (
@@ -40,16 +43,18 @@ export function TemplateList({
             Montag oder Lernzeit alle zwei Wochen.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={onCreate}
-          className="mt-2 gap-2"
-        >
-          <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
-          Regeltermin anlegen
-        </Button>
+        {canManage && (
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={onCreate}
+            className="mt-2 gap-2"
+          >
+            <Plus className="h-5 w-5 stroke-[2.5]" aria-hidden />
+            Regeltermin anlegen
+          </Button>
+        )}
       </div>
     );
   }
@@ -64,6 +69,7 @@ export function TemplateList({
             onEdit={onEdit}
             onApply={onApply}
             onArchive={onArchive}
+            canManage={canManage}
           />
         ))}
       </div>

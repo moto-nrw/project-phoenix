@@ -191,10 +191,11 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		slog.Int64("student_id", visit.StudentID),
 	)
 	row.Status = scheduleModel.AttendanceStatusPresent
-	if row.StudentStatusDayID != nil {
+	if row.StudentStatusDayID != nil || row.PickupExceptionID != nil {
 		row.Substatus = nil
 	}
 	row.StudentStatusDayID = nil
+	row.PickupExceptionID = nil
 	// A reopen (checked-out row) re-stamps checked_in_at with the re-entry
 	// time — mirrors the repo UPDATE's session boundary.
 	if row.CheckedOutAt != nil || row.CheckedInAt == nil {
@@ -301,10 +302,11 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 	}
 	if updated {
 		row.Status = scheduleModel.AttendanceStatusPresent
-		if row.StudentStatusDayID != nil {
+		if row.StudentStatusDayID != nil || row.PickupExceptionID != nil {
 			row.Substatus = nil
 		}
 		row.StudentStatusDayID = nil
+		row.PickupExceptionID = nil
 		if row.CheckedOutAt != nil || row.CheckedInAt == nil {
 			row.CheckedInAt = &at
 		}
@@ -314,7 +316,13 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 }
 
 func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool {
-	if row == nil || row.Status == scheduleModel.AttendanceStatusExpected || row.StudentStatusDayID != nil {
+	// Expected rows, broad day-status absences, and partial-excusal absences
+	// are all plan projections: a real check-in may replace them. Manual
+	// absences (no provenance) and already-open presence stay put.
+	if row == nil ||
+		row.Status == scheduleModel.AttendanceStatusExpected ||
+		row.StudentStatusDayID != nil ||
+		row.PickupExceptionID != nil {
 		return false
 	}
 	return row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedOutAt == nil

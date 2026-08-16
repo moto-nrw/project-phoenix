@@ -3,6 +3,7 @@ import type {
   BackendStudent,
   BackendStudentDetail,
   BackendPrivacyConsent,
+  BackendSlimStudent,
   UpdateStudentRequest,
 } from "./student-helpers";
 import {
@@ -22,6 +23,7 @@ import {
   normalizePickupDays,
   SCHOOL_YEAR_FILTER_OPTIONS,
   mapStudentResponse,
+  mapSlimStudentResponse,
   mapStudentsResponse,
   mapSingleStudentResponse,
   mapStudentDetailResponse,
@@ -34,6 +36,32 @@ import {
   getStatusColor,
 } from "./student-helpers";
 import { buildBackendStudent } from "~/test/fixtures/students";
+
+describe("mapSlimStudentResponse", () => {
+  it("preserves the selected day's departure modes", () => {
+    const backendStudent: BackendSlimStudent = {
+      id: 7,
+      first_name: "Mila",
+      last_name: "Meyer",
+      school_class: "2a",
+      current_location: "Zuhause",
+      sick: false,
+      excused: false,
+      class_trip: false,
+      departure_modes: ["bus", "pickup"],
+      departure_label: "Taxi mit Begleitperson",
+      has_full_access: true,
+    };
+
+    expect(mapSlimStudentResponse(backendStudent).departure_modes).toEqual([
+      "bus",
+      "pickup",
+    ]);
+    expect(mapSlimStudentResponse(backendStudent).departure_label).toBe(
+      "Taxi mit Begleitperson",
+    );
+  });
+});
 
 // Sample backend student for testing
 const sampleBackendStudent = buildBackendStudent({

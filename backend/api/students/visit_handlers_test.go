@@ -269,8 +269,9 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Teacher should access group room status. Body: %s", rr.Body.String())
 	})
 
-	t.Run("non_supervisor_forbidden", func(t *testing.T) {
-		// Create another teacher not supervising this group
+	t.Run("staff_outside_the_group_can_access", func(t *testing.T) {
+		// #2329: the room status is a read surface open to every staff member,
+		// supervision of the child's group no longer matters.
 		otherTeacher, otherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Other", "Teacher")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, otherTeacher.ID)
 
@@ -278,7 +279,18 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 		claims := testutil.TeacherTestClaims(int(otherAccount.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		// Non-supervisor should be forbidden
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("account_without_staff_record_forbidden", func(t *testing.T) {
+		// Guests and guardians hold users:read but no staff record in the tenant.
+		guest := testpkg.CreateTestAccount(t, tc.db, "group-room-guest@example.com")
+		defer testpkg.CleanupActivityFixtures(t, tc.db, guest.ID)
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
+		claims := testutil.TeacherTestClaims(int(guest.ID))
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
+
 		testutil.AssertForbidden(t, rr)
 	})
 }

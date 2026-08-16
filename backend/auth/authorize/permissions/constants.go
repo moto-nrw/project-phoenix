@@ -46,6 +46,23 @@ const (
 	// as a device). Admins match via AdminWildcard; other roles must be
 	// granted explicitly.
 	UsersCheckin = ResourceUsers + ":checkin"
+
+	// UsersAbsence allows maintaining a child's absence statuses (krank,
+	// entschuldigt, Klassenfahrt) — today's quick report, planned status days,
+	// and deciding a guardian's excused/sick request. Deliberately its own
+	// permission instead of users:update, so a custom role can be limited to
+	// absence writes without carrying write access to addresses, health info,
+	// or any other Stammdaten (see authorize.CanManageStudentAbsence).
+	//
+	// It is a WRITE scope layered on top of the children a caller may already
+	// see, never a read permission: the gate requires UsersRead alongside it,
+	// so it unlocks nothing on its own and the child's list entry and detail
+	// page stay gated on UsersRead alone.
+	//
+	// Admins match via AdminWildcard; other roles are granted explicitly
+	// (migration 1.15.294 grants it to the default `user`/Betreuer role, which
+	// already holds users:read).
+	UsersAbsence = ResourceUsers + ":absence"
 )
 
 // Activity permissions

@@ -1016,6 +1016,10 @@ func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(co
 	return 0, nil
 }
 
+func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+	return 0, nil
+}
+
 type materializationCountingStaffRepo struct {
 	schedule.InstanceStaffRepository
 	rows []*schedule.InstanceStaff

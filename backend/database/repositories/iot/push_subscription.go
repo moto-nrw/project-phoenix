@@ -80,6 +80,7 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSu
 		Set("p256dh = EXCLUDED.p256dh").
 		Set("auth = EXCLUDED.auth").
 		Set("user_agent = EXCLUDED.user_agent").
+		Set("token_family_id = EXCLUDED.token_family_id").
 		Set("updated_at = NOW()").
 		Exec(ctx)
 	if err != nil {
@@ -155,16 +156,115 @@ func (r *PushSubscriptionRepository) DeleteParentByEndpoint(ctx context.Context,
 
 // DeleteStaffByAccountID removes every staff-portal subscription for an
 // account across tenants. The caller must supply an admin transaction because
-// this intentionally crosses tenant boundaries during server-side logout.
+// this intentionally crosses tenant boundaries during account-wide session
+// revocation.
 func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context, accountID int64) error {
+	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalStaff, "delete staff push subscriptions")
+}
+
+// DeleteParentByAccountID removes every parent-portal subscription for an
+// account across tenants. The caller must supply an admin transaction.
+func (r *PushSubscriptionRepository) DeleteParentByAccountID(ctx context.Context, accountID int64) error {
+	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalParent, "delete parent push subscriptions")
+}
+
+func (r *PushSubscriptionRepository) deleteByAccountPortal(ctx context.Context, accountID int64, portal, op string) error {
 	_, err := base.GetDB(ctx, r.DB).NewDelete().
-		Model((*iot.PushSubscription)(nil)).
-		ModelTableExpr(tablePushSubscriptions).
+		TableExpr(tablePushSubscriptions).
 		Where("account_id = ?", accountID).
-		Where(pushPortalFilter, iot.PushPortalStaff).
+		Where(pushPortalFilter, portal).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete staff push subscriptions", Err: err}
+		return &modelBase.DatabaseError{Op: op, Err: err}
+	}
+	return nil
+}
+
+// DeleteByTokenFamilyID removes subscriptions registered by one refresh-token
+// family, any portal, across tenants. The caller must supply an admin
+// transaction. An empty family ID is a no-op so unbound legacy rows survive.
+func (r *PushSubscriptionRepository) DeleteByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error {
+	if familyID == "" {
+		return nil
+	}
+	_, err := base.GetDB(ctx, r.DB).NewDelete().
+		TableExpr(tablePushSubscriptions).
+		Where("account_id = ?", accountID).
+		Where("token_family_id = ?", familyID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete push subscriptions by token family", Err: err}
+	}
+	return nil
+}
+
+// DeleteStaffUnboundByAccount removes staff-portal subscriptions that have no
+// token family. The caller must supply an admin transaction. A positive
+// tenantID limits the delete to that school.
+func (r *PushSubscriptionRepository) DeleteStaffUnboundByAccount(ctx context.Context, accountID, tenantID int64) error {
+	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalStaff, "delete unbound staff push subscriptions")
+}
+
+// DeleteParentUnboundByAccount removes parent-portal subscriptions that have
+// no token family. The caller must supply an admin transaction. A positive
+// tenantID limits the delete to that school.
+func (r *PushSubscriptionRepository) DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error {
+	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalParent, "delete unbound parent push subscriptions")
+}
+
+func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Context) error {
+	db := base.GetDB(ctx, r.DB)
+	_, err := db.NewDelete().
+		TableExpr(tablePushSubscriptions+` AS "push_subscription"`).
+		Where(`"push_subscription".token_family_id <> ?`, "").
+		Where(`NOT EXISTS (
+			SELECT 1 FROM auth.tokens AS "token"
+			WHERE "token".account_id = "push_subscription".account_id
+				AND "token".family_id = "push_subscription".token_family_id
+				AND "token".rotated_at IS NULL
+				AND "token".expiry > NOW()
+		)`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete orphaned family push subscriptions", Err: err}
+	}
+	_, err = db.NewDelete().
+		TableExpr(tablePushSubscriptions+` AS "push_subscription"`).
+		Where(`"push_subscription".token_family_id = ?`, "").
+		Where(`NOT EXISTS (
+			SELECT 1 FROM auth.tokens AS "token"
+			WHERE "token".account_id = "push_subscription".account_id
+				AND "token".rotated_at IS NULL
+				AND "token".expiry > NOW()
+				AND (
+					("push_subscription".portal = ? AND "token".portal_scope IN (?, ?, ?))
+					OR (
+						"push_subscription".portal = ?
+						AND "token".tenant_id = "push_subscription".tenant_id
+						AND "token".portal_scope IN (?, ?, ?, ?, ?)
+					)
+				)
+		)`, iot.PushPortalParent, authModels.PortalScopeParent, authModels.PortalScopeUnknown, "",
+			iot.PushPortalStaff, authModels.PortalScopeTenant, authModels.PortalScopeOrg,
+			authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete orphaned unbound push subscriptions", Err: err}
+	}
+	return nil
+}
+
+func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context, accountID, tenantID int64, portal, op string) error {
+	query := base.GetDB(ctx, r.DB).NewDelete().
+		TableExpr(tablePushSubscriptions).
+		Where("account_id = ?", accountID).
+		Where("token_family_id = ?", "").
+		Where(pushPortalFilter, portal)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: op, Err: err}
 	}
 	return nil
 }

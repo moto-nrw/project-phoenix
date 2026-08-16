@@ -118,8 +118,8 @@ type mockOperatorRefreshTokenRepo struct {
 	markRotatedFn            func(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
 	deleteExpiredRotatedFn   func(ctx context.Context, familyID string, now time.Time) error
 	deleteFn                 func(ctx context.Context, id any) error
-	deleteByOperatorIDFn     func(ctx context.Context, operatorID int64) (int, error)
-	deleteByFamilyIDFn       func(ctx context.Context, familyID string) error
+	deleteByOperatorIDFn     func(ctx context.Context, operatorID int64) ([]*platform.OperatorRefreshToken, error)
+	deleteByFamilyIDFn       func(ctx context.Context, familyID string) ([]*platform.OperatorRefreshToken, error)
 	getLatestTokenInFamilyFn func(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error)
 	deleteExpiredFn          func(ctx context.Context, now time.Time) (int, error)
 	created                  []*platform.OperatorRefreshToken
@@ -161,18 +161,18 @@ func (m *mockOperatorRefreshTokenRepo) Delete(ctx context.Context, id any) error
 	return nil
 }
 
-func (m *mockOperatorRefreshTokenRepo) DeleteByOperatorID(ctx context.Context, operatorID int64) (int, error) {
+func (m *mockOperatorRefreshTokenRepo) DeleteByOperatorIDReturning(ctx context.Context, operatorID int64) ([]*platform.OperatorRefreshToken, error) {
 	if m.deleteByOperatorIDFn != nil {
 		return m.deleteByOperatorIDFn(ctx, operatorID)
 	}
-	return 0, nil
+	return nil, nil
 }
 
-func (m *mockOperatorRefreshTokenRepo) DeleteByFamilyID(ctx context.Context, familyID string) error {
+func (m *mockOperatorRefreshTokenRepo) DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*platform.OperatorRefreshToken, error) {
 	if m.deleteByFamilyIDFn != nil {
 		return m.deleteByFamilyIDFn(ctx, familyID)
 	}
-	return nil
+	return nil, nil
 }
 
 func (m *mockOperatorRefreshTokenRepo) GetLatestTokenInFamily(ctx context.Context, familyID string) (*platform.OperatorRefreshToken, error) {
@@ -246,6 +246,9 @@ func (m *mockAccountTenantRepo) ExistsByAccountAndTenant(ctx context.Context, ac
 		return m.existsByAccountAndTenantFn(ctx, accountID, tenantID)
 	}
 	return false, nil
+}
+func (m *mockAccountTenantRepo) ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error) {
+	return m.ExistsByAccountAndTenant(ctx, accountID, tenantID)
 }
 
 func (m *mockAccountTenantRepo) ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error) {

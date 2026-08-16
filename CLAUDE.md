@@ -79,6 +79,8 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 - `auth/jwt/ParentMiddleware` rejects everything except `scope=parent`; mounted on `/parent/*` protected routes.
 - **MFA exists and alters login flows**: tenant and operator logins can require a challenge step between credentials and session (`services/auth/mfa_service.go`, `api/auth/mfa_handlers.go`, `api/operator/mfa.go`, dedicated challenge/enrollment JWT claims in `backend/auth/jwt/`, trusted devices via `security.mfa_*` settings). Touch login flows only with MFA in mind.
 
+**Fourth portal in progress — school ("moto schule", #2207)**: the backend scope exists; the frontend mantle (host, cookie, PWA) follows. JWT scope `"school"` is tenant-bound (unlike `parent`): `POST /school/auth/login` requires a school-portal role (today: the `lehrkraft` system role) on an active mapping and pins that school as `tenant_id`. `auth/jwt/SchoolMiddleware` rejects everything except `scope=school`, `TenantMiddleware` rejects `scope=school` symmetrically, and `/school/*` runs through `common.ProtectedSchoolGroup` (incl. `TenantTxMiddleware`). The class-day surface is double-mounted (`/api/class-day` + `/school/class-day`) until the cutover removes tenant-portal Lehrkraft access. `TestSchoolScopeRejectedOnAllAPIRoutes` pins that a school token unlocks nothing under `/api`.
+
 **Embedded enrollment**: the parents portal serves the public enrollment form at `/parents/enroll/{slug}/{phaseId}` using the same `EnrollmentForm` component as `{slug}.TENANT_DOMAIN/enroll/{phaseId}`, via injected `profileFetcher`/`submitter`/`skipCaptcha` props. Parent-authenticated submits stamp `enrollment.requests.guardian_account_id`; the decision service prefers attaching by ID over email matching.
 
 ### Key Env Vars
@@ -280,6 +282,12 @@ description or PR comment. The resulting URLs should look like
 If native upload is not available from the current tool context, provide the
 local screenshot paths and ask the user to attach them manually. Do not use
 releases, prereleases, tags, or Gists as an asset host.
+
+**Sanctioned exception — screenshot orphan branches (`pr-<NR>-screenshots`)**:
+responsive sweeps and other agent-produced QA imagery MAY be hosted on a
+dedicated orphan branch and linked by commit SHA in a `gh pr comment`, as
+prescribed by the `responsive-screenshots` skill. One branch per PR, named
+`pr-<NR>-screenshots`, deleted after merge once the links are no longer needed.
 
 ## Database Schemas
 

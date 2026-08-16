@@ -9,8 +9,8 @@ const logger = createLogger({ component: "StudentsSchoolCheckinRoute" });
  * POST /api/students/[id]/school-checkin
  *
  * Proxy to the backend school-checkin handler. The backend enforces the
- * users:checkin permission and the attendance.web_checkin_access setting
- * (group_supervisors vs all_staff); this route is a thin pass-through.
+ * users:checkin permission and a verified staff identity (#2329); this route
+ * is a thin pass-through.
  *
  * Request body: { action: "in" | "out" }
  * Response:     { status, location, check_in_time, check_out_time, ... }

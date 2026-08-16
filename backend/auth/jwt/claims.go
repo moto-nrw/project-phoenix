@@ -30,6 +30,10 @@ type AppClaims struct {
 	// Multi-tenancy fields (Phase 1)
 	TenantID int64 `json:"tenant_id,omitempty"` // School ID (tenant boundary)
 	OrgID    int64 `json:"org_id,omitempty"`    // Organization ID
+	// FamilyID is the refresh-token family that minted this access token.
+	// Push subscriptions stamp it so family-scoped logout can revoke the
+	// same device's server-side subscription.
+	FamilyID string `json:"family_id,omitempty"`
 	CommonClaims
 }
 
@@ -197,6 +201,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 	c.Scope = getOptionalString(claims, "scope")
 	c.TenantID = getOptionalInt64(claims, "tenant_id")
 	c.OrgID = getOptionalInt64(claims, "org_id")
+	c.FamilyID = getOptionalString(claims, "family_id")
 
 	return nil
 }
@@ -211,7 +216,7 @@ type RefreshClaims struct {
 	ID       int    `json:"id,omitempty"`
 	Token    string `json:"token,omitempty"`
 	TenantID int64  `json:"tenant_id,omitempty"` // Multi-tenancy: School ID
-	Scope    string `json:"scope,omitempty"`     // "", "org", "platform", "parent"
+	Scope    string `json:"scope,omitempty"`     // "", "org", "platform", "parent", "school"
 	CommonClaims
 }
 

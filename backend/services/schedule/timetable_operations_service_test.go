@@ -66,6 +66,29 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 	assert.Equal(t, 1, result[0].PresentStudentsCount)
 	assert.False(t, result[0].IsOverdue)
 	assert.Equal(t, 10, result[0].MinutesUntilStart)
+	assert.NotEmpty(t, result[0].StartExpiresAt)
+}
+
+func TestTimetableOperationsPlannedNowKeepsSpontaneousAfterEnd(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	assignedID := int64(212)
+	instanceID := int64(340)
+	deps := newTimetableOpsDeps()
+	deps.personService.accountPerson = &usersModel.Person{}
+	deps.personService.accountPerson.ID = 411
+	deps.personService.staffByPersonID[411] = &usersModel.Staff{}
+	deps.personService.staffByPersonID[411].ID = assignedID
+	inst := instanceWithTimes(instanceID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now)
+	inst.IsSpontaneous = true
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{inst}
+	deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: assignedID}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 611, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, instanceID, result[0].ID)
+	assert.True(t, result[0].CanStart)
+	assert.Empty(t, result[0].StartExpiresAt)
 }
 
 func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
@@ -232,6 +255,22 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 	})
 }
 
+func TestTimetableOperationsPlannedNowIncludesStartLeadWindow(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	deps := newTimetableOpsDeps()
+	deps.settings.leadMinutes = 60
+	wireAssignedStaff(deps, 631, 436, 229, 341)
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithTimes(341, scheduleModel.InstanceStatusPlanned, now.Add(45*time.Minute), now.Add(2*time.Hour)),
+	}
+
+	result, err := deps.service.PlannedNow(context.Background(), 631, false, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(341), result[0].ID)
+}
+
 func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
@@ -327,6 +366,128 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	assert.Equal(t, "Zoe Zimmer", roster.Rows[1].StudentName)
 	assert.True(t, roster.Rows[1].Planned)
 	assert.Equal(t, "OGS Blau", roster.Rows[1].GroupName)
+}
+
+// A child recorded present in another running block of the same day gets a
+// parallel-presence marker on their roster row, so two supervisors working
+// consecutive blocks of the same lane see the overlap instead of a seemingly
+// contradictory attendance state (#2265). Rows without such an overlap stay
+// unmarked, and rosters of non-active instances never query for it.
+func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
+	instanceID := int64(368)
+	activeGroupID := int64(268)
+	otherInstanceID := int64(369)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 660, 480, 250, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 540, Status: scheduleModel.AttendanceStatusExpected},
+		{StudentID: 541, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.studentRepo.parallelPresence = []scheduleModel.ParallelPresence{
+		{
+			StudentID:  540,
+			InstanceID: otherInstanceID,
+			Title:      "GT 1",
+			StartTime:  time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
+			EndTime:    time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC),
+		},
+	}
+	deps.students.byID[540] = &usersModel.Student{PersonID: 481, SchoolClass: "1a"}
+	deps.students.byID[541] = &usersModel.Student{PersonID: 482, SchoolClass: "1a"}
+	deps.personService.people[481] = &usersModel.Person{FirstName: "Mia", LastName: "Muster"}
+	deps.personService.people[482] = &usersModel.Person{FirstName: "Tom", LastName: "Test"}
+
+	roster, err := deps.service.Roster(context.Background(), 660, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 2)
+	rowsByStudent := map[int64]OperationRosterRow{}
+	for _, row := range roster.Rows {
+		rowsByStudent[row.StudentID] = row
+	}
+	flagged := rowsByStudent[540]
+	require.NotNil(t, flagged.ParallelPresentIn)
+	assert.Equal(t, otherInstanceID, flagged.ParallelPresentIn.InstanceID)
+	assert.Equal(t, "GT 1", flagged.ParallelPresentIn.Title)
+	assert.Equal(t, "12:45", flagged.ParallelPresentIn.StartTime)
+	assert.Equal(t, "13:45", flagged.ParallelPresentIn.EndTime)
+	assert.Nil(t, rowsByStudent[541].ParallelPresentIn)
+}
+
+func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *testing.T) {
+	instanceID := int64(371)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 483, 251, instanceID)
+	completed := instanceWithTimes(instanceID, scheduleModel.InstanceStatusCompleted,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	completed.ID = instanceID
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 545, Status: scheduleModel.AttendanceStatusPresent},
+	}
+	deps.students.byID[545] = &usersModel.Student{PersonID: 484, SchoolClass: "2b"}
+	deps.personService.people[484] = &usersModel.Person{FirstName: "Lea", LastName: "Lang"}
+
+	roster, err := deps.service.Roster(context.Background(), 661, false, instanceID)
+
+	require.NoError(t, err)
+	require.Len(t, roster.Rows, 1)
+	assert.Nil(t, roster.Rows[0].ParallelPresentIn)
+	assert.Zero(t, deps.studentRepo.parallelPresenceCall)
+}
+
+func TestTimetableOperationsRosterParallelPresenceLookupErrorFails(t *testing.T) {
+	instanceID := int64(372)
+	activeGroupID := int64(272)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 662, 485, 252, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{
+		{StudentID: 546, Status: scheduleModel.AttendanceStatusExpected},
+	}
+	deps.students.byID[546] = &usersModel.Student{PersonID: 486, SchoolClass: "2b"}
+	deps.personService.people[486] = &usersModel.Person{FirstName: "Ben", LastName: "Berg"}
+	deps.studentRepo.parallelPresenceErr = errors.New("boom")
+
+	_, err := deps.service.Roster(context.Background(), 662, false, instanceID)
+
+	require.Error(t, err)
+}
+
+// Two independent reads of the same instance after an attendance write must
+// return the same roster state — the backend truth two parallel clients
+// converge on via SSE-triggered refetches (#2265 acceptance criterion).
+func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
+	instanceID := int64(373)
+	activeGroupID := int64(273)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 663, 487, 253, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+	row := &scheduleModel.InstanceStudent{StudentID: 547, Status: scheduleModel.AttendanceStatusExpected}
+	row.ID = 900
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 547}] = row
+	deps.students.byID[547] = &usersModel.Student{PersonID: 488, SchoolClass: "3c"}
+	deps.personService.people[488] = &usersModel.Person{FirstName: "Ida", LastName: "Igel"}
+
+	status := scheduleModel.AttendanceStatusAbsent
+	_, err := deps.service.PatchAttendance(context.Background(), 663, false, instanceID, 547, scheduleModel.AttendanceFieldPatch{Status: &status})
+	require.NoError(t, err)
+	// The fake stores patches in `updates` without mutating the row; apply it
+	// the way the real repository would so both reads see the written state.
+	require.Len(t, deps.studentRepo.updates, 1)
+	row.Status = status
+
+	first, err := deps.service.Roster(context.Background(), 663, false, instanceID)
+	require.NoError(t, err)
+	second, err := deps.service.Roster(context.Background(), 663, false, instanceID)
+	require.NoError(t, err)
+
+	assert.Equal(t, first.Rows, second.Rows)
+	require.Len(t, first.Rows, 1)
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, first.Rows[0].Status)
 }
 
 // A completed block's verdict is frozen in the stored marker: the care plan may
@@ -710,6 +871,59 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 	testpkg.AssertNoTenantWideStudentIdentity(t, deps.broadcaster)
 	require.NotNil(t, calls[0].Event.Data.InstanceID)
 	assert.Equal(t, "403", *calls[0].Event.Data.InstanceID)
+}
+
+func TestTimetableOperationsPatchAttendanceRejectsCompletedInstance(t *testing.T) {
+	instanceID := int64(427)
+	studentID := int64(567)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 693, 515, 274, instanceID)
+	completed := activeInstance(instanceID, 305)
+	completed.Status = scheduleModel.InstanceStatusCompleted
+	deps.instanceRepo.byID[instanceID] = completed
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = &scheduleModel.InstanceStudent{
+		InstanceID: instanceID,
+		StudentID:  studentID,
+		Status:     scheduleModel.AttendanceStatusPresent,
+	}
+	status := scheduleModel.AttendanceStatusAbsent
+
+	row, err := deps.service.PatchAttendance(context.Background(), 693, false, instanceID, studentID, scheduleModel.AttendanceFieldPatch{Status: &status})
+
+	require.ErrorIs(t, err, ErrTimetableOperationConflict)
+	assert.Nil(t, row)
+	assert.Empty(t, deps.studentRepo.updates)
+}
+
+func TestTimetableOperationsReopenRequiresCompleterOrAdmin(t *testing.T) {
+	instanceID := int64(428)
+	deps := newTimetableOpsDeps()
+	completed := activeInstance(instanceID, 306)
+	completed.Status = scheduleModel.InstanceStatusCompleted
+	deps.instanceRepo.byID[instanceID] = completed
+
+	result, err := deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	assert.Nil(t, result)
+
+	wireAssignedStaff(deps, 694, 516, 275, instanceID)
+	result, err = deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	assert.Nil(t, result)
+
+	completedBy := int64(694)
+	completed.CompletedBy = &completedBy
+	deps.staffRepo.byInstance[instanceID] = nil
+	result, err = deps.service.Reopen(context.Background(), 694, false, instanceID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, instanceID, result.Instance.ID)
+
+	other := int64(701)
+	completed.CompletedBy = &other
+	result, err = deps.service.Reopen(context.Background(), 694, true, instanceID)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 }
 
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
@@ -1165,10 +1379,14 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 func TestTimetableOperationHelpers(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
-	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now), now, 0))
-	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now), now, 0))
-	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now), now, 0))
-	assert.True(t, plannedNowWindow(instanceWithTimes(409, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now), now, 120))
+	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now.Add(time.Hour)), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now.Add(2*time.Hour)), now, 0))
+	assert.False(t, plannedNowWindow(instanceWithTimes(408, scheduleModel.InstanceStatusPlanned, now.Add(16*time.Minute), now.Add(2*time.Hour)), now, 0))
+	assert.True(t, plannedNowWindow(instanceWithTimes(409, scheduleModel.InstanceStatusPlanned, now.Add(90*time.Minute), now.Add(3*time.Hour)), now, 120))
+	assert.False(t, plannedNowWindow(instanceWithTimes(410, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now), now, 0))
+	spontaneous := instanceWithTimes(411, scheduleModel.InstanceStatusPlanned, now.Add(-time.Hour), now)
+	spontaneous.IsSpontaneous = true
+	assert.True(t, plannedNowWindow(spontaneous, now, 0))
 	assert.True(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255}}, 255))
 	assert.False(t, staffAssigned([]*scheduleModel.InstanceStaff{{StaffID: 255, IsAbsent: true}}, 255))
 	planned, ok := findPlanned([]*scheduleModel.InstanceStudent{{StudentID: 556}}, 556)
@@ -1413,6 +1631,27 @@ type fakeOpsInstanceStudentRepo struct {
 		rowID int64
 		patch scheduleModel.AttendanceFieldPatch
 	}
+	parallelPresence     []scheduleModel.ParallelPresence
+	parallelPresenceErr  error
+	parallelPresenceCall int
+}
+
+func (r *fakeOpsInstanceStudentRepo) FindPresentInOtherActiveInstances(_ context.Context, excludeInstanceID int64, _ timezone.Date, studentIDs []int64) ([]scheduleModel.ParallelPresence, error) {
+	r.parallelPresenceCall++
+	if r.parallelPresenceErr != nil {
+		return nil, r.parallelPresenceErr
+	}
+	requested := map[int64]bool{}
+	for _, id := range studentIDs {
+		requested[id] = true
+	}
+	rows := make([]scheduleModel.ParallelPresence, 0, len(r.parallelPresence))
+	for _, row := range r.parallelPresence {
+		if row.InstanceID != excludeInstanceID && requested[row.StudentID] {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
 }
 
 func (r *fakeOpsInstanceStudentRepo) FindByInstanceID(_ context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {
@@ -1458,6 +1697,12 @@ func (s *fakeOpsInstanceService) Complete(_ context.Context, instanceID int64) (
 	inst := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCompleted}
 	inst.ID = instanceID
 	return inst, nil
+}
+
+func (s *fakeOpsInstanceService) Reopen(_ context.Context, instanceID, _ int64, _ bool) (*StartInstanceResult, error) {
+	inst := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
+	inst.ID = instanceID
+	return &StartInstanceResult{Instance: inst, ActiveGroupID: 911}, nil
 }
 
 type fakeOpsActiveGroupRepo struct {
@@ -1646,10 +1891,11 @@ func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID in
 }
 
 type fakeOpsSettings struct {
-	enabled   bool
-	err       error
-	mode      string
-	stringErr error
+	enabled     bool
+	err         error
+	mode        string
+	stringErr   error
+	leadMinutes int
 }
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
@@ -1661,4 +1907,50 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, _ string) (string, er
 		return "", s.stringErr
 	}
 	return s.mode, nil
+}
+
+func (s *fakeOpsSettings) ResolveInt(_ context.Context, _ string) (int, error) {
+	if s.leadMinutes > 0 {
+		return s.leadMinutes, s.err
+	}
+	return 15, s.err
+}
+
+// ActiveSessions lists today's running instances with their plan windows so
+// the supervision UI can label session tabs "Aktivitätsname · Planzeit"
+// (#2265). Planned and completed instances stay out; so do active rows
+// without a live session.
+func TestTimetableOperationsActiveSessions(t *testing.T) {
+	deps := newTimetableOpsDeps()
+	now := time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC)
+
+	running := instanceWithTimes(910, scheduleModel.InstanceStatusActive,
+		time.Date(2026, time.May, 10, 12, 45, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 13, 45, 0, 0, time.UTC))
+	running.ID = 910
+	running.Title = "GT 1"
+	runningGroup := int64(310)
+	running.ActiveGroupID = &runningGroup
+
+	planned := instanceWithTimes(911, scheduleModel.InstanceStatusPlanned,
+		time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC))
+	planned.ID = 911
+
+	orphan := instanceWithTimes(912, scheduleModel.InstanceStatusActive,
+		time.Date(2026, time.May, 10, 12, 0, 0, 0, time.UTC),
+		time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC))
+	orphan.ID = 912
+
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{running, planned, orphan}
+
+	sessions, err := deps.service.ActiveSessions(context.Background(), timezone.DateFromTime(now))
+
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	assert.Equal(t, runningGroup, sessions[0].ActiveGroupID)
+	assert.Equal(t, int64(910), sessions[0].InstanceID)
+	assert.Equal(t, "GT 1", sessions[0].Title)
+	assert.Equal(t, "12:45", sessions[0].StartTime)
+	assert.Equal(t, "13:45", sessions[0].EndTime)
 }

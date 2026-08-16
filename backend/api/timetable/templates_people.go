@@ -145,8 +145,13 @@ func parseTemplateTiming(
 			errors.New("week_pattern must be 0 (every), 1 (A), or 2 (B)")))
 		return parsedTemplateTiming{}, false
 	}
-	maxParticipants := 999
-	if maxParticipantsPtr != nil && *maxParticipantsPtr > 0 {
+	maxParticipants := 0
+	if maxParticipantsPtr != nil {
+		if *maxParticipantsPtr <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(
+				errors.New("max_participants must be greater than zero when set")))
+			return parsedTemplateTiming{}, false
+		}
 		maxParticipants = *maxParticipantsPtr
 	}
 	return parsedTemplateTiming{

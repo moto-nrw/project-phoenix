@@ -13,6 +13,12 @@ import (
 const (
 	MFAEnrollmentScopeTenant   = "tenant"
 	MFAEnrollmentScopePlatform = "platform"
+	// MFAEnrollmentScopeSchool tags enrollment tokens minted by the school
+	// portal login (#2207). Only the /school/auth/mfa/enroll/* handlers
+	// accept it, and confirming there mints SCHOOL tokens — a school login
+	// must never be laundered into a tenant session via the enrollment
+	// detour.
+	MFAEnrollmentScopeSchool = "school"
 )
 
 // MFAEnrollmentClaims represents a short-lived JWT issued to an account that
@@ -66,6 +72,7 @@ func (c *MFAEnrollmentClaims) ParseClaims(claims map[string]any) error {
 		foreignFlagErr: "token is a pending-MFA challenge, not an enrollment token",
 		scopeTenant:    MFAEnrollmentScopeTenant,
 		scopePlatform:  MFAEnrollmentScopePlatform,
+		scopeSchool:    MFAEnrollmentScopeSchool,
 		pendingFlagKey: "mfa_enrollment_pending",
 		notPendingErr:  "token is not a pending-MFA-enrollment token",
 	}, &c.CommonClaims)

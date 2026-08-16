@@ -13,6 +13,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -123,7 +124,7 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 	}
 
 	// Get staff authorization
-	staff, authErr := rs.getAuthorizedStaff(ctx, userClaims.ID, studentID)
+	staff, authErr := rs.getAuthorizedStaff(ctx, userClaims.ID)
 	if authErr != nil {
 		return nil, authErr
 	}
@@ -137,7 +138,7 @@ func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.
 }
 
 // getAuthorizedStaff checks if the user is authorized to check in the student
-func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int, studentID int64) (*users.Staff, *checkinError) {
+func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int) (*users.Staff, *checkinError) {
 	person, personErr := rs.PersonService.FindByAccountID(ctx, int64(accountID))
 	if personErr != nil || person == nil {
 		return nil, &checkinError{http.StatusInternalServerError, "Failed to get user information"}
@@ -147,19 +148,9 @@ func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int, stude
 	if staffErr != nil || staff == nil {
 		return nil, &checkinError{http.StatusForbidden, "Only staff members can check in students"}
 	}
-	if rs.openCareMode(ctx) {
-		return staff, nil
-	}
 
-	hasAccess, accessErr := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
-	if accessErr != nil {
-		return nil, &checkinError{http.StatusInternalServerError, "Failed to check access permissions"}
-	}
-
-	if !hasAccess {
-		return nil, &checkinError{http.StatusForbidden, "You are not authorized to check in this student. You must be their group teacher."}
-	}
-
+	// Any verified staff member may check in any student (#2329) — the
+	// former education-group gate is gone.
 	return staff, nil
 }
 
@@ -214,6 +205,11 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 	}
 
 	if createErr := rs.ActiveService.CreateVisit(ctx, visit); createErr != nil {
+		var capacityErr *activeService.RoomCapacityError
+		if errors.As(createErr, &capacityErr) {
+			tenant.MarkRollback(ctx)
+			return nil, &checkinError{http.StatusConflict, capacityErr.Error()}
+		}
 		// Handle race condition: another request already created a visit for this student
 		if errors.Is(createErr, activeService.ErrStudentAlreadyActive) {
 			return nil, &checkinError{http.StatusConflict, "Student already has an active visit"}

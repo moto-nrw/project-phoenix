@@ -277,12 +277,17 @@ func TestRegister(t *testing.T) {
 		email := fmt.Sprintf("testregister_%d@example.com", time.Now().UnixNano())
 		username := fmt.Sprintf("user_%d", time.Now().UnixNano())
 
+		// A staff-tier role needs a name to build the identity from (#2222):
+		// the endpoint refuses to create an account that would hold the role
+		// without being staff.
 		body := map[string]interface{}{
 			"email":            email,
 			"username":         username,
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 			"role_id":          validRoleID,
+			"first_name":       "Test",
+			"last_name":        "Register",
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
@@ -297,9 +302,11 @@ func TestRegister(t *testing.T) {
 		assert.Equal(t, email, data["email"])
 		assert.Equal(t, username, data["username"])
 
-		// Cleanup: delete the created account
+		// Cleanup: the staff-tier role provisioned a person and staff record
+		// alongside the account (#2222), so the account alone is not the whole
+		// footprint.
 		accountID := int64(data["id"].(float64))
-		testpkg.CleanupAccount(t, db, accountID)
+		testpkg.CleanupAccountWithIdentity(t, db, accountID)
 	})
 
 	t.Run("bad request with duplicate email", func(t *testing.T) {
@@ -314,6 +321,8 @@ func TestRegister(t *testing.T) {
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 			"role_id":          validRoleID,
+			"first_name":       "Dupe",
+			"last_name":        "Register",
 		}
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		req.Header.Set("Authorization", "Bearer "+adminToken)
@@ -322,7 +331,7 @@ func TestRegister(t *testing.T) {
 
 		// Extract account ID for cleanup
 		accountID := extractAccountID(t, rr)
-		defer testpkg.CleanupAccount(t, db, accountID)
+		defer testpkg.CleanupAccountWithIdentity(t, db, accountID)
 
 		// Second registration with same email, different username
 		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano())
@@ -399,6 +408,43 @@ func TestRegister(t *testing.T) {
 		rr := testutil.ExecuteRequest(router, req)
 
 		testutil.AssertBadRequest(t, rr)
+	})
+
+	// Without a name there is nothing to build the identity from, and an account
+	// that holds a staff role without a staff record is the broken state of
+	// #2222. Nothing can complete it afterwards (an account carries an email and
+	// a username, never a person's name), so the request is refused up front
+	// rather than half-written.
+	t.Run("staff role without a name is refused", func(t *testing.T) {
+		for _, missing := range []string{"first_name", "last_name", "both"} {
+			t.Run(missing, func(t *testing.T) {
+				body := map[string]interface{}{
+					"email":            fmt.Sprintf("noname_%s_%d@example.com", missing, time.Now().UnixNano()),
+					"username":         fmt.Sprintf("noname_%s_%d", missing, time.Now().UnixNano()),
+					"password":         "SecurePass123!",
+					"confirm_password": "SecurePass123!",
+					"role_id":          validRoleID,
+				}
+				if missing != "first_name" {
+					body["first_name"] = "Namenlos"
+				}
+				if missing != "last_name" {
+					body["last_name"] = "Person"
+				}
+
+				req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
+				req.Header.Set("Authorization", "Bearer "+adminToken)
+				rr := testutil.ExecuteRequest(router, req)
+
+				testutil.AssertBadRequest(t, rr)
+
+				var count int
+				require.NoError(t, db.NewRaw(
+					`SELECT COUNT(*) FROM auth.accounts WHERE email = ?`, body["email"],
+				).Scan(context.Background(), &count))
+				assert.Zero(t, count, "no account may be left behind by the refused request")
+			})
+		}
 	})
 }
 
@@ -587,6 +633,8 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 			"password":         "SecurePass123!",
 			"confirm_password": "SecurePass123!",
 			"role_id":          validRoleID,
+			"first_name":       "Admin",
+			"last_name":        "Register",
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
@@ -595,11 +643,11 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-		// Cleanup created account
+		// Cleanup created account and the identity provisioned with it
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data := response["data"].(map[string]interface{})
 		accountID := int64(data["id"].(float64))
-		testpkg.CleanupAccount(t, db, accountID)
+		testpkg.CleanupAccountWithIdentity(t, db, accountID)
 	})
 }
 
@@ -1389,7 +1437,12 @@ func TestAccountRoleAssignment(t *testing.T) {
 		guardianRole := testpkg.CreateTestRole(t, tc.db, "guardian-assignment")
 		guardianBaseRole := authModel.BaseRoleGuardian
 		guardianRole.BaseRole = &guardianBaseRole
-		_, err := tc.db.NewUpdate().Model(guardianRole).Column("base_role").WherePK().Exec(context.Background())
+		_, err := tc.db.NewUpdate().
+			Model(guardianRole).
+			ModelTableExpr(`auth.roles AS "role"`).
+			Column("base_role").
+			WherePK().
+			Exec(context.Background())
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
@@ -2130,11 +2183,15 @@ func TestLinkToTenant(t *testing.T) {
 		email := fmt.Sprintf("link-success-%d@example.com", time.Now().UnixNano())
 		password := "SecurePass123!"
 		account := testpkg.CreateTestAccountWithPassword(t, db, email, password)
-		defer testpkg.CleanupAccount(t, db, account.ID)
+		// Linking provisions the person and staff record too (#2222).
+		defer testpkg.CleanupAccountWithIdentity(t, db, account.ID)
 
+		// The identity fields are required for a staff-tier role (#2222).
 		body := map[string]interface{}{
-			"email":   email,
-			"role_id": validRoleID,
+			"email":      email,
+			"role_id":    validRoleID,
+			"first_name": "Link",
+			"last_name":  "Success",
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/link-to-tenant", body)
@@ -2162,8 +2219,10 @@ func TestLinkToTenant(t *testing.T) {
 
 	t.Run("returns 404 for non-existent email", func(t *testing.T) {
 		body := map[string]interface{}{
-			"email":   fmt.Sprintf("nonexistent-%d@example.com", time.Now().UnixNano()),
-			"role_id": validRoleID,
+			"email":      fmt.Sprintf("nonexistent-%d@example.com", time.Now().UnixNano()),
+			"role_id":    validRoleID,
+			"first_name": "Nicht",
+			"last_name":  "Vorhanden",
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/link-to-tenant", body)
@@ -2327,6 +2386,8 @@ func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
 			"password":         "Test1234%",
 			"confirm_password": "Test1234%",
 			"role_id":          adminRole.ID,
+			"first_name":       "Echter",
+			"last_name":        "Admin",
 		}
 		req := testutil.NewJSONRequest(t, "POST", "/auth/register", body)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})

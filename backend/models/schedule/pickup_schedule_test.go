@@ -132,6 +132,20 @@ func TestStudentPickupSchedule_Validate(t *testing.T) {
 			errMsg:  "created_by is required",
 		},
 		{
+			name: "offering-derived schedule without creator",
+			setup: func() *StudentPickupSchedule {
+				offeringID := int64(2)
+				return &StudentPickupSchedule{
+					StudentID:      1,
+					Weekday:        WeekdayMonday,
+					PickupTime:     validTime,
+					Source:         PickupScheduleSourceCareOffering,
+					CareOfferingID: &offeringID,
+				}
+			},
+			wantErr: false,
+		},
+		{
 			name: "notes too long",
 			setup: func() *StudentPickupSchedule {
 				longNotes := string(make([]byte, 501))

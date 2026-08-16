@@ -4,6 +4,8 @@ import { defineEntityConfig } from "@/lib/database/types";
 import type { Teacher, TeacherWithCredentials } from "@/lib/teacher-api";
 import { teacherService } from "@/lib/teacher-api";
 import { createLogger } from "~/lib/logger";
+import type { WireID } from "~/lib/wire-id";
+import { toOptionalIdString } from "~/lib/wire-id";
 
 const logger = createLogger({ component: "TeachersConfig" });
 
@@ -74,7 +76,8 @@ function mapTeacherResponse(data: unknown): Teacher {
     staff_notes: typedData.staff_notes as string | null | undefined,
     created_at: typedData.created_at as string | undefined,
     updated_at: typedData.updated_at as string | undefined,
-    person_id: typedData.person_id as number | undefined,
+    // Decimal string — the id is a bigint and travels back untouched (#2222).
+    person_id: toOptionalIdString(typedData.person_id as WireID | undefined),
     account_id: accountId,
     is_teacher: typedData.is_teacher as boolean | undefined,
     staff_id: typedData.staff_id as string | undefined,
@@ -416,8 +419,9 @@ export const teachersConfig = defineEntityConfig<Teacher>({
 
     // Custom create handler for teacher-specific flow
     create: async (data) => {
-      // Teacher creation requires multiple API calls (account, person, staff)
-      // Use the teacher service which handles this complex flow
+      // Staff creation is account + identity in one request (the backend
+      // provisions person and staff with it, #2222) plus the staff details.
+      // The teacher service owns that sequence.
       const teacherData = data as Partial<Teacher> & {
         password?: string;
         linkExisting?: boolean;

@@ -112,10 +112,9 @@ type optOutRequest struct {
 }
 
 func (rs *Resource) getOverview(w http.ResponseWriter, r *http.Request) {
-	// The same policy every other child list uses: admin wildcard, the
-	// gdpr.student_data_scope=all_staff opt-in, or the groups this person
-	// actually supervises.
-	access := common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.logger)
+	// The same policy every other child list uses: admin wildcard or a
+	// verified staff record (#2329).
+	access := common.DetermineStudentAccess(r, rs.UserContextService)
 
 	overview, err := rs.BirthdayService.Overview(r.Context(), access)
 	if err != nil {

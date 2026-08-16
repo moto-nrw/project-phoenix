@@ -504,7 +504,7 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 	// to match — same observable outcome as an expired challenge (the
 	// service can't distinguish "expired" from "already redeemed" at the
 	// row level; both surface as ErrMFACodeInvalid).
-	row, err := repos.MFAEmailChallenge.FindActiveByAccountID(ctx, acc.ID)
+	row, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	require.NoError(t, repos.MFAEmailChallenge.MarkConsumed(ctx, row.ID, time.Now()))

@@ -21,18 +21,17 @@ import (
 // blocker. The pending excused-absence badge carries the parent's note and
 // belongs to the users:update-gated review queue (Änderungsanfragen). The
 // enrichment also runs inside the users:read student list/detail/export handlers,
-// and PendingByStudentForDate scopes only to children the caller SUPERVISES
+// and PendingByStudentForDate scopes only to children the caller may WRITE
 // (WritableStudentFilter) — it never checks the users:update permission. So a
-// read-only group supervisor (supervises the group, but holds only users:read)
-// would otherwise receive pending_excused_note for their supervised child while
-// being unable to open or decide the queue. The fix gates the whole enrichment on
+// read-only staff member would otherwise receive pending_excused_note for a
+// child while being unable to open or decide the queue. The fix gates the whole enrichment on
 // users:update; this test pins that only that permission flips the note on.
 func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	tc := setupTestContext(t)
 
-	// The caller supervises the group, so under the default data scope they have
-	// full read access to the child — HasFullAccess is true for BOTH calls below,
-	// isolating the users:update permission as the only variable.
+	// The caller is verified staff, so they have full read access to the child
+	// (#2329) — HasFullAccess is true for BOTH calls below, isolating the
+	// users:update permission as the only variable.
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ExcusedNote", "Supervisor")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "ExcusedNoteGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Excused", "Note", "EN1")
@@ -65,17 +64,58 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-		require.True(t, resp.Data.HasFullAccess, "a supervisor must have full read access to their child")
+		require.True(t, resp.Data.HasFullAccess, "a staff member must have full read access to the child")
 		return resp.Data.PendingExcusedNote
 	}
 
 	// Read-only supervisor → the parent's note must NOT leak, even though the
 	// child is theirs to view.
 	assert.Nil(t, get([]string{"users:read"}),
-		"a users:read-only supervisor must not receive the pending excused note")
+		"a users:read-only caller must not receive the pending excused note")
 
 	// users:update (the review-queue permission) → the note is shown.
 	shown := get([]string{"users:read", "users:update"})
 	require.NotNil(t, shown, "a users:update caller should receive the pending excused note")
 	assert.Equal(t, note, *shown)
+}
+
+// TestPendingExcusedNote_ShownToAbsenceReviewer is the counterpart for #2232:
+// users:absence decides exactly these requests, so the badge announcing one
+// must reach its reviewer. A note withheld from the person who decides it
+// hides work they own — the same drift as the leak above, mirrored.
+func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
+	tc := setupTestContext(t)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AbsenceNote", "Supervisor")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "AbsenceNoteGroup")
+	student := testpkg.CreateTestStudent(t, tc.db, "AbsenceNote", "Kind", "AN1")
+	submitter, submitterAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "AbsenceNote", "Submitter")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID, submitter.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	const note = "Familienfeier, kommt später"
+	require.NoError(t, tenant.WithTenantTx(context.Background(), tc.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := tc.services.ExcusedRequests.CreateRequest(
+			txCtx, student.ID, submitterAccount.ID,
+			[]timezone.Date{timezone.TodayDate()}, note,
+		)
+		return e
+	}))
+
+	rr := authExec(t, tc,
+		testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil),
+		testutil.TeacherTestClaims(int(account.ID)),
+		[]string{"users:read", "users:absence"},
+	)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	var resp struct {
+		Data struct {
+			PendingExcusedNote *string `json:"pending_excused_note"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	require.NotNil(t, resp.Data.PendingExcusedNote, "an absence reviewer must receive the pending excused note")
+	assert.Equal(t, note, *resp.Data.PendingExcusedNote)
 }

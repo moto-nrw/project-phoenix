@@ -10,6 +10,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -72,9 +73,18 @@ import {
   createStudentStatusDays,
   deleteStudentStatusDay,
   fetchStudentStatusDays,
+  StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import { fetchStudentCarePlanDay } from "~/lib/student-care-plan-api";
+import {
+  deleteStudentPartialAbsence,
+  fetchStudentPartialAbsences,
+  saveStudentPartialAbsence,
+} from "~/lib/student-partial-absences-api";
 import { StudentDetailSkeleton } from "./page-skeleton";
 
 type TodayArrival = {
@@ -157,14 +167,10 @@ function resolveActiveTab(
 
 /**
  * @param hasStudentReadAccess the backend's READ predicate for this child,
- *   `has_full_access` on the student response. Despite the wire name this is
- *   NOT the strict supervisor/admin check — that one is `has_write_access`.
- *   It resolves to `authorize.CanReadStudent`, which honours
- *   `gdpr.student_data_scope`: under `all_staff` EVERY staff member gets `true`
- *   here, under `group_supervisors_only` only the child's supervisors (and
- *   admins) do. See api/students/authorization.go — `checkStudentReadAccess`
- *   (scope-aware, this flag) vs `checkStudentFullAccess` (scope-ignoring, the
- *   write flag).
+ *   `has_full_access` on the student response: true for admins and every
+ *   verified staff member (#2329), false for guest/guardian accounts. See
+ *   api/students/authorization.go — `checkStudentReadAccess` (this flag) vs
+ *   `checkStudentFullAccess` (the write flag).
  */
 function studentTabs(
   hasStudentReadAccess: boolean,
@@ -187,12 +193,11 @@ function studentTabs(
   // oversight: those routes gate on read access per student too
   // (resolveStudentForRead → authorize.CanReadStudent in
   // api/timetable/student_day.go) — the SAME predicate behind the flag above,
-  // so the two can never disagree. A staff member who may read the child under
-  // `all_staff` therefore lands in the full-access set and DOES get the tab;
-  // one who may not gets 403 from the care-plan endpoints, so widening the tab
-  // would only surface a permanently failing panel, and ?tab=betreuungsplan is
-  // clamped away for the same reason. Widening staff access to a child's plan
-  // is a backend (gdpr.student_data_scope) decision, not a frontend one.
+  // so the two can never disagree. Every verified staff member lands in the
+  // full-access set and DOES get the tab (#2329); a caller without read access
+  // (guest/guardian) gets 403 from the care-plan endpoints, so widening the
+  // tab would only surface a permanently failing panel, and
+  // ?tab=betreuungsplan is clamped away for the same reason.
   const withCarePlan = canViewCarePlan
     ? base
     : base.filter((tab) => tab !== "betreuungsplan");
@@ -304,6 +309,7 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
+  const nfcEnabled = useNFCEnabled();
   const { mutate } = useSWRConfig();
   const router = useTenantRouter();
   const params = useParams();
@@ -349,6 +355,7 @@ function StudentDetailPageContent() {
     error,
     hasFullAccess,
     hasWriteAccess,
+    hasAbsenceWriteAccess,
     attendanceLogEnabled,
     feedbackEnabled,
     supervisors,
@@ -481,17 +488,62 @@ function StudentDetailPageContent() {
   );
   const [statusDayRange, setStatusDayRange] =
     useState<StatusDayRange>(getStatusDayRange);
+  // Status days follow the absence gate, not the read gate: whoever may write
+  // a child's absences may read them (the backend widened the per-child check
+  // on GET /{id}/status-days for exactly this, #2232). Without this the
+  // planning dialog opened empty for a school without feste Gruppen — existing
+  // sick days stayed invisible and could not be cleared.
+  const canReadStatusDays = hasFullAccess || hasAbsenceWriteAccess;
+  // A partial excusal ("Ab Uhrzeit") is a pickup exception, not a status day:
+  // its endpoints require users:update at the route AND full care access to the
+  // child in the handler. The absence permission grants neither, so the scope
+  // switch stays hidden for an absence-only staffer instead of offering a save
+  // that would fail (#2232).
+  const canPlanPartialExcusal =
+    hasFullAccess &&
+    hasWriteAccess &&
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "users:update");
   const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
-    hasFullAccess && studentId
+    canReadStatusDays && studentId
       ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
       : null,
     async () =>
       fetchStudentStatusDays(studentId, statusDayRange.from, statusDayRange.to),
     { revalidateOnFocus: false },
   );
+  const { data: partialAbsences = [], mutate: mutatePartialAbsences } =
+    useSWRAuth(
+      hasFullAccess && studentId
+        ? `student-partial-absences-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
+        : null,
+      async () =>
+        fetchStudentPartialAbsences(
+          studentId,
+          statusDayRange.from,
+          statusDayRange.to,
+        ),
+      { revalidateOnFocus: false },
+    );
   const ensureStatusDayRange = useCallback((from: string, to: string) => {
     setStatusDayRange((current) => extendStatusDayRange(current, [from, to]));
   }, []);
+  const loadPlannedStatusExistingDays = useCallback(
+    (from: string, to: string) => {
+      ensureStatusDayRange(from, to);
+      return fetchStudentStatusDays(studentId, from, to);
+    },
+    [ensureStatusDayRange, studentId],
+  );
+  const loadPlannedPartialAbsences = useCallback(
+    (from: string, to: string) =>
+      fetchStudentPartialAbsences(studentId, from, to),
+    [studentId],
+  );
+  const loadPlannedCarePlanDay = useCallback(
+    (date: string) => fetchStudentCarePlanDay(studentId, date),
+    [studentId],
+  );
   // Reason attached to today's sick day (set by staff or by a parent via the
   // portal), shown next to the absence badge in the header.
   const currentSickReason = useMemo(() => {
@@ -903,7 +955,23 @@ function StudentDetailPageContent() {
         status: plannedStatusModal,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Geplanter Status konnte nicht gespeichert werden");
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        toast.warning(err.message);
+      } else if (err instanceof StudentStatusDayConflictError) {
+        const conflicts = err.conflicts
+          .map(
+            (day) =>
+              `${formatCalendarDate(day.date)} (${day.label.toLowerCase()})`,
+          )
+          .join(", ");
+        const wasOrWere = err.conflicts.length === 1 ? "wurde" : "wurden";
+        toast.warning(
+          `${conflicts} ${wasOrWere} zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.`,
+        );
+      } else {
+        toast.error("Geplanter Status konnte nicht gespeichert werden");
+      }
+      throw err;
     } finally {
       setPlannedStatusLoading(false);
     }
@@ -925,8 +993,75 @@ function StudentDetailPageContent() {
         error: err instanceof Error ? err.message : String(err),
       });
       toast.error("Geplanter Status konnte nicht entfernt werden");
+      // Re-throw so the modal does not clear local conflict state for a
+      // delete that never landed on the server.
+      throw err;
     } finally {
       setDeletingPlannedStatusDayId(null);
+    }
+  };
+
+  const handleSavePartialAbsence = async (
+    partialAbsenceId: string | null,
+    date: string,
+    fromTime: string,
+    reason?: string,
+  ) => {
+    if (!student) return;
+    setPlannedStatusLoading(true);
+    try {
+      await saveStudentPartialAbsence(
+        studentId,
+        partialAbsenceId,
+        date,
+        fromTime,
+        reason,
+      );
+      setStatusDayRange((current) => extendStatusDayRange(current, [date]));
+      await Promise.all([
+        mutatePartialAbsences(),
+        mutate(`pickup-data-${studentId}`),
+      ]);
+      refreshData();
+      toast.success(
+        partialAbsenceId
+          ? `Entschuldigung für ${student.name} wurde aktualisiert`
+          : `Entschuldigung für ${student.name} wurde gespeichert`,
+      );
+      setPlannedStatusModal(null);
+    } catch (err) {
+      logger.error("partial_absence_save_failed", {
+        student_id: studentId,
+        partial_absence_id: partialAbsenceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Entschuldigung konnte nicht gespeichert werden");
+      throw err;
+    } finally {
+      setPlannedStatusLoading(false);
+    }
+  };
+
+  const handleDeletePartialAbsence = async (partialAbsenceId: string) => {
+    setPlannedStatusLoading(true);
+    try {
+      await deleteStudentPartialAbsence(studentId, partialAbsenceId);
+      await Promise.all([
+        mutatePartialAbsences(),
+        mutate(`pickup-data-${studentId}`),
+      ]);
+      refreshData();
+      toast.success("Teilentschuldigung wurde entfernt");
+    } catch (err) {
+      logger.error("partial_absence_delete_failed", {
+        student_id: studentId,
+        partial_absence_id: partialAbsenceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Teilentschuldigung konnte nicht entfernt werden");
+      throw err;
+    } finally {
+      setPlannedStatusLoading(false);
     }
   };
 
@@ -975,7 +1110,8 @@ function StudentDetailPageContent() {
       return (
         <p className="text-moto-amber-strong text-sm">
           Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive
-          Aufsicht in einem Raum über ein NFC-Tablet.
+          Aufsicht in einem Raum über{" "}
+          {nfcEnabled ? "ein NFC-Tablet" : "die Web-App"}.
         </p>
       );
     }
@@ -1030,6 +1166,7 @@ function StudentDetailPageContent() {
             student={student}
             studentId={studentId}
             hasWriteAccess={hasWriteAccess}
+            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
             attendanceLogEnabled={attendanceLogEnabled}
             feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
@@ -1066,12 +1203,20 @@ function StudentDetailPageContent() {
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
+            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
             activeTab={activeTab}
             tabs={visibleTabs}
             canViewEnrollments={canViewEnrollments}
             onTabChange={handleTabChange}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
+            onSickClick={handleSickClick}
+            sickLoading={sickLoading}
+            isQuickExcused={isQuickExcused}
+            onExcusedClick={handleExcusedClick}
+            excusedLoading={excusedLoading}
+            onClassTripClick={() => setPlannedStatusModal("class_trip")}
+            plannedStatusLoading={plannedStatusLoading}
           />
         )}
       </div>
@@ -1236,10 +1381,17 @@ function StudentDetailPageContent() {
         studentName={student.name}
         isSubmitting={plannedStatusLoading}
         existingDays={statusDays}
+        existingPartialAbsences={partialAbsences}
+        canPlanPartialExcusal={canPlanPartialExcusal}
         deletingStatusDayId={deletingPlannedStatusDayId}
         onClose={() => setPlannedStatusModal(null)}
+        loadExistingDays={loadPlannedStatusExistingDays}
+        loadPartialAbsences={loadPlannedPartialAbsences}
+        loadCarePlanDay={loadPlannedCarePlanDay}
         onSubmit={handleCreatePlannedStatus}
         onDeleteStatusDay={handleDeletePlannedStatus}
+        onSubmitPartialAbsence={handleSavePartialAbsence}
+        onDeletePartialAbsence={handleDeletePartialAbsence}
       />
     </>
   );
@@ -1257,12 +1409,23 @@ interface LimitedAccessViewProps {
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
+  /** Absence actions are gated separately from read access: a school without
+   *  feste Gruppen lets staff report absences for children whose record they
+   *  may only see redacted (#2232). */
+  hasAbsenceWriteAccess: boolean;
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
   onTabChange: (tab: string) => void;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
+  onSickClick: () => void;
+  sickLoading: boolean;
+  isQuickExcused: boolean;
+  onExcusedClick: () => void;
+  excusedLoading: boolean;
+  onClassTripClick: () => void;
+  plannedStatusLoading: boolean;
 }
 
 function LimitedAccessView({
@@ -1273,23 +1436,55 @@ function LimitedAccessView({
   supervisors,
   showCheckout,
   showCheckin,
+  hasAbsenceWriteAccess,
   activeTab,
   tabs,
   canViewEnrollments,
   onTabChange,
   onCheckoutClick,
   onCheckinClick,
+  onSickClick,
+  sickLoading,
+  isQuickExcused,
+  onExcusedClick,
+  excusedLoading,
+  onClassTripClick,
+  plannedStatusLoading,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
   return (
     <>
-      {(showCheckout || showCheckin) && (
+      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
         <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
           {showCheckout && (
             <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
           )}
           {showCheckin && (
             <StudentCheckinSection onCheckinClick={onCheckinClick} />
+          )}
+          {hasAbsenceWriteAccess && (
+            <StudentSickReportSection
+              isSick={student.sick ?? false}
+              sickSince={student.sick_since}
+              onToggle={onSickClick}
+              isLoading={sickLoading}
+            />
+          )}
+          {hasAbsenceWriteAccess && (
+            <StudentExcusedReportSection
+              isExcused={isQuickExcused}
+              excusedSince={isQuickExcused ? student.excused_since : undefined}
+              onToggle={onExcusedClick}
+              isLoading={excusedLoading}
+            />
+          )}
+          {hasAbsenceWriteAccess && (
+            <StudentStatusActionsMenu
+              isClassTrip={student.class_trip ?? false}
+              classTripSince={student.class_trip_since}
+              onPlanClassTrip={onClassTripClick}
+              isLoading={plannedStatusLoading}
+            />
           )}
         </div>
       )}
@@ -1349,6 +1544,8 @@ interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   hasWriteAccess: boolean;
+  /** See LimitedAccessViewProps.hasAbsenceWriteAccess (#2232). */
+  hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   showCheckout: boolean;
@@ -1381,6 +1578,7 @@ function FullAccessView({
   student,
   studentId,
   hasWriteAccess,
+  hasAbsenceWriteAccess,
   attendanceLogEnabled,
   feedbackEnabled,
   showCheckout,
@@ -1436,7 +1634,7 @@ function FullAccessView({
   }, [activeTab]);
   return (
     <>
-      {(showCheckout || showCheckin || hasWriteAccess) && (
+      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
         <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
           {showCheckout && (
             <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
@@ -1444,7 +1642,7 @@ function FullAccessView({
           {showCheckin && (
             <StudentCheckinSection onCheckinClick={onCheckinClick} />
           )}
-          {hasWriteAccess && (
+          {hasAbsenceWriteAccess && (
             <StudentSickReportSection
               isSick={student.sick ?? false}
               sickSince={student.sick_since}
@@ -1452,7 +1650,7 @@ function FullAccessView({
               isLoading={sickLoading}
             />
           )}
-          {hasWriteAccess && (
+          {hasAbsenceWriteAccess && (
             <StudentExcusedReportSection
               isExcused={isQuickExcused}
               excusedSince={isQuickExcused ? student.excused_since : undefined}
@@ -1460,7 +1658,7 @@ function FullAccessView({
               isLoading={excusedLoading}
             />
           )}
-          {hasWriteAccess && (
+          {hasAbsenceWriteAccess && (
             <StudentStatusActionsMenu
               isClassTrip={student.class_trip ?? false}
               classTripSince={student.class_trip_since}

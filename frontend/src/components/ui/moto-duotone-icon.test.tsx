@@ -77,4 +77,13 @@ describe("MotoDuotoneIcon", () => {
 
     expect(screen.getByRole("img", { name: "Räume" })).toBeInTheDocument();
   });
+
+  it("can render a compact icon without the duotone background fill", () => {
+    const { container } = render(
+      <MotoDuotoneIcon icon={BuildingsIcon} tone="blue" weight="regular" />,
+    );
+    const icon = container.querySelector("svg");
+
+    expect(icon?.querySelector('[opacity="0.2"]')).not.toBeInTheDocument();
+  });
 });

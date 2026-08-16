@@ -185,7 +185,10 @@ func (s *passkeyService) BeginRegistration(ctx context.Context, req PasskeyRegis
 	if err := s.validateTenantOrigin(req.ExpectedOrigin, req.TenantSubdomain); err != nil {
 		return nil, &AuthError{Op: "begin passkey registration", Err: err}
 	}
-	if err := s.mfaService.VerifyCodeForAccount(ctx, req.AccountID, req.Code); err != nil {
+	// Same portal binding as the tenant enroll-confirm: StartEnrollmentChallenge
+	// issues a tenant-scope code for this school, so only that code may be
+	// redeemed here.
+	if err := s.mfaService.VerifyCodeForAccount(ctx, req.AccountID, req.TenantID, req.Code, jwt.MFAChallengeScopeTenant); err != nil {
 		return nil, &AuthError{Op: "verify passkey enrollment code", Err: err}
 	}
 

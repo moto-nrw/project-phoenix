@@ -106,6 +106,7 @@ type TemplateSplitInput struct {
 	PlanningTrackID         *int64
 	PlanningTrackIDProvided bool
 	MaxParticipants         *int
+	MaxParticipantsProvided bool
 	// RequiredStaff is the manual Personalbedarf override (#1839) for the
 	// successor Group, already normalized (nil = clear/derive). It is only
 	// applied when RequiredStaffProvided is true; otherwise the successor
@@ -958,6 +959,9 @@ func validateSplitTemplateFields(in TemplateSplitInput) error {
 	if in.CategoryID <= 0 {
 		return fmt.Errorf("%w: category_id is required", ErrSplitInvalidInput)
 	}
+	if in.MaxParticipants != nil && *in.MaxParticipants <= 0 {
+		return fmt.Errorf("%w: max_participants must be greater than zero when set", ErrSplitInvalidInput)
+	}
 	if err := validateTemplateGradeLevelMax(in.GradeLevelMax); err != nil {
 		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
 	}
@@ -1255,8 +1259,11 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 // MaxParticipants falls back to the old template's value when not provided.
 func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *activitiesModel.Group, in TemplateSplitInput, tenantID int64) (*activitiesModel.Group, error) {
 	maxParticipants := old.MaxParticipants
-	if in.MaxParticipants != nil && *in.MaxParticipants > 0 {
-		maxParticipants = *in.MaxParticipants
+	if in.MaxParticipantsProvided || in.MaxParticipants != nil {
+		maxParticipants = 0
+		if in.MaxParticipants != nil {
+			maxParticipants = *in.MaxParticipants
+		}
 	}
 	// Personalbedarf override (#1839): only touch the successor's override when
 	// the request actually carried the field. When provided, the (already

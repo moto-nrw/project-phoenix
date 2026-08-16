@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -328,6 +329,46 @@ func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *
 	assert.Equal(t, "Lernzeit Lifecycle", found.Title)
 	assert.Equal(t, 14, found.StartTime.Hour())
 	assert.Equal(t, 30, found.EndTime.Minute())
+}
+
+func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryState(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "session-end")
+	defer fx.cleanup()
+
+	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
+	defer testpkg.CleanupTableRecords(t, db, "active.groups", group.ID)
+
+	inst := buildInstance(
+		1, fx.roomID, &fx.activityID,
+		timezone.NewDate(2026, 9, 17),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
+		"Session-End",
+	)
+	inst.Status = scheduleModels.InstanceStatusActive
+	inst.ActiveGroupID = &group.ID
+	require.NoError(t, repo.Create(ctx, inst))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
+
+	completedAt := time.Date(2026, 9, 17, 16, 0, 0, 0, time.UTC)
+	rows, err := repo.CompleteActiveByActiveGroupIDs(ctx, []int64{group.ID}, completedAt)
+	require.NoError(t, err)
+	assert.Equal(t, 1, int(rows))
+
+	found, err := repo.FindByID(ctx, inst.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, scheduleModels.InstanceStatusCompleted, found.Status)
+	require.NotNil(t, found.CompletedAt)
+	assert.Nil(t, found.CompletedBy)
+	assert.Nil(t, found.ReopenUntil)
+	assert.False(t, scheduleSvc.CanReopenInstance(found, 42, true, completedAt.Add(time.Minute)))
 }
 
 func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {

@@ -26,7 +26,8 @@ export function getDefaultValueForField(field: FormField): unknown {
     case "multiselect":
       return [];
     case "number":
-      return field.name === "data_retention_days" ? 30 : 0;
+      if (field.name === "data_retention_days") return 30;
+      return field.required ? 0 : "";
     default:
       return "";
   }
@@ -97,14 +98,16 @@ function applyInitialData<T>(
 
   for (const key of Object.keys(initialData)) {
     const value = initialData[key as keyof T];
-    if (value === undefined || value === null) {
+    if (value === undefined) {
       continue;
     }
 
     // Convert string to number if field type requires it
     const field = allFields.find((f) => f.name === key);
-    if (field?.type === "number" && typeof value === "string") {
-      formData[key] = Number.parseInt(value, 10) || 0;
+    if (value === null) {
+      formData[key] = null;
+    } else if (field?.type === "number" && typeof value === "string") {
+      formData[key] = Number(value) || 0;
     } else {
       formData[key] = value;
     }
@@ -122,10 +125,22 @@ export function validateNumberMin(
   min: number,
   label: string,
 ): string | null {
-  const numValue =
-    typeof value === "number" ? value : Number.parseInt(value as string, 10);
+  const numValue = typeof value === "number" ? value : Number(value);
   if (Number.isNaN(numValue) || numValue < min) {
     return `${label} muss mindestens ${min} sein.`;
+  }
+  return null;
+}
+
+/** Validates a number field against max constraint */
+export function validateNumberMax(
+  value: unknown,
+  max: number,
+  label: string,
+): string | null {
+  const numValue = typeof value === "number" ? value : Number(value);
+  if (Number.isNaN(numValue) || numValue > max) {
+    return `${label} darf höchstens ${max} sein.`;
   }
   return null;
 }
@@ -137,10 +152,21 @@ export function validateField(field: FormField, value: unknown): string | null {
     return `${field.label} ist erforderlich.`;
   }
 
-  // Validate number min constraint
-  if (field.required && field.type === "number" && field.min !== undefined) {
-    const minError = validateNumberMin(value, field.min, field.label);
-    if (minError) return minError;
+  // Optional number fields stay valid while empty, but their constraints apply
+  // as soon as the user enters a value.
+  if (field.type === "number" && !isEmptyValue(value)) {
+    const numericValue = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(numericValue)) {
+      return `${field.label} muss eine ganze Zahl sein.`;
+    }
+    if (field.min !== undefined) {
+      const minError = validateNumberMin(value, field.min, field.label);
+      if (minError) return minError;
+    }
+    if (field.max !== undefined) {
+      const maxError = validateNumberMax(value, field.max, field.label);
+      if (maxError) return maxError;
+    }
   }
 
   // Custom validation
@@ -390,7 +416,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
           [name]: "",
         }));
       } else {
-        const numValue = Number.parseInt(value, 10);
+        const numValue = Number(value);
         setFormData((prev) => ({
           ...prev,
           [name]: Number.isNaN(numValue) ? "" : numValue,
@@ -717,10 +743,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
               placeholder={field.placeholder}
               min={field.min}
               max={field.max}
+              aria-invalid={hasError}
+              aria-describedby={
+                field.helperText ? `${field.name}-helper` : undefined
+              }
               className={baseInputClasses}
             />
             {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
+              <p
+                id={`${field.name}-helper`}
+                className="mt-1 text-xs text-gray-500"
+              >
+                {field.helperText}
+              </p>
             )}
           </div>
         );

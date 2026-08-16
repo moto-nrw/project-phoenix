@@ -23,10 +23,11 @@ var (
 
 // PushSubscriptionInput is the browser's PushSubscription in wire form.
 type PushSubscriptionInput struct {
-	Endpoint  string
-	P256dh    string
-	Auth      string
-	UserAgent string
+	Endpoint      string
+	P256dh        string
+	Auth          string
+	UserAgent     string
+	TokenFamilyID string
 }
 
 // PushSubscriptionService manages Web Push device registrations. Staff
@@ -77,12 +78,13 @@ func (s *pushSubscriptionService) PublicKey() (string, error) {
 
 func (s *pushSubscriptionService) buildSubscription(accountID int64, portal string, input PushSubscriptionInput) (*iot.PushSubscription, error) {
 	sub := &iot.PushSubscription{
-		AccountID: accountID,
-		Portal:    portal,
-		Endpoint:  input.Endpoint,
-		P256dh:    input.P256dh,
-		Auth:      input.Auth,
-		UserAgent: input.UserAgent,
+		AccountID:     accountID,
+		Portal:        portal,
+		Endpoint:      input.Endpoint,
+		P256dh:        input.P256dh,
+		Auth:          input.Auth,
+		UserAgent:     input.UserAgent,
+		TokenFamilyID: input.TokenFamilyID,
 	}
 	if err := sub.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidPushSubscription, err)

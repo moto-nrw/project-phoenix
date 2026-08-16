@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -60,12 +61,51 @@ type ActivityInstance struct {
 	UnderstaffedNote *string `bun:"understaffed_note" json:"understaffed_note,omitempty"`
 	// CancelReason is an optional short "why" captured when a block is cancelled
 	// (Vertretungsplan, issue #1840).
-	CancelReason *string    `bun:"cancel_reason" json:"cancel_reason,omitempty"`
-	Notes        *string    `bun:"notes" json:"notes,omitempty"`
-	CreatedBy    *int64     `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy    *int64     `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt    *time.Time `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt  *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
+	CancelReason       *string         `bun:"cancel_reason" json:"cancel_reason,omitempty"`
+	Notes              *string         `bun:"notes" json:"notes,omitempty"`
+	CreatedBy          *int64          `bun:"created_by" json:"created_by,omitempty"`
+	StartedBy          *int64          `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt          *time.Time      `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt        *time.Time      `bun:"completed_at" json:"completed_at,omitempty"`
+	CompletedBy        *int64          `bun:"completed_by" json:"completed_by,omitempty"`
+	ReopenUntil        *time.Time      `bun:"reopen_until" json:"reopen_until,omitempty"`
+	CompletionSnapshot json.RawMessage `bun:"completion_snapshot,type:jsonb" json:"-"`
+}
+
+type CompletionAttendanceSnapshot struct {
+	RowID              int64      `json:"row_id"`
+	Status             string     `json:"status"`
+	Substatus          *string    `json:"substatus,omitempty"`
+	Note               *string    `json:"note,omitempty"`
+	CheckedInAt        *time.Time `json:"checked_in_at,omitempty"`
+	CheckedOutAt       *time.Time `json:"checked_out_at,omitempty"`
+	NotScheduled       bool       `json:"not_scheduled"`
+	StudentStatusDayID *int64     `json:"student_status_day_id,omitempty"`
+	PickupExceptionID  *int64     `json:"pickup_exception_id,omitempty"`
+}
+
+type ActivityCompletionSnapshot struct {
+	ActiveGroupID int64                          `json:"active_group_id"`
+	VisitIDs      []int64                        `json:"visit_ids"`
+	SupervisorIDs []int64                        `json:"supervisor_ids"`
+	Attendance    []CompletionAttendanceSnapshot `json:"attendance"`
+}
+
+type ActivityRecoveryRepository interface {
+	// LockOpenVisits takes FOR UPDATE locks on every still-open visit of the
+	// group so completion can snapshot the same rows EndActivitySession closes.
+	LockOpenVisits(ctx context.Context, activeGroupID int64) error
+	// LockOpenSupervisors locks every still-open supervisor of the group so
+	// completion snapshots the same rows EndActivitySession closes.
+	LockOpenSupervisors(ctx context.Context, activeGroupID int64) error
+	// LockSupervisors locks the snapshot supervisor rows during reopen so a
+	// concurrent staffing change cannot hide from the unchanged-row check.
+	LockSupervisors(ctx context.Context, supervisorIDs []int64) error
+	// LockAttendance locks every instance_students row of the instance so
+	// complete/cancel serialize with attendance PATCH and reopen can refuse
+	// a restore after a post-completion attendance edit.
+	LockAttendance(ctx context.Context, instanceID int64) error
+	Restore(ctx context.Context, instanceID int64, snapshot ActivityCompletionSnapshot, now time.Time) error
 }
 
 // Validate ensures activity instance data is valid for persistence.
@@ -204,7 +244,10 @@ type ActivityInstanceRepository interface {
 
 	// CompleteActiveByActiveGroupIDs marks every still-active instance bridged
 	// to one of the given active.groups as completed and returns the number of
-	// rows changed. Used by the scheduler's daily session-end bridge.
+	// rows changed. Used by the scheduler's daily session-end bridge and by
+	// kiosk/session end. This path is outside the five-minute reopen window:
+	// it does not write completed_by, reopen_until, or a completion snapshot,
+	// so CanReopenInstance stays false.
 	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 
 	// DeletePlannedNonSpontaneousInWindow removes still-planned,

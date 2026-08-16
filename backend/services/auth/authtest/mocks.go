@@ -28,12 +28,17 @@ import (
 // MFAServiceMock is a func-field test double for auth.MFAService.
 type MFAServiceMock struct {
 	IsRequiredFn                   func(ctx context.Context, account *authModels.Account, tenantID int64) (bool, error)
+	ResolvePolicyFn                func(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error)
+	ResolvePolicyInTxFn            func(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error)
 	HasEnrollmentFn                func(ctx context.Context, accountID int64) (bool, error)
 	AccountBelongsToTenantFn       func(ctx context.Context, accountID, tenantID int64) (bool, error)
 	StartChallengeFn               func(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
 	VerifyChallengeFn              func(ctx context.Context, challengeToken, code string) (*svcauth.VerifiedChallenge, error)
+	VerifyChallengeForScopeFn      func(ctx context.Context, challengeToken, code, expectedScope string) (*svcauth.VerifiedChallenge, error)
+	VerifyChallengeForOwnerFn      func(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*svcauth.VerifiedChallenge, error)
 	ResendChallengeFn              func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
-	VerifyCodeForAccountFn         func(ctx context.Context, accountID int64, code string) error
+	ResendChallengeForScopeFn      func(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
+	VerifyCodeForAccountFn         func(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
 	EnrollFn                       func(ctx context.Context, accountID int64) error
 	DisableFn                      func(ctx context.Context, accountID int64) error
 	IssueTrustedDeviceFn           func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error)
@@ -59,6 +64,36 @@ func (m *MFAServiceMock) IsRequired(ctx context.Context, account *authModels.Acc
 		return m.IsRequiredFn(ctx, account, tenantID)
 	}
 	return false, nil
+}
+
+// ResolvePolicy defaults to the policy IsRequiredFn describes: a mock that only
+// configures IsRequiredFn keeps working on the paths that resolve the policy
+// first (the school login gate), instead of silently answering "MFA off".
+func (m *MFAServiceMock) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error) {
+	if m.ResolvePolicyFn != nil {
+		return m.ResolvePolicyFn(ctx, accountID, tenantID)
+	}
+	if m.IsRequiredFn != nil {
+		account := &authModels.Account{}
+		account.ID = accountID
+		required, err := m.IsRequiredFn(ctx, account, tenantID)
+		if err != nil {
+			return svcauth.MFAPolicy{}, err
+		}
+		return svcauth.MFAPolicyForced(required), nil
+	}
+	return svcauth.MFAPolicy{}, nil
+}
+
+// ResolvePolicyInTx falls back to ResolvePolicy so a mock that describes one
+// MFA state describes it on both sides of the mint transaction — a test that
+// configures "MFA required" must not see the guard's in-transaction re-read
+// answer "off".
+func (m *MFAServiceMock) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (svcauth.MFAPolicy, error) {
+	if m.ResolvePolicyInTxFn != nil {
+		return m.ResolvePolicyInTxFn(ctx, accountID, tenantID)
+	}
+	return m.ResolvePolicy(ctx, accountID, tenantID)
 }
 
 func (m *MFAServiceMock) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
@@ -89,6 +124,31 @@ func (m *MFAServiceMock) VerifyChallenge(ctx context.Context, challengeToken, co
 	return nil, nil
 }
 
+// VerifyChallengeForScope falls back to VerifyChallengeFn when no scope-aware
+// override is set — in the real service the two differ only by the scope
+// check, so a test that stubs the unscoped behavior means it for both.
+func (m *MFAServiceMock) VerifyChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (*svcauth.VerifiedChallenge, error) {
+	if m.VerifyChallengeForScopeFn != nil {
+		return m.VerifyChallengeForScopeFn(ctx, challengeToken, code, expectedScope)
+	}
+	if m.VerifyChallengeFn != nil {
+		return m.VerifyChallengeFn(ctx, challengeToken, code)
+	}
+	return nil, nil
+}
+
+// VerifyChallengeForOwner falls back through the scope-aware override to the
+// unscoped one, same ladder as VerifyChallengeForScope: the real service adds
+// only the owner comparison on top, so a test that stubs the looser behavior
+// means it here too. Set VerifyChallengeForOwnerFn to assert on the pinned
+// account/school.
+func (m *MFAServiceMock) VerifyChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (*svcauth.VerifiedChallenge, error) {
+	if m.VerifyChallengeForOwnerFn != nil {
+		return m.VerifyChallengeForOwnerFn(ctx, challengeToken, code, expectedScope, accountID, tenantID)
+	}
+	return m.VerifyChallengeForScope(ctx, challengeToken, code, expectedScope)
+}
+
 func (m *MFAServiceMock) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	if m.ResendChallengeFn != nil {
 		return m.ResendChallengeFn(ctx, challengeToken, ip)
@@ -96,9 +156,21 @@ func (m *MFAServiceMock) ResendChallenge(ctx context.Context, challengeToken str
 	return "", nil
 }
 
-func (m *MFAServiceMock) VerifyCodeForAccount(ctx context.Context, accountID int64, code string) error {
+// ResendChallengeForScope mirrors VerifyChallengeForScope: without a
+// scope-aware override it runs whatever ResendChallengeFn the test set.
+func (m *MFAServiceMock) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
+	if m.ResendChallengeForScopeFn != nil {
+		return m.ResendChallengeForScopeFn(ctx, challengeToken, ip, expectedScope)
+	}
+	if m.ResendChallengeFn != nil {
+		return m.ResendChallengeFn(ctx, challengeToken, ip)
+	}
+	return "", nil
+}
+
+func (m *MFAServiceMock) VerifyCodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error {
 	if m.VerifyCodeForAccountFn != nil {
-		return m.VerifyCodeForAccountFn(ctx, accountID, code)
+		return m.VerifyCodeForAccountFn(ctx, accountID, tenantID, code, expectedScope)
 	}
 	return nil
 }

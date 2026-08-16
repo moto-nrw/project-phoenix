@@ -107,7 +107,9 @@ func withActorTx(ctx context.Context, db *bun.DB, tenantID int64, actor string, 
 //
 // Use this for cross-tenant operations like migrations, platform-level queries, or data exports.
 func WithAdminTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, tx bun.Tx) error) error {
-	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+	ctx = ContextWithoutAfterCommitHooks(ctx)
+	ctx, commitHooks := withAfterCommitHooks(ctx)
+	err := db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		// Switch to the admin role that bypasses RLS
 		if _, err := tx.ExecContext(ctx, "SET LOCAL ROLE phoenix_admin"); err != nil {
 			return fmt.Errorf("tenant: SET LOCAL ROLE phoenix_admin: %w", err)
@@ -115,9 +117,15 @@ func WithAdminTx(ctx context.Context, db *bun.DB, fn func(ctx context.Context, t
 
 		// Store tx in context so GetDB(ctx, r.db) finds it (CRIT-1 bridge)
 		ctx = modelBase.ContextWithTx(ctx, &tx)
+		ctx = withAdminTxFlag(ctx)
 
 		return fn(ctx, tx)
 	})
+	if err != nil {
+		return err
+	}
+	runAfterCommitHooks(commitHooks)
+	return nil
 }
 
 // WithAdminTxOrDirect runs fn inside a phoenix_admin (BYPASSRLS) transaction

@@ -115,7 +115,8 @@ func (s *Service) ListRoles(ctx context.Context, filters map[string]interface{})
 
 // AssignRoleToAccount assigns a role to an account
 func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
+	var revoked []*auth.Token
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		// Serialize assignments with tenant-access revocation, which holds the
 		// same account lock while removing the tenant's roles and mapping.
 		if _, err := s.repos.Account.FindByIDForUpdate(txCtx, int64(accountID)); err != nil {
@@ -160,7 +161,7 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		// identity fields, so the switch belongs to offboarding plus a fresh
 		// account. Roles that legitimately run without a profile (admin) are
 		// unaffected.
-		if RequiresCaregiverProfile(role) {
+		if RoleNeedsCaregiverProfile(role) {
 			isLehrkraft, roleErr := s.accountHoldsLehrkraftRole(txCtx, int64(accountID))
 			if roleErr != nil {
 				return &AuthError{Op: "assign role", Err: roleErr}
@@ -182,27 +183,63 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 			return &AuthError{Op: "check role assignment", Err: err}
 		}
 
-		if existingRole != nil {
-			// Role already assigned, no action needed
-			return nil
+		if existingRole == nil {
+			accountRole := &auth.AccountRole{
+				AccountID: int64(accountID),
+				RoleID:    int64(roleID),
+			}
+			accountRole.SetTenantID(tenant.FromContext(txCtx))
+
+			if err := s.repos.AccountRole.Create(txCtx, accountRole); err != nil {
+				return &AuthError{Op: "assign role to account", Err: err}
+			}
+
+			tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
+			if err != nil {
+				return &AuthError{Op: "revoke tokens after role assignment", Err: err}
+			}
+			revoked = tokens
 		}
 
-		accountRole := &auth.AccountRole{
-			AccountID: int64(accountID),
-			RoleID:    int64(roleID),
-		}
-		accountRole.SetTenantID(tenant.FromContext(txCtx))
-
-		if err := s.repos.AccountRole.Create(txCtx, accountRole); err != nil {
-			return &AuthError{Op: "assign role to account", Err: err}
-		}
-
-		if err := s.repos.Token.DeleteByAccountID(txCtx, int64(accountID)); err != nil {
-			return &AuthError{Op: "revoke tokens after role assignment", Err: err}
-		}
-
-		return nil
+		// Handing out a staff-tier role is the same act as inviting one, so it
+		// owes the same identity (#2222). Without this, this endpoint is a
+		// fifth way to produce the broken state: an account that holds the
+		// role, logs in, and is not staff as far as the database is concerned.
+		//
+		// Runs for an already-assigned role too, so a repeated call repairs an
+		// account the old behaviour left half-written.
+		return s.ensureIdentityForAssignedRole(txCtx, int64(accountID), role)
 	})
+	if err != nil {
+		return err
+	}
+	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	return nil
+}
+
+// ensureIdentityForAssignedRole completes the school identity chain for a role
+// that was just assigned, inside the caller's transaction.
+//
+// It never creates the person: this endpoint carries no identity fields, and
+// inventing a name is not something a role assignment may do — the same line
+// the operator role change draws. An account without a person at this school is
+// left to the flows that do have a name (staff creation, invitation), which is
+// also why nothing here fails when there is none.
+func (s *Service) ensureIdentityForAssignedRole(ctx context.Context, accountID int64, role *auth.Role) error {
+	if _, err := EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
+		Persons:  s.repos.Person,
+		Staff:    s.repos.Staff,
+		Teachers: s.repos.Teacher,
+		Students: s.repos.Student,
+	}, SchoolIdentityInput{
+		AccountID:    accountID,
+		TenantID:     tenant.FromContext(ctx),
+		Role:         role,
+		CreatePerson: false,
+	}); err != nil {
+		return &AuthError{Op: "provision school identity", Err: err}
+	}
+	return nil
 }
 
 // accountHoldsLehrkraftRole reports whether the account already holds the
@@ -224,7 +261,8 @@ func (s *Service) accountHoldsLehrkraftRole(ctx context.Context, accountID int64
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
+	var revoked []*auth.Token
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		existingRole, err := s.repos.AccountRole.FindByAccountAndRole(txCtx, int64(accountID), int64(roleID))
 		if err != nil && !strings.Contains(err.Error(), "no rows") {
 			return &AuthError{Op: "check role assignment", Err: err}
@@ -238,12 +276,18 @@ func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID i
 			return &AuthError{Op: "remove role from account", Err: err}
 		}
 
-		if err := s.repos.Token.DeleteByAccountID(txCtx, int64(accountID)); err != nil {
+		tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
+		if err != nil {
 			return &AuthError{Op: "revoke tokens after role removal", Err: err}
 		}
-
+		revoked = tokens
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	return nil
 }
 
 // GetAccountRoles retrieves all roles for an account

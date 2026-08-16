@@ -285,11 +285,30 @@ func (m *mockAuthService) LoginParent(context.Context, string, string) (string, 
 func (m *mockAuthService) LoginParentWithAudit(context.Context, string, string, string, string) (string, string, error) {
 	return "", "", nil
 }
+
+// No-op stubs for the school-portal additions (#2207) — same reason as
+// above: the provisioning tests never touch the school scope.
+func (m *mockAuthService) LoginSchoolWithMFAGate(context.Context, string, string, string, string, string) (*authSvc.LoginResult, error) {
+	return nil, nil
+}
+func (m *mockAuthService) IssueSchoolTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
+	return "", "", nil
+}
+func (m *mockAuthService) SwitchSchool(context.Context, int64, string, string, string) (string, string, error) {
+	return "", "", nil
+}
 func (m *mockAuthService) Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error) {
 	if m.registerFn != nil {
 		return m.registerFn(ctx, email, username, password, roleID, tenantID)
 	}
 	return nil, nil
+}
+func (m *mockAuthService) RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, _ *authSvc.SchoolAccountIdentity) (*authModels.Account, *authSvc.SchoolIdentity, error) {
+	account, err := m.Register(ctx, email, username, password, roleID, tenantID)
+	return account, nil, err
+}
+func (m *mockAuthService) LinkSchoolAccount(context.Context, string, *int64, int64, *authSvc.SchoolAccountIdentity) (*authModels.Account, *authSvc.SchoolIdentity, error) {
+	return nil, nil, nil
 }
 func (m *mockAuthService) ValidateToken(context.Context, string) (*authModels.Account, *jwt.AppClaims, error) {
 	return nil, nil, nil
@@ -397,8 +416,9 @@ func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { r
 func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
 	return 0, nil
 }
-func (m *mockAuthService) RevokeAllTokens(context.Context, int) error                 { return nil }
-func (m *mockAuthService) RevokeTokensByTenantID(context.Context, int64) (int, error) { return 0, nil }
+func (m *mockAuthService) RevokeAllTokens(context.Context, int) error                   { return nil }
+func (m *mockAuthService) RevokeAllTokensWithReason(context.Context, int, string) error { return nil }
+func (m *mockAuthService) RevokeTokensByTenantID(context.Context, int64) (int, error)   { return 0, nil }
 func (m *mockAuthService) GetActiveTokens(context.Context, int) ([]*authModels.Token, error) {
 	return nil, nil
 }

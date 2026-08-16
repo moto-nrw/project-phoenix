@@ -12,6 +12,11 @@ interface MotoConceptIconProps extends Omit<
 export function MotoConceptIcon({ concept, ...props }: MotoConceptIconProps) {
   const definition = MOTO_CONCEPTS[concept];
   return (
-    <MotoDuotoneIcon icon={definition.icon} tone={definition.tone} {...props} />
+    <MotoDuotoneIcon
+      icon={definition.icon}
+      tone={definition.tone}
+      weight={definition.weight}
+      {...props}
+    />
   );
 }

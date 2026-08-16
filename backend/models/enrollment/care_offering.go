@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"slices"
 	"strings"
@@ -218,6 +219,11 @@ type CareOffering struct {
 	// parent must pick. See SelectionRule* constants.
 	SelectionGroup string `bun:"selection_group" json:"selection_group,omitempty"`
 	SelectionRule  string `bun:"selection_rule,notnull,default:'optional'" json:"selection_rule"`
+	// PickupTimes is the optional Angebots-Gehzeit per weekday
+	// ({"mon":"14:30"}). Keys are canonical day codes within
+	// AvailableDays; values wall-clock HH:MM. Rolled out onto
+	// schedule.student_pickup_schedules (#2290, ADR 0001).
+	PickupTimes map[string]string `bun:"pickup_times,type:jsonb" json:"pickup_times,omitempty"`
 
 	// AutoAddTriggerOfferingIDs is loaded from
 	// enrollment.care_offering_auto_triggers. It is not a column on
@@ -290,6 +296,11 @@ func (c *CareOffering) Validate() error {
 	if c.SelectionRule != SelectionRuleOptional && c.SelectionGroup == "" {
 		return errors.New("a selection rule requires a selection_group name")
 	}
+	normalizedTimes, err := normalizePickupTimes(c.PickupTimes, c.AvailableDays)
+	if err != nil {
+		return err
+	}
+	c.PickupTimes = normalizedTimes
 	// A required offering must be available to every child, so it cannot
 	// carry a hard capacity limit - otherwise a full offering would block
 	// every new enrollment in the phase. The admin editor prevents the
@@ -298,6 +309,48 @@ func (c *CareOffering) Validate() error {
 		return errors.New("a required care offering must not have a capacity limit")
 	}
 	return nil
+}
+
+// normalizePickupTimes canonicalizes the Angebots-Gehzeit map: keys are
+// lowercased day codes, values trimmed HH:MM strings. Empty values are
+// dropped; an empty result becomes nil so the jsonb column stores NULL.
+func normalizePickupTimes(times map[string]string, availableDays []string) (map[string]string, error) {
+	if len(times) == 0 {
+		return nil, nil
+	}
+	available := make(map[string]bool, len(availableDays))
+	for _, d := range availableDays {
+		available[strings.ToLower(d)] = true
+	}
+	out := make(map[string]string, len(times))
+	for day, hhmm := range times {
+		key := strings.ToLower(strings.TrimSpace(day))
+		value := strings.TrimSpace(hhmm)
+		if value == "" {
+			continue
+		}
+		if !canonicalDaySet[key] {
+			return nil, fmt.Errorf("pickup_times key %q is not a known day abbreviation", day)
+		}
+		if key == "sat" || key == "sun" {
+			return nil, fmt.Errorf("pickup_times day %q must be Monday through Friday", key)
+		}
+		if !available[key] {
+			return nil, fmt.Errorf("pickup_times day %q is not in available_days", key)
+		}
+		parsed, err := time.Parse("15:04", value)
+		if err != nil {
+			return nil, fmt.Errorf("pickup_times value for %q must be HH:MM, got %q", key, hhmm)
+		}
+		// Store canonically zero-padded: the Gehzeit reconciler's
+		// latest-wins rule compares these strings lexicographically, so
+		// "9:30" must become "09:30".
+		out[key] = parsed.Format("15:04")
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 func normalizeGradeLevels(levels []int) ([]int, error) {
@@ -464,6 +517,13 @@ type RequestChildOfferingRepository interface {
 	// (approval not yet materialized) and alumni are excluded. Empty input
 	// returns an empty slice without a query.
 	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
+
+	// ListApprovedByStudentIDsOnDate returns every offering link of an
+	// APPROVED request child resolved to one of the given students that is
+	// active on onDate (valid_from <= onDate and valid_until > onDate).
+	// Alumni are excluded. The Gehzeit reconciler (#2290) uses it to compute
+	// a student's desired offering-sourced pickup times.
+	ListApprovedByStudentIDsOnDate(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*ApprovedOfferingChild, error)
 
 	// CountActiveGradeLevelsByCareOfferingIDs groups the non-terminal
 	// bookings whose validity interval overlaps [from, until) by offering and

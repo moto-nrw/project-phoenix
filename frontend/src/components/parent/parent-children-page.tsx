@@ -72,17 +72,18 @@ export function ParentChildrenPage() {
   const items: ChildRowItem[] = children.map((child) => ({
     key: child.student_id,
     name: `${child.first_name} ${child.last_name}`,
-    schoolName: child.school_class
-      ? `${child.school_name}, ${child.school_class}`
-      : child.school_name,
-    detail: t("careRange", {
-      range: formatServiceRange(
-        child,
-        locale,
-        t("openRange"),
-        t("dateRangeConnector"),
-      ),
-    }),
+    schoolName: child.school_name,
+    detail: `${child.school_class ? `${child.school_class} · ` : ""}${t(
+      "careRange",
+      {
+        range: formatServiceRange(
+          child,
+          locale,
+          t("openRange"),
+          t("dateRangeConnector"),
+        ),
+      },
+    )}`,
     href: `/parents/children/${child.student_id}`,
   }));
 
@@ -104,7 +105,7 @@ export function ParentChildrenPage() {
           />
         </div>
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {items.map((item) => (
             <ChildRow key={item.key} item={item} variant="card" />
           ))}

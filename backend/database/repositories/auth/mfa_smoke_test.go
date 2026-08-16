@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -53,12 +54,13 @@ func TestMFARepositoriesSmoke(t *testing.T) {
 	t.Run("email challenge lifecycle + rate-limit count", func(t *testing.T) {
 		challenge := &auth.MFAEmailChallenge{
 			AccountID: account.ID,
+			Scope:     authjwt.MFAChallengeScopeTenant,
 			CodeHash:  "$argon2id$placeholder-hash-for-smoke-test",
 			ExpiresAt: time.Now().Add(10 * time.Minute),
 		}
 		require.NoError(t, challengeRepo.Create(ctx, challenge))
 
-		active, err := challengeRepo.FindActiveByAccountID(ctx, account.ID)
+		active, err := challengeRepo.FindActiveByAccountIDInScope(ctx, account.ID, 0, authjwt.MFAChallengeScopeTenant)
 		require.NoError(t, err)
 		assert.Equal(t, challenge.ID, active.ID)
 
@@ -68,12 +70,13 @@ func TestMFARepositoriesSmoke(t *testing.T) {
 
 		require.NoError(t, challengeRepo.MarkConsumed(ctx, challenge.ID, time.Now()))
 
-		_, err = challengeRepo.FindActiveByAccountID(ctx, account.ID)
+		_, err = challengeRepo.FindActiveByAccountIDInScope(ctx, account.ID, 0, authjwt.MFAChallengeScopeTenant)
 		assert.Error(t, err, "expect no active challenge after consume")
 
 		// Insert an expired one and verify cleanup picks it up.
 		expired := &auth.MFAEmailChallenge{
 			AccountID: account.ID,
+			Scope:     authjwt.MFAChallengeScopeTenant,
 			CodeHash:  "$argon2id$expired",
 			ExpiresAt: time.Now().Add(-5 * time.Minute),
 		}

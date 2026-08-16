@@ -75,6 +75,10 @@ type CompanionGraphCoordinator interface {
 type ChangeRequestDecisionApplier interface {
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
+	// ReconcileOfferingPickupForStudentsByAccount realigns the students'
+	// Angebots-Gehzeit rows after an approved change replaced their offering
+	// bookings (#2290).
+	ReconcileOfferingPickupForStudentsByAccount(ctx context.Context, studentIDs []int64, accountID int64) error
 }
 
 type ChangeRequestAggregate struct {
@@ -1412,6 +1416,22 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	// wem" detail still refuses the approval and rolls the transaction back.
 	if err := s.verifyCompanionStrandingBatch(ctx); err != nil {
 		return err
+	}
+
+	// Replaced bookings can add or drop Angebots-Gehzeiten (#2290): realign
+	// the affected students' offering-sourced pickup rows.
+	if s.DecisionService != nil {
+		studentIDs := make([]int64, 0, len(children))
+		for _, child := range children {
+			if child.CreatedStudentID != nil && *child.CreatedStudentID > 0 {
+				studentIDs = append(studentIDs, *child.CreatedStudentID)
+			}
+		}
+		if len(studentIDs) > 0 {
+			if err := s.DecisionService.ReconcileOfferingPickupForStudentsByAccount(ctx, studentIDs, input.ActorAccountID); err != nil {
+				return fmt.Errorf("change request approve: reconcile offering pickup times: %w", err)
+			}
+		}
 	}
 
 	if len(newlyWaitlisted) > 0 {

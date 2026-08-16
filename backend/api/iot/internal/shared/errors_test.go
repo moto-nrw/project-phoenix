@@ -118,6 +118,23 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 	assert.NotNil(t, renderer)
 }
 
+func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
+	renderer := shared.ErrorRenderer(&activeSvc.RoomCapacityError{
+		RoomID:           42,
+		RoomName:         "Mensa",
+		CurrentOccupancy: 43,
+		MaxCapacity:      43,
+	})
+	require.NotNil(t, renderer)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/sessions", nil)
+	require.NoError(t, render.Render(rec, req, renderer))
+
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(), "room capacity exceeded")
+}
+
 // Test Capacity Error Response Render
 
 // TestErrorRenderer_StudentGraduatedUsesContractString covers the #405 review

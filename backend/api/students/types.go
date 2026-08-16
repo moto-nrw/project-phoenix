@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -94,8 +96,9 @@ type StudentResponse struct {
 	// DepartureDays is the authoritative per-weekday departure mode
 	// (alone/bus/pickup). Bus, BusDays and PickupDays are derived from it and
 	// kept for backward compatibility with clients not yet on departure_days.
-	DepartureDays         users.DepartureDays         `json:"departure_days,omitempty"`
-	AllowedDepartureModes users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	DepartureDays           users.DepartureDays         `json:"departure_days,omitempty"`
+	AllowedDepartureModes   users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
+	DepartureRuleConfigured bool                        `json:"-"`
 	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
 	// departure mode (#1694).
 	DepartureCompanionNote string `json:"departure_companion_note,omitempty"`
@@ -190,11 +193,17 @@ type SupervisorContact struct {
 // StudentDetailResponse represents a detailed student response with access control
 type StudentDetailResponse struct {
 	StudentResponse
-	HasFullAccess        bool                `json:"has_full_access"`
-	HasWriteAccess       bool                `json:"has_write_access"`
-	GroupSupervisors     []SupervisorContact `json:"group_supervisors,omitempty"`
-	AttendanceLogEnabled bool                `json:"attendance_log_enabled"`
-	FeedbackEnabled      bool                `json:"feedback_enabled"`
+	HasFullAccess  bool `json:"has_full_access"`
+	HasWriteAccess bool `json:"has_write_access"`
+	// HasAbsenceWriteAccess gates the Krankmeldung / Entschuldigung /
+	// Klassenfahrt actions specifically. It is a superset of HasWriteAccess: in
+	// a school running operations.group_mode = open_care, staff holding
+	// users:absence may report absences for children they cannot otherwise edit
+	// (#2232). Never use it to show Stammdaten edit affordances.
+	HasAbsenceWriteAccess bool                `json:"has_absence_write_access"`
+	GroupSupervisors      []SupervisorContact `json:"group_supervisors,omitempty"`
+	AttendanceLogEnabled  bool                `json:"attendance_log_enabled"`
+	FeedbackEnabled       bool                `json:"feedback_enabled"`
 }
 
 type StudentStatusDayResponse struct {
@@ -217,6 +226,8 @@ type CreateStudentStatusDaysRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason,omitempty"` // optional free-text reason stamped on each day
 }
+
+const maxStudentStatusDayCreateDays = 366
 
 type BulkCreateStudentStatusDaysRequest struct {
 	StudentIDs []int64 `json:"student_ids"`
@@ -566,6 +577,43 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// absenceOnlyUpdateFields lists the UpdateStudentRequest fields that carry
+// nothing but an absence report for today. Everything else on the struct is
+// Stammdaten, Betreuungsplanung, or photo consent.
+var absenceOnlyUpdateFields = map[string]bool{
+	"Sick":       true,
+	"SickReason": true,
+	"Excused":    true,
+}
+
+// isAbsenceOnly reports whether this payload does nothing but report or clear
+// today's absence. It is what lets PUT /students/{id} fall back to the
+// action-scoped absence gate in a school without fixed groups (#2232) — so it
+// has to be exact: one Stammdaten field riding along must make it false.
+//
+// Deliberately reflection-based rather than a hand-written field list. A new
+// field added to UpdateStudentRequest is then automatically treated as "not an
+// absence field", instead of silently slipping through the weaker gate until
+// somebody remembers to extend a negative list here.
+func (req *UpdateStudentRequest) isAbsenceOnly() bool {
+	if req == nil {
+		return false
+	}
+	value := reflect.ValueOf(*req)
+	structType := value.Type()
+	carriesAbsence := false
+	for i := range structType.NumField() {
+		if value.Field(i).IsZero() {
+			continue
+		}
+		if !absenceOnlyUpdateFields[structType.Field(i).Name] {
+			return false
+		}
+		carriesAbsence = true
+	}
+	return carriesAbsence
+}
+
 // hasCompanionUpdate reports whether the request carries a "läuft mit" list.
 // A nil pointer means "leave the links alone"; an empty slice clears them.
 func (req *UpdateStudentRequest) hasCompanionUpdate() bool {
@@ -606,26 +654,52 @@ func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {
 	if !isValidStudentStatusDayStatus(req.Status) {
 		return errors.New("status must be sick, excused, or class_trip")
 	}
-	if len(req.Dates) == 0 {
+	return validateStudentStatusDayDates(req.Dates)
+}
+
+func validateStudentStatusDayDates(dates []string) error {
+	if len(dates) == 0 {
 		return errors.New("dates are required")
 	}
+	if len(dates) > maxStudentStatusDayCreateDays {
+		return errors.New("dates cannot exceed 366 items")
+	}
 
-	seen := make(map[string]struct{}, len(req.Dates))
-	for i, rawDate := range req.Dates {
-		date := strings.TrimSpace(rawDate)
-		if date == "" {
-			return errors.New("date cannot be empty")
+	seen := make(map[string]struct{}, len(dates))
+	var earliest, latest timezone.Date
+	for i, rawDate := range dates {
+		date, parsed, err := normalizeStudentStatusDayDate(rawDate)
+		if err != nil {
+			return err
 		}
-		if _, err := time.Parse(dateFormatYYYYMMDD, date); err != nil {
-			return errors.New("invalid date format, expected YYYY-MM-DD")
+		if earliest.IsZero() || parsed.Before(earliest) {
+			earliest = parsed
+		}
+		if latest.IsZero() || parsed.After(latest) {
+			latest = parsed
 		}
 		if _, ok := seen[date]; ok {
 			return errors.New("duplicate dates are not allowed")
 		}
 		seen[date] = struct{}{}
-		req.Dates[i] = date
+		dates[i] = date
+	}
+	if earliest.DaysUntil(latest) >= maxStudentStatusDayCreateDays {
+		return errors.New("dates cannot span more than 366 days")
 	}
 	return nil
+}
+
+func normalizeStudentStatusDayDate(rawDate string) (string, timezone.Date, error) {
+	date := strings.TrimSpace(rawDate)
+	if date == "" {
+		return "", timezone.Date{}, errors.New("date cannot be empty")
+	}
+	parsed, err := timezone.ParseDate(date)
+	if err != nil {
+		return "", timezone.Date{}, errors.New("invalid date format, expected YYYY-MM-DD")
+	}
+	return date, parsed, nil
 }
 
 func (req *BulkCreateStudentStatusDaysRequest) Bind(_ *http.Request) error {

@@ -2056,6 +2056,7 @@ export function EnrollmentForm({
                               key={offering.id}
                               offering={offering}
                               gradeLevel={child.target_grade_level}
+                              gradeLevelMax={gradeLevelMax}
                               stats={offeringBookingStats?.[offering.id]}
                             />
                           ))}

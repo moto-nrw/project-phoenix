@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -120,6 +121,20 @@ func TestErrorRenderer_InvalidDuration(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
 	assert.Equal(t, "error", errResp.Status)
 	assert.Contains(t, errResp.ErrorText, "invalid duration")
+}
+
+func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
+	err := &activeSvc.RoomCapacityError{
+		RoomID:           12,
+		RoomName:         "Mensa",
+		CurrentOccupancy: 43,
+		MaxCapacity:      43,
+	}
+
+	renderer := ErrorRenderer(err)
+	errResp, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
 }
 
 func TestErrorRenderer_UnknownScheduleError(t *testing.T) {

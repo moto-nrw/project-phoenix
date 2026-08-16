@@ -83,6 +83,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		RequestRepo:              env.repos.Request,
 		RequestChildRepo:         env.repos.RequestChild,
 		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		OfferingCatalogCloner:    env.offeringCloner,
 		OutboxEnqueuer:           env.outbox,
 		Settings:                 env.settings,
 		DecisionService:          decision,
@@ -480,9 +481,11 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	originalFrom := *existing.EnrolledFrom
 	originalUntil := *existing.EnrolledUntil
 
-	// Persist a legacy-invalid template offering. The schedule resolves for the
-	// target phase, but the fixed offering has no days, so Decide fails in care
-	// recurrence validation only after applyApprovalRollover updates the student.
+	// A valid template-linked source offering; the rollover clones it into
+	// the target phase (#2249). After the rollover we corrupt the CLONE the
+	// way legacy rows looked before #1885 made available_days mandatory:
+	// Decide then fails in care recurrence validation only after
+	// applyApprovalRollover updates the student — the rollback under test.
 	group := createCareOfferingTemplateGroup(t, env.db, "rollover-savepoint")
 	period := createCareOfferingTestPeriod(
 		t,
@@ -495,22 +498,13 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: &group.ID,
-		Name:            "Invalid empty-day rollover offering",
+		Name:            "Rollover savepoint offering",
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"tue"},
 		IsActive:        true,
 	}
 	offering.SetTenantID(1)
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
-	// Simulate a legacy row saved before #1885 made available_days
-	// mandatory: clear the days directly, bypassing Validate. The rollback
-	// behavior under test targets exactly such legacy-invalid rows.
-	_, updErr := env.db.NewUpdate().
-		TableExpr("enrollment.care_offerings").
-		Set("available_days = '[]'::jsonb").
-		Where("id = ?", offering.ID).
-		Exec(ctx)
-	require.NoError(t, updErr)
 	link := &enrollmentModels.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,
@@ -524,6 +518,16 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	req.Name = "auto-approve-savepoint-rollback-target"
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, 1, result.ClonedOfferingCount)
+
+	// Blank the target-phase clone's days directly, bypassing Validate —
+	// simulating a legacy-invalid row in the phase Decide will materialize.
+	_, updErr := env.db.NewUpdate().
+		TableExpr("enrollment.care_offerings").
+		Set("available_days = '[]'::jsonb").
+		Where("phase_id = ?", result.Phase.ID).
+		Exec(ctx)
+	require.NoError(t, updErr)
 
 	rolled, err := env.repos.RequestChild.ListByPhaseAndStatuses(
 		ctx,

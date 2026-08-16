@@ -8,11 +8,15 @@ import {
   type Activity,
 } from "~/lib/activity-api";
 import { getDbOperationMessage } from "~/lib/use-notification";
-import { useActivityForm } from "~/hooks/useActivityForm";
+import {
+  parseParticipantLimit,
+  useActivityForm,
+} from "~/hooks/useActivityForm";
 import { createLogger } from "~/lib/logger";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -194,7 +198,7 @@ export function ActivityManagementModal({
     {
       name: activity.name,
       category_id: activity.ag_category_id || "",
-      max_participants: activity.max_participant?.toString() || "15",
+      max_participants: activity.max_participant?.toString() ?? "",
     },
     isOpen,
   );
@@ -205,7 +209,7 @@ export function ActivityManagementModal({
       setForm({
         name: activity.name,
         category_id: activity.ag_category_id || "",
-        max_participants: activity.max_participant?.toString() || "15",
+        max_participants: activity.max_participant?.toString() ?? "",
       });
       setError(null);
       setShowDeleteConfirm(false);
@@ -229,7 +233,7 @@ export function ActivityManagementModal({
       const updateData = {
         name: form.name.trim(),
         category_id: Number.parseInt(form.category_id, 10),
-        max_participants: Number.parseInt(form.max_participants, 10),
+        max_participants: parseParticipantLimit(form.max_participants),
         // Include existing values that might be required
         is_open: activity.is_open_ags || false,
         supervisor_ids: activity.supervisor_id
@@ -450,7 +454,9 @@ export function ActivityManagementModal({
                   }}
                   className="focus:ring-moto-blue absolute left-0 z-10 flex h-full w-12 items-center justify-center rounded-l-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
                   disabled={
-                    Number.parseInt(form.max_participants, 10) <= 1 || readOnly
+                    !form.max_participants ||
+                    Number.parseInt(form.max_participants, 10) <= 1 ||
+                    readOnly
                   }
                   aria-label="Teilnehmer reduzieren"
                 >
@@ -468,17 +474,16 @@ export function ActivityManagementModal({
                   value={form.max_participants}
                   onChange={handleInputChange}
                   min="1"
-                  max="50"
+                  required={Boolean(form.max_participants)}
                   className="focus:ring-moto-blue block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  required
-                  disabled={readOnly}
+                  disabled={readOnly || !form.max_participants}
                 />
 
                 <button
                   type="button"
                   onClick={() => {
                     const current = Number.parseInt(form.max_participants, 10);
-                    if (current < 50) {
+                    if (Number.isFinite(current)) {
                       setForm((prev) => ({
                         ...prev,
                         max_participants: (current + 1).toString(),
@@ -486,9 +491,7 @@ export function ActivityManagementModal({
                     }
                   }}
                   className="focus:ring-moto-blue absolute right-0 z-10 flex h-full w-12 items-center justify-center rounded-r-lg text-gray-500 transition-all duration-200 hover:bg-white/50 hover:text-gray-700 focus:ring-2 focus:outline-none focus:ring-inset active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 md:w-10"
-                  disabled={
-                    Number.parseInt(form.max_participants, 10) >= 50 || readOnly
-                  }
+                  disabled={readOnly || !form.max_participants}
                   aria-label="Teilnehmer erhöhen"
                 >
                   <Plus
@@ -498,6 +501,23 @@ export function ActivityManagementModal({
                   />
                 </button>
               </div>
+              <label
+                htmlFor="activity-no-participant-limit"
+                className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-gray-700"
+              >
+                <Checkbox
+                  id="activity-no-participant-limit"
+                  checked={!form.max_participants}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      max_participants: event.target.checked ? "" : "15",
+                    }))
+                  }
+                  disabled={readOnly}
+                />
+                Keine Begrenzung
+              </label>
             </div>
           </div>
 

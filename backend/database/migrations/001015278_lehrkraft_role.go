@@ -34,12 +34,12 @@ func init() {
 //
 // Deliberate choices:
 //   - A system role, not a per-tenant custom role: every school gets it
-//     without setup, and the invitation flow creates the users.staff record
-//     for system roles automatically (createStaffAndTeacherIfSystemRole). No
-//     users.teachers caregiver profile is ever created — the name is NOT in
-//     shouldCreateTeacherForRole, and the caregiver_enabled upgrade is
-//     refused for this role (IsLehrkraftSystemRole guards invitation
-//     creation and both acceptance branches).
+//     without setup, and the school-access flows create the users.staff record
+//     for it automatically (EnsureSchoolIdentity). No users.teachers caregiver
+//     profile is ever created — RoleNeedsCaregiverProfile excludes this role
+//     explicitly, and the caregiver_enabled upgrade is refused for it
+//     (IsLehrkraftSystemRole guards invitation creation and both acceptance
+//     branches).
 //   - base_role 'user' (the CHECK allows admin/user/guardian only); the name
 //     differs from the retired "teacher" role, which the assignment policy
 //     blocks by name.

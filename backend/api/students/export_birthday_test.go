@@ -117,7 +117,7 @@ func TestApplyExportFiltersBirthdayMonths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := applyExportFilters(birthdayFixtures(),
-				studentExportFilters{Months: tt.months}, listexport.PresetBirthdayList)
+				studentExportFilters{Months: tt.months}, listexport.PresetBirthdayList, testExportDate)
 
 			assert.Equal(t, tt.wantIDs, exportedIDs(got))
 		})
@@ -127,7 +127,7 @@ func TestApplyExportFiltersBirthdayMonths(t *testing.T) {
 // A child with no stored birthday cannot belong on a birthday list: printing a
 // blank date would read as data rather than as a gap in the records.
 func TestApplyExportFiltersBirthdayPresetDropsChildrenWithoutBirthday(t *testing.T) {
-	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetBirthdayList)
+	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetBirthdayList, testExportDate)
 
 	assert.Equal(t, []int64{101, 102, 103, 104}, exportedIDs(got))
 }
@@ -136,7 +136,7 @@ func TestApplyExportFiltersBirthdayPresetDropsChildrenWithoutBirthday(t *testing
 // by the filter itself — they can never match a month.
 func TestApplyExportFiltersMonthsDropChildrenWithoutBirthdayOnAnyPreset(t *testing.T) {
 	got := applyExportFilters(birthdayFixtures(),
-		studentExportFilters{Months: []string{"09"}}, listexport.PresetOGSWeekly)
+		studentExportFilters{Months: []string{"09"}}, listexport.PresetOGSWeekly, testExportDate)
 
 	assert.Equal(t, []int64{101, 102}, exportedIDs(got))
 }
@@ -144,14 +144,14 @@ func TestApplyExportFiltersMonthsDropChildrenWithoutBirthdayOnAnyPreset(t *testi
 // Without a birthday filter or preset, the export keeps everyone — a child
 // without a birthday still belongs on a weekly list.
 func TestApplyExportFiltersKeepsBirthdaylessChildrenOnOtherPresets(t *testing.T) {
-	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetOGSWeekly)
+	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetOGSWeekly, testExportDate)
 
 	assert.Equal(t, []int64{101, 102, 103, 104, 105}, exportedIDs(got))
 }
 
 func TestApplyExportFiltersBirthdayEmptyInput(t *testing.T) {
 	got := applyExportFilters([]StudentResponse{},
-		studentExportFilters{Months: []string{"09"}}, listexport.PresetBirthdayList)
+		studentExportFilters{Months: []string{"09"}}, listexport.PresetBirthdayList, testExportDate)
 
 	assert.Empty(t, got)
 }

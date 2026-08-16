@@ -52,6 +52,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	personRepo := newStubPersonRepository()
 	staffRepo, _ := newStubStaffRepository()
 	teacherRepo := newStubTeacherRepository()
+	studentRepo := newStubStudentRepository()
 
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
@@ -65,6 +66,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		PersonRepo:        personRepo,
 		StaffRepo:         staffRepo,
 		TeacherRepo:       teacherRepo,
+		StudentRepo:       studentRepo,
 		SchoolRepo:        newStubSchoolRepository(nil),
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
@@ -375,7 +377,7 @@ func TestAcceptInvitationCreatesAccountAndPerson(t *testing.T) {
 }
 
 func TestAcceptInvitationRollsBackOnError(t *testing.T) {
-	service, invitations, accounts, _, _, persons, _, mock, cleanup := newInvitationTestEnv(t)
+	service, invitations, _, _, _, persons, _, mock, cleanup := newInvitationTestEnv(t)
 	t.Cleanup(cleanup)
 
 	ctx := context.Background()
@@ -400,10 +402,20 @@ func TestAcceptInvitationRollsBackOnError(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.False(t, token.IsUsed(), "invitation should remain unused on failure")
-
-	_, err = accounts.FindByEmail(ctx, "user@example.com")
-	require.ErrorIs(t, err, sql.ErrNoRows)
 	require.Equal(t, 0, len(persons.people), "person creation should not persist")
+
+	// The account is written before the identity now (#2222): the provisioning
+	// looks the account's existing person up to reuse it, which needs the
+	// account id. Against a real database the surrounding transaction takes the
+	// account insert back with everything else — the in-memory stubs here have
+	// no transaction to roll back, so the account row they hold says nothing
+	// about that. That half is covered by
+	// TestAcceptInvitationRollsBackAccountMappingAndRole, which asserts against
+	// a real database that the account, the school mapping and the role
+	// assignment are all gone. What this test still proves is that the failure
+	// aborts the acceptance: the error surfaces, the invitation stays unused,
+	// and no
+	// person is left behind.
 }
 
 func TestAcceptInvitationWeakPassword(t *testing.T) {
@@ -524,6 +536,8 @@ func TestTranslateRoleNameToGerman(t *testing.T) {
 		{"Guest", "Gast"},
 		{"guardian", "Erziehungsberechtigter"},
 		{"Guardian", "Erziehungsberechtigter"},
+		{"lehrkraft", "Lehrkraft"},
+		{"Lehrkraft", "Lehrkraft"},
 		{"teacher", "teacher"},         // Not a system role, returns as-is
 		{"custom_role", "custom_role"}, // Unknown role, returns as-is
 		{"", ""},                       // Empty string
@@ -537,15 +551,54 @@ func TestTranslateRoleNameToGerman(t *testing.T) {
 	}
 }
 
-func TestShouldCreateTeacherForRole(t *testing.T) {
-	require.True(t, shouldCreateTeacherForRole("teacher"))
-	require.True(t, shouldCreateTeacherForRole("Teacher"))
-	require.True(t, shouldCreateTeacherForRole("user"))
-	require.False(t, shouldCreateTeacherForRole("admin"))
-	// A Lehrkraft (#1772) gets the staff record every system role gets, but
+// Successor of TestShouldCreateTeacherForRole: the name-based helper became the
+// tier-based RoleNeedsCaregiverProfile (#2222). Every assertion of the old test
+// is kept; the new cases are the school's own roles, which the name check could
+// not see at all.
+func TestRoleNeedsCaregiverProfile(t *testing.T) {
+	system := func(name string) *authModel.Role { return &authModel.Role{Name: name, IsSystem: true} }
+	custom := func(name, base string) *authModel.Role {
+		return &authModel.Role{Name: name, BaseRole: &base}
+	}
+
+	require.True(t, RoleNeedsCaregiverProfile(system("teacher")))
+	require.True(t, RoleNeedsCaregiverProfile(system("Teacher")))
+	require.True(t, RoleNeedsCaregiverProfile(system("user")))
+	require.False(t, RoleNeedsCaregiverProfile(system("admin")))
+	// A Lehrkraft (#1772) gets the staff record every staff role gets, but
 	// deliberately no users.teachers caregiver profile: it supervises no OGS
 	// group, its scope comes from education.class_teachers.
-	require.False(t, shouldCreateTeacherForRole("lehrkraft"))
+	require.False(t, RoleNeedsCaregiverProfile(system("lehrkraft")))
+
+	// A school's own role is decided by its tier, not by its label.
+	require.True(t, RoleNeedsCaregiverProfile(custom("OGS-Kraft", authModel.BaseRoleUser)))
+	require.False(t, RoleNeedsCaregiverProfile(custom("OGS-Leitung", authModel.BaseRoleAdmin)))
+	// The label alone means nothing: a custom role named "teacher" with an
+	// admin tier is an admin role.
+	require.False(t, RoleNeedsCaregiverProfile(custom("teacher", authModel.BaseRoleAdmin)))
+	require.False(t, RoleNeedsCaregiverProfile(nil))
+}
+
+// The bug of #2222: a school's own role produced a person and no staff record.
+// Staff membership is decided by tier, and an unknown tier (base_role NULL on a
+// role created before the column existed) counts as personnel — a staff row
+// grants nothing, withholding it is what breaks the account.
+func TestRoleNeedsStaffRecord(t *testing.T) {
+	custom := func(name string, base *string) *authModel.Role {
+		return &authModel.Role{Name: name, BaseRole: base}
+	}
+	ptr := func(s string) *string { return &s }
+
+	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "admin", IsSystem: true}))
+	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "user", IsSystem: true}))
+	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
+	require.True(t, RoleNeedsStaffRecord(custom("OGS-Leitung", ptr(authModel.BaseRoleAdmin))))
+	require.True(t, RoleNeedsStaffRecord(custom("OGS-Kraft", ptr(authModel.BaseRoleUser))))
+	require.True(t, RoleNeedsStaffRecord(custom("Alt-Rolle", nil)))
+
+	require.False(t, RoleNeedsStaffRecord(&authModel.Role{Name: "guardian", IsSystem: true}))
+	require.False(t, RoleNeedsStaffRecord(custom("Sorgeberechtigt", ptr(authModel.BaseRoleGuardian))))
+	require.False(t, RoleNeedsStaffRecord(nil))
 }
 
 // The caregiver upgrade (#1772) is refused for the lehrkraft SYSTEM role in

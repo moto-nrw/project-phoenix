@@ -1141,6 +1141,18 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 		query = options.ApplyToQuery(query)
 	}
 
+	// Without an ORDER BY, PostgreSQL is free to return the same rows in a
+	// different order for every execution, so two LIMIT/OFFSET requests over the
+	// same selection can hand back the same child twice and never mention
+	// another one at all (#2218 review). Anything walking this list page by page
+	// — the Kindersuche does, once a selection exceeds one page — depends on a
+	// total order, so fall back to the primary key when the caller did not ask
+	// for a specific one. An explicit Sorting wins: it is then the caller's job
+	// to make it total.
+	if options == nil || options.Sorting == nil {
+		query = query.OrderExpr(`"student".id ASC`)
+	}
+
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

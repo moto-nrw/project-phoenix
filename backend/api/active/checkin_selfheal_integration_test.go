@@ -105,6 +105,51 @@ func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, openVisits[0].ID)
 	})
 
+	t.Run("capacity rejection rolls back orphan cleanup", func(t *testing.T) {
+		handler := setupCheckinTestHandler(t, db)
+
+		webDevice := testpkg.EnsureWebManualDevice(t, db)
+		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "CapacityRollback", "Teacher")
+		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Capacity Rollback Group")
+		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
+		student := testpkg.CreateTestStudent(t, db, "CapacityRollback", "Student", "5a")
+		testpkg.AssignStudentToGroup(t, db, student.ID, educationGroup.ID)
+
+		orphanActivity := testpkg.CreateTestActivityGroup(t, db, "capacity-rollback-orphan")
+		orphanRoom := testpkg.CreateTestRoom(t, db, "Capacity Rollback Orphan Room")
+		orphanGroup := testpkg.CreateTestActiveGroup(t, db, orphanActivity.ID, orphanRoom.ID)
+		targetActivity := testpkg.CreateTestActivityGroup(t, db, "capacity-rollback-target")
+		targetRoom := testpkg.CreateTestRoom(t, db, "Capacity Rollback Target Room")
+		capacity := 1
+		targetRoom.Capacity = &capacity
+		_, err := db.NewUpdate().Model(targetRoom).Column("capacity").WherePK().Exec(t.Context())
+		require.NoError(t, err)
+		targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+		occupant := testpkg.CreateTestStudent(t, db, "CapacityRollback", "Occupant", "5a")
+		occupantVisit := testpkg.CreateTestVisit(t, db, occupant.ID, targetGroup.ID, time.Now().Add(-time.Hour), nil)
+
+		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID,
+			orphanActivity.ID, orphanRoom.ID, orphanGroup.ID, targetActivity.ID, targetRoom.ID, targetGroup.ID, occupant.ID, occupantVisit.ID, webDevice.ID)
+		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+		checkInTime := time.Now().Add(-2 * time.Hour)
+		checkOutTime := time.Now().Add(-30 * time.Minute)
+		testpkg.CreateTestAttendance(t, db, student.ID, teacher.Staff.ID, webDevice.ID, checkInTime, &checkOutTime)
+		orphanVisit := testpkg.CreateTestVisit(t, db, student.ID, orphanGroup.ID, checkInTime, nil)
+		defer testpkg.CleanupActivityFixtures(t, db, orphanVisit.ID)
+
+		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
+		req := makeCheckinRequest(t, student.ID, active.CheckinRequest{ActiveGroupID: targetGroup.ID}, token)
+		rr := httptest.NewRecorder()
+		handler.Router().ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusConflict, rr.Code, "Response body: %s", rr.Body.String())
+		persisted := new(activeModels.Visit)
+		err = db.NewSelect().Model(persisted).ModelTableExpr(`active.visits AS "visit"`).Where(`"visit".id = ?`, orphanVisit.ID).Scan(t.Context())
+		require.NoError(t, err)
+		assert.Nil(t, persisted.ExitTime)
+	})
+
 	t.Run("still 409 when checked in without a visit", func(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 

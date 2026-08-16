@@ -73,6 +73,25 @@ func (r *ParentMessageReadRepository) MarkReadUpTo(ctx context.Context, tenantID
 	return affected > 0, nil
 }
 
+// MarkStaffHandledUpTo advances the shared staff boundary atomically. The
+// composite guard keeps stale or concurrent replies from moving it backward.
+func (r *ParentMessageReadRepository) MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.ParentMessageThread)(nil)).
+		ModelTableExpr(`users.parent_message_threads AS "thread"`).
+		Set("staff_handled_up_to_at = ?", handledAt).
+		Set("staff_handled_up_to_message_id = ?", handledMessageID).
+		Where(`"thread".id = ?`, threadID).
+		Where(`"thread".tenant_id = ?`, tenantID).
+		Where(`("thread".staff_handled_up_to_at IS NULL OR
+			("thread".staff_handled_up_to_at, "thread".staff_handled_up_to_message_id) < (?, ?))`, handledAt, handledMessageID)
+	query = base.WithTenantFilter(ctx, query, "thread")
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "mark parent message thread handled for staff", Err: err}
+	}
+	return nil
+}
+
 // counterpartUnread builds the SQL boolean for "a message from the OTHER party
 // relative to the reader", on the given message alias: a staff reader counts
 // unread guardian-side activity, a guardian reader counts unread staff-side
@@ -122,6 +141,15 @@ func afterReadCursor(alias string) string {
 	)
 }
 
+// afterStaffHandledCursor keeps only guardian activity not yet covered by a
+// team reply. It supplements, rather than replaces, each account's read cursor.
+func afterStaffHandledCursor(alias string) string {
+	return fmt.Sprintf(
+		`(%[1]s.created_at, %[1]s.id) > (COALESCE(t.staff_handled_up_to_at, '1970-01-01'::timestamptz), COALESCE(t.staff_handled_up_to_message_id, 0))`,
+		alias,
+	)
+}
+
 // notReaderAuthored excludes the reader's OWN plain messages from their unread
 // set, keyed on sender_account_id (a real column). It is the third leg of every
 // unread predicate, and carries a single `?` bound to the reader's account id at
@@ -163,13 +191,17 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 	// predicate, so a thread_id-only correlated filter cannot use the index and
 	// seq-scans parent_messages per thread row. Binding the leading column makes it
 	// an index scan. Redundant-but-correct under RLS-scoped staff queries.
+	unreadPredicates := fmt.Sprintf(`
+		  AND %s
+		  AND %s
+		  AND %s`, counterpartUnread("cm", staffReader), afterReadCursor("cm"), notReaderAuthored("cm"))
+	if staffReader {
+		unreadPredicates += fmt.Sprintf("\n\t\t  AND %s", afterStaffHandledCursor("cm"))
+	}
 	unreadSub := fmt.Sprintf(`(
 		SELECT COUNT(*) FROM users.parent_messages cm
-		WHERE cm.thread_id = t.id AND cm.tenant_id = t.tenant_id
-		  AND %s
-		  AND %s
-		  AND %s
-	) AS unread_count`, counterpartUnread("cm", staffReader), afterReadCursor("cm"), notReaderAuthored("cm"))
+		WHERE cm.thread_id = t.id AND cm.tenant_id = t.tenant_id%s
+	) AS unread_count`, unreadPredicates)
 
 	return q.
 		TableExpr("users.parent_message_threads AS t").
@@ -280,7 +312,8 @@ var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 	  AND %s
 	  AND %s
 	  AND %s
-)`, counterpartUnread("um", true), afterReadCursor("um"), notReaderAuthored("um"))
+	  AND %s
+)`, counterpartUnread("um", true), afterReadCursor("um"), notReaderAuthored("um"), afterStaffHandledCursor("um"))
 
 // unreadMessageCountSelect builds a query whose ROWS are the unread MESSAGES for
 // the given reader: counterpart-authored messages strictly after the reader's
@@ -303,7 +336,7 @@ var guardianUnreadExists = fmt.Sprintf(`EXISTS (
 // unique per (thread, account), so no row fans out and COUNT(*) is an exact
 // message count.
 func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.SelectQuery {
-	return q.
+	query := q.
 		TableExpr("users.parent_messages AS um").
 		Join("JOIN users.parent_message_threads AS t ON t.id = um.thread_id AND t.tenant_id = um.tenant_id").
 		Join("JOIN users.students AS s ON s.id = t.student_id").
@@ -313,27 +346,28 @@ func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader b
 		Where(counterpartUnread("um", staffReader)).
 		Where(afterReadCursor("um")).
 		Where(notReaderAuthored("um"), accountID)
+	if staffReader {
+		query = query.Where(afterStaffHandledCursor("um"))
+	}
+	return query
 }
 
 // applyStaffScope narrows a thread query to the students a staff member may
-// read: all students (admin / all_staff scope) or only their supervised
-// groups (empty groups → impossible filter, so the result is empty).
-func applyStaffScope(q *bun.SelectQuery, allStudents bool, groupIDs []int64) *bun.SelectQuery {
+// read: everything for admins and verified staff (#2329), nothing for any
+// other caller (impossible filter, so the result is empty).
+func applyStaffScope(q *bun.SelectQuery, allStudents bool) *bun.SelectQuery {
 	if allStudents {
 		return q
 	}
-	if len(groupIDs) == 0 {
-		return q.Where("1 = 0")
-	}
-	return q.Where("s.group_id IN (?)", bun.List(groupIDs))
+	return q.Where("1 = 0")
 }
 
 // ListInboxForStaff returns the staff member's readable threads, newest
 // activity first. onlyUnread keeps only threads with an unread guardian message.
-func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64, onlyUnread bool) ([]*users.InboxThread, error) {
+func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*users.InboxThread, error) {
 	var rows []*users.InboxThread
 	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
-	query = applyStaffScope(query, allStudents, groupIDs)
+	query = applyStaffScope(query, allStudents)
 	query = query.Where(threadHasMessages)
 	query = base.WithTenantFilter(ctx, query, "t")
 	if onlyUnread {
@@ -536,9 +570,9 @@ func (r *ParentMessageReadRepository) GuardianReadCursor(ctx context.Context, th
 // reader, within their visible student scope — the sidebar badge source. It
 // counts messages (not threads) so the badge matches the per-thread unread pills
 // in the inbox: a thread with three unread guardian messages contributes 3, not 1.
-func (r *ParentMessageReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
+func (r *ParentMessageReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
 	query := unreadMessageCountSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
-	query = applyStaffScope(query, allStudents, groupIDs)
+	query = applyStaffScope(query, allStudents)
 	query = base.WithTenantFilter(ctx, query, "t")
 	count, err := query.Count(ctx)
 	if err != nil {

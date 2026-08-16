@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/enrollment"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -36,6 +37,7 @@ const (
 	whereIDIn                     = "id IN (?)"
 	whereIDOrAccountID            = "id = ? OR account_id = ?"
 	whereAccountIDIn              = "account_id IN (?)"
+	whereTenantIDIn               = "tenant_id IN (?)"
 	tableUsersTeachers            = "users.teachers"
 	tableUsersStaff               = "users.staff"
 	tableUsersPersons             = "users.persons"
@@ -967,10 +969,74 @@ func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 }
 
 // CleanupAccount removes an account and related auth records from the database.
+//
+// Stops at the auth schema. An account created through a flow that provisions
+// its school identity (registration, link-to-tenant, invitation acceptance)
+// also owns rows in users.*; pair this with CleanupSchoolIdentity.
 func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
 	tb.Helper()
 
 	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupAccountWithIdentity removes an account together with the school
+// identity provisioned for it — the pairing tests need after registration,
+// link-to-tenant, or invitation acceptance. Exists so the ordering constraint
+// documented on CleanupSchoolIdentity is not every caller's problem.
+func CleanupAccountWithIdentity(tb testing.TB, db *bun.DB, accountID int64) {
+	tb.Helper()
+
+	CleanupSchoolIdentity(tb, db, accountID)
+	CleanupAccount(tb, db, accountID)
+}
+
+// CleanupSchoolIdentity removes the person → staff → teacher chain that gets
+// provisioned for an account at a school (#2222).
+//
+// Call it BEFORE CleanupAccount: the persons are found through their
+// account_id, which the account row's deletion takes with it.
+func CleanupSchoolIdentity(tb testing.TB, db *bun.DB, accountIDs ...int64) {
+	tb.Helper()
+
+	if len(accountIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var personIDs []int64
+	if err := db.NewSelect().
+		TableExpr(tableUsersPersons).
+		ColumnExpr("id").
+		Where(whereAccountIDIn, bun.List(accountIDs)).
+		Scan(ctx, &personIDs); err != nil || len(personIDs) == 0 {
+		return
+	}
+
+	var staffIDs []int64
+	_ = db.NewSelect().
+		TableExpr(tableUsersStaff).
+		ColumnExpr("id").
+		Where("person_id IN (?)", bun.List(personIDs)).
+		Scan(ctx, &staffIDs)
+
+	if len(staffIDs) > 0 {
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr(tableUsersTeachers).
+			Where("staff_id IN (?)", bun.List(staffIDs)),
+			tableUsersTeachers)
+
+		cleanupDelete(tb, db.NewDelete().
+			TableExpr(tableUsersStaff).
+			Where("id IN (?)", bun.List(staffIDs)),
+			tableUsersStaff)
+	}
+
+	cleanupDelete(tb, db.NewDelete().
+		TableExpr(tableUsersPersons).
+		Where("id IN (?)", bun.List(personIDs)),
+		tableUsersPersons)
 }
 
 // CleanupRoleRecords removes roles and their role-permission/account-role associations.
@@ -1527,6 +1593,35 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	require.NoError(tb, err, "Failed to create test system role")
 
 	return role
+}
+
+// AssignLehrkraftSystemRole assigns the seeded lehrkraft system role (#1772)
+// to the account, scoped to the given tenant. The role is created by
+// migration in every schema the tests run against, so the lookup must
+// succeed. Cleanup: CleanupAuthFixtures removes auth.account_roles rows by
+// account_id.
+func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var roleID int64
+	err := db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", "lehrkraft").
+		Where("is_system = TRUE").
+		Scan(ctx, &roleID)
+	require.NoError(tb, err, "seeded lehrkraft system role must exist")
+
+	roleAssignment := &auth.AccountRole{AccountID: accountID, RoleID: roleID}
+	roleAssignment.SetTenantID(tenantID)
+	_, err = db.NewInsert().
+		Model(roleAssignment).
+		ModelTableExpr(`auth.account_roles`).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to assign lehrkraft system role")
 }
 
 // CreateTestPermission creates a permission in the database.
@@ -2159,6 +2254,104 @@ func EnsureTestTenant(tb testing.TB, db *bun.DB, tenantID int64) {
 	require.NoError(tb, err, "Failed to advance school sequence past explicit tenant ID")
 }
 
+// CreateTestTenant creates an organization + school pair that nobody else
+// shares and returns the school id (= tenant id) plus its subdomain. Pair it
+// with CleanupTestTenant.
+//
+// Prefer this over EnsureTestTenant(db, 42) whenever a test mutates the school
+// row itself — flipping `active`, stamping `deleted_at` — or asserts on
+// tenant-wide state. EnsureTestTenant's ON CONFLICT DO NOTHING means a literal
+// ID silently joins whatever rows a parallel package left behind.
+//
+// The ID deliberately does NOT come from UniqueTestTenantID: those are
+// nanosecond-scale and do not survive a JWT round-trip (JSON numbers decode as
+// float64, exact only below 2^53), so anything asserting on the tenant_id
+// claim — or any refresh, which compares the claim against the stored tenant —
+// would work off a rounded value. Nor can the ID be left to the sequence:
+// EnsureTestTenant setvals it up to whatever nanosecond ID it was handed, so a
+// nextval-assigned school inherits the same problem.
+func CreateTestTenant(tb testing.TB, db *bun.DB) (tenantID int64, subdomain string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tenantID = uniqueJWTSafeTenantID()
+	token := fmt.Sprintf("%d-%d", tenantID, time.Now().UnixNano())
+	subdomain = fmt.Sprintf("t%d", tenantID)
+
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (?, ?, ?, true)`,
+		tenantID, "Test Org "+token, "test-org-"+token)
+	require.NoError(tb, err, "Failed to create test organization")
+
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (?, ?, ?, ?, ?, true)`,
+		tenantID, tenantID, "Test School "+token, "test-school-"+token, subdomain)
+	require.NoError(tb, err, "Failed to create test school")
+
+	// Push both sequences clear of the WHOLE band, not just past this ID:
+	// setting them to the ID itself would make the next nextval collide with
+	// the next ID this helper hands out.
+	for _, seq := range []string{"platform.organizations", "platform.schools"} {
+		_, err = db.ExecContext(ctx, fmt.Sprintf(`
+			SELECT setval(pg_get_serial_sequence('%s', 'id'),
+				GREATEST((SELECT last_value FROM %s_id_seq), ?))`, seq, seq),
+			testTenantIDCeiling)
+		require.NoError(tb, err, "Failed to advance sequence past the test tenant band")
+	}
+
+	return tenantID, subdomain
+}
+
+// CleanupTestTenant removes the school + owning organization rows created by
+// CreateTestTenant, plus the audit rows that reference the school. Call it
+// AFTER the account cleanup that owns the account_tenants and account_roles
+// rows, otherwise the school delete trips their FKs.
+func CleanupTestTenant(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
+	tb.Helper()
+
+	if len(tenantIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// The organization id is not the school id, so resolve it before the
+	// school rows disappear.
+	var orgIDs []int64
+	if err := db.NewSelect().
+		ColumnExpr("DISTINCT organization_id").
+		TableExpr("platform.schools").
+		Where(whereIDIn, bun.List(tenantIDs)).
+		Scan(ctx, &orgIDs); err != nil {
+		tb.Logf("cleanup lookup platform.schools organization_id: %v", err)
+	}
+
+	// Auth events are written from a detached goroutine, so a row can still
+	// land between the test body and this cleanup; deleting them first keeps
+	// the school delete from failing on the FK.
+	cleanupDelete(tb, db.NewDelete().
+		Table("audit.auth_events").
+		Where(whereTenantIDIn, bun.List(tenantIDs)),
+		"audit.auth_events")
+
+	cleanupDelete(tb, db.NewDelete().
+		Table("platform.schools").
+		Where(whereIDIn, bun.List(tenantIDs)),
+		"platform.schools")
+
+	if len(orgIDs) > 0 {
+		cleanupDelete(tb, db.NewDelete().
+			Table("platform.organizations").
+			Where(whereIDIn, bun.List(orgIDs)),
+			"platform.organizations")
+	}
+}
+
 // MapAccountToTenant creates an active account_tenants mapping without
 // ensuring the tenant infrastructure (organization/school) exists first.
 // Use this when the tenant has already been ensured via EnsureTestTenant.
@@ -2421,6 +2614,67 @@ func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstNa
 
 	staff.Person = person
 	return staff
+}
+
+// CreateTestStaffWithAccountForTenant is CreateTestStaffWithAccount for a
+// caller-owned tenant instead of the shared tenant 1. Use it whenever the test
+// also needs the account's tenant mapping, roles, or the school row itself —
+// those all hang off the tenant id, and tenant 1 is shared with every other
+// package running in parallel.
+func CreateTestStaffWithAccountForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	account := CreateTestAccount(tb, db, fmt.Sprintf("%s.%s", firstName, lastName))
+
+	person := &users.Person{
+		FirstName: firstName,
+		LastName:  lastName,
+		AccountID: &account.ID,
+	}
+	person.SetTenantID(tenantID)
+	err := db.NewInsert().
+		Model(person).
+		ModelTableExpr(`users.persons`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test person with account for tenant")
+
+	staff := &users.Staff{PersonID: person.ID}
+	staff.SetTenantID(tenantID)
+	err = db.NewInsert().
+		Model(staff).
+		ModelTableExpr(`users.staff`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test staff with account for tenant")
+
+	staff.Person = person
+	return staff, account
+}
+
+// CreateTestClassTeacherForTenant is CreateTestClassTeacher for a caller-owned
+// tenant. The class-day surface reads these rows under RLS, so the assignment
+// must live in the same tenant as the JWT the test presents.
+func CreateTestClassTeacherForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, schoolClass string) *education.ClassTeacher {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ct := &education.ClassTeacher{
+		StaffID:     staffID,
+		SchoolClass: schoolClass,
+	}
+	ct.SetTenantID(tenantID)
+
+	err := db.NewInsert().
+		Model(ct).
+		ModelTableExpr(`education.class_teachers`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test class teacher assignment for tenant")
+
+	return ct
 }
 
 // CreateTestActivityCategoryForTenant creates an activity category belonging to a specific tenant.
@@ -3262,4 +3516,54 @@ func CleanupParentMessagingForAccount(tb testing.TB, db *bun.DB, accountIDs ...i
 		exec(`DELETE FROM users.parent_message_reads WHERE account_id = ?`, id)
 		exec(`DELETE FROM users.parent_messages WHERE sender_account_id = ?`, id)
 	}
+}
+
+// CreateTestEnrollmentPhase creates a minimal active enrollment phase for
+// tenant 1 covering the current school year, with cleanup registered.
+func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
+	tb.Helper()
+	ctx := TenantContext(1)
+	phase := &enrollment.Phase{
+		Name:                      fmt.Sprintf("Testphase-%d", time.Now().UnixNano()),
+		Kind:                      "school_year",
+		ServiceStartDate:          timezone.TodayDate().AddDays(-30),
+		ServiceEndDate:            timezone.TodayDate().AddDays(300),
+		CareOverflowMode:          "waitlist",
+		CareOfferingSelectionMode: "optional",
+		IsActive:                  true,
+	}
+	phase.SetTenantID(1)
+	_, err := db.NewInsert().Model(phase).ModelTableExpr(`enrollment.phases AS "phase"`).Returning("*").Exec(ctx)
+	if err != nil {
+		tb.Fatalf("create test enrollment phase: %v", err)
+	}
+	tb.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(context.Background())
+	})
+	return phase
+}
+
+// CreateTestCareOffering creates a minimal active care offering in the given
+// phase (fixed Mo-Fr), with cleanup registered.
+func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name string) *enrollment.CareOffering {
+	tb.Helper()
+	ctx := TenantContext(1)
+	offering := &enrollment.CareOffering{
+		PhaseID:            phaseID,
+		Name:               fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+		DaysOfWeekMode:     enrollment.DaysOfWeekModeFixed,
+		AvailableDays:      []string{"mon", "tue", "wed", "thu", "fri"},
+		AutoAddGradeLevels: []int{},
+		IsActive:           true,
+		CountsAsCare:       true,
+	}
+	offering.SetTenantID(1)
+	_, err := db.NewInsert().Model(offering).ModelTableExpr(`enrollment.care_offerings AS "care_offering"`).Returning("*").Exec(ctx)
+	if err != nil {
+		tb.Fatalf("create test care offering: %v", err)
+	}
+	tb.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("enrollment.care_offerings").Where("id = ?", offering.ID).Exec(context.Background())
+	})
+	return offering
 }

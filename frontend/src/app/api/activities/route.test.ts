@@ -302,6 +302,40 @@ describe("POST /api/activities", () => {
     expect(json.error).toContain("Max participants must be greater than 0");
   });
 
+  it("accepts an activity without a participant limit", async () => {
+    const requestBody = {
+      name: "Open Sports Hall",
+      max_participants: null,
+      category_id: 1,
+    };
+    mockApiPost.mockResolvedValueOnce({
+      status: "success",
+      data: {
+        id: 11,
+        name: requestBody.name,
+        max_participants: null,
+        is_open: false,
+        category_id: 1,
+        supervisors: [],
+        enrollment_count: 0,
+        schedules: [],
+      },
+    });
+
+    const request = createMockRequest("/api/activities", {
+      method: "POST",
+      body: requestBody,
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(response.status).toBe(200);
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/activities",
+      "test-token",
+      requestBody,
+    );
+  });
+
   it("validates category_id is required", async () => {
     const request = createMockRequest("/api/activities", {
       method: "POST",

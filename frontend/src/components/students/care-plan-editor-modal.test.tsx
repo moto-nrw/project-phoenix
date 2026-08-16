@@ -501,6 +501,24 @@ describe("CarePlanEditorModal", () => {
     expect(draft).toHaveValue("Bitte klingeln");
   });
 
+  it("shows an error when resetting to the offering pickup time fails", async () => {
+    const onResetPickupToOffering = vi
+      .fn()
+      .mockRejectedValue(new Error("request failed"));
+    renderEditor({ onResetPickupToOffering });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Abholung auf Angebots-Gehzeit zurücksetzen",
+      }),
+    );
+
+    const message =
+      "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(toastError).toHaveBeenCalledWith(message);
+  });
+
   it("limits day notes to the API-supported length", () => {
     renderEditor();
 

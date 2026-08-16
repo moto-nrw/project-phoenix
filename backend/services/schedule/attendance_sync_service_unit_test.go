@@ -161,6 +161,10 @@ func (f *fakeInstanceStudentRepo) ReconcileAttendanceInterval(
 	return f.reconcileErr == nil, f.reconcileErr
 }
 
+func (f *fakeInstanceStudentRepo) FindPresentInOtherActiveInstances(context.Context, int64, timezone.Date, []int64) ([]scheduleModel.ParallelPresence, error) {
+	return nil, nil
+}
+
 func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
 	if f.candidatePanic != nil {
 		panic(f.candidatePanic)
@@ -177,6 +181,18 @@ func (f *fakeInstanceStudentRepo) ReleaseStatusDay(context.Context, int64) (int,
 }
 
 func (f *fakeInstanceStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ReleasePartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
 	panic("unused")
 }
 
@@ -510,6 +526,22 @@ func TestMirrorCheckInAt_PreservesManualStatusAndClearsDayStatus(t *testing.T) {
 		require.NotNil(t, snapshot)
 		assert.Equal(t, scheduleModel.AttendanceStatusPresent, snapshot.Status)
 		assert.Nil(t, snapshot.Substatus)
+	})
+
+	t.Run("partial absence", func(t *testing.T) {
+		exceptionID := int64(91)
+		excused := scheduleModel.AttendanceSubstatusExcused
+		row := expectedRow(17)
+		row.Status = scheduleModel.AttendanceStatusAbsent
+		row.Substatus = &excused
+		row.PickupExceptionID = &exceptionID
+		isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
+		snapshot := newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+
+		require.NotNil(t, snapshot)
+		assert.Equal(t, scheduleModel.AttendanceStatusPresent, snapshot.Status)
+		assert.Nil(t, snapshot.Substatus)
+		assert.Equal(t, 1, isRepo.updateCalls)
 	})
 }
 

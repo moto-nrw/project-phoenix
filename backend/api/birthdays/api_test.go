@@ -95,8 +95,7 @@ func setSetting(t *testing.T, tc *testContext, key string, value any) {
 }
 
 // adminPermissions mints the admin wildcard: children are student data, so a
-// caller only sees beyond their own groups with admin rights or the
-// gdpr.student_data_scope=all_staff opt-in.
+// caller sees them with admin rights or a staff record in the tenant (#2329).
 func adminPermissions() []string {
 	return []string{permissions.UsersRead, "admin:*"}
 }
@@ -374,8 +373,8 @@ func TestStaffExportRejectsInvalidMonth(t *testing.T) {
 
 // Datenschutz-Blocker aus dem Review: a birthday row carries a child's name,
 // group, class and age. users:read alone must therefore not hand out the whole
-// school — the route applies the same student data scope as every other child
-// list, and a caller who supervises nothing sees nothing.
+// school — the route applies the same student read gate as every other child
+// list, so an account without a staff record sees nothing.
 func TestOverviewAppliesStudentDataScope(t *testing.T) {
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
@@ -388,7 +387,7 @@ func TestOverviewAppliesStudentDataScope(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-9, today.Month, today.Day))
 
-	t.Run("plain users:read sees no child", func(t *testing.T) {
+	t.Run("plain users:read without a staff record sees no child", func(t *testing.T) {
 		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
@@ -402,14 +401,12 @@ func TestOverviewAppliesStudentDataScope(t *testing.T) {
 		assert.Contains(t, decodeOverview(t, rr).names(), "Fremdes Scopekind")
 	})
 
-	// The school-wide opt-in is the other way in: all_staff scope means every
-	// verified staff member may read the directory, so the card follows.
-	t.Run("all_staff scope opens it for staff", func(t *testing.T) {
+	// The other way in is a staff record: every verified staff member reads the
+	// directory (#2329), so the card follows without any tenant opt-in.
+	t.Run("a staff record opens it for plain users:read", func(t *testing.T) {
 		staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Sara", "Scopekraft")
 		defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
 		defer testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID)
-
-		setSetting(t, tc, configModel.KeyStudentDataScope, configModel.StudentDataScopeAllStaff)
 
 		rr := getOverview(t, tc, staffAccount.ID, []string{permissions.UsersRead})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

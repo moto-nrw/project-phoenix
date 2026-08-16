@@ -7,6 +7,15 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import useSWR from "swr";
+
+vi.mock("next-auth/react", () => ({
+  useSession: vi.fn(() => ({
+    data: { user: { token: "test-token" } },
+    status: "authenticated",
+    update: vi.fn(),
+  })),
+}));
 
 import { InstanceDetailModal } from "./instance-detail-modal";
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -56,6 +65,7 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     presentStudentsCount: 1,
     requiredStaffCount: 1,
     assignedStaffCount: 1,
+    canComplete: true,
     conflictWarnings: [
       {
         kind: "staff",
@@ -169,6 +179,78 @@ describe("InstanceDetailModal", () => {
     );
   });
 
+  it("only renders students returned by the participant endpoint in read-only mode", () => {
+    vi.mocked(useSWR).mockReturnValue({
+      data: {
+        studentNames: new Map([["21", "Max Sichtbar"]]),
+        staffNames: new Map(),
+      },
+    } as ReturnType<typeof useSWR>);
+
+    render(
+      <InstanceDetailModal
+        instance={instance()}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        canManage={false}
+        fetchParticipantNames
+      />,
+    );
+
+    expect(screen.getByText("Max Sichtbar")).toBeInTheDocument();
+    expect(screen.queryByText("Kind #22")).not.toBeInTheDocument();
+    expect(screen.queryByText("Kind #23")).not.toBeInTheDocument();
+    expect(screen.queryByText("krank")).not.toBeInTheDocument();
+  });
+
+  it("shows a loading state while read-only participant names are loading", () => {
+    vi.mocked(useSWR).mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: true,
+    } as ReturnType<typeof useSWR>);
+
+    render(
+      <InstanceDetailModal
+        instance={instance()}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        canManage={false}
+        fetchParticipantNames
+      />,
+    );
+
+    expect(screen.getByText("Teilnehmende werden geladen…")).toBeVisible();
+    expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
+  });
+
+  it("shows an error instead of fallback participant data when loading fails", () => {
+    vi.mocked(useSWR).mockReturnValue({
+      data: undefined,
+      error: new Error("network failed"),
+      isLoading: false,
+    } as ReturnType<typeof useSWR>);
+
+    render(
+      <InstanceDetailModal
+        instance={instance()}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        canManage={false}
+        fetchParticipantNames
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Teilnehmenden konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
+  });
+
   // The header count already leaves these children out (#1747). Listing them
   // under "Erwartet" with an "abmelden" action would contradict that count and
   // write attendance for a day the child is not in care at all.
@@ -274,6 +356,24 @@ describe("InstanceDetailModal", () => {
     );
 
     expect(screen.getByText("Spontan gestartet")).toBeInTheDocument();
+  });
+
+  it("locks complete until the planned end", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({
+          status: "active",
+          isLive: true,
+          canComplete: false,
+          completeAvailableAt: "2099-05-04T13:00:00+02:00",
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Beenden ab 13:00" });
+    expect(button).toBeDisabled();
   });
 
   it("completes an active instance", async () => {
@@ -828,6 +928,9 @@ describe("InstanceDetailModal", () => {
     expect(
       screen.getByText("Diese Aktivität ist bereits abgeschlossen."),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Wieder öffnen" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Raum #3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
     // Das Kit-Modal ruft onClose erst nach der Exit-Animation (250ms) auf.
@@ -863,6 +966,9 @@ describe("InstanceDetailModal", () => {
     expect(screen.getByText(/Entschuldigt/)).toBeInTheDocument();
     expect(screen.getByText(/Ausflug/)).toBeInTheDocument();
     expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /als anwesend markieren|abmelden/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("explains why an offering-sourced occurrence has no children", () => {
@@ -1076,6 +1182,23 @@ describe("Personalpool-Affordanz (#1884)", () => {
     expect(
       screen.queryByRole("button", { name: /Person hinzuziehen/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("zeigt Wieder öffnen nur bei canReopen", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({
+          date: "2099-05-04",
+          status: "completed",
+          canReopen: true,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Wieder öffnen" }),
+    ).toBeInTheDocument();
   });
 
   it("versteckt die Affordanz ohne onOpenPool-Handler", () => {

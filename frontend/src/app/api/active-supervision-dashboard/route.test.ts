@@ -53,6 +53,7 @@ function createMockContext(
 
 const defaultSession = mockSessionData() as ExtendedSession;
 const emptyPlannedNowResponse = { data: { instances: [] } };
+const emptyActiveSessionsResponse = { data: { sessions: [] } };
 
 interface ApiResponse<T> {
   success: boolean;
@@ -99,7 +100,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: staff }) // staff
       .mockResolvedValueOnce({ data: educationalGroups }) // educational groups
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse); // planned now
+      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse); // active sessions
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -154,6 +156,8 @@ describe("GET /api/active-supervision-dashboard", () => {
               is_primary: true,
               is_substitute: false,
               is_absent: false,
+              can_start: false,
+              start_available_at: "2026-06-04T13:45:00+02:00",
               roster_preview: [
                 {
                   student_id: 99,
@@ -181,7 +185,8 @@ describe("GET /api/active-supervision-dashboard", () => {
             },
           ],
         },
-      }); // planned now
+      }) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse); // active sessions
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -198,6 +203,8 @@ describe("GET /api/active-supervision-dashboard", () => {
           id: string;
           roomName: string | null;
           isPrimary: boolean;
+          canStart: boolean;
+          startAvailableAt: string;
           rosterPreview: Array<{
             studentId: string;
             studentName: string;
@@ -219,6 +226,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       id: "10",
       roomName: "Lernraum",
       isPrimary: true,
+      canStart: false,
+      startAvailableAt: "2026-06-04T13:45:00+02:00",
     });
     expect(json.data.plannedNow[0]?.rosterPreview[0]).toMatchObject({
       studentId: "99",
@@ -286,6 +295,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: educationalGroups })
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockResolvedValueOnce({ data: visits }); // visits for first group
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -328,6 +338,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // educational groups
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockResolvedValueOnce({ data: roomData }) // room fetch
       .mockResolvedValueOnce({ data: [] }); // visits
 
@@ -360,7 +371,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockRejectedValueOnce(new Error("Staff error"))
       .mockRejectedValueOnce(new Error("Educational groups error"))
       .mockRejectedValueOnce(new Error("Schulhof status error"))
-      .mockResolvedValueOnce(emptyPlannedNowResponse);
+      .mockResolvedValueOnce(emptyPlannedNowResponse)
+      .mockResolvedValueOnce(emptyActiveSessionsResponse);
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -377,7 +389,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockRejectedValueOnce(
         new Error("API error (500): Schulhof status unavailable"),
       )
-      .mockResolvedValueOnce(emptyPlannedNowResponse);
+      .mockResolvedValueOnce(emptyPlannedNowResponse)
+      .mockResolvedValueOnce(emptyActiveSessionsResponse);
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -413,6 +426,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // educational
       .mockResolvedValueOnce({ data: { exists: false } }) // schulhof
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockResolvedValueOnce({ data: ownGroups }); // caregiver fallback
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -434,7 +448,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: null }) // staff
       .mockResolvedValueOnce({ data: null }) // educational groups
       .mockResolvedValueOnce({ data: null }) // Schulhof status
-      .mockResolvedValueOnce({ data: null }); // planned now
+      .mockResolvedValueOnce({ data: null }) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse); // active sessions
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());
@@ -466,6 +481,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockRejectedValueOnce(new Error("403 Forbidden")); // visits fetch fails with 403
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -499,6 +515,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockRejectedValueOnce(new Error("Room not found")) // room fetch fails
       .mockResolvedValueOnce({ data: [] }); // visits
 
@@ -536,6 +553,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockResolvedValueOnce({ data: [] }); // visits
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -570,6 +588,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] }) // educational groups
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockResolvedValueOnce({ data: [] }); // visits
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -616,6 +635,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockResolvedValueOnce({ data: visits });
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -651,6 +671,7 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
       .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse) // active sessions
       .mockResolvedValueOnce({ data: [] }); // visits for first (Aula)
 
     const request = createMockRequest("/api/active-supervision-dashboard");
@@ -668,6 +689,44 @@ describe("GET /api/active-supervision-dashboard", () => {
     expect(json.data.firstRoomId).toBe("1");
   });
 
+  it("sorts parallel sessions by session name before preloading visits", async () => {
+    const supervisedGroups = [
+      { id: 2, name: "GT 2", room: { id: 54, name: "Mehrzweckraum" } },
+      { id: 1, name: "GT 1", room: { id: 54, name: "Mehrzweckraum" } },
+    ];
+
+    mockApiGet
+      .mockResolvedValueOnce({ data: supervisedGroups })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: null })
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: { exists: false } })
+      .mockResolvedValueOnce(emptyPlannedNowResponse)
+      .mockResolvedValueOnce(emptyActiveSessionsResponse)
+      .mockResolvedValueOnce({ data: [] });
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        supervisedGroups: Array<{ id: string }>;
+        firstRoomId: string | null;
+      }>
+    >(response);
+
+    expect(json.data.supervisedGroups.map((group) => group.id)).toEqual([
+      "1",
+      "2",
+    ]);
+    expect(json.data.firstRoomId).toBe("1");
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/active/groups/1/visits/display",
+      "test-token",
+    );
+  });
+
   it("maps unclaimed groups with room names correctly", async () => {
     const unclaimedGroups = [
       { id: 5, name: "Unclaimed", room: { id: 50, name: "Hof" } },
@@ -680,7 +739,8 @@ describe("GET /api/active-supervision-dashboard", () => {
       .mockResolvedValueOnce({ data: null })
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse); // planned now
+      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
+      .mockResolvedValueOnce(emptyActiveSessionsResponse); // active sessions
 
     const request = createMockRequest("/api/active-supervision-dashboard");
     const response = await GET(request, createMockContext());

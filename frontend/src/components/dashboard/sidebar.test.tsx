@@ -237,10 +237,16 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Aktuelle Aufsicht")).not.toBeInTheDocument();
     });
 
-    it("shows student search for admins", () => {
+    it("shows all children with the children concept icon for admins", () => {
+      mockUsePathname.mockReturnValue("/students/search");
       render(<Sidebar />);
 
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      const link = screen.getByText("Alle Kinder").closest("a");
+      expect(link).toBeInTheDocument();
+      expect(link?.querySelector("svg")).toHaveAttribute(
+        "data-moto-duotone-tone",
+        "greenVivid",
+      );
     });
   });
 
@@ -292,7 +298,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
 
     it("shows student search when staff is actively supervising", () => {
@@ -309,7 +315,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
 
     it("shows student search for staff without supervision (at correct position)", () => {
@@ -327,7 +333,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Should still show Kindersuche (added at correct position)
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
   });
 
@@ -475,7 +481,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      const searchLink = screen.getByText("Kindersuche").closest("a");
+      const searchLink = screen.getByText("Alle Kinder").closest("a");
       expect(searchLink).toHaveClass("bg-gray-100");
     });
 
@@ -514,7 +520,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Should default to Kindersuche when no from param
-      const searchLink = screen.getByText("Kindersuche").closest("a");
+      const searchLink = screen.getByText("Alle Kinder").closest("a");
       expect(searchLink).toHaveClass("bg-gray-100");
     });
   });
@@ -808,7 +814,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?session=1",
       );
     });
 
@@ -1350,7 +1356,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=20",
+        "/test-tenant/active-supervisions?session=2",
       );
     });
 
@@ -1420,7 +1426,7 @@ describe("Sidebar", () => {
       fireEvent.click(supervisionHeader);
 
       expect(mockRouterPush).toHaveBeenCalledWith(
-        "/test-tenant/active-supervisions?room=10",
+        "/test-tenant/active-supervisions?session=1",
       );
     });
   });
@@ -1456,7 +1462,7 @@ describe("Sidebar", () => {
     it("does not render teacher-specific items", () => {
       render(<Sidebar />);
 
-      expect(screen.queryByText("Kindersuche")).not.toBeInTheDocument();
+      expect(screen.queryByText("Alle Kinder")).not.toBeInTheDocument();
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
       expect(screen.queryByText("Räume")).not.toBeInTheDocument();
       expect(screen.queryByText("Mitarbeiter")).not.toBeInTheDocument();
@@ -1529,7 +1535,7 @@ describe("Sidebar", () => {
       const schulhofLink = screen.getByText("Schulhof").closest("a");
       expect(schulhofLink).toHaveAttribute(
         "href",
-        "/active-supervisions?room=schulhof",
+        "/active-supervisions?session=schulhof",
       );
     });
 
@@ -1645,7 +1651,7 @@ describe("Sidebar", () => {
 
     it("keeps Kindersuche and Mitarbeiter visible (not binary-hidden)", () => {
       render(<Sidebar />);
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
       expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
     });
   });
@@ -1846,6 +1852,35 @@ describe("Sidebar", () => {
       );
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
+
+    // Leseansicht (#2283): Nicht-Admins erreichen den Betreuungsplan als Tab
+    // in "Mein Kalender" — die Sidebar zeigt ihnen KEINEN eigenen Eintrag,
+    // auch nicht mit schedules:read.
+    it("shows no Betreuungsplan entry for non-admins with schedules:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "schedules:read" || permission === "calendar:own",
+      );
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+      expect(screen.getByText("Mein Kalender")).toBeInTheDocument();
+    });
+
+    it("hides Betreuungsplan for non-admins without schedules:read", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockReturnValue(false);
+
+      render(<Sidebar />);
+
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+    });
   });
 
   describe("Gruppenzugriff gating (#1940)", () => {
@@ -1904,7 +1939,7 @@ describe("Sidebar", () => {
       ).not.toBeInTheDocument();
       // Aufsicht und Kindersuche bleiben als Staff-Einstiege erhalten.
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
-      expect(screen.getByText("Kindersuche")).toBeInTheDocument();
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
     });
 
     it("shows the Meine Gruppe accordion for fixed-groups tenants", () => {

@@ -2,6 +2,7 @@ package base
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
@@ -24,6 +25,10 @@ const (
 	OpLike      Operator = "LIKE"
 	OpILike     Operator = "ILIKE"
 	OpTrimEqual Operator = "TRIM_EQUALS"
+	OpTrimIn    Operator = "TRIM_IN"
+	// OpFirstNumberIn matches the first run of digits inside a free-text column
+	// against a set of numbers (see Filter.FirstNumberIn).
+	OpFirstNumberIn Operator = "FIRST_NUMBER_IN"
 
 	// Null checking
 	OpIsNull    Operator = "IS NULL"
@@ -123,6 +128,59 @@ func (f *Filter) ILike(field, value string) *Filter {
 // TrimEqual adds a case-insensitive equality condition after trimming both sides.
 func (f *Filter) TrimEqual(field, value string) *Filter {
 	return f.Where(field, OpTrimEqual, value)
+}
+
+// TrimIn is the multi-value form of TrimEqual: it matches when the column
+// equals ANY of the values, comparing both sides trimmed and lower-cased.
+// Used by filters a school may pick several values for (e.g. Klasse 3a AND
+// 4b in the Kindersuche, #2218). Passing no values adds no condition at all —
+// an empty IN () would match nothing and silently return an empty list where
+// callers mean "no restriction".
+func (f *Filter) TrimIn(field string, values ...string) *Filter {
+	if len(values) == 0 {
+		return f
+	}
+	if len(values) == 1 {
+		return f.TrimEqual(field, values[0])
+	}
+	boxed := make([]interface{}, len(values))
+	for i, value := range values {
+		boxed[i] = value
+	}
+	return f.Where(field, OpTrimIn, boxed)
+}
+
+// FirstNumberIn matches when the first run of digits inside a free-text column
+// equals ANY of the values — the SQL twin of schoolclass.GradePrefix, which
+// reads "3" out of "3a" and "Klasse 3a" alike and "13" out of "13a". A plain
+// LIKE '3%' cannot express that: it would count 13a as a third-graders' class.
+//
+// It exists so a grade filter can be answered by the database instead of by
+// fetching every child and dropping most of them again in memory (#2218
+// review); the in-memory form loses SQL pagination, so each page repeats the
+// whole query, enrichment and filtering pass.
+//
+// Values are the plain numbers ("3", "4"). Passing none adds no condition, for
+// the same reason as TrimIn.
+func (f *Filter) FirstNumberIn(field string, values ...string) *Filter {
+	if len(values) == 0 {
+		return f
+	}
+	boxed := make([]interface{}, len(values))
+	for i, value := range values {
+		boxed[i] = value
+	}
+	return f.Where(field, OpFirstNumberIn, boxed)
+}
+
+// trimInPlaceholders renders the `LOWER(TRIM(?)), …` list a TRIM_IN condition
+// binds its values into, so each value is normalized exactly like the column
+// side is (PostgreSQL LOWER, not Go's — collation stays the database's job).
+func trimInPlaceholders(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.Repeat("LOWER(TRIM(?)), ", count), ", ")
 }
 
 // IsNull adds an IS NULL condition
@@ -250,6 +308,20 @@ func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condit
 		return query.Where(columnRef+" ILIKE ?", condition.Value)
 	case OpTrimEqual:
 		return query.Where("LOWER(TRIM("+columnRef+")) = LOWER(TRIM(?))", condition.Value)
+	case OpTrimIn:
+		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
+			return query.Where("LOWER(TRIM("+columnRef+")) IN ("+trimInPlaceholders(len(values))+")", values...)
+		}
+	case OpFirstNumberIn:
+		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
+			// substring(x from '<posix regex>') yields the FIRST match, so this
+			// is the first digit run of the column — NULL when it holds none,
+			// which no comparison matches. That mirrors schoolclass.GradePrefix
+			// returning "" for a class like "Bienen". Both sides scan ASCII
+			// digits only, and a UTF-8 continuation byte is never one, so the
+			// two agree byte for byte.
+			return query.Where("substring("+columnRef+" from '[0-9]+') IN (?)", bun.List(values))
+		}
 	case OpIsNull:
 		return query.Where(columnRef + " IS NULL")
 	case OpIsNotNull:
@@ -286,6 +358,19 @@ func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition Filt
 		return query.Where("? ILIKE ?", fieldIdent, condition.Value)
 	case OpTrimEqual:
 		return query.Where("LOWER(TRIM(?)) = LOWER(TRIM(?))", fieldIdent, condition.Value)
+	case OpTrimIn:
+		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
+			args := append([]interface{}{fieldIdent}, values...)
+			return query.Where("LOWER(TRIM(?)) IN ("+trimInPlaceholders(len(values))+")", args...)
+		}
+	case OpFirstNumberIn:
+		// Same condition as the aliased path — an operator missing from one of
+		// the two switches is not a compile error but a WHERE clause that
+		// silently disappears, and the caller then gets every row instead of
+		// the ones it asked for.
+		if values, ok := condition.Value.([]interface{}); ok && len(values) > 0 {
+			return query.Where("substring(? from '[0-9]+') IN (?)", fieldIdent, bun.List(values))
+		}
 	case OpIsNull:
 		return query.Where("? IS NULL", fieldIdent)
 	case OpIsNotNull:

@@ -363,6 +363,12 @@ func TestPasskeyHandlerErrors(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	w = httptest.NewRecorder()
+	// Passkey enrollment issues an email challenge, so it inherits the MFA
+	// service's fail-closed status/rate-limit errors — those are transient.
+	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), authService.ErrMFAStatusUnavailable)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	w = httptest.NewRecorder()
 	mapPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), errors.New("boom"))
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }

@@ -24,10 +24,12 @@ package schedule
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 	"time"
 
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -37,10 +39,12 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -92,7 +96,57 @@ var (
 	// Handlers map this to 409 with code "instance_moved" so the client reopens
 	// the block on its new day (#1840).
 	ErrInstanceMoved = errors.New("instance was moved concurrently")
+
+	ErrInstanceStartTooEarly       = errors.New("activity instance cannot be started yet")
+	ErrInstanceStartExpired        = errors.New("activity instance can no longer be started")
+	ErrInstanceCompleteEarly       = errors.New("activity instance cannot be completed before planned end")
+	ErrLifecycleSettings           = errors.New("activity lifecycle settings unavailable")
+	ErrCompletionConfirmationStale = errors.New("activity completion confirmation is stale")
 )
+
+type LifecycleSettings interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+type lifecycleContextKey string
+
+const lifecycleActorKey lifecycleContextKey = "actor"
+const lifecycleConfirmedStudentsKey lifecycleContextKey = "confirmed-students"
+
+func WithLifecycleActor(ctx context.Context, accountID int64) context.Context {
+	return context.WithValue(ctx, lifecycleActorKey, accountID)
+}
+
+func WithCompletionConfirmation(ctx context.Context, studentIDs []int64) context.Context {
+	return context.WithValue(ctx, lifecycleConfirmedStudentsKey, slices.Clone(studentIDs))
+}
+
+type LifecycleAvailability struct {
+	CanStart            bool
+	StartAvailableAt    time.Time
+	CanComplete         bool
+	CompleteAvailableAt time.Time
+}
+
+// EvaluateLifecycleAvailability is the shared clock policy used by API
+// payloads and lifecycle writes. Planned starts are valid from the configured
+// lead boundary until (but not including) plan end. Spontaneous blocks are not
+// constrained by plan times.
+func EvaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes int, enforcePlannedEnd bool) LifecycleAvailability {
+	start := instanceBoundary(instance.Date, instance.StartTime)
+	end := instanceBoundary(instance.Date, instance.EndTime)
+	availableAt := start.Add(-time.Duration(startLeadMinutes) * time.Minute)
+	if instance.IsSpontaneous {
+		return LifecycleAvailability{CanStart: true, StartAvailableAt: now, CanComplete: true, CompleteAvailableAt: now}
+	}
+	return LifecycleAvailability{
+		CanStart:            !now.Before(availableAt) && now.Before(end),
+		StartAvailableAt:    availableAt,
+		CanComplete:         !enforcePlannedEnd || !now.Before(end),
+		CompleteAvailableAt: end,
+	}
+}
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
 // Cancel. Defined as a local interface so unit tests can stub the call
@@ -105,6 +159,7 @@ type ActiveSessionEnder interface {
 type InstanceService interface {
 	Start(ctx context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error)
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
+	Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*StartInstanceResult, error)
 	// Cancel transitions planned|active → cancelled. reason is an optional
 	// short "why" stored on the instance (Vertretungsplan, #1840); pass nil for
 	// a plain cancel. actorAccountID stamps the Änderungsprotokoll entry
@@ -257,6 +312,10 @@ type InstanceServiceDependencies struct {
 	Broadcaster        realtime.Broadcaster
 	DB                 *bun.DB
 	Logger             *slog.Logger
+	Settings           LifecycleSettings
+	RecoveryRepo       scheduleModel.ActivityRecoveryRepository
+	Now                func() time.Time
+	EnforceTimePolicy  bool
 }
 
 type instanceService struct {
@@ -272,10 +331,55 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
-		deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil {
+		deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil ||
+		deps.RecoveryRepo == nil || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
+}
+
+func (s *instanceService) now() time.Time {
+	if s.deps.Now != nil {
+		return s.deps.Now()
+	}
+	return time.Now()
+}
+
+func instanceBoundary(day timezone.Date, wallClock time.Time) time.Time {
+	return time.Date(day.Year, day.Month, day.Day, wallClock.Hour(), wallClock.Minute(), wallClock.Second(), wallClock.Nanosecond(), timezone.Berlin)
+}
+
+func (s *instanceService) validateStartTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
+	if !s.deps.EnforceTimePolicy || instance.IsSpontaneous {
+		return nil
+	}
+	lead, err := s.deps.Settings.ResolveInt(ctx, configModel.KeyTimetableStartLeadMinutes)
+	if err != nil {
+		return fmt.Errorf("%w: resolve start lead: %v", ErrLifecycleSettings, err)
+	}
+	availability := EvaluateLifecycleAvailability(instance, now, lead, true)
+	if now.Before(availability.StartAvailableAt) {
+		return fmt.Errorf("%w: available at %s", ErrInstanceStartTooEarly, availability.StartAvailableAt.Format(time.RFC3339))
+	}
+	if !availability.CanStart {
+		return ErrInstanceStartExpired
+	}
+	return nil
+}
+
+func (s *instanceService) validateCompleteTime(ctx context.Context, instance *scheduleModel.ActivityInstance, now time.Time) error {
+	if !s.deps.EnforceTimePolicy || instance.IsSpontaneous {
+		return nil
+	}
+	enforce, err := s.deps.Settings.ResolveBool(ctx, configModel.KeyTimetableEnforcePlannedEnd)
+	if err != nil {
+		return fmt.Errorf("%w: resolve planned end policy: %v", ErrLifecycleSettings, err)
+	}
+	availability := EvaluateLifecycleAvailability(instance, now, 0, enforce)
+	if !availability.CanComplete {
+		return fmt.Errorf("%w: available at %s", ErrInstanceCompleteEarly, instanceBoundary(instance.Date, instance.EndTime).Format(time.RFC3339))
+	}
+	return nil
 }
 
 func (s *instanceService) getLogger() *slog.Logger {
@@ -342,6 +446,9 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
+	if err := s.validateStartTime(ctx, instance, s.now()); err != nil {
+		return nil, err
+	}
 
 	// Serialize against concurrent day-wide staffing saves (/substitute,
 	// /deviations) on the block's day BEFORE reading the roster we copy into
@@ -371,6 +478,9 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
+	if err := s.validateStartTime(ctx, instance, s.now()); err != nil {
+		return nil, err
+	}
 
 	// Conflict detection is read-only + advisory. Warnings reflect state
 	// inside the tx; they never block the transition.
@@ -388,7 +498,11 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		return nil, &ScheduleError{Op: "start instance: load instance_staff", Err: err}
 	}
 
-	now := time.Now()
+	if _, err := s.deps.RoomRepo.FindByIDForUpdate(ctx, instance.RoomID); err != nil {
+		return nil, &ScheduleError{Op: "start instance: lock room", Err: err}
+	}
+
+	now := s.now()
 	newGroup := &activeModel.Group{
 		StartTime:      now,
 		LastActivity:   now,
@@ -508,6 +622,9 @@ func (s *instanceService) absorbUnsupervisedOpenGroups(ctx context.Context, inst
 			return fmt.Errorf("lock open group %d: %w", group.ID, err)
 		}
 		if lockedGroup == nil || lockedGroup.EndTime != nil {
+			continue
+		}
+		if lockedGroup.RoomID != roomID {
 			continue
 		}
 		if timezone.DateFromTime(lockedGroup.StartTime) != today {
@@ -633,11 +750,88 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	if instance.Status != scheduleModel.InstanceStatusActive {
 		return nil, fmt.Errorf("%w: cannot complete instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
+	if err := s.validateCompleteTime(ctx, instance, s.now()); err != nil {
+		return nil, err
+	}
 	if instance.ActiveGroupID == nil {
 		// An active instance without a bridge shouldn't exist post WP-B9.
 		// Treat as data corruption — abort the tx rather than silently
 		// "completing" an instance that never actually ran.
 		return nil, &ScheduleError{Op: "complete instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
+	}
+
+	// Serialize check-in (CreateVisit locks the group) and checkout (visit
+	// row locks) with this snapshot so recovery restores the rows that
+	// EndActivitySession actually closes.
+	lockedGroup, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: lock group", Err: err}
+	}
+	if lockedGroup == nil || lockedGroup.EndTime != nil {
+		return nil, fmt.Errorf("%w: active group is not open", ErrInvalidInstanceTransition)
+	}
+	if s.deps.RecoveryRepo != nil {
+		if err := s.deps.RecoveryRepo.LockOpenVisits(ctx, *instance.ActiveGroupID); err != nil {
+			return nil, &ScheduleError{Op: "complete instance: lock visits", Err: err}
+		}
+		if err := s.deps.RecoveryRepo.LockOpenSupervisors(ctx, *instance.ActiveGroupID); err != nil {
+			return nil, &ScheduleError{Op: "complete instance: lock supervisors", Err: err}
+		}
+		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
+			return nil, &ScheduleError{Op: "complete instance: lock attendance", Err: err}
+		}
+	}
+
+	visitsBefore, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, *instance.ActiveGroupID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: snapshot visits", Err: err}
+	}
+	supervisorsBefore, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, *instance.ActiveGroupID, true)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: snapshot supervisors", Err: err}
+	}
+	attendanceBefore, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: snapshot attendance", Err: err}
+	}
+	snapshot := scheduleModel.ActivityCompletionSnapshot{ActiveGroupID: *instance.ActiveGroupID}
+	for _, visit := range visitsBefore {
+		if visit.ExitTime == nil {
+			snapshot.VisitIDs = append(snapshot.VisitIDs, visit.ID)
+		}
+	}
+	if confirmed, required := ctx.Value(lifecycleConfirmedStudentsKey).([]int64); required {
+		actual := make([]int64, 0, len(snapshot.VisitIDs))
+		for _, visit := range visitsBefore {
+			if visit.ExitTime == nil {
+				actual = append(actual, visit.StudentID)
+			}
+		}
+		slices.Sort(confirmed)
+		slices.Sort(actual)
+		if !slices.Equal(confirmed, actual) {
+			return nil, ErrCompletionConfirmationStale
+		}
+	}
+	for _, supervisor := range supervisorsBefore {
+		snapshot.SupervisorIDs = append(snapshot.SupervisorIDs, supervisor.ID)
+	}
+	for _, row := range attendanceBefore {
+		snapshot.Attendance = append(snapshot.Attendance, scheduleModel.CompletionAttendanceSnapshot{
+			RowID:              row.ID,
+			Status:             row.Status,
+			Substatus:          row.Substatus,
+			Note:               row.Note,
+			CheckedInAt:        row.CheckedInAt,
+			CheckedOutAt:       row.CheckedOutAt,
+			NotScheduled:       row.NotScheduled,
+			StudentStatusDayID: row.StudentStatusDayID,
+			PickupExceptionID:  row.PickupExceptionID,
+		})
+	}
+	instance.CompletionSnapshot, err = json.Marshal(snapshot)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: encode snapshot", Err: err}
 	}
 
 	// Mark any remaining expected students as absent before ending the active
@@ -676,15 +870,345 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 		return nil, &ScheduleError{Op: "complete instance: end active.group", Err: err}
 	}
 
-	now := time.Now()
+	now := s.now()
 	instance.Status = scheduleModel.InstanceStatusCompleted
 	instance.CompletedAt = &now
-	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at"); err != nil {
+	instance.ReopenUntil = ptrTo(now.Add(5 * time.Minute))
+	completedByAccountID, _ := ctx.Value(lifecycleActorKey).(int64)
+	if completedByAccountID > 0 {
+		instance.CompletedBy = ptrTo(completedByAccountID)
+	}
+	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "completed_by", "reopen_until", "completion_snapshot"); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: update", Err: err}
 	}
 
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceCompleted, instance, nil, nil)
 	return instance, nil
+}
+
+func ptrTo[T any](value T) *T { return &value }
+
+// Reopen restores the exact live group, visits, supervisors and attendance
+// captured immediately before completion. The day lock serializes this with
+// lifecycle and staffing writes; any conflict aborts the tenant transaction.
+func (s *instanceService) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*StartInstanceResult, error) {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	lockedDate := instance.Date
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+		return nil, &ScheduleError{Op: "reopen instance: lock day", Err: err}
+	}
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
+	}
+	if instance.Status != scheduleModel.InstanceStatusCompleted || instance.ReopenUntil == nil || s.now().After(*instance.ReopenUntil) {
+		return nil, fmt.Errorf("%w: reopen window expired", ErrInvalidInstanceTransition)
+	}
+	if !isAdmin && (instance.CompletedBy == nil || *instance.CompletedBy != accountID) {
+		return nil, ErrTimetableOperationForbidden
+	}
+	var snapshot scheduleModel.ActivityCompletionSnapshot
+	if len(instance.CompletionSnapshot) == 0 || json.Unmarshal(instance.CompletionSnapshot, &snapshot) != nil {
+		return nil, fmt.Errorf("%w: completion snapshot missing", ErrInvalidInstanceTransition)
+	}
+	if s.deps.RecoveryRepo == nil {
+		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: errors.New("recovery repository not wired")}
+	}
+	// CreateVisit locks student then room. Lock snapshot students first so a
+	// concurrent check-in of one of those children into another group in the
+	// same room cannot deadlock (room-then-student vs student-then-room).
+	studentIDs, err := s.lockReopenSnapshotStudents(ctx, snapshot)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateReopenOccupancy(ctx, instance, snapshot); err != nil {
+		return nil, err
+	}
+	if err := s.validateReopenAttendanceUnchanged(ctx, instance); err != nil {
+		return nil, err
+	}
+	if err := s.validateReopenSupervisorsUnchanged(ctx, instance, snapshot); err != nil {
+		return nil, err
+	}
+	if err := s.deps.RecoveryRepo.Restore(ctx, instance.ID, snapshot, s.now()); err != nil {
+		if modelBase.IsUniqueViolation(err) {
+			return nil, fmt.Errorf("%w: concurrent check-in", ErrTimetableOperationConflict)
+		}
+		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: err}
+	}
+	instance.Status = scheduleModel.InstanceStatusActive
+	instance.ActiveGroupID = ptrTo(snapshot.ActiveGroupID)
+	instance.CompletedAt, instance.CompletedBy, instance.ReopenUntil = nil, nil, nil
+	instance.CompletionSnapshot = nil
+	s.broadcastInstanceEvent(ctx, realtime.EventInstanceStarted, instance, nil, nil)
+	s.broadcastRestoredVisits(ctx, snapshot.ActiveGroupID, studentIDs)
+	return &StartInstanceResult{Instance: instance, ActiveGroupID: snapshot.ActiveGroupID, Warnings: []InstanceConflictWarning{}}, nil
+}
+
+// broadcastRestoredVisits emits the check-in-equivalent invalidation for
+// visits brought back by Reopen. instance_started / active_supervision_changed
+// refresh timetable and supervision caches; they do not touch the OGS
+// student-list and location caches that completion invalidated via
+// bulk_student_checkout. Student IDs stay on group-scoped topics only.
+func (s *instanceService) broadcastRestoredVisits(ctx context.Context, activeGroupID int64, studentIDs []int64) {
+	if s.deps.Broadcaster == nil || activeGroupID == 0 || len(studentIDs) == 0 {
+		return
+	}
+
+	allStudentIDs := make([]string, 0, len(studentIDs))
+	for _, studentID := range studentIDs {
+		allStudentIDs = append(allStudentIDs, strconv.FormatInt(studentID, 10))
+	}
+
+	eduGroups := make(map[int64][]string)
+	if s.deps.StudentRepo != nil {
+		students, err := s.deps.StudentRepo.FindReadScopeByIDs(ctx, studentIDs)
+		if err != nil {
+			s.getLogger().Warn("reopen visit invalidation: student scope lookup failed",
+				slog.String("error", err.Error()),
+			)
+		} else {
+			for _, studentID := range studentIDs {
+				student := students[studentID]
+				if student == nil || student.GroupID == nil {
+					continue
+				}
+				gid := *student.GroupID
+				eduGroups[gid] = append(eduGroups[gid], strconv.FormatInt(studentID, 10))
+			}
+		}
+	}
+
+	allEduGroupIDs := make([]string, 0, len(eduGroups))
+	for gid := range eduGroups {
+		allEduGroupIDs = append(allEduGroupIDs, strconv.FormatInt(gid, 10))
+	}
+
+	sessionIDStr := strconv.FormatInt(activeGroupID, 10)
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		activeData := realtime.EventData{StudentIDs: &allStudentIDs}
+		if len(allEduGroupIDs) > 0 {
+			activeData.GroupIDs = &allEduGroupIDs
+		}
+		activeEvent := realtime.NewEvent(realtime.EventBulkStudentCheckIn, sessionIDStr, activeData)
+		if err := s.deps.Broadcaster.BroadcastToGroup(tenantID, sessionIDStr, activeEvent); err != nil {
+			s.getLogger().Warn("SSE broadcast failed",
+				slog.String("event_type", string(realtime.EventBulkStudentCheckIn)),
+				slog.String("active_group_id", sessionIDStr),
+				slog.String("error", err.Error()),
+			)
+		}
+		for gid, ids := range eduGroups {
+			groupIDs := ids
+			eduGroupID := []string{strconv.FormatInt(gid, 10)}
+			eduEvent := realtime.NewEvent(
+				realtime.EventBulkStudentCheckIn,
+				sessionIDStr,
+				realtime.EventData{StudentIDs: &groupIDs, GroupIDs: &eduGroupID},
+			)
+			eduTopic := fmt.Sprintf("edu:%d", gid)
+			if err := s.deps.Broadcaster.BroadcastToGroup(tenantID, eduTopic, eduEvent); err != nil {
+				s.getLogger().Warn("SSE broadcast failed",
+					slog.String("event_type", string(realtime.EventBulkStudentCheckIn)),
+					slog.String("education_group_topic", eduTopic),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+		dashData := realtime.EventData{}
+		if len(allEduGroupIDs) > 0 {
+			dashData.GroupIDs = &allEduGroupIDs
+		}
+		dashEvent := realtime.NewEvent(realtime.EventDashboardCountsChanged, "", dashData)
+		if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, dashEvent); err != nil {
+			s.getLogger().Warn("SSE dashboard counts broadcast failed",
+				slog.String("error", err.Error()),
+				slog.Int64("tenant_id", tenantID),
+			)
+		}
+	})
+}
+
+// CanReopenInstance is the actor-aware reopen gate the list payload exposes
+// so clients can hide the action when the five-minute window, snapshot, or
+// actor check would reject it. Session-end completions (scheduler, kiosk)
+// write no snapshot or reopen_until and therefore stay false.
+func CanReopenInstance(instance *scheduleModel.ActivityInstance, accountID int64, isAdmin bool, now time.Time) bool {
+	if instance == nil || instance.Status != scheduleModel.InstanceStatusCompleted {
+		return false
+	}
+	if instance.ReopenUntil == nil || now.After(*instance.ReopenUntil) {
+		return false
+	}
+	if len(instance.CompletionSnapshot) == 0 {
+		return false
+	}
+	if !CanReopenAsActor(instance, accountID, isAdmin) {
+		return false
+	}
+	return true
+}
+
+// CanReopenAsActor is the actor/admin half of the reopen gate. Completing a
+// live group ends its supervisor row, so operational access is not a
+// substitute for this check.
+func CanReopenAsActor(instance *scheduleModel.ActivityInstance, accountID int64, isAdmin bool) bool {
+	if instance == nil || instance.Status != scheduleModel.InstanceStatusCompleted {
+		return false
+	}
+	if isAdmin {
+		return true
+	}
+	return instance.CompletedBy != nil && *instance.CompletedBy == accountID
+}
+
+// AttendanceUnchangedSinceCompletion reports whether any roster row was
+// written after the instance was completed. A later attendance PATCH makes
+// snapshot restore unsafe.
+func AttendanceUnchangedSinceCompletion(instance *scheduleModel.ActivityInstance, rows []*scheduleModel.InstanceStudent) bool {
+	if instance == nil || instance.CompletedAt == nil {
+		return true
+	}
+	for _, row := range rows {
+		if row != nil && row.GetUpdatedAt().After(*instance.CompletedAt) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *instanceService) lockReopenSnapshotStudents(ctx context.Context, snapshot scheduleModel.ActivityCompletionSnapshot) ([]int64, error) {
+	if len(snapshot.VisitIDs) == 0 {
+		return nil, nil
+	}
+	closedVisits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "reopen instance: load visits", Err: err}
+	}
+	studentByVisit := make(map[int64]int64, len(closedVisits))
+	for _, visit := range closedVisits {
+		studentByVisit[visit.ID] = visit.StudentID
+	}
+	studentIDs := make([]int64, 0, len(snapshot.VisitIDs))
+	for _, visitID := range snapshot.VisitIDs {
+		studentID := studentByVisit[visitID]
+		if studentID <= 0 {
+			return nil, fmt.Errorf("%w: snapshot visit missing", ErrInvalidInstanceTransition)
+		}
+		studentIDs = append(studentIDs, studentID)
+	}
+	slices.Sort(studentIDs)
+	studentIDs = slices.Compact(studentIDs)
+	for _, studentID := range studentIDs {
+		if _, err := s.deps.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: err}
+		}
+	}
+	for _, studentID := range studentIDs {
+		current, findErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
+		if findErr != nil && !modelBase.IsNoRows(findErr) {
+			return nil, findErr
+		}
+		if current != nil {
+			return nil, fmt.Errorf("%w: student %d already has an active visit", ErrTimetableOperationConflict, studentID)
+		}
+	}
+	return studentIDs, nil
+}
+
+func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
+	room, err := s.deps.RoomRepo.FindByIDForUpdate(ctx, instance.RoomID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: lock room", Err: err}
+	}
+	if room == nil {
+		return &ScheduleError{Op: "reopen instance: lock room", Err: fmt.Errorf("room %d not found", instance.RoomID)}
+	}
+	hasConflict, _, err := s.deps.ActiveGroupRepo.CheckRoomConflict(ctx, instance.RoomID, snapshot.ActiveGroupID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: check room", Err: err}
+	}
+	if hasConflict {
+		return activeSvc.ErrRoomConflict
+	}
+	if len(snapshot.VisitIDs) == 0 {
+		return nil
+	}
+	if room.Capacity == nil || *room.Capacity <= 0 {
+		return nil
+	}
+	currentOccupancy, err := s.deps.VisitRepo.CountActiveByRoomID(ctx, instance.RoomID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
+	}
+	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
+		return activeSvc.ErrRoomCapacityExceeded
+	}
+	return nil
+}
+
+func (s *instanceService) validateReopenAttendanceUnchanged(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
+	if s.deps.RecoveryRepo != nil {
+		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
+			return &ScheduleError{Op: "reopen instance: lock attendance", Err: err}
+		}
+	}
+	if instance.CompletedAt == nil {
+		return nil
+	}
+	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: load attendance", Err: err}
+	}
+	for _, row := range rows {
+		if row.GetUpdatedAt().After(*instance.CompletedAt) {
+			return fmt.Errorf("%w: attendance changed after completion", ErrTimetableOperationConflict)
+		}
+	}
+	return nil
+}
+
+func (s *instanceService) validateReopenSupervisorsUnchanged(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
+	if len(snapshot.SupervisorIDs) == 0 {
+		return nil
+	}
+	if err := s.deps.RecoveryRepo.LockSupervisors(ctx, snapshot.SupervisorIDs); err != nil {
+		return &ScheduleError{Op: "reopen instance: lock supervisors", Err: err}
+	}
+	rows, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID, false)
+	if err != nil {
+		return &ScheduleError{Op: "reopen instance: load supervisors", Err: err}
+	}
+	byID := make(map[int64]*activeModel.GroupSupervisor, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+	}
+	for _, supervisorID := range snapshot.SupervisorIDs {
+		row, ok := byID[supervisorID]
+		if !ok {
+			return fmt.Errorf("%w: supervisor snapshot missing", ErrTimetableOperationConflict)
+		}
+		if instance.CompletedAt != nil && row.GetUpdatedAt().After(*instance.CompletedAt) {
+			return fmt.Errorf("%w: supervisor changed after completion", ErrTimetableOperationConflict)
+		}
+		activeRows, findErr := s.deps.SupervisorRepo.FindActiveByStaffID(ctx, row.StaffID)
+		if findErr != nil {
+			return &ScheduleError{Op: "reopen instance: load staff supervisions", Err: findErr}
+		}
+		for _, other := range activeRows {
+			if other.ID != row.ID {
+				return fmt.Errorf("%w: staff %d now supervises another group", ErrTimetableOperationConflict, row.StaffID)
+			}
+		}
+	}
+	return nil
 }
 
 // Cancel implements planned|active → cancelled. From active, the bridge is
@@ -742,6 +1266,16 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 			// closed for them.
 			return nil, &ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
 		}
+	}
+	// Same attendance row locks the PATCH path takes. Without them a PATCH
+	// can observe active, wait on its UPDATE, then commit after this cancel
+	// has already frozen the instance.
+	if s.deps.RecoveryRepo != nil {
+		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
+			return nil, &ScheduleError{Op: "cancel instance: lock attendance", Err: err}
+		}
+	}
+	if instance.Status == scheduleModel.InstanceStatusActive {
 		if err := s.deps.ActiveService.EndActivitySession(ctx, *instance.ActiveGroupID); err != nil {
 			return nil, &ScheduleError{Op: "cancel instance: end active.group", Err: err}
 		}
@@ -987,7 +1521,11 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	for _, studentID := range sliceutil.UniquePositive(req.StudentIDs) {
+	newStudentIDs := sliceutil.UniquePositive(req.StudentIDs)
+	if err := s.lockCareExceptionDaysForStudents(ctx, newStudentIDs, inst.Date); err != nil {
+		return nil, err
+	}
+	for _, studentID := range newStudentIDs {
 		if studentID <= 0 {
 			continue
 		}
@@ -1003,6 +1541,9 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
 		return nil, &ScheduleError{Op: "create instance: apply student status days", Err: err}
+	}
+	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
+		return nil, &ScheduleError{Op: "create instance: apply student partial absences", Err: err}
 	}
 
 	s.getLogger().Info("instance created",
@@ -1278,6 +1819,24 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		}
 	}
 
+	// Care-day locks before any attendance row mutation. Partial-absence writers
+	// take student → care-day then update rows; deleting/recreating rows first
+	// while waiting for care-day deadlocks against that order.
+	priorStudents, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
+	if err != nil {
+		return &ScheduleError{Op: "update instance: load existing students", Err: err}
+	}
+	lockStudentIDs := make([]int64, 0, len(priorStudents)+len(studentIDs))
+	for _, row := range priorStudents {
+		if row != nil && row.StudentID > 0 {
+			lockStudentIDs = append(lockStudentIDs, row.StudentID)
+		}
+	}
+	lockStudentIDs = append(lockStudentIDs, studentIDs...)
+	if err := s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), instance.Date); err != nil {
+		return err
+	}
+
 	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instanceID); err != nil {
 		return &ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
@@ -1314,6 +1873,27 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, instanceID, instance.Date); err != nil {
 		return &ScheduleError{Op: "update instance: apply student status days", Err: err}
+	}
+	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, instanceID, instance.Date); err != nil {
+		return &ScheduleError{Op: "update instance: apply student partial absences", Err: err}
+	}
+	return nil
+}
+
+// lockCareExceptionDaysForStudents takes student → care-day locks for every
+// child on the instance date, sorted, matching partial-absence writers.
+func (s *instanceService) lockCareExceptionDaysForStudents(
+	ctx context.Context, studentIDs []int64, date timezone.Date,
+) error {
+	if len(studentIDs) == 0 || s.deps.DB == nil {
+		return nil
+	}
+	sorted := append([]int64(nil), studentIDs...)
+	slices.Sort(sorted)
+	for _, studentID := range sorted {
+		if err := LockCareExceptionDay(ctx, s.deps.DB, studentID, date); err != nil {
+			return &ScheduleError{Op: "lock care exception day for roster rewrite", Err: err}
+		}
 	}
 	return nil
 }

@@ -57,17 +57,39 @@ func (rs *Resource) getLogger() *slog.Logger {
 	return cmp.Or(rs.logger, slog.Default())
 }
 
-// Router returns the configured class-day router.
+// Router returns the class-day router for the tenant portal. Transitional:
+// this mount stays alive until the school-portal cutover (#2207 PR 3) removes
+// the tenant-portal Lehrkraft access; the school portal reaches the same
+// handlers via SchoolRouter.
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
-		r.With(authorize.RequiresPermission(permissions.ClassDayRead), withTx).Get("/classes", rs.getMyClasses)
-		r.With(authorize.RequiresPermission(permissions.ClassDayRead), withTx).Get("/", rs.getClassDay)
+		rs.registerRoutes(r, withTx)
 	})
 
 	return r
+}
+
+// SchoolRouter returns the identical class-day surface gated to school-scope
+// tokens (#2207). Same handlers, same permission check — only the scope guard
+// in front differs, so the projection and the GDPR access log stay one
+// implementation.
+func (rs *Resource) SchoolRouter() chi.Router {
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+
+	common.ProtectedSchoolGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+		rs.registerRoutes(r, withTx)
+	})
+
+	return r
+}
+
+func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
+	r.With(authorize.RequiresPermission(permissions.ClassDayRead), withTx).Get("/classes", rs.getMyClasses)
+	r.With(authorize.RequiresPermission(permissions.ClassDayRead), withTx).Get("/", rs.getClassDay)
 }
 
 // ClassesResponse lists the caller's assigned school classes.

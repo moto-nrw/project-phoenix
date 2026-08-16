@@ -36,6 +36,8 @@ type fakeThreadRepo struct {
 	getOrCreateErr   error
 }
 
+func (f *fakeThreadRepo) LockForMessageAppend(context.Context, int64) error { return nil }
+
 func (f *fakeThreadRepo) FindByID(context.Context, int64) (*usersModels.ParentMessageThread, error) {
 	return f.thread, f.findErr
 }
@@ -82,11 +84,11 @@ type fakeReadRepo struct {
 	studentErr  error
 }
 
-func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, []int64, bool) ([]*usersModels.InboxThread, error) {
+func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, bool) ([]*usersModels.InboxThread, error) {
 	return f.inbox, f.inboxErr
 }
 
-func (f *fakeReadRepo) UnreadMessageCountForStaff(context.Context, int64, bool, []int64) (int, error) {
+func (f *fakeReadRepo) UnreadMessageCountForStaff(context.Context, int64, bool) (int, error) {
 	return f.unread, f.unreadErr
 }
 
@@ -205,7 +207,7 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 		ThreadRepo: tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: stubSettings{messagingEnabled: true}, Broadcaster: bc, Logger: slog.Default(),
 	})
-	_, err := svc.PostMessage(errCtx(), 5, "Hallo")
+	_, err := svc.PostMessage(errCtx(), 5, "Hallo", 0)
 	require.Error(t, err)
 	assert.Equal(t, 0, parentEventCount(bc, realtime.EventParentMessage), "a failed append must not broadcast")
 }

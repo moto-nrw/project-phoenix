@@ -94,6 +94,12 @@ type PermissionRepository interface {
 	FindByName(ctx context.Context, name string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*Permission, error)
+	// LockAccountPermissionSourcesForTenant takes FOR SHARE locks on the
+	// direct grants and role-permission rows that make up the account's
+	// effective permissions at a tenant. Transaction-only: it lets a caller
+	// read the permission set and write a token derived from it without a
+	// concurrent revocation committing in between.
+	LockAccountPermissionSourcesForTenant(ctx context.Context, accountID int64, tenantID int64) error
 	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
 	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
@@ -122,6 +128,11 @@ type AccountRoleRepository interface {
 	base.CRUDRepository[*AccountRole]
 	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountRole, error)
 	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
+	// FindByAccountIDForTenantForShare is FindByAccountIDForTenant with a FOR
+	// SHARE row lock. Transaction-only: it lets a caller re-check a role and
+	// write in the same transaction without a concurrent revocation slipping
+	// in between.
+	FindByAccountIDForTenantForShare(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
@@ -158,13 +169,17 @@ type TokenRepository interface {
 	DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
-	DeleteByAccountID(ctx context.Context, accountID int64) error
-	CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error
+	ListInactiveAccountIDsWithLiveTokens(ctx context.Context) ([]int64, error)
+	HasLiveTokensCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error)
+	DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
+	DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
+	DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, cutoff time.Time) ([]*Token, error)
+	CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*Token, error)
 
 	// Bulk deletion
-	DeleteByTenantID(ctx context.Context, tenantID int64) (int, error)
+	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)
 
-	DeleteByFamilyID(ctx context.Context, familyID string) error
+	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
 	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 
 	// Token family tracking methods
@@ -218,8 +233,17 @@ type MFACredentialRepository interface {
 type MFAEmailChallengeRepository interface {
 	Create(ctx context.Context, challenge *MFAEmailChallenge) error
 	FindByID(ctx context.Context, id interface{}) (*MFAEmailChallenge, error)
-	// FindActiveByAccountID returns the most recent unconsumed, unexpired challenge for an account.
-	FindActiveByAccountID(ctx context.Context, accountID int64) (*MFAEmailChallenge, error)
+	// FindActiveByAccountIDInScope returns the most recent unconsumed,
+	// unexpired challenge an account holds FOR ONE PORTAL. The scope (and,
+	// when known, the school) is part of the key on purpose: the enrollment
+	// confirm paths have no challenge id to look up by, and an account-wide
+	// "newest active code" would let a school-portal code be redeemed at the
+	// tenant surface whenever both are in flight.
+	FindActiveByAccountIDInScope(ctx context.Context, accountID, tenantID int64, scope string) (*MFAEmailChallenge, error)
+	// FindActiveByIDForAccount returns one specific unconsumed, unexpired challenge
+	// owned by the account — the lookup the challenge-token verify path uses so a
+	// code is only ever redeemed against the challenge it was minted for.
+	FindActiveByIDForAccount(ctx context.Context, id, accountID int64) (*MFAEmailChallenge, error)
 	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
 	// CountRecentByAccountID counts challenges issued at or after `since` (used for rate-limit checks).
 	CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error)
@@ -365,6 +389,11 @@ type AccountTenantRepository interface {
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
+	// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
+	// FOR SHARE row lock. Transaction-only: it blocks a concurrent Deactivate
+	// until the caller's transaction commits, which is what makes a
+	// membership check and a token write in that transaction atomic.
+	ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)

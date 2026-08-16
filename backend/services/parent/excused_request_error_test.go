@@ -75,6 +75,8 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 		{"no dates", absenceSvc.ErrExcusedRequestNoDates, parentService.ErrNoDates},
 		{"empty note", absenceSvc.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
 		{"note too long", absenceSvc.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
+		{"overlap", absenceSvc.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
+		{"partial absence conflict", absenceSvc.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
 		{"other error is wrapped", errors.New("boom"), nil},
 	}
 	for _, tc := range cases {

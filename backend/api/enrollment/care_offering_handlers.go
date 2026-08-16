@@ -41,6 +41,7 @@ type CareOfferingResponse struct {
 	SortOrder           int                                            `json:"sort_order"`
 	SelectionGroup      string                                         `json:"selection_group,omitempty"`
 	SelectionRule       string                                         `json:"selection_rule"`
+	PickupTimes         map[string]string                              `json:"pickup_times,omitempty"`
 	CreatedAt           time.Time                                      `json:"created_at"`
 	UpdatedAt           time.Time                                      `json:"updated_at"`
 }
@@ -92,6 +93,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		SortOrder:           o.SortOrder,
 		SelectionGroup:      o.SelectionGroup,
 		SelectionRule:       o.SelectionRule,
+		PickupTimes:         o.PickupTimes,
 		CreatedAt:           o.CreatedAt,
 		UpdatedAt:           o.UpdatedAt,
 	}
@@ -126,6 +128,9 @@ type CareOfferingRequest struct {
 	SortOrder           int                                            `json:"sort_order"`
 	SelectionGroup      string                                         `json:"selection_group,omitempty"`
 	SelectionRule       string                                         `json:"selection_rule,omitempty"`
+	// PickupTimes is the optional Angebots-Gehzeit per weekday
+	// ({"mon":"14:30"}), see #2290.
+	PickupTimes map[string]string `json:"pickup_times,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -172,6 +177,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) (*enrollmentModels.Car
 		SortOrder:                 req.SortOrder,
 		SelectionGroup:            req.SelectionGroup,
 		SelectionRule:             req.SelectionRule,
+		PickupTimes:               req.PickupTimes,
 		AutoAddTriggerOfferingIDs: triggerIDs,
 	}
 	o.ID = existingID

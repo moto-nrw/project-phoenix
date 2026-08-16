@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -92,7 +93,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	assert.Equal(t, usersModels.ParentMessageSenderStaff, messages[2].SenderKind)
 
 	// Staff inbox: one row, guardian + child names, unread = 2 guardian msgs.
-	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
+	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, "Felix Schneider", inbox[0].StudentName)
@@ -103,7 +104,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	// Sidebar badge counts unread MESSAGES (not threads): the two guardian
 	// messages above are both unread to the staff reader, so the badge is 2 —
 	// matching the inbox row pill above, not "1 thread".
-	unread, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	unread, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 2, unread)
 
@@ -114,7 +115,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	advanced, err := readRepo.MarkReadUpTo(ctx, 1, thread.ID, staffAccount.ID, newest.CreatedAt, newest.ID)
 	require.NoError(t, err)
 	assert.True(t, advanced, "first read from an empty cursor advances")
-	unread, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	unread, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 0, unread)
 
@@ -124,7 +125,7 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, advanced, "re-reading the same newest message is a no-op")
 
-	onlyUnread, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, true)
+	onlyUnread, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 
@@ -195,7 +196,7 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	advanced, err := readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m1.CreatedAt, m1.ID)
 	require.NoError(t, err)
 	assert.True(t, advanced, "first read advances the cursor")
-	count, err := readRepo.UnreadMessageCountForStaff(ctx, reader, true, nil)
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, reader, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "tied message with a higher id must stay unread")
 
@@ -203,9 +204,86 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 	advanced, err = readRepo.MarkReadUpTo(ctx, 1, thread.ID, reader, m2.CreatedAt, m2.ID)
 	require.NoError(t, err)
 	assert.True(t, advanced, "reading the higher tie-break id advances the cursor")
-	count, err = readRepo.UnreadMessageCountForStaff(ctx, reader, true, nil)
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, reader, true)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
+}
+
+// TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage pins the
+// reply/message race: handling a snapshot up to one guardian row must leave a
+// later row with the same timestamp and a higher id unread for every colleague.
+func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Miriam", "Klein")
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
+	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+
+	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
+	msgRepo := usersRepo.NewParentMessageRepository(db)
+	readRepo := usersRepo.NewParentMessageReadRepository(db)
+	ctx := tenantCtx()
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, threadRepo.Create(ctx, thread))
+
+	tie := time.Now().Truncate(time.Microsecond)
+	first := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "erste")
+	first.CreatedAt, first.UpdatedAt = tie, tie
+	require.NoError(t, msgRepo.Create(ctx, first))
+	require.NoError(t, readRepo.MarkStaffHandledUpTo(ctx, 1, thread.ID, first.CreatedAt, first.ID))
+
+	concurrent := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "gleichzeitig")
+	concurrent.CreatedAt, concurrent.UpdatedAt = tie, tie
+	require.NoError(t, msgRepo.Create(ctx, concurrent))
+	require.Greater(t, concurrent.ID, first.ID)
+
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "a tied higher-id message outside the handled snapshot must remain unread")
+
+	require.NoError(t, readRepo.MarkStaffHandledUpTo(ctx, 1, thread.ID, concurrent.CreatedAt, concurrent.ID))
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
+	require.NoError(t, err)
+	assert.Zero(t, count)
+}
+
+func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	repo := usersRepo.NewParentMessageThreadRepository(db)
+	ctx := tenantCtx()
+	thread := newThread(chain.StudentID, chain.AccountID)
+	require.NoError(t, repo.Create(ctx, thread))
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	holderCtx := modelBase.ContextWithTx(ctx, &holder)
+	require.NoError(t, repo.LockForMessageAppend(holderCtx, thread.ID))
+
+	contender, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = contender.Rollback() }()
+	_, err = contender.ExecContext(ctx, "SET LOCAL lock_timeout = ?", "200ms")
+	require.NoError(t, err)
+	contenderCtx := modelBase.ContextWithTx(ctx, &contender)
+	err = repo.LockForMessageAppend(contenderCtx, thread.ID)
+	require.Error(t, err, "a second append must wait for the first transaction")
+	assert.True(t, isLockTimeoutError(err), "expected lock_timeout, got: %v", err)
+	require.NoError(t, contender.Rollback())
+
+	require.NoError(t, holder.Commit())
+	followUp, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = followUp.Rollback() }()
+	followUpCtx := modelBase.ContextWithTx(ctx, &followUp)
+	require.NoError(t, repo.LockForMessageAppend(followUpCtx, thread.ID))
 }
 
 // newRequestCreatedPill builds a "request created" event pill as the emitter
@@ -260,11 +338,11 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 	pill := newRequestCreatedPill(thread.ID, chain.StudentID, chain.AccountID, base)
 	require.NoError(t, msgRepo.Create(ctx, pill))
 
-	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count, "a request_created pill must not count toward the staff Nachrichten badge")
 
-	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
+	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1, "the thread is still listed — it has a message")
 	assert.Equal(t, 0, inbox[0].UnreadCount, "per-thread unread_count agrees with the badge: pill excluded")
@@ -275,11 +353,11 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 	chat.CreatedAt, chat.UpdatedAt = base.Add(time.Second), base.Add(time.Second)
 	require.NoError(t, msgRepo.Create(ctx, chat))
 
-	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "a plain guardian message still counts; only the pill is excluded")
 
-	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, nil, false)
+	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 1, inbox[0].UnreadCount, "per-thread count still matches the badge")
@@ -548,7 +626,7 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "hallo")))
 	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, staffAccount.ID, usersModels.ParentMessageSenderStaff, "antwort")))
 
-	staffUnread, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	staffUnread, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)
 	require.Equal(t, 1, staffUnread, "guard: the guardian message counts while the child is active")
 	guardianUnread, err := readRepo.UnreadMessageCountForGuardianTenants(ctx, chain.AccountID, []int64{1})
@@ -560,7 +638,7 @@ func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	staffUnread, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true, nil)
+	staffUnread, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 0, staffUnread, "a graduated child's messages must not badge the staff sidebar")
 	guardianUnread, err = readRepo.UnreadMessageCountForGuardianTenants(ctx, chain.AccountID, []int64{1})
