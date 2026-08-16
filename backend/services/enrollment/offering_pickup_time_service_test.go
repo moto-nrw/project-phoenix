@@ -307,6 +307,7 @@ func attachOfferingLink(t *testing.T, env *decisionTestEnv, requestChildID, offe
 func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 
 	ctx := testpkg.TenantContext(1)
 	offering := createPickupTimeOffering(t, env, "gehzeit-approve",
@@ -324,9 +325,39 @@ func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
 	assert.Equal(t, "16:00", rows[scheduleModels.WeekdayTuesday].PickupTime.Format("15:04"))
 }
 
+func TestDecisionApproval_FuturePhaseDefersOfferingPickupMaterialization(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(30))
+
+	offering := createPickupTimeOffering(t, env, "gehzeit-future-approval",
+		[]string{"mon"}, map[string]string{"mon": "16:00"})
+	_, reviewerAccount := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Zukunft")
+	studentID := submitAndApproveWithReviewer(t, env, offering.ID, "gehzeit-future-approval@example.com", "Futura", reviewerAccount.ID, nil)
+
+	assert.Empty(t, pickupRowsByWeekday(t, env, studentID),
+		"a future phase must not change the undated weekly pickup schedule before it starts")
+}
+
+func TestDecisionApproval_CurrentPhaseMaterializesOfferingPickupWithoutReviewer(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
+
+	offering := createPickupTimeOffering(t, env, "gehzeit-system-approval",
+		[]string{"mon"}, map[string]string{"mon": "14:30"})
+	studentID := submitAndApproveWithReviewer(t, env, offering.ID, "gehzeit-system-approval@example.com", "Systema", 0, nil)
+
+	monday := pickupRowsByWeekday(t, env, studentID)[scheduleModels.WeekdayMonday]
+	require.NotNil(t, monday, "an automatic approval must materialize the offering pickup time")
+	assert.Zero(t, monday.CreatedBy, "automatic materialization has no acting staff member")
+	assert.Equal(t, scheduleModels.PickupScheduleSourceCareOffering, monday.Source)
+}
+
 func TestDecisionApproval_FormPickupTimeWinsOverOffering(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 	ctx := testpkg.TenantContext(1)
 
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentModels.TargetSchedulePickup)
@@ -377,8 +408,7 @@ func TestDecisionApproval_FormPickupTimeWinsOverOffering(t *testing.T) {
 }
 
 // submitAndApproveWithReviewer mirrors submitAndApproveOfferingChild but lets
-// the test choose the approving account (Gehzeit inserts need a staff-linked
-// reviewer) and pass custom child data.
+// the test choose the approving account and pass custom child data.
 func submitAndApproveWithReviewer(
 	t *testing.T,
 	env *decisionTestEnv,
@@ -429,6 +459,7 @@ func submitAndApproveWithReviewer(
 func TestUpdateChildOfferings_ReconcilesOfferingPickupRows(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
 	ctx := testpkg.TenantContext(1)
 
 	timed := createPickupTimeOffering(t, env, "gehzeit-adjust-timed",

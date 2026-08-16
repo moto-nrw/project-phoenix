@@ -296,13 +296,6 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 			row := existing[studentID][weekday]
 			switch {
 			case hasWant && row == nil:
-				if opts.createdBy <= 0 {
-					s.Logger.Warn("offering pickup reconcile: skipping insert without acting staff",
-						slog.Int64("student_id", studentID),
-						slog.Int("weekday", weekday),
-					)
-					continue
-				}
 				if err := s.upsertOfferingPickupRow(ctx, studentID, weekday, want, opts.createdBy, nil); err != nil {
 					return nil, err
 				}
@@ -532,9 +525,8 @@ func mustParseWallClock(hhmm string) time.Time {
 
 // materializeOfferingPickupAfterApproval writes the approved child's
 // Angebots-Gehzeiten (#2290). Runs after the status flip inside the approval
-// transaction. A reviewer without a linked staff row degrades to a
-// no-insert reconcile — the same tolerance the schedule dispatch applies —
-// so an approval never fails on the acting account's shape.
+// transaction. Automatically approved rows have no acting staff author;
+// their source and care_offering_id retain the relevant provenance.
 func (s *decisionService) materializeOfferingPickupAfterApproval(ctx context.Context, child *enrollmentModels.RequestChild, reviewedBy int64, onDate timezone.Date) error {
 	if !s.hasOfferingPickupDependencies() {
 		return nil
@@ -552,7 +544,7 @@ func (s *decisionService) materializeOfferingPickupAfterApproval(ctx context.Con
 	}
 	createdBy, err := s.resolveReviewerStaffID(ctx, reviewedBy)
 	if err != nil {
-		s.Logger.Warn("offering pickup materialization: reviewer has no staff, inserts skipped",
+		s.Logger.Debug("offering pickup materialization: no acting staff; automatic rows have no creator",
 			slog.Int64("reviewed_by", reviewedBy),
 			slog.String("error", err.Error()),
 		)

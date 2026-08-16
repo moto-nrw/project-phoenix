@@ -1248,12 +1248,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	// Materialize the Angebots-Gehzeiten AFTER the refresh: the re-read
 	// child carries the created_student_id the approval just stamped (#2290).
 	if input.Status == DecisionApproved {
-		pickupDate := timezone.TodayDate()
-		if phase.ServiceStartDate.After(pickupDate) {
-			pickupDate = phase.ServiceStartDate
-		}
-		if err := s.materializeOfferingPickupAfterApproval(ctx, target, input.ReviewedBy, pickupDate); err != nil {
-			return nil, fmt.Errorf("decision: materialize offering pickup times: %w", err)
+		today := timezone.TodayDate()
+		if !phase.ServiceStartDate.After(today) {
+			if err := s.materializeOfferingPickupAfterApproval(ctx, target, input.ReviewedBy, today); err != nil {
+				return nil, fmt.Errorf("decision: materialize offering pickup times: %w", err)
+			}
 		}
 	}
 
