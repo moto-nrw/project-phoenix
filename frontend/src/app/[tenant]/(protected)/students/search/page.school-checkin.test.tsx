@@ -422,4 +422,61 @@ describe("StudentSearchPage — school check-in wiring", () => {
       "2",
     );
   });
+
+  // A live update (SWR/SSE) can remove a marked student from the result set
+  // while its ID lingers in selectedIds. The bar must count and activate only
+  // what a bulk action would actually execute — the visible cards.
+  it("selection bar counts only students still in the result set", async () => {
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["7", "999"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("1 ausgewählt")).toBeInTheDocument();
+  });
+
+  it("selection bar disables actions when only removed students are marked", async () => {
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["999"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("0 ausgewählt")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
+  });
 });

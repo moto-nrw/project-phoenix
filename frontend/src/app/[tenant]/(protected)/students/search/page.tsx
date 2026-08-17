@@ -2594,7 +2594,9 @@ function SearchPageContent() {
   // from the VISIBLE rows (client-side filters applied), never the raw fetch:
   // confirmation counts and the executed batch must cover exactly the cards
   // on screen, or a mark hidden by a filter could be acted on sight-unseen
-  // (review #2372).
+  // (review #2372). The selection bars' count/activation must come from this
+  // list too — selectedIds may still hold students a live update removed,
+  // and a count the bar shows must never exceed what a bulk action executes.
   const selectedStudentsForBulk = useMemo(
     () =>
       filteredStudents.filter((student) =>
@@ -2784,7 +2786,7 @@ function SearchPageContent() {
             successCount={schoolCheckin.successCount}
             pendingCount={schoolCheckin.pendingIds.size}
             selectionActive={schoolCheckin.selectionActive}
-            selectedCount={schoolCheckin.selectedIds.size}
+            selectedCount={selectedStudentsForBulk.length}
           />
         </div>
       )}
@@ -2796,7 +2798,7 @@ function SearchPageContent() {
         <SchoolCheckinSelectionBar
           selectionActive={schoolCheckin.selectionActive}
           onSelectionActiveChange={schoolCheckin.setSelectionActive}
-          selectedCount={schoolCheckin.selectedIds.size}
+          selectedCount={selectedStudentsForBulk.length}
           onClearSelection={schoolCheckin.clearSelection}
           onBulkAction={handleBulkAction}
           isRunning={schoolCheckin.isBulkRunning}
