@@ -91,28 +91,7 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 		resp.EarliestEffectiveFrom = v.EarliestEffectiveFrom.String()
 	}
 	if v.LastDecision != nil {
-		decision := &OfferingDecisionResponse{
-			ID:            strconv.FormatInt(v.LastDecision.ID, 10),
-			Status:        v.LastDecision.Status,
-			DecidedAt:     v.LastDecision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
-			EffectiveFrom: v.LastDecision.EffectiveFrom.String(),
-			Reason:        v.LastDecision.Reason,
-			Requested:     make([]OfferingRequestedItemResponse, 0, len(v.LastDecision.Requested)),
-		}
-		for _, item := range v.LastDecision.Requested {
-			decision.Requested = append(decision.Requested, OfferingRequestedItemResponse{
-				ID:       strconv.FormatInt(item.OfferingID, 10),
-				Name:     item.Name,
-				Weekdays: weekdaysFromDayKeys(item.Days),
-			})
-		}
-		for _, entry := range v.LastDecision.AppliedDiff {
-			decision.Applied = append(decision.Applied, offeringDiffResponse(entry))
-		}
-		for _, offering := range v.LastDecision.OverriddenOfferings {
-			decision.OverriddenNames = append(decision.OverriddenNames, offering.Name)
-		}
-		resp.LastDecision = decision
+		resp.LastDecision = offeringDecisionResponse(v.LastDecision)
 	}
 	if v.PendingRequest != nil {
 		pending := &PendingOfferingChangeResponse{
@@ -145,6 +124,31 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 			item.ValidUntil = group.ValidUntil.AddDays(-1).String()
 		}
 		resp.Groups = append(resp.Groups, item)
+	}
+	return resp
+}
+
+func offeringDecisionResponse(decision *enrollmentService.OfferingChangeDecision) *OfferingDecisionResponse {
+	resp := &OfferingDecisionResponse{
+		ID:            strconv.FormatInt(decision.ID, 10),
+		Status:        decision.Status,
+		DecidedAt:     decision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
+		EffectiveFrom: decision.EffectiveFrom.String(),
+		Reason:        decision.Reason,
+		Requested:     make([]OfferingRequestedItemResponse, 0, len(decision.Requested)),
+	}
+	for _, item := range decision.Requested {
+		resp.Requested = append(resp.Requested, OfferingRequestedItemResponse{
+			ID:       strconv.FormatInt(item.OfferingID, 10),
+			Name:     item.Name,
+			Weekdays: weekdaysFromDayKeys(item.Days),
+		})
+	}
+	for _, entry := range decision.AppliedDiff {
+		resp.Applied = append(resp.Applied, offeringDiffResponse(entry))
+	}
+	for _, offering := range decision.OverriddenOfferings {
+		resp.OverriddenNames = append(resp.OverriddenNames, offering.Name)
 	}
 	return resp
 }

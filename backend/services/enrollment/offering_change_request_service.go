@@ -1780,6 +1780,12 @@ type offeringDecisionDiff struct {
 	overridden []enrollmentModels.OfferingChangeSnapshotOffering
 }
 
+type offeringDecisionMaterialization struct {
+	row      *enrollmentModels.OfferingChangeRequest
+	base     []materializedOfferingSelection
+	selected []materializedOfferingSelection
+}
+
 // decisionDiff builds the "current → requested" diff. With exclusions it first
 // validates each excluded id against the UNexcluded materialization — only a
 // target that actually gains rule-derived days can be overridden (#2370) — and
@@ -1790,55 +1796,103 @@ func (s *offeringChangeRequestService) decisionDiff(
 	row *enrollmentModels.OfferingChangeRequest,
 	excludedIDs []int64,
 ) (*offeringDecisionDiff, error) {
-	rowCopy := *row
-	row = &rowCopy
-	requested, err := selectionsFromPayload(row.Payload)
+	materialization, err := s.materializeDecisionSelections(ctx, row, excludedIDs)
 	if err != nil {
 		return nil, err
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
-	if err != nil || child == nil {
-		return nil, fmt.Errorf("offering change: load request child for diff: %w", err)
-	}
-	request, err := s.RequestRepo.FindByID(ctx, child.RequestID)
-	if err != nil || request == nil {
-		return nil, fmt.Errorf("offering change: load request for diff: %w", err)
-	}
-	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
-	if err != nil || phase == nil {
-		return nil, fmt.Errorf("offering change: load phase for diff: %w", err)
-	}
-	row.EffectiveFrom = appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
-	base, err := s.materializedSelections(ctx, phase, row.RequestChildID, row.EffectiveFrom, requested)
-	if err != nil {
-		return nil, err
-	}
-	excluded := make(map[int64]bool, len(excludedIDs))
-	for _, id := range excludedIDs {
-		excluded[id] = true
-	}
-	materialized := base
-	if len(excluded) > 0 {
-		materialized, err = s.materializedSelectionsExcluding(
-			ctx, phase, row.RequestChildID, row.EffectiveFrom, requested, excluded,
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-	requestedSelections := offeringChangeSelections(materialized)
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, row.RequestChildID, row.EffectiveFrom)
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
+		ctx, materialization.row.RequestChildID, materialization.row.EffectiveFrom,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
-	ids, currentByID, requestedByID := offeringChangeSides(current, requestedSelections)
+	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(materialization.selected))
+	ids = appendMissingOfferingIDs(ids, materialization.base)
+	return s.buildDecisionDiff(
+		ctx, excludedIDs, materialization.base, materialization.selected, ids, currentByID, requestedByID,
+	)
+}
+
+func (s *offeringChangeRequestService) materializeDecisionSelections(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+	excludedIDs []int64,
+) (*offeringDecisionMaterialization, error) {
+	rowCopy := *row
+	requested, phase, err := s.decisionRequestContext(ctx, &rowCopy)
+	if err != nil {
+		return nil, err
+	}
+	rowCopy.EffectiveFrom = appliedOfferingChangeDateForPhase(rowCopy.EffectiveFrom, phase)
+	base, err := s.materializedSelections(ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested)
+	if err != nil {
+		return nil, err
+	}
+	result := &offeringDecisionMaterialization{row: &rowCopy, base: base, selected: base}
+	excluded := offeringIDSet(excludedIDs)
+	if len(excluded) == 0 {
+		return result, nil
+	}
+	result.selected, err = s.materializedSelectionsExcluding(
+		ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested, excluded,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *offeringChangeRequestService) decisionRequestContext(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+) ([]OfferingChangeSelection, *enrollmentModels.Phase, error) {
+	requested, err := selectionsFromPayload(row.Payload)
+	if err != nil {
+		return nil, nil, err
+	}
+	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
+	if err != nil || child == nil {
+		return nil, nil, fmt.Errorf("offering change: load request child for diff: %w", err)
+	}
+	request, err := s.RequestRepo.FindByID(ctx, child.RequestID)
+	if err != nil || request == nil {
+		return nil, nil, fmt.Errorf("offering change: load request for diff: %w", err)
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	if err != nil || phase == nil {
+		return nil, nil, fmt.Errorf("offering change: load phase for diff: %w", err)
+	}
+	return requested, phase, nil
+}
+
+func offeringIDSet(ids []int64) map[int64]bool {
+	result := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result
+}
+
+func appendMissingOfferingIDs(ids []int64, selections []materializedOfferingSelection) []int64 {
 	// The base materialization can contain offerings the excluded diff no longer
 	// has; their names are still needed for the override record.
-	for _, sel := range base {
-		if !slices.Contains(ids, sel.OfferingID) {
-			ids = append(ids, sel.OfferingID)
+	result := append([]int64(nil), ids...)
+	for _, selection := range selections {
+		if !slices.Contains(result, selection.OfferingID) {
+			result = append(result, selection.OfferingID)
 		}
 	}
+	return result
+}
+
+func (s *offeringChangeRequestService) buildDecisionDiff(
+	ctx context.Context,
+	excludedIDs []int64,
+	base, materialized []materializedOfferingSelection,
+	ids []int64,
+	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	requestedByID map[int64]OfferingChangeSelection,
+) (*offeringDecisionDiff, error) {
 	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list offerings for diff: %w", err)
@@ -1848,6 +1902,18 @@ func (s *offeringChangeRequestService) decisionDiff(
 	if err != nil {
 		return nil, err
 	}
+	entries := offeringDiffEntries(ids, offeringByID, currentByID, requestedByID)
+	annotateAutomaticShares(entries, materialized, offeringByID)
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
+	return &offeringDecisionDiff{entries: entries, overridden: overridden}, nil
+}
+
+func offeringDiffEntries(
+	ids []int64,
+	offeringByID map[int64]*enrollmentModels.CareOffering,
+	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	requestedByID map[int64]OfferingChangeSelection,
+) []OfferingChangeDiffEntry {
 	entries := make([]OfferingChangeDiffEntry, 0, len(ids))
 	for _, id := range ids {
 		name := ""
@@ -1860,9 +1926,7 @@ func (s *offeringChangeRequestService) decisionDiff(
 		}
 		entries = append(entries, entry)
 	}
-	annotateAutomaticShares(entries, materialized, offeringByID)
-	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
-	return &offeringDecisionDiff{entries: entries, overridden: overridden}, nil
+	return entries
 }
 
 // validateExcludedAutoTargets accepts an exclusion only for an offering that
@@ -1960,29 +2024,34 @@ func annotateAutomaticShares(
 		selByID[sel.OfferingID] = sel
 	}
 	for i := range entries {
-		sel, ok := selByID[entries[i].OfferingID]
-		if !ok || len(sel.AutomaticSelectedDays) == 0 {
+		annotateAutomaticShare(&entries[i], selByID, offeringByID)
+	}
+}
+
+func annotateAutomaticShare(
+	entry *OfferingChangeDiffEntry,
+	selections map[int64]materializedOfferingSelection,
+	offerings map[int64]*enrollmentModels.CareOffering,
+) {
+	selection, ok := selections[entry.OfferingID]
+	if !ok || len(selection.AutomaticSelectedDays) == 0 {
+		return
+	}
+	entry.NewAutomaticDays = append([]string(nil), selection.AutomaticSelectedDays...)
+	target := offerings[entry.OfferingID]
+	if target == nil {
+		return
+	}
+	for _, triggerID := range target.AutoAddTriggerOfferingIDs {
+		if _, selected := selections[triggerID]; !selected {
 			continue
 		}
-		entries[i].NewAutomaticDays = append([]string(nil), sel.AutomaticSelectedDays...)
-		target := offeringByID[entries[i].OfferingID]
-		if target == nil {
-			continue
+		name := fmt.Sprintf("Angebot %d", triggerID)
+		if trigger := offerings[triggerID]; trigger != nil && trigger.Name != "" {
+			name = trigger.Name
 		}
-		for _, triggerID := range target.AutoAddTriggerOfferingIDs {
-			if _, selected := selByID[triggerID]; !selected {
-				continue
-			}
-			name := ""
-			if trigger := offeringByID[triggerID]; trigger != nil {
-				name = trigger.Name
-			}
-			if name == "" {
-				name = fmt.Sprintf("Angebot %d", triggerID)
-			}
-			entries[i].AutoTriggerIDs = append(entries[i].AutoTriggerIDs, triggerID)
-			entries[i].AutoTriggerNames = append(entries[i].AutoTriggerNames, name)
-		}
+		entry.AutoTriggerIDs = append(entry.AutoTriggerIDs, triggerID)
+		entry.AutoTriggerNames = append(entry.AutoTriggerNames, name)
 	}
 }
 

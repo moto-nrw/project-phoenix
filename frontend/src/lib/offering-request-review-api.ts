@@ -130,9 +130,7 @@ export async function decideOfferingChangeRequest(
       body: JSON.stringify({
         approve,
         reason: reason ?? "",
-        ...(excludedOfferingIds && excludedOfferingIds.length > 0
-          ? { excluded_offering_ids: excludedOfferingIds }
-          : {}),
+        excluded_offering_ids: excludedOfferingIds,
       }),
     },
   );
