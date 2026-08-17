@@ -23,6 +23,7 @@ import type {
 import { staffSessionEditsService } from "~/lib/staff-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
+  isHalfAbsenceBoundary,
   resolveTargetForDate,
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
@@ -62,6 +63,7 @@ export function StaffSessionTable({
   to,
   sessions,
   absences,
+  absencesPending,
   schedule,
   dailyTargets,
   dailyTargetsError,
@@ -82,6 +84,7 @@ export function StaffSessionTable({
   readonly to: Date;
   readonly sessions: readonly StaffHistorySession[];
   readonly absences?: readonly StaffAbsenceRow[];
+  readonly absencesPending?: boolean;
   readonly schedule: StaffSchedule | null;
   // Server-resolved Soll je Tag (#1842), keyed YYYY-MM-DD. Wenn gesetzt, ist
   // das die Quelle für die Soll-Spalte: `schedule` beschreibt NUR den heute
@@ -389,16 +392,28 @@ export function StaffSessionTable({
                 // nothing to reveal.
                 const canExpand = hasAuditHistory && session != null;
                 // Edit / nachtragen is available for past or present days,
-                // regardless of whether a session already exists — auch auf
-                // Tagen mit Abwesenheit (#2361): eine halbe Krankmeldung
-                // schließt Arbeitszeit am selben Tag nicht aus, und ein
-                // fehlender Stift las sich als "Tag ist gesperrt".
+                // regardless of whether a session already exists. On an
+                // absence-only day, however, only a half-day boundary may
+                // receive additional work: full-day absences already credit
+                // the complete target in the monthly balance (#2361).
                 //
                 // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
                 // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
                 // und genau die muss korrigierbar sein.
                 const isWeekend = dow >= 5;
-                const canEdit = isAdminView && !isFuture;
+                const absenceIsHalfDay = absence
+                  ? isHalfAbsenceBoundary(
+                      absence,
+                      key,
+                      absence.date_start.slice(0, 10),
+                      absence.date_end.slice(0, 10),
+                    )
+                  : false;
+                const canEdit =
+                  isAdminView &&
+                  !isFuture &&
+                  !absencesPending &&
+                  (session != null || absence == null || absenceIsHalfDay);
                 return (
                   <Fragment key={key}>
                     <tr
@@ -744,16 +759,10 @@ function computeRowStatus(
   if (absence) {
     const startDate = absence.date_start.slice(0, 10);
     const endDate = absence.date_end.slice(0, 10);
-    const legacyHalfDay =
-      absence.half_day && !absence.start_half_day && !absence.end_half_day;
-    const halfDay =
-      legacyHalfDay ||
-      (dateKey === startDate && Boolean(absence.start_half_day)) ||
-      (dateKey === endDate && Boolean(absence.end_half_day));
     return {
       kind: "absence",
       absenceType: absence.absence_type,
-      halfDay,
+      halfDay: isHalfAbsenceBoundary(absence, dateKey, startDate, endDate),
     };
   }
   if (target > 0 && !isFuture) {

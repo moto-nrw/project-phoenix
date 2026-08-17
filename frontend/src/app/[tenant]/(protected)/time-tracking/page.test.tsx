@@ -4945,4 +4945,70 @@ describe("empty-day hint dialog (#2361)", () => {
       expect.stringContaining("/staff/10?tab=zeiterfassung"),
     );
   });
+
+  it("offers managers the backfill link for a half-day absence", async () => {
+    const halfDayAbsence: StaffAbsence = {
+      ...mockVacationAbsence,
+      dateStart: weekdayISO,
+      dateEnd: weekdayISO,
+    };
+    setupDefaultMocks({ absences: [halfDayAbsence] });
+    const push = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({
+      push,
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    } as never);
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Nachtragen" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Arbeitszeit")).toBeInTheDocument();
+    expect(screen.getByText("Abwesenheit")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nachtragen" }));
+    expect(push).toHaveBeenCalledWith(
+      expect.stringContaining("/staff/10?tab=zeiterfassung"),
+    );
+  });
+
+  it("keeps the half-day absence editor focused for non-managers", async () => {
+    const halfDayAbsence: StaffAbsence = {
+      ...mockVacationAbsence,
+      dateStart: weekdayISO,
+      dateEnd: weekdayISO,
+    };
+    setupDefaultMocks({ absences: [halfDayAbsence] });
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Abwesenheit bearbeiten")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Nachtragen" }),
+    ).not.toBeInTheDocument();
+  });
 });

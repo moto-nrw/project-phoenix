@@ -129,11 +129,12 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   );
   // Absences are loaded in parallel with sessions so the table can show Krank/
   // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).
-  const { data: visibleAbsences } = useSWRAuth<readonly StaffAbsenceRow[]>(
-    `staff-absences-${staffId}-${visibleFromKey}-${visibleToKey}`,
-    () =>
-      staffAbsenceService.getAbsences(staffId, visibleFromKey, visibleToKey),
-  );
+  const { data: visibleAbsences, isLoading: visibleAbsencesLoading } =
+    useSWRAuth<readonly StaffAbsenceRow[]>(
+      `staff-absences-${staffId}-${visibleFromKey}-${visibleToKey}`,
+      () =>
+        staffAbsenceService.getAbsences(staffId, visibleFromKey, visibleToKey),
+    );
   // Planned Dienstplan shifts for the visible range feed the table's Plan
   // column (#1844) — plan next to Ist, with the deviation reason in the audit
   // expand. Does not touch the Soll/Saldo math (Arbeitszeitmodell, #1842).
@@ -383,6 +384,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               to={visibleTo}
               sessions={visibleSessions ?? []}
               absences={visibleAbsences ?? []}
+              absencesPending={visibleAbsencesLoading}
               schedule={schedule ?? null}
               dailyTargets={dailyTargets}
               dailyTargetsError={dailyTargetsError != null}

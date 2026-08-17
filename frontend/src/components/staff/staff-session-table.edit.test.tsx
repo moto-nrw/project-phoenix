@@ -49,9 +49,15 @@ const mondaySickAbsence: StaffAbsenceRow = {
   status: "approved",
 };
 
+const mondayFullDayAbsence: StaffAbsenceRow = {
+  ...mondaySickAbsence,
+  half_day: false,
+};
+
 function renderTable(props: {
   sessions?: readonly StaffHistorySession[];
   absences?: readonly StaffAbsenceRow[];
+  absencesPending?: boolean;
 }) {
   return render(
     <StaffSessionTable
@@ -60,6 +66,7 @@ function renderTable(props: {
       to={to}
       sessions={props.sessions ?? []}
       absences={props.absences}
+      absencesPending={props.absencesPending}
       schedule={schedule}
       accountStartDate=""
       accountStartDatePending={false}
@@ -95,5 +102,39 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
     expect(
       within(row!).getByRole("button", { name: "Eintrag bearbeiten" }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["sick", "reported"],
+    ["sick", "approved"],
+    ["vacation", "reported"],
+    ["vacation", "approved"],
+    ["training", "reported"],
+    ["training", "approved"],
+  ])(
+    "zeigt keinen Nachtragen-Stift bei ganztägiger %s-Abwesenheit mit Status %s",
+    (absenceType, status) => {
+      renderTable({
+        absences: [
+          { ...mondayFullDayAbsence, absence_type: absenceType, status },
+        ],
+      });
+
+      const row = screen.getByText("05.01.").closest("tr");
+      expect(row).not.toBeNull();
+      expect(
+        within(row!).queryByRole("button", { name: "Eintrag nachtragen" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("zeigt keinen Nachtragen-Stift, solange Abwesenheiten laden", () => {
+    renderTable({ absencesPending: true });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    expect(
+      within(row!).queryByRole("button", { name: "Eintrag nachtragen" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -81,6 +81,7 @@ import { staffScheduleService } from "~/lib/staff-api";
 import {
   adaptAbsenceForMetrics,
   adaptHistorySessionForMetrics,
+  isHalfAbsenceBoundary,
   startOfYear,
 } from "~/lib/staff-metrics-helpers";
 import {
@@ -1597,11 +1598,12 @@ function OwnZeiterfassungSection({
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
 
-  const { data: tableAbsenceData } = useSWRAuth<StaffAbsence[]>(
-    `time-tracking-table-absences-${visibleFromKey}-${visibleToKey}`,
-    () => timeTrackingService.getAbsences(visibleFromKey, visibleToKey),
-    { keepPreviousData: true, revalidateOnFocus: false },
-  );
+  const { data: tableAbsenceData, isLoading: tableAbsencesLoading } =
+    useSWRAuth<StaffAbsence[]>(
+      `time-tracking-table-absences-${visibleFromKey}-${visibleToKey}`,
+      () => timeTrackingService.getAbsences(visibleFromKey, visibleToKey),
+      { keepPreviousData: true, revalidateOnFocus: false },
+    );
   const tableAbsences = useMemo(
     () => tableAbsenceData ?? [],
     [tableAbsenceData],
@@ -1923,6 +1925,7 @@ function OwnZeiterfassungSection({
             to={visibleTo}
             sessions={adaptedSessions}
             absences={adaptedAbsences}
+            absencesPending={tableAbsencesLoading}
             schedule={schedule}
             dailyTargets={dailyTargets}
             dailyTargetsError={dailyTargetsError != null}
@@ -2302,16 +2305,80 @@ function ModalActions({
 
 /** Get modal footer based on context */
 function getEditModalFooter(
-  hasBoth: boolean,
+  hasBothSections: boolean,
   hasAbsence: boolean,
   activeTab: "session" | "absence",
   sessionFooter: React.ReactNode,
   absenceFooter: React.ReactNode,
 ): React.ReactNode {
-  if (hasBoth) {
+  if (hasBothSections) {
     return activeTab === "session" ? sessionFooter : absenceFooter;
   }
   return hasAbsence ? absenceFooter : sessionFooter;
+}
+
+function MissingSessionHint({
+  date,
+  canManage,
+}: {
+  readonly date: Date;
+  readonly canManage: boolean;
+}) {
+  const dayIndex = (date.getDay() + 6) % 7;
+  const dayName = DAY_NAMES_LONG[dayIndex] ?? "";
+
+  return (
+    <div className="space-y-3 py-2 text-sm text-gray-600">
+      <p>
+        Für {dayName}, den {formatDate(toISODate(date))} ist keine Arbeitszeit
+        eingetragen.
+      </p>
+      {canManage ? (
+        <p>
+          Mit „Nachtragen“ öffnen Sie die passende Seite. Dort tragen Sie die
+          Arbeitszeit für diesen Tag ein.
+        </p>
+      ) : (
+        <p>
+          Nur die Leitung kann fehlende Tage nachtragen. Bitte melden Sie sich
+          dort.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function BackfillFooter({
+  onClose,
+  onBackfill,
+}: {
+  readonly onClose: () => void;
+  readonly onBackfill: (() => void) | null;
+}) {
+  return (
+    <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={onClose}
+        className="flex-1"
+      >
+        Schließen
+      </Button>
+      {onBackfill && (
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={onBackfill}
+          className="flex-1"
+        >
+          Nachtragen
+        </Button>
+      )}
+    </div>
+  );
 }
 
 function EditSessionModal({
@@ -2438,6 +2505,22 @@ function EditSessionModal({
 
   const dayIndex = (date.getDay() + 6) % 7;
   const dayName = DAY_NAMES_LONG[dayIndex] ?? "";
+  const dateKey = toISODate(date);
+  const absenceIsHalfDay = absence
+    ? isHalfAbsenceBoundary(
+        adaptAbsenceForMetrics(absence),
+        dateKey,
+        absence.dateStart.slice(0, 10),
+        absence.dateEnd.slice(0, 10),
+      )
+    : false;
+  const onBackfill =
+    canManage && ownStaffId
+      ? () => router.push(`/staff/${ownStaffId}?tab=zeiterfassung`)
+      : null;
+  const hasBackfillableAbsence =
+    !hasSession && hasAbsence && absenceIsHalfDay && onBackfill !== null;
+  const hasBothSections = hasBoth || hasBackfillableAbsence;
 
   // Tag ohne Buchung und ohne Abwesenheit: kein stiller No-Op mehr (#2361).
   // Nachtragen bleibt admin-only — der Dialog erklärt den Weg, Berechtigte
@@ -2448,50 +2531,9 @@ function EditSessionModal({
         isOpen={isOpen}
         onClose={onClose}
         title="Kein Eintrag vorhanden"
-        footer={
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={onClose}
-              className="flex-1"
-            >
-              Schließen
-            </Button>
-            {canManage && ownStaffId && (
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={() =>
-                  router.push(`/staff/${ownStaffId}?tab=zeiterfassung`)
-                }
-                className="flex-1"
-              >
-                Nachtragen
-              </Button>
-            )}
-          </div>
-        }
+        footer={<BackfillFooter onClose={onClose} onBackfill={onBackfill} />}
       >
-        <div className="space-y-3 py-2 text-sm text-gray-600">
-          <p>
-            Für {dayName}, den {formatDate(toISODate(date))} ist keine
-            Arbeitszeit eingetragen.
-          </p>
-          {canManage && ownStaffId ? (
-            <p>
-              Mit „Nachtragen“ öffnen Sie die passende Seite. Dort tragen Sie
-              die Arbeitszeit für diesen Tag ein.
-            </p>
-          ) : (
-            <p>
-              Nur die Leitung kann fehlende Tage nachtragen. Bitte melden Sie
-              sich dort.
-            </p>
-          )}
-        </div>
+        <MissingSessionHint date={date} canManage={onBackfill !== null} />
       </Modal>
     );
   }
@@ -2595,12 +2637,15 @@ function EditSessionModal({
     }
   };
 
-  const modalTitle = getEditModalTitle(hasSession, hasAbsence);
+  const modalTitle = getEditModalTitle(
+    hasSession || hasBackfillableAbsence,
+    hasAbsence,
+  );
 
   // With only one of the two present there is no switcher, and the visible
   // section is pinned to whichever exists — `activeTab` alone would keep an
   // absence-only day on the (empty) "session" section.
-  const effectiveTab: "session" | "absence" = hasBoth
+  const effectiveTab: "session" | "absence" = hasBothSections
     ? activeTab
     : hasAbsence
       ? "absence"
@@ -2616,6 +2661,10 @@ function EditSessionModal({
         saving || !startTime || !notes.trim() || hasInvalidTimeRange
       }
     />
+  );
+
+  const backfillFooter = (
+    <BackfillFooter onClose={onClose} onBackfill={onBackfill} />
   );
 
   const absenceFooter = (
@@ -2634,10 +2683,10 @@ function EditSessionModal({
   );
 
   const footer = getEditModalFooter(
-    hasBoth,
+    hasBothSections,
     hasAbsence,
     activeTab,
-    sessionFooter,
+    hasSession ? sessionFooter : backfillFooter,
     isManagerControlledAbsence ? readOnlyAbsenceFooter : absenceFooter,
   );
 
@@ -2648,10 +2697,11 @@ function EditSessionModal({
           {dayName}, {formatDateGerman(date)}
         </p>
 
-        {/* Section switcher (only when both session + absence exist). The kit
+        {/* Section switcher for a session or a backfillable half-day alongside
+            an absence. The kit
             SegmentedControl, NOT ui/Tabs: Radix tabs activate on mousedown, and
             the existing modal tests drive this switcher with fireEvent.click. */}
-        {hasBoth && (
+        {hasBothSections && (
           <SegmentedControl
             ariaLabel="Abschnitt"
             fullWidth
@@ -2660,6 +2710,12 @@ function EditSessionModal({
             onChange={setActiveTab}
           />
         )}
+
+        {!hasSession &&
+          hasBackfillableAbsence &&
+          effectiveTab === "session" && (
+            <MissingSessionHint date={date} canManage={onBackfill !== null} />
+          )}
 
         {/* ── Session section ──────────────────────────────────────────── */}
         {hasSession && effectiveTab === "session" && (
