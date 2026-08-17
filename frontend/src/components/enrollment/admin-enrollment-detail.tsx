@@ -1190,7 +1190,7 @@ function BlockedOfferingRow({
           checked={booked || heldAutomatically}
           disabled={!booked}
           onChange={onRemove}
-          aria-label={`${offering.name} entfernen`}
+          aria-label={`${offering.name} bleibt gebucht`}
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
