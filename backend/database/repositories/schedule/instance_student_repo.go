@@ -585,7 +585,10 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 	// 'expected'; without this replay the blocks after the pickup cutoff would
 	// stay expected even though the child is still picked up early. Mirrors
 	// ApplyPartialAbsence keyed by (student, date) instead of exception id; a
-	// no-op when no timed excusal exists for the day.
+	// no-op when no timed excusal exists for the day. Completed instances are
+	// additionally excluded: the release above deliberately preserves them as
+	// historical absent, and the replay must not rewrite that record to excused
+	// with fresh pickup provenance (#2360 review).
 	_, err = base.GetDB(ctx, r.db).NewRaw(`
 		WITH released AS (
 			SELECT tenant_id, student_id, date
@@ -621,11 +624,11 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 			AND instance.tenant_id = attendance.tenant_id
 			AND instance.date = exc.exception_date
 			AND instance.start_time >= exc.excused_from
-			AND instance.status <> ?
+			AND instance.status NOT IN (?, ?)
 	`, tenant.FromContext(ctx), statusDayID,
 		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
-		schedule.InstanceStatusCancelled).Exec(ctx)
+		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "replay partial absence after status day release", Err: err}
 	}

@@ -118,6 +118,15 @@ const PICKUP_TIME_CACHE_KEY_PARTS = [
   "student-partial-absences-",
   "pickup-supervisions-",
   "student-detail-",
+  // A pulled-forward day pickup time auto-excuses the child from later
+  // blocks (#2360): the planner list renders the changed attendance plus the
+  // early_pickup_time marker, and the Web-Anwesenheit roster shows the same
+  // rows. All three disable focus revalidation, so the pickup event is their
+  // only live update path. Deliberately NOT the bare "timetable-" prefix —
+  // templates, phases and staff lists don't change with a Gehzeit.
+  "timetable-day-",
+  "timetable-week-",
+  "timetable-roster-",
 ] as const;
 
 // The arrival counterpart. No "arrival-search-"/"arrival-ogs-groups-" entries:
@@ -150,6 +159,13 @@ const STUDENT_UPDATE_CACHE_KEY_PARTS = [
   "arrival-data-",
   "pickup-supervisions-",
   "arrival-supervisions-",
+  // Parent care-exception submits/deletes announce ONLY student_updated, and
+  // a pulled-forward pickup time now rewrites timetable attendance and the
+  // early_pickup_time marker (#2360) — same narrow key set as the pickup
+  // event, for the same reason.
+  "timetable-day-",
+  "timetable-week-",
+  "timetable-roster-",
 ] as const;
 
 /**

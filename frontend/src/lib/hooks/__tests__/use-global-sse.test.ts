@@ -934,6 +934,37 @@ describe("useGlobalSSE", () => {
       expect(dashboardCall).toBeUndefined();
     });
 
+    it("pickup and student_updated events refresh the timetable attendance caches (#2360)", () => {
+      // A pulled-forward day pickup time rewrites timetable attendance rows
+      // and the early_pickup_time marker. The planner list and the
+      // Web-Anwesenheit roster disable focus revalidation, so these events
+      // are their only live update path — while the template/phase/staff
+      // caches under the same "timetable-" prefix must stay untouched.
+      const attendanceKeys = [
+        "my-tenant:timetable-week-2026-08-17-2026-08-21",
+        "my-tenant:timetable-day-2026-08-17-2026-08-17",
+        "my-tenant:timetable-roster-42",
+      ] as const;
+      const unrelatedTimetableKeys = [
+        "my-tenant:timetable-templates-7",
+        "my-tenant:timetable-enrollment-phases",
+        "my-tenant:timetable-staff-list",
+      ] as const;
+
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "pickup_schedule_changed" });
+      vi.advanceTimersByTime(500);
+      expect(matchedKeys(attendanceKeys)).toEqual([...attendanceKeys]);
+      expect(matchedKeys(unrelatedTimetableKeys)).toEqual([]);
+
+      vi.mocked(mutate).mockClear();
+      fire({ type: "student_updated" });
+      vi.advanceTimersByTime(500);
+      expect(matchedKeys(attendanceKeys)).toEqual([...attendanceKeys]);
+      expect(matchedKeys(unrelatedTimetableKeys)).toEqual([]);
+    });
+
     it("handles mutate rejection in student_updated detail scope gracefully", async () => {
       vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
       const consoleSpy = vi

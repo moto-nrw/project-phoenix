@@ -648,6 +648,19 @@ func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(
 		return s.core.DeleteAllExceptions(ctx, studentID)
 	}
 	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		// Student lock FIRST: every care-day writer takes it before its day
+		// lock, so once held no concurrent exception write can commit between
+		// the snapshot below and the delete — an auto excusal created in that
+		// window would otherwise be deleted without release, stranding its
+		// blocks as absent once the FK clears their provenance (#2360 review).
+		// A missing student cannot race those writers (they fail on the same
+		// lock), so the plain delete-all suffices then.
+		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return s.core.DeleteAllExceptions(txCtx, studentID)
+			}
+			return err
+		}
 		rows, err := s.core.Exceptions(txCtx, studentID)
 		if err != nil {
 			return err
