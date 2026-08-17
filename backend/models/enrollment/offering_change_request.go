@@ -54,7 +54,8 @@ type OfferingChangeRequest struct {
 	// lines a Mitbuchungs-Regel added and any per-request overrides) at the
 	// moment the request was decided. Recap views read only this snapshot, so a
 	// later rule change cannot rewrite history (ADR 0002). Nil on rows decided
-	// before the column existed; readers fall back to live materialization.
+	// before the column existed; recap readers then fall back to the stored
+	// payload (the guardian's own selection), exactly as before the column.
 	DecisionSnapshot *OfferingChangeDecisionSnapshot `bun:"decision_snapshot,type:jsonb" json:"decision_snapshot,omitempty"`
 	ReviewedBy       *int64                          `bun:"reviewed_by" json:"reviewed_by,omitempty"`
 	ReviewedAt       *time.Time                      `bun:"reviewed_at" json:"reviewed_at,omitempty"`
