@@ -41,6 +41,10 @@ export interface PickupException {
   pickupTime?: string; // HH:MM format, null = no pickup (absent)
   reason?: string;
   source?: string; // "staff" or "guardian" (parent-set)
+  /** Teilabwesenheits-Cutoff (HH:MM), falls die Ausnahme eine traegt. */
+  excusedFrom?: string;
+  /** true = Abmeldung automatisch aus vorverlegter Abholzeit abgeleitet (#2360). */
+  excusedAuto?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +58,8 @@ export interface BackendPickupException {
   pickup_time?: string; // HH:MM format
   reason?: string;
   source?: string; // "staff" or "guardian"
+  excused_from?: string;
+  excused_auto?: boolean;
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -177,6 +183,8 @@ export function mapPickupExceptionResponse(
     pickupTime: data.pickup_time,
     reason: data.reason,
     source: data.source,
+    excusedFrom: data.excused_from,
+    excusedAuto: data.excused_auto,
     createdBy: data.created_by.toString(),
     createdAt: data.created_at,
     updatedAt: data.updated_at,

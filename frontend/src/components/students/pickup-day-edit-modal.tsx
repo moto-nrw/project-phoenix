@@ -343,6 +343,15 @@ export function PickupDayEditModal({
               Abweichende Zeit eintragen
             </button>
           )}
+          {hasTimeOverride &&
+          baseTime &&
+          /^([01]?\d|2[0-3]):[0-5]\d$/.test(pickupTime) &&
+          pickupTime.padStart(5, "0") < baseTime.padStart(5, "0") ? (
+            <p className="border-moto-amber/40 bg-moto-amber-soft text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
+              Abholung vorverlegt: Betreuungsblöcke ab {pickupTime} Uhr werden
+              für diesen Tag automatisch abgemeldet (entschuldigt).
+            </p>
+          ) : null}
         </div>
 
         {/* Divider */}

@@ -14,6 +14,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -1029,6 +1030,15 @@ export function PlannedStatusDaysModal({
                   <span className="min-w-0 flex-1 break-words">
                     <span className="block">
                       {formatDateLabel(absence.date)}
+                      {absence.auto ? (
+                        <span className="ml-2 inline-flex align-middle">
+                          <StatusBadge
+                            label="Automatisch (Abholzeit)"
+                            tone="orange"
+                            title="Automatisch aus der vorverlegten Abholzeit abgeleitet. Zum Aufheben die Abholzeit des Tages ändern oder entfernen."
+                          />
+                        </span>
+                      ) : null}
                     </span>
                     <span className="block text-xs text-gray-500">
                       Ab {absence.fromTime} Uhr
@@ -1054,7 +1064,7 @@ export function PlannedStatusDaysModal({
                     >
                       Bearbeiten
                     </Button>
-                    {onDeletePartialAbsence ? (
+                    {onDeletePartialAbsence && !absence.auto ? (
                       <Button
                         type="button"
                         size="compact"
