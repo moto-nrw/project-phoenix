@@ -199,6 +199,59 @@ func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
 	assert.Contains(t, body, "student_ids must be numeric")
 }
 
+// TestSchoolCheckinBatch_TooManyIDs_Rejects pins that the size cap applies to
+// the RAW list before deduplication (review #2372): a payload of duplicates
+// must not slip past the limit by collapsing to a single student.
+func TestSchoolCheckinBatch_TooManyIDs_Rejects(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "BatchCap", "Target", "6a")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchCap", "Caller")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	// One over maxSchoolCheckinBatchSize, all the same student.
+	ids := make([]string, 1001)
+	for i := range ids {
+		ids[i] = idStr(student.ID)
+	}
+
+	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
+		"action":      "in",
+		"student_ids": ids,
+	})
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body, "too many students")
+}
+
+// TestSchoolCheckinBatch_OversizedBody_Rejects pins the byte bound in front of
+// the JSON decoder (review #2372): a body past maxSchoolCheckinBatchBytes
+// fails during decode instead of being read into memory whole.
+func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "BatchBytes", "Target", "6b")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchBytes", "Caller")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	// Enough duplicate entries to exceed the 64KB body cap regardless of how
+	// long the fixture's id happens to be (each entry costs len+3 bytes for
+	// the quotes and comma).
+	entry := idStr(student.ID)
+	ids := make([]string, (64<<10)/(len(entry)+3)+100)
+	for i := range ids {
+		ids[i] = entry
+	}
+
+	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
+		"action":      "in",
+		"student_ids": ids,
+	})
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body, "too large")
+}
+
 func TestSchoolCheckinBatch_EmptyIDs_Rejects(t *testing.T) {
 	tc := setupTestContext(t)
 

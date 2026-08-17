@@ -3,7 +3,6 @@ package students
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -115,6 +114,12 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 // expressible in a single request while a runaway payload is rejected.
 const maxSchoolCheckinBatchSize = 1000
 
+// maxSchoolCheckinBatchBytes bounds the request body BEFORE any JSON decoding.
+// 1000 int64 ids serialize to well under 32KB including quotes, commas, and
+// the envelope; 64KB leaves generous headroom while a runaway payload never
+// gets fully read into memory in the first place.
+const maxSchoolCheckinBatchBytes = 64 << 10
+
 // schoolCheckinBatchRequest is the payload for
 // POST /api/students/school-checkin/batch. The action applies to every listed
 // student; students already in the target state count as no-ops (Changed=false),
@@ -166,6 +171,10 @@ type schoolCheckinBatchResponse struct {
 func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Request) {
 	logger := rs.getLogger().With(slog.String("handler", "schoolCheckinBatch"))
 
+	// Bound the body BEFORE decoding: without this an arbitrarily large
+	// payload is fully read and unmarshalled before any length check can
+	// reject it.
+	r.Body = http.MaxBytesReader(w, r.Body, maxSchoolCheckinBatchBytes)
 	var req schoolCheckinBatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -173,6 +182,13 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 	}
 	if req.Action != schoolCheckinActionIn && req.Action != schoolCheckinActionOut {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(`action must be "in" or "out"`)))
+		return
+	}
+	// Cap the RAW list before parsing and deduplication: a payload of
+	// duplicate ids must not buy unbounded parse work just because it would
+	// collapse to a few students afterwards.
+	if len(req.StudentIDs) > maxSchoolCheckinBatchSize {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("too many students in one batch")))
 		return
 	}
 	parsedIDs, parseErr := parseStudentIDStrings(req.StudentIDs)
@@ -185,10 +201,6 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids must not be empty")))
 		return
 	}
-	if len(studentIDs) > maxSchoolCheckinBatchSize {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("too many students in one batch")))
-		return
-	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
@@ -196,19 +208,10 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	resp := &schoolCheckinBatchResponse{Action: req.Action, Results: make([]schoolCheckinBatchResult, 0, len(studentIDs))}
-	for _, studentID := range studentIDs {
-		result, applyErr := rs.applySchoolCheckinBatchOne(r.Context(), studentID, staffID, req.Action)
-		if applyErr != nil {
-			common.RenderError(w, r, common.ErrorInternalServer(applyErr))
-			return
-		}
-		if result.OK {
-			resp.Succeeded++
-		} else {
-			resp.Failed++
-		}
-		resp.Results = append(resp.Results, result)
+	resp, err := rs.processSchoolCheckinBatch(r.Context(), studentIDs, staffID, req.Action)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
 
 	logger.Info("student_school_checkin_batch",
@@ -222,58 +225,137 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, resp, "School checkin batch processed")
 }
 
-// applySchoolCheckinBatchOne resolves and toggles a single student of a batch.
-// A student the caller cannot act on (unknown id, another tenant — invisible
-// through RLS —, or graduated) comes back as a not_found result; only
-// unexpected service errors return a non-nil error, which fails the whole
-// batch (see schoolCheckinBatchHandler for why).
-func (rs *Resource) applySchoolCheckinBatchOne(
+// processSchoolCheckinBatch applies the action to every deduped student id.
+// Reads are batched — one students query, one attendance-status query, one
+// post-write refresh — so a full 1000-student selection issues a handful of
+// queries instead of an N+1 per-student cascade. Only the state-transition
+// writes stay per student: CheckInStudent/CheckOutStudent carry the race-safe
+// transition logic (and visit ending on checkout) that has no batch form.
+//
+// A student the caller cannot act on (unknown id, another tenant's student —
+// invisible through the tenant filter —, or graduated) comes back as a
+// not_found result; only unexpected service errors return a non-nil error,
+// which fails the whole batch (see schoolCheckinBatchHandler for why).
+func (rs *Resource) processSchoolCheckinBatch(
 	ctx context.Context,
-	studentID int64,
+	studentIDs []int64,
 	staffID int64,
 	action string,
-) (schoolCheckinBatchResult, error) {
-	notFound := schoolCheckinBatchResult{StudentID: strconv.FormatInt(studentID, 10), Error: "not_found"}
-
-	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
+) (*schoolCheckinBatchResponse, error) {
+	students, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
 	if err != nil {
-		// Only a genuine no-row lookup is a skippable "not_found" (unknown id,
-		// or another tenant's student invisible through RLS). Every other
-		// failure — connection loss, aborted transaction, context cancel, scan
-		// errors — must fail the whole batch so the shared tenant transaction
-		// rolls back instead of being misreported as a missing student.
-		if errors.Is(err, sql.ErrNoRows) {
-			return notFound, nil
+		return nil, err
+	}
+	// One query for all current statuses. Ids missing from the students map
+	// get a synthetic "not_checked_in" entry here; those students are skipped
+	// as not_found below and their entry is never read.
+	statuses, err := rs.ActiveService.GetStudentsAttendanceStatuses(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &schoolCheckinBatchResponse{Action: action, Results: make([]schoolCheckinBatchResult, 0, len(studentIDs))}
+	changedAt := make(map[int64]int) // student id → Results index awaiting the post-write status
+	for _, studentID := range studentIDs {
+		student := students[studentID]
+		// IsAlumnus is nil-safe by design: a missing map entry (unknown id or
+		// another tenant's student) and a graduated one are both skippable.
+		if student == nil || student.IsAlumnus() {
+			resp.Failed++
+			resp.Results = append(resp.Results, schoolCheckinBatchNotFound(studentID))
+			continue
 		}
-		return schoolCheckinBatchResult{}, err
-	}
-	if student.Status == users.StudentStatusAlumnus {
-		return notFound, nil
-	}
-
-	current, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, student.ID)
-	if err != nil {
-		return schoolCheckinBatchResult{}, err
-	}
-
-	resp, err := rs.applySchoolCheckinAction(ctx, student, staffID, action, current)
-	if err != nil {
-		// Graduation race after the pre-check above: CheckInStudent's own guard
-		// rejects before writing anything, so the transaction stays clean and
-		// the student can be skipped like any other unknown id.
-		if errors.Is(err, activeService.ErrStudentGraduated) {
-			return notFound, nil
+		if current := statuses[studentID]; isIdempotentSchoolCheckin(action, current.Status) {
+			resp.Succeeded++
+			resp.Results = append(resp.Results, schoolCheckinBatchOK(studentID, false, current))
+			continue
 		}
-		return schoolCheckinBatchResult{}, err
+		if err := rs.writeSchoolCheckinAction(ctx, studentID, staffID, action); err != nil {
+			// Graduation race after the batch pre-check above: CheckInStudent's
+			// own guard rejects before writing anything, so the transaction
+			// stays clean and the student can be skipped like any unknown id.
+			if errors.Is(err, activeService.ErrStudentGraduated) {
+				resp.Failed++
+				resp.Results = append(resp.Results, schoolCheckinBatchNotFound(studentID))
+				continue
+			}
+			return nil, err
+		}
+		resp.Succeeded++
+		changedAt[studentID] = len(resp.Results)
+		resp.Results = append(resp.Results, schoolCheckinBatchResult{
+			StudentID: strconv.FormatInt(studentID, 10),
+			OK:        true,
+			Changed:   true,
+		})
 	}
 
+	if err := rs.fillRefreshedBatchStatuses(ctx, resp.Results, changedAt); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// writeSchoolCheckinAction performs the single state-transition write for one
+// student of a batch. Action-explicit for the same race reason as
+// applySchoolCheckinAction: CheckIn/CheckOut are individually race-safe
+// (ON CONFLICT for in, state-checked UPDATE for out), while a toggle could
+// flip a concurrent "in" into an "out". A checkout also ends any open room
+// visit in the same request transaction (#895).
+func (rs *Resource) writeSchoolCheckinAction(ctx context.Context, studentID, staffID int64, action string) error {
+	if action == schoolCheckinActionIn {
+		_, err := rs.ActiveService.CheckInStudent(ctx, studentID, staffID, 0, true)
+		return err
+	}
+	_, err := rs.ActiveService.CheckOutStudent(ctx, studentID, staffID, true)
+	return err
+}
+
+// fillRefreshedBatchStatuses back-fills Status/Location for every result whose
+// write changed state, from ONE post-write attendance query instead of a
+// re-read per student. It runs inside the same tenant transaction as the
+// writes, so it observes the batch's own freshly-written rows.
+func (rs *Resource) fillRefreshedBatchStatuses(
+	ctx context.Context,
+	results []schoolCheckinBatchResult,
+	changedAt map[int64]int,
+) error {
+	if len(changedAt) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(changedAt))
+	for id := range changedAt {
+		ids = append(ids, id)
+	}
+	updated, err := rs.ActiveService.GetStudentsAttendanceStatuses(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for id, idx := range changedAt {
+		results[idx].Status = updated[id].Status
+		results[idx].Location = labelForAttendanceStatus(updated[id].Status)
+	}
+	return nil
+}
+
+// schoolCheckinBatchNotFound builds the skippable per-student failure entry.
+// "not_found" is a machine-readable code — the frontend resolves the student's
+// name from its own list, so no PII travels here.
+func schoolCheckinBatchNotFound(studentID int64) schoolCheckinBatchResult {
+	return schoolCheckinBatchResult{StudentID: strconv.FormatInt(studentID, 10), Error: "not_found"}
+}
+
+// schoolCheckinBatchOK builds a successful per-student entry from a known
+// attendance status (the pre-read one for no-ops, never a stale value —
+// changed students get theirs from fillRefreshedBatchStatuses instead).
+func schoolCheckinBatchOK(studentID int64, changed bool, status *activeService.AttendanceStatus) schoolCheckinBatchResult {
 	return schoolCheckinBatchResult{
-		StudentID: strconv.FormatInt(student.ID, 10),
+		StudentID: strconv.FormatInt(studentID, 10),
 		OK:        true,
-		Changed:   resp.Changed,
-		Status:    resp.Status,
-		Location:  resp.Location,
-	}, nil
+		Changed:   changed,
+		Status:    status.Status,
+		Location:  labelForAttendanceStatus(status.Status),
+	}
 }
 
 // parseStudentIDStrings converts the wire-format string IDs to int64. Any
