@@ -7,6 +7,7 @@ import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
+import { formatDate } from "~/lib/date-helpers";
 import { CONTACT_METHODS, LANGUAGE_PREFERENCES } from "~/lib/guardian-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -72,6 +73,10 @@ function formatValue(field: string, value: unknown, empty: string): string {
     if (field === "preferred_contact_method")
       return CONTACT_METHOD_LABELS[value] ?? value;
     if (field === "language_preference") return LANGUAGE_LABELS[value] ?? value;
+    // Only format well-formed ISO dates — formatDate on anything else yields
+    // "Invalid Date", which would break the raw-value fallback contract.
+    if (field === "birthday" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+      return formatDate(value);
     return value;
   }
   if (typeof value === "object") {

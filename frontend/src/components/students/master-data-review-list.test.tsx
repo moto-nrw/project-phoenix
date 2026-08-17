@@ -118,6 +118,30 @@ describe("MasterDataReviewList", () => {
     expect(screen.getByText("Türkisch")).toBeInTheDocument();
   });
 
+  it("renders birthdays in German date format, invalid dates raw", async () => {
+    mockList.mockResolvedValue([
+      row({
+        field_key: "birthday",
+        old_value: "2018-05-03",
+        new_value: "2018-06-14",
+      }),
+      row({
+        id: "101",
+        field_key: "birthday",
+        old_value: null,
+        new_value: "kein-datum",
+      }),
+    ]);
+
+    render(<MasterDataReviewList />);
+
+    expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(2);
+    expandAll();
+    expect(screen.getByText("03.05.2018")).toBeInTheDocument();
+    expect(screen.getByText("14.06.2018")).toBeInTheDocument();
+    expect(screen.getByText("kein-datum")).toBeInTheDocument();
+  });
+
   it("falls back to raw values for unknown keys without crashing", async () => {
     mockList.mockResolvedValue([
       row({
