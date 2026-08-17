@@ -2112,7 +2112,8 @@ function CareOfferingAvailabilityFields({
               {conflicts === 1
                 ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
                 : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
-              Sie bleiben bestehen — die Regel gilt nur für neue Auswahlen.
+              Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die Regel
+              gilt nur für neue Auswahlen.
             </p>
           ) : null}
         </div>

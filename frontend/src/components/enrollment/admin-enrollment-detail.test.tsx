@@ -872,7 +872,7 @@ describe("ChildOfferingAdjustment", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     const checkbox = await screen.findByRole("checkbox", {
-      name: "Randstunde entfernen",
+      name: "Randstunde bleibt gebucht",
     });
     expect(checkbox).toBeChecked();
     fireEvent.click(checkbox);
@@ -962,7 +962,7 @@ describe("ChildOfferingAdjustment", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     const checkbox = await screen.findByRole("checkbox", {
-      name: "Randstunde entfernen",
+      name: "Randstunde bleibt gebucht",
     });
     // The label must be wired to the input, or a mouse user cannot toggle it.
     const label = checkbox.closest("label");
@@ -1020,7 +1020,7 @@ describe("ChildOfferingAdjustment", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     const checkbox = await screen.findByRole("checkbox", {
-      name: "Randstunde entfernen",
+      name: "Randstunde bleibt gebucht",
     });
     expect(checkbox).toBeChecked();
     // Derived days disappear with their trigger, never by unticking here.
@@ -1043,7 +1043,7 @@ describe("ChildOfferingAdjustment", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     const checkbox = await screen.findByRole("checkbox", {
-      name: "Randstunde entfernen",
+      name: "Randstunde bleibt gebucht",
     });
     expect(checkbox).not.toBeChecked();
     expect(checkbox).toBeDisabled();
