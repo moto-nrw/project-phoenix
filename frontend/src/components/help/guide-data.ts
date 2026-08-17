@@ -1278,7 +1278,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tageszeilen prüfen: Plan (geplante Schicht), Check-in, Check-out, Pause, Soll, Ist, Saldo, Status, Quelle und Hinweise zeigen, ob ein Tag vollständig erfasst wurde.",
           "Gesetzliche Feiertage (nach dem Bundesland der Einrichtung) tragen das Badge `Feiertag`. An diesen Tagen ist das Soll automatisch 0, es entstehen also keine Minusstunden. Wird an einem Feiertag trotzdem gestempelt, erscheint der Hinweis `Feiertagsarbeit`.",
           "Von der Einrichtung hinterlegte OGS-Schließtage (z. B. pädagogische Tage oder die Sommerschließung) tragen das Badge `Schließtag` und setzen das Soll ebenfalls auf 0. Fällt ein Schließtag auf einen Feiertag, zeigt die Zeile das Feiertag-Badge.",
-          "Über das Stift-Symbol eigene Arbeitszeiteinträge korrigieren. Bei jeder Arbeitszeit-Korrektur einen Grund angeben. Fehlende Arbeitstage kann nur die Leitung nachtragen: unter `Mitarbeiter` die Person öffnen und im Bereich `Zeiterfassung` den Tag ergänzen.",
+          "Über das Stift-Symbol eigene Arbeitszeiteinträge korrigieren. Bei jeder Arbeitszeit-Korrektur einen Grund angeben. Fehlende Arbeitstage kann nur die Leitung nachtragen: unter `Mitarbeitende` die Person öffnen und im Bereich `Zeiterfassung` den Tag ergänzen.",
           "Geänderte Tage aufklappen, um die Änderungshistorie zu sehen. Für Auswertungen den Export im Tabellenkopf nutzen.",
         ],
         callout: {
