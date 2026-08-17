@@ -36,8 +36,10 @@ type SchoolCheckinBatchResult struct {
 
 // IsSchoolCheckinNoop reports whether the requested action is already
 // satisfied by the student's current attendance status ("on_yard" counts as
-// present). Pure decision logic, exported so the single-student handler can
-// share the exact same no-op rule.
+// present). Pure decision logic, exported for the single-student handler's
+// short-circuit. The batch below deliberately does NOT use it: skipping a
+// write based on a pre-read status races a concurrent transition — the
+// state-checked writes themselves are the only trustworthy no-op detectors.
 func IsSchoolCheckinNoop(action, currentStatus string) bool {
 	alreadyPresent := currentStatus == "checked_in" || currentStatus == "on_yard"
 	alreadyAbsent := currentStatus == "not_checked_in" || currentStatus == "checked_out"
@@ -54,9 +56,9 @@ func IsSchoolCheckinNoop(action, currentStatus string) bool {
 // ProcessSchoolCheckinBatch applies one explicit check-in/out action to a set
 // of students (#2359, Sammelauswahl in der Kindersuche).
 //
-// Reads are batched — one students query, one attendance-status query, one
-// post-write refresh — so a full selection issues a handful of queries instead
-// of an N+1 per-student cascade. Only the state-transition writes stay per
+// Reads are batched — one students query for id resolution, one post-write
+// status refresh — so a full selection issues a handful of queries instead of
+// an N+1 per-student cascade. Only the state-transition writes stay per
 // student: CheckInStudent/CheckOutStudent carry the race-safe transition logic
 // (and visit ending on checkout) that has no batch form.
 //
@@ -65,10 +67,14 @@ func IsSchoolCheckinNoop(action, currentStatus string) bool {
 // row locks in opposite orders and deadlock in PostgreSQL. The result list is
 // assembled separately in the caller's order.
 //
-// Per-student Changed comes from the write itself, not from the pre-read
-// status: a concurrent request may have established the target state between
-// the batch's status read and the write, and that absorbed write is a no-op
-// (Changed=false), not a change.
+// Every resolvable student gets the write — there is no status pre-read and
+// no skip for apparent no-ops (review #2372). A skip based on a pre-read
+// status races a concurrent transition: an "in" batch that read "checked_in"
+// and skipped would report success while a parallel checkout lands and the
+// student stays out. The writes are individually race-safe AND idempotent
+// (ON CONFLICT insert for in, state-checked UPDATE for out), so executing
+// them unconditionally is correct, and their Changed result is the ground
+// truth for whether THIS call moved anything (false on an absorbed no-op).
 //
 // Failure semantics: the caller runs the batch inside one tenant transaction,
 // so an unexpected write error must fail the entire call — earlier writes
@@ -90,13 +96,6 @@ func (s *service) ProcessSchoolCheckinBatch(
 	if err != nil {
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
-	// One query for all current statuses. Ids missing from the students map
-	// get a synthetic "not_checked_in" entry here; those students are skipped
-	// as OK=false below and their entry is never read.
-	statuses, err := s.GetStudentsAttendanceStatuses(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
 
 	// Canonical write order: ascending, deduplicated (see doc comment).
 	writeOrder := append([]int64(nil), studentIDs...)
@@ -111,10 +110,6 @@ func (s *service) ProcessSchoolCheckinBatch(
 		// another tenant's student) and a graduated one are both skippable.
 		if student == nil || student.IsAlumnus() {
 			outcomes[studentID] = SchoolCheckinBatchItem{StudentID: studentID}
-			continue
-		}
-		if current := statuses[studentID]; IsSchoolCheckinNoop(action, current.Status) {
-			outcomes[studentID] = SchoolCheckinBatchItem{StudentID: studentID, OK: true, Status: current.Status}
 			continue
 		}
 		result, writeErr := s.applySchoolCheckinWrite(ctx, studentID, staffID, action)

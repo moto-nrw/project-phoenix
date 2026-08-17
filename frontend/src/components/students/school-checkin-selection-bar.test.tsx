@@ -71,4 +71,18 @@ describe("SchoolCheckinSelectionBar", () => {
     expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
   });
+
+  it("locks the sub-mode toggle while a bulk run is in flight", () => {
+    // Switching to "Sofort" clears the selection; mid-flight that would
+    // discard the failed IDs kept marked for retry (review #2372).
+    const props = renderBar({
+      selectionActive: true,
+      selectedCount: 3,
+      isRunning: true,
+    });
+    const immediate = screen.getByRole("button", { name: "Sofort" });
+    expect(immediate).toBeDisabled();
+    fireEvent.click(immediate);
+    expect(props.onSelectionActiveChange).not.toHaveBeenCalled();
+  });
 });

@@ -50,8 +50,11 @@ export function SchoolCheckinSelectionBar({
         <SegmentedControl
           ariaLabel="Tipp-Verhalten"
           items={[
-            { value: "immediate", label: "Sofort" },
-            { value: "select", label: "Auswahl" },
+            // Locked while a batch is in flight: switching to "Sofort" clears
+            // the selection, which would discard the failed IDs the response
+            // is about to keep marked for a one-tap retry (review #2372).
+            { value: "immediate", label: "Sofort", disabled: isRunning },
+            { value: "select", label: "Auswahl", disabled: isRunning },
           ]}
           value={selectionActive ? "select" : "immediate"}
           onChange={(next) => onSelectionActiveChange(next === "select")}
