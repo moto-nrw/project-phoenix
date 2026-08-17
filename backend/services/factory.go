@@ -3,6 +3,8 @@ package services
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -1643,6 +1645,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 				}
 				return nil
 			})
+		},
+		// The reconciler takes these BEFORE writing weekly rows — the same
+		// student → schedule-row → care-day lock order the staff weekly
+		// editors use, so the two weekly writers cannot deadlock against
+		// each other (#2360 review). Uses the ambient tenant transaction;
+		// missing students (concurrent offboarding) are skipped, matching
+		// the resync's tolerance.
+		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
+			for _, studentID := range studentIDs {
+				if err := schedule.LockCareStudent(ctx, db, studentID); err != nil {
+					if errors.Is(err, sql.ErrNoRows) {
+						continue
+					}
+					return err
+				}
+			}
+			return nil
 		},
 		Logger: logger.With("service", "enrollment-decision"),
 	})

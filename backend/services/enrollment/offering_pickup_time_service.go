@@ -241,6 +241,9 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 	if weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
 		return nil, fmt.Errorf("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
+	if err := s.lockPickupStudents(ctx, []int64{studentID}); err != nil {
+		return nil, err
+	}
 	desired, err := s.desiredOfferingPickupTimes(ctx, []int64{studentID}, timezone.TodayDate())
 	if err != nil {
 		return nil, err
@@ -333,6 +336,16 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 	if opts.onDate.IsZero() {
 		opts.onDate = timezone.TodayDate()
 	}
+	lockIDs := make([]int64, 0, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if !opts.skipStudents[studentID] {
+			lockIDs = append(lockIDs, studentID)
+		}
+	}
+	slices.Sort(lockIDs)
+	if err := s.lockPickupStudents(ctx, slices.Compact(lockIDs)); err != nil {
+		return nil, err
+	}
 	desired, err := s.desiredOfferingPickupTimes(ctx, studentIDs, opts.onDate)
 	if err != nil {
 		return nil, err
@@ -389,6 +402,21 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 	}
 	s.deferOfferingPickupBroadcasts(ctx, stats.changedStudentIDs())
 	return stats, nil
+}
+
+// lockPickupStudents serializes offering-sourced weekly writes against the
+// staff weekly editors: student row locks FIRST, schedule-row writes second,
+// care-day locks last — the order every care-day writer uses, so the two
+// weekly writers cannot deadlock against each other (#2360 review). Nil-safe
+// for mock-only wirings.
+func (s *decisionService) lockPickupStudents(ctx context.Context, studentIDs []int64) error {
+	if s.LockPickupStudents == nil || len(studentIDs) == 0 {
+		return nil
+	}
+	if err := s.LockPickupStudents(ctx, studentIDs); err != nil {
+		return fmt.Errorf("lock students for pickup reconcile: %w", err)
+	}
+	return nil
 }
 
 // resyncPickupAutoExcusals re-derives the auto partial absences of the

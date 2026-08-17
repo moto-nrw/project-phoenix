@@ -427,7 +427,16 @@ type DecisionServiceConfig struct {
 	// Runs in the caller's transaction. Production wires the schedule
 	// PickupAutoExcusalSyncer; tests may leave it nil.
 	ResyncPickupAutoExcusals func(ctx context.Context, studentIDs []int64) error
-	Logger                   *slog.Logger
+	// LockPickupStudents takes the students' care locks (users.students row
+	// FOR UPDATE, ascending order) BEFORE the reconciler writes weekly
+	// Gehzeit rows. Staff weekly editors lock the student first and schedule
+	// rows second; the offering reconciler must acquire in the same order or
+	// a concurrent staff edit can deadlock against it (#2360 review). Runs in
+	// the caller's transaction; missing students (concurrent offboarding) are
+	// skipped. Production wires the schedule care-student lock; tests may
+	// leave it nil.
+	LockPickupStudents func(ctx context.Context, studentIDs []int64) error
+	Logger             *slog.Logger
 }
 
 type decisionService struct {

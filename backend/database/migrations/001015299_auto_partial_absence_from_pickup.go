@@ -107,15 +107,55 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 func autoPartialAbsenceDown(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Rolling back migration 1.15.299: Removing excused_auto from pickup exceptions...")
 
+	// Restore linked blocks with the same ownership rules as
+	// ReleasePartialAbsence: a still-active full-day status takes over the
+	// row, completed blocks stay absent, and only actionable blocks return to
+	// expected — an unconditional reset would reopen completed blocks or
+	// override an active sick/excused day.
 	_, err := db.NewRaw(`
+		WITH released AS (
+			SELECT tenant_id, id, student_id, exception_date
+			FROM schedule.student_pickup_exceptions
+			WHERE excused_auto
+		), replacement AS (
+			SELECT released.tenant_id,
+				released.id AS exception_id,
+				released.student_id,
+				latest.id AS status_day_id,
+				latest.status AS status_day_status
+			FROM released
+			LEFT JOIN LATERAL (
+				SELECT candidate.id, candidate.status
+				FROM active.student_status_days AS candidate
+				WHERE candidate.tenant_id = released.tenant_id
+					AND candidate.student_id = released.student_id
+					AND candidate.date = released.exception_date
+					AND candidate.cleared_at IS NULL
+				ORDER BY candidate.reported_at DESC, candidate.id DESC
+				LIMIT 1
+			) AS latest ON TRUE
+		)
 		UPDATE schedule.instance_students AS attendance
-		SET status = 'expected',
-			substatus = NULL,
-			pickup_exception_id = NULL
-		FROM schedule.student_pickup_exceptions AS exc
-		WHERE attendance.pickup_exception_id = exc.id
-			AND attendance.tenant_id = exc.tenant_id
-			AND exc.excused_auto;
+		SET status = CASE
+				WHEN replacement.status_day_id IS NOT NULL THEN 'absent'
+				WHEN instance.status = 'completed' THEN 'absent'
+				ELSE 'expected'
+			END,
+			substatus = CASE replacement.status_day_status
+				WHEN 'sick' THEN 'sick'
+				WHEN 'excused' THEN 'excused'
+				WHEN 'class_trip' THEN 'field_trip'
+				ELSE NULL
+			END,
+			student_status_day_id = replacement.status_day_id,
+			pickup_exception_id = NULL,
+			updated_at = NOW()
+		FROM schedule.activity_instances AS instance, replacement
+		WHERE attendance.tenant_id = replacement.tenant_id
+			AND attendance.pickup_exception_id = replacement.exception_id
+			AND attendance.student_id = replacement.student_id
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id;
 
 		UPDATE schedule.student_pickup_exceptions
 		SET excused_from = NULL,
