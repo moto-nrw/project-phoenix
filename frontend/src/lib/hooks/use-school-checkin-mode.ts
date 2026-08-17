@@ -196,8 +196,11 @@ interface UseSchoolCheckinModeResult {
   /**
    * Apply one explicit action to selected students via the batch endpoint.
    * `onlyIds` restricts the run to that subset of the selection — the page
-   * passes the currently VISIBLE selected students so a mark hidden by a
-   * filter is never executed without being on screen (review #2372). After
+   * passes the currently VISIBLE selected students (or the confirmation
+   * dialog's snapshot of them) so a mark hidden by a filter is never
+   * executed without being on screen, and a dialog executes exactly what it
+   * displayed (review #2372). The run is always intersected with the still-
+   * selected ids, so a stale caller list can only narrow, never widen. After
    * the run, successfully processed students are removed from the selection
    * while failures (and any students marked mid-flight) stay selected, so a
    * retry is one tap. The presence caches are revalidated once, bundled.

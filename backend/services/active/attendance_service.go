@@ -153,7 +153,7 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
 		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeToggle)
 	} else {
-		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, now, checkoutTypeToggle)
+		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, now, today, checkoutTypeToggle)
 	}
 	if err != nil {
 		return nil, err
@@ -252,7 +252,8 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeWeb)
+	now := time.Now()
+	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, now, timezone.DateFromTime(now), checkoutTypeWeb)
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +270,8 @@ func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, devi
 	if err != nil {
 		return nil, err
 	}
-	return s.performCheckOut(ctx, studentID, authorizedStaffID, time.Now(), checkoutTypeDaily)
+	now := time.Now()
+	return s.performCheckOut(ctx, studentID, authorizedStaffID, now, timezone.DateFromTime(now), checkoutTypeDaily)
 }
 
 // authorizeAttendanceToggle handles authorization and returns the staff ID to use
@@ -418,7 +420,11 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) (
 }
 
 // performCheckOut closes the open attendance row for the student via a
-// state-checked UPDATE WHERE check_out_time IS NULL. Three key properties:
+// state-checked UPDATE WHERE check_out_time IS NULL. today names the
+// calendar day whose row is closed: single checkouts pass the day of their
+// own now, the batch passes its batch-wide snapshot so a batch crossing
+// Berlin midnight closes the same day it read and refreshes (review #2372).
+// Three key properties:
 //
 //  1. Concurrency-safe: a second concurrent "out" call (or an "in" call that
 //     lost the race against another "out") simply finds no open row to
@@ -431,8 +437,8 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) (
 //     any kind heals an orphaned visit left behind by older code.
 //  4. A checkout that closed attendance or healed an orphaned visit fans out
 //     over SSE after the request transaction commits (#2113).
-func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, checkoutType string) (*AttendanceResult, error) {
-	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
+func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, today timezone.Date, checkoutType string) (*AttendanceResult, error) {
+	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, today, staffID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}

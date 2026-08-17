@@ -1311,9 +1311,13 @@ function SearchPageContent() {
   // Bulk checkout of a selection containing children who are currently in
   // rooms mirrors the single-tap confirmation (#2220): ending running room
   // visits deserves one explicit ok — but one for the whole batch, not per
-  // child (#2359).
+  // child (#2359). The dialog holds a SNAPSHOT of the selection taken when it
+  // opened, and confirming executes exactly that snapshot: the live selection
+  // can shift underneath an open dialog (an SWR/SSE update re-shaping the
+  // visible list), and the operation must stay the one the user confirmed
+  // (review #2372).
   const [pendingBulkCheckout, setPendingBulkCheckout] = useState<{
-    total: number;
+    students: Student[];
     roomCount: number;
   } | null>(null);
   // Per-child failures of a bulk action, named for the user (#2359
@@ -2609,23 +2613,28 @@ function SearchPageContent() {
     [filteredStudents, schoolCheckin.selectedIds],
   );
 
+  // Runs the bulk action for an explicit student list: the caller passes the
+  // visible selection for the direct path, or the confirmation dialog's
+  // snapshot — never the live selection at execute time, so a dialog always
+  // executes what it displayed (review #2372). runBulk additionally
+  // intersects with the still-selected ids, so a child de-selected (or a
+  // scope-cleared selection) between snapshot and confirm is dropped rather
+  // than acted on.
   const executeBulk = useCallback(
-    async (action: SchoolCheckinAction) => {
+    async (action: SchoolCheckinAction, students: Student[]) => {
       // Capture names up front: after the run the hook shrinks the selection
       // to the failed students, and the failure dialog must still name them.
       const nameById = new Map(
-        selectedStudentsForBulk.map((student) => [
+        students.map((student) => [
           student.id.toString(),
           `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
             student.name,
         ]),
       );
 
-      // Run exactly the visible selection — the same set the confirmation
-      // dialog counted (review #2372).
       const outcome = await schoolCheckin.runBulk(
         action,
-        selectedStudentsForBulk.map((student) => student.id.toString()),
+        students.map((student) => student.id.toString()),
       );
       // null: nothing selected or whole request failed (hook toasted the
       // error). failed === 0: the hook toasted the success summary.
@@ -2642,7 +2651,7 @@ function SearchPageContent() {
           ),
       });
     },
-    [schoolCheckin, selectedStudentsForBulk],
+    [schoolCheckin],
   );
 
   const handleBulkAction = useCallback(
@@ -2650,20 +2659,21 @@ function SearchPageContent() {
       if (selectedStudentsForBulk.length === 0) return;
       if (action === "out") {
         // Same rule as the single tap (#2220): checking a child out of a room
-        // ends the running visit, so that asks first — once per batch.
+        // ends the running visit, so that asks first — once per batch. The
+        // dialog snapshots the selection it is asking about (review #2372).
         const roomCount = selectedStudentsForBulk.filter(
           (student) =>
             checkoutConfirmationRoom(student.current_location) !== null,
         ).length;
         if (roomCount > 0) {
           setPendingBulkCheckout({
-            total: selectedStudentsForBulk.length,
+            students: selectedStudentsForBulk,
             roomCount,
           });
           return;
         }
       }
-      void executeBulk(action);
+      void executeBulk(action, selectedStudentsForBulk);
     },
     [selectedStudentsForBulk, executeBulk],
   );
@@ -3181,13 +3191,17 @@ function SearchPageContent() {
 
       {/* Bulk checkout of a selection with children currently in rooms: one
           confirmation for the whole batch (#2359), mirroring the single-tap
-          room dialog above. */}
+          room dialog above. Confirming executes the snapshot the dialog
+          displays — not the live selection, which may have shifted while it
+          was open (review #2372). */}
       <ConfirmationModal
         isOpen={pendingBulkCheckout !== null}
         onClose={() => setPendingBulkCheckout(null)}
         onConfirm={() => {
+          if (!pendingBulkCheckout) return;
+          const snapshot = pendingBulkCheckout.students;
           setPendingBulkCheckout(null);
-          void executeBulk("out");
+          void executeBulk("out", snapshot);
         }}
         title="Ausgewählte Kinder abmelden?"
         confirmText="Abmelden"
@@ -3195,9 +3209,11 @@ function SearchPageContent() {
       >
         <p className="text-sm text-gray-600">
           <span className="font-medium text-gray-900">
-            {pendingBulkCheckout?.total}
+            {pendingBulkCheckout?.students.length}
           </span>{" "}
-          {pendingBulkCheckout?.total === 1 ? "Kind ist" : "Kinder sind"}{" "}
+          {pendingBulkCheckout?.students.length === 1
+            ? "Kind ist"
+            : "Kinder sind"}{" "}
           ausgewählt,{" "}
           <span className="font-medium text-gray-900">
             {pendingBulkCheckout?.roomCount}

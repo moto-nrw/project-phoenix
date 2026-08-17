@@ -45,14 +45,26 @@ export async function parseRequestBody<B>(
   request: NextRequest,
   maxBodyBytes?: number,
 ): Promise<B> {
-  const text =
-    maxBodyBytes === undefined
-      ? await request.text()
-      : await readBodyBounded(request, maxBodyBytes);
+  if (maxBodyBytes === undefined) {
+    const text = await request.text();
+    if (!text) {
+      return {} as B;
+    }
+    return JSON.parse(text) as B;
+  }
+  // The bounded path validates the body strictly: size while reading (413)
+  // and JSON shape after (400). A bare JSON.parse SyntaxError carries no
+  // "API error (<status>)" marker, so handleApiError would answer 500 for
+  // what is a client-side malformed request (review #2372).
+  const text = await readBodyBounded(request, maxBodyBytes);
   if (!text) {
     return {} as B;
   }
-  return JSON.parse(text) as B;
+  try {
+    return JSON.parse(text) as B;
+  } catch {
+    throw new Error("API error (400): request body is not valid JSON");
+  }
 }
 
 /**

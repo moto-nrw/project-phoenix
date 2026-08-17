@@ -9,6 +9,8 @@ const logger = createLogger({ component: "StudentsSchoolCheckinBatchRoute" });
 // enforced while READING the body in the BFF, so an oversized payload is
 // rejected with 413 before this process buffers or parses it — without the
 // option, createPostHandler would request.text() the whole payload first.
+// The bounded read also maps malformed JSON to a 400 instead of the
+// unmarked-SyntaxError 500 (review #2372).
 const MAX_BATCH_BODY_BYTES = 64 * 1024;
 
 /**

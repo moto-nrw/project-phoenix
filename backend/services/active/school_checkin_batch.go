@@ -223,5 +223,5 @@ func (s *service) applySchoolCheckinWrite(ctx context.Context, studentID, staffI
 	if action == SchoolCheckinActionIn {
 		return s.performCheckIn(ctx, studentID, staffID, 0, now, today, checkinTypeWeb)
 	}
-	return s.performCheckOut(ctx, studentID, staffID, now, checkoutTypeWeb)
+	return s.performCheckOut(ctx, studentID, staffID, now, today, checkoutTypeWeb)
 }

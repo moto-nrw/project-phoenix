@@ -165,9 +165,12 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 }
 
 // CloseOpenForToday closes the open attendance row for the given student
-// today via a state-checked UPDATE — the WHERE check_out_time IS NULL guard
-// turns concurrent "out" calls (and "in/out" races where the in lost) into
-// no-ops at the database layer instead of corrupting the row.
+// on the caller-supplied calendar day via a state-checked UPDATE — the
+// WHERE check_out_time IS NULL guard turns concurrent "out" calls (and
+// "in/out" races where the in lost) into no-ops at the database layer
+// instead of corrupting the row. The day is a parameter, not re-derived
+// here, so a batch checkout crossing Berlin midnight stays on its snapshot
+// day (review #2372) — see the interface doc.
 //
 // Why this exists: the school-checkin handler used to route writes through
 // ToggleStudentAttendance, which read-then-flipped the state. Two concurrent
@@ -175,9 +178,7 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 // the second request's internal re-read saw the first request's commit and
 // flipped the action. Action-explicit handlers now call this method directly
 // and skip the toggle entirely.
-func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*active.Attendance, error) {
-	today := timezone.TodayDate()
-
+func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID int64) (*active.Attendance, error) {
 	// UPDATE … RETURNING populates the row scan target. Bun bubbles up
 	// sql.ErrNoRows when zero rows match, so we treat that as the
 	// idempotent "no open row" path rather than a database error.

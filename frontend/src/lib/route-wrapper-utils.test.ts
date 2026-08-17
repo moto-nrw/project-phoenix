@@ -193,6 +193,20 @@ describe("parseRequestBody with maxBodyBytes", () => {
     );
     expect(result).toEqual({});
   });
+
+  // A bare SyntaxError carries no "API error (<status>)" marker, so
+  // handleApiError would answer 500 for a client-side malformed body. The
+  // bounded (strict) path maps it to 400 instead (review #2372).
+  it("rejects malformed JSON with a 400-shaped error", async () => {
+    const request = new NextRequest("http://localhost:3000/api/test", {
+      method: "POST",
+      body: "not json {{{",
+      headers: { "Content-Type": "application/json" },
+    });
+    await expect(
+      parseRequestBody<Record<string, unknown>>(request, 1024),
+    ).rejects.toThrow(/API error \(400\)/);
+  });
 });
 
 describe("wrapInApiResponse", () => {

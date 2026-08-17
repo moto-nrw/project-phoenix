@@ -59,12 +59,16 @@ type AttendanceRepository interface {
 	Update(ctx context.Context, attendance *Attendance) error
 
 	// CloseOpenForToday closes the currently-open attendance row for the
-	// given student today via a state-checked UPDATE
-	// (WHERE check_out_time IS NULL). Returns the updated row when an open
-	// row was actually closed, nil when no open row existed (e.g. student
-	// was never checked in or another concurrent caller already closed it).
-	// The caller treats both cases as successful idempotent checkouts.
-	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*Attendance, error)
+	// given student on the given calendar day via a state-checked UPDATE
+	// (WHERE check_out_time IS NULL). The caller supplies the day instead of
+	// the repository re-deriving it: single checkouts pass the day of their
+	// own now, batch checkouts pass their batch-wide snapshot date so a batch
+	// crossing Berlin midnight closes every item on the same day it read and
+	// refreshes (review #2372). Returns the updated row when an open row was
+	// actually closed, nil when no open row existed (e.g. student was never
+	// checked in or another concurrent caller already closed it). The caller
+	// treats both cases as successful idempotent checkouts.
+	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID int64) (*Attendance, error)
 
 	// FindByID finds an attendance record by ID
 	FindByID(ctx context.Context, id int64) (*Attendance, error)
