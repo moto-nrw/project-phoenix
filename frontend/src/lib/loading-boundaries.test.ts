@@ -40,6 +40,17 @@ const ALLOWED_SHARED_BOUNDARIES = new Set([
 ]);
 
 describe("App Router loading boundaries", () => {
+  it.each(["rooms", "staff"])(
+    "uses a page-shaped loading boundary for /%s",
+    (route) => {
+      const pageDirectory = path.join(PROTECTED_DIR, route);
+
+      expect(path.dirname(loadingBoundary(pageDirectory) ?? "")).toBe(
+        pageDirectory,
+      );
+    },
+  );
+
   it("keeps protected-route loading inside the persistent app shell", () => {
     const rootLoadingFile = path.join(APP_DIR, "loading.tsx");
     const pagesUsingRootLoading = collectPages(PROTECTED_DIR)

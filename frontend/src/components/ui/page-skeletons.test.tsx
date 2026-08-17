@@ -24,11 +24,16 @@ describe("SkeletonRegion", () => {
 describe("PageHeaderSkeleton", () => {
   it("keeps the mobile-only title separate from search and actions", () => {
     const { container } = render(<PageHeaderSkeleton actions={1} />);
-    const [title, search, action] =
+    const [title, mobileAction, search, desktopAction] =
       container.querySelectorAll(".animate-pulse");
 
-    expect(title).toHaveClass("md:hidden");
-    expect(title?.parentElement).not.toBe(search?.parentElement);
-    expect(search?.parentElement).toBe(action?.parentElement?.parentElement);
+    expect(title?.parentElement).toHaveClass("md:hidden");
+    expect(title?.parentElement).toBe(
+      mobileAction?.parentElement?.parentElement,
+    );
+    expect(desktopAction?.parentElement).toHaveClass("hidden", "lg:flex");
+    expect(search?.parentElement).toBe(
+      desktopAction?.parentElement?.parentElement,
+    );
   });
 });
