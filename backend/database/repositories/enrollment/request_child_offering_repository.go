@@ -494,9 +494,14 @@ func (r *RequestChildOfferingRepository) CountMaterializableByCareOffering(ctx c
 // offerings instead of a query each (#2186). Returns peak simultaneous
 // occupancy per offering; offerings with no overlapping booking are absent
 // from the map, so callers read a missing key as zero.
+//
+// Deliberately NOT phase-scoped: it must count exactly what the capacity gate
+// counts, or the dialog offers a slot the gate then refuses (#2186 review).
+// Capacity lives on the care_offering row, so every booking of that row whose
+// validity overlaps the window occupies one of its slots no matter which
+// phase's request the booking hangs off.
 func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 	ctx context.Context,
-	phaseID int64,
 	careOfferingIDs []int64,
 	from, until timezone.Date,
 ) (map[int64]int, error) {
@@ -524,10 +529,7 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 			FROM enrollment.request_child_offerings AS "request_child_offering"
 			INNER JOIN enrollment.request_children AS "child"
 				ON "child".id = "request_child_offering".request_child_id
-			INNER JOIN enrollment.requests AS "request"
-				ON "request".id = "child".request_id
-			WHERE "request".phase_id = ?
-				AND "request_child_offering".care_offering_id IN (?)
+			WHERE "request_child_offering".care_offering_id IN (?)
 				AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
 				AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
 				AND "child".status NOT IN (?)
@@ -547,7 +549,7 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 			)), 0) AS peak
 		FROM boundaries
 		GROUP BY boundaries.care_offering_id
-	`, from, from, until, until, phaseID, bun.List(careOfferingIDs), until, from,
+	`, from, from, until, until, bun.List(careOfferingIDs), until, from,
 		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
 	).Scan(ctx, &rows)
 	if err != nil {
@@ -564,7 +566,10 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 // each child once per bucket. It backs the admin-side "how many existing
 // bookings would this availability rule exclude" hint, so it deliberately
 // mirrors the capacity gate's population: non-terminal request children
-// (rejected/withdrawn excluded) whose validity interval overlaps the window.
+// (rejected/withdrawn excluded) whose validity interval overlaps the window,
+// across every phase that references the offering. An availability rule lives
+// on the care_offering row, so it applies to every booking of that row — a
+// phase-scoped hint would understate what the rule actually excludes.
 //
 // Children whose target_grade_level is NULL land in a bucket with a nil
 // GradeLevel rather than being dropped: an availability rule never matches a
@@ -572,7 +577,6 @@ func (r *RequestChildOfferingRepository) CountMaxActiveByCareOfferingIDsInRange(
 // would understate the hint.
 func (r *RequestChildOfferingRepository) CountActiveGradeLevelsByCareOfferingIDs(
 	ctx context.Context,
-	phaseID int64,
 	careOfferingIDs []int64,
 	from, until timezone.Date,
 ) ([]*enrollment.CareOfferingGradeLevelCount, error) {
@@ -596,16 +600,13 @@ func (r *RequestChildOfferingRepository) CountActiveGradeLevelsByCareOfferingIDs
 		FROM enrollment.request_child_offerings AS "request_child_offering"
 		INNER JOIN enrollment.request_children AS "child"
 			ON "child".id = "request_child_offering".request_child_id
-		INNER JOIN enrollment.requests AS "request"
-			ON "request".id = "child".request_id
-		WHERE "request".phase_id = ?
-			AND "request_child_offering".care_offering_id IN (?)
+		WHERE "request_child_offering".care_offering_id IN (?)
 			AND ("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from < ?)
 			AND ("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)
 			AND "child".status NOT IN (?)
 		GROUP BY 1, 2
 		ORDER BY 1, 2
-	`, phaseID, bun.List(careOfferingIDs), until, from,
+	`, bun.List(careOfferingIDs), until, from,
 		bun.List([]string{enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn}),
 	).Scan(ctx, &rows)
 	if err != nil {

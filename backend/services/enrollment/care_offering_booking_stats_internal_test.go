@@ -44,19 +44,16 @@ type bookingStatsLinkRepo struct {
 	peaks     map[int64]int
 	peakErr   error
 
-	gotIDs         []int64
-	gotPeakIDs     []int64
-	gotPhaseID     int64
-	gotPeakPhaseID int64
-	gotFrom        timezone.Date
-	gotUntil       timezone.Date
-	peakCallCount  int
+	gotIDs        []int64
+	gotPeakIDs    []int64
+	gotFrom       timezone.Date
+	gotUntil      timezone.Date
+	peakCallCount int
 }
 
 func (r *bookingStatsLinkRepo) CountActiveGradeLevelsByCareOfferingIDs(
-	_ context.Context, phaseID int64, ids []int64, from, until timezone.Date,
+	_ context.Context, ids []int64, from, until timezone.Date,
 ) ([]*enrollmentModels.CareOfferingGradeLevelCount, error) {
-	r.gotPhaseID = phaseID
 	r.gotIDs = ids
 	r.gotFrom = from
 	r.gotUntil = until
@@ -64,10 +61,9 @@ func (r *bookingStatsLinkRepo) CountActiveGradeLevelsByCareOfferingIDs(
 }
 
 func (r *bookingStatsLinkRepo) CountMaxActiveByCareOfferingIDsInRange(
-	_ context.Context, phaseID int64, ids []int64, _, _ timezone.Date,
+	_ context.Context, ids []int64, _, _ timezone.Date,
 ) (map[int64]int, error) {
 	r.peakCallCount++
-	r.gotPeakPhaseID = phaseID
 	r.gotPeakIDs = ids
 	if r.peakErr != nil {
 		return nil, r.peakErr
@@ -230,10 +226,10 @@ func TestListBookingStats_BatchesTheOccupancyQuery(t *testing.T) {
 
 	assert.Equal(t, 1, links.peakCallCount, "one query for every offering, not one each")
 	assert.Equal(t, []int64{1, 2, 3}, links.gotPeakIDs)
-	// Rollover shares offering rows across phases, so both aggregates must be
-	// asked for THIS phase only (#2186 review).
-	assert.Equal(t, int64(5), links.gotPeakPhaseID)
-	assert.Equal(t, int64(5), links.gotPhaseID)
+	// Neither aggregate is phase-scoped: both must count the same population
+	// the capacity gate enforces on, or the dialog offers a slot the gate
+	// then refuses (#2186 review round 2).
+	assert.Equal(t, []int64{1, 2, 3}, links.gotIDs)
 	assert.Equal(t, 4, stats[0].Booked)
 	assert.Zero(t, stats[1].Booked, "an offering with no bookings reads as zero")
 	assert.Equal(t, 9, stats[2].Booked)
