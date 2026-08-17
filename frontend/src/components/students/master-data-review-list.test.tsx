@@ -73,8 +73,10 @@ describe("MasterDataReviewList", () => {
     expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(2);
     expandAll();
     expect(screen.getByText("Vorname")).toBeInTheDocument();
-    expect(screen.getByText("mon: pickup")).toBeInTheDocument();
-    expect(screen.getByText("mon: bus/alone")).toBeInTheDocument();
+    expect(screen.getByText("Montag: Wird abgeholt")).toBeInTheDocument();
+    expect(
+      screen.getByText("Montag: Fährt Bus / Geht zu Fuß"),
+    ).toBeInTheDocument();
 
     const reasonInputs = screen.getAllByPlaceholderText(
       "Begründung (optional)",
@@ -89,6 +91,59 @@ describe("MasterDataReviewList", () => {
       expect(screen.queryByText("Vorname")).not.toBeInTheDocument(),
     );
     expect(screen.getByText("Änderung übernommen")).toBeInTheDocument();
+  });
+
+  it("shows German labels for contact method and language values", async () => {
+    mockList.mockResolvedValue([
+      row({
+        field_key: "preferred_contact_method",
+        old_value: "email",
+        new_value: "mobile",
+      }),
+      row({
+        id: "101",
+        field_key: "language_preference",
+        old_value: "de",
+        new_value: "tr",
+      }),
+    ]);
+
+    render(<MasterDataReviewList />);
+
+    expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(2);
+    expandAll();
+    expect(screen.getByText("E-Mail")).toBeInTheDocument();
+    expect(screen.getByText("Mobiltelefon")).toBeInTheDocument();
+    expect(screen.getByText("Deutsch")).toBeInTheDocument();
+    expect(screen.getByText("Türkisch")).toBeInTheDocument();
+  });
+
+  it("falls back to raw values for unknown keys without crashing", async () => {
+    mockList.mockResolvedValue([
+      row({
+        field_key: "allowed_departure_modes",
+        old_value: { mon: ["teleport"], someday: ["pickup"] },
+        new_value: { tue: "not-an-array" },
+      }),
+      row({
+        id: "101",
+        field_key: "preferred_contact_method",
+        old_value: "carrier_pigeon",
+        new_value: "email",
+      }),
+    ]);
+
+    render(<MasterDataReviewList />);
+
+    expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(2);
+    expandAll();
+    // Unknown mode and weekday keys stay visible as raw values.
+    expect(
+      screen.getByText("Montag: teleport, someday: Wird abgeholt"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Dienstag")).toBeInTheDocument();
+    expect(screen.getByText("carrier_pigeon")).toBeInTheDocument();
+    expect(screen.getByText("E-Mail")).toBeInTheDocument();
   });
 
   it("rejects requests and shows the rejection notice", async () => {
