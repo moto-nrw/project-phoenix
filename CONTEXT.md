@@ -146,6 +146,13 @@ Bestätigung durch die OGS wirksam.
 Ein **Betreuungstag** ist ein Wochentag, an dem das Kind laut regelmäßigem
 Wochenplan an der OGS-Betreuung teilnimmt.
 
+## Abholänderungsanfrage
+
+Eine **Abholänderungsanfrage** ist der Wunsch einer sorgeberechtigten Person,
+die Gehzeit eines Kindes für einen einzelnen Tag zu ändern. Sie enthält die
+gewünschte Uhrzeit und einen Pflichtgrund und wird erst nach Bestätigung durch
+die OGS wirksam.
+
 ## Betreuungsangebot
 
 Ein **Betreuungsangebot** ist eine innerhalb der OGS-Betreuung auswählbare

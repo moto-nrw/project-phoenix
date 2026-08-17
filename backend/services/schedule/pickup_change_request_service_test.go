@@ -8,9 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
@@ -52,6 +54,8 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, "14:30", items[0].Diff[0].New)
+	require.NotNil(t, items[0].Reason)
+	assert.Equal(t, "Arzttermin", *items[0].Reason)
 
 	decided, err := f.svc.Decide(ctx, schedule.CareRequestDecideInput{
 		RequestID:  req.ID,
@@ -153,6 +157,40 @@ func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 		ReviewedBy: f.staffAccount,
 	})
 	require.ErrorIs(t, err, schedule.ErrPickupChangeConflict)
+}
+
+func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	date := timezone.TodayDate()
+	req, err := f.svc.CreatePickupChangeRequest(
+		ctx,
+		f.chain.StudentID,
+		f.chain.AccountID,
+		date,
+		time.Date(2000, 1, 1, 16, 30, 0, 0, time.UTC),
+		"Späterer Termin",
+	)
+	require.NoError(t, err)
+	device := testpkg.CreateTestDeviceForTenant(t, f.db, f.chain.TenantID, "pickup-review-checkout")
+	checkedOutAt := timezone.Now()
+	attendance := &activeModels.Attendance{
+		StudentID:    f.chain.StudentID,
+		Date:         date,
+		CheckInTime:  checkedOutAt.Add(-time.Hour),
+		CheckOutTime: &checkedOutAt,
+		DeviceID:     device.ID,
+	}
+	attendance.SetTenantID(f.chain.TenantID)
+	require.NoError(t, f.repos.Attendance.Create(ctx, attendance))
+
+	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID:  req.ID,
+		Approve:    true,
+		ReviewedBy: f.staffAccount,
+	})
+
+	require.ErrorIs(t, err, schedule.ErrPickupChangeAlreadyCompleted)
 }
 
 // TestWithdrawPickupChangeRequestClosesIt: a parent may take a request back

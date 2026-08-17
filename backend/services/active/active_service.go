@@ -928,6 +928,7 @@ func (s *service) endVisitWithAttendanceSync(
 	if s.AttendanceSyncer != nil {
 		snapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
 	}
+	s.wakeGuardiansAfterCommit(ctx, endedVisit.StudentID)
 	return endedVisit, snapshot, nil
 }
 

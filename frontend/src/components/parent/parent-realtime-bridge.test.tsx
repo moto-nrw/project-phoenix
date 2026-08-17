@@ -48,4 +48,35 @@ describe("ParentRealtimeBridge", () => {
       window.removeEventListener("phoenix:notification", listener);
     }
   });
+
+  it("refreshes the affected child's daily status after a child update", () => {
+    render(<ParentRealtimeBridge />);
+
+    const options = useSSE.mock.calls.at(-1)?.[1] as SSEHookOptions | undefined;
+    const onMessage = options?.onMessage;
+    expect(onMessage).toBeTypeOf("function");
+    if (!onMessage) throw new Error("SSE handler was not registered");
+    const listener = vi.fn();
+    window.addEventListener("parent-child-status-refresh", listener);
+
+    try {
+      onMessage({
+        type: "parent_child_updated",
+        active_group_id: "",
+        data: { student_id: "123" },
+        timestamp: new Date().toISOString(),
+      });
+
+      expect(listener).toHaveBeenCalledOnce();
+      const event = listener.mock.calls[0]?.[0];
+      expect(event).toBeInstanceOf(CustomEvent);
+      if (!(event instanceof CustomEvent))
+        throw new Error("Missing refresh event");
+      expect(event.detail).toEqual({
+        studentId: "123",
+      });
+    } finally {
+      window.removeEventListener("parent-child-status-refresh", listener);
+    }
+  });
 });

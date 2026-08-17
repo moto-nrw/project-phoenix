@@ -19,6 +19,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type recordingGuardianWaker struct {
+	studentIDs []int64
+}
+
+func (w *recordingGuardianWaker) BroadcastChildUpdateToGuardians(_ int64, studentID int64) {
+	w.studentIDs = append(w.studentIDs, studentID)
+}
+
 func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -132,9 +140,12 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 
 	// Clear calls from visit creation
 	broadcaster.Reset()
+	waker := &recordingGuardianWaker{}
+	svc.(interface{ SetGuardianWaker(active.GuardianWaker) }).SetGuardianWaker(waker)
 
 	err := svc.EndVisit(testpkg.TenantContext(1), visit.ID)
 	require.NoError(t, err)
+	assert.Equal(t, []int64{student.ID}, waker.studentIDs)
 
 	assert.True(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
 		"expected active_supervision_changed after EndVisit")

@@ -43,6 +43,10 @@ type CareRequestDiffResponse struct {
 
 func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequestResponse {
 	r := item.Request
+	reason := item.Reason
+	if reason == nil {
+		reason = r.DecisionReason
+	}
 	diff := make([]CareRequestDiffResponse, 0, len(item.Diff))
 	for _, e := range item.Diff {
 		diff = append(diff, CareRequestDiffResponse{
@@ -63,7 +67,7 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 		Status:      r.Status,
 		RequestKind: r.RequestKind,
 		Diff:        diff,
-		Reason:      r.DecisionReason,
+		Reason:      reason,
 		CreatedAt:   r.CreatedAt,
 		ReviewedAt:  r.ReviewedAt,
 	}
@@ -135,6 +139,8 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 			renderError(w, r, common.ErrorForbidden(err))
 		case errors.Is(err, scheduleService.ErrPickupChangeConflict):
 			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_conflict"))
+		case errors.Is(err, scheduleService.ErrPickupChangeAlreadyCompleted):
+			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_completed"))
 		case errors.Is(err, scheduleService.ErrCareRequestRejectReasonRequired),
 			errors.Is(err, scheduleService.ErrCareRequestRejectReasonTooLong),
 			errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):

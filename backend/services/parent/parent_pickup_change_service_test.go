@@ -68,6 +68,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
 		repos.StudentPickupException,
+		repos.Attendance,
 		sf.UserContext,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out

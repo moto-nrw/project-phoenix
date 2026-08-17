@@ -64,6 +64,7 @@ func newCareFixture(t *testing.T) *careFixture {
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
 		repos.StudentPickupException,
+		repos.Attendance,
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops

@@ -33,6 +33,8 @@ function decideErrorMessage(code: string | undefined): string {
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
     case "pickup_change_conflict":
       return "Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen. Bitte prüfen und die Anfrage gegebenenfalls ablehnen.";
+    case "pickup_change_completed":
+      return "Das Kind wurde bereits ausgecheckt. Die Abholzeit kann nicht mehr geändert werden.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
   }
@@ -218,6 +220,14 @@ export function CareRequestReviewList() {
             onReject={() => void decide(row, false)}
           >
             <ReviewDiffPanel>
+              {row.reason && (
+                <p className="mb-3 text-sm text-gray-700">
+                  <span className="font-medium text-gray-900">
+                    Grund der Eltern:
+                  </span>{" "}
+                  {row.reason}
+                </p>
+              )}
               {row.diff.length === 0 && (
                 <span className="text-sm text-gray-500">—</span>
               )}

@@ -190,17 +190,16 @@ jede OGS wissen muss, warum eine Abholzeit abweicht. Sollte eine Schule
 widersprechen, ist das der Fall, in dem nach E1 erstmals eine Einstellung
 gerechtfertigt wäre.
 
-### E5: Der Abmelde- und Abhol-Ablauf bleibt fachlich unverändert
+### E5: Krankmeldungen gelten direkt, Abholänderungen benötigen eine Freigabe
 
-Was Eltern dürfen, ändert sich in diesem Vorhaben nicht. Krankmeldung bleibt
-direkt, die Abholzeit-Änderung bleibt mit freier Uhrzeit und Pflichtgrund
-bestehen (#2304 ist bereits umgesetzt). #2292 und #2293 werden hier nicht
-angefasst; wir warten weiteres Feedback ab, bevor wir Eltern eine Funktion
-wegnehmen, die nur eine Schule bemängelt hat.
+Krankmeldungen gelten weiterhin direkt. Eine Abholzeit-Änderung wird mit freier
+Uhrzeit und Pflichtgrund als Anfrage an die OGS gesendet und erst nach deren
+Bestätigung wirksam. Eltern sehen den beantragten Wechsel und seinen Status und
+können eine offene Anfrage zurückziehen. Diese Produktentscheidung ersetzt den
+in #2292 vorgeschlagenen dreistufigen Modus.
 
-Die **Bedienbarkeit** des Dialogs verbessern wir trotzdem: größere Flächen,
-Alltagssprache, Fehler am Feld. Die Auswahl aus Betreuungsbausteinen aus #2293
-kommt ausdrücklich nicht.
+Der Dialog erklärt die Freigabe vor dem Absenden. Die Auswahl aus
+Betreuungsbausteinen aus #2293 kommt ausdrücklich nicht.
 
 ---
 

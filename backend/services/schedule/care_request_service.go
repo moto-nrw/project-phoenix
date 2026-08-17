@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -80,6 +81,7 @@ var (
 	// ErrCareRequestRejectReasonTooLong means the reason exceeded the bound.
 	ErrCareRequestRejectReasonTooLong = errors.New("schedule: reject reason too long")
 	ErrPickupChangeConflict           = errors.New("schedule: pickup change conflicts with a staff exception")
+	ErrPickupChangeAlreadyCompleted   = errors.New("schedule: pickup change cannot be approved after checkout")
 )
 
 // Diff care-kind discriminators (see RequestDiffEntry.CareKind). Stable wire
@@ -120,6 +122,7 @@ type CareRequestReviewItem struct {
 	FirstName string
 	LastName  string
 	Diff      []RequestDiffEntry
+	Reason    *string
 }
 
 // CareRequestDecideInput carries a staff decision on one pending request.
@@ -170,6 +173,7 @@ type careScheduleRequestService struct {
 	arrival          ArrivalScheduleService
 	pickup           PickupScheduleService
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository
+	attendance       activeModels.AttendanceRepository
 	userContext      userContextService.UserContextService
 	emitter          *parentmessaging.Emitter
 	broadcaster      realtime.Broadcaster
@@ -186,6 +190,7 @@ func NewCareScheduleRequestServiceWithPickupChanges(
 	arrival ArrivalScheduleService,
 	pickup PickupScheduleService,
 	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
+	attendance activeModels.AttendanceRepository,
 	userContext userContextService.UserContextService,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
@@ -205,6 +210,7 @@ func NewCareScheduleRequestServiceWithPickupChanges(
 		studentAudits...,
 	)
 	svc.(*careScheduleRequestService).pickupExceptions = pickupExceptions
+	svc.(*careScheduleRequestService).attendance = attendance
 	return svc
 }
 
@@ -480,6 +486,7 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 		var err error
 		if r.RequestKind == scheduleModels.CareRequestKindPickupChange {
 			diff, err = s.pickupChangeDiff(ctx, r)
+			item.Reason = pickupChangeReason(r)
 		} else {
 			src, ok := sources[r.StudentID]
 			if !ok {
@@ -691,6 +698,9 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		return nil, fmt.Errorf("schedule: reload decided care request: %w", err)
 	}
 	item := &CareRequestReviewItem{Request: row}
+	if row.RequestKind == scheduleModels.CareRequestKindPickupChange {
+		item.Reason = pickupChangeReason(row)
+	}
 	student, err = s.studentRepo.FindByID(ctx, row.StudentID)
 	if err == nil && student != nil {
 		if person, perr := s.personRepo.FindByID(ctx, student.PersonID); perr == nil && person != nil {
@@ -714,6 +724,18 @@ func parsePickupChangePayload(payload map[string]any) (timezone.Date, time.Time,
 	return date, pickup, reason, nil
 }
 
+func pickupChangeReason(req *scheduleModels.CareScheduleChangeRequest) *string {
+	if req == nil {
+		return nil
+	}
+	reason, ok := req.Payload["reason"].(string)
+	trimmed := strings.TrimSpace(reason)
+	if !ok || trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
 func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest) error {
 	if s.pickupExceptions == nil || s.userContext == nil {
 		return errors.New("schedule: pickup change request dependencies not configured")
@@ -724,6 +746,27 @@ func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Contex
 	}
 	if date.Before(timezone.TodayDate()) {
 		return ErrInvalidCareRequestPayload
+	}
+	if date == timezone.TodayDate() && s.attendance != nil {
+		rows, attendanceErr := s.attendance.FindByStudentAndDate(ctx, req.StudentID, date)
+		if attendanceErr != nil {
+			return fmt.Errorf("schedule: load attendance for pickup request: %w", attendanceErr)
+		}
+		hasOpenAttendance := false
+		hasCompletedAttendance := false
+		for _, row := range rows {
+			if row == nil {
+				continue
+			}
+			if row.CheckOutTime == nil {
+				hasOpenAttendance = true
+			} else {
+				hasCompletedAttendance = true
+			}
+		}
+		if hasCompletedAttendance && !hasOpenAttendance {
+			return ErrPickupChangeAlreadyCompleted
+		}
 	}
 	staff, err := s.userContext.GetCurrentStaff(ctx)
 	if err != nil {

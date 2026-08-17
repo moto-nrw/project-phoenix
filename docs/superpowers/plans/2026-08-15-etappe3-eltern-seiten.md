@@ -197,15 +197,15 @@ Nach Entscheidung E10 wird `PersonalCalendar` im Elternportal **nicht** mehr ver
 
 ### Aufgabe 7: Dialoge auf Elternsprache und Touch-Maß
 
-Betrifft Krankmeldung und Abholung ändern. **Fachlich ändert sich nichts** (Entscheidung E5): Krankmeldung bleibt direkt, die Abholzeit bleibt frei eingebbar mit Pflichtgrund. Nur die Bedienbarkeit ändert sich.
+Betrifft Krankmeldung und Abholung ändern. Krankmeldungen gelten direkt. Die Abholzeit bleibt frei eingebbar mit Pflichtgrund, wird aber als Anfrage gesendet und erst nach Bestätigung durch die OGS wirksam.
 
 - Auf Mobile als Sheet von unten mit angehefteter Fußzeile, auf Tablet und Desktop als mittiges Fenster.
-- Hauptaktion volle Breite, 48 px, beschriftet mit der Folge: "Krankmeldung senden", "Abholung ändern". Nicht "Speichern".
+- Hauptaktion volle Breite, 48 px, beschriftet mit der Folge: "Krankmeldung senden", "Anfrage senden". Nicht "Speichern".
 - Sekundäraktion darunter als Textschaltfläche.
 - Pflichtfelder mit Stern **und** einmal je Formular die Zeile "Felder mit * müssen ausgefüllt werden".
 - Fehler stehen am Feld, in Alltagssprache: "Bitte tragen Sie eine Uhrzeit ein."
 - Kein rohes natives `--:--`-Zeitfeld mehr; das Kit-Zeitfeld mit 48 px und sichtbarem Format.
-- Ein Satz oben, der die Folge benennt: "Die OGS wird sofort informiert."
+- Ein Satz oben, der die Folge benennt: "Die Änderung gilt, nachdem die OGS sie bestätigt hat."
 
 - [ ] Test zuerst, Fehlschlag bestätigen, umsetzen, Erfolg bestätigen, committen.
 

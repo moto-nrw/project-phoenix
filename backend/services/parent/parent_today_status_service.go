@@ -141,7 +141,10 @@ func (s *service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 	if err != nil {
 		return expectedArrival{}, err
 	}
-	if exception != nil && exception.ExpectedArrival != nil {
+	if exception != nil {
+		if exception.ExpectedArrival == nil {
+			return expectedArrival{resolved: true, isCareDay: false}, nil
+		}
 		return expectedArrival{resolved: true, isCareDay: true, hhmm: hhmm(*exception.ExpectedArrival)}, nil
 	}
 
@@ -150,6 +153,15 @@ func (s *service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 		return expectedArrival{}, err
 	}
 	if plan == nil {
+		if s.PickupSchedules != nil {
+			pickup, pickupErr := s.PickupSchedules.GetEffectivePickupTimeForDate(ctx, studentID, today)
+			if pickupErr != nil {
+				return expectedArrival{}, pickupErr
+			}
+			if pickup != nil && pickup.PickupTime != nil {
+				return expectedArrival{resolved: true, isCareDay: true}, nil
+			}
+		}
 		return expectedArrival{resolved: true, isCareDay: false}, nil
 	}
 	return expectedArrival{resolved: true, isCareDay: true, hhmm: hhmm(plan.ExpectedArrival)}, nil
