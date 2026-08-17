@@ -12,7 +12,7 @@ const logger = createLogger({ component: "StudentsSchoolCheckinBatchRoute" });
  * enforces the users:checkin permission, a verified staff identity, and the
  * web-attendance setting; this route is a thin pass-through.
  *
- * Request body: { action: "in" | "out", student_ids: number[] }
+ * Request body: { action: "in" | "out", student_ids: string[] }
  * Response:     { action, results: [...], succeeded, failed }
  */
 export const POST = createPostHandler(

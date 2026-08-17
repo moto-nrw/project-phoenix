@@ -179,14 +179,19 @@ interface UseSchoolCheckinModeResult {
   /** True while a bulk action's API call is in flight. */
   isBulkRunning: boolean;
   /**
-   * Apply one explicit action to every selected student via the batch
-   * endpoint. On success the selection keeps only the failed students (so a
-   * retry is one tap) and the presence caches are revalidated once, bundled.
+   * Apply one explicit action to selected students via the batch endpoint.
+   * `onlyIds` restricts the run to that subset of the selection — the page
+   * passes the currently VISIBLE selected students so a mark hidden by a
+   * filter is never executed without being on screen (review #2372). After
+   * the run, successfully processed students are removed from the selection
+   * while failures (and any students marked mid-flight) stay selected, so a
+   * retry is one tap. The presence caches are revalidated once, bundled.
    * Returns null when nothing was selected, a run is already in flight, or
    * the whole request failed (the hook has toasted the error then).
    */
   runBulk: (
     action: SchoolCheckinAction,
+    onlyIds?: readonly string[],
   ) => Promise<SchoolCheckinBatchOutcome | null>;
 }
 
@@ -317,10 +322,16 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   const runBulk = useCallback(
     async (
       action: SchoolCheckinAction,
+      onlyIds?: readonly string[],
     ): Promise<SchoolCheckinBatchOutcome | null> => {
-      if (isBulkRunning || selectedIds.size === 0) return null;
+      if (isBulkRunning) return null;
 
-      const ids = Array.from(selectedIds);
+      // Intersect with the live selection so a stale caller list can never
+      // widen the run beyond what is actually marked right now.
+      const ids = onlyIds
+        ? onlyIds.filter((id) => selectedIds.has(id))
+        : Array.from(selectedIds);
+      if (ids.length === 0) return null;
       setIsBulkRunning(true);
       // Mark every batch member pending so the cards show the same in-flight
       // state a single toggle does.
@@ -348,14 +359,18 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           );
         }
 
-        // Keep only the failed students selected: they stay visibly marked
-        // and a retry is one tap, while the processed ones drop out.
-        const failedIds = new Set(
+        // Subtract the successfully processed students instead of replacing
+        // the set: failures stay visibly marked for a one-tap retry, and a
+        // selection made while this request was in flight survives untouched
+        // (review #2372 — replacement would silently discard it).
+        const processedOkIds = new Set(
           outcome.results
-            .filter((result) => !result.ok)
+            .filter((result) => result.ok)
             .map((result) => result.studentId),
         );
-        setSelectedIds(failedIds);
+        setSelectedIds(
+          (prev) => new Set([...prev].filter((id) => !processedOkIds.has(id))),
+        );
 
         return outcome;
       } catch (error) {

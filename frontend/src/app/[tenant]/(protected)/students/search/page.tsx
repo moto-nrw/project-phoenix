@@ -1425,6 +1425,18 @@ function SearchPageContent() {
   // segment after it can be located positionally. See lib/swr/search-students-key.
   const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${debouncedSearchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
 
+  // Any change to the result query — the server-side cache key or one of the
+  // client-only filters — replaces the visual context a selection was made
+  // in. Clearing keeps the invariant that a marked card is always on screen:
+  // a selection hidden by a new filter must never survive into a later bulk
+  // run (review #2372). Data revalidation after a bulk run does NOT change
+  // this signature, so retained failure marks survive their retry window.
+  const selectionScopeSignature = `${studentsCacheKey}|${effectiveAttendanceFilter}|${pickupTimeFilter}|${arrivalTimeFilter}|${effectiveTrackingFilter}`;
+  const clearCheckinSelection = schoolCheckin.clearSelection;
+  useEffect(() => {
+    clearCheckinSelection();
+  }, [selectionScopeSignature, clearCheckinSelection]);
+
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
     data: studentsData,
@@ -1725,69 +1737,6 @@ function SearchPageContent() {
     [studentsData, isDateTransition],
   );
 
-  // The students currently marked in the selection sub-mode (#2359). Derived
-  // from the loaded rows, which is exactly the set the cards were tapped in.
-  const selectedStudentsForBulk = useMemo(
-    () =>
-      students.filter((student) =>
-        schoolCheckin.selectedIds.has(student.id.toString()),
-      ),
-    [students, schoolCheckin.selectedIds],
-  );
-
-  const executeBulk = useCallback(
-    async (action: SchoolCheckinAction) => {
-      // Capture names up front: after the run the hook shrinks the selection
-      // to the failed students, and the failure dialog must still name them.
-      const nameById = new Map(
-        selectedStudentsForBulk.map((student) => [
-          student.id.toString(),
-          `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
-            student.name,
-        ]),
-      );
-
-      const outcome = await schoolCheckin.runBulk(action);
-      // null: nothing selected or whole request failed (hook toasted the
-      // error). failed === 0: the hook toasted the success summary.
-      if (!outcome || outcome.failed === 0) return;
-
-      setBulkFailures({
-        action,
-        succeeded: outcome.succeeded,
-        names: outcome.results
-          .filter((result) => !result.ok)
-          .map(
-            (result) =>
-              nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
-          ),
-      });
-    },
-    [schoolCheckin, selectedStudentsForBulk],
-  );
-
-  const handleBulkAction = useCallback(
-    (action: SchoolCheckinAction) => {
-      if (selectedStudentsForBulk.length === 0) return;
-      if (action === "out") {
-        // Same rule as the single tap (#2220): checking a child out of a room
-        // ends the running visit, so that asks first — once per batch.
-        const roomCount = selectedStudentsForBulk.filter(
-          (student) =>
-            checkoutConfirmationRoom(student.current_location) !== null,
-        ).length;
-        if (roomCount > 0) {
-          setPendingBulkCheckout({
-            total: selectedStudentsForBulk.length,
-            roomCount,
-          });
-          return;
-        }
-      }
-      void executeBulk(action);
-    },
-    [selectedStudentsForBulk, executeBulk],
-  );
   // Gated on the same staleness check as the rows themselves: a held response
   // from the previous date must not warn about the new one.
   const truncatedTotal =
@@ -2640,6 +2589,78 @@ function SearchPageContent() {
       return compareByName(a, b);
     });
   }, [filteredStudents, sortMode, planningNow, isToday]);
+
+  // The students currently marked in the selection sub-mode (#2359). Derived
+  // from the VISIBLE rows (client-side filters applied), never the raw fetch:
+  // confirmation counts and the executed batch must cover exactly the cards
+  // on screen, or a mark hidden by a filter could be acted on sight-unseen
+  // (review #2372).
+  const selectedStudentsForBulk = useMemo(
+    () =>
+      filteredStudents.filter((student) =>
+        schoolCheckin.selectedIds.has(student.id.toString()),
+      ),
+    [filteredStudents, schoolCheckin.selectedIds],
+  );
+
+  const executeBulk = useCallback(
+    async (action: SchoolCheckinAction) => {
+      // Capture names up front: after the run the hook shrinks the selection
+      // to the failed students, and the failure dialog must still name them.
+      const nameById = new Map(
+        selectedStudentsForBulk.map((student) => [
+          student.id.toString(),
+          `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+            student.name,
+        ]),
+      );
+
+      // Run exactly the visible selection — the same set the confirmation
+      // dialog counted (review #2372).
+      const outcome = await schoolCheckin.runBulk(
+        action,
+        selectedStudentsForBulk.map((student) => student.id.toString()),
+      );
+      // null: nothing selected or whole request failed (hook toasted the
+      // error). failed === 0: the hook toasted the success summary.
+      if (!outcome || outcome.failed === 0) return;
+
+      setBulkFailures({
+        action,
+        succeeded: outcome.succeeded,
+        names: outcome.results
+          .filter((result) => !result.ok)
+          .map(
+            (result) =>
+              nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
+          ),
+      });
+    },
+    [schoolCheckin, selectedStudentsForBulk],
+  );
+
+  const handleBulkAction = useCallback(
+    (action: SchoolCheckinAction) => {
+      if (selectedStudentsForBulk.length === 0) return;
+      if (action === "out") {
+        // Same rule as the single tap (#2220): checking a child out of a room
+        // ends the running visit, so that asks first — once per batch.
+        const roomCount = selectedStudentsForBulk.filter(
+          (student) =>
+            checkoutConfirmationRoom(student.current_location) !== null,
+        ).length;
+        if (roomCount > 0) {
+          setPendingBulkCheckout({
+            total: selectedStudentsForBulk.length,
+            roomCount,
+          });
+          return;
+        }
+      }
+      void executeBulk(action);
+    },
+    [selectedStudentsForBulk, executeBulk],
+  );
 
   const groupedStudents = useMemo(
     () => groupStudents(sortedStudents, effectiveGroupMode),

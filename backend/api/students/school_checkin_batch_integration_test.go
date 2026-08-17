@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -16,12 +17,15 @@ import (
 // Same conventions as the single-endpoint tests: real DB, real fixtures,
 // external _test package, full staff/account chain because the handler
 // resolves JWT claims through PersonService.
+//
+// Student IDs travel as strings in both directions (review: JSON numbers
+// corrupt int64 values above 2^53-1 client-side).
 
 type batchCheckinResponse struct {
 	Data struct {
 		Action  string `json:"action"`
 		Results []struct {
-			StudentID int64  `json:"student_id"`
+			StudentID string `json:"student_id"`
 			OK        bool   `json:"ok"`
 			Changed   bool   `json:"changed"`
 			Status    string `json:"status"`
@@ -32,6 +36,8 @@ type batchCheckinResponse struct {
 		Failed    int `json:"failed"`
 	} `json:"data"`
 }
+
+func idStr(id int64) string { return strconv.FormatInt(id, 10) }
 
 func postBatchCheckin(t *testing.T, tc *testContext, accountID int64, body map[string]any) (*batchCheckinResponse, int, string) {
 	t.Helper()
@@ -58,7 +64,7 @@ func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
 
 	resp, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",
-		"student_ids": []int64{first.ID, second.ID},
+		"student_ids": []string{idStr(first.ID), idStr(second.ID)},
 	})
 	require.Equal(t, http.StatusOK, code, "body: %s", body)
 
@@ -93,7 +99,7 @@ func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 	// no-op — both count as succeeded (Swantje's Verabschiedungskreis case).
 	resp, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "out",
-		"student_ids": []int64{present.ID, absent.ID},
+		"student_ids": []string{idStr(present.ID), idStr(absent.ID)},
 	})
 	require.Equal(t, http.StatusOK, code, "body: %s", body)
 
@@ -101,14 +107,14 @@ func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 	assert.Equal(t, 2, resp.Data.Succeeded)
 	assert.Equal(t, 0, resp.Data.Failed)
 
-	byID := map[int64]bool{}
+	byID := map[string]bool{}
 	for _, result := range resp.Data.Results {
 		assert.True(t, result.OK)
 		assert.Equal(t, "Abwesend", result.Location)
 		byID[result.StudentID] = result.Changed
 	}
-	assert.True(t, byID[present.ID], "present student must be checked out (changed)")
-	assert.False(t, byID[absent.ID], "absent student must be a no-op (unchanged)")
+	assert.True(t, byID[idStr(present.ID)], "present student must be checked out (changed)")
+	assert.False(t, byID[idStr(absent.ID)], "absent student must be a no-op (unchanged)")
 }
 
 func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
@@ -124,7 +130,7 @@ func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 
 	resp, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",
-		"student_ids": []int64{unknownID, student.ID},
+		"student_ids": []string{idStr(unknownID), idStr(student.ID)},
 	})
 	require.Equal(t, http.StatusOK, code, "body: %s", body)
 
@@ -133,7 +139,7 @@ func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 	assert.Equal(t, 1, resp.Data.Failed)
 
 	for _, result := range resp.Data.Results {
-		if result.StudentID == unknownID {
+		if result.StudentID == idStr(unknownID) {
 			assert.False(t, result.OK)
 			assert.Equal(t, "not_found", result.Error)
 		} else {
@@ -153,7 +159,7 @@ func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
 
 	resp, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",
-		"student_ids": []int64{student.ID, student.ID, student.ID},
+		"student_ids": []string{idStr(student.ID), idStr(student.ID), idStr(student.ID)},
 	})
 	require.Equal(t, http.StatusOK, code, "body: %s", body)
 
@@ -172,10 +178,25 @@ func TestSchoolCheckinBatch_InvalidAction_Rejects(t *testing.T) {
 
 	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "toggle",
-		"student_ids": []int64{student.ID},
+		"student_ids": []string{idStr(student.ID)},
 	})
 	assert.Equal(t, http.StatusBadRequest, code)
 	assert.Contains(t, body, "action must be")
+}
+
+func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
+	tc := setupTestContext(t)
+
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchMalformed", "Caller")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, staff.PersonID)
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
+		"action":      "in",
+		"student_ids": []string{"12abc"},
+	})
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body, "student_ids must be numeric")
 }
 
 func TestSchoolCheckinBatch_EmptyIDs_Rejects(t *testing.T) {
@@ -187,7 +208,7 @@ func TestSchoolCheckinBatch_EmptyIDs_Rejects(t *testing.T) {
 
 	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",
-		"student_ids": []int64{},
+		"student_ids": []string{},
 	})
 	assert.Equal(t, http.StatusBadRequest, code)
 	assert.Contains(t, body, "student_ids must not be empty")

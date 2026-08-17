@@ -450,7 +450,10 @@ export interface SchoolCheckinBatchOutcome {
 interface BackendSchoolCheckinBatchResponse {
   action: SchoolCheckinAction;
   results: Array<{
-    student_id: number;
+    // The backend emits string IDs on this endpoint: the values are matched
+    // back against the client's selection set, and a JSON-number round-trip
+    // would corrupt int64 IDs above Number.MAX_SAFE_INTEGER.
+    student_id: string;
     ok: boolean;
     changed: boolean;
     location?: "Anwesend" | "Schulhof" | "Abwesend";
@@ -461,52 +464,105 @@ interface BackendSchoolCheckinBatchResponse {
 }
 
 /**
- * Apply one explicit check-in/out action to a set of students in a single
- * request (#2359, Sammelauswahl). Students already in the target state are
- * counted as succeeded no-ops; students the caller cannot act on come back
- * with a per-student error entry while the rest are still processed.
+ * One request may carry at most this many students — mirrors the backend's
+ * maxSchoolCheckinBatchSize. Larger selections are split into sequential
+ * requests below, so the UI never has to cap what the user can select.
+ */
+const SCHOOL_CHECKIN_BATCH_CHUNK_SIZE = 1000;
+
+async function postSchoolCheckinBatchChunk(
+  studentIds: string[],
+  action: SchoolCheckinAction,
+  token: string | undefined,
+): Promise<BackendSchoolCheckinBatchResponse> {
+  const response = await authFetch<
+    | ApiResponse<BackendSchoolCheckinBatchResponse>
+    | BackendSchoolCheckinBatchResponse
+  >("/api/students/school-checkin/batch", {
+    method: "POST",
+    // IDs stay strings on the wire (see BackendSchoolCheckinBatchResponse) —
+    // never convert them with Number(), which is lossy above 2^53-1.
+    body: { action, student_ids: studentIds },
+    token,
+  });
+  return extractApiData<BackendSchoolCheckinBatchResponse>(response);
+}
+
+/**
+ * Apply one explicit check-in/out action to a set of students (#2359,
+ * Sammelauswahl). Students already in the target state are counted as
+ * succeeded no-ops; students the caller cannot act on come back with a
+ * per-student error entry while the rest are still processed.
  *
- * Throws on 4xx/5xx of the whole request (e.g. 403 without users:checkin) —
- * per-student failures never reject, they live inside the outcome.
+ * Selections beyond the per-request cap are chunked into sequential requests
+ * and the outcomes merged. Throws only when the FIRST request fails outright
+ * (e.g. 403 without users:checkin) — once anything has been processed, a
+ * failing later chunk is reported as per-student `request_failed` entries
+ * instead, so the caller's partial-failure handling (retained selection,
+ * named retry dialog) covers it truthfully.
  */
 export async function schoolCheckinStudentsBatch(
   studentIds: string[],
   action: SchoolCheckinAction,
 ): Promise<SchoolCheckinBatchOutcome> {
-  const url = "/api/students/school-checkin/batch";
-  try {
-    const session = await getCachedSession();
-    const response = await authFetch<
-      | ApiResponse<BackendSchoolCheckinBatchResponse>
-      | BackendSchoolCheckinBatchResponse
-    >(url, {
-      method: "POST",
-      body: { action, student_ids: studentIds.map(Number) },
-      token: session?.user?.token,
-    });
+  const outcome: SchoolCheckinBatchOutcome = {
+    action,
+    results: [],
+    succeeded: 0,
+    failed: 0,
+  };
 
-    const data = extractApiData<BackendSchoolCheckinBatchResponse>(response);
-    return {
-      action: data.action,
-      succeeded: data.succeeded,
-      failed: data.failed,
-      results: data.results.map((result) => ({
-        // Convert int64 -> string at the boundary per CLAUDE.md §4.
-        studentId: result.student_id.toString(),
-        ok: result.ok,
-        changed: result.changed,
-        location: result.location,
-        error: result.error,
-      })),
-    };
-  } catch (error) {
-    logger.error("school_checkin_batch_failed", {
-      action,
-      student_count: studentIds.length,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw error;
+  const session = await getCachedSession();
+  const token = session?.user?.token;
+
+  for (
+    let offset = 0;
+    offset < studentIds.length;
+    offset += SCHOOL_CHECKIN_BATCH_CHUNK_SIZE
+  ) {
+    const chunk = studentIds.slice(
+      offset,
+      offset + SCHOOL_CHECKIN_BATCH_CHUNK_SIZE,
+    );
+    try {
+      const data = await postSchoolCheckinBatchChunk(chunk, action, token);
+      outcome.succeeded += data.succeeded;
+      outcome.failed += data.failed;
+      outcome.results.push(
+        ...data.results.map((result) => ({
+          studentId: result.student_id,
+          ok: result.ok,
+          changed: result.changed,
+          location: result.location,
+          error: result.error,
+        })),
+      );
+    } catch (error) {
+      logger.error("school_checkin_batch_failed", {
+        action,
+        student_count: chunk.length,
+        chunk_offset: offset,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Nothing processed yet → the whole action failed; rethrow so the
+      // caller's request-level handling (toast, kept selection) applies.
+      if (offset === 0) throw error;
+      // Later chunk failed after earlier ones committed: report the
+      // unprocessed rest per-student so the merged outcome stays truthful.
+      for (const studentId of studentIds.slice(offset)) {
+        outcome.results.push({
+          studentId,
+          ok: false,
+          changed: false,
+          error: "request_failed",
+        });
+        outcome.failed++;
+      }
+      break;
+    }
   }
+
+  return outcome;
 }
 
 export interface StudentDeletionCounts {

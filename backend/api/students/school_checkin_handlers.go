@@ -3,10 +3,13 @@ package students
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -116,16 +119,25 @@ const maxSchoolCheckinBatchSize = 1000
 // POST /api/students/school-checkin/batch. The action applies to every listed
 // student; students already in the target state count as no-ops (Changed=false),
 // mirroring the single-student endpoint's idempotency.
+//
+// StudentIDs travel as strings: the frontend holds int64 IDs as strings
+// (CLAUDE.md §4), and converting them to JSON numbers client-side would
+// silently corrupt values above JavaScript's 2^53-1 safe-integer limit —
+// for a write endpoint that means toggling the WRONG student. The backend
+// parses them with full int64 range instead.
 type schoolCheckinBatchRequest struct {
-	Action     string  `json:"action"` // "in" | "out"
-	StudentIDs []int64 `json:"student_ids"`
+	Action     string   `json:"action"` // "in" | "out"
+	StudentIDs []string `json:"student_ids"`
 }
 
 // schoolCheckinBatchResult is the per-student outcome inside a batch response.
 // Error carries a machine-readable code ("not_found") — the frontend resolves
-// the student's name from its own list, so no PII travels here.
+// the student's name from its own list, so no PII travels here. StudentID is
+// a string for the same reason the request IDs are: the client matches these
+// values back against its selection set, which a lossy JSON-number round-trip
+// above 2^53-1 would silently break.
 type schoolCheckinBatchResult struct {
-	StudentID int64  `json:"student_id"`
+	StudentID string `json:"student_id"`
 	OK        bool   `json:"ok"`
 	Changed   bool   `json:"changed"`
 	Status    string `json:"status,omitempty"`
@@ -163,7 +175,12 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(`action must be "in" or "out"`)))
 		return
 	}
-	studentIDs := dedupeStudentIDs(req.StudentIDs)
+	parsedIDs, parseErr := parseStudentIDStrings(req.StudentIDs)
+	if parseErr != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(parseErr))
+		return
+	}
+	studentIDs := dedupeStudentIDs(parsedIDs)
 	if len(studentIDs) == 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids must not be empty")))
 		return
@@ -216,11 +233,19 @@ func (rs *Resource) applySchoolCheckinBatchOne(
 	staffID int64,
 	action string,
 ) (schoolCheckinBatchResult, error) {
-	notFound := schoolCheckinBatchResult{StudentID: studentID, Error: "not_found"}
+	notFound := schoolCheckinBatchResult{StudentID: strconv.FormatInt(studentID, 10), Error: "not_found"}
 
 	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
 	if err != nil {
-		return notFound, nil
+		// Only a genuine no-row lookup is a skippable "not_found" (unknown id,
+		// or another tenant's student invisible through RLS). Every other
+		// failure — connection loss, aborted transaction, context cancel, scan
+		// errors — must fail the whole batch so the shared tenant transaction
+		// rolls back instead of being misreported as a missing student.
+		if errors.Is(err, sql.ErrNoRows) {
+			return notFound, nil
+		}
+		return schoolCheckinBatchResult{}, err
 	}
 	if student.Status == users.StudentStatusAlumnus {
 		return notFound, nil
@@ -243,12 +268,28 @@ func (rs *Resource) applySchoolCheckinBatchOne(
 	}
 
 	return schoolCheckinBatchResult{
-		StudentID: student.ID,
+		StudentID: strconv.FormatInt(student.ID, 10),
 		OK:        true,
 		Changed:   resp.Changed,
 		Status:    resp.Status,
 		Location:  resp.Location,
 	}, nil
+}
+
+// parseStudentIDStrings converts the wire-format string IDs to int64. Any
+// malformed entry rejects the whole request: the frontend only ever sends IDs
+// it received from the backend, so a non-numeric value is a client bug, not a
+// per-student condition.
+func parseStudentIDStrings(ids []string) ([]int64, error) {
+	out := make([]int64, 0, len(ids))
+	for _, raw := range ids {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("student_ids must be numeric id strings: %q", raw)
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }
 
 // dedupeStudentIDs drops duplicates while keeping first-seen order, so a

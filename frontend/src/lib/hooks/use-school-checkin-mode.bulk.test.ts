@@ -139,6 +139,132 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     expect(result.current.successCount).toBe(1);
   });
 
+  it("clearSelection empties the selection", () => {
+    const { result } = renderHook(() => useSchoolCheckinMode());
+
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleSelected("2"));
+    act(() => result.current.clearSelection());
+
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
+  it("runBulk with an explicit id list runs only that subset of the selection", async () => {
+    mockSchoolCheckinStudentsBatch.mockResolvedValue({
+      action: "out",
+      succeeded: 1,
+      failed: 0,
+      results: [
+        { studentId: "1", ok: true, changed: true, location: "Abwesend" },
+      ],
+    });
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleSelected("2"));
+
+    await act(async () => {
+      // "3" is not selected → filtered out; "2" is selected but not listed.
+      await result.current.runBulk("out", ["1", "3"]);
+    });
+
+    expect(mockSchoolCheckinStudentsBatch).toHaveBeenCalledWith(["1"], "out");
+    // The unlisted student stays selected, the processed one drops out.
+    expect(result.current.selectedIds.has("2")).toBe(true);
+    expect(result.current.selectedIds.has("1")).toBe(false);
+  });
+
+  it("keeps a selection made while the bulk request is in flight", async () => {
+    let resolveBatch!: (value: unknown) => void;
+    mockSchoolCheckinStudentsBatch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBatch = resolve;
+      }),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+
+    let runPromise: Promise<unknown> = Promise.resolve(null);
+    act(() => {
+      runPromise = result.current.runBulk("out");
+    });
+    // Mid-flight mark: must survive the response processing (review #2372 —
+    // replacing the set with the snapshot's failures would discard it).
+    act(() => result.current.toggleSelected("3"));
+
+    await act(async () => {
+      resolveBatch({
+        action: "out",
+        succeeded: 1,
+        failed: 0,
+        results: [
+          { studentId: "1", ok: true, changed: true, location: "Abwesend" },
+        ],
+      });
+      await runPromise;
+    });
+
+    expect(result.current.selectedIds.has("3")).toBe(true);
+    expect(result.current.selectedIds.has("1")).toBe(false);
+  });
+
+  it("invalidates exactly the presence-bearing SWR key families, bundled", async () => {
+    mockSchoolCheckinStudentsBatch.mockResolvedValue({
+      action: "in",
+      succeeded: 1,
+      failed: 0,
+      results: [
+        { studentId: "1", ok: true, changed: true, location: "Anwesend" },
+      ],
+    });
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    await act(async () => {
+      await result.current.runBulk("in");
+    });
+
+    const matcher = mockGlobalMutate.mock.calls[0]?.[0] as (
+      key: unknown,
+    ) => boolean;
+    expect(matcher("search-students-gall--")).toBe(true);
+    expect(matcher("ogs-students-7")).toBe(true);
+    expect(matcher("tracking-supervisions-2026-08-17")).toBe(true);
+    expect(matcher("tracking-indicators-2026-08-17")).toBe(true);
+    expect(matcher("student-detail-42")).toBe(true);
+    expect(matcher("rooms-list")).toBe(false);
+    expect(matcher(["not", "a", "string"])).toBe(false);
+  });
+
+  it("toasts the generic retry message when the whole request fails without a 403", async () => {
+    mockSchoolCheckinStudentsBatch.mockRejectedValue(
+      new Error("API error (500): boom"),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+
+    await act(async () => {
+      await result.current.runBulk("in");
+    });
+
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Anmelden fehlgeschlagen. Bitte erneut versuchen.",
+    );
+    expect(result.current.selectedIds.has("1")).toBe(true);
+  });
+
   it("returns null and keeps the selection when the whole request fails", async () => {
     mockSchoolCheckinStudentsBatch.mockRejectedValue(
       new Error("API error (403): Forbidden"),
