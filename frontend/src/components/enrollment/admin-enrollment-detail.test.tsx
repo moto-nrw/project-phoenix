@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   updateAdminChildOfferings: vi.fn(),
   restoreAdminRequest: vi.fn(),
   routerPush: vi.fn(),
+  fetchCareOfferingBookingStats: vi.fn(),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -27,6 +28,14 @@ vi.mock("~/lib/tenant-router", () => ({
 vi.mock("~/lib/care-offering-api", () => ({
   listCareOfferings: mocks.listCareOfferings,
 }));
+
+vi.mock("~/lib/care-offering-booking-stats", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    fetchCareOfferingBookingStats: mocks.fetchCareOfferingBookingStats,
+  };
+});
 
 vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -123,6 +132,8 @@ beforeEach(() => {
   mocks.updateAdminChildOfferings.mockReset();
   mocks.restoreAdminRequest.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockResolvedValue([]);
+  mocks.fetchCareOfferingBookingStats.mockReset();
+  mocks.fetchCareOfferingBookingStats.mockResolvedValue({});
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
 });
 
@@ -752,7 +763,12 @@ describe("ChildOfferingAdjustment", () => {
     });
   });
 
-  it("removes a selected offering that is unavailable for the child's grade", async () => {
+  // Bestandsschutz (#2186): a rule tightened after the fact does NOT revoke a
+  // booking the child already holds. Until #2186 the editor dropped it from
+  // the selection and the very next save deleted it — silently, in the flow
+  // an admin opens to FIX the support case. The offering is now shown greyed
+  // with the reason and stays in the payload unless explicitly unchecked.
+  it("keeps a booked offering that is unavailable for the child's grade", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       {
         id: "grade-1-only",
@@ -804,7 +820,62 @@ describe("ChildOfferingAdjustment", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     await waitFor(() => expect(mocks.listCareOfferings).toHaveBeenCalled());
-    expect(screen.queryByText("Randstunde")).not.toBeInTheDocument();
+    // Visible with the reason instead of silently missing.
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nicht wählbar: nur für Klasse 1 (Kind: Klasse 3)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("bereits gebucht")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Unverändert gespeichert" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          offerings: [{ offering_id: "grade-1-only" }],
+        }),
+      );
+    });
+  });
+
+  it("lets the admin remove a booked but no longer available offering", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "grade-1-only",
+        name: "Randstunde",
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+    renderAdjustment(
+      adjustmentChild({
+        target_grade_level: 3,
+        offerings: [
+          {
+            offering_id: "grade-1-only",
+            offering_name: "Randstunde",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Randstunde entfernen",
+    });
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
     fireEvent.change(screen.getByLabelText("Begründung"), {
       target: { value: "Nicht für Klassenstufe 3 verfügbar" },
     });
@@ -819,7 +890,169 @@ describe("ChildOfferingAdjustment", () => {
     });
   });
 
-  it("keeps a selected unavailable offering removed after reopening the cached catalog", async () => {
+  it("shows occupancy per offering so a full one is visible before saving", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ id: "offering-1", name: "Ganztag" }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockResolvedValue({
+      "offering-1": {
+        offering_id: "offering-1",
+        capacity: 20,
+        booked: 20,
+        grade_levels: { "1": 20 },
+        unknown_grade_count: 0,
+      },
+    });
+    renderAdjustment();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(
+      await screen.findByText("Ausgebucht (20 von 20 Plätzen belegt)"),
+    ).toBeInTheDocument();
+    expect(mocks.fetchCareOfferingBookingStats).toHaveBeenCalledWith("phase-1");
+  });
+
+  it("stays usable when occupancy cannot be loaded", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ id: "offering-1", name: "Ganztag" }),
+    ]);
+    mocks.fetchCareOfferingBookingStats.mockRejectedValue(
+      new Error("stats down"),
+    );
+    renderAdjustment();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(
+      await screen.findByRole("checkbox", { name: /Ganztag/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Plätzen belegt/)).not.toBeInTheDocument();
+  });
+
+  // #2186 review: the kit Checkbox renders an sr-only input behind a
+  // pointer-events-none visual, so without a real <label> a mouse click on
+  // the box did nothing. Driving the visible control, not the input, is the
+  // point of this test.
+  it("removes a grandfathered booking when the visible checkbox is clicked", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "grade-1-only",
+        name: "Randstunde",
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+    renderAdjustment(
+      adjustmentChild({
+        target_grade_level: 3,
+        offerings: [
+          {
+            offering_id: "grade-1-only",
+            offering_name: "Randstunde",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Randstunde entfernen",
+    });
+    // The label must be wired to the input, or a mouse user cannot toggle it.
+    const label = checkbox.closest("label");
+    expect(label).not.toBeNull();
+    expect(label).toHaveAttribute("for", checkbox.id);
+    expect(checkbox.id).not.toBe("");
+
+    fireEvent.click(label!);
+    expect(checkbox).not.toBeChecked();
+  });
+
+  // #2186 review: an automatic booking has no checkbox to tick, so it is
+  // absent from `selected`. Rendering the row from `selected` alone showed a
+  // blocked automatic booking as empty and disabled — i.e. as NOT booked —
+  // although the backend re-derives it from its trigger on every save.
+  it("shows a blocked automatic booking as held and not removable", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ id: "trigger", name: "Ganztag" }),
+      catalogOffering({
+        id: "grade-1-only",
+        name: "Randstunde",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        auto_add_trigger_offering_ids: ["trigger"],
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+      }),
+    ]);
+    renderAdjustment(
+      adjustmentChild({
+        target_grade_level: 3,
+        offerings: [
+          {
+            offering_id: "trigger",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+          {
+            offering_id: "grade-1-only",
+            offering_name: "Randstunde",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon"],
+            manual_selected_days: [],
+            automatic_selected_days: ["mon"],
+            available_days: ["mon", "tue"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Randstunde entfernen",
+    });
+    expect(checkbox).toBeChecked();
+    // Derived days disappear with their trigger, never by unticking here.
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText("automatisch mitgebucht: Mo")).toBeInTheDocument();
+  });
+
+  it("never lets an unbooked blocked offering be added", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "grade-1-only",
+        name: "Randstunde",
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+      }),
+    ]);
+    renderAdjustment(adjustmentChild({ target_grade_level: 3 }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Randstunde entfernen",
+    });
+    expect(checkbox).not.toBeChecked();
+    expect(checkbox).toBeDisabled();
+    expect(screen.queryByText("bereits gebucht")).not.toBeInTheDocument();
+  });
+
+  // Same Bestandsschutz rule as above, across the cached-catalog reopen path
+  // (which rebuilds the selection from scratch).
+  it("keeps a booked unavailable offering after reopening the cached catalog", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       catalogOffering({
         id: "grade-1-only",
@@ -860,7 +1093,9 @@ describe("ChildOfferingAdjustment", () => {
       expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
         "request-1",
         "child-1",
-        expect.objectContaining({ offerings: [] }),
+        expect.objectContaining({
+          offerings: [{ offering_id: "grade-1-only" }],
+        }),
       );
     });
     expect(mocks.listCareOfferings).toHaveBeenCalledOnce();

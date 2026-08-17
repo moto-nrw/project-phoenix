@@ -507,6 +507,170 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
+  // #2186: parents must keep seeing only what they can pick (the test above),
+  // but for an admin a filtered-out offering reads as a missing feature. The
+  // support case: a grade-3 child cannot be added to a "Randstunde" limited
+  // to grades 1-2, and the form said nothing at all.
+  it("shows blocked offerings with their reason in admin mode", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({ showBlockedOfferings: true });
+    await waitForLoaded();
+
+    await chooseOption("Klassenstufe *", "3. Klasse");
+
+    expect(screen.getByText("Für dieses Kind nicht wählbar")).toBeVisible();
+    expect(screen.getByText("Randstunde")).toBeVisible();
+    expect(
+      screen.getByText("Nicht wählbar: nur für Klassen 1–2 (Kind: Klasse 3)"),
+    ).toBeVisible();
+    // Shown, never selectable — the documented workaround is to relax the
+    // rule in the Angebots-Katalog, not to override it here.
+    expect(
+      document.querySelector('input[name="children_0_offering_99"]'),
+    ).toBeNull();
+  });
+
+  // The reason must be phrased against the grades the SCHOOL has, not the
+  // backend's 1-13 ceiling (#2186 review). Picked so the two disagree: with
+  // gradeLevelMax 4 the excluded side is shorter ("nicht für Klasse 4"),
+  // while the 1-13 fallback would name the allowed side instead ("nur für
+  // Klassen 1-3"). The grades 1-2 case above reads identically either way,
+  // so only this shape catches a caller that drops gradeLevelMax.
+  it("describes a blocked offering against the tenant's grade ceiling", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [
+          { source: "grade_level", operator: "in", value: [1, 2, 3] },
+        ],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({ showBlockedOfferings: true });
+    await waitForLoaded();
+
+    await chooseOption("Klassenstufe *", "4. Klasse");
+
+    expect(
+      screen.getByText("Nicht wählbar: nicht für Klasse 4 (Kind: Klasse 4)"),
+    ).toBeVisible();
+  });
+
+  it("drops the blocked section once the grade makes the offering available", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({ showBlockedOfferings: true });
+    await waitForLoaded();
+
+    await chooseOption("Klassenstufe *", "3. Klasse");
+    expect(screen.getByText("Für dieses Kind nicht wählbar")).toBeVisible();
+
+    await chooseOption("Klassenstufe *", "2. Klasse");
+    expect(
+      screen.queryByText("Für dieses Kind nicht wählbar"),
+    ).not.toBeInTheDocument();
+    expect(
+      document.querySelector('input[name="children_0_offering_99"]'),
+    ).not.toBeNull();
+  });
+
+  it("shows per-offering occupancy in admin mode", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({
+      showBlockedOfferings: true,
+      offeringBookingStats: {
+        [offerings()[0]!.id]: {
+          offering_id: offerings()[0]!.id,
+          capacity: 20,
+          booked: 20,
+          grade_levels: {},
+          unknown_grade_count: 0,
+        },
+      },
+    });
+    await waitForLoaded();
+
+    expect(
+      screen.getByText("Ausgebucht (20 von 20 Plätzen belegt)"),
+    ).toBeVisible();
+  });
+
+  it("shows no occupancy or blocked section on the parent form", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "3. Klasse");
+
+    expect(
+      screen.queryByText("Für dieses Kind nicht wählbar"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Plätzen belegt/)).not.toBeInTheDocument();
+  });
+
   it("hides grade and care offerings when the tenant disables both", async () => {
     mockFetchPublicCareOfferings.mockResolvedValue({
       offerings: offerings(),

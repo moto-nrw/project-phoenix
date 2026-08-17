@@ -8,6 +8,7 @@ import {
   type CareOffering,
   type CareOfferingInput,
   type CareOfferingAvailabilityCondition,
+  type CareOfferingAvailabilityRule,
   type CareSelectionRule,
   type DaysOfWeekMode,
   SELECTION_RULE_LABELS,
@@ -17,7 +18,16 @@ import {
   listCareOfferings,
   updateCareOffering,
 } from "~/lib/care-offering-api";
-import { careOfferingAvailabilityRuleError } from "~/lib/care-offering-availability";
+import {
+  type CareOfferingBookingGradeCounts,
+  careOfferingAvailabilityRuleError,
+  countCareOfferingRuleConflicts,
+  describeCareOfferingAvailabilityRule,
+} from "~/lib/care-offering-availability";
+import {
+  type CareOfferingBookingStats,
+  fetchCareOfferingBookingStats,
+} from "~/lib/care-offering-booking-stats";
 import {
   previewCareOfferingPickupRollout,
   rolloutCareOfferingPickupTimes,
@@ -397,6 +407,13 @@ export function CareOfferingsEditor() {
   const [rollingOut, setRollingOut] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
+  // Booking stats are display-only (#2186): the availability-rule editor uses
+  // them to say how many existing bookings a rule would contradict. A failure
+  // to load them must never block catalog editing, so it is logged and the
+  // hint simply stays absent.
+  const [bookingStats, setBookingStats] = useState<
+    Record<string, CareOfferingBookingStats>
+  >({});
   const toast = useToast();
 
   const hasNoPhases = phases.length === 0;
@@ -478,6 +495,28 @@ export function CareOfferingsEditor() {
     void loadAll();
     return invalidateLoads;
   }, [invalidateLoads, loadAll]);
+
+  useEffect(() => {
+    if (!selectedPhaseId) {
+      setBookingStats({});
+      return;
+    }
+    let cancelled = false;
+    void fetchCareOfferingBookingStats(selectedPhaseId)
+      .then((stats) => {
+        if (!cancelled) setBookingStats(stats);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setBookingStats({});
+        logger.warn("care_offering_booking_stats_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPhaseId, offerings]);
 
   const beginCreate = () => {
     if (!selectedPhaseId) return;
@@ -735,6 +774,10 @@ export function CareOfferingsEditor() {
             {(offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ? (
               <FeaturePill label="Wird mitgebucht" />
             ) : null}
+            <AvailabilityRulePill
+              rule={offering.availability_rule}
+              gradeLevelMax={gradeLevelMax}
+            />
           </div>
         ),
       },
@@ -789,7 +832,7 @@ export function CareOfferingsEditor() {
         ),
       },
     ],
-    [deletingId, handleDelete, saving],
+    [deletingId, gradeLevelMax, handleDelete, saving],
   );
 
   return (
@@ -868,6 +911,7 @@ export function CareOfferingsEditor() {
                   : null
               }
               gradeLevelMax={gradeLevelMax}
+              bookingStats={bookingStats}
               saving={saving}
               onChange={setDraft}
               onSubmit={handleSave}
@@ -1230,6 +1274,27 @@ function EmptyCareOfferingState({
   );
 }
 
+// Without this pill an availability rule is only visible after opening the
+// offering and scrolling to "Bedingungen für die Verfügbarkeit" — which is how
+// a school ends up filing a support ticket for a restriction it configured
+// itself (#2186).
+function AvailabilityRulePill({
+  rule,
+  gradeLevelMax,
+}: Readonly<{
+  rule: CareOfferingAvailabilityRule | null | undefined;
+  // Passed so a rule covering every grade this school HAS reads as
+  // unrestricted rather than as a restriction (#2186 review).
+  gradeLevelMax: number | null;
+}>) {
+  const label = describeCareOfferingAvailabilityRule(
+    rule,
+    gradeLevelMax ?? undefined,
+  );
+  if (!label) return null;
+  return <FeaturePill label={label} />;
+}
+
 function DaysCell({ offering }: Readonly<{ offering: CareOffering }>) {
   return (
     <div className="min-w-0">
@@ -1304,6 +1369,12 @@ interface CareOfferingFormProps {
   readonly metadataStatus: PlannerMetadataStatus;
   readonly originalActivityGroupID: string | null;
   readonly gradeLevelMax: number | null;
+  /**
+   * Current bookings of the offering being edited, keyed by offering id.
+   * Only used to warn about bookings a tightened availability rule would
+   * contradict; absent for a new offering, which has none.
+   */
+  readonly bookingStats: Record<string, CareOfferingBookingStats>;
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
   readonly onSubmit: (event: React.FormEvent) => void;
@@ -1782,10 +1853,12 @@ function CareOfferingAutomationFields({
 function CareOfferingAvailabilityFields({
   draft,
   gradeLevelMax,
+  bookingGradeCounts,
   onChange,
 }: Readonly<{
   draft: CareOfferingInput;
   gradeLevelMax: number | null;
+  bookingGradeCounts: CareOfferingBookingGradeCounts | null;
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   const rule = draft.availability_rule;
@@ -1819,6 +1892,10 @@ function CareOfferingAvailabilityFields({
     onChange({ availability_rule: { ...rule, conditions } });
   };
   const error = careOfferingAvailabilityRuleError(rule, gradeLevelMax);
+  // Bestandsschutz is intentional — an existing booking is never revoked by a
+  // rule change. Saying so out loud is what keeps the data from looking
+  // inconsistent later (#2186).
+  const conflicts = countCareOfferingRuleConflicts(rule, bookingGradeCounts);
 
   return (
     <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -2027,6 +2104,17 @@ function CareOfferingAvailabilityFields({
               {error}
             </p>
           ) : null}
+          {!error && conflicts > 0 ? (
+            <p
+              role="status"
+              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
+            >
+              {conflicts === 1
+                ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
+                : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
+              Sie bleiben bestehen — die Regel gilt nur für neue Auswahlen.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </fieldset>
@@ -2197,6 +2285,7 @@ function CareOfferingForm({
   metadataStatus,
   originalActivityGroupID,
   gradeLevelMax,
+  bookingStats,
   saving,
   onChange,
   onSubmit,
@@ -2380,6 +2469,11 @@ function CareOfferingForm({
       <CareOfferingAvailabilityFields
         draft={draft}
         gradeLevelMax={gradeLevelMax}
+        bookingGradeCounts={
+          editingId && editingId !== "new"
+            ? (bookingStats[editingId] ?? null)
+            : null
+        }
         onChange={update}
       />
 

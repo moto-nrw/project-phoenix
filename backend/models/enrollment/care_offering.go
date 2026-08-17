@@ -524,6 +524,47 @@ type RequestChildOfferingRepository interface {
 	// Alumni are excluded. The Gehzeit reconciler (#2290) uses it to compute
 	// a student's desired offering-sourced pickup times.
 	ListApprovedByStudentIDsOnDate(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*ApprovedOfferingChild, error)
+
+	// CountActiveGradeLevelsByCareOfferingIDs groups the non-terminal
+	// bookings whose validity interval overlaps [from, until) by offering and
+	// by the child's target grade level. A child is counted once per
+	// (offering, grade) pair no matter how many intervals it holds there.
+	// Children without a target grade level are reported with a nil
+	// GradeLevel — availability rules never match a missing grade, so those
+	// bookings conflict with every rule (see
+	// CareOfferingAvailabilityRule.MatchesGradeLevel). Empty input returns an
+	// empty slice without a query.
+	//
+	// NOT phase-scoped, for the same reason as
+	// CountMaxActiveByCareOfferingIDsInRange: an availability rule lives on
+	// the care_offering row and therefore applies to every booking of that
+	// row, whichever phase's request it hangs off.
+	CountActiveGradeLevelsByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) ([]*CareOfferingGradeLevelCount, error)
+
+	// CountMaxActiveByCareOfferingIDsInRange is the batched form of
+	// CountMaxActiveByCareOfferingInRange — peak simultaneous occupancy per
+	// offering in one query. Offerings with no overlapping booking are absent
+	// from the map; read a missing key as zero. Empty input returns an empty
+	// map without a query.
+	//
+	// It counts the SAME population as the capacity gate, deliberately
+	// including bookings from every phase that references the offering. The
+	// two must not diverge: this number drives the admin dialog's occupancy
+	// hint, so a narrower count offers a slot the gate then refuses (#2186
+	// review). Capacity is a property of the care_offering row, and any
+	// booking of that row whose validity overlaps the window occupies one of
+	// its slots.
+	CountMaxActiveByCareOfferingIDsInRange(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) (map[int64]int, error)
+}
+
+// CareOfferingGradeLevelCount is one (offering, grade level) bucket of the
+// current bookings. It answers "how many booked children would a grade-level
+// availability rule exclude" without shipping any child data to the client.
+type CareOfferingGradeLevelCount struct {
+	CareOfferingID int64
+	// GradeLevel is nil for booked children whose target grade is unknown.
+	GradeLevel *int16
+	Count      int
 }
 
 // ApprovedOfferingChild is one approved, still-relevant offering selection
