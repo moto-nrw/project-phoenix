@@ -220,12 +220,12 @@ export function CareRequestReviewList() {
             onReject={() => void decide(row, false)}
           >
             <ReviewDiffPanel>
-              {row.reason && (
+              {row.request_reason && (
                 <p className="mb-3 text-sm text-gray-700">
                   <span className="font-medium text-gray-900">
                     Grund der Eltern:
                   </span>{" "}
-                  {row.reason}
+                  {row.request_reason}
                 </p>
               )}
               {row.diff.length === 0 && (

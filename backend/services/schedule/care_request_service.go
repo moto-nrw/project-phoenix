@@ -737,7 +737,7 @@ func pickupChangeReason(req *scheduleModels.CareScheduleChangeRequest) *string {
 }
 
 func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest) error {
-	if s.pickupExceptions == nil || s.userContext == nil {
+	if s.pickupExceptions == nil || s.attendance == nil || s.userContext == nil {
 		return errors.New("schedule: pickup change request dependencies not configured")
 	}
 	date, pickupTime, reason, err := parsePickupChangePayload(req.Payload)
@@ -747,7 +747,10 @@ func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Contex
 	if date.Before(timezone.TodayDate()) {
 		return ErrInvalidCareRequestPayload
 	}
-	if date == timezone.TodayDate() && s.attendance != nil {
+	if date == timezone.TodayDate() {
+		if lockErr := s.attendance.LockStudentAttendance(ctx, req.StudentID); lockErr != nil {
+			return fmt.Errorf("schedule: lock attendance for pickup request: %w", lockErr)
+		}
 		rows, attendanceErr := s.attendance.FindByStudentAndDate(ctx, req.StudentID, date)
 		if attendanceErr != nil {
 			return fmt.Errorf("schedule: load attendance for pickup request: %w", attendanceErr)

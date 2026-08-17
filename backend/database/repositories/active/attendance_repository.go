@@ -32,6 +32,18 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 	}
 }
 
+func (r *AttendanceRepository) LockStudentAttendance(ctx context.Context, studentID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 || studentID <= 0 {
+		return &modelBase.DatabaseError{Op: "lock student attendance", Err: errors.New("tenant and student are required")}
+	}
+	key := fmt.Sprintf("attendance:%d:%d", tenantID, studentID)
+	if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key); err != nil {
+		return &modelBase.DatabaseError{Op: "lock student attendance", Err: err}
+	}
+	return nil
+}
+
 // FindByStudentAndDate finds all attendance records for a student on a specific date
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance

@@ -17,16 +17,17 @@ import (
 // care-schedule change request in the review queue, including the live
 // "current → requested" weekly diff.
 type CareRequestResponse struct {
-	ID          string                    `json:"id"`
-	StudentID   string                    `json:"student_id"`
-	FirstName   string                    `json:"first_name"`
-	LastName    string                    `json:"last_name"`
-	Status      string                    `json:"status"`
-	RequestKind string                    `json:"request_kind"`
-	Diff        []CareRequestDiffResponse `json:"diff"`
-	Reason      *string                   `json:"reason,omitempty"`
-	CreatedAt   time.Time                 `json:"created_at"`
-	ReviewedAt  *time.Time                `json:"reviewed_at,omitempty"`
+	ID             string                    `json:"id"`
+	StudentID      string                    `json:"student_id"`
+	FirstName      string                    `json:"first_name"`
+	LastName       string                    `json:"last_name"`
+	Status         string                    `json:"status"`
+	RequestKind    string                    `json:"request_kind"`
+	Diff           []CareRequestDiffResponse `json:"diff"`
+	RequestReason  *string                   `json:"request_reason,omitempty"`
+	DecisionReason *string                   `json:"decision_reason,omitempty"`
+	CreatedAt      time.Time                 `json:"created_at"`
+	ReviewedAt     *time.Time                `json:"reviewed_at,omitempty"`
 }
 
 // CareRequestDiffResponse mirrors the request-diff wire shape the messaging
@@ -43,10 +44,6 @@ type CareRequestDiffResponse struct {
 
 func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequestResponse {
 	r := item.Request
-	reason := item.Reason
-	if reason == nil {
-		reason = r.DecisionReason
-	}
 	diff := make([]CareRequestDiffResponse, 0, len(item.Diff))
 	for _, e := range item.Diff {
 		diff = append(diff, CareRequestDiffResponse{
@@ -60,16 +57,17 @@ func toCareRequestResponse(item *scheduleService.CareRequestReviewItem) CareRequ
 		})
 	}
 	return CareRequestResponse{
-		ID:          strconv.FormatInt(r.ID, 10),
-		StudentID:   strconv.FormatInt(r.StudentID, 10),
-		FirstName:   item.FirstName,
-		LastName:    item.LastName,
-		Status:      r.Status,
-		RequestKind: r.RequestKind,
-		Diff:        diff,
-		Reason:      reason,
-		CreatedAt:   r.CreatedAt,
-		ReviewedAt:  r.ReviewedAt,
+		ID:             strconv.FormatInt(r.ID, 10),
+		StudentID:      strconv.FormatInt(r.StudentID, 10),
+		FirstName:      item.FirstName,
+		LastName:       item.LastName,
+		Status:         r.Status,
+		RequestKind:    r.RequestKind,
+		Diff:           diff,
+		RequestReason:  item.Reason,
+		DecisionReason: r.DecisionReason,
+		CreatedAt:      r.CreatedAt,
+		ReviewedAt:     r.ReviewedAt,
 	}
 }
 

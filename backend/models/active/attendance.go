@@ -45,6 +45,10 @@ func (a *Attendance) IsCheckedIn() bool {
 
 // AttendanceRepository defines the interface for attendance data operations
 type AttendanceRepository interface {
+	// LockStudentAttendance serializes attendance-sensitive decisions for one
+	// student within the current transaction.
+	LockStudentAttendance(ctx context.Context, studentID int64) error
+
 	// Create creates a new attendance record
 	Create(ctx context.Context, attendance *Attendance) error
 

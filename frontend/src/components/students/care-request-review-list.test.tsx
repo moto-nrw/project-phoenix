@@ -136,7 +136,7 @@ describe("CareRequestReviewList", () => {
     mockList.mockResolvedValue([
       row({
         request_kind: "pickup_change",
-        reason: "Arzttermin",
+        request_reason: "Arzttermin",
         diff: [
           {
             label: "17.08.2026 · Abholzeit",
