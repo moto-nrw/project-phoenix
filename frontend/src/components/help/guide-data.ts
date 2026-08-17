@@ -1795,7 +1795,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Jede Person entscheidet selbst, worüber sie Bescheid bekommt. Ohne diese Auswahl wird nichts verschickt, auch nicht als Push. Die Auswahl gilt für alle Geräte.",
         steps: [
           "Im eigenen Profil den Abschnitt `Benachrichtigungen` öffnen.",
-          "Die gewünschten Arten einschalten. Sie sind nach Themen sortiert: `Abholungen` (anstehend, überfällig), `Aktivitäten` (Aktivität im eigenen Aufsichtsraum, nicht gestartete Aktivität, eigener Einsatz aus dem Betreuungsplan) und `Kinder` (Krankmeldung eines Kindes aus den eigenen Gruppen).",
+          "Die gewünschten Arten einschalten. Sie sind nach Themen sortiert.",
+          "`Abholungen`: anstehende und überfällige Abholungen.",
+          "`Aktivitäten`: Hinweise zu eigenen Räumen, Aktivitäten und Einsätzen.",
+          "`Kinder`: Krankmeldungen für Kinder aus den eigenen Gruppen.",
+          "`Mitteilungen`: neue Nachrichten von Eltern.",
           "Jeder Schalter speichert sofort. `Alle deaktivieren` oben rechts schaltet alles auf einmal ab.",
           "Steht unter einer Art `Von Ihrer Schule derzeit deaktiviert`, bleibt sie still. Der eigene Schalter darf trotzdem an bleiben und greift wieder, sobald die Schule die Art einschaltet.",
         ],
@@ -1804,8 +1808,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Diese Auswahl beantwortet `worüber`, der nächste Schritt `auf welchem Gerät`. Ohne Push-Freigabe erscheinen die Hinweise weiterhin in der geöffneten App; ohne Auswahl hier kommt auf keinem Weg etwas an.",
           tone: "blue",
         },
-        screenshot:
-          "Profilseite mit dem Abschnitt Benachrichtigungen: Schalter je Art, gruppiert nach Abholungen, Aktivitäten und Kinder, mit der Schaltfläche Alle deaktivieren.",
+        screenshot: "Benachrichtigungen im Profil, nach Themen geordnet.",
       },
       {
         id: "eigenen-geburtstag-anzeigen",

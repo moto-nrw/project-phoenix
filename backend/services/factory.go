@@ -1861,6 +1861,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		repos.AccountTenant,
 	)
+	staffNotificationRecipients := notifications.NewStaffRecipientResolver(
+		notificationPreferencesService,
+		repos.Student,
+		repos.Group,
+		repos.Staff,
+		repos.Account,
+		settingsService,
+		repos.WorkSession,
+	)
+	staffParentMessageNotifier := notifications.NewStaffParentMessageNotifier(
+		notificationsService,
+		staffNotificationRecipients,
+		repos.ParentMessageThread,
+		db,
+		logger.With("producer", "staff_parent_message_notifications"),
+	)
 
 	// Decided change requests reach the parent's devices through the pill
 	// emitter, which is where all three request flows already converge (#1671).
@@ -1931,6 +1947,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MessageThreadRepo:        repos.ParentMessageThread,
 		MessageRepo:              repos.ParentMessage,
 		MessageReadRepo:          repos.ParentMessageRead,
+		ParentMessageNotifier:    staffParentMessageNotifier,
 		ArrivalSchedules:         arrivalScheduleService,
 		PickupSchedules:          pickupScheduleService,
 		CareRequests:             careRequestService,
@@ -2047,13 +2064,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	absenceNotifier := notifications.NewAbsenceNotifier(
 		notificationsService,
-		notificationPreferencesService,
-		repos.Student,
-		repos.Group,
-		repos.Staff,
-		repos.Account,
-		settingsService,
-		repos.WorkSession,
+		staffNotificationRecipients,
 		db,
 		logger.With("producer", "absence_notifications"),
 	)

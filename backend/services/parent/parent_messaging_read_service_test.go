@@ -19,6 +19,7 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -29,6 +30,10 @@ import (
 // profile repo (so resolveGuardianName resolves a real name) and returns the
 // service, broadcaster, db, and repo factory.
 func buildReadService(t *testing.T, enabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
+	return buildReadServiceWithNotifier(t, enabled, nil)
+}
+
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -48,14 +53,23 @@ func buildReadService(t *testing.T, enabled bool) (parentService.Service, *testp
 				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
 			},
 		},
-		Broadcaster:       bc,
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       repos.ParentMessage,
-		MessageReadRepo:   repos.ParentMessageRead,
-		DB:                db,
-		Logger:            slog.Default(),
+		Broadcaster:           bc,
+		MessageThreadRepo:     repos.ParentMessageThread,
+		MessageRepo:           repos.ParentMessage,
+		MessageReadRepo:       repos.ParentMessageRead,
+		ParentMessageNotifier: notifier,
+		DB:                    db,
+		Logger:                slog.Default(),
 	})
 	return svc, bc, db, repos
+}
+
+type recordingStaffParentMessageNotifier struct {
+	reports []notificationsSvc.StaffParentMessageReport
+}
+
+func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report notificationsSvc.StaffParentMessageReport) {
+	n.reports = append(n.reports, report)
 }
 
 // seedStaffReply inserts a staff-authored message into the guardian's child
@@ -221,4 +235,21 @@ func TestPostChildMessage_DenormalizesGuardianName(t *testing.T) {
 	require.Len(t, view.Messages, 1)
 	assert.Equal(t, "Sabine Schneider", view.Messages[0].SenderName,
 		"the guardian's tenant-scoped profile name is denormalized onto the message")
+}
+
+func TestPostChildMessage_NotifiesStaffAfterCommit(t *testing.T) {
+	notifier := &recordingStaffParentMessageNotifier{}
+	svc, _, db, _ := buildReadServiceWithNotifier(t, true, notifier)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "Hallo OGS")
+	require.NoError(t, err)
+	require.Len(t, notifier.reports, 1)
+	assert.Equal(t, notificationsSvc.StaffParentMessageReport{
+		TenantID:       chain.TenantID,
+		ThreadID:       view.ThreadID,
+		StudentID:      chain.StudentID,
+		ActorAccountID: chain.AccountID,
+	}, notifier.reports[0])
 }
