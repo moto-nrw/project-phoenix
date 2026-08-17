@@ -23,6 +23,11 @@ var (
 	ErrPartialAbsencePickupConflict         = errors.New("partial absence conflicts with a full-day pickup cancellation")
 	ErrPartialAbsenceNotFound               = errors.New("partial absence not found")
 	ErrPartialAbsenceWrongStudent           = errors.New("partial absence belongs to another student")
+	// ErrPartialAbsenceAutoManaged refuses deleting an auto-derived excusal
+	// through the manual endpoints: it would be re-derived on the next pickup
+	// write anyway — undoing it means changing or removing the day's pickup
+	// time (#2360).
+	ErrPartialAbsenceAutoManaged = errors.New("partial absence is derived from the day's pickup time")
 )
 
 // PartialAbsenceInput is the one-day command accepted by the partial-absence
@@ -116,11 +121,19 @@ func (s *partialAbsenceService) Create(
 		reason := trimmedReason(input.Reason)
 
 		if existing != nil {
-			if existing.ExcusedFrom != nil {
+			if existing.HasManualPartialAbsence() {
 				return ErrPartialAbsenceAlreadyExists
 			}
 			if existing.PickupTime == nil {
 				return ErrPartialAbsencePickupConflict
+			}
+			// An auto-derived excusal (#2360) yields to the explicit staff
+			// decision: release its block absences, then take over as manual.
+			if existing.ExcusedAuto {
+				if _, err := s.slots.ReleasePartialAbsence(txCtx, existing.ID); err != nil {
+					return err
+				}
+				existing.ExcusedAuto = false
 			}
 			existing.ExcusedFrom = &clock
 			existing.ExcusedReason = reason
@@ -202,6 +215,9 @@ func (s *partialAbsenceService) Update(
 		row.ExcusedFrom = &clock
 		row.ExcusedReason = trimmedReason(input.Reason)
 		row.ExcusedCreatedBy = &staffID
+		// Editing an auto-derived excusal converts it into a manual one — the
+		// staff time now wins over the pickup-time derivation (#2360).
+		row.ExcusedAuto = false
 		normalizePickupExceptionTimes(row)
 		if err := s.pickups.Update(txCtx, row); err != nil {
 			return err
@@ -248,6 +264,9 @@ func (s *partialAbsenceService) Delete(ctx context.Context, exceptionID, student
 		if row.ExcusedFrom == nil {
 			return ErrPartialAbsenceNotFound
 		}
+		if row.ExcusedAuto {
+			return ErrPartialAbsenceAutoManaged
+		}
 		if _, err := s.slots.ReleasePartialAbsence(txCtx, row.ID); err != nil {
 			return err
 		}
@@ -264,14 +283,7 @@ func (s *partialAbsenceService) Delete(ctx context.Context, exceptionID, student
 }
 
 func normalizePickupExceptionTimes(row *scheduleModel.StudentPickupException) {
-	if row.PickupTime != nil {
-		clock := timezone.WallClock(*row.PickupTime)
-		row.PickupTime = &clock
-	}
-	if row.ExcusedFrom != nil {
-		clock := timezone.WallClock(*row.ExcusedFrom)
-		row.ExcusedFrom = &clock
-	}
+	row.NormalizeWallClockTimes()
 }
 
 func (s *partialAbsenceService) ensureNoFullDayStatus(

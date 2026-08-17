@@ -112,6 +112,30 @@ func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instance
 	return s.deps.InstanceStudentRepo.FindByInstanceID(ctx, instanceID)
 }
 
+// GetPartialAbsenceCutoffsForDate returns, per student, the wall-clock time
+// from which the child is partially excused on the date (excused_from on the
+// day's pickup exception — manual and auto-derived alike). The planner uses
+// it to mark blocks the pickup time falls INTO ("Abholung 14:45" on a
+// 14:00-15:00 block), which stay expected but end early (#2360).
+func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
+	ctx context.Context, studentIDs []int64, date timezone.Date,
+) (map[int64]time.Time, error) {
+	if len(studentIDs) == 0 {
+		return map[int64]time.Time{}, nil
+	}
+	rows, err := s.deps.PickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	cutoffs := make(map[int64]time.Time, len(rows))
+	for _, row := range rows {
+		if row != nil && row.ExcusedFrom != nil {
+			cutoffs[row.StudentID] = timezone.WallClock(*row.ExcusedFrom)
+		}
+	}
+	return cutoffs, nil
+}
+
 // GetCareDayCandidateStudentsByInstanceIDs returns the rows whose care-day
 // verdict can still change something: rows still 'expected', plus rows a broad
 // day status (sick / excused / class trip) flipped to 'absent' and still owns.

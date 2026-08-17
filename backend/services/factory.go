@@ -881,6 +881,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Holidays:      nonWorkingDayService,
 	})
 
+	// Couples pulled-forward day pickup times with the per-block partial
+	// absences (#2360). Shared by the staff pickup-exception writers and the
+	// parent care-exception writers so both derive the same state.
+	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(
+		repos.StudentPickupException,
+		repos.StudentPickupSchedule,
+		repos.InstanceStudent,
+	)
+
 	// Initialize pickup schedule service
 	pickupScheduleService := schedule.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
@@ -888,6 +897,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupNote,
 		repos.Student,
 		repos.Person,
+		pickupAutoExcusal,
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
@@ -1923,6 +1933,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentRepo:              repos.Student,
 		PickupExceptionRepo:      repos.StudentPickupException,
 		ArrivalExceptionRepo:     repos.StudentArrivalException,
+		PickupAutoExcusal:        pickupAutoExcusal,
 		Settings:                 settingsService,
 		Broadcaster:              realtimeHub,
 		PersonRepo:               repos.Person,

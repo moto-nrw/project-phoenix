@@ -64,6 +64,12 @@ type instanceStudentSummary struct {
 	// the row has to say so too — otherwise the planner lists a child under
 	// "Erwartet" that its own header count leaves out.
 	CareDayStatus scheduleSvc.CareDayStatus `json:"care_day_status"`
+	// EarlyPickupTime (HH:MM) is set when the child's day pickup cutoff falls
+	// INSIDE this block (block 14:00-15:00, Abholung 14:45): the row stays
+	// expected — the child attends the beginning — but leaves early, and must
+	// not be silently misfiled either way (#2360). Blocks fully after the
+	// cutoff are already absent/excused and carry no marker.
+	EarlyPickupTime *string `json:"early_pickup_time,omitempty"`
 }
 
 // enrichedInstance is the per-instance payload returned in the list response.
@@ -373,6 +379,7 @@ func summarizeInstanceStudents(
 	inst *scheduleModel.ActivityInstance,
 	studentRows []*scheduleModel.InstanceStudent,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+	pickupCutoffs map[int64]time.Time,
 ) instanceAttendanceSummary {
 	out := instanceAttendanceSummary{
 		studentIDs: make([]int64, 0, len(studentRows)),
@@ -387,12 +394,13 @@ func summarizeInstanceStudents(
 		}
 		careDayStatus := instanceStudentCareDay(inst, row, careDays)
 		out.students = append(out.students, instanceStudentSummary{
-			StudentID:     row.StudentID,
-			Status:        row.Status,
-			Substatus:     row.Substatus,
-			Note:          row.Note,
-			CheckedInAt:   checkedInAt,
-			CareDayStatus: careDayStatus,
+			StudentID:       row.StudentID,
+			Status:          row.Status,
+			Substatus:       row.Substatus,
+			Note:            row.Note,
+			CheckedInAt:     checkedInAt,
+			CareDayStatus:   careDayStatus,
+			EarlyPickupTime: earlyPickupWithin(inst, pickupCutoffs, row.StudentID),
 		})
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
@@ -421,6 +429,52 @@ func summarizeInstanceStudents(
 		}
 	}
 	return out
+}
+
+// pickupCutoffsForRows loads the day's partial-absence cutoffs for the
+// instance's assigned children (one query per instance — same accepted N+1
+// shape as the staff/student loads above). Nil-service facades in unit tests
+// simply produce no markers.
+func (rs *Resource) pickupCutoffsForRows(
+	ctx context.Context,
+	inst *scheduleModel.ActivityInstance,
+	studentRows []*scheduleModel.InstanceStudent,
+) (map[int64]time.Time, error) {
+	if rs.TimetableData == nil || len(studentRows) == 0 {
+		return map[int64]time.Time{}, nil
+	}
+	studentIDs := make([]int64, 0, len(studentRows))
+	for _, row := range studentRows {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	cutoffs, err := rs.TimetableData.GetPartialAbsenceCutoffsForDate(ctx, studentIDs, inst.Date)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup cutoffs for instance %d: %w", inst.ID, err)
+	}
+	return cutoffs, nil
+}
+
+// earlyPickupWithin reports the child's pickup cutoff as HH:MM when it falls
+// strictly inside the block's time window — the overlap case that stays
+// expected but must be made visible (#2360). Wall-clock comparison only;
+// cutoffs at or before the start belong to fully-excused blocks, cutoffs at
+// or after the end do not affect the block.
+func earlyPickupWithin(
+	inst *scheduleModel.ActivityInstance,
+	pickupCutoffs map[int64]time.Time,
+	studentID int64,
+) *string {
+	cutoff, ok := pickupCutoffs[studentID]
+	if !ok {
+		return nil
+	}
+	start := timezone.WallClock(inst.StartTime)
+	end := timezone.WallClock(inst.EndTime)
+	if cutoff.After(start) && cutoff.Before(end) {
+		formatted := cutoff.Format("15:04")
+		return &formatted
+	}
+	return nil
 }
 
 // enrichInstance additionally returns the raw staff and student rows it
@@ -466,7 +520,11 @@ func (rs *Resource) enrichInstance(
 	if err != nil {
 		return enrichedInstance{}, nil, nil, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
-	attendance := summarizeInstanceStudents(inst, studentRows, careDays)
+	pickupCutoffs, err := rs.pickupCutoffsForRows(ctx, inst, studentRows)
+	if err != nil {
+		return enrichedInstance{}, nil, nil, err
+	}
+	attendance := summarizeInstanceStudents(inst, studentRows, careDays, pickupCutoffs)
 	emptyRosterReason := rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache)
 
 	assignedStaff := len(staffRows) - absentCount

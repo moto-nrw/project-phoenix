@@ -233,6 +233,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			scheduleRepo.NewStudentPickupNoteRepository(db),
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
+			nil,
 			db,
 			slog.Default(),
 		),

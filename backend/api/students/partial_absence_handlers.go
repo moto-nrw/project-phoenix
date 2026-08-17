@@ -44,9 +44,13 @@ type PartialAbsenceResponse struct {
 	FromTime   string  `json:"from_time"`
 	Reason     *string `json:"reason,omitempty"`
 	PickupTime *string `json:"pickup_time,omitempty"`
-	CreatedBy  int64   `json:"created_by"`
-	CreatedAt  string  `json:"created_at"`
-	UpdatedAt  string  `json:"updated_at"`
+	// Auto marks an excusal derived from a pulled-forward pickup time
+	// (#2360). Auto rows follow the day's pickup time and cannot be deleted
+	// through the manual endpoints — editing converts them to manual.
+	Auto      bool   `json:"auto"`
+	CreatedBy int64  `json:"created_by"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 func mapPartialAbsenceToResponse(row *schedule.StudentPickupException) PartialAbsenceResponse {
@@ -55,6 +59,7 @@ func mapPartialAbsenceToResponse(row *schedule.StudentPickupException) PartialAb
 		StudentID: row.StudentID,
 		Date:      row.ExceptionDate.String(),
 		Reason:    row.ExcusedReason,
+		Auto:      row.ExcusedAuto,
 		CreatedAt: row.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: row.UpdatedAt.Format(time.RFC3339),
 	}
@@ -189,6 +194,7 @@ var partialAbsenceErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: scheduleService.ErrPartialAbsenceFullDayConflict, Render: common.ErrorConflict},
 	{Target: scheduleService.ErrPartialAbsencePendingRequestConflict, Render: common.ErrorConflict},
 	{Target: scheduleService.ErrPartialAbsencePickupConflict, Render: common.ErrorConflict},
+	{Target: scheduleService.ErrPartialAbsenceAutoManaged, Render: common.ErrorConflict},
 	{Target: scheduleService.ErrPartialAbsenceNotFound, Render: partialAbsenceNotFound},
 	{Target: scheduleService.ErrPartialAbsenceWrongStudent, Render: partialAbsenceNotFound},
 	{Target: sql.ErrNoRows, Render: partialAbsenceNotFound},

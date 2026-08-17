@@ -36,6 +36,7 @@ func TestUpsertBulkPickupSchedules_PreservesOfferingProvenance(t *testing.T) {
 		repos.StudentPickupNote,
 		repos.Student,
 		repos.Person,
+		nil,
 		db,
 		nil,
 	)
@@ -96,6 +97,7 @@ func TestUpsertBulkPickupSchedules_ChangedTimeFlipsToStaff(t *testing.T) {
 		repos.StudentPickupNote,
 		repos.Student,
 		repos.Person,
+		nil,
 		db,
 		nil,
 	)

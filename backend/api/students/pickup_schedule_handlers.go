@@ -46,9 +46,14 @@ type PickupExceptionResponse struct {
 	PickupTime    *string `json:"pickup_time,omitempty"`
 	Reason        *string `json:"reason,omitempty"`
 	Source        string  `json:"source"` // "staff" or "guardian" (parent-set)
-	CreatedBy     int64   `json:"created_by"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	// ExcusedFrom (HH:MM) is the partial-absence cutoff carried by this
+	// exception; ExcusedAuto marks it as derived from a pulled-forward pickup
+	// time (#2360) rather than a manual staff decision.
+	ExcusedFrom *string `json:"excused_from,omitempty"`
+	ExcusedAuto bool    `json:"excused_auto"`
+	CreatedBy   int64   `json:"created_by"`
+	CreatedAt   string  `json:"created_at"`
+	UpdatedAt   string  `json:"updated_at"`
 }
 
 // PickupNoteResponse represents a pickup note in API responses
@@ -216,6 +221,7 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 		ExceptionDate: e.ExceptionDate.Format(dateFormatISO),
 		Reason:        e.Reason,
 		Source:        e.Source,
+		ExcusedAuto:   e.ExcusedAuto,
 		CreatedBy:     e.CreatedBy,
 		CreatedAt:     e.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     e.UpdatedAt.Format(time.RFC3339),
@@ -223,6 +229,10 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 	if e.PickupTime != nil {
 		formatted := e.PickupTime.Format("15:04")
 		resp.PickupTime = &formatted
+	}
+	if e.ExcusedFrom != nil {
+		formatted := timezone.WallClock(*e.ExcusedFrom).Format("15:04")
+		resp.ExcusedFrom = &formatted
 	}
 	return resp
 }
@@ -565,10 +575,13 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 	// commit: the service write runs in a nested tx that only REUSES the tx opened
 	// by TenantTxMiddleware and has NOT committed on return, so a woken client
 	// would otherwise refetch the pre-commit snapshot — or be woken for a write a
-	// later 5xx rolls back (#1725 review).
+	// later 5xx rolls back (#1725 review). broadcastStudentUpdated mirrors the
+	// manual partial-absence handlers: a pulled-forward pickup time may have
+	// auto-excused the child's later blocks (#2360), so student views refetch.
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+		rs.broadcastStudentUpdated(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusCreated, mapExceptionToResponse(exception), "Pickup exception created successfully")
@@ -619,10 +632,12 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	// Wake the child's guardians so the "Heute" pickup tile reflects the edited
 	// override live; defer to the outer request tx's commit (see the create path
 	// above — the service write runs in a nested tx, not committed on return)
-	// (#1725 review).
+	// (#1725 review). broadcastStudentUpdated: the edit may have applied or
+	// released an auto excusal on the child's blocks (#2360).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+		rs.broadcastStudentUpdated(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusOK, mapExceptionToResponse(exception), "Pickup exception updated successfully")
@@ -669,9 +684,12 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	// Wake the child's guardians so the "Heute" pickup tile drops the removed
 	// override live; defer to the outer request tx's commit (nested handler
 	// WithTenantTx is not committed on return) (#1725 review).
+	// broadcastStudentUpdated: the delete may have released auto-excused
+	// blocks back to expected (#2360).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+		rs.broadcastStudentUpdated(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")

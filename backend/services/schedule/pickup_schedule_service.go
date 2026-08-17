@@ -91,8 +91,11 @@ type pickupScheduleService struct {
 	scheduleRepo schedule.StudentPickupScheduleRepository
 	studentRepo  users.StudentRepository
 	personRepo   users.PersonRepository
-	db           *bun.DB
-	logger       *slog.Logger
+	// autoExcusal derives partial absences from pulled-forward day pickup
+	// times (#2360). Nil (older tests) skips the coupling entirely.
+	autoExcusal *PickupAutoExcusalSyncer
+	db          *bun.DB
+	logger      *slog.Logger
 }
 
 func newPickupScheduleService(
@@ -120,12 +123,14 @@ func NewPickupScheduleServiceWithBulk(
 	noteRepo schedule.StudentPickupNoteRepository,
 	studentRepo users.StudentRepository,
 	personRepo users.PersonRepository,
+	autoExcusal *PickupAutoExcusalSyncer,
 	db *bun.DB,
 	logger *slog.Logger,
 ) PickupScheduleService {
 	service := newPickupScheduleService(scheduleRepo, exceptionRepo, noteRepo, db)
 	service.studentRepo = studentRepo
 	service.personRepo = personRepo
+	service.autoExcusal = autoExcusal
 	service.logger = logger
 	return service
 }
@@ -424,15 +429,66 @@ func (s *pickupScheduleService) CreateOrReclaimException(
 	staffID int64,
 	resolveStaffID func() (int64, error),
 ) (*schedule.StudentPickupException, error) {
-	return s.core.CreateOrReclaimException(
-		ctx,
-		studentID,
-		date,
-		pickupTime,
-		reason,
-		staffID,
-		resolveStaffID,
-	)
+	if s.autoExcusal == nil {
+		return s.core.CreateOrReclaimException(
+			ctx,
+			studentID,
+			date,
+			pickupTime,
+			reason,
+			staffID,
+			resolveStaffID,
+		)
+	}
+	var result *schedule.StudentPickupException
+	err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+			return err
+		}
+		// An existing auto excusal is detached first so the overwrite cannot
+		// strand block absences whose provenance the write replaces; the sync
+		// below re-derives the excusal from the new pickup time.
+		if err := s.autoExcusal.DetachForDate(txCtx, studentID, date); err != nil {
+			return err
+		}
+		row, err := s.core.CreateOrReclaimException(txCtx, studentID, date, pickupTime, reason, staffID, resolveStaffID)
+		if err != nil {
+			return err
+		}
+		result = row
+		return s.resyncAutoExcusal(txCtx, row.ID, &result)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// resyncAutoExcusal runs the auto-excusal sync for the written exception and
+// refreshes *result so callers respond with the synced row state.
+func (s *pickupScheduleService) resyncAutoExcusal(
+	ctx context.Context,
+	exceptionID int64,
+	result **schedule.StudentPickupException,
+) error {
+	changed, err := s.autoExcusal.Sync(ctx, exceptionID)
+	if err != nil {
+		return err
+	}
+	// Only a sync that actually rewrote the row warrants replacing the
+	// caller-visible result with a re-read — the common no-op path keeps the
+	// core's in-memory row (and its nil-reason semantics) untouched.
+	if !changed {
+		return nil
+	}
+	fresh, err := s.core.ExceptionByID(ctx, exceptionID)
+	if err != nil {
+		return err
+	}
+	if fresh != nil {
+		*result = fresh
+	}
+	return nil
 }
 
 func (s *pickupScheduleService) UpdateException(
@@ -445,30 +501,126 @@ func (s *pickupScheduleService) UpdateException(
 	clearPickupTime bool,
 	resolveStaffID func() (int64, error),
 ) (*schedule.StudentPickupException, error) {
-	return s.core.UpdateException(
-		ctx,
-		exceptionID,
-		studentID,
-		date,
-		reason,
-		pickupTime,
-		clearPickupTime,
-		resolveStaffID,
-	)
+	if s.autoExcusal == nil {
+		return s.core.UpdateException(
+			ctx,
+			exceptionID,
+			studentID,
+			date,
+			reason,
+			pickupTime,
+			clearPickupTime,
+			resolveStaffID,
+		)
+	}
+	var result *schedule.StudentPickupException
+	err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		// The row's stored date may differ from the submitted one; both days'
+		// block absences can be affected, so lock them in ascending order (the
+		// same convention DeleteAllExceptions uses) before detaching.
+		existing, err := s.core.ExceptionByID(txCtx, exceptionID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		lockDates := []timezone.Date{date}
+		if existing != nil && existing.ExceptionDate != date {
+			lockDates = append(lockDates, existing.ExceptionDate)
+			sort.Slice(lockDates, func(i, j int) bool { return lockDates[i].Before(lockDates[j]) })
+		}
+		for _, lockDate := range lockDates {
+			if err := LockCareExceptionDay(txCtx, s.db, studentID, lockDate); err != nil {
+				return err
+			}
+		}
+		fresh, err := s.core.ExceptionByID(txCtx, exceptionID)
+		if err != nil {
+			return err
+		}
+		if err := s.autoExcusal.DetachRow(txCtx, fresh); err != nil {
+			return err
+		}
+		row, err := s.core.UpdateException(txCtx, exceptionID, studentID, date, reason, pickupTime, clearPickupTime, resolveStaffID)
+		if err != nil {
+			return err
+		}
+		result = row
+		return s.resyncAutoExcusal(txCtx, row.ID, &result)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *pickupScheduleService) DeleteStudentPickupException(
 	ctx context.Context,
 	exceptionID int64,
 ) error {
-	return s.core.DeleteException(ctx, exceptionID)
+	if s.autoExcusal == nil {
+		return s.core.DeleteException(ctx, exceptionID)
+	}
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		initial, err := s.core.ExceptionByID(txCtx, exceptionID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if initial != nil {
+			if err := LockCareExceptionDay(txCtx, s.db, initial.StudentID, initial.ExceptionDate); err != nil {
+				return err
+			}
+			// Re-read under the lock, then detach: the release restores the
+			// auto-excused blocks BEFORE the FK's ON DELETE SET NULL could
+			// strand them as absent without provenance.
+			fresh, err := s.core.ExceptionByID(txCtx, exceptionID)
+			if err != nil {
+				return err
+			}
+			if err := s.autoExcusal.DetachRow(txCtx, fresh); err != nil {
+				return err
+			}
+		}
+		return s.core.DeleteException(txCtx, exceptionID)
+	})
 }
 
 func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(
 	ctx context.Context,
 	studentID int64,
 ) error {
-	return s.core.DeleteAllExceptions(ctx, studentID)
+	if s.autoExcusal == nil {
+		return s.core.DeleteAllExceptions(ctx, studentID)
+	}
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		rows, err := s.core.Exceptions(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		autoRows := make([]*schedule.StudentPickupException, 0, len(rows))
+		for _, row := range rows {
+			if row != nil && row.ExcusedAuto {
+				autoRows = append(autoRows, row)
+			}
+		}
+		sort.Slice(autoRows, func(i, j int) bool {
+			if autoRows[i].ExceptionDate == autoRows[j].ExceptionDate {
+				return autoRows[i].ID < autoRows[j].ID
+			}
+			return autoRows[i].ExceptionDate.Before(autoRows[j].ExceptionDate)
+		})
+		for _, row := range autoRows {
+			if err := LockCareExceptionDay(txCtx, s.db, studentID, row.ExceptionDate); err != nil {
+				return err
+			}
+			fresh, err := s.core.ExceptionByID(txCtx, row.ID)
+			if err != nil {
+				return err
+			}
+			if err := s.autoExcusal.DetachRow(txCtx, fresh); err != nil {
+				return err
+			}
+		}
+		return s.core.DeleteAllExceptions(txCtx, studentID)
+	})
 }
 
 func (s *pickupScheduleService) GetStudentPickupNoteByID(

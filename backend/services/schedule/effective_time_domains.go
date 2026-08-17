@@ -44,6 +44,7 @@ func (pickupTimeDomain) ExceptionFields(row *schedule.StudentPickupException) ef
 		ExcusedReason:     row.ExcusedReason,
 		ExcusedCreatedBy:  row.ExcusedCreatedBy,
 		ExcusedOwnsTime:   row.ExcusedOwnsPickupTime,
+		ExcusedAuto:       row.ExcusedAuto,
 	}
 }
 
@@ -68,6 +69,7 @@ func (pickupTimeDomain) NewException(fields effectiveExceptionFields) *schedule.
 		ExcusedReason:         fields.ExcusedReason,
 		ExcusedCreatedBy:      fields.ExcusedCreatedBy,
 		ExcusedOwnsPickupTime: fields.ExcusedOwnsTime && !fields.TimeChanged,
+		ExcusedAuto:           fields.ExcusedAuto,
 	}
 	row.ID = fields.ID
 	row.CreatedAt = fields.CreatedAt

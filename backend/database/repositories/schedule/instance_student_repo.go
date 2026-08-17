@@ -578,6 +578,57 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}
 	}
 	n, _ := res.RowsAffected()
+
+	// Replay any partial excusal for the released day (#2360): a broad day
+	// status may coexist with an AUTO-derived partial absence (a pulled-forward
+	// pickup time). The release above restores the status day's rows to
+	// 'expected'; without this replay the blocks after the pickup cutoff would
+	// stay expected even though the child is still picked up early. Mirrors
+	// ApplyPartialAbsence keyed by (student, date) instead of exception id; a
+	// no-op when no timed excusal exists for the day.
+	_, err = base.GetDB(ctx, r.db).NewRaw(`
+		WITH released AS (
+			SELECT tenant_id, student_id, date
+			FROM active.student_status_days
+			WHERE tenant_id = ? AND id = ?
+		)
+		UPDATE schedule.instance_students AS attendance
+		SET status = ?,
+			substatus = ?,
+			student_status_day_id = NULL,
+			pickup_exception_id = exc.id,
+			updated_at = ?
+		FROM schedule.activity_instances AS instance,
+			released,
+			schedule.student_pickup_exceptions AS exc
+		WHERE exc.tenant_id = released.tenant_id
+			AND exc.student_id = released.student_id
+			AND exc.exception_date = released.date
+			AND exc.excused_from IS NOT NULL
+			AND attendance.tenant_id = exc.tenant_id
+			AND attendance.student_id = exc.student_id
+			AND attendance.manual_status_at IS NULL
+			AND NOT attendance.not_scheduled
+			AND (
+				attendance.status = ?
+				OR (
+					attendance.status = ?
+					AND attendance.pickup_exception_id IS NULL
+					AND attendance.student_status_day_id IS NULL
+				)
+			)
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+			AND instance.date = exc.exception_date
+			AND instance.start_time >= exc.excused_from
+			AND instance.status <> ?
+	`, tenant.FromContext(ctx), statusDayID,
+		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
+		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
+		schedule.InstanceStatusCancelled).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "replay partial absence after status day release", Err: err}
+	}
 	return int(n), nil
 }
 
