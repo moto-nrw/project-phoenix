@@ -10,6 +10,8 @@ import React, {
 } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { hasPermission } from "~/lib/auth-utils";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   SkeletonRegion,
@@ -61,7 +63,12 @@ import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-car
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
-import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useToast } from "~/contexts/ToastContext";
@@ -2316,11 +2323,17 @@ function EditSessionModal({
   absence,
   onUpdateAbsence,
   onDeleteAbsence,
+  canManage,
+  ownStaffId,
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly session: WorkSessionHistory | null;
   readonly date: Date | null;
+  // Nachtragen ist bewusst admin-only (#2361). Mit time_tracking:manage
+  // bietet der Hinweis-Dialog den Absprung in die eigene Verwaltungs-Ansicht.
+  readonly canManage: boolean;
+  readonly ownStaffId: string | null;
   readonly onSave: (
     id: string,
     updates: {
@@ -2366,6 +2379,7 @@ function EditSessionModal({
   const [absenceDeleting, setAbsenceDeleting] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"session" | "absence">("session");
+  const router = useTenantRouter();
 
   const hasIndividualBreaks = (session?.breaks.length ?? 0) > 0;
   const hasSession = session !== null;
@@ -2420,10 +2434,69 @@ function EditSessionModal({
     }
   }, [absDateStart, absDateEnd]);
 
-  if (!date || (!hasSession && !hasAbsence)) return null;
+  if (!date) return null;
 
   const dayIndex = (date.getDay() + 6) % 7;
   const dayName = DAY_NAMES_LONG[dayIndex] ?? "";
+
+  // Tag ohne Buchung und ohne Abwesenheit: kein stiller No-Op mehr (#2361).
+  // Nachtragen bleibt admin-only — der Dialog erklärt den Weg, Berechtigte
+  // springen direkt in die eigene Verwaltungs-Ansicht ab.
+  if (!hasSession && !hasAbsence) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Kein Eintrag vorhanden"
+        footer={
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={onClose}
+              className="flex-1"
+            >
+              Schließen
+            </Button>
+            {canManage && ownStaffId && (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() =>
+                  router.push(`/staff/${ownStaffId}?tab=zeiterfassung`)
+                }
+                className="flex-1"
+              >
+                Eintrag nachtragen
+              </Button>
+            )}
+          </div>
+        }
+      >
+        <div className="space-y-3 py-2 text-sm text-gray-600">
+          <p>
+            Für {dayName}, den {formatDate(toISODate(date))} ist keine
+            Arbeitszeit eingetragen.
+          </p>
+          {canManage && ownStaffId ? (
+            <p>
+              Fehlende Arbeitszeiten werden in der Verwaltungs-Ansicht
+              nachgetragen. Der Knopf unten öffnet die eigene Zeiterfassung
+              dort.
+            </p>
+          ) : (
+            <p>
+              Fehlende Arbeitszeiten kann nur die Leitung nachtragen (unter
+              Mitarbeitende in der Zeiterfassung der Person). Bitte dort melden,
+              damit der Tag ergänzt wird.
+            </p>
+          )}
+        </div>
+      </Modal>
+    );
+  }
 
   // Calculate total break from individual breaks or fallback dropdown
   const editedBreak = hasIndividualBreaks
@@ -3060,12 +3133,18 @@ function CreateAbsenceModal({
 // ─── Main Content ─────────────────────────────────────────────────────────────
 
 function TimeTrackingContent() {
-  const { status: authStatus } = useSession({
+  const { data: authSession, status: authStatus } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
+  // Nachtragen fehlender Tage ist admin-only (#2361); mit dieser Berechtigung
+  // bietet der Hinweis-Dialog den Absprung in die eigene Verwaltungs-Ansicht.
+  const canManageTimeTracking = hasPermission(
+    authSession,
+    "time_tracking:manage",
+  );
 
   const toast = useToast();
   const todayISO = useBerlinToday();
@@ -3799,6 +3878,8 @@ function TimeTrackingContent() {
         absence={editModal?.absence ?? null}
         onUpdateAbsence={handleUpdateAbsence}
         onDeleteAbsence={handleDeleteAbsence}
+        canManage={canManageTimeTracking}
+        ownStaffId={ownStaffId}
       />
 
       {/* Create absence modal */}

@@ -266,13 +266,15 @@ export default function StaffDetailContent() {
         defaultValue={
           requestedTab === "dokumente" && canViewDocuments
             ? "dokumente"
-            : canViewTimeTracking
-              ? "uebersicht"
-              : canViewStammdaten
-                ? "stammdaten"
-                : canViewDocuments
-                  ? "dokumente"
-                  : "abwesenheiten"
+            : requestedTab === "zeiterfassung" && canViewTimeTracking
+              ? "zeiterfassung"
+              : canViewTimeTracking
+                ? "uebersicht"
+                : canViewStammdaten
+                  ? "stammdaten"
+                  : canViewDocuments
+                    ? "dokumente"
+                    : "abwesenheiten"
         }
         className="w-full"
       >

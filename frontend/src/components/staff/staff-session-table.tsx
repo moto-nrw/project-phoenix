@@ -389,16 +389,16 @@ export function StaffSessionTable({
                 // nothing to reveal.
                 const canExpand = hasAuditHistory && session != null;
                 // Edit / nachtragen is available for past or present days,
-                // regardless of whether a session already exists. The SquarePen
-                // action lands on Tranche 1b — for now the wiring is in place
-                // and the click is a no-op + logger entry. Future days and
-                // absence-only days don't get the action.
+                // regardless of whether a session already exists — auch auf
+                // Tagen mit Abwesenheit (#2361): eine halbe Krankmeldung
+                // schließt Arbeitszeit am selben Tag nicht aus, und ein
+                // fehlender Stift las sich als "Tag ist gesperrt".
                 //
                 // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
                 // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
                 // und genau die muss korrigierbar sein.
                 const isWeekend = dow >= 5;
-                const canEdit = isAdminView && !isFuture && absence == null;
+                const canEdit = isAdminView && !isFuture;
                 return (
                   <Fragment key={key}>
                     <tr

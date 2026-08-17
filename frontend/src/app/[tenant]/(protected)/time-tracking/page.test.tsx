@@ -358,6 +358,7 @@ vi.mock("lucide-react", () => ({
 
 import TimeTrackingPage from "./page";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useSWRAuth } from "~/lib/swr";
 import { useToast } from "~/contexts/ToastContext";
 import { timeTrackingService } from "~/lib/time-tracking-api";
@@ -4878,5 +4879,70 @@ describe("deviation-reason gate (F9)", () => {
       expect(timeTrackingService.checkOut).toHaveBeenCalledTimes(2);
     });
     expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+  });
+});
+
+// Ein Klick auf den Stift darf nie ein stiller No-Op sein (#2361): Tage ohne
+// Buchung und ohne Abwesenheit bekommen einen erklärenden Hinweis-Dialog,
+// Berechtigte zusätzlich den Absprung in die eigene Verwaltungs-Ansicht.
+describe("empty-day hint dialog (#2361)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows a hint dialog instead of nothing for a day without booking", async () => {
+    setupDefaultMocks();
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Kein Eintrag vorhanden")).toBeInTheDocument();
+    // Ohne time_tracking:manage gibt es keinen Nachtragen-Absprung.
+    expect(
+      screen.queryByRole("button", { name: "Eintrag nachtragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("links managers to their own admin Zeiterfassung", async () => {
+    setupDefaultMocks();
+    const push = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({
+      push,
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    } as never);
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Eintrag nachtragen" }));
+    // Der Tenant-Router stellt je nach Routing-Modus den Slug voran — hier
+    // zählt nur, dass die eigene Admin-Zeiterfassung angesteuert wird.
+    expect(push).toHaveBeenCalledWith(
+      expect.stringContaining("/staff/10?tab=zeiterfassung"),
+    );
   });
 });
