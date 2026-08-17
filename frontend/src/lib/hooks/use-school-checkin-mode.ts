@@ -11,7 +11,9 @@ import {
 import { createLogger } from "~/lib/logger";
 import {
   schoolCheckinStudent,
+  schoolCheckinStudentsBatch,
   type SchoolCheckinAction,
+  type SchoolCheckinBatchOutcome,
 } from "~/lib/student-api";
 
 /**
@@ -96,12 +98,19 @@ interface CheckinModeSession {
   successCount: number;
 }
 
-type CheckinModeSessionAction = "toggle" | "deactivate" | "increment";
+type CheckinModeSessionAction =
+  | "toggle"
+  | "deactivate"
+  | "increment"
+  | { type: "addSuccesses"; count: number };
 
 function checkinModeSessionReducer(
   state: CheckinModeSession,
   action: CheckinModeSessionAction,
 ): CheckinModeSession {
+  if (typeof action === "object") {
+    return { ...state, successCount: state.successCount + action.count };
+  }
   switch (action) {
     case "toggle":
       return state.isActive
@@ -112,6 +121,25 @@ function checkinModeSessionReducer(
     case "increment":
       return { ...state, successCount: state.successCount + 1 };
   }
+}
+
+/**
+ * Bundled SWR invalidation after a batch toggle (#2359): one revalidation
+ * sweep for the whole batch instead of one per student (cf. #848 — bulk
+ * events already arrive as a burst; the page must not multiply that).
+ * student-detail matches on the bare prefix because any of the batch's
+ * children may have an open detail cache entry.
+ */
+async function invalidatePresenceCachesBulk(): Promise<void> {
+  await globalMutate(
+    (key) =>
+      typeof key === "string" &&
+      (key.includes("ogs-students-") ||
+        key.includes("search-students-") ||
+        key.includes("tracking-supervisions-") ||
+        key.includes("tracking-indicators-") ||
+        key.includes("student-detail-")),
+  );
 }
 
 interface UseSchoolCheckinModeResult {
@@ -136,6 +164,30 @@ interface UseSchoolCheckinModeResult {
     studentId: string,
     currentState: StudentCheckinState,
   ) => Promise<void>;
+  /**
+   * Selection sub-mode (#2359). While ON, tapping a card is expected to call
+   * toggleSelected instead of toggle — nothing is written until runBulk.
+   * Switching the sub-mode (either direction) and leaving check-in mode both
+   * clear the selection.
+   */
+  selectionActive: boolean;
+  setSelectionActive: (active: boolean) => void;
+  /** Students currently marked for the next bulk action. */
+  selectedIds: ReadonlySet<string>;
+  toggleSelected: (studentId: string) => void;
+  clearSelection: () => void;
+  /** True while a bulk action's API call is in flight. */
+  isBulkRunning: boolean;
+  /**
+   * Apply one explicit action to every selected student via the batch
+   * endpoint. On success the selection keeps only the failed students (so a
+   * retry is one tap) and the presence caches are revalidated once, bundled.
+   * Returns null when nothing was selected, a run is already in flight, or
+   * the whole request failed (the hook has toasted the error then).
+   */
+  runBulk: (
+    action: SchoolCheckinAction,
+  ) => Promise<SchoolCheckinBatchOutcome | null>;
 }
 
 /**
@@ -153,14 +205,50 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     { isActive: false, successCount: 0 },
   );
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  const [selectionActive, setSelectionActiveState] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [isBulkRunning, setIsBulkRunning] = useState(false);
   const toast = useToast();
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  // Entering, leaving, or re-entering the mode always drops selection state:
+  // a marked-but-never-executed selection must not survive into the next
+  // session, where it would silently widen a bulk action.
+  const resetSelectionState = useCallback(() => {
+    setSelectionActiveState(false);
+    setSelectedIds(new Set());
+  }, []);
 
   const toggleActive = useCallback(() => {
     dispatchSession("toggle");
-  }, []);
+    resetSelectionState();
+  }, [resetSelectionState]);
 
   const deactivate = useCallback(() => {
     dispatchSession("deactivate");
+    resetSelectionState();
+  }, [resetSelectionState]);
+
+  const setSelectionActive = useCallback((active: boolean) => {
+    setSelectionActiveState(active);
+    // Both directions clear: leftover marks from a previous sub-mode session
+    // would otherwise be executed later without being visible in between.
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelected = useCallback((studentId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(studentId)) {
+        next.delete(studentId);
+      } else {
+        next.add(studentId);
+      }
+      return next;
+    });
   }, []);
 
   const toggle = useCallback(
@@ -226,6 +314,83 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     [pendingIds, toast],
   );
 
+  const runBulk = useCallback(
+    async (
+      action: SchoolCheckinAction,
+    ): Promise<SchoolCheckinBatchOutcome | null> => {
+      if (isBulkRunning || selectedIds.size === 0) return null;
+
+      const ids = Array.from(selectedIds);
+      setIsBulkRunning(true);
+      // Mark every batch member pending so the cards show the same in-flight
+      // state a single toggle does.
+      setPendingIds((prev) => new Set([...prev, ...ids]));
+
+      try {
+        const outcome = await schoolCheckinStudentsBatch(ids, action);
+
+        await invalidatePresenceCachesBulk();
+        dispatchSession({ type: "addSuccesses", count: outcome.succeeded });
+
+        // Clean run → summary toast right here (counts only, no names). A
+        // partial failure is the caller's job: naming the failed children
+        // needs the student list, which this hook does not hold.
+        if (outcome.failed === 0) {
+          const alreadyDone = outcome.results.filter(
+            (result) => result.ok && !result.changed,
+          ).length;
+          const noun = outcome.succeeded === 1 ? "Kind" : "Kinder";
+          const verb = action === "in" ? "angemeldet" : "abgemeldet";
+          toast.success(
+            alreadyDone > 0
+              ? `${outcome.succeeded} ${noun} ${verb} (${alreadyDone} davon bereits ${verb}).`
+              : `${outcome.succeeded} ${noun} ${verb}.`,
+          );
+        }
+
+        // Keep only the failed students selected: they stay visibly marked
+        // and a retry is one tap, while the processed ones drop out.
+        const failedIds = new Set(
+          outcome.results
+            .filter((result) => !result.ok)
+            .map((result) => result.studentId),
+        );
+        setSelectedIds(failedIds);
+
+        return outcome;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error("school_checkin_bulk_failed", {
+          action,
+          student_count: ids.length,
+          error: message,
+        });
+        if (isForbiddenError(error)) {
+          toast.error(
+            action === "in"
+              ? "Keine Berechtigung, Kinder anzumelden."
+              : "Keine Berechtigung, Kinder abzumelden.",
+          );
+        } else {
+          toast.error(
+            action === "in"
+              ? "Anmelden fehlgeschlagen. Bitte erneut versuchen."
+              : "Abmelden fehlgeschlagen. Bitte erneut versuchen.",
+          );
+        }
+        return null;
+      } finally {
+        setPendingIds((prev) => {
+          const next = new Set(prev);
+          for (const id of ids) next.delete(id);
+          return next;
+        });
+        setIsBulkRunning(false);
+      }
+    },
+    [isBulkRunning, selectedIds, toast],
+  );
+
   return {
     isActive,
     toggleActive,
@@ -233,5 +398,12 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     pendingIds,
     successCount,
     toggle,
+    selectionActive,
+    setSelectionActive,
+    selectedIds,
+    toggleSelected,
+    clearSelection,
+    isBulkRunning,
+    runBulk,
   };
 }

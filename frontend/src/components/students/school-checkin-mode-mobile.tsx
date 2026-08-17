@@ -17,6 +17,10 @@ interface SchoolCheckinModeMobileProps {
   readonly successCount: number;
   /** Open API calls in flight — surfaces as a "X laufen" hint. */
   readonly pendingCount: number;
+  /** Selection sub-mode on (#2359) — the sticky bar then counts marks, not writes. */
+  readonly selectionActive?: boolean;
+  /** Currently marked students while the selection sub-mode is on. */
+  readonly selectedCount?: number;
 }
 
 /**
@@ -38,6 +42,8 @@ export function SchoolCheckinModeMobile({
   onToggle,
   successCount,
   pendingCount,
+  selectionActive = false,
+  selectedCount = 0,
 }: SchoolCheckinModeMobileProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
 
@@ -120,9 +126,11 @@ export function SchoolCheckinModeMobile({
           </span>
           <span className="text-xs leading-tight opacity-90">
             <span className="tabular-nums">
-              {successCount === 0
-                ? "Tippe auf ein Kind"
-                : `${successCount} bearbeitet`}
+              {selectionActive
+                ? `${selectedCount} ausgewählt`
+                : successCount === 0
+                  ? "Tippe auf ein Kind"
+                  : `${successCount} bearbeitet`}
             </span>
             {pendingCount > 0 ? (
               <span className="tabular-nums"> · {pendingCount} laufen</span>

@@ -1,0 +1,178 @@
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { mockSchoolCheckinStudentsBatch, mockGlobalMutate, mockToastError } =
+  vi.hoisted(() => ({
+    mockSchoolCheckinStudentsBatch: vi.fn(),
+    mockGlobalMutate: vi.fn(),
+    mockToastError: vi.fn(),
+  }));
+
+vi.mock("~/lib/student-api", () => ({
+  schoolCheckinStudent: vi.fn(),
+  schoolCheckinStudentsBatch: mockSchoolCheckinStudentsBatch,
+}));
+
+vi.mock("swr", () => ({
+  mutate: mockGlobalMutate,
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => ({
+    success: vi.fn(),
+    error: mockToastError,
+    info: vi.fn(),
+    warning: vi.fn(),
+    remove: vi.fn(),
+  }),
+}));
+
+import { useSchoolCheckinMode } from "./use-school-checkin-mode";
+
+// Selection sub-mode + bulk execution (#2359).
+describe("useSchoolCheckinMode selection sub-mode", () => {
+  beforeEach(() => {
+    mockSchoolCheckinStudentsBatch.mockReset();
+    mockGlobalMutate.mockReset().mockResolvedValue(undefined);
+    mockToastError.mockReset();
+  });
+
+  it("marks and unmarks students without calling any API", () => {
+    const { result } = renderHook(() => useSchoolCheckinMode());
+
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleSelected("2"));
+
+    expect(result.current.selectedIds.has("1")).toBe(true);
+    expect(result.current.selectedIds.has("2")).toBe(true);
+    expect(mockSchoolCheckinStudentsBatch).not.toHaveBeenCalled();
+
+    act(() => result.current.toggleSelected("1"));
+    expect(result.current.selectedIds.has("1")).toBe(false);
+    expect(result.current.selectedIds.size).toBe(1);
+  });
+
+  it("clears the selection when the sub-mode is switched either way", () => {
+    const { result } = renderHook(() => useSchoolCheckinMode());
+
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.setSelectionActive(false));
+
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
+  it("clears selection state when the mode is left", () => {
+    const { result } = renderHook(() => useSchoolCheckinMode());
+
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleActive());
+
+    expect(result.current.selectionActive).toBe(false);
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
+  it("runBulk sends the whole selection, bundles one invalidation, and drops processed students from the selection", async () => {
+    mockSchoolCheckinStudentsBatch.mockResolvedValue({
+      action: "out",
+      succeeded: 2,
+      failed: 0,
+      results: [
+        { studentId: "1", ok: true, changed: true, location: "Abwesend" },
+        { studentId: "2", ok: true, changed: false, location: "Abwesend" },
+      ],
+    });
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleSelected("2"));
+
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.runBulk("out");
+    });
+
+    expect(mockSchoolCheckinStudentsBatch).toHaveBeenCalledTimes(1);
+    expect(mockSchoolCheckinStudentsBatch).toHaveBeenCalledWith(
+      expect.arrayContaining(["1", "2"]),
+      "out",
+    );
+    // Exactly ONE bundled revalidation for the whole batch — not per student.
+    expect(mockGlobalMutate).toHaveBeenCalledTimes(1);
+    expect(outcome).toMatchObject({ succeeded: 2, failed: 0 });
+    // Both processed → selection empty; counter reflects the batch.
+    expect(result.current.selectedIds.size).toBe(0);
+    expect(result.current.successCount).toBe(2);
+    expect(result.current.isBulkRunning).toBe(false);
+  });
+
+  it("keeps only the failed students selected after a partial failure", async () => {
+    mockSchoolCheckinStudentsBatch.mockResolvedValue({
+      action: "out",
+      succeeded: 1,
+      failed: 1,
+      results: [
+        { studentId: "1", ok: true, changed: true, location: "Abwesend" },
+        { studentId: "2", ok: false, changed: false, error: "not_found" },
+      ],
+    });
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleSelected("2"));
+
+    await act(async () => {
+      await result.current.runBulk("out");
+    });
+
+    expect(result.current.selectedIds.has("1")).toBe(false);
+    expect(result.current.selectedIds.has("2")).toBe(true);
+    expect(result.current.successCount).toBe(1);
+  });
+
+  it("returns null and keeps the selection when the whole request fails", async () => {
+    mockSchoolCheckinStudentsBatch.mockRejectedValue(
+      new Error("API error (403): Forbidden"),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+
+    let outcome: unknown = "sentinel";
+    await act(async () => {
+      outcome = await result.current.runBulk("out");
+    });
+
+    expect(outcome).toBeNull();
+    expect(result.current.selectedIds.has("1")).toBe(true);
+    expect(mockToastError).toHaveBeenCalledWith(
+      "Keine Berechtigung, Kinder abzumelden.",
+    );
+    expect(result.current.isBulkRunning).toBe(false);
+  });
+
+  it("runBulk is a no-op with an empty selection", async () => {
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+
+    let outcome: unknown = "sentinel";
+    await act(async () => {
+      outcome = await result.current.runBulk("in");
+    });
+
+    expect(outcome).toBeNull();
+    expect(mockSchoolCheckinStudentsBatch).not.toHaveBeenCalled();
+  });
+});

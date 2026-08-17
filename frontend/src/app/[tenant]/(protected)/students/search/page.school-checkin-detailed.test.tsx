@@ -250,6 +250,13 @@ function activateCheckinMode() {
     pendingIds: new Set<string>(),
     successCount: 0,
     toggle: mockToggleStudent,
+    selectionActive: false,
+    setSelectionActive: vi.fn(),
+    selectedIds: new Set<string>(),
+    toggleSelected: vi.fn(),
+    clearSelection: vi.fn(),
+    isBulkRunning: false,
+    runBulk: vi.fn(),
   });
 }
 
@@ -265,6 +272,13 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     vi.mocked(useImmutableSWR).mockReturnValue({

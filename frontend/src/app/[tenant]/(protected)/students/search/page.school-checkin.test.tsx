@@ -270,6 +270,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     vi.mocked(useImmutableSWR).mockReturnValue({
@@ -327,6 +334,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     render(<StudentSearchPage />);
@@ -348,6 +362,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     render(<StudentSearchPage />);
@@ -381,6 +402,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(["7", "8"]),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     render(<StudentSearchPage />);

@@ -427,6 +427,88 @@ export async function schoolCheckinStudent(
   }
 }
 
+// ─── Batch school check-in/out (#2359) ──────────────────────────────────────
+
+/** Per-student outcome of a batch check-in/out. */
+export interface SchoolCheckinBatchResult {
+  studentId: string;
+  ok: boolean;
+  /** false when the student was already in the target state (no-op). */
+  changed: boolean;
+  location?: "Anwesend" | "Schulhof" | "Abwesend";
+  /** Machine-readable failure code, e.g. "not_found". */
+  error?: string;
+}
+
+export interface SchoolCheckinBatchOutcome {
+  action: SchoolCheckinAction;
+  results: SchoolCheckinBatchResult[];
+  succeeded: number;
+  failed: number;
+}
+
+interface BackendSchoolCheckinBatchResponse {
+  action: SchoolCheckinAction;
+  results: Array<{
+    student_id: number;
+    ok: boolean;
+    changed: boolean;
+    location?: "Anwesend" | "Schulhof" | "Abwesend";
+    error?: string;
+  }>;
+  succeeded: number;
+  failed: number;
+}
+
+/**
+ * Apply one explicit check-in/out action to a set of students in a single
+ * request (#2359, Sammelauswahl). Students already in the target state are
+ * counted as succeeded no-ops; students the caller cannot act on come back
+ * with a per-student error entry while the rest are still processed.
+ *
+ * Throws on 4xx/5xx of the whole request (e.g. 403 without users:checkin) —
+ * per-student failures never reject, they live inside the outcome.
+ */
+export async function schoolCheckinStudentsBatch(
+  studentIds: string[],
+  action: SchoolCheckinAction,
+): Promise<SchoolCheckinBatchOutcome> {
+  const url = "/api/students/school-checkin/batch";
+  try {
+    const session = await getCachedSession();
+    const response = await authFetch<
+      | ApiResponse<BackendSchoolCheckinBatchResponse>
+      | BackendSchoolCheckinBatchResponse
+    >(url, {
+      method: "POST",
+      body: { action, student_ids: studentIds.map(Number) },
+      token: session?.user?.token,
+    });
+
+    const data = extractApiData<BackendSchoolCheckinBatchResponse>(response);
+    return {
+      action: data.action,
+      succeeded: data.succeeded,
+      failed: data.failed,
+      results: data.results.map((result) => ({
+        // Convert int64 -> string at the boundary per CLAUDE.md §4.
+        studentId: result.student_id.toString(),
+        ok: result.ok,
+        changed: result.changed,
+        location: result.location,
+        error: result.error,
+      })),
+    };
+  } catch (error) {
+    logger.error("school_checkin_batch_failed", {
+      action,
+      student_count: studentIds.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
 export interface StudentDeletionCounts {
   timetable_assignments: number;
   activity_enrollments: number;
