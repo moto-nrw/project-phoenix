@@ -14,6 +14,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -478,5 +479,59 @@ describe("StudentSearchPage — school check-in wiring", () => {
     expect(screen.getByText("0 ausgewählt")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
+  });
+
+  // A scope change during a running batch keeps the failed students selected
+  // but may hide their cards, and the selection bar counts visible cards
+  // only. The failure dialog therefore carries its own retry that executes
+  // its named snapshot, so the promised one-tap retry stays reachable
+  // regardless of the current filters (review #2372).
+  it("failure dialog retries its named snapshot via Erneut versuchen", async () => {
+    const mockRunBulk = vi.fn().mockResolvedValue({
+      action: "out",
+      results: [
+        { studentId: "7", ok: false, changed: false, error: "checkin_failed" },
+      ],
+      succeeded: 0,
+      failed: 1,
+    });
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["7"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: mockRunBulk,
+    });
+
+    render(<StudentSearchPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Abmelden/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("Nicht alle Kinder abgemeldet"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Max Mustermann")).toBeInTheDocument();
+    expect(mockRunBulk).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Erneut versuchen" }),
+    );
+
+    await waitFor(() => {
+      expect(mockRunBulk).toHaveBeenCalledTimes(2);
+    });
+    expect(mockRunBulk).toHaveBeenLastCalledWith("out", ["7"]);
   });
 });

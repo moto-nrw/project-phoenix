@@ -581,6 +581,27 @@ function compareByName(a: Student, b: Student) {
   return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
 }
 
+/**
+ * Snapshot of one student a bulk action operates on (#2359): the id for the
+ * API call plus the display name for the failure dialog. Taken from the
+ * Student row at snapshot time because the row itself can leave the result
+ * set (live update, changed filter) while a dialog still has to name — and
+ * retry — the child (review #2372).
+ */
+interface BulkStudentRef {
+  id: string;
+  name: string;
+}
+
+function toBulkStudentRef(student: Student): BulkStudentRef {
+  return {
+    id: student.id.toString(),
+    name:
+      `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+      student.name,
+  };
+}
+
 function statusLabelForStudent(student: Student): string {
   if (student.sick) return "Krank";
   if (student.class_trip) return "Klassenfahrt";
@@ -1317,16 +1338,19 @@ function SearchPageContent() {
   // visible list), and the operation must stay the one the user confirmed
   // (review #2372).
   const [pendingBulkCheckout, setPendingBulkCheckout] = useState<{
-    students: Student[];
+    students: BulkStudentRef[];
     roomCount: number;
   } | null>(null);
   // Per-child failures of a bulk action, named for the user (#2359
   // acceptance criteria). The successful part of the batch is already
-  // processed when this shows.
+  // processed when this shows. Carries id+name snapshots, not just names:
+  // the dialog's own retry button executes exactly this list, which keeps
+  // the promised one-tap retry reachable even when a scope change during
+  // the run hid the retained marks from the selection bar (review #2372).
   const [bulkFailures, setBulkFailures] = useState<{
     action: SchoolCheckinAction;
     succeeded: number;
-    names: string[];
+    students: BulkStudentRef[];
   } | null>(null);
   const {
     enabled: studentPhotosEnabled,
@@ -1438,7 +1462,11 @@ function SearchPageContent() {
   // A scope change WHILE a batch is in flight is safe too: the hook defers
   // this clear until the run has been processed against the selection it
   // started from, then applies it while KEEPING the run's failed students —
-  // the failure dialog promises them a one-tap retry (review #2372).
+  // the failure dialog promises them a one-tap retry (review #2372). The
+  // new scope may HIDE those retained marks, so the selection bar (which
+  // counts visible cards only) cannot be the retry surface then; the
+  // failure dialog therefore carries its own retry that executes its named
+  // snapshot regardless of what the current filters show (review #2372).
   const selectionScopeSignature = `${studentsCacheKey}|${effectiveAttendanceFilter}|${pickupTimeFilter}|${arrivalTimeFilter}|${effectiveTrackingFilter}`;
   const clearCheckinSelection = schoolCheckin.clearSelection;
   useEffect(() => {
@@ -2613,28 +2641,26 @@ function SearchPageContent() {
     [filteredStudents, schoolCheckin.selectedIds],
   );
 
-  // Runs the bulk action for an explicit student list: the caller passes the
-  // visible selection for the direct path, or the confirmation dialog's
-  // snapshot — never the live selection at execute time, so a dialog always
-  // executes what it displayed (review #2372). runBulk additionally
-  // intersects with the still-selected ids, so a child de-selected (or a
-  // scope-cleared selection) between snapshot and confirm is dropped rather
-  // than acted on.
+  // Runs the bulk action for an explicit snapshot list: the caller passes
+  // the visible selection for the direct path, the confirmation dialog's
+  // snapshot, or the failure dialog's retry snapshot — never the live
+  // selection at execute time, so a dialog always executes what it
+  // displayed (review #2372). runBulk additionally intersects with the
+  // still-selected ids, so a child de-selected (or a scope-cleared
+  // selection) between snapshot and confirm is dropped rather than acted
+  // on.
   const executeBulk = useCallback(
-    async (action: SchoolCheckinAction, students: Student[]) => {
-      // Capture names up front: after the run the hook shrinks the selection
-      // to the failed students, and the failure dialog must still name them.
+    async (action: SchoolCheckinAction, targets: readonly BulkStudentRef[]) => {
+      // The snapshot names travel with the ids: after the run the hook
+      // shrinks the selection to the failed students, and the failure
+      // dialog must still name (and be able to retry) them.
       const nameById = new Map(
-        students.map((student) => [
-          student.id.toString(),
-          `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
-            student.name,
-        ]),
+        targets.map((target) => [target.id, target.name]),
       );
 
       const outcome = await schoolCheckin.runBulk(
         action,
-        students.map((student) => student.id.toString()),
+        targets.map((target) => target.id),
       );
       // null: nothing selected or whole request failed (hook toasted the
       // error). failed === 0: the hook toasted the success summary.
@@ -2643,12 +2669,12 @@ function SearchPageContent() {
       setBulkFailures({
         action,
         succeeded: outcome.succeeded,
-        names: outcome.results
+        students: outcome.results
           .filter((result) => !result.ok)
-          .map(
-            (result) =>
-              nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
-          ),
+          .map((result) => ({
+            id: result.studentId,
+            name: nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
+          })),
       });
     },
     [schoolCheckin],
@@ -2667,13 +2693,13 @@ function SearchPageContent() {
         ).length;
         if (roomCount > 0) {
           setPendingBulkCheckout({
-            students: selectedStudentsForBulk,
+            students: selectedStudentsForBulk.map(toBulkStudentRef),
             roomCount,
           });
           return;
         }
       }
-      void executeBulk(action, selectedStudentsForBulk);
+      void executeBulk(action, selectedStudentsForBulk.map(toBulkStudentRef));
     },
     [selectedStudentsForBulk, executeBulk],
   );
@@ -3225,7 +3251,15 @@ function SearchPageContent() {
       </ConfirmationModal>
 
       {/* Per-child failures of a bulk action, named (#2359). The successful
-          part of the batch is already applied at this point. */}
+          part of the batch is already applied at this point. The retry
+          button executes the dialog's OWN snapshot — the named children on
+          screen right here — not the selection bar's visible-rows view: a
+          scope change during the run keeps the failed students selected but
+          may hide their cards, and the promised one-tap retry must stay
+          reachable then (review #2372). Acting on the snapshot is not
+          sight-unseen (the dialog lists every child by name), and runBulk
+          still intersects with the retained selection, so the retry can
+          only narrow, never widen. */}
       <Modal
         isOpen={bulkFailures !== null}
         onClose={() => setBulkFailures(null)}
@@ -3241,28 +3275,42 @@ function SearchPageContent() {
               ? "1 Kind wurde"
               : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
             {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}. Bei
-            {bulkFailures?.names.length === 1
+            {bulkFailures?.students.length === 1
               ? " diesem Kind"
-              : ` diesen ${bulkFailures?.names.length} Kindern`}{" "}
+              : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
             hat es nicht geklappt:
           </p>
           <ul className="list-inside list-disc text-sm font-medium text-gray-900">
-            {bulkFailures?.names.map((name) => (
-              <li key={name}>{name}</li>
+            {bulkFailures?.students.map((student) => (
+              <li key={student.id}>{student.name}</li>
             ))}
           </ul>
           <p className="text-sm text-gray-600">
-            Diese Kinder bleiben ausgewählt, du kannst die Aktion für sie erneut
-            ausführen.
+            Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führst du
+            die Aktion für genau diese Kinder noch einmal aus, auch wenn ein
+            geänderter Filter sie gerade ausblendet.
           </p>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={() => setBulkFailures(null)}
+            >
+              Schließen
+            </Button>
             <Button
               type="button"
               variant="primary"
               size="md"
-              onClick={() => setBulkFailures(null)}
+              onClick={() => {
+                if (!bulkFailures) return;
+                const { action, students: failedStudents } = bulkFailures;
+                setBulkFailures(null);
+                void executeBulk(action, failedStudents);
+              }}
             >
-              Verstanden
+              Erneut versuchen
             </Button>
           </div>
         </div>
