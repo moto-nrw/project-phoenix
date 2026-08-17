@@ -17,5 +17,8 @@ der Entscheidung korrekt abbilden.
   Entscheidung verändern entschiedene Anfragen nicht mehr.
 - Der Snapshot ist zugleich der Speicherort für Übersteuerungen (#2370);
   ohne ihn wäre "welche Regel wurde von wem abgewählt" nicht rekonstruierbar.
-- Bestandsanfragen ohne Snapshot brauchen einen Lese-Fallback auf die bisherige
-  Live-Materialisierung.
+- Bestandsanfragen ohne Snapshot behalten den bisherigen Payload-Recap (nur die
+  Elternauswahl). Eine Live-Materialisierung wäre dort falsch: Nach einer
+  Freigabe ist die Vergleichsbasis bereits umgestellt, der Diff also leer, und
+  gelöschte Regeln sind nicht rekonstruierbar. Die Lücke ist durch das
+  14-Tage-Recency-Fenster der Recap-Anzeige begrenzt.
