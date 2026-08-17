@@ -131,19 +131,27 @@ describe("MasterDataReviewList", () => {
         old_value: "carrier_pigeon",
         new_value: "email",
       }),
+      row({
+        id: "102",
+        field_key: "language_preference",
+        old_value: "xx",
+        new_value: "de",
+      }),
     ]);
 
     render(<MasterDataReviewList />);
 
-    expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(2);
+    expect(await screen.findAllByText("Lara Beispiel")).toHaveLength(3);
     expandAll();
-    // Unknown mode and weekday keys stay visible as raw values.
+    // Unknown mode, weekday, contact, and language keys stay visible as raw values.
     expect(
       screen.getByText("Montag: teleport, someday: Wird abgeholt"),
     ).toBeInTheDocument();
     expect(screen.getByText("Dienstag")).toBeInTheDocument();
     expect(screen.getByText("carrier_pigeon")).toBeInTheDocument();
     expect(screen.getByText("E-Mail")).toBeInTheDocument();
+    expect(screen.getByText("xx")).toBeInTheDocument();
+    expect(screen.getByText("Deutsch")).toBeInTheDocument();
   });
 
   it("rejects requests and shows the rejection notice", async () => {

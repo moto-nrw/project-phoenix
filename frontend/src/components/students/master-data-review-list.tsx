@@ -7,7 +7,7 @@ import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
-import { CONTACT_METHODS, getLanguageLabel } from "~/lib/guardian-helpers";
+import { CONTACT_METHODS, LANGUAGE_PREFERENCES } from "~/lib/guardian-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type StaffMasterDataChange,
@@ -58,6 +58,10 @@ const CONTACT_METHOD_LABELS: Record<string, string> = Object.fromEntries(
   CONTACT_METHODS.map((method) => [method.value, method.label]),
 );
 
+const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(
+  LANGUAGE_PREFERENCES.map((lang) => [lang.value, lang.label]),
+);
+
 function departureModeLabel(mode: unknown): string {
   return DEPARTURE_MODE_LABELS[mode as DepartureMode] ?? String(mode);
 }
@@ -67,7 +71,7 @@ function formatValue(field: string, value: unknown, empty: string): string {
   if (typeof value === "string") {
     if (field === "preferred_contact_method")
       return CONTACT_METHOD_LABELS[value] ?? value;
-    if (field === "language_preference") return getLanguageLabel(value);
+    if (field === "language_preference") return LANGUAGE_LABELS[value] ?? value;
     return value;
   }
   if (typeof value === "object") {
