@@ -4,8 +4,6 @@ import { CheckSquare, Loader2, LogIn, LogOut } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 
-export type SchoolCheckinTapMode = "immediate" | "select";
-
 interface SchoolCheckinSelectionBarProps {
   /** Whether the selection sub-mode is on ("Auswahl") vs. immediate taps ("Sofort"). */
   readonly selectionActive: boolean;

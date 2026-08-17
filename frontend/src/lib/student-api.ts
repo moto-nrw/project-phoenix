@@ -430,7 +430,7 @@ export async function schoolCheckinStudent(
 // ─── Batch school check-in/out (#2359) ──────────────────────────────────────
 
 /** Per-student outcome of a batch check-in/out. */
-export interface SchoolCheckinBatchResult {
+interface SchoolCheckinBatchResult {
   studentId: string;
   ok: boolean;
   /** false when the student was already in the target state (no-op). */
