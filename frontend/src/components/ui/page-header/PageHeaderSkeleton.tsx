@@ -11,8 +11,8 @@ export function PageHeaderSkeleton({
 }: Readonly<{ search?: boolean; chips?: number; actions?: number }> = {}) {
   return (
     <div className="mb-4 flex flex-col gap-3">
+      <Skeleton className="h-6 w-32 rounded md:hidden" />
       <div className="flex items-center justify-between gap-3">
-        <Skeleton className="h-6 w-32 rounded" />
         {search ? (
           <Skeleton className="h-10 w-full max-w-sm flex-1 rounded-lg sm:max-w-md" />
         ) : null}

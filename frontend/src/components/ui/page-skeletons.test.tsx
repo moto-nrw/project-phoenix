@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { PageHeaderSkeleton } from "./page-header/PageHeaderSkeleton";
 import { SkeletonRegion } from "./page-skeletons";
 
 describe("SkeletonRegion", () => {
@@ -17,5 +18,17 @@ describe("SkeletonRegion", () => {
     expect(
       screen.getByRole("status", { name: "Daten werden geladen" }),
     ).toHaveAttribute("aria-busy", "true");
+  });
+});
+
+describe("PageHeaderSkeleton", () => {
+  it("keeps the mobile-only title separate from search and actions", () => {
+    const { container } = render(<PageHeaderSkeleton actions={1} />);
+    const [title, search, action] =
+      container.querySelectorAll(".animate-pulse");
+
+    expect(title).toHaveClass("md:hidden");
+    expect(title?.parentElement).not.toBe(search?.parentElement);
+    expect(search?.parentElement).toBe(action?.parentElement?.parentElement);
   });
 });

@@ -12,7 +12,9 @@ export default function DatabaseLayout({
     <RoleGuard
       variant="adminOnly"
       message="Du verfügst nicht über die notwendigen Berechtigungen, um die Datenverwaltung aufzurufen."
-      fallback={<Loading message="Berechtigungen werden geprüft…" />}
+      fallback={
+        <Loading message="Berechtigungen werden geprüft…" fullPage={false} />
+      }
     >
       {children}
     </RoleGuard>

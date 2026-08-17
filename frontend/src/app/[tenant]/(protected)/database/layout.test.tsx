@@ -78,8 +78,11 @@ describe("DatabaseLayout", () => {
       </DatabaseLayout>,
     );
 
-    expect(
-      screen.getByRole("status", { name: "Berechtigungen werden geprüft…" }),
-    ).toBeVisible();
+    const loading = screen.getByRole("status", {
+      name: "Berechtigungen werden geprüft…",
+    });
+    expect(loading).toBeVisible();
+    expect(loading).not.toHaveClass("fixed");
+    expect(loading).toHaveClass("min-h-40");
   });
 });

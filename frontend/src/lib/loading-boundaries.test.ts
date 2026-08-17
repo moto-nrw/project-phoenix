@@ -19,11 +19,9 @@ function collectPages(directory: string): string[] {
   ];
 }
 
-function inheritedLoadingBoundary(pageDirectory: string): string | null {
-  if (existsSync(path.join(pageDirectory, "loading.tsx"))) return null;
-
+function loadingBoundary(pageDirectory: string): string | null {
   for (
-    let directory = path.dirname(pageDirectory);
+    let directory = pageDirectory;
     directory.startsWith(APP_DIR);
     directory = path.dirname(directory)
   ) {
@@ -34,19 +32,31 @@ function inheritedLoadingBoundary(pageDirectory: string): string | null {
   return null;
 }
 
+const ALLOWED_SHARED_BOUNDARIES = new Set([
+  "loading.tsx",
+  "[tenant]/(protected)/database/loading.tsx",
+]);
+
 describe("App Router loading boundaries", () => {
-  it("never shows one route's skeleton while a different route loads", () => {
-    const inheritedBoundaries = collectPages(APP_DIR).flatMap(
-      (pageDirectory) => {
-        const loadingFile = inheritedLoadingBoundary(pageDirectory);
-        if (!loadingFile) return [];
-
+  it("gives every page a colocated or approved shared loading boundary", () => {
+    const invalidPages = collectPages(APP_DIR).flatMap((pageDirectory) => {
+      const loadingFile = loadingBoundary(pageDirectory);
+      if (!loadingFile) {
         return [
-          `${path.relative(APP_DIR, pageDirectory)}/page.tsx inherits ${path.relative(APP_DIR, loadingFile)}`,
+          `${path.relative(APP_DIR, pageDirectory)}/page.tsx has no loading boundary`,
         ];
-      },
-    );
+      }
 
-    expect(inheritedBoundaries).toEqual([]);
+      if (path.dirname(loadingFile) === pageDirectory) return [];
+
+      const relativeLoadingFile = path.relative(APP_DIR, loadingFile);
+      if (ALLOWED_SHARED_BOUNDARIES.has(relativeLoadingFile)) return [];
+
+      return [
+        `${path.relative(APP_DIR, pageDirectory)}/page.tsx inherits ${relativeLoadingFile}`,
+      ];
+    });
+
+    expect(invalidPages).toEqual([]);
   });
 });
