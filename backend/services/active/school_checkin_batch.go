@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
 // School check-in action values shared by the single and batch web endpoints.
@@ -101,6 +102,16 @@ func (s *service) ProcessSchoolCheckinBatch(
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
 
+	// ONE timestamp and ONE attendance date for the whole batch, taken from
+	// the same instant before the write loop (review #2372). Per-item
+	// time.Now()/TodayDate() calls would let a batch crossing Berlin midnight
+	// write its early items for yesterday and its late items for today — and
+	// the status refresh below, scoped to the same snapshot date, would then
+	// misreport the early items. One snapshot makes every write and the
+	// refresh agree on a single calendar day.
+	now := time.Now()
+	today := timezone.DateFromTime(now)
+
 	// Canonical write order: ascending, deduplicated (see doc comment).
 	writeOrder := append([]int64(nil), studentIDs...)
 	slices.Sort(writeOrder)
@@ -117,7 +128,7 @@ func (s *service) ProcessSchoolCheckinBatch(
 			outcomes[studentID] = SchoolCheckinBatchItem{StudentID: studentID}
 			continue
 		}
-		result, writeErr := s.applySchoolCheckinWrite(ctx, studentID, staffID, action)
+		result, writeErr := s.applySchoolCheckinWrite(ctx, studentID, staffID, action, now, today)
 		if writeErr != nil {
 			// Graduation race after the batch pre-check above: performCheckIn's
 			// own guard rejects before writing anything, so the transaction
@@ -149,16 +160,30 @@ func (s *service) ProcessSchoolCheckinBatch(
 
 	// Back-fill the final status for every written student (changed or
 	// race-absorbed alike) from ONE post-write attendance query. It runs
-	// inside the same tenant transaction as the writes, so it observes the
-	// batch's own freshly-written rows.
+	// inside the same tenant transaction as the writes and reads the SNAPSHOT
+	// date, not a re-derived "today" — after a midnight crossing a fresh
+	// TodayDate() would look at the next day's (empty) rows and misreport
+	// every just-written student as not_checked_in (review #2372).
 	if len(written) > 0 {
-		updated, refreshErr := s.GetStudentsAttendanceStatuses(ctx, written)
+		rows, refreshErr := s.AttendanceRepo.FindForDateByStudentIDs(ctx, today, written)
 		if refreshErr != nil {
-			return nil, refreshErr
+			return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: refreshErr}
+		}
+		// Rows are ordered check_in_time ASC per student — keep the latest.
+		latest := make(map[int64]*active.Attendance, len(written))
+		for _, row := range rows {
+			latest[row.StudentID] = row
 		}
 		for _, studentID := range written {
 			item := outcomes[studentID]
-			item.Status = updated[studentID].Status
+			if row := latest[studentID]; row != nil {
+				item.Status = deriveAttendanceStatus(row)
+			} else {
+				// No row on the snapshot date: an idempotent checkout of a
+				// student who never checked in today. Mirrors the missing-row
+				// semantics of GetStudentsAttendanceStatuses.
+				item.Status = "not_checked_in"
+			}
 			outcomes[studentID] = item
 		}
 	}
@@ -188,14 +213,15 @@ func (s *service) ProcessSchoolCheckinBatch(
 // per-call staff presence stamp (the batch stamps once for the whole run)
 // and minus authorization, which the batch contract requires the caller to
 // have done already (mirror of skipAuthCheck on the single-student path).
+// now/today are the batch-wide snapshot — see ProcessSchoolCheckinBatch.
 // Action-explicit for the race reason documented on ToggleStudentAttendance:
 // the cores are individually race-safe (ON CONFLICT for in, state-checked
 // UPDATE for out), while a toggle could flip a concurrent "in" into an
 // "out". A checkout also ends any open room visit in the same request
 // transaction (#895).
-func (s *service) applySchoolCheckinWrite(ctx context.Context, studentID, staffID int64, action string) (*AttendanceResult, error) {
+func (s *service) applySchoolCheckinWrite(ctx context.Context, studentID, staffID int64, action string, now time.Time, today timezone.Date) (*AttendanceResult, error) {
 	if action == SchoolCheckinActionIn {
-		return s.performCheckIn(ctx, studentID, staffID, 0, time.Now(), timezone.TodayDate(), checkinTypeWeb)
+		return s.performCheckIn(ctx, studentID, staffID, 0, now, today, checkinTypeWeb)
 	}
-	return s.performCheckOut(ctx, studentID, staffID, time.Now(), checkoutTypeWeb)
+	return s.performCheckOut(ctx, studentID, staffID, now, checkoutTypeWeb)
 }

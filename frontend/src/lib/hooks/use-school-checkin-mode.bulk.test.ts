@@ -265,7 +265,7 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     expect(result.current.selectedIds.size).toBe(0);
   });
 
-  it("defers a clearSelection issued during the run until the run settles", async () => {
+  it("defers a clearSelection issued during the run and keeps only the failed students", async () => {
     let resolveBatch!: (value: unknown) => void;
     mockSchoolCheckinStudentsBatch.mockReturnValue(
       new Promise((resolve) => {
@@ -289,6 +289,8 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     // processed against (review #2372)…
     act(() => result.current.clearSelection());
     expect(result.current.selectedIds.size).toBe(2);
+    // A mark added after the deferred clear belongs to the replaced view too.
+    act(() => result.current.toggleSelected("3"));
 
     await act(async () => {
       resolveBatch({
@@ -303,9 +305,67 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
       await runPromise;
     });
 
-    // …but the scope change still wins once the run has settled: the marks
-    // belong to a view that no longer exists, failures included.
+    // …once the run has settled the scope change drops every mark EXCEPT the
+    // failed student: the failure dialog promises a one-tap retry for them
+    // (review #2372).
+    expect(result.current.selectedIds.has("2")).toBe(true);
+    expect(result.current.selectedIds.size).toBe(1);
+  });
+
+  it("applies a deferred clear fully after a clean run and after a total failure keeps the run", async () => {
+    // Clean run: nothing failed, so the deferred scope clear empties all.
+    mockSchoolCheckinStudentsBatch.mockReturnValueOnce(
+      new Promise((resolve) => {
+        setTimeout(
+          () =>
+            resolve({
+              action: "out",
+              succeeded: 1,
+              failed: 0,
+              results: [
+                {
+                  studentId: "1",
+                  ok: true,
+                  changed: true,
+                  location: "Abwesend",
+                },
+              ],
+            }),
+          0,
+        );
+      }),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+
+    let runPromise: Promise<unknown> = Promise.resolve(null);
+    act(() => {
+      runPromise = result.current.runBulk("out");
+    });
+    act(() => result.current.clearSelection());
+    await act(async () => {
+      await runPromise;
+    });
     expect(result.current.selectedIds.size).toBe(0);
+
+    // Total failure: the whole run counts as failed — the retry toast
+    // promises another attempt, so the deferred clear keeps the run marked.
+    mockSchoolCheckinStudentsBatch.mockRejectedValueOnce(
+      new Error("API error (500): boom"),
+    );
+    act(() => result.current.toggleSelected("4"));
+    act(() => {
+      runPromise = result.current.runBulk("out");
+    });
+    act(() => result.current.clearSelection());
+    await act(async () => {
+      await runPromise;
+    });
+    expect(result.current.selectedIds.has("4")).toBe(true);
+    expect(result.current.selectedIds.size).toBe(1);
   });
 
   it("invalidates exactly the presence-bearing SWR key families, bundled", async () => {

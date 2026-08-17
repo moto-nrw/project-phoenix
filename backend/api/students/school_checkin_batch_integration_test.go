@@ -252,6 +252,27 @@ func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
 	assert.Contains(t, body, "too large")
 }
 
+// TestSchoolCheckinBatch_TrailingBody_Rejects pins that the bounded body is
+// consumed to EOF (review #2372): the decoder stops after the first JSON
+// value, so trailing bytes would otherwise stay unread and an oversized or
+// malformed tail would slip past the advertised size limit.
+func TestSchoolCheckinBatch_TrailingBody_Rejects(t *testing.T) {
+	tc := setupTestContext(t)
+
+	student := testpkg.CreateTestStudent(t, tc.db, "BatchTrail", "Target", "6c")
+	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchTrail", "Caller")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
+	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+
+	payload := fmt.Sprintf(`{"action":"in","student_ids":[%q]}{"trailing":"junk"}`, idStr(student.ID))
+	req := testutil.NewRequest("POST", "/school-checkin/batch", bytesReader([]byte(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "trailing data")
+}
+
 func TestSchoolCheckinBatch_EmptyIDs_Rejects(t *testing.T) {
 	tc := setupTestContext(t)
 

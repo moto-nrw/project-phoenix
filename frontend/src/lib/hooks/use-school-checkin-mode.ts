@@ -185,8 +185,10 @@ interface UseSchoolCheckinModeResult {
    * every search/filter scope change, and clearing mid-flight would race the
    * response processing — the failed students would lose their retry marks
    * to a half-applied clear. Deferring keeps the outcome deterministic: the
-   * batch finishes against the intact selection, then the scope change wins
-   * and the selection empties exactly as if it had happened after the run.
+   * batch finishes against the intact selection, then the deferred clear
+   * drops every mark EXCEPT the run's failed students — the failure dialog
+   * promises they stay selected for a one-tap retry, and that promise must
+   * hold through a mid-flight scope change too (review #2372).
    */
   clearSelection: () => void;
   /** True while a bulk action's API call is in flight. */
@@ -375,6 +377,12 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       // state a single toggle does.
       setPendingIds((prev) => new Set([...prev, ...ids]));
 
+      // The students a deferred scope-change clear must NOT drop: until the
+      // response says otherwise, that is the whole run (a total request
+      // failure keeps everything selected for the retry); a processed
+      // response narrows it to the reported failures.
+      let failedRunIds: ReadonlySet<string> = new Set(ids);
+
       try {
         const outcome = await schoolCheckinStudentsBatch(ids, action);
 
@@ -409,6 +417,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         setSelectedIds(
           (prev) => new Set([...prev].filter((id) => !processedOkIds.has(id))),
         );
+        failedRunIds = new Set(
+          outcome.results
+            .filter((result) => !result.ok)
+            .map((result) => result.studentId),
+        );
 
         return outcome;
       } catch (error) {
@@ -442,11 +455,15 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         setIsBulkRunning(false);
         // A scope change during the run requested a clear; the response has
         // been processed against the intact selection above, so the deferred
-        // clear may now apply — the marks belong to a view that no longer
-        // exists (see the clearSelection interface doc).
+        // clear may now apply. It keeps exactly the run's failed students:
+        // the failure dialog names them and promises a one-tap retry, so the
+        // scope change may drop every OTHER mark (they belong to a view that
+        // no longer exists) but not these (see the clearSelection doc).
         if (pendingClearRef.current) {
           pendingClearRef.current = false;
-          setSelectedIds(new Set());
+          setSelectedIds(
+            (prev) => new Set([...prev].filter((id) => failedRunIds.has(id))),
+          );
         }
       }
     },

@@ -1433,7 +1433,8 @@ function SearchPageContent() {
   // this signature, so retained failure marks survive their retry window.
   // A scope change WHILE a batch is in flight is safe too: the hook defers
   // this clear until the run has been processed against the selection it
-  // started from, then applies it (review #2372).
+  // started from, then applies it while KEEPING the run's failed students —
+  // the failure dialog promises them a one-tap retry (review #2372).
   const selectionScopeSignature = `${studentsCacheKey}|${effectiveAttendanceFilter}|${pickupTimeFilter}|${arrivalTimeFilter}|${effectiveTrackingFilter}`;
   const clearCheckinSelection = schoolCheckin.clearSelection;
   useEffect(() => {

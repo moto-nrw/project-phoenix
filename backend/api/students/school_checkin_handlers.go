@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -177,9 +178,19 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 	// payload is fully read and unmarshalled before any length check can
 	// reject it.
 	r.Body = http.MaxBytesReader(w, r.Body, maxSchoolCheckinBatchBytes)
+	dec := json.NewDecoder(r.Body)
 	var req schoolCheckinBatchRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := dec.Decode(&req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	// The decoder stops at the end of the first JSON value, so trailing bytes
+	// would otherwise stay unread — an oversized or malformed tail would slip
+	// past the size limit above. Requiring a clean EOF drains the bounded
+	// body: trailing data is rejected, and a tail larger than the limit trips
+	// MaxBytesReader while being read (review #2372).
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("unexpected trailing data after JSON body")))
 		return
 	}
 	if req.Action != schoolCheckinActionIn && req.Action != schoolCheckinActionOut {
