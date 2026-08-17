@@ -5,6 +5,12 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentsSchoolCheckinBatchRoute" });
 
+// Mirrors the backend's maxSchoolCheckinBatchBytes (64 KiB): the limit is
+// enforced while READING the body in the BFF, so an oversized payload is
+// rejected with 413 before this process buffers or parses it — without the
+// option, createPostHandler would request.text() the whole payload first.
+const MAX_BATCH_BODY_BYTES = 64 * 1024;
+
 /**
  * POST /api/students/school-checkin/batch
  *
@@ -38,4 +44,5 @@ export const POST = createPostHandler(
     // @ts-expect-error — apiPost returns unknown; backend envelope is { data }
     return response.data;
   },
+  { maxBodyBytes: MAX_BATCH_BODY_BYTES },
 );

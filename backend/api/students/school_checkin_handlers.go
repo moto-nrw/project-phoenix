@@ -37,9 +37,11 @@ type schoolCheckinResponse struct {
 	Changed      bool       `json:"changed"` // false when the call was a no-op (already in target state)
 }
 
+// Wire-level action values — aliases of the service constants so handler and
+// service can never drift apart.
 const (
-	schoolCheckinActionIn  = "in"
-	schoolCheckinActionOut = "out"
+	schoolCheckinActionIn  = activeService.SchoolCheckinActionIn
+	schoolCheckinActionOut = activeService.SchoolCheckinActionOut
 )
 
 // schoolCheckinHandler marks a student as checked-in or checked-out of the
@@ -208,11 +210,12 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	resp, err := rs.processSchoolCheckinBatch(r.Context(), studentIDs, staffID, req.Action)
+	batch, err := rs.ActiveService.ProcessSchoolCheckinBatch(r.Context(), studentIDs, staffID, req.Action)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	resp := buildSchoolCheckinBatchResponse(req.Action, batch)
 
 	logger.Info("student_school_checkin_batch",
 		slog.Int64("staff_id", staffID),
@@ -225,137 +228,34 @@ func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, resp, "School checkin batch processed")
 }
 
-// processSchoolCheckinBatch applies the action to every deduped student id.
-// Reads are batched — one students query, one attendance-status query, one
-// post-write refresh — so a full 1000-student selection issues a handful of
-// queries instead of an N+1 per-student cascade. Only the state-transition
-// writes stay per student: CheckInStudent/CheckOutStudent carry the race-safe
-// transition logic (and visit ending on checkout) that has no batch form.
-//
-// A student the caller cannot act on (unknown id, another tenant's student —
-// invisible through the tenant filter —, or graduated) comes back as a
-// not_found result; only unexpected service errors return a non-nil error,
-// which fails the whole batch (see schoolCheckinBatchHandler for why).
-func (rs *Resource) processSchoolCheckinBatch(
-	ctx context.Context,
-	studentIDs []int64,
-	staffID int64,
-	action string,
-) (*schoolCheckinBatchResponse, error) {
-	students, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, err
+// buildSchoolCheckinBatchResponse formats the service-level batch result into
+// the wire shape: string ids, the machine-readable "not_found" code ("the
+// frontend resolves the student's name from its own list, so no PII travels
+// here"), and the resolved German presence label per successful entry.
+func buildSchoolCheckinBatchResponse(action string, batch *activeService.SchoolCheckinBatchResult) *schoolCheckinBatchResponse {
+	resp := &schoolCheckinBatchResponse{
+		Action:    action,
+		Results:   make([]schoolCheckinBatchResult, 0, len(batch.Results)),
+		Succeeded: batch.Succeeded,
+		Failed:    batch.Failed,
 	}
-	// One query for all current statuses. Ids missing from the students map
-	// get a synthetic "not_checked_in" entry here; those students are skipped
-	// as not_found below and their entry is never read.
-	statuses, err := rs.ActiveService.GetStudentsAttendanceStatuses(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	resp := &schoolCheckinBatchResponse{Action: action, Results: make([]schoolCheckinBatchResult, 0, len(studentIDs))}
-	changedAt := make(map[int64]int) // student id → Results index awaiting the post-write status
-	for _, studentID := range studentIDs {
-		student := students[studentID]
-		// IsAlumnus is nil-safe by design: a missing map entry (unknown id or
-		// another tenant's student) and a graduated one are both skippable.
-		if student == nil || student.IsAlumnus() {
-			resp.Failed++
-			resp.Results = append(resp.Results, schoolCheckinBatchNotFound(studentID))
+	for _, item := range batch.Results {
+		if !item.OK {
+			resp.Results = append(resp.Results, schoolCheckinBatchResult{
+				StudentID: strconv.FormatInt(item.StudentID, 10),
+				Error:     "not_found",
+			})
 			continue
 		}
-		if current := statuses[studentID]; isIdempotentSchoolCheckin(action, current.Status) {
-			resp.Succeeded++
-			resp.Results = append(resp.Results, schoolCheckinBatchOK(studentID, false, current))
-			continue
-		}
-		if err := rs.writeSchoolCheckinAction(ctx, studentID, staffID, action); err != nil {
-			// Graduation race after the batch pre-check above: CheckInStudent's
-			// own guard rejects before writing anything, so the transaction
-			// stays clean and the student can be skipped like any unknown id.
-			if errors.Is(err, activeService.ErrStudentGraduated) {
-				resp.Failed++
-				resp.Results = append(resp.Results, schoolCheckinBatchNotFound(studentID))
-				continue
-			}
-			return nil, err
-		}
-		resp.Succeeded++
-		changedAt[studentID] = len(resp.Results)
 		resp.Results = append(resp.Results, schoolCheckinBatchResult{
-			StudentID: strconv.FormatInt(studentID, 10),
+			StudentID: strconv.FormatInt(item.StudentID, 10),
 			OK:        true,
-			Changed:   true,
+			Changed:   item.Changed,
+			Status:    item.Status,
+			Location:  labelForAttendanceStatus(item.Status),
 		})
 	}
-
-	if err := rs.fillRefreshedBatchStatuses(ctx, resp.Results, changedAt); err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-// writeSchoolCheckinAction performs the single state-transition write for one
-// student of a batch. Action-explicit for the same race reason as
-// applySchoolCheckinAction: CheckIn/CheckOut are individually race-safe
-// (ON CONFLICT for in, state-checked UPDATE for out), while a toggle could
-// flip a concurrent "in" into an "out". A checkout also ends any open room
-// visit in the same request transaction (#895).
-func (rs *Resource) writeSchoolCheckinAction(ctx context.Context, studentID, staffID int64, action string) error {
-	if action == schoolCheckinActionIn {
-		_, err := rs.ActiveService.CheckInStudent(ctx, studentID, staffID, 0, true)
-		return err
-	}
-	_, err := rs.ActiveService.CheckOutStudent(ctx, studentID, staffID, true)
-	return err
-}
-
-// fillRefreshedBatchStatuses back-fills Status/Location for every result whose
-// write changed state, from ONE post-write attendance query instead of a
-// re-read per student. It runs inside the same tenant transaction as the
-// writes, so it observes the batch's own freshly-written rows.
-func (rs *Resource) fillRefreshedBatchStatuses(
-	ctx context.Context,
-	results []schoolCheckinBatchResult,
-	changedAt map[int64]int,
-) error {
-	if len(changedAt) == 0 {
-		return nil
-	}
-	ids := make([]int64, 0, len(changedAt))
-	for id := range changedAt {
-		ids = append(ids, id)
-	}
-	updated, err := rs.ActiveService.GetStudentsAttendanceStatuses(ctx, ids)
-	if err != nil {
-		return err
-	}
-	for id, idx := range changedAt {
-		results[idx].Status = updated[id].Status
-		results[idx].Location = labelForAttendanceStatus(updated[id].Status)
-	}
-	return nil
-}
-
-// schoolCheckinBatchNotFound builds the skippable per-student failure entry.
-// "not_found" is a machine-readable code — the frontend resolves the student's
-// name from its own list, so no PII travels here.
-func schoolCheckinBatchNotFound(studentID int64) schoolCheckinBatchResult {
-	return schoolCheckinBatchResult{StudentID: strconv.FormatInt(studentID, 10), Error: "not_found"}
-}
-
-// schoolCheckinBatchOK builds a successful per-student entry from a known
-// attendance status (the pre-read one for no-ops, never a stale value —
-// changed students get theirs from fillRefreshedBatchStatuses instead).
-func schoolCheckinBatchOK(studentID int64, changed bool, status *activeService.AttendanceStatus) schoolCheckinBatchResult {
-	return schoolCheckinBatchResult{
-		StudentID: strconv.FormatInt(studentID, 10),
-		OK:        true,
-		Changed:   changed,
-		Status:    status.Status,
-		Location:  labelForAttendanceStatus(status.Status),
-	}
+	return resp
 }
 
 // parseStudentIDStrings converts the wire-format string IDs to int64. Any
@@ -389,22 +289,6 @@ func dedupeStudentIDs(ids []int64) []int64 {
 	return out
 }
 
-// isIdempotentSchoolCheckin reports whether the requested action is already
-// satisfied by the student's current attendance status. Extracted so the
-// no-op decision can be unit-tested without a mock ActiveService.
-func isIdempotentSchoolCheckin(action, currentStatus string) bool {
-	alreadyPresent := currentStatus == "checked_in" || currentStatus == "on_yard"
-	alreadyAbsent := currentStatus == "not_checked_in" || currentStatus == "checked_out"
-	switch action {
-	case schoolCheckinActionIn:
-		return alreadyPresent
-	case schoolCheckinActionOut:
-		return alreadyAbsent
-	default:
-		return false
-	}
-}
-
 // applySchoolCheckinAction is the state-transition core. It short-circuits on
 // idempotent no-ops (Changed=false) and otherwise writes active.attendance.
 // In detailed mode a successful "out" transition also ends any open visit so
@@ -417,7 +301,7 @@ func (rs *Resource) applySchoolCheckinAction(
 	action string,
 	current *activeService.AttendanceStatus,
 ) (*schoolCheckinResponse, error) {
-	if isIdempotentSchoolCheckin(action, current.Status) {
+	if activeService.IsSchoolCheckinNoop(action, current.Status) {
 		return buildSchoolCheckinResponse(student.ID, current, false), nil
 	}
 
@@ -427,27 +311,31 @@ func (rs *Resource) applySchoolCheckinAction(
 	// absent student: the second sees the first's commit and flips). The
 	// CheckIn/CheckOut methods are race-safe individually (ON CONFLICT for
 	// in, state-checked UPDATE for out) so the action contract is preserved.
+	var result *activeService.AttendanceResult
+	var err error
 	switch action {
 	case schoolCheckinActionIn:
-		if _, err := rs.ActiveService.CheckInStudent(ctx, student.ID, staffID, 0, true); err != nil {
-			return nil, err
-		}
+		result, err = rs.ActiveService.CheckInStudent(ctx, student.ID, staffID, 0, true)
 	case schoolCheckinActionOut:
 		// CheckOutStudent also ends any open room visit in the same request
 		// transaction (issue #895 — see services/active.performCheckOut), so
 		// detailed-mode supervisor views never show "still in Room X" after
 		// a web checkout. No separate EndVisit call is needed here.
-		if _, err := rs.ActiveService.CheckOutStudent(ctx, student.ID, staffID, true); err != nil {
-			return nil, err
-		}
+		result, err = rs.ActiveService.CheckOutStudent(ctx, student.ID, staffID, true)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	// Re-fetch so the response reflects the freshly-written row.
+	// Re-fetch so the response reflects the freshly-written row. Changed comes
+	// from the write itself, not from the stale pre-read: a concurrent caller
+	// may have established the target state after our no-op check, and that
+	// absorbed write is a no-op, not a change.
 	updated, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, student.ID)
 	if err != nil {
 		return nil, err
 	}
-	return buildSchoolCheckinResponse(student.ID, updated, true), nil
+	return buildSchoolCheckinResponse(student.ID, updated, result.Changed), nil
 }
 
 // buildSchoolCheckinResponse formats an AttendanceStatus into the HTTP response

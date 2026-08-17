@@ -362,6 +362,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 			AttendanceID: existing.ID,
 			StudentID:    studentID,
 			Timestamp:    existing.CheckInTime,
+			Changed:      false, // the concurrent winner opened the row, not this call
 		}, nil
 	}
 
@@ -383,6 +384,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		AttendanceID: attendance.ID,
 		StudentID:    studentID,
 		Timestamp:    now,
+		Changed:      true,
 	}, nil
 }
 
@@ -464,6 +466,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 			Action:    "checked_out",
 			StudentID: studentID,
 			Timestamp: now,
+			Changed:   false, // no open row — attendance was already in the target state
 		}, nil
 	}
 
@@ -479,6 +482,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 		AttendanceID: closed.ID,
 		StudentID:    studentID,
 		Timestamp:    now,
+		Changed:      true,
 	}, nil
 }
 

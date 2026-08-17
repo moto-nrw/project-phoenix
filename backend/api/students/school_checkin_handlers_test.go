@@ -96,7 +96,9 @@ func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
 }
 
 // =============================================================================
-// isIdempotentSchoolCheckin — pure decision logic, no mocks needed
+// activeService.IsSchoolCheckinNoop — pure decision logic, no mocks needed
+// (moved from the handler into services/active with the batch orchestration,
+// review #2372; cases and assertions unchanged)
 // =============================================================================
 
 func TestIsIdempotentSchoolCheckin(t *testing.T) {
@@ -119,7 +121,7 @@ func TestIsIdempotentSchoolCheckin(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantNoOp, isIdempotentSchoolCheckin(tc.action, tc.currentStatus))
+			assert.Equal(t, tc.wantNoOp, activeService.IsSchoolCheckinNoop(tc.action, tc.currentStatus))
 		})
 	}
 }

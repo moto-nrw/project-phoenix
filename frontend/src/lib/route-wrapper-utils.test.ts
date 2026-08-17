@@ -149,6 +149,52 @@ describe("parseRequestBody", () => {
   });
 });
 
+describe("parseRequestBody with maxBodyBytes", () => {
+  it("parses a body within the limit", async () => {
+    const body = { action: "in", student_ids: ["1", "2"] };
+    const request = createMockRequest("/api/test", { method: "POST", body });
+    const result = await parseRequestBody<typeof body>(request, 64 * 1024);
+    expect(result).toEqual(body);
+  });
+
+  it("rejects an oversized body with a 413-shaped error while reading", async () => {
+    const oversized = {
+      student_ids: Array.from({ length: 5000 }, () => "12345678901234567"),
+    };
+    const request = createMockRequest("/api/test", {
+      method: "POST",
+      body: oversized,
+    });
+    await expect(
+      parseRequestBody<typeof oversized>(request, 1024),
+    ).rejects.toThrow(/API error \(413\)/);
+  });
+
+  it("rejects via the declared content-length before reading the stream", async () => {
+    // The test fetch runtime recomputes content-length from the actual body,
+    // so the oversized declaration is stubbed directly; the branch only
+    // touches headers and must throw before the body is ever read.
+    const request = {
+      headers: new Headers({ "content-length": "999999" }),
+      body: null,
+    } as unknown as NextRequest;
+    await expect(
+      parseRequestBody<Record<string, unknown>>(request, 1024),
+    ).rejects.toThrow(/API error \(413\)/);
+  });
+
+  it("returns empty object for an empty bounded body", async () => {
+    const request = new NextRequest("http://localhost:3000/api/test", {
+      method: "POST",
+    });
+    const result = await parseRequestBody<Record<string, unknown>>(
+      request,
+      1024,
+    );
+    expect(result).toEqual({});
+  });
+});
+
 describe("wrapInApiResponse", () => {
   it("wraps plain data in ApiResponse", () => {
     const data = { id: "1", name: "Test" };
