@@ -7,12 +7,19 @@ import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
+import { formatDate } from "~/lib/date-helpers";
+import { CONTACT_METHODS, LANGUAGE_PREFERENCES } from "~/lib/guardian-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type StaffMasterDataChange,
   decideMasterDataChangeRequest,
   listMasterDataChangeRequests,
 } from "~/lib/master-data-review-api";
+import {
+  DEPARTURE_MODE_LABELS,
+  DEPARTURE_WEEKDAYS,
+  type DepartureMode,
+} from "~/lib/student-helpers";
 
 const logger = createLogger({ component: "MasterDataReviewList" });
 
@@ -43,15 +50,46 @@ function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field;
 }
 
-function formatValue(value: unknown, empty: string): string {
+// German labels for the wire values (#2362). Unknown keys fall back to the raw
+// value so future wire additions stay visible instead of crashing or vanishing.
+const WEEKDAY_LABELS: Record<string, string> = Object.fromEntries(
+  DEPARTURE_WEEKDAYS.map((day) => [day.key, day.label]),
+);
+
+const CONTACT_METHOD_LABELS: Record<string, string> = Object.fromEntries(
+  CONTACT_METHODS.map((method) => [method.value, method.label]),
+);
+
+const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(
+  LANGUAGE_PREFERENCES.map((lang) => [lang.value, lang.label]),
+);
+
+function departureModeLabel(mode: unknown): string {
+  return DEPARTURE_MODE_LABELS[mode as DepartureMode] ?? String(mode);
+}
+
+function formatValue(field: string, value: unknown, empty: string): string {
   if (value === null || value === undefined || value === "") return empty;
-  if (typeof value === "string") return value;
+  if (typeof value === "string") {
+    if (field === "preferred_contact_method")
+      return CONTACT_METHOD_LABELS[value] ?? value;
+    if (field === "language_preference") return LANGUAGE_LABELS[value] ?? value;
+    // Only format well-formed ISO dates — formatDate on anything else yields
+    // "Invalid Date", which would break the raw-value fallback contract.
+    if (field === "birthday" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+      return formatDate(value);
+    return value;
+  }
   if (typeof value === "object") {
-    // Departure modes: { mon: ["pickup"], ... } — render a compact summary.
+    // Departure modes: { mon: ["pickup"], ... } — render a compact summary
+    // with German weekday and mode labels ("Montag: Wird abgeholt").
     return Object.entries(value as Record<string, unknown>)
-      .map(([day, modes]) =>
-        Array.isArray(modes) ? `${day}: ${modes.join("/")}` : `${day}`,
-      )
+      .map(([day, modes]) => {
+        const dayLabel = WEEKDAY_LABELS[day] ?? day;
+        return Array.isArray(modes)
+          ? `${dayLabel}: ${modes.map(departureModeLabel).join(" / ")}`
+          : dayLabel;
+      })
       .join(", ");
   }
   return String(value);
@@ -202,13 +240,13 @@ export function MasterDataReviewList() {
                   shows only the value change. */}
               <div className="flex flex-wrap items-baseline gap-2 text-sm">
                 <span className="text-gray-400 line-through">
-                  {formatValue(row.old_value, EMPTY_VALUE)}
+                  {formatValue(row.field_key, row.old_value, EMPTY_VALUE)}
                 </span>
                 <span className="text-gray-400" aria-hidden="true">
                   →
                 </span>
                 <span className="font-medium text-gray-900">
-                  {formatValue(row.new_value, EMPTY_VALUE)}
+                  {formatValue(row.field_key, row.new_value, EMPTY_VALUE)}
                 </span>
               </div>
             </ReviewDiffPanel>

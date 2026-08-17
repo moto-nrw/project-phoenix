@@ -19,6 +19,13 @@ import {
   type EnrollmentFormPrefetchedData,
 } from "~/components/enrollment/enrollment-form";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import {
+  type CareOfferingBookingStats,
+  fetchCareOfferingBookingStats,
+} from "~/lib/care-offering-booking-stats";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "PhaseEnrollmentActions" });
 
 export function LateInviteModal({
   isOpen,
@@ -156,6 +163,11 @@ export function ManualApprovedEnrollmentModal({
 }>) {
   const [prefetchedData, setPrefetchedData] =
     useState<EnrollmentFormPrefetchedData | null>(null);
+  // Occupancy per offering (#2186). Advisory only: a failed load simply
+  // hides the capacity lines, it must never block a manual enrollment.
+  const [bookingStats, setBookingStats] = useState<
+    Record<string, CareOfferingBookingStats>
+  >({});
   const [reason, setReason] = useState("");
   const [externalConsentConfirmed, setExternalConsentConfirmed] =
     useState(false);
@@ -172,6 +184,7 @@ export function ManualApprovedEnrollmentModal({
     if (!isOpen) return;
     let cancelled = false;
     setPrefetchedData(null);
+    setBookingStats({});
     setReason("");
     setExternalConsentConfirmed(false);
     setSendNotification(false);
@@ -193,6 +206,17 @@ export function ManualApprovedEnrollmentModal({
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    void fetchCareOfferingBookingStats(phase.id)
+      .then((stats) => {
+        if (!cancelled) setBookingStats(stats);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setBookingStats({});
+        logger.warn("manual_enrollment_booking_stats_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
     return () => {
       cancelled = true;
@@ -308,6 +332,8 @@ export function ManualApprovedEnrollmentModal({
             submitter={submitter}
             skipCaptcha
             lockChildStructure
+            showBlockedOfferings
+            offeringBookingStats={bookingStats}
             submitLabel="Kind anlegen und freigeben"
           />
         ) : null}

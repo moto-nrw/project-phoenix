@@ -244,6 +244,62 @@ func (rs *Resource) listCareOfferings(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, out, "Care offerings retrieved")
 }
 
+// CareOfferingBookingStatsResponse is the wire shape of one offering's
+// booking summary. GradeLevels is keyed by the grade level as a string
+// because JSON object keys are always strings.
+type CareOfferingBookingStatsResponse struct {
+	OfferingID        string         `json:"offering_id"`
+	Capacity          *int           `json:"capacity,omitempty"`
+	Booked            int            `json:"booked"`
+	GradeLevels       map[string]int `json:"grade_levels"`
+	UnknownGradeCount int            `json:"unknown_grade_count"`
+}
+
+// listCareOfferingBookingStats backs the admin-side capacity display and the
+// availability-rule conflict hint (#2186). It is deliberately aggregate-only:
+// the client learns how many children hold a slot per grade level, never who
+// they are, so a display feature adds no new PII surface.
+func (rs *Resource) listCareOfferingBookingStats(w http.ResponseWriter, r *http.Request) {
+	if rs.CareOfferingService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
+		return
+	}
+	phaseID, parseErr := strconv.ParseInt(r.URL.Query().Get("phase_id"), 10, 64)
+	if parseErr != nil || phaseID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phase_id is required")))
+		return
+	}
+	var stats []enrollmentService.CareOfferingBookingStat
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		loaded, loadErr := rs.CareOfferingService.ListBookingStats(ctx, phaseID)
+		stats = loaded
+		return loadErr
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentService.ErrCareOfferingInvalid) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("list care offering booking stats failed", err))
+		return
+	}
+	out := make([]CareOfferingBookingStatsResponse, 0, len(stats))
+	for _, stat := range stats {
+		grades := make(map[string]int, len(stat.GradeLevels))
+		for grade, count := range stat.GradeLevels {
+			grades[strconv.Itoa(grade)] = count
+		}
+		out = append(out, CareOfferingBookingStatsResponse{
+			OfferingID:        strconv.FormatInt(stat.OfferingID, 10),
+			Capacity:          stat.Capacity,
+			Booked:            stat.Booked,
+			GradeLevels:       grades,
+			UnknownGradeCount: stat.UnknownGradeCount,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Care offering booking stats retrieved")
+}
+
 func (rs *Resource) getCareOffering(w http.ResponseWriter, r *http.Request) {
 	if rs.CareOfferingService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))

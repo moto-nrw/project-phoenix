@@ -472,6 +472,9 @@ type ServiceConfig struct {
 	// AbsenceNotifier informs the child's group and the office that an absence
 	// was reported. Optional and best-effort, after-commit only.
 	AbsenceNotifier notificationsSvc.AbsenceNotifier
+	// StaffParentMessageNotifier informs responsible staff after a guardian
+	// message commits. Optional and best-effort, after-commit only.
+	ParentMessageNotifier notificationsSvc.StaffParentMessageNotifier
 
 	// Emitter posts notification pills into the child's parent-OGS thread for
 	// self-service actions (sick note, one-day pickup change) and master-data

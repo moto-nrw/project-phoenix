@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -346,6 +347,14 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		capturedThread := view.ThreadID
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.broadcastParentMessage(captured, accountID, capturedThread, studentID)
+			if s.ParentMessageNotifier != nil {
+				s.ParentMessageNotifier.NotifyStaffParentMessage(context.Background(), notificationsSvc.StaffParentMessageReport{
+					TenantID:       captured,
+					ThreadID:       capturedThread,
+					StudentID:      studentID,
+					ActorAccountID: accountID,
+				})
+			}
 		})
 		return nil
 	})

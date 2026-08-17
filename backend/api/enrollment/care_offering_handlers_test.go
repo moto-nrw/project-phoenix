@@ -43,6 +43,9 @@ type mockCareOfferingService struct {
 	cloneTarget             int64
 	cloneResult             *enrollmentModels.CareOffering
 	cloneErr                error
+	bookingStatsPhaseID     int64
+	bookingStatsResult      []enrollmentService.CareOfferingBookingStat
+	bookingStatsErr         error
 }
 
 func (m *mockCareOfferingService) List(_ context.Context) ([]*enrollmentModels.CareOffering, error) {
@@ -78,11 +81,17 @@ func (m *mockCareOfferingService) Clone(_ context.Context, sourceID int64, targe
 	return m.cloneResult, m.cloneErr
 }
 
+func (m *mockCareOfferingService) ListBookingStats(_ context.Context, phaseID int64) ([]enrollmentService.CareOfferingBookingStat, error) {
+	m.bookingStatsPhaseID = phaseID
+	return m.bookingStatsResult, m.bookingStatsErr
+}
+
 func buildCareOfferingRouter(svc enrollmentService.CareOfferingService) chi.Router {
 	rs := &Resource{CareOfferingService: svc}
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/enrollment/care-offerings", rs.listCareOfferings)
+	r.Get("/enrollment/care-offerings/booking-stats", rs.listCareOfferingBookingStats)
 	r.Get("/enrollment/care-offerings/{id}", rs.getCareOffering)
 	r.Post("/enrollment/care-offerings", rs.createCareOffering)
 	r.Put("/enrollment/care-offerings/{id}", rs.updateCareOffering)
@@ -404,4 +413,104 @@ func TestCloneCareOfferingHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
 		map[string]any{"target_phase_id": 5678})
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.NotContains(t, w.Body.String(), "synthetic boom")
+}
+
+// --- listCareOfferingBookingStats (#2186) ----------------------------
+
+func TestListCareOfferingBookingStatsHandler_NilServiceReturns500(t *testing.T) {
+	router := buildCareOfferingRouter(nil)
+	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/booking-stats?phase_id=5", nil)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestListCareOfferingBookingStatsHandler_HappyPath(t *testing.T) {
+	capacity := 20
+	mock := &mockCareOfferingService{bookingStatsResult: []enrollmentService.CareOfferingBookingStat{
+		{
+			OfferingID:        1234,
+			Capacity:          &capacity,
+			Booked:            14,
+			GradeLevels:       map[int]int{1: 12, 3: 2},
+			UnknownGradeCount: 0,
+		},
+	}}
+	router := buildCareOfferingRouter(mock)
+
+	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/booking-stats?phase_id=42", nil)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(42), mock.bookingStatsPhaseID)
+	body := w.Body.String()
+	// int64 ids reach the frontend as strings; grade keys as JSON object keys.
+	assert.Contains(t, body, `"offering_id":"1234"`)
+	assert.Contains(t, body, `"capacity":20`)
+	assert.Contains(t, body, `"booked":14`)
+	assert.Contains(t, body, `"1":12`)
+	assert.Contains(t, body, `"3":2`)
+	assert.Contains(t, body, `"unknown_grade_count":0`)
+}
+
+func TestListCareOfferingBookingStatsHandler_OmitsCapacityWhenUnlimited(t *testing.T) {
+	mock := &mockCareOfferingService{bookingStatsResult: []enrollmentService.CareOfferingBookingStat{
+		{OfferingID: 1234, Booked: 3, GradeLevels: map[int]int{}},
+	}}
+	router := buildCareOfferingRouter(mock)
+
+	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/booking-stats?phase_id=42", nil)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.NotContains(t, w.Body.String(), `"capacity"`)
+	assert.Contains(t, w.Body.String(), `"grade_levels":{}`)
+}
+
+func TestListCareOfferingBookingStatsHandler_RequiresAPhaseID(t *testing.T) {
+	router := buildCareOfferingRouter(&mockCareOfferingService{})
+
+	for _, query := range []string{"", "?phase_id=", "?phase_id=notanumber", "?phase_id=0", "?phase_id=-1"} {
+		w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/booking-stats"+query, nil)
+		assert.Equal(t, http.StatusBadRequest, w.Code, "query %q must be rejected", query)
+	}
+}
+
+func TestListCareOfferingBookingStatsHandler_InvalidPhaseIsABadRequest(t *testing.T) {
+	mock := &mockCareOfferingService{
+		bookingStatsErr: fmt.Errorf("phase does not exist: %w", enrollmentService.ErrCareOfferingInvalid),
+	}
+	router := buildCareOfferingRouter(mock)
+
+	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/booking-stats?phase_id=42", nil)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestListCareOfferingBookingStatsHandler_ServiceErrorReturnsGeneric500(t *testing.T) {
+	mock := &mockCareOfferingService{bookingStatsErr: errors.New("synthetic boom")}
+	router := buildCareOfferingRouter(mock)
+
+	w := executeCareJSON(t, router, http.MethodGet, "/enrollment/care-offerings/booking-stats?phase_id=42", nil)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, w.Body.String(), "synthetic boom")
+}
+
+// The endpoint sits next to /{id}; chi must resolve the literal segment, not
+// treat "booking-stats" as an offering id.
+func TestCareOfferingRouter_BookingStatsIsNotTreatedAsAnID(t *testing.T) {
+	mock := &mockCareOfferingService{bookingStatsResult: []enrollmentService.CareOfferingBookingStat{}}
+	rs := &Resource{CareOfferingService: mock}
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Route("/care-offerings", func(r chi.Router) {
+		r.Get("/", rs.listCareOfferings)
+		r.Get("/booking-stats", rs.listCareOfferingBookingStats)
+		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", rs.getCareOffering)
+		})
+	})
+
+	w := executeCareJSON(t, router, http.MethodGet, "/care-offerings/booking-stats?phase_id=42", nil)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(42), mock.bookingStatsPhaseID)
+	assert.Zero(t, mock.getByIDID, "the {id} route must not have matched")
 }

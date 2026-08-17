@@ -247,7 +247,7 @@ function absenceCreditForDay(
     : target;
 }
 
-function isEffectiveAbsenceStatus(status: string): boolean {
+export function isEffectiveAbsenceStatus(status: string): boolean {
   return status === "reported" || status === "approved";
 }
 

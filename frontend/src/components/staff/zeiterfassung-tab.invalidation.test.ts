@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { isStaleAfterMonthReopen } from "./zeiterfassung-tab";
+import { berlinTodayISO } from "~/lib/date-helpers";
+import { startOfWeek, toDateKey } from "~/lib/staff-metrics-helpers";
+import {
+  isStaleAfterMonthReopen,
+  resolveInitialTimeTrackingDate,
+} from "./zeiterfassung-tab";
 
 describe("isStaleAfterMonthReopen", () => {
   it("invalidates staff, self-service, overview, dashboard, and close-status caches", () => {
@@ -21,5 +26,19 @@ describe("isStaleAfterMonthReopen", () => {
     ).toBe(false);
     expect(isStaleAfterMonthReopen("phoenix:staff-list", "42")).toBe(false);
     expect(isStaleAfterMonthReopen(null, "42")).toBe(false);
+  });
+});
+
+describe("resolveInitialTimeTrackingDate", () => {
+  it("initializes the view to the selected historic week", () => {
+    const initialDate = resolveInitialTimeTrackingDate("2026-01-08");
+
+    expect(toDateKey(startOfWeek(initialDate))).toBe("2026-01-05");
+  });
+
+  it("falls back to today for an invalid URL date", () => {
+    expect(toDateKey(resolveInitialTimeTrackingDate("2026-02-31"))).toBe(
+      berlinTodayISO(),
+    );
   });
 });

@@ -125,6 +125,7 @@ vi.mock("~/components/staff/staff-session-table", () => ({
   StaffSessionTable: ({
     sessions = [],
     absences = [],
+    absencesUnresolved = false,
     onEditDay,
   }: {
     sessions?: Array<{
@@ -141,6 +142,7 @@ vi.mock("~/components/staff/staff-session-table", () => ({
       absence_type: string;
       half_day?: boolean;
     }>;
+    absencesUnresolved?: boolean;
     onEditDay?: (date: Date) => void;
   }) => {
     const session = sessions[0];
@@ -158,7 +160,10 @@ vi.mock("~/components/staff/staff-session-table", () => ({
     };
 
     return (
-      <table>
+      <table
+        data-testid="staff-session-table"
+        data-absences-unresolved={absencesUnresolved}
+      >
         <thead>
           <tr>
             <th>Start</th>
@@ -358,6 +363,7 @@ vi.mock("lucide-react", () => ({
 
 import TimeTrackingPage from "./page";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useSWRAuth } from "~/lib/swr";
 import { useToast } from "~/contexts/ToastContext";
 import { timeTrackingService } from "~/lib/time-tracking-api";
@@ -521,6 +527,7 @@ function setupDefaultMocks(overrides?: {
   currentSession?: WorkSession | null;
   history?: WorkSessionHistory[];
   absences?: StaffAbsence[];
+  tableAbsencesError?: Error;
   historyLoading?: boolean;
   configLoading?: boolean;
   scheduleTargets?: ReadonlyMap<string, number>;
@@ -589,11 +596,11 @@ function setupDefaultMocks(overrides?: {
       } as never;
     } else if (key?.startsWith("time-tracking-table-absences")) {
       return {
-        data: absences,
+        data: overrides?.tableAbsencesError ? undefined : absences,
         isLoading: false,
         mutate: mockMutate,
         isValidating: false,
-        error: undefined,
+        error: overrides?.tableAbsencesError,
       } as never;
     } else if (key?.startsWith("time-tracking-table-")) {
       return {
@@ -717,6 +724,19 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       expect(screen.getAllByText("Zeiterfassung").length).toBeGreaterThan(0);
+    });
+
+    it("keeps backfills unresolved when the table absence fetch fails", () => {
+      setupDefaultMocks({
+        tableAbsencesError: new Error("absence fetch failed"),
+      });
+
+      render(<TimeTrackingPage />);
+
+      expect(screen.getByTestId("staff-session-table")).toHaveAttribute(
+        "data-absences-unresolved",
+        "true",
+      );
     });
 
     it("renders Stempeluhr heading", () => {
@@ -4878,5 +4898,167 @@ describe("deviation-reason gate (F9)", () => {
       expect(timeTrackingService.checkOut).toHaveBeenCalledTimes(2);
     });
     expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+  });
+});
+
+// Ein Klick auf den Stift darf nie ein stiller No-Op sein (#2361): Tage ohne
+// Buchung und ohne Abwesenheit bekommen einen erklärenden Hinweis-Dialog,
+// Berechtigte zusätzlich den Absprung in die eigene Verwaltungs-Ansicht.
+describe("empty-day hint dialog (#2361)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows a hint dialog instead of nothing for a day without booking", async () => {
+    setupDefaultMocks();
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Kein Eintrag vorhanden")).toBeInTheDocument();
+    // Ohne time_tracking:manage gibt es keinen Nachtragen-Absprung.
+    expect(
+      screen.queryByRole("button", { name: "Nachtragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("links managers to their own admin Zeiterfassung", async () => {
+    setupDefaultMocks();
+    const push = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({
+      push,
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    } as never);
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Nachtragen" }));
+    // Der Tenant-Router stellt je nach Routing-Modus den Slug voran — hier
+    // zählt nur, dass die eigene Admin-Zeiterfassung angesteuert wird.
+    expect(push).toHaveBeenCalledWith(
+      expect.stringContaining(`/staff/10?tab=zeiterfassung&date=${todayISO}`),
+    );
+  });
+
+  it("offers managers the backfill link for a half-day absence", async () => {
+    const halfDayAbsence: StaffAbsence = {
+      ...mockVacationAbsence,
+      dateStart: weekdayISO,
+      dateEnd: weekdayISO,
+    };
+    setupDefaultMocks({ absences: [halfDayAbsence] });
+    const push = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({
+      push,
+      replace: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+    } as never);
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Nachtragen" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Arbeitszeit")).toBeInTheDocument();
+    expect(screen.getByText("Abwesenheit")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nachtragen" }));
+    expect(push).toHaveBeenCalledWith(
+      expect.stringContaining(`/staff/10?tab=zeiterfassung&date=${weekdayISO}`),
+    );
+  });
+
+  it("keeps the half-day absence editor focused for non-managers", async () => {
+    const halfDayAbsence: StaffAbsence = {
+      ...mockVacationAbsence,
+      dateStart: weekdayISO,
+      dateEnd: weekdayISO,
+    };
+    setupDefaultMocks({ absences: [halfDayAbsence] });
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Abwesenheit bearbeiten")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", { name: "Nachtragen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers managers the backfill link for a requested full-day absence", async () => {
+    const requestedAbsence: StaffAbsence = {
+      ...mockAbsence,
+      dateStart: weekdayISO,
+      dateEnd: weekdayISO,
+      status: "requested",
+    };
+    setupDefaultMocks({ absences: [requestedAbsence] });
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Nachtragen" }),
+      ).toBeInTheDocument();
+    });
   });
 });

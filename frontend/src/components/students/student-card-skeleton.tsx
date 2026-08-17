@@ -83,7 +83,7 @@ export function StudentCardPageSkeleton({
       data-testid={testId}
       className="-mt-1.5 w-full"
     >
-      <PageHeaderSkeleton />
+      <PageHeaderSkeleton actions={1} />
       <StudentCardGrid count={6} />
     </div>
   );

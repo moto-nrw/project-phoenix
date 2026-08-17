@@ -37,7 +37,11 @@ import {
   getWeekNumber,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
-import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  isValidISODate,
+  parseISODate,
+} from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { usePeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { timeTrackingService } from "~/lib/time-tracking-api";
@@ -65,12 +69,24 @@ export function isStaleAfterMonthReopen(
   );
 }
 
+export function resolveInitialTimeTrackingDate(initialDate?: string): Date {
+  return parseISODate(
+    initialDate && isValidISODate(initialDate) ? initialDate : berlinTodayISO(),
+  );
+}
+
 // Zeiterfassung tab. Day-row table comparing Soll vs Ist for each day in
 // the visible window (week or month). A row click expands the read-only
 // audit history; the pencil action opens admin-session-edit-modal, where
 // corrections and backfills go through the time_tracking:manage endpoints
 // with a mandatory audit reason.
-export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
+export function ZeiterfassungTab({
+  staffId,
+  initialDate,
+}: {
+  readonly staffId: string;
+  readonly initialDate?: string;
+}) {
   // The Berlin day, not the browser's, and re-rendered on the rollover: this
   // tab stays mounted for hours, and `new Date()` frozen at mount would keep
   // pointing "Dieser Monat" and the open-month poll at yesterday's month after
@@ -81,10 +97,10 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
 
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [monthAnchor, setMonthAnchor] = useState(() =>
-    startOfMonth(parseISODate(berlinTodayISO())),
+    startOfMonth(resolveInitialTimeTrackingDate(initialDate)),
   );
   const [weekAnchor, setWeekAnchor] = useState(() =>
-    startOfWeek(parseISODate(berlinTodayISO())),
+    startOfWeek(resolveInitialTimeTrackingDate(initialDate)),
   );
 
   const { data: schedule, isLoading: scheduleLoading } = useSWRAuth(
@@ -129,7 +145,11 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   );
   // Absences are loaded in parallel with sessions so the table can show Krank/
   // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).
-  const { data: visibleAbsences } = useSWRAuth<readonly StaffAbsenceRow[]>(
+  const {
+    data: visibleAbsences,
+    isLoading: visibleAbsencesLoading,
+    error: visibleAbsencesError,
+  } = useSWRAuth<readonly StaffAbsenceRow[]>(
     `staff-absences-${staffId}-${visibleFromKey}-${visibleToKey}`,
     () =>
       staffAbsenceService.getAbsences(staffId, visibleFromKey, visibleToKey),
@@ -383,6 +403,11 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               to={visibleTo}
               sessions={visibleSessions ?? []}
               absences={visibleAbsences ?? []}
+              absencesUnresolved={
+                visibleAbsencesLoading ||
+                visibleAbsencesError != null ||
+                visibleAbsences === undefined
+              }
               schedule={schedule ?? null}
               dailyTargets={dailyTargets}
               dailyTargetsError={dailyTargetsError != null}

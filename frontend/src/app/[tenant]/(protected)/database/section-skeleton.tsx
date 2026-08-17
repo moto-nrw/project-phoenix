@@ -1,22 +1,28 @@
 "use client";
 
-import { useSelectedLayoutSegment } from "next/navigation";
+import { useSelectedLayoutSegments } from "next/navigation";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
+import { Loading } from "~/components/ui/loading";
 import { DatabaseIndexSkeleton } from "./page-skeleton";
 
-/**
- * Picks the skeleton matching whichever /database/* route is active: the
- * card-grid skeleton for the index page, or the existing master-detail
- * skeleton for every list/detail sub-route (students, personal, rooms, ...).
- * Shared by loading.tsx (Next.js route-loading Suspense boundary) and
- * layout.tsx (RoleGuard's client-side session-loading fallback) so both
- * boundaries render the same shape — no flash between mismatched skeletons.
- */
+const MASTER_DETAIL_SEGMENTS = new Set([
+  "activities",
+  "devices",
+  "groups",
+  "permissions",
+  "personal",
+  "roles",
+  "rooms",
+  "students",
+]);
+
 export function DatabaseSectionSkeleton() {
-  const segment = useSelectedLayoutSegment();
-  return segment === null ? (
-    <DatabaseIndexSkeleton />
-  ) : (
-    <MasterDetailSkeleton />
-  );
+  const segments = useSelectedLayoutSegments();
+
+  if (segments.length === 0) return <DatabaseIndexSkeleton />;
+  if (segments.length === 1 && MASTER_DETAIL_SEGMENTS.has(segments[0] ?? "")) {
+    return <MasterDetailSkeleton />;
+  }
+
+  return <Loading message="Datenverwaltung wird geladen…" fullPage={false} />;
 }

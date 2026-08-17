@@ -198,8 +198,9 @@ func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
 			absenceAdminStaff: activeModel.WorkSessionStatusPresent,
 		}},
 	}
-	producer := notifications.NewAbsenceNotifier(
-		w.notifier, w.consent, w.students, w.groups, w.staff, w.admins, w.settings, w.duty, nil, nil)
+	recipients := notifications.NewStaffRecipientResolver(
+		w.consent, w.students, w.groups, w.staff, w.admins, w.settings, w.duty)
+	producer := notifications.NewAbsenceNotifier(w.notifier, recipients, nil, nil)
 	return producer, w
 }
 
@@ -536,7 +537,7 @@ func TestAbsenceNotifierSwallowsFailures(t *testing.T) {
 // fallback audience.
 func TestAbsenceNotifierWithoutDependencies(t *testing.T) {
 	notifier := &captureNotifier{}
-	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil)
 	assert.NotPanics(t, func() {
 		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
 	})

@@ -175,6 +175,7 @@ GET /api/enrollment/admin/requests/{id}/delete-impact
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
+GET /api/enrollment/care-offerings/booking-stats
 GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
 GET /api/enrollment/care-offerings/{id}/pickup-rollout
