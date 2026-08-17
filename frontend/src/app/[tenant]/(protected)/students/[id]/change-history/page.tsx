@@ -10,11 +10,11 @@ import {
   ConceptPageHeader,
   ConceptSectionHeader,
 } from "~/components/ui/concept-section-header";
-import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import { formatDate, formatTime } from "~/lib/date-helpers";
+import { ChangeHistorySkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentChangeHistoryPage" });
 
@@ -82,14 +82,6 @@ function ValueText({ value }: { readonly value: string }) {
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
-
-function ChangeHistorySkeleton() {
-  return (
-    <SkeletonRegion label="Änderungsverlauf wird geladen">
-      <TableSkeleton rows={8} columns={5} />
-    </SkeletonRegion>
-  );
-}
 
 export default function StudentChangeHistoryPage() {
   return (

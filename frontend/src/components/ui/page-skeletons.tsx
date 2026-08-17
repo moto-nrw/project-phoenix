@@ -12,7 +12,10 @@
 import type React from "react";
 
 import { DataTableSkeleton } from "~/components/ui/data-table";
+import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 import { Skeleton } from "~/components/ui/skeleton";
+
+export { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 
 // Deterministic width cycle — varied line lengths read as real text without
 // Math.random() (which would break SSR hydration and test snapshots).
@@ -23,99 +26,32 @@ function lineWidth(i: number): string {
 }
 
 /**
- * Announcing wrapper: one per loading region. The region (and its label for
- * tests/AT) mounts immediately, but the visual skeleton fades in only after
- * 300 ms (`.moto-skeleton-defer`) — fast responses never flash a skeleton
- * (NN/g: no indicator under ~1 s). Pass `defer={false}` only when the region
- * replaces an already-visible skeleton and must not blink.
+ * Announcing wrapper: one per loading region. The visual loading state mounts
+ * immediately so every skeleton follows the same timing contract and no
+ * invisible placeholder phase can replace already-visible content.
  */
 export function SkeletonRegion({
   label,
   className,
   children,
   testId,
-  defer = true,
 }: Readonly<{
   label: string;
   className?: string;
   children: React.ReactNode;
   testId?: string;
-  defer?: boolean;
 }>) {
   return (
     <output
       aria-label={label}
       aria-live="polite"
+      aria-busy="true"
       data-testid={testId}
       className={`block w-full ${className ?? ""}`}
     >
-      <div className={defer ? "moto-skeleton-defer" : undefined}>
-        {children}
-      </div>
+      <div>{children}</div>
       <span className="sr-only">{label}</span>
     </output>
-  );
-}
-
-/**
- * CSS-masking bracket (approach 4 in docs/skeleton-loading-research.md):
- * renders REAL component markup with placeholder data as a loading state —
- * automatically structure-identical because it IS the structure. The
- * bracket makes the fake content inert and invisible to assistive tech.
- * Scope: text-heavy detail/form surfaces only; never on screens with
- * images, charts, or many controls.
- *
- * @public Kept exported without a call site yet — this is the approach-4
- * utility from docs/skeleton-loading-research.md, provided for the first
- * matching detail surface.
- */
-export function SkeletonMask({
-  children,
-  className,
-}: Readonly<{ children: React.ReactNode; className?: string }>) {
-  return (
-    <div
-      className={`moto-skeleton-mask ${className ?? ""}`}
-      aria-hidden="true"
-      inert
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * Mirrors PageHeaderWithSearch: title row with search field, then an
- * optional row of filter chips and action buttons.
- */
-export function PageHeaderSkeleton({
-  search = true,
-  chips = 0,
-  actions = 0,
-}: Readonly<{ search?: boolean; chips?: number; actions?: number }>) {
-  return (
-    <div className="mb-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <Skeleton className="h-6 w-32 rounded" />
-        {search && (
-          <Skeleton className="h-10 w-full max-w-sm flex-1 rounded-lg sm:max-w-md" />
-        )}
-        {actions > 0 && (
-          <div className="flex flex-shrink-0 items-center gap-2">
-            {Array.from({ length: actions }, (_, i) => (
-              <Skeleton key={i} className="h-10 w-28 rounded-lg" />
-            ))}
-          </div>
-        )}
-      </div>
-      {chips > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: chips }, (_, i) => (
-            <Skeleton key={i} className="h-8 w-24 rounded-full" />
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 

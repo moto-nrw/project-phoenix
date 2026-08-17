@@ -1,12 +1,14 @@
-import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import "@testing-library/jest-dom/vitest";
+import { describe, expect, it } from "vitest";
+
 import ProtectedLoadingPage from "./loading";
 
 describe("ProtectedLoadingPage", () => {
-  it("renders the generic list-page skeleton", () => {
+  it("renders neutral loading feedback inside the app shell", () => {
     render(<ProtectedLoadingPage />);
 
-    expect(screen.getByLabelText("Laden...")).toBeInTheDocument();
+    const loading = screen.getByRole("status", { name: "Lädt..." });
+    expect(loading).not.toHaveClass("fixed");
+    expect(loading).toHaveClass("min-h-40");
   });
 });
