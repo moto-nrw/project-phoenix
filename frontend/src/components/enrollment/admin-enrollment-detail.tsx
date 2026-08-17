@@ -1142,12 +1142,20 @@ function OfferingOccupancyLine({
  * means the rule does not revoke it, not that it can never be corrected — but
  * a blocked offering can never be newly added here. The documented workaround
  * is to relax the rule in the Angebots-Katalog first.
+ *
+ * `automaticDays` are days derived from a trigger offering. The backend
+ * re-derives them on every save regardless of the availability rule, so the
+ * row must show them as HELD even though there is no manual tick behind them
+ * — an empty checkbox next to a booking the backend keeps is a lie (#2186
+ * review). They are also not removable here: they disappear only with their
+ * trigger.
  */
 function BlockedOfferingRow({
   offering,
   gradeLevel,
   gradeLevelMax,
   booked,
+  automaticDays,
   stats,
   onRemove,
 }: Readonly<{
@@ -1155,6 +1163,7 @@ function BlockedOfferingRow({
   gradeLevel: number | null | undefined;
   gradeLevelMax: number | null;
   booked: boolean;
+  automaticDays: readonly string[];
   stats: CareOfferingBookingStats | undefined;
   onRemove: () => void;
 }>) {
@@ -1164,6 +1173,7 @@ function BlockedOfferingRow({
     gradeLevelMax ?? undefined,
   );
   const inputId = `blocked-offering-${offering.id}`;
+  const heldAutomatically = automaticDays.length > 0;
   return (
     <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
       {/* A real <label> is load-bearing, not decoration: the kit Checkbox
@@ -1177,7 +1187,7 @@ function BlockedOfferingRow({
         <Checkbox
           id={inputId}
           className="mt-0.5"
-          checked={booked}
+          checked={booked || heldAutomatically}
           disabled={!booked}
           onChange={onRemove}
           aria-label={`${offering.name} entfernen`}
@@ -1192,6 +1202,13 @@ function BlockedOfferingRow({
                 tone="orange"
                 label="bereits gebucht"
                 title="Diese Buchung bleibt bestehen. Sie kann hier entfernt, aber nicht erneut hinzugefügt werden."
+              />
+            ) : null}
+            {heldAutomatically ? (
+              <StatusBadge
+                tone="blue"
+                label={`automatisch mitgebucht: ${formatAdminDays(automaticDays)}`}
+                title="Diese Tage werden aus dem auslösenden Angebot abgeleitet und bleiben bestehen, solange dieses gebucht ist. Sie können hier nicht einzeln entfernt werden."
               />
             ) : null}
           </div>
@@ -1342,6 +1359,15 @@ export function ChildOfferingAdjustment({
   const preview = useMemo(
     () => materializeClientOfferingPreview(catalog, selected, days, child),
     [catalog, child, days, selected],
+  );
+
+  // Blocked offerings are excluded from `catalog`, so the client-side preview
+  // above never covers them. Their derived days therefore have to come from
+  // what is on file — otherwise a booking the backend keeps re-deriving reads
+  // as unbooked in the editor (#2186 review).
+  const automaticDaysOnFile = useMemo(
+    () => automaticOfferingDays(child.offerings),
+    [child.offerings],
   );
 
   const handleToggle = (offering: CareOffering) => {
@@ -1585,6 +1611,9 @@ export function ChildOfferingAdjustment({
                               gradeLevel={child.target_grade_level}
                               gradeLevelMax={gradeLevelMax}
                               booked={selected.has(offering.id)}
+                              automaticDays={
+                                automaticDaysOnFile[offering.id] ?? []
+                              }
                               stats={bookingStats[offering.id]}
                               onRemove={() =>
                                 setSelected((prev) => {
@@ -1652,6 +1681,22 @@ function initialManualOfferingIDs(
     if (!automaticOnly) ids.add(offering.offering_id);
   }
   return ids;
+}
+
+/**
+ * The days each booking on file holds automatically, i.e. derived from a
+ * trigger offering rather than ticked by anyone. Keyed by offering id, absent
+ * when a booking has none.
+ */
+function automaticOfferingDays(
+  offerings?: AdminRequestChildOffering[],
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const offering of offerings ?? []) {
+    const automatic = offering.automatic_selected_days ?? [];
+    if (automatic.length > 0) out[offering.offering_id] = [...automatic];
+  }
+  return out;
 }
 
 function initialManualOfferingDays(

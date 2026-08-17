@@ -401,7 +401,7 @@ func TestAutomaticOnlyGrandfatheredBookingsSurviveAnUnrelatedSave(t *testing.T) 
 		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10}}}
 		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			children, newCatalog(), enrollmentModels.PhaseCareOfferingSelectionOptional,
-			GrandfatheredOfferings{AutomaticOnly: map[int64]bool{20: true}},
+			GrandfatheredOfferings{Automatic: map[int64]bool{20: true}},
 		)
 		require.NoError(t, err)
 
@@ -421,7 +421,7 @@ func TestAutomaticOnlyGrandfatheredBookingsSurviveAnUnrelatedSave(t *testing.T) 
 		children := []SubmitChild{{TargetGradeLevel: grade(3)}}
 		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			children, newCatalog(), enrollmentModels.PhaseCareOfferingSelectionOptional,
-			GrandfatheredOfferings{AutomaticOnly: map[int64]bool{20: true}},
+			GrandfatheredOfferings{Automatic: map[int64]bool{20: true}},
 		)
 		require.NoError(t, err)
 		require.Empty(t, selections[0])
@@ -434,9 +434,88 @@ func TestAutomaticOnlyGrandfatheredBookingsSurviveAnUnrelatedSave(t *testing.T) 
 		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10}}}
 		_, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			children, catalog, enrollmentModels.PhaseCareOfferingSelectionOptional,
-			GrandfatheredOfferings{AutomaticOnly: map[int64]bool{20: true}},
+			GrandfatheredOfferings{Automatic: map[int64]bool{20: true}},
 		)
 		require.NoError(t, err,
 			"an automatic-only holding must stay out of required-offering validation")
+	})
+}
+
+// #2186 review blocker: a booking holding BOTH manual and automatic days
+// belongs in both grandfathering buckets. Classified as manual only, unticking
+// it removed the whole booking — including the automatic days its still-
+// selected trigger keeps deriving.
+func TestMixedGrandfatheredBookingKeepsItsAutomaticDaysWhenUnticked(t *testing.T) {
+	grade := func(value int16) *int16 { return &value }
+	newCatalog := func() map[int64]*enrollmentModels.CareOffering {
+		trigger := &enrollmentModels.CareOffering{
+			Name: "Ganztag", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+		}
+		trigger.ID = 10
+		mixed := &enrollmentModels.CareOffering{
+			Name:                      "Randstunde",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon", "tue"},
+			AutoAddTriggerOfferingIDs: []int64{10},
+			AvailabilityRule:          testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
+		}
+		mixed.ID = 20
+		return map[int64]*enrollmentModels.CareOffering{10: trigger, 20: mixed}
+	}
+	// The child holds "tue" manually plus "mon" derived from the trigger.
+	held := GrandfatheredOfferings{
+		Manual:    map[int64]bool{20: true},
+		Automatic: map[int64]bool{20: true},
+	}
+
+	t.Run("unticking withdraws only the manual half", func(t *testing.T) {
+		children := []SubmitChild{{TargetGradeLevel: grade(3), OfferingIDs: []int64{10}}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, newCatalog(), enrollmentModels.PhaseCareOfferingSelectionOptional, held,
+		)
+		require.NoError(t, err)
+
+		var mixed *materializedOfferingSelection
+		for i := range selections[0] {
+			if selections[0][i].OfferingID == 20 {
+				mixed = &selections[0][i]
+			}
+		}
+		require.NotNil(t, mixed, "the trigger still derives the booking, it must survive")
+		require.Equal(t, []string{"mon"}, mixed.AutomaticSelectedDays)
+		require.Empty(t, mixed.ManualSelectedDays, "the unticked manual day must be gone")
+		require.Equal(t, []string{"mon"}, mixed.SelectedDays)
+	})
+
+	t.Run("keeping it ticked keeps both halves", func(t *testing.T) {
+		children := []SubmitChild{{
+			TargetGradeLevel: grade(3),
+			OfferingIDs:      []int64{10, 20},
+			OfferingDays:     []SubmitOfferingDays{{OfferingID: 20, SelectedDays: []string{"tue"}}},
+		}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, newCatalog(), enrollmentModels.PhaseCareOfferingSelectionOptional, held,
+		)
+		require.NoError(t, err)
+
+		var mixed *materializedOfferingSelection
+		for i := range selections[0] {
+			if selections[0][i].OfferingID == 20 {
+				mixed = &selections[0][i]
+			}
+		}
+		require.NotNil(t, mixed)
+		require.Equal(t, []string{"tue"}, mixed.ManualSelectedDays)
+		require.Equal(t, []string{"mon"}, mixed.AutomaticSelectedDays)
+		require.Equal(t, []string{"mon", "tue"}, mixed.SelectedDays)
+	})
+
+	t.Run("dropping the trigger too removes the whole booking", func(t *testing.T) {
+		children := []SubmitChild{{TargetGradeLevel: grade(3)}}
+		selections, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+			children, newCatalog(), enrollmentModels.PhaseCareOfferingSelectionOptional, held,
+		)
+		require.NoError(t, err)
+		require.Empty(t, selections[0])
 	})
 }

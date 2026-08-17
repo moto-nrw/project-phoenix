@@ -974,6 +974,60 @@ describe("ChildOfferingAdjustment", () => {
     expect(checkbox).not.toBeChecked();
   });
 
+  // #2186 review: an automatic booking has no checkbox to tick, so it is
+  // absent from `selected`. Rendering the row from `selected` alone showed a
+  // blocked automatic booking as empty and disabled — i.e. as NOT booked —
+  // although the backend re-derives it from its trigger on every save.
+  it("shows a blocked automatic booking as held and not removable", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ id: "trigger", name: "Ganztag" }),
+      catalogOffering({
+        id: "grade-1-only",
+        name: "Randstunde",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        auto_add_trigger_offering_ids: ["trigger"],
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+      }),
+    ]);
+    renderAdjustment(
+      adjustmentChild({
+        target_grade_level: 3,
+        offerings: [
+          {
+            offering_id: "trigger",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+          {
+            offering_id: "grade-1-only",
+            offering_name: "Randstunde",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon"],
+            manual_selected_days: [],
+            automatic_selected_days: ["mon"],
+            available_days: ["mon", "tue"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Randstunde entfernen",
+    });
+    expect(checkbox).toBeChecked();
+    // Derived days disappear with their trigger, never by unticking here.
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText("automatisch mitgebucht: Mo")).toBeInTheDocument();
+  });
+
   it("never lets an unbooked blocked offering be added", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       catalogOffering({

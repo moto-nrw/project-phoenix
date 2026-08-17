@@ -1280,10 +1280,10 @@ func materializeAndValidateChildrenOfferingSelections(
 // blocked offering is still rejected. Submit and parent-edit paths pass a
 // zero GrandfatheredOfferings and keep rejecting every blocked offering.
 //
-// The two buckets exist because the two kinds of holding have different
+// The two buckets exist because the two kinds of held DAYS have different
 // lifecycles (#2186 review):
 //
-//   - Manual holdings have a checkbox. An admin can remove one, so the
+//   - Manual days have a checkbox. An admin can remove them, so the
 //     exemption lasts only while the id is STILL SELECTED in the submitted
 //     payload. Otherwise a removed offering keeps privileges it no longer
 //     has: a removed required one is demanded back by
@@ -1291,13 +1291,17 @@ func materializeAndValidateChildrenOfferingSelections(
 //     hasChoosableCareOffering true, and a removed auto-add target whose
 //     trigger is still selected gets silently re-created.
 //
-//   - Automatic-only holdings have NO checkbox and never appear in a payload
-//     at all — they are derived from their trigger on every save. Requiring
-//     them to be "still selected" would delete them the first time an admin
-//     saved an unrelated correction. They therefore stay eligible for
-//     materialization unconditionally, but are deliberately kept OUT of the
-//     validation catalog: a blocked required one must not be demanded in a
-//     payload it can never appear in.
+//   - Automatic days have NO checkbox and never appear in a payload at all —
+//     they are derived from their trigger on every save. Requiring them to be
+//     "still selected" would delete them the first time an admin saved an
+//     unrelated correction. They therefore stay eligible for materialization
+//     unconditionally, but are deliberately kept OUT of the validation
+//     catalog: a blocked required one must not be demanded in a payload it
+//     can never appear in.
+//
+// A single booking can hold both kinds at once, which is why the caller may
+// list one id in BOTH sets. Unticking such a booking withdraws only its
+// manual half; the automatic half keeps being re-derived from its trigger.
 func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
@@ -1318,16 +1322,16 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		if err := validateOfferingSelectionsForChild(children[i], openByID, availableByID); err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
-		// Auto-add works off a wider catalog than validation does, so an
-		// automatic-only holding can be re-derived without becoming
-		// selectable, required, or choosable.
+		// Auto-add works off a wider catalog than validation does, so a
+		// holding's automatic days can be re-derived without the offering
+		// becoming selectable, required, or choosable.
 		materializeByID := availableByID
-		if len(grandfathered.AutomaticOnly) > 0 {
-			materializeByID = make(map[int64]*enrollmentModels.CareOffering, len(availableByID)+len(grandfathered.AutomaticOnly))
+		if len(grandfathered.Automatic) > 0 {
+			materializeByID = make(map[int64]*enrollmentModels.CareOffering, len(availableByID)+len(grandfathered.Automatic))
 			for id, offering := range availableByID {
 				materializeByID[id] = offering
 			}
-			for id := range grandfathered.AutomaticOnly {
+			for id := range grandfathered.Automatic {
 				if offering, ok := openByID[id]; ok {
 					materializeByID[id] = offering
 				}
@@ -1356,14 +1360,17 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 }
 
 // GrandfatheredOfferings splits the bookings a child already holds by how an
-// admin can act on them. See
+// admin can act on them. The sets may overlap: a booking carrying both manual
+// and automatic days belongs in both. See
 // materializeAndValidateChildrenOfferingSelectionsGrandfathering for why the
 // two behave differently.
 type GrandfatheredOfferings struct {
-	// Manual holdings: removable, so exempt only while still submitted.
+	// Manual: the booking carries days the admin ticked, so it is removable
+	// and exempt only while still submitted.
 	Manual map[int64]bool
-	// Automatic-only holdings: derived from a trigger, never submitted.
-	AutomaticOnly map[int64]bool
+	// Automatic: the booking carries days derived from a trigger, which are
+	// never submitted and must survive a save that does not mention them.
+	Automatic map[int64]bool
 }
 
 // grandfatheredStillSelected narrows a grandfathering set to the ids the
