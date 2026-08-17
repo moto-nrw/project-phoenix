@@ -7,11 +7,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type lockingAttendanceRepository struct {
+	activeModels.AttendanceRepository
+	calls []string
+	row   *activeModels.Attendance
+}
+
+func (r *lockingAttendanceRepository) LockStudentAttendance(context.Context, int64) error {
+	r.calls = append(r.calls, "lock")
+	return nil
+}
+
+func (r *lockingAttendanceRepository) FindByStudentAndDate(context.Context, int64, timezone.Date) ([]*activeModels.Attendance, error) {
+	r.calls = append(r.calls, "find")
+	return []*activeModels.Attendance{r.row}, nil
+}
+
+func (r *lockingAttendanceRepository) Update(context.Context, *activeModels.Attendance) error {
+	r.calls = append(r.calls, "update")
+	return nil
+}
 
 type recordingAttendanceSyncer struct {
 	loaded   []*activeModels.Visit
@@ -249,6 +271,30 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updateCalled, "expected visit update")
 	})
+}
+
+func TestUpdateVisitLocksAttendanceBeforeClosingIt(t *testing.T) {
+	entryTime := time.Now().Add(-time.Hour)
+	exitTime := time.Now()
+	existing := &activeModels.Visit{
+		Model: base.Model{ID: 101}, StudentID: 201, ActiveGroupID: 301, EntryTime: entryTime,
+	}
+	updated := *existing
+	updated.ExitTime = &exitTime
+	attendance := &lockingAttendanceRepository{row: &activeModels.Attendance{
+		StudentID: existing.StudentID, Date: timezone.DateFromTime(entryTime), CheckInTime: entryTime,
+	}}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) { return existing, nil },
+		},
+		AttendanceRepo: attendance,
+	}}
+
+	err := svc.UpdateVisit(context.Background(), &updated)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lock", "find", "update"}, attendance.calls)
 }
 
 func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing.T) {

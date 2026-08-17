@@ -103,6 +103,9 @@ func (s *service) syncAttendanceForVisitRevision(
 	if s.AttendanceRepo == nil || previous == nil || updated == nil || previous.StudentID != updated.StudentID {
 		return nil
 	}
+	if err := s.AttendanceRepo.LockStudentAttendance(ctx, previous.StudentID); err != nil {
+		return err
+	}
 	rows, err := s.AttendanceRepo.FindByStudentAndDate(
 		ctx, previous.StudentID, timezone.DateFromTime(previous.EntryTime),
 	)
