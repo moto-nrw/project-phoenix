@@ -451,6 +451,20 @@ export function CarePlanEditorModal({
                   showReason={pickupMode !== "regular"}
                 />
               </div>
+              {pickupPulledForward(pickupMode, pickupTime, pickupDay) ? (
+                <div className="border-moto-amber/40 bg-moto-amber-soft text-moto-amber-strong flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
+                  <Clock
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    Abholung vorverlegt: Betreuungsblöcke, die um {pickupTime}{" "}
+                    Uhr oder später beginnen, werden für diesen Tag automatisch
+                    abgemeldet (entschuldigt). Wird die Zeit wieder geändert
+                    oder die Ausnahme entfernt, gilt der reguläre Plan.
+                  </span>
+                </div>
+              ) : null}
               {onResetPickupToOffering &&
               pickupDay?.baseSchedule &&
               pickupDay.baseSchedule.source !== "care_offering" ? (
@@ -1084,6 +1098,24 @@ function formatRegularArrival(day: ArrivalDayData | null): string {
   return day?.baseSchedule?.expected_arrival
     ? day.baseSchedule.expected_arrival.slice(0, 5)
     : "nicht geplant";
+}
+
+/**
+ * True when the entered day pickup time is EARLIER than the weekly baseline —
+ * the backend then derives an automatic partial absence for the blocks after
+ * the new time (#2360). Mirrors the backend trigger: no baseline, equal, or
+ * later times never couple, so no hint is shown for them.
+ */
+function pickupPulledForward(
+  mode: PickupMode,
+  time: string,
+  day: PickupDayData | null,
+): boolean {
+  if (mode !== "time" || !TIME_PATTERN.test(time)) return false;
+  if (!day?.baseSchedule?.pickupTime) return false;
+  const baseline = formatPickupTime(day.baseSchedule.pickupTime);
+  if (!TIME_PATTERN.test(baseline)) return false;
+  return time.padStart(5, "0") < baseline.padStart(5, "0");
 }
 
 function formatRegularPickup(day: PickupDayData | null): string {

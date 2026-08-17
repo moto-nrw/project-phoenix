@@ -80,6 +80,7 @@ type effectiveExceptionFields struct {
 	ExcusedReason     *string
 	ExcusedCreatedBy  *int64
 	ExcusedOwnsTime   bool
+	ExcusedAuto       bool
 	TimeChanged       bool
 }
 

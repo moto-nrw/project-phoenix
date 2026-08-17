@@ -490,6 +490,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     note: s.note,
     checkedInAt: s.checked_in_at,
     careDayStatus: s.care_day_status ?? "unknown",
+    earlyPickupTime: s.early_pickup_time ?? undefined,
   }));
   const studentIds =
     students.length > 0

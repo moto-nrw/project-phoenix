@@ -1151,6 +1151,14 @@ function StudentGroup({
                   ? ` • ${attendanceSubstatusLabel(student.substatus)}`
                   : ""}
                 {student.note ? ` • ${student.note}` : ""}
+                {student.earlyPickupTime ? (
+                  <span
+                    className="font-semibold"
+                    style={{ color: LOCATION_COLORS.WARNING }}
+                  >
+                    {` • Abholung ${student.earlyPickupTime} Uhr`}
+                  </span>
+                ) : null}
               </div>
             </div>
             {onAttendancePatch && (

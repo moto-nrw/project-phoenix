@@ -432,8 +432,12 @@ type ServiceConfig struct {
 	StudentRepo          usersModels.StudentRepository
 	PickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
 	ArrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
-	Settings             configService.SettingsService
-	Broadcaster          realtime.Broadcaster
+	// PickupAutoExcusal couples pulled-forward day pickup times with the
+	// per-block partial-absence mechanics (#2360). Optional in tests; nil
+	// skips the coupling.
+	PickupAutoExcusal *scheduleSvc.PickupAutoExcusalSyncer
+	Settings          configService.SettingsService
+	Broadcaster       realtime.Broadcaster
 
 	// Weekly care plan read view + change requests (#1803).
 	ArrivalSchedules scheduleSvc.ArrivalScheduleService

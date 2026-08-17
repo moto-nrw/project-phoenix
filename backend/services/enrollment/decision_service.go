@@ -420,7 +420,23 @@ type DecisionServiceConfig struct {
 	// schedule RosterReconciler; a nil value skips the pass with a warning
 	// (mock-only wirings).
 	InstanceRosters SourcedInstanceRosterReconciler
-	Logger          *slog.Logger
+	// ResyncPickupAutoExcusals re-derives the auto partial absences coupled to
+	// the students' future day pickup exceptions after offering-sourced weekly
+	// Gehzeit rows changed (#2360): a moved or removed weekday baseline
+	// re-qualifies or releases them exactly like a staff weekly edit does.
+	// Runs in the caller's transaction. Production wires the schedule
+	// PickupAutoExcusalSyncer; tests may leave it nil.
+	ResyncPickupAutoExcusals func(ctx context.Context, studentIDs []int64) error
+	// LockPickupStudents takes the students' care locks (users.students row
+	// FOR UPDATE, ascending order) BEFORE the reconciler writes weekly
+	// Gehzeit rows. Staff weekly editors lock the student first and schedule
+	// rows second; the offering reconciler must acquire in the same order or
+	// a concurrent staff edit can deadlock against it (#2360 review). Runs in
+	// the caller's transaction; missing students (concurrent offboarding) are
+	// skipped. Production wires the schedule care-student lock; tests may
+	// leave it nil.
+	LockPickupStudents func(ctx context.Context, studentIDs []int64) error
+	Logger             *slog.Logger
 }
 
 type decisionService struct {
@@ -3635,6 +3651,8 @@ func (s *decisionService) applyTargetedFields(
 
 	pickupScheduleDeleted := false
 	arrivalScheduleDeleted := false
+	pickupScheduleLockTaken := false
+	pickupScheduleChanged := false
 
 	for i := range schema.Fields {
 		field := schema.Fields[i]
@@ -3725,18 +3743,31 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
+			// Student lock BEFORE the weekly rewrite — the shared first lock of
+			// every care-day writer — so the auto-excusal resync after the loop
+			// keeps the student → care-day lock order (#2360 review).
+			if !pickupScheduleLockTaken {
+				if err := s.lockPickupStudents(ctx, []int64{student.ID}); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+					continue
+				}
+				pickupScheduleLockTaken = true
+			}
 			if replaceSchedules && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
 				pickupScheduleDeleted = true
 				if err := s.PickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
 					continue
 				}
+				pickupScheduleChanged = true
 			}
 			if raw == nil {
 				continue
 			}
 			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, true); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				pickupScheduleChanged = true
 			}
 		case enrollmentModels.TargetScheduleArrival:
 			if replaceSchedules && s.ArrivalScheduleRepo != nil && !arrivalScheduleDeleted {
@@ -3776,6 +3807,17 @@ func (s *decisionService) applyTargetedFields(
 					errs = append(errs, fmt.Sprintf("%s: remove stale links: %v", field.Target, err))
 				}
 			}
+		}
+	}
+
+	// A replaced or re-dispatched weekly pickup plan moves the same baseline a
+	// staff weekly edit does, so the auto excusals of the student's future day
+	// exceptions must re-derive in the same transaction (#2360 review) — a
+	// pulled-forward day exception would otherwise keep an obsolete excusal
+	// state after re-enrollment until someone edits it.
+	if pickupScheduleChanged {
+		if err := s.resyncPickupAutoExcusals(ctx, []int64{student.ID}); err != nil {
+			errs = append(errs, err.Error())
 		}
 	}
 

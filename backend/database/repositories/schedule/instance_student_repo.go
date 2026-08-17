@@ -578,6 +578,60 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}
 	}
 	n, _ := res.RowsAffected()
+
+	// Replay any partial excusal for the released day (#2360): a broad day
+	// status may coexist with an AUTO-derived partial absence (a pulled-forward
+	// pickup time). The release above restores the status day's rows to
+	// 'expected'; without this replay the blocks after the pickup cutoff would
+	// stay expected even though the child is still picked up early. Mirrors
+	// ApplyPartialAbsence keyed by (student, date) instead of exception id; a
+	// no-op when no timed excusal exists for the day. Completed instances are
+	// additionally excluded: the release above deliberately preserves them as
+	// historical absent, and the replay must not rewrite that record to excused
+	// with fresh pickup provenance (#2360 review).
+	_, err = base.GetDB(ctx, r.db).NewRaw(`
+		WITH released AS (
+			SELECT tenant_id, student_id, date
+			FROM active.student_status_days
+			WHERE tenant_id = ? AND id = ?
+		)
+		UPDATE schedule.instance_students AS attendance
+		SET status = ?,
+			substatus = ?,
+			student_status_day_id = NULL,
+			pickup_exception_id = exc.id,
+			updated_at = ?
+		FROM schedule.activity_instances AS instance,
+			released,
+			schedule.student_pickup_exceptions AS exc
+		WHERE exc.tenant_id = released.tenant_id
+			AND exc.student_id = released.student_id
+			AND exc.exception_date = released.date
+			AND exc.excused_from IS NOT NULL
+			AND attendance.tenant_id = exc.tenant_id
+			AND attendance.student_id = exc.student_id
+			AND attendance.manual_status_at IS NULL
+			AND NOT attendance.not_scheduled
+			AND (
+				attendance.status = ?
+				OR (
+					attendance.status = ?
+					AND attendance.pickup_exception_id IS NULL
+					AND attendance.student_status_day_id IS NULL
+				)
+			)
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+			AND instance.date = exc.exception_date
+			AND instance.start_time >= exc.excused_from
+			AND instance.status NOT IN (?, ?)
+	`, tenant.FromContext(ctx), statusDayID,
+		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
+		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
+		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "replay partial absence after status day release", Err: err}
+	}
 	return int(n), nil
 }
 
@@ -629,7 +683,11 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 // The predicate also claims bare absences (status=absent, no provenance): the
 // session-end bridge flips expected → absent without the shared care-day lock,
 // so a concurrent partial write can otherwise persist the exception with no
-// owned rows and leave ReleasePartialAbsence unable to reconcile them.
+// owned rows and leave ReleasePartialAbsence unable to reconcile them. The
+// bridge only touches still-active instances; completed instances are a
+// closed historical record and excluded here — the auto-excusal sync runs
+// this projection on same-day pickup and weekly-baseline changes and must
+// not rewrite what already happened (#2360 review).
 func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH partial_absence AS (
@@ -660,11 +718,11 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 			AND instance.tenant_id = attendance.tenant_id
 			AND instance.date = partial_absence.exception_date
 			AND instance.start_time >= partial_absence.excused_from
-			AND instance.status <> ?
+			AND instance.status NOT IN (?, ?)
 	`, tenant.FromContext(ctx), pickupExceptionID,
 		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
-		schedule.InstanceStatusCancelled).Exec(ctx)
+		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "apply partial absence to slots", Err: err}
 	}
@@ -673,8 +731,11 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 }
 
 // ReleasePartialAbsence restores only rows still owned by this pickup
-// exception. A broad active day status takes ownership; otherwise completed
-// blocks remain absent and actionable blocks return to expected.
+// exception. A broad active day status takes ownership; otherwise actionable
+// blocks return to expected. Completed instances are excluded entirely — they
+// are a closed historical record, and the apply side treats them as immutable
+// for the same reason (#2360 review): the row keeps its excused substatus and
+// pickup provenance instead of being rewritten by a later pickup-time change.
 func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH released AS (
@@ -698,7 +759,6 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 		UPDATE schedule.instance_students AS attendance
 		SET status = CASE
 				WHEN replacement.id IS NOT NULL THEN ?
-				WHEN instance.status = ? THEN ?
 				ELSE ?
 			END,
 			substatus = CASE replacement.status
@@ -716,12 +776,13 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 			AND attendance.student_id = replacement.student_id
 			AND instance.id = attendance.instance_id
 			AND instance.tenant_id = attendance.tenant_id
+			AND instance.status <> ?
 	`, tenant.FromContext(ctx), pickupExceptionID,
-		schedule.AttendanceStatusAbsent,
-		schedule.InstanceStatusCompleted, schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
+		schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
 		schedule.AttendanceSubstatusSick, schedule.AttendanceSubstatusExcused,
 		schedule.AttendanceSubstatusFieldTrip,
-		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID).Exec(ctx)
+		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID,
+		schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: err}
 	}

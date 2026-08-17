@@ -111,6 +111,13 @@ export interface InstanceStudentSummary {
    * nothing.
    */
   careDayStatus?: CareDayStatus;
+  /**
+   * HH:MM, gesetzt wenn die Tages-Abholzeit des Kindes IN diesen Block fällt
+   * (Block 14:00-15:00, Abholung 14:45): das Kind bleibt erwartet, geht aber
+   * früher — der Block zeigt den Hinweis statt still falsch einzustufen
+   * (#2360).
+   */
+  earlyPickupTime?: string;
 }
 
 /**
@@ -222,6 +229,7 @@ interface BackendInstanceStudentSummary {
   note?: string | null;
   checked_in_at?: string | null;
   care_day_status?: CareDayStatus;
+  early_pickup_time?: string | null;
 }
 
 export interface BackendEnrichedInstance {
