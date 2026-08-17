@@ -110,9 +110,11 @@ func autoPartialAbsenceDown(ctx context.Context, db *bun.DB) error {
 
 	// Restore linked blocks with the same ownership rules as
 	// ReleasePartialAbsence: a still-active full-day status takes over the
-	// row, completed blocks stay absent, and only actionable blocks return to
-	// expected — an unconditional reset would reopen completed blocks or
-	// override an active sick/excused day.
+	// row, and only actionable blocks return to expected — an unconditional
+	// reset would reopen completed blocks or override an active sick/excused
+	// day. Completed instances are excluded entirely (like the runtime
+	// release): they are a closed historical record and keep their excused
+	// substatus and pickup provenance.
 	_, err := db.NewRaw(`
 		WITH released AS (
 			SELECT tenant_id, id, student_id, exception_date
@@ -139,7 +141,6 @@ func autoPartialAbsenceDown(ctx context.Context, db *bun.DB) error {
 		UPDATE schedule.instance_students AS attendance
 		SET status = CASE
 				WHEN replacement.status_day_id IS NOT NULL THEN 'absent'
-				WHEN instance.status = 'completed' THEN 'absent'
 				ELSE 'expected'
 			END,
 			substatus = CASE replacement.status_day_status
@@ -156,13 +157,19 @@ func autoPartialAbsenceDown(ctx context.Context, db *bun.DB) error {
 			AND attendance.pickup_exception_id = replacement.exception_id
 			AND attendance.student_id = replacement.student_id
 			AND instance.id = attendance.instance_id
-			AND instance.tenant_id = attendance.tenant_id;
+			AND instance.tenant_id = attendance.tenant_id
+			AND instance.status <> 'completed';
 
+		-- excused_auto must flip in the same statement that clears
+		-- excused_from: the feature's check constraint requires auto rows to
+		-- carry a non-null excused_from, so clearing one without the other
+		-- violates it while the constraint is still installed.
 		UPDATE schedule.student_pickup_exceptions
 		SET excused_from = NULL,
 			excused_reason = NULL,
 			excused_created_by = NULL,
-			excused_owns_pickup_time = FALSE
+			excused_owns_pickup_time = FALSE,
+			excused_auto = FALSE
 		WHERE excused_auto;
 
 		ALTER TABLE schedule.student_pickup_exceptions

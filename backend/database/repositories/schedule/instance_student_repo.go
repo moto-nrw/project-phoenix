@@ -731,8 +731,11 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 }
 
 // ReleasePartialAbsence restores only rows still owned by this pickup
-// exception. A broad active day status takes ownership; otherwise completed
-// blocks remain absent and actionable blocks return to expected.
+// exception. A broad active day status takes ownership; otherwise actionable
+// blocks return to expected. Completed instances are excluded entirely — they
+// are a closed historical record, and the apply side treats them as immutable
+// for the same reason (#2360 review): the row keeps its excused substatus and
+// pickup provenance instead of being rewritten by a later pickup-time change.
 func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH released AS (
@@ -756,7 +759,6 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 		UPDATE schedule.instance_students AS attendance
 		SET status = CASE
 				WHEN replacement.id IS NOT NULL THEN ?
-				WHEN instance.status = ? THEN ?
 				ELSE ?
 			END,
 			substatus = CASE replacement.status
@@ -774,12 +776,13 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 			AND attendance.student_id = replacement.student_id
 			AND instance.id = attendance.instance_id
 			AND instance.tenant_id = attendance.tenant_id
+			AND instance.status <> ?
 	`, tenant.FromContext(ctx), pickupExceptionID,
-		schedule.AttendanceStatusAbsent,
-		schedule.InstanceStatusCompleted, schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
+		schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
 		schedule.AttendanceSubstatusSick, schedule.AttendanceSubstatusExcused,
 		schedule.AttendanceSubstatusFieldTrip,
-		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID).Exec(ctx)
+		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID,
+		schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: err}
 	}
