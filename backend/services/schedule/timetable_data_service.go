@@ -113,10 +113,12 @@ func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instance
 }
 
 // GetPartialAbsenceCutoffsForDate returns, per student, the wall-clock time
-// from which the child is partially excused on the date (excused_from on the
-// day's pickup exception — manual and auto-derived alike). The planner uses
-// it to mark blocks the pickup time falls INTO ("Abholung 14:45" on a
-// 14:00-15:00 block), which stay expected but end early (#2360).
+// from which the child is auto-excused on the date. Only auto-derived rows
+// qualify: their excused_from IS the day's actual pickup time, so the planner
+// may render it as "Abholung 14:45" on the block the time falls INTO (which
+// stays expected but ends early, #2360). A manual partial absence's
+// excused_from can differ from the day's pickup time — showing it as a pickup
+// time would be false, so manual rows never feed this marker.
 func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
 	ctx context.Context, studentIDs []int64, date timezone.Date,
 ) (map[int64]time.Time, error) {
@@ -129,7 +131,7 @@ func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
 	}
 	cutoffs := make(map[int64]time.Time, len(rows))
 	for _, row := range rows {
-		if row != nil && row.ExcusedFrom != nil {
+		if row != nil && row.ExcusedAuto && row.ExcusedFrom != nil {
 			cutoffs[row.StudentID] = timezone.WallClock(*row.ExcusedFrom)
 		}
 	}

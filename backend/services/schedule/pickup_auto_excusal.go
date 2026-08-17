@@ -2,11 +2,14 @@ package schedule
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/uptrace/bun"
 )
 
 // PickupAutoExcusalSyncer derives partial absences from pulled-forward day
@@ -29,19 +32,24 @@ type PickupAutoExcusalSyncer struct {
 	pickups scheduleModel.StudentPickupExceptionRepository
 	weekly  scheduleModel.StudentPickupScheduleRepository
 	slots   scheduleModel.InstanceStudentRepository
+	db      *bun.DB
 }
 
 // NewPickupAutoExcusalSyncer wires the auto-excusal sync used by the staff
-// pickup-exception writers and the parent care-exception writers.
+// pickup-exception writers, the parent care-exception writers, and the
+// weekly-baseline writers (ResyncFutureExceptions needs db for the per-day
+// care locks).
 func NewPickupAutoExcusalSyncer(
 	pickups scheduleModel.StudentPickupExceptionRepository,
 	weekly scheduleModel.StudentPickupScheduleRepository,
 	slots scheduleModel.InstanceStudentRepository,
+	db *bun.DB,
 ) *PickupAutoExcusalSyncer {
 	return &PickupAutoExcusalSyncer{
 		pickups: pickups,
 		weekly:  weekly,
 		slots:   slots,
+		db:      db,
 	}
 }
 
@@ -137,6 +145,46 @@ func (s *PickupAutoExcusalSyncer) DetachRow(ctx context.Context, row *scheduleMo
 	normalizePickupExceptionTimes(row)
 	if err := s.pickups.Update(ctx, row); err != nil {
 		return fmt.Errorf("auto excusal: clear pickup exception %d: %w", row.ID, err)
+	}
+	return nil
+}
+
+// ResyncFutureExceptions re-runs the auto-excusal decision for every upcoming
+// pickup exception (today onwards) of the student. Weekly-baseline writers
+// call it in the same transaction as their change: moving a weekday time
+// earlier, later, or removing it re-derives or releases the coupled block
+// absences instead of leaving them stale until someone edits the day
+// exception. Manual partial absences stay untouched, matching Sync.
+//
+// Must run inside a tenant transaction. It takes the student row lock first
+// (the shared first lock of every care-day writer — this also stabilizes the
+// upcoming-exception set) and then the per-day care locks in ascending date
+// order. A missing student (offboarding in the same transaction) is a no-op.
+func (s *PickupAutoExcusalSyncer) ResyncFutureExceptions(ctx context.Context, studentID int64) error {
+	if err := LockCareStudent(ctx, s.db, studentID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("auto excusal: lock student %d for weekly resync: %w", studentID, err)
+	}
+	rows, err := s.pickups.FindUpcomingByStudentID(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("auto excusal: load upcoming pickup exceptions for student %d: %w", studentID, err)
+	}
+	for _, row := range rows {
+		if row == nil || row.HasManualPartialAbsence() {
+			continue
+		}
+		// Rows that can neither gain nor lose an auto excusal need no day lock.
+		if row.PickupTime == nil && !row.ExcusedAuto {
+			continue
+		}
+		if err := LockCareExceptionDay(ctx, s.db, row.StudentID, row.ExceptionDate); err != nil {
+			return fmt.Errorf("auto excusal: lock care day %s for weekly resync: %w", row.ExceptionDate, err)
+		}
+		if _, err := s.Sync(ctx, row.ID); err != nil {
+			return err
+		}
 	}
 	return nil
 }

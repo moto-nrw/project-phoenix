@@ -19,7 +19,7 @@ import (
 
 // autoExcusalHarness bundles everything the pickup auto-excusal tests need:
 // a pickup service with the syncer wired, the raw repos for assertions, and
-// a Monday fixture day (2026-09-14) with three care blocks.
+// a future Monday fixture day with three care blocks.
 type autoExcusalHarness struct {
 	db      *bun.DB
 	ctx     context.Context
@@ -53,6 +53,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 		repos.StudentPickupException,
 		repos.StudentPickupSchedule,
 		repos.InstanceStudent,
+		db,
 	)
 	svc := scheduleService.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
@@ -76,8 +77,13 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 	staff := testpkg.CreateTestStaff(t, db, "Auto", "Staff")
 	room := testpkg.CreateTestRoom(t, db, "Auto excusal room")
 
-	// 2026-09-14 is a Monday (weekday 1).
-	date := timezone.NewDate(2026, 9, 14)
+	// Next Monday strictly in the future: the weekly-resync tests rely on the
+	// exception staying inside FindUpcomingByStudentID (today onwards), so a
+	// pinned calendar date would rot once it passes.
+	date := timezone.TodayDate().AddDays(1)
+	for date.Weekday() != time.Monday {
+		date = date.AddDays(1)
+	}
 	require.Equal(t, time.Monday, date.Weekday(), "fixture date must be a Monday")
 
 	var scheduleIDs []int64
@@ -294,6 +300,110 @@ func TestAutoExcusal_ManualDeleteRefusesAutoRows(t *testing.T) {
 	require.ErrorIs(t, err, scheduleService.ErrPartialAbsenceAutoManaged)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.afterRow).Status,
 		"refused delete must not release the blocks")
+}
+
+func (h *autoExcusalHarness) exception(t *testing.T) *scheduleModel.StudentPickupException {
+	t.Helper()
+	row, err := repositories.NewFactory(h.db).StudentPickupException.FindByStudentIDAndDate(h.ctx, h.student.ID, h.date)
+	require.NoError(t, err)
+	return row
+}
+
+func TestAutoExcusal_WeeklyBaselineMovedEarlierReleasesCoupling(t *testing.T) {
+	h := setupAutoExcusalHarness(t, true)
+
+	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
+	require.NoError(t, err)
+	require.True(t, row.ExcusedAuto)
+	require.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.afterRow).Status)
+
+	// Monday baseline moves to 14:00 — a 14:45 pickup is no pull-forward
+	// anymore, so the weekly write must release the coupling.
+	err = h.svc.UpsertStudentPickupSchedule(h.ctx, &scheduleModel.StudentPickupSchedule{
+		StudentID:  h.student.ID,
+		Weekday:    scheduleModel.WeekdayMonday,
+		PickupTime: *wallClockAt(14, 0),
+		CreatedBy:  h.staffID,
+	})
+	require.NoError(t, err)
+
+	fresh := h.exception(t)
+	require.NotNil(t, fresh)
+	assert.False(t, fresh.ExcusedAuto)
+	assert.Nil(t, fresh.ExcusedFrom)
+	after := h.attendance(t, h.afterRow)
+	assert.Equal(t, scheduleModel.AttendanceStatusExpected, after.Status)
+	assert.Nil(t, after.PickupExceptionID)
+}
+
+func TestAutoExcusal_WeeklyBaselineDeletedReleasesCoupling(t *testing.T) {
+	h := setupAutoExcusalHarness(t, true)
+
+	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
+	require.NoError(t, err)
+	require.True(t, row.ExcusedAuto)
+
+	// Without a weekly baseline there is no Vorverlegung — deleting the plan
+	// must release the derived absences.
+	require.NoError(t, h.svc.DeleteAllStudentPickupSchedules(h.ctx, h.student.ID))
+
+	fresh := h.exception(t)
+	require.NotNil(t, fresh)
+	assert.False(t, fresh.ExcusedAuto)
+	assert.Nil(t, fresh.ExcusedFrom)
+	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.afterRow).Status)
+}
+
+func TestAutoExcusal_WeeklyBaselineAddedCouplesExistingException(t *testing.T) {
+	h := setupAutoExcusalHarness(t, false)
+
+	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
+	require.NoError(t, err)
+	require.False(t, row.ExcusedAuto, "without a baseline the exception starts uncoupled")
+
+	// A baseline appearing AFTER the exception makes 14:45 a pull-forward —
+	// the weekly write must derive the coupling for the stored exception.
+	err = h.svc.UpsertStudentPickupSchedule(h.ctx, &scheduleModel.StudentPickupSchedule{
+		StudentID:  h.student.ID,
+		Weekday:    scheduleModel.WeekdayMonday,
+		PickupTime: *wallClockAt(16, 0),
+		CreatedBy:  h.staffID,
+	})
+	require.NoError(t, err)
+
+	fresh := h.exception(t)
+	require.NotNil(t, fresh)
+	assert.True(t, fresh.ExcusedAuto)
+	require.NotNil(t, fresh.ExcusedFrom)
+	assert.Equal(t, "14:45", timezone.WallClock(*fresh.ExcusedFrom).Format("15:04"))
+	after := h.attendance(t, h.afterRow)
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, after.Status)
+	require.NotNil(t, after.PickupExceptionID)
+	assert.Equal(t, fresh.ID, *after.PickupExceptionID)
+}
+
+func TestAutoExcusal_BulkWeeklyUpsertResyncsExceptions(t *testing.T) {
+	h := setupAutoExcusalHarness(t, true)
+
+	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
+	require.NoError(t, err)
+	require.True(t, row.ExcusedAuto)
+
+	// The multi-student bulk editor moves Monday to 13:30 — the stored 14:45
+	// exception is later than the new baseline and must decouple.
+	_, err = h.svc.BulkUpsertPickupSchedules(
+		h.ctx,
+		scheduleService.ArrivalScheduleBulkFilter{StudentIDs: []int64{h.student.ID}},
+		[]scheduleService.PickupScheduleInput{{Weekday: scheduleModel.WeekdayMonday, PickupTime: "13:30"}},
+		h.staffID,
+	)
+	require.NoError(t, err)
+
+	fresh := h.exception(t)
+	require.NotNil(t, fresh)
+	assert.False(t, fresh.ExcusedAuto)
+	assert.Nil(t, fresh.ExcusedFrom)
+	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.afterRow).Status)
 }
 
 func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {

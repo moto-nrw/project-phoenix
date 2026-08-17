@@ -420,7 +420,14 @@ type DecisionServiceConfig struct {
 	// schedule RosterReconciler; a nil value skips the pass with a warning
 	// (mock-only wirings).
 	InstanceRosters SourcedInstanceRosterReconciler
-	Logger          *slog.Logger
+	// ResyncPickupAutoExcusals re-derives the auto partial absences coupled to
+	// the students' future day pickup exceptions after offering-sourced weekly
+	// Gehzeit rows changed (#2360): a moved or removed weekday baseline
+	// re-qualifies or releases them exactly like a staff weekly edit does.
+	// Runs in the caller's transaction. Production wires the schedule
+	// PickupAutoExcusalSyncer; tests may leave it nil.
+	ResyncPickupAutoExcusals func(ctx context.Context, studentIDs []int64) error
+	Logger                   *slog.Logger
 }
 
 type decisionService struct {

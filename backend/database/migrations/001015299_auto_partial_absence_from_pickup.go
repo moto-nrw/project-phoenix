@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 const (
@@ -42,6 +44,62 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed adding excused_auto to pickup exceptions: %w", err)
+	}
+
+	// Backfill: exceptions stored BEFORE this feature whose day pickup time is
+	// earlier than the weekly baseline of that weekday must couple too —
+	// otherwise they stay unflagged until someone edits them. Flag them and
+	// apply the block absences in one statement, mirroring the runtime rule
+	// (strictly earlier than the baseline; rows with any existing partial
+	// absence, manual or otherwise, are skipped) and the runtime
+	// ApplyPartialAbsence predicate (never rows with recorded attendance, a
+	// manual status, a status-day owner, or on cancelled instances). Today is
+	// computed in Berlin time, matching timezone.TodayDate() at runtime.
+	res, err := db.NewRaw(`
+		WITH flagged AS (
+			UPDATE schedule.student_pickup_exceptions AS exc
+			SET excused_from = exc.pickup_time,
+				excused_auto = TRUE
+			FROM schedule.student_pickup_schedules AS weekly
+			WHERE weekly.tenant_id = exc.tenant_id
+				AND weekly.student_id = exc.student_id
+				AND weekly.weekday = EXTRACT(ISODOW FROM exc.exception_date)::int
+				AND exc.exception_date >= ?
+				AND exc.pickup_time IS NOT NULL
+				AND exc.excused_from IS NULL
+				AND exc.pickup_time < weekly.pickup_time
+			RETURNING exc.tenant_id, exc.id, exc.student_id, exc.exception_date, exc.excused_from
+		)
+		UPDATE schedule.instance_students AS attendance
+		SET status = 'absent',
+			substatus = 'excused',
+			student_status_day_id = NULL,
+			pickup_exception_id = flagged.id,
+			updated_at = NOW()
+		FROM flagged, schedule.activity_instances AS instance
+		WHERE attendance.tenant_id = flagged.tenant_id
+			AND attendance.student_id = flagged.student_id
+			AND attendance.manual_status_at IS NULL
+			AND NOT attendance.not_scheduled
+			AND (
+				attendance.status = 'expected'
+				OR (
+					attendance.status = 'absent'
+					AND attendance.pickup_exception_id IS NULL
+					AND attendance.student_status_day_id IS NULL
+				)
+			)
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+			AND instance.date = flagged.exception_date
+			AND instance.start_time >= flagged.excused_from
+			AND instance.status <> 'cancelled'
+	`, timezone.TodayDate()).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed backfilling auto partial absences from pickup exceptions: %w", err)
+	}
+	if rows, rowsErr := res.RowsAffected(); rowsErr == nil {
+		fmt.Printf("Migration 1.15.299: backfilled %d attendance blocks from existing pulled-forward pickup exceptions\n", rows)
 	}
 	return nil
 }

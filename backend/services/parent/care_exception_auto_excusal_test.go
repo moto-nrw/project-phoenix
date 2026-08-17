@@ -36,6 +36,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (parentService.Service, *bun.
 			repos.StudentPickupException,
 			repos.StudentPickupSchedule,
 			repos.InstanceStudent,
+			db,
 		),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},

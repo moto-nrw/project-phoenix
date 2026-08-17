@@ -262,6 +262,9 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 			if err := s.PickupScheduleRepo.Delete(ctx, existing.ID); err != nil {
 				return nil, fmt.Errorf("delete pickup schedule: %w", err)
 			}
+			if err := s.resyncPickupAutoExcusals(ctx, []int64{studentID}); err != nil {
+				return nil, err
+			}
 		}
 		return nil, nil
 	}
@@ -285,6 +288,9 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 	}
 	if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
 		return nil, fmt.Errorf("upsert pickup schedule: %w", err)
+	}
+	if err := s.resyncPickupAutoExcusals(ctx, []int64{studentID}); err != nil {
+		return nil, err
 	}
 	return row, nil
 }
@@ -378,8 +384,24 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 			}
 		}
 	}
+	if err := s.resyncPickupAutoExcusals(ctx, stats.changedStudentIDs()); err != nil {
+		return nil, err
+	}
 	s.deferOfferingPickupBroadcasts(ctx, stats.changedStudentIDs())
 	return stats, nil
+}
+
+// resyncPickupAutoExcusals re-derives the auto partial absences of the
+// students' future day pickup exceptions after their weekly Gehzeit baseline
+// changed (#2360). Nil-safe for mock-only wirings.
+func (s *decisionService) resyncPickupAutoExcusals(ctx context.Context, studentIDs []int64) error {
+	if s.ResyncPickupAutoExcusals == nil || len(studentIDs) == 0 {
+		return nil
+	}
+	if err := s.ResyncPickupAutoExcusals(ctx, studentIDs); err != nil {
+		return fmt.Errorf("resync pickup auto excusals: %w", err)
+	}
+	return nil
 }
 
 func (s *decisionService) deferOfferingPickupBroadcasts(ctx context.Context, studentIDs []int64) {

@@ -243,6 +243,13 @@ func (s *pickupScheduleService) BulkUpsertPickupSchedules(
 					return upsertErr
 				}
 			}
+			// The student row is already locked (FindByIDForUpdate above), so
+			// the resync's per-day locks keep the student → day order.
+			if s.autoExcusal != nil {
+				if syncErr := s.autoExcusal.ResyncFutureExceptions(txCtx, student.ID); syncErr != nil {
+					return syncErr
+				}
+			}
 			result.AffectedStudentIDs = append(result.AffectedStudentIDs, student.ID)
 		}
 		return nil
@@ -310,7 +317,12 @@ func (s *pickupScheduleService) UpsertStudentPickupSchedule(
 	ctx context.Context,
 	row *schedule.StudentPickupSchedule,
 ) error {
-	return s.core.UpsertSchedule(ctx, row)
+	if s.autoExcusal == nil {
+		return s.core.UpsertSchedule(ctx, row)
+	}
+	return s.withWeeklyResync(ctx, row.StudentID, func(txCtx context.Context) error {
+		return s.core.UpsertSchedule(txCtx, row)
+	})
 }
 
 func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
@@ -321,7 +333,35 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
 	if err := s.preserveOfferingProvenance(ctx, studentID, rows); err != nil {
 		return err
 	}
-	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+	if s.autoExcusal == nil {
+		return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+	}
+	return s.withWeeklyResync(ctx, studentID, func(txCtx context.Context) error {
+		return s.core.UpsertBulkSchedules(txCtx, studentID, rows)
+	})
+}
+
+// withWeeklyResync runs a weekly-baseline write in a tenant transaction and
+// re-derives the student's auto excusals afterwards (#2360 review): a changed
+// or removed weekday Gehzeit re-qualifies or releases the block absences of
+// every future day exception. Lock order is student row FIRST, then the
+// weekly rows, then the per-day care locks inside the resync — the same
+// student-first order all care-day writers use, so a weekly writer cannot
+// deadlock against a concurrent exception writer.
+func (s *pickupScheduleService) withWeeklyResync(
+	ctx context.Context,
+	studentID int64,
+	write func(txCtx context.Context) error,
+) error {
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
+			return err
+		}
+		if err := write(txCtx); err != nil {
+			return err
+		}
+		return s.autoExcusal.ResyncFutureExceptions(txCtx, studentID)
+	})
 }
 
 // preserveOfferingProvenance keeps the Angebots-Gehzeit ownership of weekly
@@ -367,14 +407,31 @@ func (s *pickupScheduleService) DeleteStudentPickupSchedule(
 	ctx context.Context,
 	scheduleID int64,
 ) error {
-	return s.core.DeleteSchedule(ctx, scheduleID)
+	if s.autoExcusal == nil {
+		return s.core.DeleteSchedule(ctx, scheduleID)
+	}
+	row, err := s.scheduleRepo.FindByID(ctx, scheduleID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return &ScheduleError{Op: "delete student pickup schedule", Err: err}
+	}
+	if row == nil {
+		return s.core.DeleteSchedule(ctx, scheduleID)
+	}
+	return s.withWeeklyResync(ctx, row.StudentID, func(txCtx context.Context) error {
+		return s.core.DeleteSchedule(txCtx, scheduleID)
+	})
 }
 
 func (s *pickupScheduleService) DeleteAllStudentPickupSchedules(
 	ctx context.Context,
 	studentID int64,
 ) error {
-	return s.core.DeleteAllSchedules(ctx, studentID)
+	if s.autoExcusal == nil {
+		return s.core.DeleteAllSchedules(ctx, studentID)
+	}
+	return s.withWeeklyResync(ctx, studentID, func(txCtx context.Context) error {
+		return s.core.DeleteAllSchedules(txCtx, studentID)
+	})
 }
 
 func (s *pickupScheduleService) GetStudentPickupExceptionByID(

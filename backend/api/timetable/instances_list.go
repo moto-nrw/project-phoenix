@@ -393,6 +393,12 @@ func summarizeInstanceStudents(
 			checkedInAt = &formatted
 		}
 		careDayStatus := instanceStudentCareDay(inst, row, careDays)
+		// The marker means "stays expected, leaves early" — a row a full-day
+		// status or manual absence flipped must not carry a pickup time.
+		var earlyPickup *string
+		if row.Status == scheduleModel.AttendanceStatusExpected {
+			earlyPickup = earlyPickupWithin(inst, pickupCutoffs, row.StudentID)
+		}
 		out.students = append(out.students, instanceStudentSummary{
 			StudentID:       row.StudentID,
 			Status:          row.Status,
@@ -400,7 +406,7 @@ func summarizeInstanceStudents(
 			Note:            row.Note,
 			CheckedInAt:     checkedInAt,
 			CareDayStatus:   careDayStatus,
-			EarlyPickupTime: earlyPickupWithin(inst, pickupCutoffs, row.StudentID),
+			EarlyPickupTime: earlyPickup,
 		})
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:

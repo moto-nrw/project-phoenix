@@ -61,6 +61,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Factory provides access to all services
@@ -888,6 +889,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupException,
 		repos.StudentPickupSchedule,
 		repos.InstanceStudent,
+		db,
 	)
 
 	// Initialize pickup schedule service
@@ -1627,7 +1629,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// Sourced-roster resyncs must also refresh already-materialized future
 		// occurrences (#2147 review) — the materializer never revisits them.
 		InstanceRosters: rosterReconciler,
-		Logger:          logger.With("service", "enrollment-decision"),
+		// Offering-sourced weekly Gehzeit changes move the same baseline a
+		// staff weekly edit does, so they re-derive the auto excusals of the
+		// students' future day exceptions too (#2360). The wrapper reuses an
+		// ambient tenant transaction and opens one otherwise — the resync's
+		// care-day locks are transaction-scoped.
+		ResyncPickupAutoExcusals: func(ctx context.Context, studentIDs []int64) error {
+			return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+				for _, studentID := range studentIDs {
+					if err := pickupAutoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		},
+		Logger: logger.With("service", "enrollment-decision"),
 	})
 	offeringRosterResyncer, ok := enrollmentDecisionService.(enrollment.OfferingRosterResyncer)
 	if !ok {
