@@ -9,9 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -67,55 +64,24 @@ type AbsenceNotifier interface {
 }
 
 type absenceNotifier struct {
-	notifier     Service
-	preferences  PreferenceService
-	students     userModel.StudentRepository
-	groups       educationModel.GroupRepository
-	staff        userModel.StaffRepository
-	accounts     authAccountReader
-	settings     settingsBoolReader
-	workSessions dutyReader
-	db           *bun.DB
-	logger       *slog.Logger
-}
-
-// authAccountReader is the slice of the account repository this producer needs.
-type authAccountReader interface {
-	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
-}
-
-type settingsBoolReader interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-}
-
-type dutyReader interface {
-	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
+	notifier   Service
+	recipients StaffRecipientResolver
+	db         *bun.DB
+	logger     *slog.Logger
 }
 
 // NewAbsenceNotifier builds the sick/excused producer.
 func NewAbsenceNotifier(
 	notifier Service,
-	preferences PreferenceService,
-	students userModel.StudentRepository,
-	groups educationModel.GroupRepository,
-	staff userModel.StaffRepository,
-	accounts authAccountReader,
-	settings settingsBoolReader,
-	workSessions dutyReader,
+	recipients StaffRecipientResolver,
 	db *bun.DB,
 	logger *slog.Logger,
 ) AbsenceNotifier {
 	return &absenceNotifier{
-		notifier:     notifier,
-		preferences:  preferences,
-		students:     students,
-		groups:       groups,
-		staff:        staff,
-		accounts:     accounts,
-		settings:     settings,
-		workSessions: workSessions,
-		db:           db,
-		logger:       logger,
+		notifier:   notifier,
+		recipients: recipients,
+		db:         db,
+		logger:     logger,
 	}
 }
 
@@ -155,7 +121,7 @@ func (n *absenceNotifier) NotifyAbsenceReported(ctx context.Context, report Abse
 }
 
 func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) error {
-	if n.notifier == nil || n.preferences == nil || n.settings == nil || n.workSessions == nil {
+	if n.notifier == nil || n.recipients == nil {
 		return nil
 	}
 	if report.TenantID <= 0 || len(report.StudentIDs) == 0 {
@@ -216,83 +182,29 @@ type absenceDelivery struct {
 // supervision relation, adds the full submission for effective admins, then
 // applies consent. Accounts with identical visibility share one event.
 func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceReport) ([]absenceDelivery, error) {
-	allStudentIDs := uniqueInt64s(report.StudentIDs)
-	studentsByGroup, groupIDs, err := n.studentIDsByGroup(ctx, allStudentIDs)
-	if err != nil {
-		return nil, err
-	}
-	visibleByAccount := make(map[int64]map[int64]struct{})
-	if len(groupIDs) > 0 {
-		pairs, perr := n.groups.ListStaffIDsByEducationGroupIDs(ctx, groupIDs, timezone.TodayDate())
-		if perr != nil {
-			return nil, fmt.Errorf("resolve supervising staff: %w", perr)
-		}
-		staffIDs := make([]int64, 0, len(pairs))
-		for _, pair := range pairs {
-			staffIDs = append(staffIDs, pair.StaffID)
-		}
-		accountsByStaff, aerr := n.staff.ListAccountIDsByStaffIDs(ctx, staffIDs)
-		if aerr != nil {
-			return nil, fmt.Errorf("resolve staff accounts: %w", aerr)
-		}
-		for _, pair := range pairs {
-			accountID, ok := accountsByStaff[pair.StaffID]
-			if !ok {
-				continue
-			}
-			addVisibleStudents(visibleByAccount, accountID, studentsByGroup[pair.GroupID])
-		}
-	}
-
-	// The office owns attendance bookkeeping and parent contact, so it hears
-	// about an absence regardless of which group the child is in. This is also
-	// what covers a child with no group at all.
-	adminIDs, err := n.accounts.ListEffectiveAdminAccountIDs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("resolve admin accounts: %w", err)
-	}
-	for _, accountID := range adminIDs {
-		addVisibleStudents(visibleByAccount, accountID, allStudentIDs)
-	}
-
-	delete(visibleByAccount, report.ActorAccountID)
-	for _, accountID := range report.ExcludedAccountIDs {
-		delete(visibleByAccount, accountID)
-	}
-	if len(visibleByAccount) == 0 {
-		return nil, nil
-	}
-
-	candidateIDs := make([]int64, 0, len(visibleByAccount))
-	for accountID := range visibleByAccount {
-		candidateIDs = append(candidateIDs, accountID)
-	}
-	sort.Slice(candidateIDs, func(i, j int) bool { return candidateIDs[i] < candidateIDs[j] })
-
-	optedIn, err := n.preferences.FilterOptedIn(ctx, TypeStudentAbsenceReported, candidateIDs)
-	if err != nil {
-		return nil, err
-	}
-	optedIn, err = n.filterOnDutyAccounts(ctx, optedIn)
+	excluded := make([]int64, 0, len(report.ExcludedAccountIDs)+1)
+	excluded = append(excluded, report.ExcludedAccountIDs...)
+	excluded = append(excluded, report.ActorAccountID)
+	scopes, err := n.recipients.Resolve(ctx, StaffRecipientRequest{
+		StudentIDs:         report.StudentIDs,
+		NotificationType:   TypeStudentAbsenceReported,
+		ExcludedAccountIDs: excluded,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	byScope := make(map[string]*absenceDelivery, len(optedIn))
-	keys := make([]string, 0, len(optedIn))
-	for _, accountID := range optedIn {
-		studentIDs := sortedInt64Set(visibleByAccount[accountID])
-		if len(studentIDs) == 0 {
-			continue
-		}
-		key := fmt.Sprint(studentIDs)
+	byScope := make(map[string]*absenceDelivery, len(scopes))
+	keys := make([]string, 0, len(scopes))
+	for _, scope := range scopes {
+		key := fmt.Sprint(scope.StudentIDs)
 		delivery := byScope[key]
 		if delivery == nil {
-			delivery = &absenceDelivery{studentIDs: studentIDs}
+			delivery = &absenceDelivery{studentIDs: scope.StudentIDs}
 			byScope[key] = delivery
 			keys = append(keys, key)
 		}
-		delivery.accountIDs = append(delivery.accountIDs, accountID)
+		delivery.accountIDs = append(delivery.accountIDs, scope.AccountID)
 	}
 	sort.Strings(keys)
 
@@ -305,114 +217,6 @@ func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceR
 		deliveries = append(deliveries, *delivery)
 	}
 	return deliveries, nil
-}
-
-func (n *absenceNotifier) filterOnDutyAccounts(ctx context.Context, accountIDs []int64) ([]int64, error) {
-	if len(accountIDs) == 0 {
-		return nil, nil
-	}
-	onDutyOnly, err := n.settings.ResolveBool(ctx, configModel.KeyNotificationsOnDutyOnly)
-	if err != nil {
-		return nil, fmt.Errorf("resolve on-duty notification setting: %w", err)
-	}
-	if !onDutyOnly {
-		return accountIDs, nil
-	}
-
-	presence, err := n.workSessions.GetTodayPresenceMap(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load staff presence: %w", err)
-	}
-	onDutyStaffIDs := make([]int64, 0, len(presence))
-	for staffID, status := range presence {
-		if status == activeModel.WorkSessionStatusPresent || status == activeModel.WorkSessionStatusHomeOffice {
-			onDutyStaffIDs = append(onDutyStaffIDs, staffID)
-		}
-	}
-	if len(onDutyStaffIDs) == 0 {
-		return nil, nil
-	}
-	accountsByStaff, err := n.staff.ListAccountIDsByStaffIDs(ctx, onDutyStaffIDs)
-	if err != nil {
-		return nil, fmt.Errorf("resolve staff accounts for duty filter: %w", err)
-	}
-	onDutyAccounts := make(map[int64]struct{}, len(accountsByStaff))
-	for _, staffID := range onDutyStaffIDs {
-		if accountID := accountsByStaff[staffID]; accountID > 0 {
-			onDutyAccounts[accountID] = struct{}{}
-		}
-	}
-
-	filtered := make([]int64, 0, len(accountIDs))
-	for _, accountID := range accountIDs {
-		if _, ok := onDutyAccounts[accountID]; ok {
-			filtered = append(filtered, accountID)
-		}
-	}
-	return filtered, nil
-}
-
-func addVisibleStudents(visibleByAccount map[int64]map[int64]struct{}, accountID int64, studentIDs []int64) {
-	if accountID <= 0 || len(studentIDs) == 0 {
-		return
-	}
-	if visibleByAccount[accountID] == nil {
-		visibleByAccount[accountID] = make(map[int64]struct{}, len(studentIDs))
-	}
-	for _, studentID := range studentIDs {
-		visibleByAccount[accountID][studentID] = struct{}{}
-	}
-}
-
-func uniqueInt64s(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	unique := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if _, exists := seen[id]; exists {
-			continue
-		}
-		seen[id] = struct{}{}
-		unique = append(unique, id)
-	}
-	return unique
-}
-
-func sortedInt64Set(ids map[int64]struct{}) []int64 {
-	sorted := make([]int64, 0, len(ids))
-	for id := range ids {
-		sorted = append(sorted, id)
-	}
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
-	return sorted
-}
-
-// studentIDsByGroup retains which reported children belong to each education
-// group; flattening this relation would leak the total submission size across
-// group boundaries.
-func (n *absenceNotifier) studentIDsByGroup(ctx context.Context, studentIDs []int64) (map[int64][]int64, []int64, error) {
-	if n.students == nil {
-		return map[int64][]int64{}, nil, nil
-	}
-	students, err := n.students.FindReadScopeByIDs(ctx, studentIDs)
-	if err != nil {
-		return nil, nil, fmt.Errorf("load reported students: %w", err)
-	}
-	studentsByGroup := make(map[int64][]int64)
-	seen := make(map[int64]struct{}, len(students))
-	groupIDs := make([]int64, 0, len(students))
-	for _, studentID := range studentIDs {
-		student := students[studentID]
-		if student == nil || student.GroupID == nil {
-			continue
-		}
-		studentsByGroup[*student.GroupID] = append(studentsByGroup[*student.GroupID], studentID)
-		if _, dup := seen[*student.GroupID]; dup {
-			continue
-		}
-		seen[*student.GroupID] = struct{}{}
-		groupIDs = append(groupIDs, *student.GroupID)
-	}
-	return studentsByGroup, groupIDs, nil
 }
 
 func absenceBody(report AbsenceReport) string {
