@@ -9,10 +9,18 @@ export function PageHeaderSkeleton({
   chips = 0,
   actions = 0,
 }: Readonly<{ search?: boolean; chips?: number; actions?: number }> = {}) {
+  const hasSearchRow = search || actions > 0;
+  const titleOnly = !hasSearchRow && chips === 0;
   return (
-    <div className="mb-4 flex flex-col gap-3">
+    <div
+      className={
+        // Title-only mirrors PageHeader exactly: mb-6 wrapper, mobile-only,
+        // 32px text-2xl line box — no gap to a nonexistent search row.
+        titleOnly ? "mb-6 md:hidden" : "mb-4 flex flex-col gap-3"
+      }
+    >
       <div className="flex items-center justify-between gap-3 md:hidden">
-        <Skeleton className="h-6 w-32 rounded" />
+        <Skeleton className="h-8 w-32 rounded" />
         {actions > 0 ? (
           <div className="flex flex-shrink-0 items-center gap-2">
             {Array.from({ length: actions }, (_, index) => (
@@ -21,18 +29,20 @@ export function PageHeaderSkeleton({
           </div>
         ) : null}
       </div>
-      <div className="flex items-center justify-between gap-3">
-        {search ? (
-          <Skeleton className="h-10 w-full max-w-sm flex-1 rounded-lg sm:max-w-md" />
-        ) : null}
-        {actions > 0 ? (
-          <div className="hidden flex-shrink-0 items-center gap-2 lg:flex">
-            {Array.from({ length: actions }, (_, index) => (
-              <Skeleton key={index} className="h-10 w-28 rounded-lg" />
-            ))}
-          </div>
-        ) : null}
-      </div>
+      {hasSearchRow ? (
+        <div className="flex items-center justify-between gap-3">
+          {search ? (
+            <Skeleton className="h-10 w-full max-w-sm flex-1 rounded-lg sm:max-w-md" />
+          ) : null}
+          {actions > 0 ? (
+            <div className="hidden flex-shrink-0 items-center gap-2 lg:flex">
+              {Array.from({ length: actions }, (_, index) => (
+                <Skeleton key={index} className="h-10 w-28 rounded-lg" />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {chips > 0 ? (
         <div className="flex flex-wrap gap-2">
           {Array.from({ length: chips }, (_, index) => (

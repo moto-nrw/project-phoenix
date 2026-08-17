@@ -36,4 +36,16 @@ describe("PageHeaderSkeleton", () => {
       desktopAction?.parentElement?.parentElement,
     );
   });
+
+  it("mirrors PageHeader exactly when only a title is shown", () => {
+    const { container } = render(<PageHeaderSkeleton search={false} />);
+    const wrapper = container.firstElementChild;
+    const title = container.querySelector(".animate-pulse");
+
+    // PageHeader renders a mobile-only mb-6 wrapper around a 32px
+    // text-2xl title row — no empty search row, no gap.
+    expect(wrapper).toHaveClass("mb-6", "md:hidden");
+    expect(wrapper?.childElementCount).toBe(1);
+    expect(title).toHaveClass("h-8");
+  });
 });

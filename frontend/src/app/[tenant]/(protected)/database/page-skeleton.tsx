@@ -32,9 +32,7 @@ export function DatabaseIndexSkeleton() {
       data-testid="database-index-skeleton"
       className="w-full"
     >
-      <div className="md:hidden">
-        <PageHeaderSkeleton search={false} />
-      </div>
+      <PageHeaderSkeleton search={false} />
       <div className="min-h-[60vh]">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 8 }, (_, i) => (
