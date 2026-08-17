@@ -394,9 +394,13 @@ func summarizeInstanceStudents(
 		}
 		careDayStatus := instanceStudentCareDay(inst, row, careDays)
 		// The marker means "stays expected, leaves early" — a row a full-day
-		// status or manual absence flipped must not carry a pickup time.
+		// status or manual absence flipped must not carry a pickup time. The
+		// care-day verdict must agree: a timed auto-excusal exception can
+		// coexist with a timeless "Kommt heute nicht" exception, which cancels
+		// the whole day while the pre-cutoff row stays expected — that child is
+		// not picked up early, they are not coming at all.
 		var earlyPickup *string
-		if row.Status == scheduleModel.AttendanceStatusExpected {
+		if row.Status == scheduleModel.AttendanceStatusExpected && careDayStatus.Expected() {
 			earlyPickup = earlyPickupWithin(inst, pickupCutoffs, row.StudentID)
 		}
 		out.students = append(out.students, instanceStudentSummary{
