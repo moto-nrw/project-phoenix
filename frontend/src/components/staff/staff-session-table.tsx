@@ -23,6 +23,7 @@ import type {
 import { staffSessionEditsService } from "~/lib/staff-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import {
+  isEffectiveAbsenceStatus,
   isHalfAbsenceBoundary,
   resolveTargetForDate,
   toIsoDayOfWeek,
@@ -63,7 +64,7 @@ export function StaffSessionTable({
   to,
   sessions,
   absences,
-  absencesPending,
+  absencesUnresolved,
   schedule,
   dailyTargets,
   dailyTargetsError,
@@ -84,7 +85,7 @@ export function StaffSessionTable({
   readonly to: Date;
   readonly sessions: readonly StaffHistorySession[];
   readonly absences?: readonly StaffAbsenceRow[];
-  readonly absencesPending?: boolean;
+  readonly absencesUnresolved?: boolean;
   readonly schedule: StaffSchedule | null;
   // Server-resolved Soll je Tag (#1842), keyed YYYY-MM-DD. Wenn gesetzt, ist
   // das die Quelle für die Soll-Spalte: `schedule` beschreibt NUR den heute
@@ -393,9 +394,10 @@ export function StaffSessionTable({
                 const canExpand = hasAuditHistory && session != null;
                 // Edit / nachtragen is available for past or present days,
                 // regardless of whether a session already exists. On an
-                // absence-only day, however, only a half-day boundary may
-                // receive additional work: full-day absences already credit
-                // the complete target in the monthly balance (#2361).
+                // absence-only day, however, only a half-day boundary or a
+                // non-effective absence may receive additional work: effective
+                // full-day absences already credit the complete target in the
+                // monthly balance (#2361).
                 //
                 // Wochenendtage bekommen sie sehr wohl (#1967): eine Zeile ist
                 // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
@@ -409,11 +411,15 @@ export function StaffSessionTable({
                       absence.date_end.slice(0, 10),
                     )
                   : false;
+                const absenceBlocksBackfill =
+                  absence != null &&
+                  isEffectiveAbsenceStatus(absence.status) &&
+                  !absenceIsHalfDay;
                 const canEdit =
                   isAdminView &&
                   !isFuture &&
-                  !absencesPending &&
-                  (session != null || absence == null || absenceIsHalfDay);
+                  (session != null ||
+                    (!absencesUnresolved && !absenceBlocksBackfill));
                 return (
                   <Fragment key={key}>
                     <tr

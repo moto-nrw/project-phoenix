@@ -34,6 +34,7 @@ import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { isValidISODate } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
 import { StaffDetailSkeleton, StaffHeaderSkeleton } from "./page-skeleton";
 
@@ -164,6 +165,13 @@ export default function StaffDetailContent() {
     canViewFinancial ||
     hasPermission(session, "staff_documents:health");
   const requestedTab = searchParams.get("tab");
+  const requestedDate = searchParams.get("date");
+  const initialTimeTrackingDate =
+    requestedTab === "zeiterfassung" &&
+    requestedDate !== null &&
+    isValidISODate(requestedDate)
+      ? requestedDate
+      : undefined;
 
   const {
     data: staff,
@@ -327,7 +335,10 @@ export default function StaffDetailContent() {
 
             {canViewTimeTracking ? (
               <TabsPrimitive.Content value="zeiterfassung">
-                <ZeiterfassungTab staffId={staffId} />
+                <ZeiterfassungTab
+                  staffId={staffId}
+                  initialDate={initialTimeTrackingDate}
+                />
               </TabsPrimitive.Content>
             ) : null}
 

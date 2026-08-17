@@ -125,6 +125,7 @@ vi.mock("~/components/staff/staff-session-table", () => ({
   StaffSessionTable: ({
     sessions = [],
     absences = [],
+    absencesUnresolved = false,
     onEditDay,
   }: {
     sessions?: Array<{
@@ -141,6 +142,7 @@ vi.mock("~/components/staff/staff-session-table", () => ({
       absence_type: string;
       half_day?: boolean;
     }>;
+    absencesUnresolved?: boolean;
     onEditDay?: (date: Date) => void;
   }) => {
     const session = sessions[0];
@@ -158,7 +160,10 @@ vi.mock("~/components/staff/staff-session-table", () => ({
     };
 
     return (
-      <table>
+      <table
+        data-testid="staff-session-table"
+        data-absences-unresolved={absencesUnresolved}
+      >
         <thead>
           <tr>
             <th>Start</th>
@@ -522,6 +527,7 @@ function setupDefaultMocks(overrides?: {
   currentSession?: WorkSession | null;
   history?: WorkSessionHistory[];
   absences?: StaffAbsence[];
+  tableAbsencesError?: Error;
   historyLoading?: boolean;
   configLoading?: boolean;
   scheduleTargets?: ReadonlyMap<string, number>;
@@ -590,11 +596,11 @@ function setupDefaultMocks(overrides?: {
       } as never;
     } else if (key?.startsWith("time-tracking-table-absences")) {
       return {
-        data: absences,
+        data: overrides?.tableAbsencesError ? undefined : absences,
         isLoading: false,
         mutate: mockMutate,
         isValidating: false,
-        error: undefined,
+        error: overrides?.tableAbsencesError,
       } as never;
     } else if (key?.startsWith("time-tracking-table-")) {
       return {
@@ -718,6 +724,19 @@ describe("TimeTrackingPage", () => {
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       expect(screen.getAllByText("Zeiterfassung").length).toBeGreaterThan(0);
+    });
+
+    it("keeps backfills unresolved when the table absence fetch fails", () => {
+      setupDefaultMocks({
+        tableAbsencesError: new Error("absence fetch failed"),
+      });
+
+      render(<TimeTrackingPage />);
+
+      expect(screen.getByTestId("staff-session-table")).toHaveAttribute(
+        "data-absences-unresolved",
+        "true",
+      );
     });
 
     it("renders Stempeluhr heading", () => {
@@ -4942,7 +4961,7 @@ describe("empty-day hint dialog (#2361)", () => {
     // Der Tenant-Router stellt je nach Routing-Modus den Slug voran — hier
     // zählt nur, dass die eigene Admin-Zeiterfassung angesteuert wird.
     expect(push).toHaveBeenCalledWith(
-      expect.stringContaining("/staff/10?tab=zeiterfassung"),
+      expect.stringContaining(`/staff/10?tab=zeiterfassung&date=${todayISO}`),
     );
   });
 
@@ -4988,7 +5007,7 @@ describe("empty-day hint dialog (#2361)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Nachtragen" }));
     expect(push).toHaveBeenCalledWith(
-      expect.stringContaining("/staff/10?tab=zeiterfassung"),
+      expect.stringContaining(`/staff/10?tab=zeiterfassung&date=${weekdayISO}`),
     );
   });
 
@@ -5010,5 +5029,36 @@ describe("empty-day hint dialog (#2361)", () => {
     expect(
       screen.queryByRole("button", { name: "Nachtragen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers managers the backfill link for a requested full-day absence", async () => {
+    const requestedAbsence: StaffAbsence = {
+      ...mockAbsence,
+      dateStart: weekdayISO,
+      dateEnd: weekdayISO,
+      status: "requested",
+    };
+    setupDefaultMocks({ absences: [requestedAbsence] });
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Nachtragen" }),
+      ).toBeInTheDocument();
+    });
   });
 });

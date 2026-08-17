@@ -57,7 +57,7 @@ const mondayFullDayAbsence: StaffAbsenceRow = {
 function renderTable(props: {
   sessions?: readonly StaffHistorySession[];
   absences?: readonly StaffAbsenceRow[];
-  absencesPending?: boolean;
+  absencesUnresolved?: boolean;
 }) {
   return render(
     <StaffSessionTable
@@ -66,7 +66,7 @@ function renderTable(props: {
       to={to}
       sessions={props.sessions ?? []}
       absences={props.absences}
-      absencesPending={props.absencesPending}
+      absencesUnresolved={props.absencesUnresolved}
       schedule={schedule}
       accountStartDate=""
       accountStartDatePending={false}
@@ -128,13 +128,38 @@ describe("StaffSessionTable Stift-Verfügbarkeit", () => {
     },
   );
 
-  it("zeigt keinen Nachtragen-Stift, solange Abwesenheiten laden", () => {
-    renderTable({ absencesPending: true });
+  it("zeigt keinen Nachtragen-Stift, solange Abwesenheitsdaten nicht aufgelöst sind", () => {
+    renderTable({ absencesUnresolved: true });
 
     const row = screen.getByText("05.01.").closest("tr");
     expect(row).not.toBeNull();
     expect(
       within(row!).queryByRole("button", { name: "Eintrag nachtragen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it.each(["requested", "question", "declined", "canceled"])(
+    "erlaubt Nachtragen bei ganztägiger nicht wirksamer Abwesenheit mit Status %s",
+    (status) => {
+      renderTable({
+        absences: [{ ...mondayFullDayAbsence, status }],
+      });
+
+      const row = screen.getByText("05.01.").closest("tr");
+      expect(row).not.toBeNull();
+      expect(
+        within(row!).getByRole("button", { name: "Eintrag nachtragen" }),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("lässt eine bestehende Buchung während des Abwesenheiten-Ladens bearbeiten", () => {
+    renderTable({ sessions: [mondaySession], absencesUnresolved: true });
+
+    const row = screen.getByText("05.01.").closest("tr");
+    expect(row).not.toBeNull();
+    expect(
+      within(row!).getByRole("button", { name: "Eintrag bearbeiten" }),
+    ).toBeInTheDocument();
   });
 });

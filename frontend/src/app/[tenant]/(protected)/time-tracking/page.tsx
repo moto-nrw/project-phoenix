@@ -81,6 +81,7 @@ import { staffScheduleService } from "~/lib/staff-api";
 import {
   adaptAbsenceForMetrics,
   adaptHistorySessionForMetrics,
+  isEffectiveAbsenceStatus,
   isHalfAbsenceBoundary,
   startOfYear,
 } from "~/lib/staff-metrics-helpers";
@@ -1598,12 +1599,15 @@ function OwnZeiterfassungSection({
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
 
-  const { data: tableAbsenceData, isLoading: tableAbsencesLoading } =
-    useSWRAuth<StaffAbsence[]>(
-      `time-tracking-table-absences-${visibleFromKey}-${visibleToKey}`,
-      () => timeTrackingService.getAbsences(visibleFromKey, visibleToKey),
-      { keepPreviousData: true, revalidateOnFocus: false },
-    );
+  const {
+    data: tableAbsenceData,
+    isLoading: tableAbsencesLoading,
+    error: tableAbsencesError,
+  } = useSWRAuth<StaffAbsence[]>(
+    `time-tracking-table-absences-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getAbsences(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
   const tableAbsences = useMemo(
     () => tableAbsenceData ?? [],
     [tableAbsenceData],
@@ -1925,7 +1929,11 @@ function OwnZeiterfassungSection({
             to={visibleTo}
             sessions={adaptedSessions}
             absences={adaptedAbsences}
-            absencesPending={tableAbsencesLoading}
+            absencesUnresolved={
+              tableAbsencesLoading ||
+              tableAbsencesError != null ||
+              tableAbsenceData === undefined
+            }
             schedule={schedule}
             dailyTargets={dailyTargets}
             dailyTargetsError={dailyTargetsError != null}
@@ -2516,10 +2524,14 @@ function EditSessionModal({
     : false;
   const onBackfill =
     canManage && ownStaffId
-      ? () => router.push(`/staff/${ownStaffId}?tab=zeiterfassung`)
+      ? () =>
+          router.push(`/staff/${ownStaffId}?tab=zeiterfassung&date=${dateKey}`)
       : null;
   const hasBackfillableAbsence =
-    !hasSession && hasAbsence && absenceIsHalfDay && onBackfill !== null;
+    !hasSession &&
+    hasAbsence &&
+    (absenceIsHalfDay || !isEffectiveAbsenceStatus(absence.status)) &&
+    onBackfill !== null;
   const hasBothSections = hasBoth || hasBackfillableAbsence;
 
   // Tag ohne Buchung und ohne Abwesenheit: kein stiller No-Op mehr (#2361).
