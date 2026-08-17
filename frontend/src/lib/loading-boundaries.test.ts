@@ -8,6 +8,7 @@ const APP_DIR = path.join(
   "..",
   "app",
 );
+const PROTECTED_DIR = path.join(APP_DIR, "[tenant]", "(protected)");
 
 function collectPages(directory: string): string[] {
   return [
@@ -34,10 +35,22 @@ function loadingBoundary(pageDirectory: string): string | null {
 
 const ALLOWED_SHARED_BOUNDARIES = new Set([
   "loading.tsx",
+  "[tenant]/(protected)/loading.tsx",
   "[tenant]/(protected)/database/loading.tsx",
 ]);
 
 describe("App Router loading boundaries", () => {
+  it("keeps protected-route loading inside the persistent app shell", () => {
+    const rootLoadingFile = path.join(APP_DIR, "loading.tsx");
+    const pagesUsingRootLoading = collectPages(PROTECTED_DIR)
+      .filter(
+        (pageDirectory) => loadingBoundary(pageDirectory) === rootLoadingFile,
+      )
+      .map((pageDirectory) => path.relative(APP_DIR, pageDirectory));
+
+    expect(pagesUsingRootLoading).toEqual([]);
+  });
+
   it("gives every page a colocated or approved shared loading boundary", () => {
     const invalidPages = collectPages(APP_DIR).flatMap((pageDirectory) => {
       const loadingFile = loadingBoundary(pageDirectory);
