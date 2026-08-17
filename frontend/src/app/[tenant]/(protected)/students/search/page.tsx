@@ -2645,10 +2645,12 @@ function SearchPageContent() {
   // the visible selection for the direct path, the confirmation dialog's
   // snapshot, or the failure dialog's retry snapshot — never the live
   // selection at execute time, so a dialog always executes what it
-  // displayed (review #2372). runBulk additionally intersects with the
-  // still-selected ids, so a child de-selected (or a scope-cleared
-  // selection) between snapshot and confirm is dropped rather than acted
-  // on.
+  // displayed (review #2372). runBulk executes the snapshot exactly as
+  // given — deliberately NOT intersected with the live selection: a
+  // search/filter change committing while a dialog is open clears the
+  // selection, and an intersected run would silently shrink to nothing
+  // despite the dialog's promise (review #2372). Every snapshot was on
+  // screen when the user triggered it, so nothing runs sight-unseen.
   const executeBulk = useCallback(
     async (action: SchoolCheckinAction, targets: readonly BulkStudentRef[]) => {
       // The snapshot names travel with the ids: after the run the hook
@@ -3258,8 +3260,9 @@ function SearchPageContent() {
           may hide their cards, and the promised one-tap retry must stay
           reachable then (review #2372). Acting on the snapshot is not
           sight-unseen (the dialog lists every child by name), and runBulk
-          still intersects with the retained selection, so the retry can
-          only narrow, never widen. */}
+          executes exactly this snapshot — a scope change committing while
+          this dialog is open may clear the selection, and an intersected
+          retry would then be a silent no-op (review #2372). */}
       <Modal
         isOpen={bulkFailures !== null}
         onClose={() => setBulkFailures(null)}

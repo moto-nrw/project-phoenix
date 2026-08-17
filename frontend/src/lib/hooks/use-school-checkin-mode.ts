@@ -195,14 +195,18 @@ interface UseSchoolCheckinModeResult {
   isBulkRunning: boolean;
   /**
    * Apply one explicit action to selected students via the batch endpoint.
-   * `onlyIds` restricts the run to that subset of the selection — the page
-   * passes the currently VISIBLE selected students (or the confirmation
-   * dialog's snapshot of them) so a mark hidden by a filter is never
-   * executed without being on screen, and a dialog executes exactly what it
-   * displayed (review #2372). The run is always intersected with the still-
-   * selected ids, so a stale caller list can only narrow, never widen. After
-   * the run, successfully processed students are removed from the selection
-   * while failures (and any students marked mid-flight) stay selected, so a
+   * `onlyIds` is a dialog's displayed snapshot and is executed EXACTLY as
+   * given: the page passes the currently VISIBLE selected students, the
+   * confirmation dialog's snapshot of them, or the failure dialog's failed
+   * children — so a mark hidden by a filter is never executed without being
+   * on screen, and a dialog executes exactly what it displayed (review
+   * #2372). Deliberately NOT intersected with the live selection: a
+   * search/filter change that commits while the failure dialog is open
+   * clears the selection, and an intersected retry would silently shrink to
+   * nothing despite the dialog's promise (review #2372). Without `onlyIds`
+   * the run covers the live selection. After the run, successfully
+   * processed students are removed from the selection while failures (and
+   * any students marked mid-flight) stay selected where possible, so a
    * retry is one tap. The presence caches are revalidated once, bundled.
    * Returns null when nothing was selected, a run is already in flight, or
    * the whole request failed (the hook has toasted the error then).
@@ -368,11 +372,12 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     ): Promise<SchoolCheckinBatchOutcome | null> => {
       if (isBulkRunningRef.current) return null;
 
-      // Intersect with the live selection so a stale caller list can never
-      // widen the run beyond what is actually marked right now.
-      const ids = onlyIds
-        ? onlyIds.filter((id) => selectedIds.has(id))
-        : Array.from(selectedIds);
+      // An explicit id list is a dialog's displayed snapshot and runs
+      // exactly as displayed — no intersection with the live selection (see
+      // the interface doc: an intersected retry after a committed scope
+      // change would be a silent no-op, review #2372). Every onlyIds caller
+      // shows the user precisely this list before executing it.
+      const ids = onlyIds ? [...onlyIds] : Array.from(selectedIds);
       if (ids.length === 0) return null;
       isBulkRunningRef.current = true;
       setIsBulkRunning(true);

@@ -225,7 +225,10 @@ func (s *service) ProcessSchoolCheckinBatch(
 // the cores are individually race-safe (ON CONFLICT for in, state-checked
 // UPDATE for out), while a toggle could flip a concurrent "in" into an
 // "out". A checkout also ends any open room visit in the same request
-// transaction (#895).
+// transaction (#895) — scoped to the snapshot day: a batch crossing Berlin
+// midnight closes yesterday's attendance without ending a room visit (or
+// binary-mode slot mirror) the student started on the new day (review
+// #2372, see endOpenVisitForStudent / performCheckOut).
 func (s *service) applySchoolCheckinWrite(ctx context.Context, studentID, staffID int64, action string, today timezone.Date) (*AttendanceResult, error) {
 	if action == SchoolCheckinActionIn {
 		return s.performCheckIn(ctx, studentID, staffID, 0, time.Now(), today, checkinTypeWeb)

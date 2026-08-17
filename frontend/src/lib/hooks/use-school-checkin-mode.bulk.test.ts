@@ -151,13 +151,14 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     expect(result.current.selectedIds.size).toBe(0);
   });
 
-  it("runBulk with an explicit id list runs only that subset of the selection", async () => {
+  it("runBulk executes an explicit id list exactly, even after a committed scope clear", async () => {
     mockSchoolCheckinStudentsBatch.mockResolvedValue({
       action: "out",
-      succeeded: 1,
+      succeeded: 2,
       failed: 0,
       results: [
         { studentId: "1", ok: true, changed: true, location: "Abwesend" },
+        { studentId: "3", ok: true, changed: true, location: "Abwesend" },
       ],
     });
 
@@ -166,16 +167,24 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     act(() => result.current.setSelectionActive(true));
     act(() => result.current.toggleSelected("1"));
     act(() => result.current.toggleSelected("2"));
+    // A search/filter change committed between snapshot and execution (e.g.
+    // while the failure dialog is open) empties the selection. The explicit
+    // list is a dialog's displayed snapshot and must still run exactly as
+    // displayed — intersecting with the now-empty selection would make the
+    // promised retry a silent no-op (review #2372).
+    act(() => result.current.clearSelection());
+    expect(result.current.selectedIds.size).toBe(0);
 
     await act(async () => {
-      // "3" is not selected → filtered out; "2" is selected but not listed.
       await result.current.runBulk("out", ["1", "3"]);
     });
 
-    expect(mockSchoolCheckinStudentsBatch).toHaveBeenCalledWith(["1"], "out");
-    // The unlisted student stays selected, the processed one drops out.
-    expect(result.current.selectedIds.has("2")).toBe(true);
-    expect(result.current.selectedIds.has("1")).toBe(false);
+    expect(mockSchoolCheckinStudentsBatch).toHaveBeenCalledWith(
+      ["1", "3"],
+      "out",
+    );
+    // Processed students are subtracted from the (already empty) selection.
+    expect(result.current.selectedIds.size).toBe(0);
   });
 
   it("keeps a selection made while the bulk request is in flight", async () => {

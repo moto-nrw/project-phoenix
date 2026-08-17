@@ -403,16 +403,27 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 }
 
 // endOpenVisitForStudent enforces the invariant "attendance checked_out =>
-// no open visit" (issue #895). It returns the ended row so callers can mirror
-// the same checkout into slot attendance. A missing visit returns nil; every
-// other failure propagates so the request transaction rolls back.
-func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) (*active.Visit, error) {
+// no open visit" (issue #895) for the attendance day being checked out. day
+// names that calendar day: a visit whose Berlin entry date is LATER than day
+// belongs to a newer care session and is left untouched — a batch checkout
+// crossing Berlin midnight closes its snapshot day's attendance and must not
+// end a room visit the student started after the rollover (review #2372).
+// Visits entered on day itself or earlier (orphaned leftovers) are still
+// ended. Single-student callers derive day from their own now, so for them
+// every open visit qualifies and behavior is unchanged. It returns the ended
+// row so callers can mirror the same checkout into slot attendance. A missing
+// or newer-day visit returns nil; every other failure propagates so the
+// request transaction rolls back.
+func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, day timezone.Date) (*active.Visit, error) {
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, ErrVisitNotFound) {
 			return nil, nil
 		}
 		return nil, err
+	}
+	if timezone.DateFromTime(visit.EntryTime).After(day) {
+		return nil, nil
 	}
 	if err := s.VisitRepo.EndVisit(ctx, visit.ID); err != nil {
 		latest, findErr := s.VisitRepo.FindByID(ctx, visit.ID)
@@ -444,9 +455,11 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) (
 //  2. Yard sub-state is cleared as part of the same UPDATE so detailed-mode
 //     callers don't observe an inconsistent (CheckOutTime set, YardSince
 //     still set) row even briefly.
-//  3. Any open room visit is ended in the same request transaction (issue
-//     #895) — including on the idempotent no-open-row path, so a checkout of
-//     any kind heals an orphaned visit left behind by older code.
+//  3. Any open room visit entered on (or before) today is ended in the same
+//     request transaction (issue #895) — including on the idempotent
+//     no-open-row path, so a checkout of any kind heals an orphaned visit
+//     left behind by older code. A visit entered AFTER today is a newer
+//     session's and stays open (see endOpenVisitForStudent).
 //  4. A checkout that closed attendance or healed an orphaned visit fans out
 //     over SSE after the request transaction commits (#2113).
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, today timezone.Date, checkoutType string) (*AttendanceResult, error) {
@@ -455,7 +468,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
 
-	endedVisit, err := s.endOpenVisitForStudent(ctx, studentID)
+	endedVisit, err := s.endOpenVisitForStudent(ctx, studentID, today)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("end open visit during checkout: %w", err)}
 	}
@@ -465,8 +478,15 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 		if s.GetPresenceMode(ctx) == "binary" {
 			// Binary mode has no visit provenance, so close the latest mirrored
 			// open slot. Run this even for idempotent attendance checkout to heal
-			// slot rows left open by older code.
-			s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
+			// slot rows left open by older code — but only while the checkout
+			// still targets now's own day: the mirror derives its slot day from
+			// the timestamp, so a batch item closing its snapshot day after a
+			// Berlin-midnight rollover would otherwise close a slot of the NEW
+			// day whose attendance this checkout never touched (review #2372,
+			// same day-scoping as the visit cleanup above).
+			if timezone.DateFromTime(now) == today {
+				s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
+			}
 		} else if endedVisit != nil {
 			// Detailed mode has exact source provenance through the ended visit.
 			snapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
