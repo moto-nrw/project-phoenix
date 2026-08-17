@@ -15,8 +15,11 @@ import (
 // zurueckgeschaut wird, um zu erkennen, ob die Schule ueberhaupt Anwesenheit
 // pflegt. Ohne diese Pruefung wuerde ein Kind an einer Schule ohne
 // Anwesenheitserfassung den ganzen Tag als "nicht angekommen" erscheinen und
-// Eltern grundlos beunruhigen. Wer in 14 Kalendertagen keine einzige
-// Anwesenheitszeile hat, bekommt "unknown" statt einer erfundenen Aussage.
+// Eltern grundlos beunruhigen. Gemessen wird SCHULWEIT (irgendeine
+// Anwesenheitszeile des Tenants im Fenster), nicht am einzelnen Kind: ein neu
+// aufgenommenes oder laenger abwesendes Kind hat selbst keine Historie, die
+// Schule erfasst aber trotzdem. Hat die ganze Schule in 14 Kalendertagen
+// keine einzige Zeile, gilt "unknown" statt einer erfundenen Aussage.
 const attendanceCultureLookbackDays = 14
 
 // GetChildTodayStatus liefert den auf Elternsicht reduzierten Betreuungsstatus
@@ -70,13 +73,13 @@ func (s *service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 			}
 		}
 
-		history, histErr := s.AttendanceRepo.FindByStudentAndDateRange(
-			txCtx, studentID, today.AddDays(-attendanceCultureLookbackDays), today,
+		tracks, trackErr := s.AttendanceRepo.HasAnyInRange(
+			txCtx, today.AddDays(-attendanceCultureLookbackDays), today,
 		)
-		if histErr != nil {
-			return histErr
+		if trackErr != nil {
+			return trackErr
 		}
-		facts.SchoolTracksAttendance = len(history) > 0
+		facts.SchoolTracksAttendance = tracks
 
 		// Ein nicht lesbarer Betreuungsplan darf die bereits geladene
 		// Anwesenheit nicht entwerten: wer nachweislich da ist, ist da, auch

@@ -193,6 +193,79 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 	require.ErrorIs(t, err, schedule.ErrPickupChangeAlreadyCompleted)
 }
 
+// TestPickupChangeRequestsForDifferentDaysCoexist: pending uniqueness for
+// pickup changes is per requested DAY, not per child — an Arzttermin on
+// Tuesday must not block an independent request for Wednesday. Only a second
+// request for the SAME day collides, and an open weekly-schedule request
+// coexists with open pickup requests (separate partial unique indexes).
+func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	tuesday := timezone.TodayDate().AddDays(7)
+	wednesday := tuesday.AddDays(1)
+
+	first := seedPickupChangeRequest(t, f, tuesday)
+
+	second, err := f.svc.CreatePickupChangeRequest(
+		ctx, f.chain.StudentID, f.chain.AccountID, wednesday,
+		time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC), "Früherer Termin",
+	)
+	require.NoError(t, err, "ein Antrag für einen anderen Tag darf nicht blockiert werden")
+	assert.NotEqual(t, first.ID, second.ID)
+
+	_, err = f.svc.CreatePickupChangeRequest(
+		ctx, f.chain.StudentID, f.chain.AccountID, tuesday,
+		time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC), "Doppelt",
+	)
+	require.ErrorIs(t, err, schedule.ErrCareRequestAlreadyPending)
+
+	_, err = f.svc.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "pickup": "15:00"}))
+	require.NoError(t, err, "ein Wochenplan-Antrag koexistiert mit offenen Abholanträgen")
+
+	pending, err := f.svc.ListPendingPickupChanges(ctx)
+	require.NoError(t, err)
+	assert.Len(t, pending, 2)
+}
+
+// TestPickupChangeApprovalRejectsExpiredRequest: a request whose day passed
+// while it sat in the queue cannot be approved (the day is over), but staff
+// must still be able to close it by rejecting.
+func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	// CreatePickupChangeRequest refuses past dates, so an expired request can
+	// only exist by aging in the queue — seed it directly at the repo.
+	req := &scheduleModels.CareScheduleChangeRequest{
+		StudentID:   f.chain.StudentID,
+		SubmittedBy: f.chain.AccountID,
+		RequestKind: scheduleModels.CareRequestKindPickupChange,
+		Payload: map[string]any{
+			"date":        timezone.TodayDate().AddDays(-1).String(),
+			"pickup_time": "14:30",
+			"reason":      "Arzttermin",
+		},
+		Status: scheduleModels.CareRequestStatusPending,
+	}
+	require.NoError(t, f.repos.CareScheduleChangeRequest.Create(ctx, req))
+
+	_, err := f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID:  req.ID,
+		Approve:    true,
+		ReviewedBy: f.staffAccount,
+	})
+	require.ErrorIs(t, err, schedule.ErrPickupChangeExpired)
+
+	decided, err := f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID:  req.ID,
+		Approve:    false,
+		Reason:     "Der Tag liegt in der Vergangenheit.",
+		ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err, "eine abgelaufene Anfrage bleibt per Ablehnung abschließbar")
+	assert.Equal(t, scheduleModels.CareRequestStatusRejected, decided.Request.Status)
+}
+
 // TestWithdrawPickupChangeRequestClosesIt: a parent may take a request back
 // while it is still pending, and it must not stay in the staff queue afterwards.
 func TestWithdrawPickupChangeRequestClosesIt(t *testing.T) {

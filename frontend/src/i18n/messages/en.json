@@ -1296,6 +1296,7 @@
   "parentOgsMessaging": {
     "readByStaff": "Read",
     "requestTypeCareSchedule": "Request: Change recurring care times",
+    "requestTypePickupChange": "Request: Change pickup time for one day",
     "requestTitleFallback": "Request",
     "statusOpen": "Open",
     "statusDone": "Done",
@@ -1304,6 +1305,8 @@
     "eventRequestConfirmed": "Request confirmed",
     "eventRequestConfirmedCareSchedule": "Request confirmed, care times applied",
     "eventRequestCreatedCareSchedule": "Care times change requested",
+    "eventRequestConfirmedPickupChange": "Request confirmed, pickup time changed",
+    "eventRequestCreatedPickupChange": "Pickup time change requested",
     "eventRequestCreatedMasterData": "Master data change requested",
     "eventRequestConfirmedMasterData": "Request confirmed, master data applied",
     "eventRequestCreatedExcusedAbsence": "Excused absence requested",

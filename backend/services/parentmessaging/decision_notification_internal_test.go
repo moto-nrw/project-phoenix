@@ -57,6 +57,7 @@ func TestRequestDecisionCopy(t *testing.T) {
 	t.Run("names the subject area, never the child", func(t *testing.T) {
 		cases := map[string]string{
 			usersModels.ParentMessageRequestCareSchedule:   "Betreuungszeiten",
+			usersModels.ParentMessageRequestPickupChange:   "Abholzeit",
 			usersModels.ParentMessageRequestMasterData:     "Stammdaten",
 			usersModels.ParentMessageRequestExcusedAbsence: "Abmeldung",
 		}

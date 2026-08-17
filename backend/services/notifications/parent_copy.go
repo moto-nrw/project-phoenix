@@ -86,6 +86,8 @@ func parentRequestSubjectDE(requestType string) string {
 	switch requestType {
 	case "care_schedule":
 		return "Ihre Anfrage zu den Betreuungszeiten"
+	case "pickup_change":
+		return "Ihre Anfrage zur Abholzeit"
 	case "master_data":
 		return "Ihre Anfrage zu den Stammdaten"
 	case "excused_absence":
@@ -99,6 +101,8 @@ func parentRequestSubjectEN(requestType string) string {
 	switch requestType {
 	case "care_schedule":
 		return "Your care schedule request"
+	case "pickup_change":
+		return "Your pickup time request"
 	case "master_data":
 		return "Your master data request"
 	case "excused_absence":
@@ -112,6 +116,8 @@ func parentRequestSubjectRU(requestType string) string {
 	switch requestType {
 	case "care_schedule":
 		return "Ваш запрос об изменении времени продлёнки"
+	case "pickup_change":
+		return "Ваш запрос об изменении времени, когда ребёнка забирают"
 	case "master_data":
 		return "Ваш запрос об изменении основных данных"
 	case "excused_absence":
@@ -125,6 +131,8 @@ func parentRequestSubjectSQ(requestType string) string {
 	switch requestType {
 	case "care_schedule":
 		return "Kërkesa juaj për orarin e kujdesit"
+	case "pickup_change":
+		return "Kërkesa juaj për orarin e marrjes"
 	case "master_data":
 		return "Kërkesa juaj për të dhënat bazë"
 	case "excused_absence":

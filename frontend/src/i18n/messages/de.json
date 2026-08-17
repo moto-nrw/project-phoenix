@@ -1296,6 +1296,7 @@
   "parentOgsMessaging": {
     "readByStaff": "Gelesen",
     "requestTypeCareSchedule": "Anfrage: Dauerhafte Betreuungszeiten ändern",
+    "requestTypePickupChange": "Anfrage: Abholzeit für einen Tag ändern",
     "requestTitleFallback": "Anfrage",
     "statusOpen": "Offen",
     "statusDone": "Erledigt",
@@ -1304,6 +1305,8 @@
     "eventRequestConfirmed": "Anfrage bestätigt",
     "eventRequestConfirmedCareSchedule": "Anfrage bestätigt, Betreuungszeiten übernommen",
     "eventRequestCreatedCareSchedule": "Anfrage zu Betreuungszeiten gestellt",
+    "eventRequestConfirmedPickupChange": "Anfrage bestätigt, Abholzeit geändert",
+    "eventRequestCreatedPickupChange": "Anfrage zur Abholzeit gestellt",
     "eventRequestCreatedMasterData": "Anfrage zu Stammdaten gestellt",
     "eventRequestConfirmedMasterData": "Anfrage bestätigt, Stammdaten übernommen",
     "eventRequestCreatedExcusedAbsence": "Anfrage zur entschuldigten Abmeldung gestellt",

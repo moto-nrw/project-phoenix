@@ -23,6 +23,11 @@ func init() {
 
 func pickupChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.300: Adding pickup change request type...")
+	// Two pending-uniqueness rules, not one: a weekly-schedule request stays
+	// one-per-student (the old rule, now scoped to its kind), while pickup
+	// changes are one-per-student-AND-DAY — a Tuesday request must not block
+	// an independent Wednesday request. The service maps a violation of
+	// either index to ErrCareRequestAlreadyPending.
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE schedule.care_schedule_change_requests
 			ADD COLUMN IF NOT EXISTS request_kind TEXT NOT NULL DEFAULT 'weekly_schedule';
@@ -33,8 +38,11 @@ func pickupChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 			CHECK (request_kind IN ('weekly_schedule', 'pickup_change'));
 		DROP INDEX IF EXISTS schedule.uniq_care_schedule_change_requests_pending;
 		CREATE UNIQUE INDEX uniq_care_schedule_change_requests_pending
-			ON schedule.care_schedule_change_requests (tenant_id, student_id, request_kind)
-			WHERE status = 'pending';
+			ON schedule.care_schedule_change_requests (tenant_id, student_id)
+			WHERE status = 'pending' AND request_kind = 'weekly_schedule';
+		CREATE UNIQUE INDEX uniq_care_schedule_change_requests_pending_pickup_date
+			ON schedule.care_schedule_change_requests (tenant_id, student_id, (payload->>'date'))
+			WHERE status = 'pending' AND request_kind = 'pickup_change';
 		CREATE INDEX IF NOT EXISTS idx_care_schedule_change_requests_kind_status
 			ON schedule.care_schedule_change_requests (tenant_id, request_kind, status, created_at DESC);
 	`)
@@ -50,6 +58,7 @@ func pickupChangeRequestsDown(ctx context.Context, db *bun.DB) error {
 		SET status = 'withdrawn', decision_reason = 'Rollback: Abholanfrage zurückgezogen.'
 		WHERE request_kind = 'pickup_change' AND status = 'pending';
 		DROP INDEX IF EXISTS schedule.idx_care_schedule_change_requests_kind_status;
+		DROP INDEX IF EXISTS schedule.uniq_care_schedule_change_requests_pending_pickup_date;
 		DROP INDEX IF EXISTS schedule.uniq_care_schedule_change_requests_pending;
 		CREATE UNIQUE INDEX uniq_care_schedule_change_requests_pending
 			ON schedule.care_schedule_change_requests (tenant_id, student_id)

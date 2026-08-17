@@ -90,7 +90,7 @@ func TestParentMessageCopyCoversEveryLocale(t *testing.T) {
 }
 
 func TestParentRequestDecisionCopyCoversEveryLocaleAndRequestType(t *testing.T) {
-	for _, requestType := range []string{"care_schedule", "master_data", "excused_absence", "unknown"} {
+	for _, requestType := range []string{"care_schedule", "pickup_change", "master_data", "excused_absence", "unknown"} {
 		for _, status := range []string{"abgelehnt", "genehmigt"} {
 			bodies := map[string]string{}
 			for _, locale := range parentLocales {

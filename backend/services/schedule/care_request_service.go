@@ -44,8 +44,14 @@ import (
 const careRequestMaxReasonLen = 2000
 
 // careRequestPendingUniqueIndex is the partial unique index enforcing one
-// open request per student; its violation maps to ErrCareRequestAlreadyPending.
-const careRequestPendingUniqueIndex = "uniq_care_schedule_change_requests_pending"
+// open weekly-schedule request per student;
+// pickupChangePendingUniqueIndex enforces one open pickup-change request per
+// student and requested day (payload date). A violation of either maps to
+// ErrCareRequestAlreadyPending.
+const (
+	careRequestPendingUniqueIndex  = "uniq_care_schedule_change_requests_pending"
+	pickupChangePendingUniqueIndex = "uniq_care_schedule_change_requests_pending_pickup_date"
+)
 
 // German pill texts. The staff portal renders these directly; the parents
 // portal localizes from the structured event fields instead.
@@ -56,6 +62,17 @@ const (
 	pickupRequestCreatedBody   = "Anfrage: Abholzeit ändern"
 	pickupRequestConfirmedBody = "Abholzeit bestätigt"
 )
+
+// careRequestPillType maps a request kind to the pill's request_type token.
+// The German bodies above are authoritative only for the staff portal; the
+// localized parents portal and the decision push render from this token, so a
+// one-day pickup change must not travel as a permanent care_schedule change.
+func careRequestPillType(requestKind string) string {
+	if requestKind == scheduleModels.CareRequestKindPickupChange {
+		return usersModels.ParentMessageRequestPickupChange
+	}
+	return usersModels.ParentMessageRequestCareSchedule
+}
 
 var (
 	// ErrCareRequestForbidden means the caller may not decide requests for this
@@ -82,6 +99,10 @@ var (
 	ErrCareRequestRejectReasonTooLong = errors.New("schedule: reject reason too long")
 	ErrPickupChangeConflict           = errors.New("schedule: pickup change conflicts with a staff exception")
 	ErrPickupChangeAlreadyCompleted   = errors.New("schedule: pickup change cannot be approved after checkout")
+	// ErrPickupChangeExpired means the requested day has passed while the
+	// request sat in the queue. Approving would write an exception for a day
+	// that is over; staff close such a request by rejecting it.
+	ErrPickupChangeExpired = errors.New("schedule: pickup change date has passed")
 )
 
 // Diff care-kind discriminators (see RequestDiffEntry.CareKind). Stable wire
@@ -321,7 +342,7 @@ func (s *careScheduleRequestService) CreatePickupChangeRequest(ctx context.Conte
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: guardianAccountID,
 		Body:           pickupRequestCreatedBody,
-		RequestType:    usersModels.ParentMessageRequestCareSchedule,
+		RequestType:    usersModels.ParentMessageRequestPickupChange,
 		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
 	})
 	s.wakeGuardiansAfterCommit(ctx, req)
@@ -367,7 +388,7 @@ func (s *careScheduleRequestService) withdrawRequestOfKind(ctx context.Context, 
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: guardianAccountID,
 		Body:           careRequestWithdrawnBody,
-		RequestType:    usersModels.ParentMessageRequestCareSchedule,
+		RequestType:    careRequestPillType(req.RequestKind),
 		RequestStatus:  usersModels.ParentMessageRequestStatusWithdrawn,
 	})
 	s.wakeGuardiansAfterCommit(ctx, req)
@@ -687,7 +708,7 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		ActorKind:      usersModels.ParentMessageSenderStaff,
 		ActorAccountID: input.ReviewedBy,
 		Body:           pillBody,
-		RequestType:    usersModels.ParentMessageRequestCareSchedule,
+		RequestType:    careRequestPillType(req.RequestKind),
 		RequestStatus:  pillStatus,
 		DecisionReason: reason,
 	})
@@ -745,7 +766,7 @@ func (s *careScheduleRequestService) applyPickupChangeRequest(ctx context.Contex
 		return err
 	}
 	if date.Before(timezone.TodayDate()) {
-		return ErrInvalidCareRequestPayload
+		return ErrPickupChangeExpired
 	}
 	if date == timezone.TodayDate() {
 		if lockErr := s.attendance.LockStudentAttendance(ctx, req.StudentID); lockErr != nil {
@@ -1561,5 +1582,6 @@ func careDashIfEmpty(s string) string {
 // violation (one open request per student) behind the repository's
 // DatabaseError wrapper.
 func isCareRequestPendingUniqueViolation(err error) bool {
-	return modelBase.IsUniqueViolationOn(err, careRequestPendingUniqueIndex)
+	return modelBase.IsUniqueViolationOn(err, careRequestPendingUniqueIndex) ||
+		modelBase.IsUniqueViolationOn(err, pickupChangePendingUniqueIndex)
 }

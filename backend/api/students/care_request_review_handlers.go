@@ -139,6 +139,8 @@ func (rs *Resource) decideCareScheduleChangeRequest(w http.ResponseWriter, r *ht
 			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_conflict"))
 		case errors.Is(err, scheduleService.ErrPickupChangeAlreadyCompleted):
 			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_completed"))
+		case errors.Is(err, scheduleService.ErrPickupChangeExpired):
+			renderError(w, r, common.ErrorConflictWithCode(err, "pickup_change_expired"))
 		case errors.Is(err, scheduleService.ErrCareRequestRejectReasonRequired),
 			errors.Is(err, scheduleService.ErrCareRequestRejectReasonTooLong),
 			errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):

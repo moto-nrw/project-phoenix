@@ -436,3 +436,25 @@ func (r *AttendanceRepository) HasOpenAttendanceOn(ctx context.Context, date tim
 	}
 	return exists, nil
 }
+
+// HasAnyInRange reports whether ANY attendance row of the current tenant
+// exists between the two dates (inclusive), regardless of student. Signal for
+// "does this school record attendance at all" — a per-student lookback would
+// misreport newly enrolled or long-absent children.
+//
+// Requires a tenant tx in ctx; RLS is the only tenant scope — there is no
+// tenant_id WHERE clause, so calling without a tenant tx falls back to the
+// bare *bun.DB and would read attendance across all tenants.
+func (r *AttendanceRepository) HasAnyInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
+	var exists bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS(
+			SELECT 1 FROM active.attendance
+			WHERE date >= ? AND date <= ?
+		)
+	`, startDate, endDate).Scan(ctx, &exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}

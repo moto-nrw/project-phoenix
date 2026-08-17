@@ -35,6 +35,8 @@ function decideErrorMessage(code: string | undefined): string {
       return "Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen. Bitte prüfen und die Anfrage gegebenenfalls ablehnen.";
     case "pickup_change_completed":
       return "Das Kind wurde bereits ausgecheckt. Die Abholzeit kann nicht mehr geändert werden.";
+    case "pickup_change_expired":
+      return "Der angefragte Tag liegt bereits in der Vergangenheit. Die Abholzeit kann nicht mehr übernommen werden. Bitte die Anfrage ablehnen.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
   }

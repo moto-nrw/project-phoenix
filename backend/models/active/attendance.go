@@ -78,6 +78,12 @@ type AttendanceRepository interface {
 	// operator presence-mode switch guard.
 	HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error)
 
+	// HasAnyInRange reports whether any attendance row of the current tenant
+	// exists between the two dates (inclusive), regardless of student. Used
+	// as the "school records attendance at all" signal by the parent
+	// today-status derivation.
+	HasAnyInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error)
+
 	// FindByStudentAndDate finds all attendance records for a student on a specific date
 	FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*Attendance, error)
 

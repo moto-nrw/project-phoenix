@@ -148,8 +148,9 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 
 // seedClosedAttendanceOn schreibt eine abgeschlossene Anwesenheit fuer einen
 // vergangenen Tag. Das ist der Beleg, dass die Schule ueberhaupt Anwesenheit
-// pflegt: ohne eine einzige Zeile in den letzten 14 Tagen antwortet der
-// Tagesstatus bewusst "unbekannt", statt "nicht angekommen" zu behaupten.
+// pflegt: ohne eine einzige Zeile der SCHULE in den letzten 14 Tagen antwortet
+// der Tagesstatus bewusst "unbekannt", statt "nicht angekommen" zu behaupten.
+// Auf welches Kind die Zeile laeuft, ist fuer dieses Signal egal.
 func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64, date timezone.Date) {
 	t.Helper()
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "attendance-history-fixture")
@@ -352,6 +353,36 @@ func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, parentService.DayStateUnknown, status.State)
 	assert.Nil(t, status.AtOgs, "ohne Ankunftszeit darf der Status nicht keine Betreuung behaupten")
+}
+
+// TestGetChildTodayStatusTracksAttendanceSchoolWide: das Signal "die Schule
+// pflegt Anwesenheit" haengt an der Schule, nicht am einzelnen Kind. Ein neu
+// aufgenommenes Kind hat selbst keine Historie; solange irgendein anderes Kind
+// der Schule im Fenster erfasst wurde, darf die Antwort trotzdem "noch nicht
+// da" lauten statt zu schweigen. (Derselbe Fall trifft nach den Ferien jedes
+// Kind der Schule gleichzeitig.)
+func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
+	svc, db := buildTodayStatusServiceWithSchedule(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.WallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
+		t.Skip("Wochenplaene gelten nur montags bis freitags")
+	}
+
+	// Die Historie gehoert einem MITSCHUELER, das angefragte Kind hat keine.
+	classmate := testpkg.CreateTestStudentForTenant(t, db, chain.TenantID, "Mit", "Schueler", "3a")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "users.students", classmate.ID)
+		testpkg.CleanupTableRecords(t, db, "users.persons", classmate.PersonID)
+	})
+	seedClosedAttendanceOn(t, db, chain.TenantID, classmate.ID, timezone.TodayDate().AddDays(-3))
+
+	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status.AtOgs, "die Anwesenheitskultur belegt die Schule, nicht das einzelne Kind")
+	assert.False(t, *status.AtOgs)
+	assert.Equal(t, "08:00", status.ExpectedFrom)
 }
 
 func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing.T) {

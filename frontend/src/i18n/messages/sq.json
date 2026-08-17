@@ -1296,6 +1296,7 @@
   "parentOgsMessaging": {
     "readByStaff": "Lexuar",
     "requestTypeCareSchedule": "Kërkesë: Ndrysho oraret e rregullta të kujdesit",
+    "requestTypePickupChange": "Kërkesë: Ndrysho orarin e marrjes për një ditë",
     "requestTitleFallback": "Kërkesë",
     "statusOpen": "E hapur",
     "statusDone": "E përfunduar",
@@ -1304,6 +1305,8 @@
     "eventRequestConfirmed": "Kërkesa u konfirmua",
     "eventRequestConfirmedCareSchedule": "Kërkesa u konfirmua, oraret e kujdesit u zbatuan",
     "eventRequestCreatedCareSchedule": "Kërkesë për ndryshim të orareve të kujdesit u dërgua",
+    "eventRequestConfirmedPickupChange": "Kërkesa u konfirmua, orari i marrjes u ndryshua",
+    "eventRequestCreatedPickupChange": "Kërkesë për ndryshim të orarit të marrjes u dërgua",
     "eventRequestCreatedMasterData": "Kërkesë për ndryshim të Stammdaten u dërgua",
     "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, Stammdaten u zbatuan",
     "eventRequestCreatedExcusedAbsence": "Kërkesë për mungesë të arsyetuar u dërgua",

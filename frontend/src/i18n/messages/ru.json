@@ -1296,6 +1296,7 @@
   "parentOgsMessaging": {
     "readByStaff": "Прочитано",
     "requestTypeCareSchedule": "Запрос: изменить регулярное время присмотра",
+    "requestTypePickupChange": "Запрос: изменить время, когда забирают, на один день",
     "requestTitleFallback": "Запрос",
     "statusOpen": "Открыто",
     "statusDone": "Выполнено",
@@ -1304,6 +1305,8 @@
     "eventRequestConfirmed": "Запрос подтверждён",
     "eventRequestConfirmedCareSchedule": "Запрос подтверждён, время присмотра применено",
     "eventRequestCreatedCareSchedule": "Отправлен запрос на изменение времени присмотра",
+    "eventRequestConfirmedPickupChange": "Запрос подтверждён, время, когда забирают, изменено",
+    "eventRequestCreatedPickupChange": "Отправлен запрос на изменение времени, когда забирают",
     "eventRequestCreatedMasterData": "Отправлен запрос на изменение Stammdaten",
     "eventRequestConfirmedMasterData": "Запрос подтверждён, Stammdaten применены",
     "eventRequestCreatedExcusedAbsence": "Отправлен запрос на освобождение от посещения",
