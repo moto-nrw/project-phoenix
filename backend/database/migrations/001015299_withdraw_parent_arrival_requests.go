@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	withdrawParentArrivalRequestsVersion     = "1.15.298"
+	withdrawParentArrivalRequestsVersion     = "1.15.299"
 	withdrawParentArrivalRequestsDescription = "Withdraw pending parent arrival-time requests"
 	withdrawParentArrivalRequestsReason      = "Bringzeiten werden ausschließlich von der OGS gepflegt."
 )
@@ -23,7 +23,7 @@ func init() {
 }
 
 func withdrawParentArrivalRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.298: Withdrawing pending parent arrival-time requests...")
+	fmt.Println("Migration 1.15.299: Withdrawing pending parent arrival-time requests...")
 	_, err := db.NewRaw(`
 		UPDATE schedule.care_schedule_change_requests
 		SET status = 'withdrawn', decision_reason = ?
@@ -40,7 +40,7 @@ func withdrawParentArrivalRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func withdrawParentArrivalRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.298: Restoring eligible parent arrival-time requests...")
+	fmt.Println("Rolling back migration 1.15.299: Restoring eligible parent arrival-time requests...")
 	_, err := db.NewRaw(`
 		UPDATE schedule.care_schedule_change_requests AS legacy
 		SET status = 'pending', decision_reason = NULL

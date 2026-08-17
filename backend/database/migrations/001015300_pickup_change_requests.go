@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	pickupChangeRequestsVersion     = "1.15.299"
+	pickupChangeRequestsVersion     = "1.15.300"
 	pickupChangeRequestsDescription = "Separate weekly and one-day pickup change requests"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 func pickupChangeRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.299: Adding pickup change request type...")
+	fmt.Println("Migration 1.15.300: Adding pickup change request type...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE schedule.care_schedule_change_requests
 			ADD COLUMN IF NOT EXISTS request_kind TEXT NOT NULL DEFAULT 'weekly_schedule';
