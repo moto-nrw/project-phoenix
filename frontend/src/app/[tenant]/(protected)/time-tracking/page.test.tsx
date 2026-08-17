@@ -4903,7 +4903,7 @@ describe("empty-day hint dialog (#2361)", () => {
     expect(screen.getByText("Kein Eintrag vorhanden")).toBeInTheDocument();
     // Ohne time_tracking:manage gibt es keinen Nachtragen-Absprung.
     expect(
-      screen.queryByRole("button", { name: "Eintrag nachtragen" }),
+      screen.queryByRole("button", { name: "Nachtragen" }),
     ).not.toBeInTheDocument();
   });
 
@@ -4938,7 +4938,7 @@ describe("empty-day hint dialog (#2361)", () => {
       expect(screen.getByTestId("modal")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Eintrag nachtragen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nachtragen" }));
     // Der Tenant-Router stellt je nach Routing-Modus den Slug voran — hier
     // zählt nur, dass die eigene Admin-Zeiterfassung angesteuert wird.
     expect(push).toHaveBeenCalledWith(

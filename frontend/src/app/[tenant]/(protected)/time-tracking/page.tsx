@@ -2469,7 +2469,7 @@ function EditSessionModal({
                 }
                 className="flex-1"
               >
-                Eintrag nachtragen
+                Nachtragen
               </Button>
             )}
           </div>
@@ -2482,15 +2482,13 @@ function EditSessionModal({
           </p>
           {canManage && ownStaffId ? (
             <p>
-              Fehlende Arbeitszeiten werden in der Verwaltungs-Ansicht
-              nachgetragen. Der Knopf unten öffnet die eigene Zeiterfassung
-              dort.
+              Mit „Nachtragen“ öffnen Sie die passende Seite. Dort tragen Sie
+              die Arbeitszeit für diesen Tag ein.
             </p>
           ) : (
             <p>
-              Fehlende Arbeitszeiten kann nur die Leitung nachtragen (unter
-              Mitarbeitende in der Zeiterfassung der Person). Bitte dort melden,
-              damit der Tag ergänzt wird.
+              Nur die Leitung kann fehlende Tage nachtragen. Bitte melden Sie
+              sich dort.
             </p>
           )}
         </div>
