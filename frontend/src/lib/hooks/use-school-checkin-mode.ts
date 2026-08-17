@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useReducer, useState } from "react";
+import { useCallback, useReducer, useRef, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -146,9 +146,13 @@ interface UseSchoolCheckinModeResult {
   /** Whether the page is currently in check-in/out mode. */
   isActive: boolean;
   /** Flip between active and inactive. Resets the per-session counter
-   *  whenever the mode is freshly switched on. */
+   *  whenever the mode is freshly switched on. Ignored while a bulk request
+   *  is in flight — leaving the mode clears the selection, which would
+   *  discard the failed IDs the in-flight response is about to keep marked
+   *  for the promised one-tap retry (review #2372). */
   toggleActive: () => void;
-  /** Set mode off (used when navigating away or on unrecoverable errors). */
+  /** Set mode off (used when navigating away or on unrecoverable errors).
+   *  Ignored while a bulk request is in flight, like toggleActive. */
   deactivate: () => void;
   /** Set of student IDs whose API call is still in flight. */
   pendingIds: ReadonlySet<string>;
@@ -175,6 +179,15 @@ interface UseSchoolCheckinModeResult {
   /** Students currently marked for the next bulk action. */
   selectedIds: ReadonlySet<string>;
   toggleSelected: (studentId: string) => void;
+  /**
+   * Empty the selection. While a bulk request is in flight the clear is
+   * DEFERRED until the run settles (review #2372): the page fires this on
+   * every search/filter scope change, and clearing mid-flight would race the
+   * response processing — the failed students would lose their retry marks
+   * to a half-applied clear. Deferring keeps the outcome deterministic: the
+   * batch finishes against the intact selection, then the scope change wins
+   * and the selection empties exactly as if it had happened after the run.
+   */
   clearSelection: () => void;
   /** True while a bulk action's API call is in flight. */
   isBulkRunning: boolean;
@@ -213,9 +226,24 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   const [selectionActive, setSelectionActiveState] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [isBulkRunning, setIsBulkRunning] = useState(false);
+  // Ref twin of isBulkRunning so the selection-destroying callbacks below can
+  // check it WITHOUT depending on the state: their identities stay stable
+  // across a run, which matters because the page's scope-change effect keys
+  // on clearSelection's identity — an identity churn per run would re-fire
+  // that effect after every batch and wipe the retained failure marks.
+  const isBulkRunningRef = useRef(false);
+  // Scope clear requested mid-flight; applied when the run settles.
+  const pendingClearRef = useRef(false);
   const toast = useToast();
 
   const clearSelection = useCallback(() => {
+    if (isBulkRunningRef.current) {
+      // Defer, don't drop (see the interface doc): the scope change still
+      // wins — but only after the in-flight response has been processed
+      // against the selection it was started from.
+      pendingClearRef.current = true;
+      return;
+    }
     setSelectedIds(new Set());
   }, []);
 
@@ -227,17 +255,26 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
     setSelectedIds(new Set());
   }, []);
 
+  // toggleActive/deactivate/setSelectionActive ignore calls while a bulk
+  // request is in flight (review #2372): each of them empties selectedIds,
+  // and an emptied selection can no longer retain the failed students the
+  // response is about to report. The visible triggers ("Fertig", the
+  // Sofort|Auswahl switch) are also disabled during a run — this guard is
+  // the authority behind that affordance, covering every caller.
   const toggleActive = useCallback(() => {
+    if (isBulkRunningRef.current) return;
     dispatchSession("toggle");
     resetSelectionState();
   }, [resetSelectionState]);
 
   const deactivate = useCallback(() => {
+    if (isBulkRunningRef.current) return;
     dispatchSession("deactivate");
     resetSelectionState();
   }, [resetSelectionState]);
 
   const setSelectionActive = useCallback((active: boolean) => {
+    if (isBulkRunningRef.current) return;
     setSelectionActiveState(active);
     // Both directions clear: leftover marks from a previous sub-mode session
     // would otherwise be executed later without being visible in between.
@@ -324,7 +361,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
       action: SchoolCheckinAction,
       onlyIds?: readonly string[],
     ): Promise<SchoolCheckinBatchOutcome | null> => {
-      if (isBulkRunning) return null;
+      if (isBulkRunningRef.current) return null;
 
       // Intersect with the live selection so a stale caller list can never
       // widen the run beyond what is actually marked right now.
@@ -332,6 +369,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         ? onlyIds.filter((id) => selectedIds.has(id))
         : Array.from(selectedIds);
       if (ids.length === 0) return null;
+      isBulkRunningRef.current = true;
       setIsBulkRunning(true);
       // Mark every batch member pending so the cards show the same in-flight
       // state a single toggle does.
@@ -400,10 +438,19 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
           for (const id of ids) next.delete(id);
           return next;
         });
+        isBulkRunningRef.current = false;
         setIsBulkRunning(false);
+        // A scope change during the run requested a clear; the response has
+        // been processed against the intact selection above, so the deferred
+        // clear may now apply — the marks belong to a view that no longer
+        // exists (see the clearSelection interface doc).
+        if (pendingClearRef.current) {
+          pendingClearRef.current = false;
+          setSelectedIds(new Set());
+        }
       }
     },
-    [isBulkRunning, selectedIds, toast],
+    [selectedIds, toast],
   );
 
   return {

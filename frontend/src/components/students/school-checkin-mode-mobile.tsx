@@ -21,6 +21,12 @@ interface SchoolCheckinModeMobileProps {
   readonly selectionActive?: boolean;
   /** Currently marked students while the selection sub-mode is on. */
   readonly selectedCount?: number;
+  /**
+   * Locks the trigger, e.g. while a bulk request is in flight (#2359): the
+   * hook ignores mode exits during a run, so "Fertig" mirrors that as a
+   * visible disabled state instead of a dead tap.
+   */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -44,6 +50,7 @@ export function SchoolCheckinModeMobile({
   pendingCount,
   selectionActive = false,
   selectedCount = 0,
+  disabled = false,
 }: SchoolCheckinModeMobileProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
 
@@ -148,8 +155,9 @@ export function SchoolCheckinModeMobile({
         <button
           type="button"
           onClick={onToggle}
+          disabled={disabled}
           aria-label="An- und Abmelde-Modus beenden"
-          className="flex h-9 flex-shrink-0 items-center rounded-full bg-white px-4 text-sm font-semibold transition-colors duration-150 active:scale-[0.98]"
+          className="flex h-9 flex-shrink-0 items-center rounded-full bg-white px-4 text-sm font-semibold transition-colors duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
           style={{ color: GROUP_ROOM_SHADES.text }}
         >
           Fertig

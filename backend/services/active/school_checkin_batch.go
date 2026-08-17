@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // School check-in action values shared by the single and batch web endpoints.
@@ -57,10 +60,11 @@ func IsSchoolCheckinNoop(action, currentStatus string) bool {
 // of students (#2359, Sammelauswahl in der Kindersuche).
 //
 // Reads are batched — one students query for id resolution, one post-write
-// status refresh — so a full selection issues a handful of queries instead of
-// an N+1 per-student cascade. Only the state-transition writes stay per
-// student: CheckInStudent/CheckOutStudent carry the race-safe transition logic
-// (and visit ending on checkout) that has no batch form.
+// status refresh, one staff-presence stamp — so a full selection issues a
+// handful of queries instead of an N+1 per-student cascade. Only the
+// state-transition writes stay per student: performCheckIn/performCheckOut
+// carry the race-safe transition logic (and visit ending on checkout) that
+// has no batch form.
 //
 // Writes run in ascending student-id order regardless of the caller's order:
 // two overlapping batches over the same students would otherwise take their
@@ -80,7 +84,7 @@ func IsSchoolCheckinNoop(action, currentStatus string) bool {
 // so an unexpected write error must fail the entire call — earlier writes
 // would never commit, and reporting them per-student as OK would lie. Only
 // conditions detected without poisoning the transaction (unknown/foreign id,
-// graduation — including CheckInStudent's own pre-write graduation guard
+// graduation — including performCheckIn's own pre-write graduation guard
 // losing a race) become OK=false items.
 func (s *service) ProcessSchoolCheckinBatch(
 	ctx context.Context,
@@ -104,6 +108,7 @@ func (s *service) ProcessSchoolCheckinBatch(
 
 	outcomes := make(map[int64]SchoolCheckinBatchItem, len(writeOrder))
 	written := make([]int64, 0, len(writeOrder))
+	stampPresence := false
 	for _, studentID := range writeOrder {
 		student := students[studentID]
 		// IsAlumnus is nil-safe by design: a missing map entry (unknown id or
@@ -114,7 +119,7 @@ func (s *service) ProcessSchoolCheckinBatch(
 		}
 		result, writeErr := s.applySchoolCheckinWrite(ctx, studentID, staffID, action)
 		if writeErr != nil {
-			// Graduation race after the batch pre-check above: CheckInStudent's
+			// Graduation race after the batch pre-check above: performCheckIn's
 			// own guard rejects before writing anything, so the transaction
 			// stays clean and the student can be skipped like any unknown id.
 			if errors.Is(writeErr, ErrStudentGraduated) {
@@ -125,6 +130,21 @@ func (s *service) ProcessSchoolCheckinBatch(
 		}
 		outcomes[studentID] = SchoolCheckinBatchItem{StudentID: studentID, OK: true, Changed: result.Changed}
 		written = append(written, studentID)
+		// Same predicate as ensureStaffPresenceForAttendanceResult on the
+		// single-student path: an idempotent no-op checkout is not an
+		// on-duty action and must not open a work session by itself.
+		if result.Action != "checked_out" || result.AttendanceID != 0 {
+			stampPresence = true
+		}
+	}
+
+	// One staff presence auto-stamp for the whole batch (#1439). Every write
+	// above acts for the same staff member, so stamping per student would
+	// only repeat the identical EnsureCheckedIn work-session lookup once per
+	// child, up to the full batch cap. Best-effort exactly like the
+	// single-student path: a failure is logged and never fails the batch.
+	if stampPresence {
+		s.ensureStaffPresence(ctx, staffID, attendanceStampSource(ctx))
 	}
 
 	// Back-fill the final status for every written student (changed or
@@ -163,15 +183,19 @@ func (s *service) ProcessSchoolCheckinBatch(
 }
 
 // applySchoolCheckinWrite performs the single state-transition write for one
-// student of a batch. Action-explicit for the race reason documented on
-// ToggleStudentAttendance: CheckIn/CheckOut are individually race-safe
-// (ON CONFLICT for in, state-checked UPDATE for out), while a toggle could
-// flip a concurrent "in" into an "out". A checkout also ends any open room
-// visit in the same request transaction (#895). skipAuthCheck is true because
-// the batch contract requires the caller to be authorized already.
+// student of a batch — the same performCheckIn/performCheckOut cores the
+// single-student CheckInStudent/CheckOutStudent wrappers use, minus their
+// per-call staff presence stamp (the batch stamps once for the whole run)
+// and minus authorization, which the batch contract requires the caller to
+// have done already (mirror of skipAuthCheck on the single-student path).
+// Action-explicit for the race reason documented on ToggleStudentAttendance:
+// the cores are individually race-safe (ON CONFLICT for in, state-checked
+// UPDATE for out), while a toggle could flip a concurrent "in" into an
+// "out". A checkout also ends any open room visit in the same request
+// transaction (#895).
 func (s *service) applySchoolCheckinWrite(ctx context.Context, studentID, staffID int64, action string) (*AttendanceResult, error) {
 	if action == SchoolCheckinActionIn {
-		return s.CheckInStudent(ctx, studentID, staffID, 0, true)
+		return s.performCheckIn(ctx, studentID, staffID, 0, time.Now(), timezone.TodayDate(), checkinTypeWeb)
 	}
-	return s.CheckOutStudent(ctx, studentID, staffID, true)
+	return s.performCheckOut(ctx, studentID, staffID, time.Now(), checkoutTypeWeb)
 }

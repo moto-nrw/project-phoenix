@@ -215,6 +215,99 @@ describe("useSchoolCheckinMode selection sub-mode", () => {
     expect(result.current.selectedIds.has("1")).toBe(false);
   });
 
+  it("ignores mode exit and sub-mode switch while a bulk request is in flight", async () => {
+    let resolveBatch!: (value: unknown) => void;
+    mockSchoolCheckinStudentsBatch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBatch = resolve;
+      }),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleSelected("2"));
+
+    let runPromise: Promise<unknown> = Promise.resolve(null);
+    act(() => {
+      runPromise = result.current.runBulk("out");
+    });
+
+    // "Fertig" (toggleActive/deactivate) and the Sofort|Auswahl switch would
+    // all clear selectedIds — mid-flight they must be ignored so the failed
+    // students can stay marked for the retry (review #2372).
+    act(() => result.current.toggleActive());
+    act(() => result.current.deactivate());
+    act(() => result.current.setSelectionActive(false));
+
+    expect(result.current.isActive).toBe(true);
+    expect(result.current.selectionActive).toBe(true);
+    expect(result.current.selectedIds.size).toBe(2);
+
+    await act(async () => {
+      resolveBatch({
+        action: "out",
+        succeeded: 1,
+        failed: 1,
+        results: [
+          { studentId: "1", ok: true, changed: true, location: "Abwesend" },
+          { studentId: "2", ok: false, changed: false, error: "not_found" },
+        ],
+      });
+      await runPromise;
+    });
+
+    // Failed student kept its mark; after the run the exit works again.
+    expect(result.current.selectedIds.has("2")).toBe(true);
+    act(() => result.current.toggleActive());
+    expect(result.current.isActive).toBe(false);
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
+  it("defers a clearSelection issued during the run until the run settles", async () => {
+    let resolveBatch!: (value: unknown) => void;
+    mockSchoolCheckinStudentsBatch.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBatch = resolve;
+      }),
+    );
+
+    const { result } = renderHook(() => useSchoolCheckinMode());
+    act(() => result.current.toggleActive());
+    act(() => result.current.setSelectionActive(true));
+    act(() => result.current.toggleSelected("1"));
+    act(() => result.current.toggleSelected("2"));
+
+    let runPromise: Promise<unknown> = Promise.resolve(null);
+    act(() => {
+      runPromise = result.current.runBulk("out");
+    });
+
+    // The page fires clearSelection on every search/filter scope change.
+    // Mid-flight it must not touch the selection the response will be
+    // processed against (review #2372)…
+    act(() => result.current.clearSelection());
+    expect(result.current.selectedIds.size).toBe(2);
+
+    await act(async () => {
+      resolveBatch({
+        action: "out",
+        succeeded: 1,
+        failed: 1,
+        results: [
+          { studentId: "1", ok: true, changed: true, location: "Abwesend" },
+          { studentId: "2", ok: false, changed: false, error: "not_found" },
+        ],
+      });
+      await runPromise;
+    });
+
+    // …but the scope change still wins once the run has settled: the marks
+    // belong to a view that no longer exists, failures included.
+    expect(result.current.selectedIds.size).toBe(0);
+  });
+
   it("invalidates exactly the presence-bearing SWR key families, bundled", async () => {
     mockSchoolCheckinStudentsBatch.mockResolvedValue({
       action: "in",

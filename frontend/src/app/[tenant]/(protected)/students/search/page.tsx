@@ -1431,6 +1431,9 @@ function SearchPageContent() {
   // a selection hidden by a new filter must never survive into a later bulk
   // run (review #2372). Data revalidation after a bulk run does NOT change
   // this signature, so retained failure marks survive their retry window.
+  // A scope change WHILE a batch is in flight is safe too: the hook defers
+  // this clear until the run has been processed against the selection it
+  // started from, then applies it (review #2372).
   const selectionScopeSignature = `${studentsCacheKey}|${effectiveAttendanceFilter}|${pickupTimeFilter}|${arrivalTimeFilter}|${effectiveTrackingFilter}`;
   const clearCheckinSelection = schoolCheckin.clearSelection;
   useEffect(() => {
@@ -2698,6 +2701,7 @@ function SearchPageContent() {
                 onToggle={schoolCheckin.toggleActive}
                 successCount={schoolCheckin.successCount}
                 pendingCount={schoolCheckin.pendingIds.size}
+                disabled={schoolCheckin.isBulkRunning}
               />
             ) : undefined
           }
@@ -2787,6 +2791,7 @@ function SearchPageContent() {
             pendingCount={schoolCheckin.pendingIds.size}
             selectionActive={schoolCheckin.selectionActive}
             selectedCount={selectedStudentsForBulk.length}
+            disabled={schoolCheckin.isBulkRunning}
           />
         </div>
       )}
@@ -3140,6 +3145,7 @@ function SearchPageContent() {
             onToggle={schoolCheckin.toggleActive}
             successCount={schoolCheckin.successCount}
             pendingCount={schoolCheckin.pendingIds.size}
+            disabled={schoolCheckin.isBulkRunning}
           />
         </div>
       )}
