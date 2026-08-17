@@ -107,6 +107,165 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, resp, "School checkin toggled successfully")
 }
 
+// maxSchoolCheckinBatchSize caps one batch request. The student search view
+// loads at most 1000 rows per page walk, so a full-page selection stays
+// expressible in a single request while a runaway payload is rejected.
+const maxSchoolCheckinBatchSize = 1000
+
+// schoolCheckinBatchRequest is the payload for
+// POST /api/students/school-checkin/batch. The action applies to every listed
+// student; students already in the target state count as no-ops (Changed=false),
+// mirroring the single-student endpoint's idempotency.
+type schoolCheckinBatchRequest struct {
+	Action     string  `json:"action"` // "in" | "out"
+	StudentIDs []int64 `json:"student_ids"`
+}
+
+// schoolCheckinBatchResult is the per-student outcome inside a batch response.
+// Error carries a machine-readable code ("not_found") — the frontend resolves
+// the student's name from its own list, so no PII travels here.
+type schoolCheckinBatchResult struct {
+	StudentID int64  `json:"student_id"`
+	OK        bool   `json:"ok"`
+	Changed   bool   `json:"changed"`
+	Status    string `json:"status,omitempty"`
+	Location  string `json:"location,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
+type schoolCheckinBatchResponse struct {
+	Action    string                     `json:"action"`
+	Results   []schoolCheckinBatchResult `json:"results"`
+	Succeeded int                        `json:"succeeded"`
+	Failed    int                        `json:"failed"`
+}
+
+// schoolCheckinBatchHandler applies one explicit check-in/out action to a set
+// of students (#2359, Sammelauswahl in der Kindersuche).
+//
+// Failure semantics: the whole request runs inside one tenant transaction
+// (TenantTxMiddleware), so an unexpected write error aborts the transaction —
+// earlier writes would never commit. Reporting them per-student as "ok" would
+// lie, so any unexpected service error fails the entire request with 500 and
+// nothing is applied. The per-student "error" entries cover only conditions
+// detected BEFORE any write for that student (unknown/foreign/graduated id),
+// which never poison the transaction: those students are skipped and the rest
+// of the batch still commits.
+func (rs *Resource) schoolCheckinBatchHandler(w http.ResponseWriter, r *http.Request) {
+	logger := rs.getLogger().With(slog.String("handler", "schoolCheckinBatch"))
+
+	var req schoolCheckinBatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if req.Action != schoolCheckinActionIn && req.Action != schoolCheckinActionOut {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(`action must be "in" or "out"`)))
+		return
+	}
+	studentIDs := dedupeStudentIDs(req.StudentIDs)
+	if len(studentIDs) == 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids must not be empty")))
+		return
+	}
+	if len(studentIDs) > maxSchoolCheckinBatchSize {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("too many students in one batch")))
+		return
+	}
+
+	staffID, err := rs.getStaffIDFromJWT(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
+
+	resp := &schoolCheckinBatchResponse{Action: req.Action, Results: make([]schoolCheckinBatchResult, 0, len(studentIDs))}
+	for _, studentID := range studentIDs {
+		result, applyErr := rs.applySchoolCheckinBatchOne(r.Context(), studentID, staffID, req.Action)
+		if applyErr != nil {
+			common.RenderError(w, r, common.ErrorInternalServer(applyErr))
+			return
+		}
+		if result.OK {
+			resp.Succeeded++
+		} else {
+			resp.Failed++
+		}
+		resp.Results = append(resp.Results, result)
+	}
+
+	logger.Info("student_school_checkin_batch",
+		slog.Int64("staff_id", staffID),
+		slog.String("action", req.Action),
+		slog.Int("requested", len(studentIDs)),
+		slog.Int("succeeded", resp.Succeeded),
+		slog.Int("failed", resp.Failed),
+	)
+
+	common.Respond(w, r, http.StatusOK, resp, "School checkin batch processed")
+}
+
+// applySchoolCheckinBatchOne resolves and toggles a single student of a batch.
+// A student the caller cannot act on (unknown id, another tenant — invisible
+// through RLS —, or graduated) comes back as a not_found result; only
+// unexpected service errors return a non-nil error, which fails the whole
+// batch (see schoolCheckinBatchHandler for why).
+func (rs *Resource) applySchoolCheckinBatchOne(
+	ctx context.Context,
+	studentID int64,
+	staffID int64,
+	action string,
+) (schoolCheckinBatchResult, error) {
+	notFound := schoolCheckinBatchResult{StudentID: studentID, Error: "not_found"}
+
+	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
+	if err != nil {
+		return notFound, nil
+	}
+	if student.Status == users.StudentStatusAlumnus {
+		return notFound, nil
+	}
+
+	current, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, student.ID)
+	if err != nil {
+		return schoolCheckinBatchResult{}, err
+	}
+
+	resp, err := rs.applySchoolCheckinAction(ctx, student, staffID, action, current)
+	if err != nil {
+		// Graduation race after the pre-check above: CheckInStudent's own guard
+		// rejects before writing anything, so the transaction stays clean and
+		// the student can be skipped like any other unknown id.
+		if errors.Is(err, activeService.ErrStudentGraduated) {
+			return notFound, nil
+		}
+		return schoolCheckinBatchResult{}, err
+	}
+
+	return schoolCheckinBatchResult{
+		StudentID: student.ID,
+		OK:        true,
+		Changed:   resp.Changed,
+		Status:    resp.Status,
+		Location:  resp.Location,
+	}, nil
+}
+
+// dedupeStudentIDs drops duplicates while keeping first-seen order, so a
+// double-tapped selection never toggles a student twice in one batch.
+func dedupeStudentIDs(ids []int64) []int64 {
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
 // isIdempotentSchoolCheckin reports whether the requested action is already
 // satisfied by the student's current attendance status. Extracted so the
 // no-op decision can be unit-tested without a mock ActiveService.

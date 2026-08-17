@@ -278,6 +278,10 @@ func (rs *Resource) Router() chi.Router {
 		// The users:checkin permission is the gate; any verified staff member may
 		// toggle any student (#2329).
 		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
+		// Batch variant (#2359): one explicit action for a selected set of
+		// children. Same gate as the single endpoint; static path takes
+		// precedence over /{id} in chi.
+		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/school-checkin/batch", rs.schoolCheckinBatchHandler)
 
 		// Student photo (Datenverwaltung). upload + delete: users:update;
 		// serve: users:read. Feature gate + consent enforced in photo.go.
