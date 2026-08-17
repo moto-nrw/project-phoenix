@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	autoPartialAbsenceVersion     = "1.15.298"
+	autoPartialAbsenceVersion     = "1.15.299"
 	autoPartialAbsenceDescription = "Derive partial absences automatically from pulled-forward day pickup times (#2360)"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.298: Adding excused_auto to pickup exceptions (#2360)...")
+	fmt.Println("Migration 1.15.299: Adding excused_auto to pickup exceptions (#2360)...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.student_pickup_exceptions
@@ -47,7 +47,7 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func autoPartialAbsenceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.298: Removing excused_auto from pickup exceptions...")
+	fmt.Println("Rolling back migration 1.15.299: Removing excused_auto from pickup exceptions...")
 
 	_, err := db.NewRaw(`
 		UPDATE schedule.instance_students AS attendance
