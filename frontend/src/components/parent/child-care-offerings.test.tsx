@@ -310,4 +310,68 @@ describe("ChildCareOfferingsSection", () => {
       await screen.findByText(/konnten nicht geladen werden/),
     ).toBeInTheDocument();
   });
+
+  // Mitbuchungs-Regeln (#2365/#2370): rule-added lines are explained, and an
+  // override by the school is named in the decided recap.
+  it("explains a rule-added line in the pending request", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        pending_request: {
+          ...pending,
+          diff: [
+            ...pending!.diff,
+            {
+              label: "Ganztagsbetreuung bis 14.30 Uhr",
+              old_state: "not_booked",
+              old_days: [],
+              new_state: "booked",
+              new_days: ["mon", "tue"],
+              new_automatic_days: ["mon", "tue"],
+              auto_trigger_names: ["Randstunde"],
+            },
+          ],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(
+      await screen.findByText(
+        /Kommt automatisch dazu, weil „Randstunde“ gewählt ist\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the applied result and a school override in the decided recap", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "88",
+          status: "approved",
+          decided_at: "2026-08-17T09:00:00Z",
+          effective_from: "2027-02-01",
+          requested: [{ id: "5", name: "Randstunde", weekdays: [1, 2] }],
+          applied: [
+            {
+              label: "Randstunde",
+              old_state: "not_booked",
+              old_days: [],
+              new_state: "booked",
+              new_days: ["mon", "tue"],
+            },
+          ],
+          overridden_names: ["Ganztagsbetreuung bis 14.30 Uhr"],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Das wurde geändert:")).toBeInTheDocument();
+    expect(screen.getByText("Randstunde")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Die Betreuung hat „Ganztagsbetreuung bis 14\.30 Uhr“ nicht mitgebucht\./,
+      ),
+    ).toBeInTheDocument();
+  });
 });

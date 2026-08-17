@@ -34,20 +34,44 @@ type OfferingRequestResponse struct {
 // OfferingRequestDiffResponse is one German-localized diff line for the
 // German-only staff portal.
 type OfferingRequestDiffResponse struct {
-	Label string `json:"label"`
-	Old   string `json:"old"`
-	New   string `json:"new"`
+	OfferingID string `json:"offering_id"`
+	Label      string `json:"label"`
+	Old        string `json:"old"`
+	New        string `json:"new"`
+	// Automatic marks a line whose NEW side contains days a Mitbuchungs-Regel
+	// (or the required lunch) added rather than the parents (#2365).
+	Automatic bool `json:"automatic,omitempty"`
+	// AutomaticDays is the German day list of that automatic share ("Do, Fr").
+	AutomaticDays string `json:"automatic_days,omitempty"`
+	// TriggerIDs / TriggerNames identify the selected offerings whose rule
+	// produced the automatic share. TriggerIDs lets the review card grey out
+	// dependent lines while staff untick an override (#2370).
+	TriggerIDs   []string `json:"trigger_ids,omitempty"`
+	TriggerNames []string `json:"trigger_names,omitempty"`
+	// Optoutable marks a rule-triggered line staff may exclude per request.
+	Optoutable bool `json:"optoutable,omitempty"`
 }
 
 func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) OfferingRequestResponse {
 	row := item.Request
 	diff := make([]OfferingRequestDiffResponse, 0, len(item.Diff))
 	for _, entry := range item.Diff {
-		diff = append(diff, OfferingRequestDiffResponse{
-			Label: entry.Label,
-			Old:   germanOfferingDiffLabel(entry.OldState, entry.OldDays),
-			New:   germanOfferingDiffLabel(entry.NewState, entry.NewDays),
-		})
+		line := OfferingRequestDiffResponse{
+			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
+			Label:      entry.Label,
+			Old:        germanOfferingDiffLabel(entry.OldState, entry.OldDays),
+			New:        germanOfferingDiffLabel(entry.NewState, entry.NewDays),
+		}
+		if len(entry.NewAutomaticDays) > 0 {
+			line.Automatic = true
+			line.AutomaticDays = germanOfferingDiffLabel("booked", entry.NewAutomaticDays)
+			line.Optoutable = len(entry.AutoTriggerIDs) > 0
+			for _, triggerID := range entry.AutoTriggerIDs {
+				line.TriggerIDs = append(line.TriggerIDs, strconv.FormatInt(triggerID, 10))
+			}
+			line.TriggerNames = entry.AutoTriggerNames
+		}
+		diff = append(diff, line)
 	}
 	resp := OfferingRequestResponse{
 		ID:            strconv.FormatInt(row.ID, 10),
@@ -113,6 +137,9 @@ func (rs *Resource) listOfferingChangeRequests(w http.ResponseWriter, r *http.Re
 type DecideOfferingRequestBody struct {
 	Approve *bool  `json:"approve"`
 	Reason  string `json:"reason"`
+	// ExcludedOfferingIDs are the rule-added offerings staff unticked for this
+	// one approval (#2370); the Mitbuchungs-Regel itself stays active.
+	ExcludedOfferingIDs []string `json:"excluded_offering_ids,omitempty"`
 }
 
 // decideOfferingChangeRequest approves (and applies the dated switch) or
@@ -136,17 +163,28 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	excluded := make([]int64, 0, len(body.ExcludedOfferingIDs))
+	for _, raw := range body.ExcludedOfferingIDs {
+		id, convErr := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+		if convErr != nil || id <= 0 {
+			renderError(w, r, common.ErrorInvalidRequest(errors.New("excluded_offering_ids must contain numeric ids")))
+			return
+		}
+		excluded = append(excluded, id)
+	}
+
 	claims := jwt.ClaimsFromCtx(r.Context())
 	actorRole := strings.Join(claims.Roles, ",")
 	if actorRole == "" {
 		actorRole = "unknown"
 	}
 	if err := rs.OfferingChangeService.Decide(r.Context(), enrollmentService.DecideOfferingChangeInput{
-		RequestID:  requestID,
-		Approve:    *body.Approve,
-		Reason:     body.Reason,
-		ReviewedBy: int64(claims.ID),
-		ActorRole:  actorRole,
+		RequestID:               requestID,
+		Approve:                 *body.Approve,
+		Reason:                  body.Reason,
+		ReviewedBy:              int64(claims.ID),
+		ActorRole:               actorRole,
+		ExcludedAutoOfferingIDs: excluded,
 	}); err != nil {
 		renderOfferingDecisionError(w, r, err)
 		return

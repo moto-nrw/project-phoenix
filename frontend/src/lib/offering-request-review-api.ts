@@ -12,10 +12,20 @@ const logger = createLogger({ component: "OfferingRequestReviewAPI" });
 type OfferingRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
 /** One "current → requested" line, pre-rendered in German by the backend. */
-interface OfferingRequestDiffLine {
+export interface OfferingRequestDiffLine {
+  readonly offering_id: string;
   readonly label: string;
   readonly old: string;
   readonly new: string;
+  /** True when a Mitbuchungs-Regel (or the required lunch) added days here. */
+  readonly automatic?: boolean;
+  /** German day list of the automatic share ("Do, Fr"). */
+  readonly automatic_days?: string;
+  /** Offerings whose rule produced the automatic share (for cascade greying). */
+  readonly trigger_ids?: readonly string[];
+  readonly trigger_names?: readonly string[];
+  /** True when staff may exclude this rule-added line per request (#2370). */
+  readonly optoutable?: boolean;
 }
 
 /**
@@ -110,13 +120,20 @@ export async function decideOfferingChangeRequest(
   requestId: string,
   approve: boolean,
   reason?: string,
+  excludedOfferingIds?: readonly string[],
 ): Promise<void> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, reason: reason ?? "" }),
+      body: JSON.stringify({
+        approve,
+        reason: reason ?? "",
+        ...(excludedOfferingIds && excludedOfferingIds.length > 0
+          ? { excluded_offering_ids: excludedOfferingIds }
+          : {}),
+      }),
     },
   );
   if (!response.ok) {

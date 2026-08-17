@@ -153,13 +153,14 @@ func (s *decisionService) updateChildOfferings(
 	}
 
 	submitChild := SubmitChild{
-		FirstName:        child.FirstName,
-		LastName:         child.LastName,
-		DateOfBirth:      child.DateOfBirth,
-		TargetGradeLevel: child.TargetGradeLevel,
-		CustomData:       child.CustomData,
-		OfferingIDs:      make([]int64, 0, len(input.Offerings)),
-		OfferingDays:     make([]SubmitOfferingDays, 0, len(input.Offerings)),
+		FirstName:                child.FirstName,
+		LastName:                 child.LastName,
+		DateOfBirth:              child.DateOfBirth,
+		TargetGradeLevel:         child.TargetGradeLevel,
+		CustomData:               child.CustomData,
+		OfferingIDs:              make([]int64, 0, len(input.Offerings)),
+		OfferingDays:             make([]SubmitOfferingDays, 0, len(input.Offerings)),
+		ExcludedAutoAddTargetIDs: input.ExcludedAutoAddTargetIDs,
 	}
 	seen := make(map[int64]bool, len(input.Offerings))
 	for _, row := range input.Offerings {

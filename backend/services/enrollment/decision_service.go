@@ -131,6 +131,10 @@ type UpdateChildOfferingsInput struct {
 	// Nil keeps the correction semantics (replace the whole phase window),
 	// which is what an admin fixing a typo in the original submission wants.
 	EffectiveFrom *timezone.Date
+	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
+	// target offerings in this one adjustment (#2370). Set only by the
+	// change-request approval path after validating the exclusions.
+	ExcludedAutoAddTargetIDs map[int64]bool
 }
 
 type SyncApprovedChildDataInput struct {

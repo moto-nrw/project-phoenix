@@ -1087,7 +1087,11 @@
       "decisionReason": "Begründung der Betreuung: {reason}",
       "decisionDecidedAt": "Entschieden am {date}",
       "noRequests": "Derzeit liegt keine Änderungsanfrage vor.",
-      "decisionRequested": "Beantragt war:"
+      "decisionRequested": "Beantragt war:",
+      "autoAdded": "Kommt automatisch dazu.",
+      "autoAddedWithTrigger": "Kommt automatisch dazu, weil {trigger} gewählt ist.",
+      "decisionApplied": "Das wurde geändert:",
+      "decisionOverridden": "Die Betreuung hat {names} nicht mitgebucht."
     },
     "careOfferingsModal": {
       "title": "Änderung der Betreuungsangebote anfragen",

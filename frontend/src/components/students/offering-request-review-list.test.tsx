@@ -33,7 +33,14 @@ function request(
     student_name: "Lara Beispiel",
     status: "pending",
     effective_from: "2027-02-01",
-    diff: [{ label: "Regelbetreuung", old: "Mo, Di, Mi", new: "Mo, Di" }],
+    diff: [
+      {
+        offering_id: "1",
+        label: "Regelbetreuung",
+        old: "Mo, Di, Mi",
+        new: "Mo, Di",
+      },
+    ],
     created_at: "2026-07-30T09:00:00Z",
     ...overrides,
   };
@@ -125,6 +132,89 @@ describe("OfferingRequestReviewList", () => {
 
     expect(
       screen.getByText(/Nachricht der Eltern: Neuer Arbeitsbeginn/),
+    ).toBeInTheDocument();
+  });
+
+  // Mitbuchungs-Regeln (#2365/#2370): rule-added lines are marked, name their
+  // trigger, and can be unticked for this one approval.
+  const ruleDiff = [
+    {
+      offering_id: "5",
+      label: "Randstunde",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi, Do, Fr",
+    },
+    {
+      offering_id: "9",
+      label: "Ganztagsbetreuung bis 14.30 Uhr",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi, Do, Fr",
+      automatic: true,
+      automatic_days: "Mo, Di, Mi, Do, Fr",
+      trigger_ids: ["5"],
+      trigger_names: ["Randstunde"],
+      optoutable: true,
+    },
+    {
+      offering_id: "11",
+      label: "Ganztagsbetreuung bis 16 Uhr",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi, Do, Fr",
+      automatic: true,
+      automatic_days: "Mo, Di, Mi, Do, Fr",
+      trigger_ids: ["9"],
+      trigger_names: ["Ganztagsbetreuung bis 14.30 Uhr"],
+      optoutable: true,
+    },
+  ];
+
+  it("marks a rule-added line and names its trigger", async () => {
+    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    expect(screen.getAllByText("Automatisch mitgebucht")).toHaveLength(2);
+    expect(
+      screen.getByText(/weil „Randstunde“ gewählt ist/),
+    ).toBeInTheDocument();
+  });
+
+  it("sends unticked rule-added lines as excluded on approve", async () => {
+    mockDecide.mockResolvedValue(undefined);
+    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith("77", true, undefined, ["9"]),
+    );
+  });
+
+  it("greys a line whose trigger was unticked", async () => {
+    mockList.mockResolvedValue([request({ diff: ruleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        /Entfällt, weil „Ganztagsbetreuung bis 14.30 Uhr“ nicht mitgebucht wird/,
+      ),
     ).toBeInTheDocument();
   });
 });

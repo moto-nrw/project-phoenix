@@ -239,6 +239,12 @@ type SubmitChild struct {
 	CustomData        map[string]any
 	OfferingIDs       []int64
 	OfferingDays      []SubmitOfferingDays
+	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
+	// target offerings during materialization (#2370, per-request staff
+	// override). Only the rule-derived days are suppressed: manual days and
+	// required-lunch derivation are unaffected. Empty on every parent-facing
+	// path — only the staff review decision sets it.
+	ExcludedAutoAddTargetIDs map[int64]bool
 }
 
 // SubmitOfferingDays is one row of SubmitChild.OfferingDays.
@@ -1488,9 +1494,13 @@ func materializeOfferingSelections(child SubmitChild, openByID map[int64]*enroll
 			if !careOfferingCanAutoAddDays(target) || !autoAddAppliesToGrade(child.TargetGradeLevel, target.AutoAddGradeLevels) {
 				continue
 			}
+			var ruleDays []string
+			if !child.ExcludedAutoAddTargetIDs[target.ID] {
+				ruleDays = autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID)
+			}
 			autoDays := unionDaysInOfferingOrder(
 				target.AvailableDays,
-				autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selectionByID, openByID),
+				ruleDays,
 				autoLunchDaysForTarget(target, selectionByID, openByID),
 			)
 			if len(autoDays) == 0 {

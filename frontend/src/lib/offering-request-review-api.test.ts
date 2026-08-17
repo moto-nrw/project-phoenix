@@ -34,7 +34,9 @@ function requestRow(): StaffOfferingRequest {
     student_name: "Lara Beispiel",
     status: "pending",
     effective_from: "2027-02-01",
-    diff: [{ label: "AG", old: "nicht gebucht", new: "Montag" }],
+    diff: [
+      { offering_id: "3", label: "AG", old: "nicht gebucht", new: "Montag" },
+    ],
     created_at: "2026-07-30T12:00:00Z",
   };
 }

@@ -1099,6 +1099,10 @@ interface OfferingDiffLine {
   readonly new_state: "removed" | "booked";
   /** Canonical day keys; empty for an all-day booking. */
   readonly new_days: string[];
+  /** Share of new_days a co-booking rule added rather than the guardian (#2365). */
+  readonly new_automatic_days?: string[];
+  /** Names of the selected offerings whose rule added the automatic share. */
+  readonly auto_trigger_names?: string[];
 }
 
 /** The child's open offering change request. */
@@ -1130,6 +1134,10 @@ interface OfferingDecision {
   readonly reason?: string;
   /** What the family asked for, so the decision stays readable on its own. */
   readonly requested: OfferingRequestedItem[];
+  /** The frozen diff the decision was made on; absent for older decisions. */
+  readonly applied?: OfferingDiffLine[];
+  /** Rule-added offerings the school excluded for this one request (#2370). */
+  readonly overridden_names?: string[];
 }
 
 /** Why the change button is unavailable. Stable identifiers from the backend. */

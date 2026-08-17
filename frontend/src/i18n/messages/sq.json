@@ -1087,7 +1087,11 @@
       "decisionReason": "Begründung der Betreuung: {reason}",
       "decisionDecidedAt": "Entschieden am {date}",
       "noRequests": "Derzeit liegt keine Änderungsanfrage vor.",
-      "decisionRequested": "Beantragt war:"
+      "decisionRequested": "Beantragt war:",
+      "autoAdded": "Shtohet automatikisht.",
+      "autoAddedWithTrigger": "Shtohet automatikisht sepse është zgjedhur {trigger}.",
+      "decisionApplied": "Kjo u ndryshua:",
+      "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}."
     },
     "careOfferingsModal": {
       "title": "Änderung der Betreuungsangebote anfragen",

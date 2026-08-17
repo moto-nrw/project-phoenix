@@ -1087,7 +1087,11 @@
       "decisionReason": "Begründung der Betreuung: {reason}",
       "decisionDecidedAt": "Entschieden am {date}",
       "noRequests": "Derzeit liegt keine Änderungsanfrage vor.",
-      "decisionRequested": "Beantragt war:"
+      "decisionRequested": "Beantragt war:",
+      "autoAdded": "Добавляется автоматически.",
+      "autoAddedWithTrigger": "Добавляется автоматически, потому что выбрано {trigger}.",
+      "decisionApplied": "Вот что изменилось:",
+      "decisionOverridden": "Команда группы продлённого дня не забронировала {names}."
     },
     "careOfferingsModal": {
       "title": "Änderung der Betreuungsangebote anfragen",

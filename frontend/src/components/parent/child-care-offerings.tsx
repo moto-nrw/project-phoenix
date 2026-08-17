@@ -39,6 +39,32 @@ const DAY_KEY_TO_WEEKDAY: Record<string, number> = {
   sun: 7,
 };
 
+// quoteNames joins offering names as „A“, „B“ for the rule hints.
+function quoteNames(names: readonly string[]): string {
+  return names.map((name) => `„${name}“`).join(", ");
+}
+
+// autoAddedHint explains a diff line a Mitbuchungs-Regel added (#2365).
+function autoAddedHint(
+  line: {
+    new_automatic_days?: string[];
+    auto_trigger_names?: string[];
+  },
+  t: ReturnType<typeof useTranslations>,
+) {
+  if (!line.new_automatic_days?.length) return null;
+  const names = line.auto_trigger_names ?? [];
+  return (
+    <p className="mt-0.5 text-xs text-gray-500">
+      {names.length > 0
+        ? t("careOfferings.autoAddedWithTrigger", {
+            trigger: quoteNames(names),
+          })
+        : t("careOfferings.autoAdded")}
+    </p>
+  );
+}
+
 // Reason identifier from the backend → the message key explaining it.
 const DISABLED_REASON_KEYS: Record<OfferingChangesDisabledReason, string> = {
   no_enrollment: "careOfferings.disabledNoEnrollment",
@@ -311,17 +337,19 @@ export function ChildCareOfferingsSection({
             {pending.diff.length > 0 && (
               <dl className="mt-2 space-y-1">
                 {pending.diff.map((line) => (
-                  <div
-                    key={line.label}
-                    className="flex flex-wrap items-baseline gap-x-2 text-sm"
-                  >
-                    <dt className="font-medium text-gray-700">{line.label}</dt>
-                    <dd className="text-gray-500 line-through">
-                      {diffValue(line.old_state, line.old_days)}
-                    </dd>
-                    <dd className="text-gray-900">
-                      {diffValue(line.new_state, line.new_days)}
-                    </dd>
+                  <div key={line.label} className="text-sm">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <dt className="font-medium text-gray-700">
+                        {line.label}
+                      </dt>
+                      <dd className="text-gray-500 line-through">
+                        {diffValue(line.old_state, line.old_days)}
+                      </dd>
+                      <dd className="text-gray-900">
+                        {diffValue(line.new_state, line.new_days)}
+                      </dd>
+                    </div>
+                    {autoAddedHint(line, t)}
                   </div>
                 ))}
               </dl>
@@ -390,27 +418,61 @@ export function ChildCareOfferingsSection({
                 {t("careOfferings.decisionReason", { reason: decision.reason })}
               </p>
             )}
-            {/* The request itself, read back from what was submitted. Without it
-                a rejection names a reason for something the family can no longer
-                see, and an approval does not say what was actually changed. */}
-            {decision.requested.length > 0 && (
+            {/* What the decision actually compared and applied, frozen at
+                decision time (#2365). Older decisions have no snapshot and fall
+                back to the submitted request below. */}
+            {decision.applied && decision.applied.length > 0 ? (
               <div className="mt-3">
                 <p className="text-xs text-gray-500">
-                  {t("careOfferings.decisionRequested")}
+                  {t("careOfferings.decisionApplied")}
                 </p>
-                <ul className="mt-1 space-y-0.5">
-                  {decision.requested.map((item) => (
-                    <li key={item.id} className="text-sm text-gray-700">
-                      <span className="font-medium text-gray-900">
-                        {item.name}
-                      </span>
-                      {" · "}
-                      {weekdayList(item.weekdays)}
-                    </li>
+                <dl className="mt-1 space-y-1">
+                  {decision.applied.map((line) => (
+                    <div key={line.label} className="text-sm">
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <dt className="font-medium text-gray-700">
+                          {line.label}
+                        </dt>
+                        <dd className="text-gray-500 line-through">
+                          {diffValue(line.old_state, line.old_days)}
+                        </dd>
+                        <dd className="text-gray-900">
+                          {diffValue(line.new_state, line.new_days)}
+                        </dd>
+                      </div>
+                      {autoAddedHint(line, t)}
+                    </div>
                   ))}
-                </ul>
+                </dl>
               </div>
+            ) : (
+              decision.requested.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs text-gray-500">
+                    {t("careOfferings.decisionRequested")}
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {decision.requested.map((item) => (
+                      <li key={item.id} className="text-sm text-gray-700">
+                        <span className="font-medium text-gray-900">
+                          {item.name}
+                        </span>
+                        {" · "}
+                        {weekdayList(item.weekdays)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
             )}
+            {decision.overridden_names &&
+              decision.overridden_names.length > 0 && (
+                <p className="mt-2 text-xs text-gray-500">
+                  {t("careOfferings.decisionOverridden", {
+                    names: quoteNames(decision.overridden_names),
+                  })}
+                </p>
+              )}
           </div>
         )}
 

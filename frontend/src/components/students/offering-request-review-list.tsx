@@ -9,8 +9,11 @@ import {
 } from "~/components/students/request-review-card";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { Checkbox } from "~/components/ui/checkbox";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   OfferingRequestApiError,
+  type OfferingRequestDiffLine,
   type StaffOfferingRequest,
   decideOfferingChangeRequest,
   listOfferingChangeRequests,
@@ -34,6 +37,67 @@ function decideErrorMessage(code: string | undefined): string {
   }
 }
 
+// joinNames renders trigger names as „A“ und „B“ for the explanation line.
+function joinNames(names: readonly string[]): string {
+  return names.map((name) => `„${name}“`).join(" und ");
+}
+
+// automaticHint says why a line appeared. Kept to one short sentence: the
+// review card must be readable at a glance.
+function automaticHint(entry: OfferingRequestDiffLine): string {
+  const names = entry.trigger_names ?? [];
+  const partial =
+    entry.automatic_days !== undefined && entry.automatic_days !== entry.new;
+  if (names.length === 0) {
+    return partial
+      ? `Die Tage ${entry.automatic_days} kommen automatisch dazu.`
+      : "Kommt automatisch dazu.";
+  }
+  return partial
+    ? `Die Tage ${entry.automatic_days} kommen automatisch dazu, weil ${joinNames(names)} gewählt ist.`
+    : `Kommt automatisch dazu, weil ${joinNames(names)} gewählt ist.`;
+}
+
+// removedOfferings resolves the cascade of unticked rule lines: a line whose
+// NEW side is fully automatic falls away once every offering that triggers it
+// is itself removed. Triggers outside the diff count as still selected. The
+// server recomputes this authoritatively on approval; the preview mirrors it.
+function removedOfferings(
+  diff: readonly OfferingRequestDiffLine[],
+  excluded: readonly string[],
+): Set<string> {
+  const removed = new Set(excluded);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const entry of diff) {
+      if (removed.has(entry.offering_id)) continue;
+      const triggers = entry.trigger_ids ?? [];
+      if (!entry.automatic || triggers.length === 0) continue;
+      if (entry.automatic_days !== entry.new) continue;
+      if (triggers.every((id) => removed.has(id))) {
+        removed.add(entry.offering_id);
+        changed = true;
+      }
+    }
+  }
+  return removed;
+}
+
+// cascadeSourceName names the unticked line a greyed dependent hangs on.
+function cascadeSourceName(
+  entry: OfferingRequestDiffLine,
+  diff: readonly OfferingRequestDiffLine[],
+  removed: ReadonlySet<string>,
+): string {
+  for (const id of entry.trigger_ids ?? []) {
+    if (!removed.has(id)) continue;
+    const trigger = diff.find((line) => line.offering_id === id);
+    if (trigger) return trigger.label;
+  }
+  return "";
+}
+
 // German-only staff UI — hardcoded strings like the sibling review lists (the
 // staff shell ships no full message catalog).
 export function OfferingRequestReviewList() {
@@ -43,6 +107,10 @@ export function OfferingRequestReviewList() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [reasonErrors, setReasonErrors] = useState<Record<string, boolean>>({});
+  // Rule-added offerings the reviewer unticked, per request id (#2370).
+  const [excludedByRow, setExcludedByRow] = useState<
+    Record<string, readonly string[]>
+  >({});
   const [notice, setNotice] = useState<string | null>(null);
   // Set while THIS list dispatches change-requests-refresh so its own listener
   // doesn't refetch the row it already removed optimistically.
@@ -102,8 +170,22 @@ export function OfferingRequestReviewList() {
       setBusyId(row.id);
       setError(null);
       setNotice(null);
+      const excluded = approve ? (excludedByRow[row.id] ?? []) : [];
       try {
-        await decideOfferingChangeRequest(row.id, approve, reason || undefined);
+        if (excluded.length > 0) {
+          await decideOfferingChangeRequest(
+            row.id,
+            approve,
+            reason || undefined,
+            excluded,
+          );
+        } else {
+          await decideOfferingChangeRequest(
+            row.id,
+            approve,
+            reason || undefined,
+          );
+        }
         setRows((prev) => prev.filter((r) => r.id !== row.id));
         suppressSelfReloadRef.current = true;
         window.dispatchEvent(new Event("change-requests-refresh"));
@@ -127,8 +209,18 @@ export function OfferingRequestReviewList() {
         setBusyId(null);
       }
     },
-    [reasons],
+    [reasons, excludedByRow],
   );
+
+  const toggleExcluded = useCallback((rowId: string, offeringId: string) => {
+    setExcludedByRow((prev) => {
+      const current = prev[rowId] ?? [];
+      const next = current.includes(offeringId)
+        ? current.filter((id) => id !== offeringId)
+        : [...current, offeringId];
+      return { ...prev, [rowId]: next };
+    });
+  }, []);
 
   if (loading) {
     return (
@@ -179,22 +271,82 @@ export function OfferingRequestReviewList() {
               {row.diff.length === 0 && (
                 <span className="text-sm text-gray-500">—</span>
               )}
-              {row.diff.map((entry) => (
-                <div key={entry.label} className="text-sm">
-                  <span className="text-xs text-gray-500">{entry.label}: </span>
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="text-gray-400 line-through">
-                      {entry.old}
-                    </span>
-                    <span className="text-gray-400" aria-hidden="true">
-                      →
-                    </span>
-                    <span className="font-medium text-gray-900">
-                      {entry.new}
-                    </span>
-                  </div>
-                </div>
-              ))}
+              {(() => {
+                const excluded = excludedByRow[row.id] ?? [];
+                const removed = removedOfferings(row.diff, excluded);
+                return row.diff.map((entry) => {
+                  const isExcluded = excluded.includes(entry.offering_id);
+                  const isRemoved = removed.has(entry.offering_id);
+                  const cascaded = isRemoved && !isExcluded;
+                  return (
+                    <div
+                      key={entry.offering_id}
+                      className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
+                    >
+                      <span className="text-xs text-gray-500">
+                        {entry.label}:{" "}
+                      </span>
+                      {entry.automatic && (
+                        <StatusBadge
+                          tone="blue"
+                          label="Automatisch mitgebucht"
+                        />
+                      )}
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="text-gray-400 line-through">
+                          {entry.old}
+                        </span>
+                        <span className="text-gray-400" aria-hidden="true">
+                          →
+                        </span>
+                        <span
+                          className={
+                            isRemoved
+                              ? "font-medium text-gray-500 line-through"
+                              : "font-medium text-gray-900"
+                          }
+                        >
+                          {entry.new}
+                        </span>
+                      </div>
+                      {entry.automatic && !cascaded && (
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {automaticHint(entry)}
+                        </p>
+                      )}
+                      {cascaded && (
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          Entfällt, weil{" "}
+                          {`„${cascadeSourceName(entry, row.diff, removed)}“`}{" "}
+                          nicht mitgebucht wird.
+                        </p>
+                      )}
+                      {entry.optoutable && !cascaded && (
+                        <label
+                          htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
+                          className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
+                        >
+                          <Checkbox
+                            id={`mitbuchen-${row.id}-${entry.offering_id}`}
+                            checked={!isExcluded}
+                            onChange={() =>
+                              toggleExcluded(row.id, entry.offering_id)
+                            }
+                            disabled={busyId === row.id}
+                            aria-label={`${entry.label} automatisch mitbuchen`}
+                          />
+                          Automatisch mitbuchen
+                        </label>
+                      )}
+                      {isExcluded && (
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          Wird bei der Freigabe nicht gebucht.
+                        </p>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
               {row.note && (
                 <p className="mt-2 text-xs text-gray-500">
                   Nachricht der Eltern: {row.note}
