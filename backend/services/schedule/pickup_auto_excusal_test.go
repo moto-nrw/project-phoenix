@@ -70,6 +70,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 		repos.StudentStatusDay,
 		repos.ExcusedAbsenceRequest,
 		repos.InstanceStudent,
+		syncer,
 		db,
 	)
 
@@ -300,6 +301,47 @@ func TestAutoExcusal_ManualDeleteRefusesAutoRows(t *testing.T) {
 	require.ErrorIs(t, err, scheduleService.ErrPartialAbsenceAutoManaged)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.afterRow).Status,
 		"refused delete must not release the blocks")
+}
+
+func TestAutoExcusal_ManualDeleteOfConvertedRowRederivesAuto(t *testing.T) {
+	h := setupAutoExcusalHarness(t, true)
+
+	// 14:45 pickup pulls forward against the 16:00 baseline → auto excusal.
+	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
+	require.NoError(t, err)
+	require.True(t, row.ExcusedAuto)
+
+	// Staff overrides with an earlier manual cutoff — converts auto to manual.
+	manual, err := h.partial.Create(h.ctx, scheduleService.PartialAbsenceInput{
+		StudentID: h.student.ID,
+		Date:      h.date,
+		FromTime:  *wallClockAt(13, 30),
+		Reason:    "Früher weg",
+		StaffID:   h.staffID,
+	})
+	require.NoError(t, err)
+	require.False(t, manual.ExcusedAuto)
+	require.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.overlapRow).Status)
+
+	// Deleting the manual override leaves the 14:45 pickup time in place — it
+	// still qualifies as a pull-forward, so the auto excusal must come back.
+	require.NoError(t, h.partial.Delete(h.ctx, manual.ID, h.student.ID))
+
+	fresh := h.exception(t)
+	require.NotNil(t, fresh)
+	assert.True(t, fresh.ExcusedAuto, "unchanged early pickup time must re-derive the auto excusal")
+	require.NotNil(t, fresh.ExcusedFrom)
+	assert.Equal(t, "14:45", timezone.WallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Nil(t, fresh.ExcusedCreatedBy)
+
+	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.overlapRow).Status,
+		"the manual 13:30 cutoff is gone — the 14:00 block returns to expected")
+	after := h.attendance(t, h.afterRow)
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, after.Status)
+	require.NotNil(t, after.Substatus)
+	assert.Equal(t, scheduleModel.AttendanceSubstatusExcused, *after.Substatus)
+	require.NotNil(t, after.PickupExceptionID)
+	assert.Equal(t, fresh.ID, *after.PickupExceptionID)
 }
 
 func (h *autoExcusalHarness) exception(t *testing.T) *scheduleModel.StudentPickupException {

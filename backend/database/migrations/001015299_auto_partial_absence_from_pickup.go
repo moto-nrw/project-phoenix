@@ -53,7 +53,8 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 	// (strictly earlier than the baseline; rows with any existing partial
 	// absence, manual or otherwise, are skipped) and the runtime
 	// ApplyPartialAbsence predicate (never rows with recorded attendance, a
-	// manual status, a status-day owner, or on cancelled instances). Today is
+	// manual status, a status-day owner, or on cancelled or completed
+	// instances — completed blocks are a closed historical record). Today is
 	// computed in Berlin time, matching timezone.TodayDate() at runtime.
 	res, err := db.NewRaw(`
 		WITH flagged AS (
@@ -93,7 +94,7 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 			AND instance.tenant_id = attendance.tenant_id
 			AND instance.date = flagged.exception_date
 			AND instance.start_time >= flagged.excused_from
-			AND instance.status <> 'cancelled'
+			AND instance.status NOT IN ('cancelled', 'completed')
 	`, timezone.TodayDate()).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed backfilling auto partial absences from pickup exceptions: %w", err)

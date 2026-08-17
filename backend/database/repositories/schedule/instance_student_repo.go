@@ -683,7 +683,11 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 // The predicate also claims bare absences (status=absent, no provenance): the
 // session-end bridge flips expected → absent without the shared care-day lock,
 // so a concurrent partial write can otherwise persist the exception with no
-// owned rows and leave ReleasePartialAbsence unable to reconcile them.
+// owned rows and leave ReleasePartialAbsence unable to reconcile them. The
+// bridge only touches still-active instances; completed instances are a
+// closed historical record and excluded here — the auto-excusal sync runs
+// this projection on same-day pickup and weekly-baseline changes and must
+// not rewrite what already happened (#2360 review).
 func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH partial_absence AS (
@@ -714,11 +718,11 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 			AND instance.tenant_id = attendance.tenant_id
 			AND instance.date = partial_absence.exception_date
 			AND instance.start_time >= partial_absence.excused_from
-			AND instance.status <> ?
+			AND instance.status NOT IN (?, ?)
 	`, tenant.FromContext(ctx), pickupExceptionID,
 		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
-		schedule.InstanceStatusCancelled).Exec(ctx)
+		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "apply partial absence to slots", Err: err}
 	}

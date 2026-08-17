@@ -54,16 +54,20 @@ type partialAbsenceService struct {
 	statusDays activeModel.StudentStatusDayRepository
 	requests   activeModel.ExcusedAbsenceRequestRepository
 	slots      scheduleModel.InstanceStudentRepository
+	syncer     *PickupAutoExcusalSyncer
 	db         *bun.DB
 }
 
 // NewPartialAbsenceService wires partial-day excusal writes. requests may be
-// nil in tests that do not exercise the pending full-day request guard.
+// nil in tests that do not exercise the pending full-day request guard;
+// syncer may be nil in tests that do not exercise auto re-derivation after
+// removing a manual override.
 func NewPartialAbsenceService(
 	pickups scheduleModel.StudentPickupExceptionRepository,
 	statusDays activeModel.StudentStatusDayRepository,
 	requests activeModel.ExcusedAbsenceRequestRepository,
 	slots scheduleModel.InstanceStudentRepository,
+	syncer *PickupAutoExcusalSyncer,
 	db *bun.DB,
 ) PartialAbsenceService {
 	return &partialAbsenceService{
@@ -71,6 +75,7 @@ func NewPartialAbsenceService(
 		statusDays: statusDays,
 		requests:   requests,
 		slots:      slots,
+		syncer:     syncer,
 		db:         db,
 	}
 }
@@ -278,7 +283,20 @@ func (s *partialAbsenceService) Delete(ctx context.Context, exceptionID, student
 		row.ExcusedCreatedBy = nil
 		row.ExcusedOwnsPickupTime = false
 		normalizePickupExceptionTimes(row)
-		return s.pickups.Update(txCtx, row)
+		if err := s.pickups.Update(txCtx, row); err != nil {
+			return err
+		}
+		// The day's pickup time survives this delete (the exception owned it
+		// before the manual override existed, or the override converted an
+		// auto excusal). With the manual decision gone, the pull-forward rule
+		// applies again — re-derive instead of leaving later blocks expected
+		// while the child is still picked up early (#2360).
+		if s.syncer != nil {
+			if _, err := s.syncer.Sync(txCtx, row.ID); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

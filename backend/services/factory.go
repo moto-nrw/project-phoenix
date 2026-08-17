@@ -910,6 +910,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentStatusDay,
 		repos.ExcusedAbsenceRequest,
 		repos.InstanceStudent,
+		pickupAutoExcusal,
 		db,
 	)
 

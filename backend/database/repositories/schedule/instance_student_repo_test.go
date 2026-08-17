@@ -2082,6 +2082,64 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 	assert.Equal(t, partial.ID, *gotActive.PickupExceptionID)
 }
 
+// The auto-excusal sync (#2360) runs ApplyPartialAbsence on same-day pickup
+// and weekly-baseline changes. Completed instances are a closed historical
+// record and must not be rewritten to absent/excused with fresh pickup
+// provenance.
+func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	date := timezone.NewDate(2026, 11, 6)
+
+	activeInst, cleanupActive := createInstanceFixture(t, db, "partial-act2", date)
+	defer cleanupActive()
+	completedInst, cleanupCompleted := createInstanceFixture(t, db, "partial-done", date)
+	defer cleanupCompleted()
+	completedInst.Status = scheduleModels.InstanceStatusCompleted
+	require.NoError(t, instanceRepo.Update(ctx, completedInst))
+
+	student := testpkg.CreateTestStudent(t, db, "Done", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Done-%d", time.Now().UnixNano()))
+	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
+
+	activeRow := testpkg.CreateTestInstanceStudent(t, db, activeInst.ID, student.ID,
+		scheduleModels.AttendanceStatusExpected)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", activeRow.ID)
+	// Post-completion state: a bare historical absence without provenance.
+	completedRow := testpkg.CreateTestInstanceStudent(t, db, completedInst.ID, student.ID,
+		scheduleModels.AttendanceStatusAbsent)
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", completedRow.ID)
+
+	partial := testpkg.CreateTestPickupException(t, db, student.ID, date, staff.ID, "13:00", "Termin")
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC))
+	partial.ExcusedFrom = &from
+	partial.ExcusedCreatedBy = &staff.ID
+	partial.ExcusedOwnsPickupTime = true
+	require.NoError(t, scheduleRepo.NewStudentPickupExceptionRepository(db).Update(ctx, partial))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.student_pickup_exceptions", partial.ID)
+
+	n, err := repo.ApplyPartialAbsence(ctx, partial.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "only the active instance's row may be claimed")
+
+	gotCompleted, err := repo.FindByID(ctx, completedRow.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotCompleted.Status)
+	assert.Nil(t, gotCompleted.Substatus, "completed row must keep its bare historical absence")
+	assert.Nil(t, gotCompleted.PickupExceptionID, "completed row must not gain pickup provenance")
+
+	gotActive, err := repo.FindByID(ctx, activeRow.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotActive.Status)
+	require.NotNil(t, gotActive.PickupExceptionID)
+	assert.Equal(t, partial.ID, *gotActive.PickupExceptionID)
+}
+
 // The session-end bridge flips expected → absent without care-day locks.
 // ApplyPartialAbsence must still claim those bare absences so release can
 // reconcile them by pickup_exception_id.
