@@ -348,11 +348,23 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		// Treat as success — the desired end state (open attendance) holds.
 		// Deliberately silent: the winner of the race already broadcast, and
 		// nothing moved here (mirror of the closed == nil path in
-		// performCheckOut).
-		existing, fetchErr := s.AttendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+		// performCheckOut). The re-fetch is scoped to the caller's snapshot
+		// date, not a re-derived "today" (review #2372): a batch crossing
+		// Berlin midnight after its insert conflict would otherwise query the
+		// next day, find no row, and abort an otherwise idempotent batch.
+		rows, fetchErr := s.AttendanceRepo.FindForDateByStudentIDs(ctx, today, []int64{studentID})
 		if fetchErr != nil {
 			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
 		}
+		if len(rows) == 0 {
+			return nil, &ActiveError{
+				Op:  "ToggleStudentAttendance",
+				Err: fmt.Errorf("attendance row missing after insert conflict for student %d on %s", studentID, today),
+			}
+		}
+		// Rows come back check_in_time ASC — the last one is the open row the
+		// concurrent winner created.
+		existing := rows[len(rows)-1]
 		s.autoClearStudentSickness(ctx, studentID)
 		s.autoClearStudentExcused(ctx, studentID)
 		s.autoClearPlannedStudentStatuses(ctx, studentID)

@@ -14,15 +14,17 @@ import (
 
 type retryAttendanceRepository struct {
 	activeModels.AttendanceRepository
-	existing *activeModels.Attendance
+	existing    *activeModels.Attendance
+	fetchedDate timezone.Date
 }
 
 func (r *retryAttendanceRepository) CreateIfNoOpenForToday(context.Context, *activeModels.Attendance) (bool, error) {
 	return false, nil
 }
 
-func (r *retryAttendanceRepository) GetStudentCurrentStatus(context.Context, int64) (*activeModels.Attendance, error) {
-	return r.existing, nil
+func (r *retryAttendanceRepository) FindForDateByStudentIDs(_ context.Context, date timezone.Date, _ []int64) ([]*activeModels.Attendance, error) {
+	r.fetchedDate = date
+	return []*activeModels.Attendance{r.existing}, nil
 }
 
 func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
@@ -34,9 +36,10 @@ func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
 		CheckInTime: existingCheckIn,
 	}
 	syncer := &recordingAttendanceSyncer{}
+	repo := &retryAttendanceRepository{existing: existing}
 	svc := &service{
 		ServiceDependencies: ServiceDependencies{
-			AttendanceRepo:   &retryAttendanceRepository{existing: existing},
+			AttendanceRepo:   repo,
 			AttendanceSyncer: syncer,
 		},
 		settings: &fakeSettingsResolver{hasOverride: true, resolved: "binary"},
@@ -58,4 +61,7 @@ func TestPerformCheckIn_BinaryRetryMirrorsExistingCheckInTime(t *testing.T) {
 	assert.Equal(t, existing.StudentID, syncer.mirrorAt[0].studentID)
 	assert.Equal(t, existingCheckIn, syncer.mirrorAt[0].at)
 	assert.Equal(t, existingCheckIn, result.Timestamp)
+	// The absorbed-conflict re-fetch must use the caller-supplied snapshot
+	// date, not a re-derived "today" (review #2372).
+	assert.Equal(t, timezone.DateFromTime(existingCheckIn), repo.fetchedDate)
 }

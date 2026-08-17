@@ -85,8 +85,8 @@ func IsSchoolCheckinNoop(action, currentStatus string) bool {
 // so an unexpected write error must fail the entire call — earlier writes
 // would never commit, and reporting them per-student as OK would lie. Only
 // conditions detected without poisoning the transaction (unknown/foreign id,
-// graduation — including performCheckIn's own pre-write graduation guard
-// losing a race) become OK=false items.
+// graduation — including the locked per-write revalidation losing a race,
+// for check-ins and checkouts alike) become OK=false items.
 func (s *service) ProcessSchoolCheckinBatch(
 	ctx context.Context,
 	studentIDs []int64,
@@ -102,15 +102,18 @@ func (s *service) ProcessSchoolCheckinBatch(
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
 	}
 
-	// ONE timestamp and ONE attendance date for the whole batch, taken from
-	// the same instant before the write loop (review #2372). Per-item
-	// time.Now()/TodayDate() calls would let a batch crossing Berlin midnight
-	// write its early items for yesterday and its late items for today — and
-	// the status refresh below, scoped to the same snapshot date, would then
-	// misreport the early items. One snapshot makes every write and the
-	// refresh agree on a single calendar day.
-	now := time.Now()
-	today := timezone.DateFromTime(now)
+	// ONE attendance date for the whole batch, snapshotted before the write
+	// loop (review #2372). Per-item TodayDate() calls would let a batch
+	// crossing Berlin midnight write its early items for yesterday and its
+	// late items for today — and the status refresh below, scoped to the same
+	// snapshot date, would then misreport the early items. The write
+	// TIMESTAMPS are deliberately NOT part of the snapshot: each transition
+	// takes a fresh time.Now() in applySchoolCheckinWrite, because a checkout
+	// stamped with the batch-start instant could close an attendance row a
+	// concurrent check-in committed AFTER that instant — check_out_time before
+	// check_in_time violates chk_checkin_before_checkout and would roll back
+	// the entire batch (review #2372).
+	today := timezone.TodayDate()
 
 	// Canonical write order: ascending, deduplicated (see doc comment).
 	writeOrder := append([]int64(nil), studentIDs...)
@@ -128,12 +131,14 @@ func (s *service) ProcessSchoolCheckinBatch(
 			outcomes[studentID] = SchoolCheckinBatchItem{StudentID: studentID}
 			continue
 		}
-		result, writeErr := s.applySchoolCheckinWrite(ctx, studentID, staffID, action, now, today)
+		result, writeErr := s.applySchoolCheckinWrite(ctx, studentID, staffID, action, today)
 		if writeErr != nil {
-			// Graduation race after the batch pre-check above: performCheckIn's
-			// own guard rejects before writing anything, so the transaction
-			// stays clean and the student can be skipped like any unknown id.
-			if errors.Is(writeErr, ErrStudentGraduated) {
+			// Graduation (or deletion) race after the batch pre-check above:
+			// the locked per-write revalidation — performCheckIn's own guard
+			// for "in", the batch's pre-checkout guard for "out" — rejects
+			// before writing anything, so the transaction stays clean and the
+			// student can be skipped like any unknown id.
+			if errors.Is(writeErr, ErrStudentGraduated) || errors.Is(writeErr, ErrStudentNotFound) {
 				outcomes[studentID] = SchoolCheckinBatchItem{StudentID: studentID}
 				continue
 			}
@@ -213,15 +218,28 @@ func (s *service) ProcessSchoolCheckinBatch(
 // per-call staff presence stamp (the batch stamps once for the whole run)
 // and minus authorization, which the batch contract requires the caller to
 // have done already (mirror of skipAuthCheck on the single-student path).
-// now/today are the batch-wide snapshot — see ProcessSchoolCheckinBatch.
+// today is the batch-wide snapshot date; the timestamp is a fresh
+// time.Now() per transition — see the snapshot comment in
+// ProcessSchoolCheckinBatch for why the two differ.
 // Action-explicit for the race reason documented on ToggleStudentAttendance:
 // the cores are individually race-safe (ON CONFLICT for in, state-checked
 // UPDATE for out), while a toggle could flip a concurrent "in" into an
 // "out". A checkout also ends any open room visit in the same request
 // transaction (#895).
-func (s *service) applySchoolCheckinWrite(ctx context.Context, studentID, staffID int64, action string, now time.Time, today timezone.Date) (*AttendanceResult, error) {
+func (s *service) applySchoolCheckinWrite(ctx context.Context, studentID, staffID int64, action string, today timezone.Date) (*AttendanceResult, error) {
 	if action == SchoolCheckinActionIn {
-		return s.performCheckIn(ctx, studentID, staffID, 0, now, today, checkinTypeWeb)
+		return s.performCheckIn(ctx, studentID, staffID, 0, time.Now(), today, checkinTypeWeb)
 	}
-	return s.performCheckOut(ctx, studentID, staffID, now, today, checkoutTypeWeb)
+	// Batch checkouts revalidate the alumnus status under the student-row
+	// lock, exactly as performCheckIn does for check-ins: the batch's bulk
+	// id-resolution read runs unlocked, so a graduation committing after it
+	// would otherwise slip through and report OK for a student the batch
+	// contract requires as not_found. The lock also serializes against the
+	// concurrent grade-transition apply itself (#405). The checkout timestamp
+	// is taken after the lock, so it postdates any check-in this write can
+	// observe.
+	if err := s.ensureStudentCheckinAllowed(ctx, studentID); err != nil {
+		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
+	}
+	return s.performCheckOut(ctx, studentID, staffID, time.Now(), today, checkoutTypeWeb)
 }
