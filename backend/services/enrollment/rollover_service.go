@@ -590,11 +590,12 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 }
 
 func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentModels.RequestChild) rolloverChildAttributes {
-	var grade *int16
-	reviewReason := ""
-	if input.collectGradeLevel {
-		grade, reviewReason = computeNewGrade(source.TargetGradeLevel, input.newPhase.RolloverBumpsGrade, input.maxGrade)
-	}
+	grade, reviewReason := classifyRolloverGrade(
+		source.TargetGradeLevel,
+		input.newPhase.RolloverBumpsGrade,
+		input.collectGradeLevel,
+		input.maxGrade,
+	)
 	attributes := rolloverChildAttributes{targetGradeLevel: grade}
 	if reviewReason == "" {
 		attributes.status = renewalInitialStatus(*input.newPhase.RolloverMode)
@@ -744,9 +745,9 @@ func (s *rolloverService) resolveMaxGrade(ctx context.Context) (int, error) {
 }
 
 // PreviewPhaseFromSource classifies the source phase's children without
-// writing anything. Mirrors the classification CreatePhaseFromSource
-// applies (computeNewGrade + the collect-grade-level setting), so the
-// numbers the admin confirms are the numbers the rollover produces.
+// writing anything. Shares classifyRolloverGrade with the create path,
+// so the numbers the admin confirms are the numbers the rollover
+// produces.
 func (s *rolloverService) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID int64, bumpsGrade bool) (*RolloverPreview, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID == 0 {
@@ -796,10 +797,7 @@ func (s *rolloverService) PreviewPhaseFromSource(ctx context.Context, sourcePhas
 		}
 		preview.CarryCandidateCount++
 		candidateRequests[child.RequestID] = struct{}{}
-		reviewReason := ""
-		if collectGradeLevel {
-			_, reviewReason = computeNewGrade(child.TargetGradeLevel, bumpsGrade, maxGrade)
-		}
+		_, reviewReason := classifyRolloverGrade(child.TargetGradeLevel, bumpsGrade, collectGradeLevel, maxGrade)
 		if reviewReason == "" {
 			preview.CarriedCount++
 		} else {
@@ -898,6 +896,19 @@ func (s *rolloverService) DecideReview(ctx context.Context, req DecideReviewRequ
 		return fmt.Errorf("%w: decision must be keep/drop/defer, got %q",
 			ErrRolloverReviewInvalid, req.Decision)
 	}
+}
+
+// classifyRolloverGrade is the ONE classification rule shared by the
+// rollover create path (rolloverAttributesForSource) and its preview
+// (PreviewPhaseFromSource, #2251). Keeping both on this helper is what
+// guarantees the numbers the admin confirms are the numbers the
+// rollover produces. With grade collection disabled every approved
+// child carries without review.
+func classifyRolloverGrade(sourceGrade *int16, bumpsGrade, collectGradeLevel bool, maxGrade int) (*int16, string) {
+	if !collectGradeLevel {
+		return nil, ""
+	}
+	return computeNewGrade(sourceGrade, bumpsGrade, maxGrade)
 }
 
 // computeNewGrade returns the next grade level and (if positive) the

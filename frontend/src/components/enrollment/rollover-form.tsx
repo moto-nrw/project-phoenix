@@ -12,6 +12,8 @@ import {
   type RolloverResult,
 } from "~/lib/enrollment-phase-api";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge";
+import type { ChildStatus } from "~/lib/enrollment-admin-api";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -349,17 +351,6 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
   );
 }
 
-const EXCLUDED_STATUS_LABELS: Record<string, string> = {
-  submitted: "Offen",
-  under_review: "In Prüfung",
-  waitlisted: "Warteliste",
-  rejected: "Abgelehnt",
-  withdrawn: "Zurückgezogen",
-  pending_renewal: "Verlängerung offen",
-  auto_renewed: "Automatisch verlängert",
-  pending_admin_review: "In Klärung",
-};
-
 const PREVIEW_REVIEW_REASON_LABELS: Record<string, string> = {
   grade_above_max: "Klassenstufe über der Höchstgrenze",
   no_grade_level: "Keine Klassenstufe hinterlegt",
@@ -422,7 +413,7 @@ function RolloverPreviewPanel({
   const excludedDetails = Object.entries(preview.excluded_by_status)
     .map(
       ([status, count]) =>
-        `${EXCLUDED_STATUS_LABELS[status] ?? status}: ${count}`,
+        `${CHILD_STATUS_LABELS[status as ChildStatus] ?? status}: ${count}`,
     )
     .join(" · ");
   const reviewDetails = Object.entries(preview.review_by_reason)

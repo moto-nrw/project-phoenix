@@ -670,6 +670,23 @@ interface RenewalBannersProps {
   readonly onWithdraw: (childId?: string) => void;
 }
 
+// The link into the reduced offerings/weekdays flow (#2251), shared by
+// both renewal banners. Renders nothing while a change request is open.
+function RenewalAdjustLink({
+  adjustHref,
+  label,
+}: Readonly<{ adjustHref: string | null; label: string }>) {
+  if (!adjustHref) return null;
+  return (
+    <Link
+      href={adjustHref}
+      className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+    >
+      {label}
+    </Link>
+  );
+}
+
 function RenewalBanners({
   adjustHref,
   confirmingRenewal,
@@ -706,14 +723,10 @@ function RenewalBanners({
             >
               {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
             </button>
-            {adjustHref ? (
-              <Link
-                href={adjustHref}
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {t("renewalAdjust")}
-              </Link>
-            ) : null}
+            <RenewalAdjustLink
+              adjustHref={adjustHref}
+              label={t("renewalAdjust")}
+            />
             <button
               type="button"
               onClick={handleWithdraw}
@@ -733,14 +746,10 @@ function RenewalBanners({
           </h2>
           <p className="mt-2 text-sm text-gray-700">{t("autoRenewedText")}</p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            {adjustHref ? (
-              <Link
-                href={adjustHref}
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              >
-                {t("renewalAdjust")}
-              </Link>
-            ) : null}
+            <RenewalAdjustLink
+              adjustHref={adjustHref}
+              label={t("renewalAdjust")}
+            />
             <button
               type="button"
               onClick={handleWithdraw}
