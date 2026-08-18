@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	classListEntriesVersion     = "1.15.301"
+	classListEntriesVersion     = "1.15.303"
 	classListEntriesDescription = "Minimal class-list-only entries (Name + Klasse) for children without an OGS record (#2382)"
 )
 
@@ -43,7 +43,7 @@ func init() {
 // personal data of children, so create / update / delete / assign must leave
 // a trace (same contract as audit.staff_master_data_changes).
 func classListEntriesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.301: Class-list-only entries...")
+	fmt.Println("Migration 1.15.303: Class-list-only entries...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -138,7 +138,7 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func classListEntriesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.301: Dropping users.class_list_entries...")
+	fmt.Println("Rolling back migration 1.15.303: Dropping users.class_list_entries...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
