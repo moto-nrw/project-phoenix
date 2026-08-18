@@ -457,7 +457,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Oben rechts auf `Wochenplan` klicken.",
           "Je Wochentag die regelmäßigen Zeiten für `Ankunft` und `Abholung` im Format `HH:MM` eintragen, zum Beispiel Montag bis Donnerstag `13:45`. Optional je Tag eine Ankunfts- oder Abholnotiz ergänzen.",
           "Speichern. Würde eine geleerte Zeit einen bestehenden Eintrag entfernen, fragt die App vorher nach.",
-          "Für eine Abweichung an einem einzelnen Tag auf der jeweiligen Tageskarte `Ausnahme eintragen` wählen: Neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein Feld `Grund`. Ausnahmen bleiben bestehen, wenn der Wochenplan später geändert wird.",
+          "Für eine Abweichung an einem einzelnen Tag auf der jeweiligen Tageskarte `Ausnahme` wählen: Neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein Feld `Grund`. Ausnahmen bleiben bestehen, wenn der Wochenplan später geändert wird.",
         ],
         callout: {
           title: "Abholzeiten sind auf den NFC-Tablets sichtbar",
