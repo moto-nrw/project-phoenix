@@ -21,8 +21,13 @@ import {
 import {
   type CareOfferingBookingGradeCounts,
   careOfferingAvailabilityRuleError,
+  careOfferingRuleExcludesNobody,
+  careOfferingRuleGradeLevels,
+  careOfferingIsAvailable,
   countCareOfferingRuleConflicts,
   describeCareOfferingAvailabilityRule,
+  formatGradeLevelList,
+  gradeNoun,
 } from "~/lib/care-offering-availability";
 import {
   type CareOfferingBookingStats,
@@ -36,6 +41,7 @@ import {
 import { Modal } from "~/components/ui/modal";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -427,6 +433,51 @@ export function CareOfferingsEditor() {
     if (offering.capacity == null) return sum;
     return sum + offering.capacity;
   }, 0);
+  const autoAddRules = useMemo(() => {
+    const offeringsById = new Map(
+      offerings.map((offering) => [offering.id, offering]),
+    );
+    return offerings
+      .filter((offering) => offering.is_active)
+      .flatMap((target) =>
+        [...new Set(target.auto_add_trigger_offering_ids ?? [])].flatMap(
+          (triggerId) => {
+            const trigger = offeringsById.get(triggerId);
+            // Eltern sehen nur aktive Angebote; Regeln an oder von inaktiven
+            // Angeboten können nicht greifen und bleiben hier draußen.
+            if (!trigger?.is_active) return [];
+            const autoAddGrades = target.auto_add_grade_levels ?? [];
+            const unrestricted =
+              autoAddGrades.length === 0 &&
+              careOfferingRuleExcludesNobody(
+                target.availability_rule,
+                gradeLevelMax ?? undefined,
+              );
+            const applicableGrades = autoAddGrades.length
+              ? autoAddGrades.filter((grade) =>
+                  careOfferingIsAvailable(target, grade),
+                )
+              : unrestricted
+                ? []
+                : careOfferingRuleGradeLevels(
+                    target.availability_rule,
+                    gradeLevelMax ?? undefined,
+                  );
+            if (!unrestricted && applicableGrades.length === 0) return [];
+            const grades = formatGradeLevelList(applicableGrades);
+            const gradeSuffix = grades
+              ? ` (${gradeNoun(applicableGrades)} ${grades})`
+              : "";
+            return [
+              {
+                key: `${target.id}-${trigger.id}`,
+                sentence: `„${target.name}“ wird automatisch mitgebucht, wenn „${trigger.name}“ gewählt wird${gradeSuffix}.`,
+              },
+            ];
+          },
+        ),
+      );
+  }, [offerings, gradeLevelMax]);
 
   const loadPlannerMetadata = useCallback(async () => {
     const requestSeq = ++metadataLoadSeq.current;
@@ -920,6 +971,20 @@ export function CareOfferingsEditor() {
                 toast.warning(CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE)
               }
             />
+          ) : null}
+
+          {!draft && !cloneSource && autoAddRules.length > 0 ? (
+            <SectionCard
+              title="Mitbuchungs-Regeln"
+              description="Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
+              bodyClassName="mt-2"
+            >
+              <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                {autoAddRules.map((rule) => (
+                  <li key={rule.key}>{rule.sentence}</li>
+                ))}
+              </ul>
+            </SectionCard>
           ) : null}
 
           {selectedPhaseId &&

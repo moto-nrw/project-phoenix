@@ -1903,6 +1903,54 @@ describe("CareOfferingsEditor", () => {
     );
   });
 
+  // #2367: a reversed rule direction must be visible without a test
+  // enrollment, so the phase catalog lists every active rule as a sentence.
+  it("lists the phase's active Mitbuchungs-Regeln as plain sentences", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({
+        id: "1",
+        name: "Ganztagsbetreuung bis 14.30 Uhr",
+        auto_add_trigger_offering_ids: ["2"],
+        availability_rule: {
+          match: "all",
+          conditions: [
+            { source: "grade_level", operator: "in", value: [1, 2] },
+          ],
+        },
+      }),
+      offering({ id: "2", name: "Randstunde" }),
+      offering({
+        id: "3",
+        name: "Inaktives Ziel",
+        is_active: false,
+        auto_add_trigger_offering_ids: ["2"],
+      }),
+    ]);
+
+    const { unmount } = render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Mitbuchungs-Regeln")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "„Ganztagsbetreuung bis 14.30 Uhr“ wird automatisch mitgebucht, wenn „Randstunde“ gewählt wird (Klassen 1–2).",
+      ),
+    ).toBeInTheDocument();
+    // A rule on an inactive offering cannot fire, so it stays out of the list.
+    const sentences = screen.getAllByText(/wird automatisch mitgebucht/);
+    expect(sentences).toHaveLength(1);
+    unmount();
+
+    // Without any rule the panel stays away entirely.
+    mocks.listCareOfferings.mockResolvedValue([
+      offering(),
+      offering({ id: "2", name: "Randstunde" }),
+    ]);
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Randstunde")).toBeInTheDocument();
+    expect(screen.queryByText("Mitbuchungs-Regeln")).not.toBeInTheDocument();
+  });
+
   it("shows empty and error states", async () => {
     mocks.listPhases.mockResolvedValueOnce([]);
     mocks.listCareOfferings.mockResolvedValue([]);
