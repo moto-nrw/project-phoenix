@@ -187,4 +187,24 @@ describe("previewOfferingChangeRequest", () => {
       },
     );
   });
+
+  it("throws the backend preview error", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      jsonResponse(
+        {
+          error: "Diese Übersteuerung ist nicht mehr möglich",
+          code: "offering_change_invalid",
+        },
+        { status: 422 },
+      ),
+    );
+
+    await expect(
+      previewOfferingChangeRequest("77", ["9"]),
+    ).rejects.toMatchObject({
+      name: "OfferingRequestApiError",
+      message: "Diese Übersteuerung ist nicht mehr möglich",
+      code: "offering_change_invalid",
+    });
+  });
 });
