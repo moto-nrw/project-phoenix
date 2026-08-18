@@ -1769,6 +1769,15 @@ function CareOfferingAutomationFields({
         .sort((a, b) => a - b),
     });
   };
+  const offeringName = draft.name.trim();
+  // Sentence-start vs. mid-sentence variant of the same label.
+  const offeringLabel = offeringName ? `„${offeringName}“` : "Dieses Angebot";
+  const offeringLabelMidSentence = offeringName
+    ? `„${offeringName}“`
+    : "dieses Angebot";
+  const selectedTriggers = triggerOptions.filter((offering) =>
+    (draft.auto_add_trigger_offering_ids ?? []).includes(offering.id),
+  );
 
   return (
     <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -1785,7 +1794,8 @@ function CareOfferingAutomationFields({
 
         <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
           <p className="text-xs font-medium text-gray-700">
-            Dieses Angebot mitbuchen, wenn Eltern eines dieser Angebote wählen:
+            {offeringLabel} wird automatisch mitgebucht, wenn Eltern eines
+            dieser Angebote wählen:
           </p>
           {triggerOptions.length > 0 ? (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -1806,6 +1816,20 @@ function CareOfferingAutomationFields({
               In dieser Phase gibt es noch kein anderes Angebot als Auslöser.
             </p>
           )}
+          {selectedTriggers.length > 0 ? (
+            <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+              {selectedTriggers.map((trigger) => (
+                <p key={trigger.id}>
+                  Wenn Eltern „{trigger.name}“ wählen, wird{" "}
+                  {offeringLabelMidSentence} automatisch mitgebucht.
+                </p>
+              ))}
+              <p className="mt-1 text-gray-500">
+                Andersherum gilt das nicht: Wer nur {offeringLabelMidSentence}{" "}
+                wählt, bekommt die anderen Angebote nicht automatisch dazu.
+              </p>
+            </div>
+          ) : null}
           {draft.auto_add_trigger_offering_ids.length > 0 &&
           draft.days_of_week_mode !== "parent_choice" ? (
             <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
