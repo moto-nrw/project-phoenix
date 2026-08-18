@@ -124,3 +124,23 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 	assert.Contains(t, body, fmt.Sprintf(`"list_entry_id":%d`, entry.ID))
 	assert.Contains(t, body, `"list_entry":true`)
 }
+
+// Whitespace-only fields are an invalid request, not a server error: Bind
+// trims and rejects them before the service runs (#2399 review).
+func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
+	db, factory := testutil.SetupAPITest(t)
+
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-ws-%d@test.local", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
+
+	resource := classlistentries.NewResource(factory.ClassListEntries, db, nil)
+	router := resource.Router()
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: 1}
+
+	body := `{"first_name":"  ","last_name":"Aalders","school_class":"1a"}`
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create"})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "erforderlich")
+}

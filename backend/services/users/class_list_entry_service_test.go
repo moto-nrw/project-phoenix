@@ -2,6 +2,7 @@
 package users_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -155,6 +156,31 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 		require.ErrorIs(t, err, usersService.ErrClassListEntryStudentNotFound)
 	})
 
+	t.Run("assign to a student with a different name or class is refused", func(t *testing.T) {
+		entry := testpkg.CreateTestClassListEntry(t, db, "CleAssignFremd", "Kind", "7y")
+		otherName := testpkg.CreateTestStudent(t, db, "CleAnders", "Kind", "7y")
+		otherClass := testpkg.CreateTestStudent(t, db, "CleAssignFremd", "Kind", "8y")
+		defer testpkg.CleanupActivityFixtures(t, db, otherName.ID, otherClass.ID)
+
+		require.ErrorIs(t, svc.Assign(ctx, entry.ID, otherName.ID, actor.ID),
+			usersService.ErrClassListEntryAssignMismatch,
+			"a student with another name must not swallow the entry")
+		require.ErrorIs(t, svc.Assign(ctx, entry.ID, otherClass.ID, actor.ID),
+			usersService.ErrClassListEntryAssignMismatch,
+			"a student in another class must not swallow the entry")
+
+		// The entry survives both refused attempts.
+		entries, err := svc.ListAll(ctx)
+		require.NoError(t, err)
+		var found bool
+		for _, remaining := range entries {
+			if remaining.ID == entry.ID {
+				found = true
+			}
+		}
+		assert.True(t, found, "the entry must still exist after refused assigns")
+	})
+
 	t.Run("list reports the matching student as a hint", func(t *testing.T) {
 		entry := testpkg.CreateTestClassListEntry(t, db, "CleMatch", "Kind", "7y")
 		// The student arrives AFTER the entry (enrollment approval, import) —
@@ -173,6 +199,177 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 		}
 		require.True(t, found, "entry must be listed")
 	})
+}
+
+func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc, _ := setupClassListEntryService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	// Deliberately created out of order: 10x sorts AFTER 9x (numeric class
+	// collation), names sort by German collation within the class.
+	third := testpkg.CreateTestClassListEntry(t, db, "CleSortA", "Kind", "10x")
+	second := testpkg.CreateTestClassListEntry(t, db, "CleSortB", "Zorn", "9x")
+	first := testpkg.CreateTestClassListEntry(t, db, "CleSortC", "Aalders", "9x")
+	defer testpkg.CleanupClassListEntryFixtures(t, db, first.ID, second.ID, third.ID)
+
+	entries, err := svc.ListAll(ctx)
+	require.NoError(t, err)
+
+	positions := map[int64]int{}
+	for i, entry := range entries {
+		positions[entry.ID] = i
+	}
+	require.Contains(t, positions, first.ID)
+	assert.Less(t, positions[first.ID], positions[second.ID],
+		"within a class the names sort by German collation")
+	assert.Less(t, positions[second.ID], positions[third.ID],
+		"class 9x sorts before 10x")
+}
+
+func TestClassListEntryService_UpdateGuards(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc, repos := setupClassListEntryService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	actor := testpkg.CreateTestAccount(t, db, "cle-update-actor@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
+
+	t.Run("unchanged update writes nothing and records no audit", func(t *testing.T) {
+		entry := testpkg.CreateTestClassListEntry(t, db, "CleNoop", "Kind", "6v")
+		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+
+		updated, err := svc.Update(ctx, entry.ID, usersService.ClassListEntryInput{
+			FirstName:   " CleNoop ",
+			LastName:    "Kind",
+			SchoolClass: "6v",
+		}, actor.ID)
+		require.NoError(t, err)
+		assert.Equal(t, entry.ID, updated.ID)
+
+		trail, err := repos.ClassListEntryChange.ListByEntryID(ctx, entry.ID)
+		require.NoError(t, err)
+		assert.Empty(t, trail, "a no-op update must not spam the audit trail")
+	})
+
+	t.Run("update into an existing entry's identity is refused", func(t *testing.T) {
+		entry := testpkg.CreateTestClassListEntry(t, db, "CleMoveDup", "Kind", "6v")
+		blocker := testpkg.CreateTestClassListEntry(t, db, "CleBlock", "Kind", "6v")
+		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID, blocker.ID)
+
+		_, err := svc.Update(ctx, entry.ID, usersService.ClassListEntryInput{
+			FirstName:   "cleblock",
+			LastName:    "KIND",
+			SchoolClass: "6v",
+		}, actor.ID)
+		require.ErrorIs(t, err, usersService.ErrClassListEntryDuplicate)
+	})
+
+	t.Run("update to whitespace-only fields fails validation", func(t *testing.T) {
+		entry := testpkg.CreateTestClassListEntry(t, db, "CleLeer", "Kind", "6v")
+		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+
+		_, err := svc.Update(ctx, entry.ID, usersService.ClassListEntryInput{
+			FirstName:   "  ",
+			LastName:    "Kind",
+			SchoolClass: "6v",
+		}, actor.ID)
+		require.Error(t, err)
+	})
+
+	t.Run("create with whitespace-only fields fails validation", func(t *testing.T) {
+		_, err := svc.Create(ctx, usersService.ClassListEntryInput{
+			FirstName:   "CleLeer2",
+			LastName:    " ",
+			SchoolClass: "6v",
+		}, actor.ID)
+		require.Error(t, err)
+	})
+}
+
+func TestClassListEntryService_MissingTargets(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc, _ := setupClassListEntryService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	actor := testpkg.CreateTestAccount(t, db, "cle-missing-actor@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
+
+	missingID := int64(987654321)
+
+	_, err := svc.Update(ctx, missingID, usersService.ClassListEntryInput{
+		FirstName: "Cle", LastName: "Weg", SchoolClass: "5u",
+	}, actor.ID)
+	require.ErrorIs(t, err, usersService.ErrClassListEntryNotFound)
+
+	require.ErrorIs(t, svc.Delete(ctx, missingID, actor.ID), usersService.ErrClassListEntryNotFound)
+	require.ErrorIs(t, svc.Assign(ctx, missingID, actor.ID, actor.ID), usersService.ErrClassListEntryNotFound)
+
+	t.Run("assign to an alumnus is refused", func(t *testing.T) {
+		entry := testpkg.CreateTestClassListEntry(t, db, "CleAlt", "Kind", "5u")
+		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+		student := testpkg.CreateTestStudent(t, db, "CleAlt", "Kind", "5u")
+		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+		_, err := db.NewUpdate().TableExpr("users.students").
+			Set("status = ?", "alumnus").
+			Where("id = ?", student.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		require.ErrorIs(t, svc.Assign(ctx, entry.ID, student.ID, actor.ID),
+			usersService.ErrClassListEntryStudentNotFound,
+			"an alumnus must not be an assign target")
+	})
+}
+
+// Errors from the storage layer must propagate, not vanish: a canceled
+// context fails the first repository call of every service path.
+func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc, repos := setupClassListEntryService(t, db)
+
+	entry := testpkg.CreateTestClassListEntry(t, db, "CleErr", "Kind", "4t")
+	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+
+	canceled, cancel := context.WithCancel(testpkg.TenantContext(1))
+	cancel()
+
+	_, err := svc.ListAll(canceled)
+	require.Error(t, err)
+	_, err = svc.List(canceled)
+	require.Error(t, err)
+	_, err = svc.Create(canceled, usersService.ClassListEntryInput{
+		FirstName: "CleErr2", LastName: "Kind", SchoolClass: "4t",
+	}, 0)
+	require.Error(t, err)
+	_, err = svc.Update(canceled, entry.ID, usersService.ClassListEntryInput{
+		FirstName: "CleErr", LastName: "Kind", SchoolClass: "4u",
+	}, 0)
+	require.Error(t, err)
+	require.Error(t, svc.Delete(canceled, entry.ID, 0))
+	require.Error(t, svc.Assign(canceled, entry.ID, entry.ID, 0))
+
+	_, err = repos.ClassListEntry.FindBySchoolClass(canceled, "4t")
+	require.Error(t, err)
+	_, err = repos.ClassListEntry.FindByNameAndClass(canceled, "CleErr", "Kind", "4t")
+	require.Error(t, err)
+	_, err = repos.ClassListEntryChange.ListByEntryID(canceled, entry.ID)
+	require.Error(t, err)
+	require.Error(t, repos.ClassListEntryChange.Create(canceled, &auditModels.ClassListEntryChange{
+		EntryID: entry.ID, Action: auditModels.ClassListEntryActionCreated, ChangedBy: 1,
+	}))
+	require.Error(t, repos.ClassListEntryChange.Create(testpkg.TenantContext(1), &auditModels.ClassListEntryChange{
+		EntryID: entry.ID, Action: "renamed", ChangedBy: 1,
+	}), "an invalid audit row must be rejected by validation")
 }
 
 func TestClassListEntryService_TenantIsolation(t *testing.T) {
