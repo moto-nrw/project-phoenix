@@ -3546,3 +3546,94 @@ describe("EnrollmentForm — fixed pickup times", () => {
     );
   });
 });
+
+describe("EnrollmentForm restrictToOfferings (#2251)", () => {
+  beforeEach(() => {
+    mockIntlLocale.value = "de";
+    mockFetchPublicActiveSchema.mockReset();
+    mockFetchPublicCaptchaConfig.mockReset();
+    mockFetchPublicLegalTexts.mockReset();
+    mockFetchPublicCareOfferings.mockReset();
+    mockFetchMyEnrollmentProfile.mockReset();
+    mockSubmitEnrollment.mockReset();
+    mockFetchPublicActiveSchema.mockResolvedValue(schema());
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: false,
+      site_key: "",
+    });
+    mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
+  });
+
+  it("shows only the per-child offering selection, no master data or consents", async () => {
+    renderForm({
+      restrictToOfferings: true,
+      lockChildStructure: true,
+      skipCaptcha: true,
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]),
+    });
+    await waitForLoaded();
+
+    // Child rendered by name, not by editable identity inputs.
+    expect(screen.getByText("Anton Alster")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Vorname *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("E-Mail *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Klassenstufe *")).not.toBeInTheDocument();
+
+    // Offerings stay selectable.
+    expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
+    expect(screen.getByText("Fixe Betreuung")).toBeInTheDocument();
+
+    // No consent/legal section.
+    expect(screen.queryByText(/AGB/)).not.toBeInTheDocument();
+  });
+
+  it("submits the unchanged draft data with only the offering change applied", async () => {
+    const submitter = vi
+      .fn()
+      .mockResolvedValue({ status_url: "/enroll/status/tok-1" });
+    renderForm({
+      restrictToOfferings: true,
+      lockChildStructure: true,
+      skipCaptcha: true,
+      submitter,
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]),
+    });
+    await waitForLoaded();
+
+    // Add the flexible offering and pick a day.
+    fireEvent.click(screen.getByText("Flexible Betreuung"));
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(submitter).toHaveBeenCalledTimes(1));
+    const payload = submitter.mock.calls[0]?.[0] as {
+      guardian_first_name: string;
+      guardian_email: string;
+      children: {
+        first_name: string;
+        date_of_birth: string;
+        offering_ids: number[];
+      }[];
+    };
+    // Hidden master data travels unchanged from the draft.
+    expect(payload.guardian_first_name).toBe("Mara");
+    expect(payload.guardian_email).toBe("mara@example.test");
+    expect(payload.children[0]?.first_name).toBe("Anton");
+    expect(payload.children[0]?.date_of_birth).toBe("2018-04-15");
+    // The offering change is applied.
+    expect(payload.children[0]?.offering_ids).toContain(11);
+    expect(payload.children[0]?.offering_ids).toContain(12);
+  });
+});

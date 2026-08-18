@@ -1,15 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import {
   createRollover,
+  fetchRolloverPreview,
   type Phase,
   type RolloverInput,
   type RolloverMode,
+  type RolloverPreview,
   type RolloverResult,
 } from "~/lib/enrollment-phase-api";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge";
+import type { ChildStatus } from "~/lib/enrollment-admin-api";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -151,6 +155,11 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
           {error}
         </div>
       )}
+
+      <RolloverPreviewPanel
+        sourcePhaseID={source.id}
+        bumpsGrade={draft.rollover_bumps_grade ?? true}
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block">
@@ -339,6 +348,117 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
         </button>
       </div>
     </form>
+  );
+}
+
+const PREVIEW_REVIEW_REASON_LABELS: Record<string, string> = {
+  grade_above_max: "Klassenstufe über der Höchstgrenze",
+  no_grade_level: "Keine Klassenstufe hinterlegt",
+};
+
+// The dry run the admin confirms before executing (#2251): carried /
+// review / excluded counts, recomputed when the grade-bump toggle flips
+// because that changes the review classification.
+function RolloverPreviewPanel({
+  sourcePhaseID,
+  bumpsGrade,
+}: Readonly<{ sourcePhaseID: string; bumpsGrade: boolean }>) {
+  const [preview, setPreview] = useState<RolloverPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchRolloverPreview(sourcePhaseID, bumpsGrade)
+      .then((result) => {
+        if (cancelled) return;
+        setPreview(result);
+        setPreviewError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Vorschau konnte nicht geladen werden";
+        logger.warn("rollover_preview_failed", { error: message });
+        setPreview(null);
+        setPreviewError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sourcePhaseID, bumpsGrade]);
+
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500">
+        Vorschau wird geladen …
+      </div>
+    );
+  }
+  if (previewError !== null) {
+    return (
+      <div className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-xl border p-4 text-sm">
+        {previewError}
+      </div>
+    );
+  }
+  if (preview === null) return null;
+
+  const excludedDetails = Object.entries(preview.excluded_by_status)
+    .map(
+      ([status, count]) =>
+        `${CHILD_STATUS_LABELS[status as ChildStatus] ?? status}: ${count}`,
+    )
+    .join(" · ");
+  const reviewDetails = Object.entries(preview.review_by_reason)
+    .map(
+      ([reason, count]) =>
+        `${PREVIEW_REVIEW_REASON_LABELS[reason] ?? reason}: ${count}`,
+    )
+    .join(" · ");
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
+      <p className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
+        Vorschau
+      </p>
+      <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <dt className="text-xs text-gray-500">Werden übernommen</dt>
+          <dd className="mt-1 text-lg font-semibold text-gray-900">
+            {preview.carried_count}
+          </dd>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <dt className="text-xs text-gray-500">Manuell zu prüfen</dt>
+          <dd className="mt-1 text-lg font-semibold text-gray-900">
+            {preview.review_count}
+          </dd>
+          {reviewDetails && (
+            <dd className="mt-1 text-xs text-gray-500">{reviewDetails}</dd>
+          )}
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <dt className="text-xs text-gray-500">Nicht übernommen</dt>
+          <dd className="mt-1 text-lg font-semibold text-gray-900">
+            {preview.excluded_count}
+          </dd>
+          {excludedDetails && (
+            <dd className="mt-1 text-xs text-gray-500">{excludedDetails}</dd>
+          )}
+        </div>
+      </dl>
+      <p className="mt-3 text-xs text-gray-500">
+        Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene, abgelehnte
+        oder noch offene Anmeldungen werden nicht fortgeführt.
+      </p>
+    </div>
   );
 }
 

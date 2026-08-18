@@ -731,7 +731,10 @@
       "newStudentsOnlyNotice": "Diese Anmeldephase richtet sich nur an neue Kinder. Bereits an der Schule angemeldete Kinder können hier nicht erneut angemeldet werden.",
       "consentKicker": "Schritt 3",
       "consentTitle": "Zustimmungen",
-      "consentDescription": "Bitte lesen Sie die Zustimmungen sorgfältig. Erforderliche Zustimmungen müssen aktiv ausgewählt werden."
+      "consentDescription": "Bitte lesen Sie die Zustimmungen sorgfältig. Erforderliche Zustimmungen müssen aktiv ausgewählt werden.",
+      "offeringsOnlyKicker": "Betreuung",
+      "offeringsOnlyTitle": "Angebote pro Kind",
+      "offeringsOnlyDescription": "Wählen Sie je Kind die Betreuungsangebote und Wochentage für den neuen Zeitraum."
     },
     "fields": {
       "firstName": "Vorname *",
@@ -1099,7 +1102,12 @@
         "sat": "Sa",
         "sun": "So"
       }
-    }
+    },
+    "renewalAdjust": "Angebote und Wochentage anpassen",
+    "renewalAdjustHint": "Sie können die Betreuung unverändert fortführen, nur Angebote oder Wochentage anpassen oder die Betreuung zum Ende des aktuellen Zeitraums beenden. Alle übrigen Daten bleiben unverändert.",
+    "adjustTitle": "Angebote und Wochentage anpassen",
+    "adjustDescription": "Passen Sie nur die Betreuungsangebote und gebuchten Wochentage an. Alle übrigen Daten bleiben unverändert und werden nicht erneut abgefragt.",
+    "adjustSubmit": "Anpassung senden"
   },
   "parentMasterData": {
     "title": "Daten und Betreuung",

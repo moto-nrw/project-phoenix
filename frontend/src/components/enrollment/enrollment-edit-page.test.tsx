@@ -22,6 +22,9 @@ vi.mock("next-intl", () => {
     editSaveError: "Changes could not be saved",
     editSubmit: "Save changes",
     backToStatus: "Back to status",
+    adjustTitle: "Adjust offerings",
+    adjustDescription: "Only offerings and weekdays",
+    adjustSubmit: "Send adjustment",
   };
   const t = (key: string) => messages[key] ?? key;
   return {
@@ -46,11 +49,20 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
   EnrollmentForm: ({
     submitLabel,
     gradeLevelMax,
+    restrictToOfferings,
+    lockChildStructure,
   }: {
     submitLabel: string;
     gradeLevelMax: number;
+    restrictToOfferings?: boolean;
+    lockChildStructure?: boolean;
   }) => (
-    <button type="button" data-grade-level-max={gradeLevelMax}>
+    <button
+      type="button"
+      data-grade-level-max={gradeLevelMax}
+      data-restrict-to-offerings={restrictToOfferings ? "true" : "false"}
+      data-lock-child-structure={lockChildStructure ? "true" : "false"}
+    >
       {submitLabel}
     </button>
   ),
@@ -148,5 +160,38 @@ describe("EnrollmentEditPage", () => {
     expect(
       screen.queryByRole("button", { name: "Save changes" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("EnrollmentEditPage adjustOnly (#2251)", () => {
+  beforeEach(() => {
+    mockFetchEnrollmentEditBootstrap.mockReset();
+    mockUpdateEnrollmentRequest.mockReset();
+  });
+
+  it("renders the reduced heading and passes the restricted mode to the form", async () => {
+    mockFetchEnrollmentEditBootstrap.mockResolvedValueOnce({
+      ...bootstrap,
+      edit_mode: "change_request",
+    });
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollmentEditPage
+            params={Promise.resolve({ token: "tok" })}
+            adjustOnly
+          />
+        </Suspense>,
+      );
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "Adjust offerings" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Only offerings and weekdays")).toBeInTheDocument();
+    const form = screen.getByRole("button", { name: "Send adjustment" });
+    expect(form.getAttribute("data-restrict-to-offerings")).toBe("true");
+    expect(form.getAttribute("data-lock-child-structure")).toBe("true");
   });
 });

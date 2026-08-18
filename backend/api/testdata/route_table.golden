@@ -189,6 +189,7 @@ GET /api/enrollment/phases/{id}/
 GET /api/enrollment/phases/{id}/delete-impact
 GET /api/enrollment/phases/{id}/manual-bootstrap
 GET /api/enrollment/phases/{id}/review
+GET /api/enrollment/phases/{id}/rollover-preview
 GET /api/enrollment/requests/{statusToken}
 GET /api/enrollment/requests/{statusToken}/change-requests
 GET /api/enrollment/requests/{statusToken}/edit-bootstrap
