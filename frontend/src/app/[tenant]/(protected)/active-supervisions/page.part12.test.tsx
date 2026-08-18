@@ -382,7 +382,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     fireEvent.change(input, { target: { value } });
   };
 
-  it("requires tapping a result before adding when the search has multiple matches", async () => {
+  it("requires a selection and invalidates old results when the search changes", async () => {
     vi.mocked(fetchStudents).mockResolvedValue({
       students: [
         makeStudent("201", "Marie", "Beier"),
@@ -413,11 +413,11 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(addButton);
+    await searchFor("Lara");
 
-    await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "201");
-    });
+    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
+    expect(addButton).toBeDisabled();
+    expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
   });
 
   it("switches the selection when another result is tapped", async () => {
@@ -443,10 +443,27 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(beierCard).toHaveAttribute("aria-pressed", "false");
     expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
 
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
+      new Error("check-in failed"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "202");
+      expect(
+        screen.getByText("Kind konnte nicht zur Aktivität hinzugefügt werden."),
+      ).toBeInTheDocument();
+    });
+    expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+
+    await waitFor(() => {
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(2);
+      expect(timetableOperationsApi.checkIn).toHaveBeenLastCalledWith(
+        "99",
+        "202",
+      );
     });
   });
 

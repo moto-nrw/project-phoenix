@@ -603,7 +603,7 @@ interface AddUnplannedStudentFormProps {
   readonly isAddingStudent: boolean;
   readonly results: Student[];
   readonly search: string;
-  readonly onAdd: (studentId: string) => Promise<void>;
+  readonly onAdd: (studentId: string) => Promise<boolean>;
   readonly onSearchChange: (value: string) => void;
 }
 
@@ -622,8 +622,9 @@ function AddUnplannedStudentForm({
   const targetStudent =
     selectedStudent ?? (results.length === 1 ? (results[0] ?? null) : null);
   const addStudent = async (studentId: string) => {
-    await onAdd(studentId);
-    setSelectedId(null);
+    if (await onAdd(studentId)) {
+      setSelectedId(null);
+    }
   };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -650,7 +651,10 @@ function AddUnplannedStudentForm({
           name="unplanned-student-search"
           aria-label="Kind ungeplant suchen"
           value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
+          onChange={(event) => {
+            setSelectedId(null);
+            onSearchChange(event.target.value);
+          }}
           placeholder="Weiteres Kind suchen..."
           className="focus:border-moto-green focus:ring-moto-green/20 min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:ring-2 focus:outline-none"
         />
@@ -668,9 +672,11 @@ function AddUnplannedStudentForm({
             const studentId = student.id.toString();
             const isSelected = selectedStudent?.id.toString() === studentId;
             return (
-              <button
+              <Button
                 key={student.id}
                 type="button"
+                variant="ghost"
+                size="md"
                 disabled={isAddingStudent}
                 aria-pressed={isSelected}
                 onClick={() =>
@@ -678,10 +684,10 @@ function AddUnplannedStudentForm({
                     prev === studentId ? null : studentId,
                   )
                 }
-                className={`min-h-11 rounded-md border px-3 py-2 text-left text-sm disabled:opacity-50 ${
+                className={`min-h-11 w-full !justify-start border px-3 text-left !shadow-none ${
                   isSelected
-                    ? "border-moto-green bg-moto-green/10"
-                    : "hover:border-moto-green border-gray-200"
+                    ? "!border-moto-green !bg-moto-green/10 hover:!bg-moto-green/15"
+                    : "hover:!border-moto-green !border-gray-200 !bg-transparent hover:!bg-gray-100"
                 }`}
               >
                 <span className="font-medium text-gray-900">
@@ -695,7 +701,7 @@ function AddUnplannedStudentForm({
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -718,7 +724,7 @@ interface TimetableRosterContentProps {
   readonly isConfirmingExpected: boolean;
   readonly roster: TimetableRoster;
   readonly showTimetableCounts: boolean;
-  readonly onAddStudent: (studentId: string) => Promise<void>;
+  readonly onAddStudent: (studentId: string) => Promise<boolean>;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
   readonly onRosterAction: RosterRowActionsProps["onAction"];
@@ -1556,6 +1562,7 @@ function MeinRaumPageContent() {
       return;
     }
 
+    let cancelled = false;
     const timeout = window.setTimeout(() => {
       fetchStudents({
         search: addStudentSearch.trim(),
@@ -1563,9 +1570,12 @@ function MeinRaumPageContent() {
         page_size: 5,
       })
         .then((result) => {
-          setAddStudentResults(result.students);
+          if (!cancelled) {
+            setAddStudentResults(result.students);
+          }
         })
         .catch((err) => {
+          if (cancelled) return;
           logger.warn("failed to search students for timetable roster", {
             error: err instanceof Error ? err.message : String(err),
           });
@@ -1573,7 +1583,10 @@ function MeinRaumPageContent() {
         });
     }, 250);
 
-    return () => window.clearTimeout(timeout);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
   }, [activeTimetableInstanceId, addStudentSearch]);
 
   // Tracking indicators: fetch when student list changes (SSE-driven via SWR revalidation)
@@ -1930,7 +1943,7 @@ function MeinRaumPageContent() {
 
   const handleAddUnplannedStudent = useCallback(
     async (studentId: string) => {
-      if (!activeTimetableInstanceId) return;
+      if (!activeTimetableInstanceId) return false;
       try {
         setIsAddingStudent(true);
         const roster = await timetableOperationsApi.checkIn(
@@ -1940,12 +1953,14 @@ function MeinRaumPageContent() {
         setAddStudentSearch("");
         setAddStudentResults([]);
         await mutateRoster(roster, { revalidate: false });
+        return true;
       } catch (err) {
         logger.error("failed to add unplanned timetable student", {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
         });
         setError("Kind konnte nicht zur Aktivität hinzugefügt werden.");
+        return false;
       } finally {
         setIsAddingStudent(false);
       }
@@ -2308,7 +2323,10 @@ function MeinRaumPageContent() {
           onComplete={handleCompleteTimetableInstance}
           onConfirmExpected={handleConfirmExpectedStudents}
           onRosterAction={handleRosterAction}
-          onSearchChange={setAddStudentSearch}
+          onSearchChange={(value) => {
+            setAddStudentSearch(value);
+            setAddStudentResults([]);
+          }}
         />
       );
     }
