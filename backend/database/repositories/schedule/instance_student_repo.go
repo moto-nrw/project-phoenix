@@ -293,6 +293,34 @@ func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Contex
 	return rows, nil
 }
 
+// FindByStudentIDsAndDate is the multi-student form of
+// FindByStudentAndDateRange for a single day: one query for the whole batch,
+// so the roomless checkout mirror can resolve every student's slot rows
+// without a per-student round trip (review #2372).
+func (r *InstanceStudentRepository) FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*schedule.InstanceStudent, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.InstanceStudent{}, nil
+	}
+	var rows []*schedule.InstanceStudent
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id`).
+		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"activity_instance".date = ?`, date).
+		OrderExpr(`"instance_student".student_id ASC, "activity_instance".start_time ASC`)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids and date",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // FindByInstanceAndStudent returns a single attendance row, or nil if the
 // student is not expected at the instance.
 func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*schedule.InstanceStudent, error) {
@@ -369,6 +397,88 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+// UpdateAttendanceFromCheckinBatch is the multi-row form of
+// UpdateAttendanceFromCheckin for one shared check-in instant: identical SET
+// and guard predicates, restricted to the given (instance_id, student_id)
+// pairs in ONE statement instead of a per-student UPDATE (review #2372).
+// Rows whose guards no longer match are silently skipped, exactly like the
+// single-row zero-rows race path.
+func (r *InstanceStudentRepository) UpdateAttendanceFromCheckinBatch(
+	ctx context.Context, keys []schedule.InstanceStudentKey, checkedInAt time.Time,
+) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`status = ?`, schedule.AttendanceStatusPresent).
+		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL OR "instance_student".pickup_exception_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
+		Set(`student_status_day_id = NULL`).
+		Set(`pickup_exception_id = NULL`).
+		Set(`checked_in_at = CASE
+			WHEN "instance_student".checked_out_at IS NOT NULL THEN ?
+			ELSE COALESCE("instance_student".checked_in_at, ?) END`, checkedInAt, checkedInAt).
+		Set(`checked_out_at = NULL`).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`("instance_student".instance_id, "instance_student".student_id) IN (?)`, bun.List(instanceStudentKeyTuples(keys))).
+		Where(`(
+				"instance_student".status = ?
+				OR "instance_student".student_status_day_id IS NOT NULL
+				OR "instance_student".pickup_exception_id IS NOT NULL
+			OR ("instance_student".status = ? AND "instance_student".checked_out_at IS NOT NULL)
+		)`, schedule.AttendanceStatusExpected, schedule.AttendanceStatusPresent)
+
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update attendance from checkin batch",
+			Err: err,
+		}
+	}
+	return nil
+}
+
+// UpdateAttendanceCheckoutBatch is the multi-row form of
+// UpdateAttendanceCheckout for one shared checkout instant: identical SET and
+// guard predicates over the given (instance_id, student_id) pairs in ONE
+// statement (review #2372). Guarded rows that no longer match are skipped,
+// like the single-row form's silent zero-rows outcome.
+func (r *InstanceStudentRepository) UpdateAttendanceCheckoutBatch(
+	ctx context.Context, keys []schedule.InstanceStudentKey, checkedOutAt time.Time,
+) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`checked_out_at = CASE
+			WHEN "instance_student".checked_out_at IS NULL OR "instance_student".checked_out_at < ? THEN ?
+			ELSE "instance_student".checked_out_at END`, checkedOutAt, checkedOutAt).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`("instance_student".instance_id, "instance_student".student_id) IN (?)`, bun.List(instanceStudentKeyTuples(keys))).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusPresent).
+		Where(`"instance_student".checked_in_at IS NOT NULL`).
+		Where(`"instance_student".checked_in_at <= ?`, checkedOutAt)
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "update slot attendance checkout batch", Err: err}
+	}
+	return nil
+}
+
+// instanceStudentKeyTuples renders keys as a bun.List of bun.Tuple values so
+// the composite IN predicate emits ((instance_id, student_id), …).
+func instanceStudentKeyTuples(keys []schedule.InstanceStudentKey) []any {
+	tuples := make([]any, 0, len(keys))
+	for _, key := range keys {
+		tuples = append(tuples, bun.Tuple([]int64{key.InstanceID, key.StudentID}))
+	}
+	return tuples
 }
 
 func (r *InstanceStudentRepository) CreateUnplannedPresentIfAbsent(
@@ -474,6 +584,36 @@ func (r *InstanceStudentRepository) FindCurrentCandidates(
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 	if err := q.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates", Err: err}
+	}
+	return rows, nil
+}
+
+// FindCurrentCandidatesByStudentIDs is the multi-student form of
+// FindCurrentCandidates: one query resolves every student's currently-running
+// booked slots so the batch check-in mirror needs no per-student round trip
+// (review #2372). Callers group the rows per student and apply the same
+// exactly-one-candidate rule as the single-student path.
+func (r *InstanceStudentRepository) FindCurrentCandidatesByStudentIDs(
+	ctx context.Context, studentIDs []int64, date timezone.Date, at time.Time,
+) ([]*schedule.InstanceStudent, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.InstanceStudent{}, nil
+	}
+	var rows []*schedule.InstanceStudent
+	clock := at.In(timezone.Berlin).Format("15:04:05")
+	q := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Join(`JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
+		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"activity_instance".date = ?`, date).
+		Where(`"activity_instance".status IN (?, ?)`, schedule.InstanceStatusPlanned, schedule.InstanceStatusActive).
+		Where(`"activity_instance".start_time <= ?::time`, clock).
+		Where(`"activity_instance".end_time > ?::time`, clock).
+		OrderExpr(`"instance_student".student_id ASC, "activity_instance".start_time ASC, "activity_instance".id ASC`)
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+	if err := q.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates batch", Err: err}
 	}
 	return rows, nil
 }

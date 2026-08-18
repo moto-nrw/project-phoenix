@@ -196,6 +196,13 @@ type VisitRepository interface {
 	// Returns the number of visits ended.
 	EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
 
+	// EndVisitsByIDs ends the given visits at the supplied instant in one
+	// state-checked UPDATE (WHERE exit_time IS NULL) and returns the rows it
+	// actually ended. Visits a concurrent caller already ended are absorbed
+	// and missing from the result — the batch counterpart of EndVisit's
+	// already-ended tolerance.
+	EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*Visit, error)
+
 	// GetTodayVisitNamesForStudents returns activity group + room names for all of
 	// today's visits for the given students. Used for tracking indicator matching.
 	GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]VisitGroupNames, error)

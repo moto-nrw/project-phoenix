@@ -123,10 +123,41 @@ type fakeInstanceStudentRepo struct {
 	previousOut    *time.Time
 	updatedIn      time.Time
 	updatedOut     *time.Time
+
+	checkinBatchCalls  int
+	checkinBatchKeys   []scheduleModel.InstanceStudentKey
+	checkoutBatchCalls int
+	checkoutBatchKeys  []scheduleModel.InstanceStudentKey
 }
 
 func (f *fakeInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, _, _ int64) (*scheduleModel.InstanceStudent, error) {
 	return f.findRow, f.findErr
+}
+
+func (f *fakeInstanceStudentRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, timezone.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+	if f.candidatePanic != nil {
+		panic(f.candidatePanic)
+	}
+	return f.candidates, f.candidateErr
+}
+
+func (f *fakeInstanceStudentRepo) FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*scheduleModel.InstanceStudent, error) {
+	if f.datePanic != nil {
+		panic(f.datePanic)
+	}
+	return f.dateRows, f.dateErr
+}
+
+func (f *fakeInstanceStudentRepo) UpdateAttendanceFromCheckinBatch(_ context.Context, keys []scheduleModel.InstanceStudentKey, _ time.Time) error {
+	f.checkinBatchCalls++
+	f.checkinBatchKeys = append(f.checkinBatchKeys, keys...)
+	return f.updateErr
+}
+
+func (f *fakeInstanceStudentRepo) UpdateAttendanceCheckoutBatch(_ context.Context, keys []scheduleModel.InstanceStudentKey, _ time.Time) error {
+	f.checkoutBatchCalls++
+	f.checkoutBatchKeys = append(f.checkoutBatchKeys, keys...)
+	return f.checkoutErr
 }
 
 func (f *fakeInstanceStudentRepo) UpdateAttendanceFromCheckin(_ context.Context, _, _ int64, _ time.Time) (bool, error) {
@@ -933,4 +964,126 @@ func (f *fakeInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezo
 
 func (f *fakeInstanceRepo) MaxID(context.Context) (int64, error) {
 	return 0, nil
+}
+
+// -----------------------------------------------------------------------------
+// Batch mirrors (#2372) — one lookup + one guarded UPDATE per direction.
+// -----------------------------------------------------------------------------
+
+func TestMirrorCheckInAtBatch_AssignsOnlyUniqueUnpreservedSlots(t *testing.T) {
+	at := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
+
+	// Student 100: exactly one expected candidate — must be assigned.
+	unique := expectedRow(30)
+	unique.InstanceID = 71
+
+	// Student 200: two candidates — ambiguous, must stay unassigned.
+	ambiguousA := expectedRow(31)
+	ambiguousA.StudentID = 200
+	ambiguousA.InstanceID = 72
+	ambiguousB := expectedRow(32)
+	ambiguousB.StudentID = 200
+	ambiguousB.InstanceID = 73
+
+	// Student 300: one candidate, but already observably present-open — the
+	// preserve rule must skip it.
+	checkedIn := at.Add(-time.Hour)
+	preserved := expectedRow(33)
+	preserved.StudentID = 300
+	preserved.InstanceID = 74
+	preserved.Status = scheduleModel.AttendanceStatusPresent
+	preserved.CheckedInAt = &checkedIn
+
+	isRepo := &fakeInstanceStudentRepo{
+		candidates: []*scheduleModel.InstanceStudent{unique, ambiguousA, ambiguousB, preserved},
+	}
+
+	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100, 200, 300}, at)
+
+	require.Equal(t, 1, isRepo.checkinBatchCalls)
+	require.Len(t, isRepo.checkinBatchKeys, 1)
+	assert.Equal(t, scheduleModel.InstanceStudentKey{InstanceID: 71, StudentID: 100}, isRepo.checkinBatchKeys[0])
+}
+
+func TestMirrorCheckInAtBatch_SwallowsLookupFailureAndPanic(t *testing.T) {
+	at := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
+
+	failing := &fakeInstanceStudentRepo{candidateErr: errors.New("lookup failed")}
+	newUnitSyncer(&fakeInstanceRepo{}, failing).MirrorCheckInAtBatch(context.Background(), []int64{100}, at)
+	assert.Zero(t, failing.checkinBatchCalls)
+
+	panicking := &fakeInstanceStudentRepo{candidatePanic: errors.New("kaboom")}
+	require.NotPanics(t, func() {
+		newUnitSyncer(&fakeInstanceRepo{}, panicking).MirrorCheckInAtBatch(context.Background(), []int64{100}, at)
+	})
+	assert.Zero(t, panicking.checkinBatchCalls)
+}
+
+func TestMirrorCheckOutAtBatch_ClosesLatestOpenSlotPerStudent(t *testing.T) {
+	checkedIn := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
+	laterCheckIn := checkedIn.Add(30 * time.Minute)
+
+	// Student 100: a closed row plus two open rows — only the LATEST open one
+	// may close.
+	closed := expectedRow(40)
+	closed.Status = scheduleModel.AttendanceStatusPresent
+	closed.CheckedInAt = &checkedIn
+	closed.CheckedOutAt = &checkedIn
+	earlyOpen := expectedRow(41)
+	earlyOpen.InstanceID = 88
+	earlyOpen.Status = scheduleModel.AttendanceStatusPresent
+	earlyOpen.CheckedInAt = &checkedIn
+	lateOpen := expectedRow(42)
+	lateOpen.InstanceID = 89
+	lateOpen.Status = scheduleModel.AttendanceStatusPresent
+	lateOpen.CheckedInAt = &laterCheckIn
+
+	// Student 200: one open row.
+	otherOpen := expectedRow(43)
+	otherOpen.StudentID = 200
+	otherOpen.InstanceID = 90
+	otherOpen.Status = scheduleModel.AttendanceStatusPresent
+	otherOpen.CheckedInAt = &checkedIn
+
+	isRepo := &fakeInstanceStudentRepo{
+		dateRows: []*scheduleModel.InstanceStudent{closed, earlyOpen, lateOpen, otherOpen},
+	}
+
+	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100, 200}, time.Now())
+
+	require.Equal(t, 1, isRepo.checkoutBatchCalls)
+	assert.ElementsMatch(t, []scheduleModel.InstanceStudentKey{
+		{InstanceID: 89, StudentID: 100},
+		{InstanceID: 90, StudentID: 200},
+	}, isRepo.checkoutBatchKeys)
+}
+
+func TestMirrorCheckOutForVisits_ResolvesInstancePerGroupAndSkipsWalkIns(t *testing.T) {
+	at := time.Date(2026, 4, 20, 16, 0, 0, 0, time.UTC)
+	visitA := validVisit()
+	visitB := validVisit()
+	visitB.StudentID = 200
+	walkIn := validVisit()
+	walkIn.StudentID = 300
+	walkIn.ActiveGroupID = 0
+
+	isRepo := &fakeInstanceStudentRepo{}
+	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
+
+	syncer.MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{visitA, visitB, walkIn}, at)
+
+	require.Equal(t, 1, isRepo.checkoutBatchCalls)
+	assert.ElementsMatch(t, []scheduleModel.InstanceStudentKey{
+		{InstanceID: 7, StudentID: 100},
+		{InstanceID: 7, StudentID: 200},
+	}, isRepo.checkoutBatchKeys)
+}
+
+func TestMirrorCheckOutForVisits_NoInstanceBridgedIsNoop(t *testing.T) {
+	isRepo := &fakeInstanceStudentRepo{}
+	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
+
+	syncer.MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+
+	assert.Zero(t, isRepo.checkoutBatchCalls)
 }

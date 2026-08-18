@@ -91,6 +91,18 @@ func (f *fakeRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []in
 func (f *fakeRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
 	panic("unused")
 }
+func (f *fakeRepo) FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, timezone.Date, time.Time) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) UpdateAttendanceFromCheckinBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
+	panic("unused")
+}
+func (f *fakeRepo) UpdateAttendanceCheckoutBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
+	panic("unused")
+}
 func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }

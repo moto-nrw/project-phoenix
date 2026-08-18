@@ -171,12 +171,18 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 		return
 	}
 
+	s.clearSickFlagOnCheckin(ctx, student, time.Now())
+}
+
+// clearSickFlagOnCheckin is the write core of autoClearStudentSickness,
+// operating on an already-loaded student so batch callers holding the row
+// lock don't re-read per child (review #2372). No-op when the flag is unset.
+func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) {
 	if student.Sick == nil || !*student.Sick {
 		return
 	}
 
-	now := time.Now()
-	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin)
+	s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin)
 
 	falseVal := false
 	student.Sick = &falseVal
@@ -184,14 +190,14 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		s.getLogger().Warn("failed to auto-clear sickness on check-in",
-			slog.Int64("student_id", studentID),
+			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
 		return
 	}
 
 	s.getLogger().Info("auto-cleared sickness on student check-in",
-		slog.Int64("student_id", studentID),
+		slog.Int64("student_id", student.ID),
 	)
 }
 
@@ -208,12 +214,17 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 		return
 	}
 
+	s.clearExcusedFlagOnCheckin(ctx, student, time.Now())
+}
+
+// clearExcusedFlagOnCheckin is the write core of autoClearStudentExcused —
+// same already-loaded-student contract as clearSickFlagOnCheckin.
+func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) {
 	if student.Excused == nil || !*student.Excused {
 		return
 	}
 
-	now := time.Now()
-	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin)
+	s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin)
 
 	falseVal := false
 	student.Excused = &falseVal
@@ -221,14 +232,14 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		s.getLogger().Warn("failed to auto-clear excused on check-in",
-			slog.Int64("student_id", studentID),
+			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
 		return
 	}
 
 	s.getLogger().Info("auto-cleared excused on student check-in",
-		slog.Int64("student_id", studentID),
+		slog.Int64("student_id", student.ID),
 	)
 }
 
@@ -280,6 +291,21 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		return
 	}
 
+	s.clearPlannedStatusRows(ctx, studentID, nil, rows, now)
+}
+
+// clearPlannedStatusRows is the write core of autoClearPlannedStudentStatuses,
+// operating on pre-fetched status-day rows so batch callers can load every
+// student's rows in one query (review #2372). student may be nil — it is
+// fetched lazily only when a flag actually needs clearing; batch callers pass
+// their already-locked row to skip that read too.
+func (s *service) clearPlannedStatusRows(
+	ctx context.Context,
+	studentID int64,
+	student *userModels.Student,
+	rows []*active.StudentStatusDay,
+	now time.Time,
+) {
 	hasPlannedSick := false
 	hasPlannedExcused := false
 	for _, row := range rows {
@@ -311,9 +337,12 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		return
 	}
 
-	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil {
-		return
+	if student == nil {
+		loaded, err := s.StudentRepo.FindByID(ctx, studentID)
+		if err != nil || loaded == nil {
+			return
+		}
+		student = loaded
 	}
 
 	falseVal := false

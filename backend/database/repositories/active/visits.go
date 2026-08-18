@@ -4,6 +4,7 @@ package active
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -204,6 +205,36 @@ func (r *VisitRepository) EndVisit(ctx context.Context, id int64) error {
 	}
 
 	return base.AssertRowsAffected(result, 1, "end visit")
+}
+
+// EndVisitsByIDs ends the given visits at one shared instant in a single
+// state-checked UPDATE and returns the rows actually ended. Concurrently
+// ended visits fail the WHERE and are absorbed (missing from the result),
+// mirroring EndVisit's already-ended tolerance without a per-visit re-read.
+func (r *VisitRepository) EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*active.Visit, error) {
+	if len(ids) == 0 {
+		return []*active.Visit{}, nil
+	}
+
+	var ended []*active.Visit
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*active.Visit)(nil)).
+		Table(tableActiveVisits).
+		Set(`exit_time = ?`, at).
+		Where(`id IN (?) AND exit_time IS NULL`, bun.List(ids)).
+		Returning("*")
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if err := query.Scan(ctx, &ended); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return []*active.Visit{}, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "end visits by ids", Err: err}
+	}
+	return ended, nil
 }
 
 // List overrides the base List method to accept the new QueryOptions type

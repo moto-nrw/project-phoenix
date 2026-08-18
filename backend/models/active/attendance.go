@@ -70,6 +70,19 @@ type AttendanceRepository interface {
 	// treats both cases as successful idempotent checkouts.
 	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID int64) (*Attendance, error)
 
+	// CreateIfNoOpenForTodayBatch is the multi-row form of
+	// CreateIfNoOpenForToday: one INSERT … ON CONFLICT DO NOTHING for the
+	// whole batch. Returns the student ids whose row was actually inserted;
+	// conflicting students are absorbed like the single-row method. The
+	// caller must hold the students' row locks in ascending id order.
+	CreateIfNoOpenForTodayBatch(ctx context.Context, rows []*Attendance) ([]int64, error)
+
+	// CloseOpenForDateByStudentIDs is the multi-student form of
+	// CloseOpenForToday: one state-checked UPDATE over the whole batch,
+	// returning only the rows actually closed. Students without an open row
+	// on the date are idempotent no-ops and missing from the result.
+	CloseOpenForDateByStudentIDs(ctx context.Context, studentIDs []int64, now time.Time, day timezone.Date, staffID int64) ([]*Attendance, error)
+
 	// FindByID finds an attendance record by ID
 	FindByID(ctx context.Context, id int64) (*Attendance, error)
 
