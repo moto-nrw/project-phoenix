@@ -61,7 +61,7 @@ export function formatGradeLevelList(values: readonly number[]): string {
   return `${runs.slice(0, -1).join(", ")} und ${runs.at(-1)}`;
 }
 
-function gradeNoun(values: readonly number[]): string {
+export function gradeNoun(values: readonly number[]): string {
   return new Set(values).size === 1 ? "Klasse" : "Klassen";
 }
 

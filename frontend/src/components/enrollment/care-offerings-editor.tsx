@@ -23,6 +23,8 @@ import {
   careOfferingAvailabilityRuleError,
   countCareOfferingRuleConflicts,
   describeCareOfferingAvailabilityRule,
+  formatGradeLevelList,
+  gradeNoun,
 } from "~/lib/care-offering-availability";
 import {
   type CareOfferingBookingStats,
@@ -922,6 +924,10 @@ export function CareOfferingsEditor() {
             />
           ) : null}
 
+          {!draft && !cloneSource ? (
+            <AutoAddRuleOverview offerings={offerings} />
+          ) : null}
+
           {selectedPhaseId &&
           offerings.length === 0 &&
           !draft &&
@@ -1270,6 +1276,57 @@ function EmptyCareOfferingState({
         <Plus className="h-4 w-4" aria-hidden="true" />
         Erstes Betreuungsangebot anlegen
       </button>
+    </section>
+  );
+}
+
+// Eine falsch herum konfigurierte Mitbuchungs-Regel (#2367, Fall OGS am Berg
+// in #2365) fällt erst bei einer echten Anmeldung auf, solange jede Regel nur
+// im Editor ihres Ziel-Angebots sichtbar ist. Dieses Panel sammelt alle
+// aktiven Regeln der Phase als Klartext-Sätze im selben Wortlaut wie die
+// Editor-Vorschau, damit die Wirkrichtung ohne Testanmeldung ablesbar ist.
+function AutoAddRuleOverview({
+  offerings,
+}: Readonly<{ offerings: CareOffering[] }>) {
+  const offeringsById = new Map(
+    offerings.map((offering) => [offering.id, offering]),
+  );
+  const rules = offerings
+    .filter((offering) => offering.is_active)
+    .flatMap((target) =>
+      (target.auto_add_trigger_offering_ids ?? []).flatMap((triggerId) => {
+        const trigger = offeringsById.get(triggerId);
+        // Eltern sehen nur aktive Angebote; Regeln an oder von inaktiven
+        // Angeboten können nicht greifen und bleiben hier draußen.
+        if (!trigger?.is_active) return [];
+        const grades = target.auto_add_grade_levels ?? [];
+        const gradeSuffix =
+          grades.length > 0
+            ? ` (${gradeNoun(grades)} ${formatGradeLevelList(grades)})`
+            : "";
+        return [
+          {
+            key: `${target.id}-${trigger.id}`,
+            sentence: `„${target.name}“ wird automatisch mitgebucht, wenn „${trigger.name}“ gewählt wird${gradeSuffix}.`,
+          },
+        ];
+      }),
+    );
+  if (rules.length === 0) return null;
+  return (
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      <h2 className="text-sm font-semibold text-gray-900">
+        Mitbuchungs-Regeln
+      </h2>
+      <p className="mt-0.5 text-xs text-gray-500">
+        Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim
+        jeweils mitgebuchten Angebot unter Bearbeiten.
+      </p>
+      <ul className="mt-2 space-y-1 text-sm text-gray-700">
+        {rules.map((rule) => (
+          <li key={rule.key}>{rule.sentence}</li>
+        ))}
+      </ul>
     </section>
   );
 }
