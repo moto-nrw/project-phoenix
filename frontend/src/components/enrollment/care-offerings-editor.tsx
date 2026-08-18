@@ -38,6 +38,7 @@ import {
 import { Modal } from "~/components/ui/modal";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -1317,20 +1318,17 @@ function AutoAddRuleOverview({
     );
   if (rules.length === 0) return null;
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-      <h2 className="text-base font-semibold text-gray-900">
-        Mitbuchungs-Regeln
-      </h2>
-      <p className="mt-0.5 text-xs text-gray-500">
-        Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim
-        jeweils mitgebuchten Angebot unter Bearbeiten.
-      </p>
+    <SectionCard
+      title="Mitbuchungs-Regeln"
+      description="Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
+      bodyClassName="mt-2"
+    >
       <ul className="mt-2 space-y-1 text-sm text-gray-700">
         {rules.map((rule) => (
           <li key={rule.key}>{rule.sentence}</li>
         ))}
       </ul>
-    </section>
+    </SectionCard>
   );
 }
 
