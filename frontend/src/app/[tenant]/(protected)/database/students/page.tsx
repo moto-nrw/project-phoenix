@@ -36,6 +36,7 @@ import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
+import { createClassListEntry } from "~/lib/class-list-entries-api";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
@@ -276,6 +277,23 @@ function StudentsPageContent() {
     }
     return chips;
   }, [searchTerm, groupFilter, allGroups]);
+
+  // Class-list-only entry (#2382): created straight from the "+ Kinder"
+  // modal's "Nur Klassenliste" mode. The entry does NOT appear in this list
+  // (it is no student) — the toast says where it lives instead.
+  const handleCreateListEntry = useCallback(
+    async (input: {
+      firstName: string;
+      lastName: string;
+      schoolClass: string;
+    }) => {
+      await createClassListEntry(input);
+      toastSuccess(
+        "Klassenlisteneintrag angelegt — zu finden im Menü oben rechts unter Klassenliste",
+      );
+    },
+    [toastSuccess],
+  );
 
   const handleCreateStudent = useCallback(
     async (
@@ -572,6 +590,7 @@ function StudentsPageContent() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateStudent}
+        onCreateListEntry={handleCreateListEntry}
         groups={allGroups}
       />
 

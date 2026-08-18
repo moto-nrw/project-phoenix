@@ -1325,9 +1325,9 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Kinder, die nicht im Ganztag sind, fehlen sonst auf Klassenlisten. Ein Klassenlisteneintrag besteht nur aus Name und Klasse und vervollständigt den Klassenverband — ohne Betreuung, Anwesenheit oder Kontaktdaten.",
         steps: [
-          "`Datenverwaltung` -> `Kinder` öffnen und oben rechts im Menü mit den drei Punkten `Klassenliste` wählen.",
-          "`Eintrag anlegen` wählen und Vorname, Nachname und Klasse eintragen. Die Klasse genauso schreiben wie bei den regulären Kindern, damit der Eintrag in derselben Klassenliste landet.",
-          "Für ganze Klassen den `Sammelimport` nutzen: Vorlage mit den Spalten `Vorname`, `Nachname`, `Klasse` herunterladen, ausfüllen und hochladen. Bereits angelegte Kinder werden übersprungen.",
+          "`Datenverwaltung` -> `Kinder` -> `+ Kinder` wählen und oben im Fenster auf `Nur Klassenliste` umschalten. Vorname, Nachname und Klasse eintragen — die Klasse genauso schreiben wie bei den regulären Kindern, damit der Eintrag in derselben Klassenliste landet.",
+          "Alle Einträge verwalten: auf der Kinder-Seite oben rechts im Menü mit den drei Punkten `Klassenliste` wählen.",
+          "Für ganze Klassen dort den `Sammelimport` nutzen: Vorlage mit den Spalten `Vorname`, `Nachname`, `Klasse` herunterladen, ausfüllen und hochladen. Bereits angelegte Kinder werden übersprungen.",
           "Die Einträge erscheinen auf den Klassenlisten-Exporten und in der `Klassenansicht` der Lehrkräfte, deutlich gekennzeichnet als `Keine Betreuung`. In Kindersuche, Anwesenheit, Betreuungsplanung und Elternportal tauchen sie nicht auf.",
           "Über `Bearbeiten` lässt sich ein Eintrag in eine andere Klasse verschieben, über `Löschen` entfernen.",
           "Wird das Kind später regulär angelegt (z. B. über eine Anmeldung oder den Import), zeigt die Liste `Mögliche Dublette`. Mit `Zuordnen` bestätigen Sie, dass es dasselbe Kind ist — der Eintrag wird entfernt, das Kind steht nur noch über seinen regulären Datensatz auf der Liste. Das passiert nie automatisch, damit gleichnamige Kinder nicht verwechselt werden.",
