@@ -376,6 +376,7 @@ describe("OfferingRequestReviewList", () => {
       ).parentElement;
       expect(downstream?.textContent).toContain("Mo, Mi");
       expect(downstream?.textContent).not.toContain("Mo, Di, Mi");
+      expect(downstream?.textContent).not.toContain("Kommt automatisch dazu");
     });
   });
 

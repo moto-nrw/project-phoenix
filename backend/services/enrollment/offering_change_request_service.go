@@ -1147,8 +1147,9 @@ func (s *offeringChangeRequestService) pendingDiffs(
 			continue
 		}
 		submit.TargetGradeLevel = child.TargetGradeLevel
-		materialized, materializeErr := materializeAndValidateChildrenOfferingSelections(
+		materialized, materializeErr := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+			grandfatheredOfferingsFromLinks(currentByChild[child.ID]),
 		)
 		if materializeErr != nil {
 			continue

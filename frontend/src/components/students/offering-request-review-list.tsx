@@ -297,11 +297,16 @@ export function OfferingRequestReviewList() {
                     .map((entry) => entry.offering_id),
                 );
                 return row.diff.map((entry) => {
+                  const previewSelection = previewByOffering.get(
+                    entry.offering_id,
+                  );
                   const isExcluded = excluded.includes(entry.offering_id);
                   const isRemoved = removed.has(entry.offering_id);
                   const cascaded = isRemoved && !isExcluded;
-                  const displayedNew =
-                    previewByOffering.get(entry.offering_id)?.new ?? entry.new;
+                  const previewChanged =
+                    previewSelection !== undefined &&
+                    previewSelection.new !== entry.new;
+                  const displayedNew = previewSelection?.new ?? entry.new;
                   return (
                     <div
                       key={entry.offering_id}
@@ -333,11 +338,14 @@ export function OfferingRequestReviewList() {
                           {displayedNew}
                         </span>
                       </div>
-                      {entry.automatic && !cascaded && !isExcluded && (
-                        <p className="mt-0.5 text-xs text-gray-500">
-                          {automaticHint(entry)}
-                        </p>
-                      )}
+                      {entry.automatic &&
+                        !previewChanged &&
+                        !cascaded &&
+                        !isExcluded && (
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            {automaticHint(entry)}
+                          </p>
+                        )}
                       {cascaded && (
                         <p className="mt-0.5 text-xs text-gray-500">
                           Entfällt, weil{" "}

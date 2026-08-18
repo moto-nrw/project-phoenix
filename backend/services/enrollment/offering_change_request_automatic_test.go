@@ -138,7 +138,7 @@ func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *t
 	assert.True(t, found, "the queue diff must mark the rule-added offering")
 }
 
-func TestOfferingChangeRequestService_ListPending_IncludesUnchangedRuleTargetForOverride(t *testing.T) {
+func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfatheredRuleTarget(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext()
@@ -148,14 +148,25 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedRuleTargetFor
 	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        auto.ID,
-		SelectedDays:          []string{"mon"},
+		SelectedDays:          []string{"mon", "tue"},
+		ManualSelectedDays:    []string{"tue"},
 		AutomaticSelectedDays: []string{"mon"},
 	}))
+	auto.AvailabilityRule = &enrollmentModels.CareOfferingAvailabilityRule{
+		Match: enrollmentModels.AvailabilityMatchAll,
+		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
+			Source:   enrollmentModels.AvailabilitySourceGradeLevel,
+			Operator: enrollmentModels.AvailabilityOperatorIn,
+			Value:    []int{1},
+		}},
+	}
+	require.NoError(t, env.repos.CareOffering.Update(ctx, auto))
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []enrollmentService.OfferingChangeSelection{
 			{OfferingID: fx.oldOffering.ID, SelectedDays: []string{"mon"}},
 			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: auto.ID, SelectedDays: []string{"tue"}},
 		},
 	})
 	require.NoError(t, err)
@@ -171,8 +182,8 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedRuleTargetFor
 			if entry.OfferingID != auto.ID {
 				continue
 			}
-			assert.Equal(t, []string{"mon"}, entry.OldDays)
-			assert.Equal(t, []string{"mon"}, entry.NewDays)
+			assert.Equal(t, []string{"mon", "tue"}, entry.OldDays)
+			assert.Equal(t, []string{"mon", "tue"}, entry.NewDays)
 			assert.Equal(t, []string{"mon"}, entry.NewRuleDays)
 			assert.Equal(t, []int64{fx.oldOffering.ID}, entry.AutoTriggerIDs)
 			return
