@@ -92,6 +92,10 @@ type OfferingChangeCatalogItem struct {
 	// one automatically (Mitbuchungs-Regel, #2366). Already filtered to the
 	// child's grade, so the modal can preview the rule without grade logic.
 	AutoAddTriggerOfferingIDs []int64
+	// AutoAddApplies is the server-evaluated grade gate for automatic days on
+	// this offering. False suppresses the client preview's required-lunch
+	// derivation, which has no trigger list to filter (#2366).
+	AutoAddApplies bool
 	// Selected marks the child's current booking, so the modal opens prefilled.
 	Selected     bool
 	SelectedDays []string
@@ -599,7 +603,8 @@ func (s *offeringChangeRequestService) catalogAt(
 			return nil, itemErr
 		}
 		item.IsActive = activeByID[offering.ID] != nil
-		if autoAddAppliesToGrade(child.TargetGradeLevel, offering.AutoAddGradeLevels) {
+		item.AutoAddApplies = autoAddAppliesToGrade(child.TargetGradeLevel, offering.AutoAddGradeLevels)
+		if item.AutoAddApplies {
 			item.AutoAddTriggerOfferingIDs = append([]int64(nil), offering.AutoAddTriggerOfferingIDs...)
 		}
 		catalog.Items = append(catalog.Items, item)

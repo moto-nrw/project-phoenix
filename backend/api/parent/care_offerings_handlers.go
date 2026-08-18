@@ -271,12 +271,15 @@ type OfferingCatalogItemResponse struct {
 	// AutoAddTriggerOfferingIDs powers the pre-submit Mitbuchungs-Regel
 	// preview (#2366); already filtered to the child's grade.
 	AutoAddTriggerOfferingIDs []string `json:"auto_add_trigger_offering_ids,omitempty"`
-	Selected                  bool     `json:"selected"`
-	SelectedDays              []string `json:"selected_days"`
-	Automatic                 bool     `json:"automatic"`
-	IsActive                  bool     `json:"is_active"`
-	Capacity                  *int     `json:"capacity,omitempty"`
-	FreeSlots                 *int     `json:"free_slots,omitempty"`
+	// AutoAddApplies is the server-evaluated grade gate for automatic days
+	// (incl. the required-lunch derivation) on this offering.
+	AutoAddApplies bool     `json:"auto_add_applies"`
+	Selected       bool     `json:"selected"`
+	SelectedDays   []string `json:"selected_days"`
+	Automatic      bool     `json:"automatic"`
+	IsActive       bool     `json:"is_active"`
+	Capacity       *int     `json:"capacity,omitempty"`
+	FreeSlots      *int     `json:"free_slots,omitempty"`
 }
 
 // OfferingChangeRequestBody is the wire shape for POST .../care-offerings/requests.
@@ -429,6 +432,7 @@ func toOfferingCatalogResponse(catalog *enrollmentService.OfferingChangeCatalog)
 			IncludesHoliday:           item.IncludesHoliday,
 			CountsAsCare:              item.CountsAsCare,
 			AutoAddTriggerOfferingIDs: formatIDs(item.AutoAddTriggerOfferingIDs),
+			AutoAddApplies:            item.AutoAddApplies,
 			Selected:                  item.Selected,
 			SelectedDays:              stringsOrEmpty(item.SelectedDays),
 			Automatic:                 item.Automatic,

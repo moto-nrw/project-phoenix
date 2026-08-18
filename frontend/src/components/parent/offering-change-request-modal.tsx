@@ -223,6 +223,9 @@ export function OfferingChangeRequestModal({
         offeringDays[item.id] = orderedDays(row.days);
       }
     }
+    // gradeLevel "" is correct here: the catalog endpoint already evaluated
+    // the grade condition — trigger IDs arrive pre-filtered and
+    // auto_add_applies carries the gate for the lunch derivation.
     return materializeCareSelection(
       { gradeLevel: "", offeringIds: selectedIds, offeringDays },
       items,

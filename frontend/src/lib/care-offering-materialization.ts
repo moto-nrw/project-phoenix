@@ -24,6 +24,12 @@ export interface MaterializableOffering {
   counts_as_care?: boolean;
   auto_add_grade_levels?: number[];
   auto_add_trigger_offering_ids?: string[];
+  /**
+   * Server-evaluated grade gate. When present it overrides the client-side
+   * check of auto_add_grade_levels — needed by the parent modal, whose
+   * catalog carries no grade data (#2366).
+   */
+  auto_add_applies?: boolean;
 }
 
 export interface CareSelectionInput {
@@ -60,7 +66,10 @@ export function materializeCareSelection(
   while (changed) {
     changed = false;
     for (const target of offerings) {
-      if (!autoAddAppliesToGrade(input.gradeLevel, target)) continue;
+      const applies =
+        target.auto_add_applies ??
+        autoAddAppliesToGrade(input.gradeLevel, target);
+      if (!applies) continue;
       const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
       if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
 

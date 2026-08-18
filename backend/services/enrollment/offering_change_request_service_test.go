@@ -700,6 +700,7 @@ func TestOfferingChangeRequestService_Catalog_ExposesGradeFilteredAutoAddTrigger
 	require.True(t, ok)
 	assert.Equal(t, []int64{fx.oldOffering.ID}, target.AutoAddTriggerOfferingIDs,
 		"the modal needs the rule to preview the Mitbuchung before submitting")
+	assert.True(t, target.AutoAddApplies)
 	assert.True(t, target.CountsAsCare)
 
 	// A grade condition the child does not meet hides the rule: the preview
@@ -713,6 +714,8 @@ func TestOfferingChangeRequestService_Catalog_ExposesGradeFilteredAutoAddTrigger
 	for _, item := range catalog.Items {
 		if item.OfferingID == fx.newOffering.ID {
 			assert.Empty(t, item.AutoAddTriggerOfferingIDs)
+			assert.False(t, item.AutoAddApplies,
+				"the client's lunch derivation must also respect the grade gate")
 		}
 	}
 }
