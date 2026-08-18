@@ -38,6 +38,7 @@ type appliedOfferingAdjustment struct {
 	Before     []*enrollmentModels.RequestChildOffering
 	Selections []materializedOfferingSelection
 	Offerings  map[int64]*enrollmentModels.CareOffering
+	Overridden []enrollmentModels.OfferingChangeSnapshotOffering
 }
 
 func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
@@ -224,6 +225,14 @@ func (s *decisionService) updateChildOfferings(
 	}
 	children := []SubmitChild{submitChild}
 	grandfathered := grandfatheredOfferingsFromLinks(beforeLinks)
+	overridden, err := validateAppliedOfferingOverrides(
+		input.ExcludedAutoAddTargetIDs, submitChild, allowedOfferingByID,
+		phase.CareOfferingSelectionMode, grandfathered,
+	)
+	if err != nil {
+		return nil, err
+	}
+	reason = adjustmentReasonWithOverrides(reason, overridden)
 	materialized, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		children, allowedOfferingByID, phase.CareOfferingSelectionMode, grandfathered,
 	)
@@ -308,8 +317,47 @@ func (s *decisionService) updateChildOfferings(
 		return nil, err
 	}
 	return &appliedOfferingAdjustment{
-		Child: updated, Before: beforeLinks, Selections: selections, Offerings: offeringByID,
+		Child: updated, Before: beforeLinks, Selections: selections, Offerings: offeringByID, Overridden: overridden,
 	}, nil
+}
+
+func validateAppliedOfferingOverrides(
+	excluded map[int64]bool,
+	child SubmitChild,
+	allowed map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+	grandfathered GrandfatheredOfferings,
+) ([]enrollmentModels.OfferingChangeSnapshotOffering, error) {
+	if len(excluded) == 0 {
+		return nil, nil
+	}
+	child.ExcludedAutoAddTargetIDs = nil
+	base, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		[]SubmitChild{child}, allowed, selectionMode, grandfathered,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
+	}
+	excludedIDs := make([]int64, 0, len(excluded))
+	for offeringID := range excluded {
+		excludedIDs = append(excludedIDs, offeringID)
+	}
+	sort.Slice(excludedIDs, func(i, j int) bool { return excludedIDs[i] < excludedIDs[j] })
+	return validateExcludedAutoTargets(excludedIDs, base[0], allowed)
+}
+
+func adjustmentReasonWithOverrides(
+	reason string,
+	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
+) string {
+	if len(overridden) == 0 {
+		return reason
+	}
+	names := make([]string, 0, len(overridden))
+	for _, offering := range overridden {
+		names = append(names, offering.Name)
+	}
+	return reason + " · Mitbuchung nicht angewendet: " + strings.Join(names, ", ")
 }
 
 // grandfatheredOfferingsFromLinks classifies the bookings a child already

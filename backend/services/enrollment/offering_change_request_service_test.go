@@ -31,6 +31,14 @@ func newOfferingChangeServiceForTest(
 	t *testing.T,
 	env *decisionTestEnv,
 ) enrollmentService.OfferingChangeRequestService {
+	return newOfferingChangeServiceForTestWithCareRepo(t, env, env.repos.CareOffering)
+}
+
+func newOfferingChangeServiceForTestWithCareRepo(
+	t *testing.T,
+	env *decisionTestEnv,
+	careOfferingRepo enrollmentModels.CareOfferingRepository,
+) enrollmentService.OfferingChangeRequestService {
 	t.Helper()
 	env.settings.boolValues[configModel.KeyEnrollmentOfferingChangesEnabled] = true
 	env.settings.stringValues[configModel.KeyEnrollmentOfferingChangesLeadDays] = "14"
@@ -39,7 +47,7 @@ func newOfferingChangeServiceForTest(
 		RequestChildRepo:         env.repos.RequestChild,
 		RequestRepo:              env.repos.Request,
 		PhaseRepo:                env.repos.Phase,
-		CareOfferingRepo:         env.repos.CareOffering,
+		CareOfferingRepo:         careOfferingRepo,
 		RequestChildOfferingRepo: env.repos.RequestChildOffering,
 		StudentRepo:              env.repos.Student,
 		PersonRepo:               env.repos.Person,

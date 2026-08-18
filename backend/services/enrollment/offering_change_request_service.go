@@ -1206,7 +1206,10 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		if len(input.ExcludedAutoOfferingIDs) > 0 {
 			return fmt.Errorf("%w: co-booking overrides only apply to an approval", ErrOfferingChangeInvalid)
 		}
-		diff := s.decisionDiffBestEffort(ctx, row, nil)
+		diff, err := s.decisionDiff(ctx, row, nil)
+		if err != nil {
+			return err
+		}
 		if err := s.ChangeRepo.Decide(
 			ctx, row.ID, enrollmentModels.OfferingChangeStatusRejected, &reason, &input.ReviewedBy, false,
 		); err != nil {
@@ -1219,23 +1222,12 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 			usersModels.ParentMessageRequestStatusRejected, reason)
 		return nil
 	}
-	// With overrides the pre-apply diff is load-bearing because it validates the
-	// excluded ids and records their names. A plain approval needs no preliminary
-	// materialization: its snapshot is built from the applier's exact result.
-	var diff *offeringDecisionDiff
-	if len(input.ExcludedAutoOfferingIDs) > 0 {
-		var diffErr error
-		diff, diffErr = s.decisionDiff(ctx, row, input.ExcludedAutoOfferingIDs)
-		if diffErr != nil {
-			return diffErr
-		}
-	}
-	applied, err := s.applyApproved(ctx, row, input, overriddenOfferings(diff))
+	applied, err := s.applyApproved(ctx, row, input)
 	if err != nil {
 		return err
 	}
-	diff = materializedDecisionDiff(
-		applied.Before, applied.Selections, nil, applied.Offerings, overriddenOfferings(diff),
+	diff := materializedDecisionDiff(
+		applied.Before, applied.Selections, nil, applied.Offerings, applied.Overridden,
 	)
 	if err := s.ChangeRepo.Decide(
 		ctx, row.ID, enrollmentModels.OfferingChangeStatusApproved, optionalString(reason), &input.ReviewedBy, true,
@@ -1305,34 +1297,14 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	return preview, nil
 }
 
-// decisionDiffBestEffort builds the review diff for the snapshot without
-// letting a diff failure block the decision itself.
-func (s *offeringChangeRequestService) decisionDiffBestEffort(
-	ctx context.Context,
-	row *enrollmentModels.OfferingChangeRequest,
-	excludedIDs []int64,
-) *offeringDecisionDiff {
-	diff, err := s.decisionDiff(ctx, row, excludedIDs)
-	if err != nil {
-		s.Logger.Warn("offering change: build decision snapshot diff failed",
-			slog.Int64("request_id", row.ID),
-			slog.String("error", err.Error()),
-		)
-		return nil
-	}
-	return diff
-}
-
-// storeDecisionSnapshot freezes the diff on the decided row (ADR 0002). A nil
-// diff (best-effort build failed) leaves the column empty; readers fall back to
-// live materialization.
+// storeDecisionSnapshot freezes the diff on the decided row (ADR 0002).
 func (s *offeringChangeRequestService) storeDecisionSnapshot(
 	ctx context.Context,
 	requestID int64,
 	diff *offeringDecisionDiff,
 ) error {
 	if diff == nil {
-		return nil
+		return fmt.Errorf("offering change: decision snapshot diff is required")
 	}
 	snapshot := &enrollmentModels.OfferingChangeDecisionSnapshot{
 		Diff:                make([]enrollmentModels.OfferingChangeSnapshotEntry, 0, len(diff.entries)),
@@ -1377,14 +1349,6 @@ func diffEntriesFromSnapshot(entries []enrollmentModels.OfferingChangeSnapshotEn
 	return out
 }
 
-// overriddenOfferings unwraps the override list of a possibly-nil diff.
-func overriddenOfferings(diff *offeringDecisionDiff) []enrollmentModels.OfferingChangeSnapshotOffering {
-	if diff == nil {
-		return nil
-	}
-	return diff.overridden
-}
-
 // applyApproved re-validates the request against today's catalog and capacity
 // and then performs the dated switch. Re-validation is the point: the request
 // may be weeks old, and an offering can have been deactivated or filled up in
@@ -1394,7 +1358,6 @@ func (s *offeringChangeRequestService) applyApproved(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 	input DecideOfferingChangeInput,
-	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
 ) (*appliedOfferingAdjustment, error) {
 	if s.Settings == nil {
 		return nil, ErrCareOfferingsDisabled
@@ -1444,13 +1407,6 @@ func (s *offeringChangeRequestService) applyApproved(
 	// after the switch succeeds, so a client error leaves the pending row intact.
 	row.EffectiveFrom = effectiveFrom
 	reason := offeringChangeAdjustmentReason(row, input.Reason)
-	if len(overridden) > 0 {
-		names := make([]string, 0, len(overridden))
-		for _, offering := range overridden {
-			names = append(names, offering.Name)
-		}
-		reason += " · Mitbuchung nicht angewendet: " + strings.Join(names, ", ")
-	}
 	adjustment := UpdateChildOfferingsInput{
 		RequestID:                request.ID,
 		ChildID:                  row.RequestChildID,
@@ -1512,6 +1468,9 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	// the still-occupied row before the releasing transaction commits and reject
 	// a slot that is about to become available.
 	for offeringID := range held {
+		allOfferingIDs = append(allOfferingIDs, offeringID)
+	}
+	for offeringID := range excluded {
 		allOfferingIDs = append(allOfferingIDs, offeringID)
 	}
 	sort.Slice(allOfferingIDs, func(i, j int) bool { return allOfferingIDs[i] < allOfferingIDs[j] })

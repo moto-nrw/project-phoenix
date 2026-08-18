@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,6 +11,27 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type ruleMutationOnLockCareOfferingRepo struct {
+	enrollmentModels.CareOfferingRepository
+	mutate  func(context.Context) error
+	mutated bool
+	locked  []int64
+}
+
+func (r *ruleMutationOnLockCareOfferingRepo) ListByIDsForUpdate(
+	ctx context.Context,
+	ids []int64,
+) ([]*enrollmentModels.CareOffering, error) {
+	r.locked = append([]int64(nil), ids...)
+	if !r.mutated {
+		r.mutated = true
+		if err := r.mutate(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return r.CareOfferingRepository.ListByIDsForUpdate(ctx, ids)
+}
 
 // Marking and per-request override of Mitbuchungs-Regeln in the change-request
 // review (#2365, #2370). Setup shared by the tests below: the child may pick
@@ -404,6 +426,35 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
 }
 
+func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedRules(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	fx := setupOfferingChangeFixture(t, env, "FinalOverrideRules")
+	auto := createAutoAddTarget(t, env, "FinalOverrideRules", fx.newOffering.ID)
+	mutatingRepo := &ruleMutationOnLockCareOfferingRepo{
+		CareOfferingRepository: env.repos.CareOffering,
+		mutate: func(ctx context.Context) error {
+			return env.repos.CareOffering.ReplaceAutoAddTriggers(ctx, auto.ID, nil)
+		},
+	}
+	svc := newOfferingChangeServiceForTestWithCareRepo(t, env, mutatingRepo)
+	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
+
+	err := svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
+		ExcludedAutoOfferingIDs: []int64{auto.ID},
+	})
+	require.True(t, mutatingRepo.mutated, "the rule must change before the applied materialization")
+	assert.Contains(t, mutatingRepo.locked, auto.ID, "the excluded rule target must be locked")
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid)
+
+	pending, findErr := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, findErr)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Nil(t, pending.DecisionSnapshot)
+}
+
 func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -434,4 +485,25 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 	assert.Equal(t, []string{"mon"}, autoSnap.NewAutomaticDays)
 	assert.Equal(t, []string{"mon"}, autoSnap.NewRuleDays)
 	assert.Equal(t, []string{fx.newOffering.Name}, autoSnap.AutoTriggerNames)
+}
+
+func TestOfferingChangeRequestService_Decide_RejectionStaysPendingWhenSnapshotCannotBeBuilt(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "RejectSnapshotFailure")
+	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
+	fx.newOffering.IsActive = false
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
+
+	err := svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, Approve: false, Reason: "Kapazität", ReviewedBy: env.creatorID,
+	})
+	require.Error(t, err)
+
+	pending, findErr := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, findErr)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+	assert.Nil(t, pending.DecisionSnapshot)
 }
