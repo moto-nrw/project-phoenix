@@ -1,11 +1,12 @@
 "use client";
 
-// Klassenlisteneinträge (#2382): Kinder des Klassenverbands OHNE
-// OGS-Datensatz — nur Vorname, Nachname, Klasse. Sie erscheinen auf
-// Klassenlisten und in der Klassenansicht ("Keine Betreuung"), nie in
-// Kindersuche, Anwesenheit, Betreuungsplanung oder Elternportal. Diese Seite
-// ist die Verwaltung: anlegen, in andere Klasse verschieben, löschen und
-// Dubletten bewusst einem regulären Kind zuordnen.
+// Klassenlisten-Verwaltung (#2382): der vollständige Klassenverband aus
+// Admin-Sicht. Reguläre Kinder erscheinen read-only ("In moto angelegt",
+// gepflegt werden sie in der Kinder-Datenbank); Klassenlisteneinträge —
+// Kinder OHNE OGS-Datensatz, nur Vorname/Nachname/Klasse — werden hier
+// angelegt, verschoben, gelöscht und bei Dubletten bewusst einem regulären
+// Kind zugeordnet. Nur so sieht die Pflegekraft pro Klasse, welche Kinder
+// schon erfasst sind und welche noch fehlen.
 //
 // Design follows the Anmeldungen/Planung surface language: calm content
 // section, uppercase kicker, gray-50 stats, no colored dashboards.
@@ -17,6 +18,7 @@ import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
@@ -132,6 +134,74 @@ async function fetchClassSuggestions(): Promise<string[]> {
   return payload.data ?? [];
 }
 
+// Minimal projection of a regular student for the roster view: this page
+// answers "wer ist schon in moto?", nicht mehr — alles Weitere gehört in die
+// Kinder-Datenbank.
+interface RosterStudent {
+  id: string;
+  firstName: string;
+  lastName: string;
+  schoolClass: string;
+}
+
+interface RosterStudentWire {
+  id: number | string;
+  first_name?: string;
+  second_name?: string;
+  school_class?: string;
+}
+
+async function fetchRosterStudents(): Promise<RosterStudent[]> {
+  const response = await fetch("/api/students?page=1&page_size=1000", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!response.ok) return [];
+  // The route wrapper wraps GET results, so the paginated list arrives as
+  // { data: { data: [...], pagination } }.
+  const payload = (await response.json()) as {
+    data?: { data?: RosterStudentWire[] };
+  };
+  const students = payload.data?.data ?? [];
+  return students.map((student) => ({
+    id: String(student.id),
+    firstName: student.first_name ?? "",
+    lastName: student.second_name ?? "",
+    schoolClass: student.school_class ?? "",
+  }));
+}
+
+// One row of the combined roster: a regular student (read-only) or a
+// class-list-only entry (editable).
+type RosterRow =
+  | { kind: "student"; student: RosterStudent }
+  | { kind: "entry"; entry: ClassListEntry };
+
+function rowName(row: RosterRow): { firstName: string; lastName: string } {
+  return row.kind === "student" ? row.student : row.entry;
+}
+
+function rowClass(row: RosterRow): string {
+  return row.kind === "student"
+    ? row.student.schoolClass
+    : row.entry.schoolClass;
+}
+
+// Sort key that keeps "Klasse 1a" ≡ "1a" together and orders grades
+// numerically (1a before 10a) — the same equivalence the exports use.
+function classSortKey(schoolClass: string): string {
+  const normalized = schoolClass
+    .trim()
+    .toLowerCase()
+    .replace(/^klasse\s+/, "");
+  return normalized.replace(/^\d+/, (digits) => digits.padStart(3, "0"));
+}
+
+function rowSortKey(row: RosterRow): string {
+  const { firstName, lastName } = rowName(row);
+  return `${classSortKey(rowClass(row))} ${lastName.toLowerCase()} ${firstName.toLowerCase()}`;
+}
+
 export default function ClassListEntriesPage() {
   const toast = useToast();
   const {
@@ -144,6 +214,15 @@ export default function ClassListEntriesPage() {
     "class-list-class-suggestions",
     fetchClassSuggestions,
   );
+  // Die regulären Kinder gehören mit auf diese Seite: ohne sie kann niemand
+  // beurteilen, welche Kinder einer Klasse schon erfasst sind und welche
+  // fehlen. Nach jeder Eintrags-Änderung mit-revalidiert (Zuordnen ersetzt
+  // einen Eintrag durch das reguläre Kind).
+  const { data: students, mutate: mutateStudents } = useSWRAuth(
+    "class-list-roster-students",
+    fetchRosterStudents,
+  );
+  const [classFilter, setClassFilter] = useState("all");
 
   const [modal, setModal] = useState<
     | { kind: "create" }
@@ -156,16 +235,49 @@ export default function ClassListEntriesPage() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const rows = useMemo(() => entries ?? [], [entries]);
+  const entryRows = useMemo(() => entries ?? [], [entries]);
   const duplicateCount = useMemo(
-    () => rows.filter((entry) => entry.matchingStudentIds.length > 0).length,
-    [rows],
-  );
-  const classCount = useMemo(
     () =>
-      new Set(rows.map((entry) => entry.schoolClass.toLowerCase().trim())).size,
-    [rows],
+      entryRows.filter((entry) => entry.matchingStudentIds.length > 0).length,
+    [entryRows],
   );
+
+  const allRows = useMemo<RosterRow[]>(
+    () => [
+      ...(students ?? []).map((student): RosterRow => ({
+        kind: "student",
+        student,
+      })),
+      ...entryRows.map((entry): RosterRow => ({ kind: "entry", entry })),
+    ],
+    [students, entryRows],
+  );
+
+  // Klassenoptionen aus BEIDEN Quellen, dedupliziert über dieselbe
+  // Normalisierung wie die Sortierung (erste Schreibweise gewinnt).
+  const classOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const row of allRows) {
+      const display = rowClass(row).trim();
+      if (display === "") continue;
+      const key = classSortKey(display);
+      if (!seen.has(key)) seen.set(key, display);
+    }
+    return [...seen.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, display]) => ({ key, display }));
+  }, [allRows]);
+
+  const rows = useMemo(
+    () =>
+      classFilter === "all"
+        ? allRows
+        : allRows.filter((row) => classSortKey(rowClass(row)) === classFilter),
+    [allRows, classFilter],
+  );
+
+  const classCount = classOptions.length;
+  const studentCount = students?.length ?? 0;
 
   const closeModal = () => {
     setModal(null);
@@ -239,7 +351,7 @@ export default function ClassListEntriesPage() {
     try {
       await assignClassListEntry(modal.entry.id, studentId);
       toast.success("Eintrag zugeordnet und aus der Klassenliste entfernt");
-      await mutate();
+      await Promise.all([mutate(), mutateStudents()]);
       closeModal();
     } catch (err) {
       logger.error("class_list_entry_assign_failed", {
@@ -251,31 +363,49 @@ export default function ClassListEntriesPage() {
     }
   };
 
-  const columns: DataTableColumn<ClassListEntry>[] = [
+  const columns: DataTableColumn<RosterRow>[] = [
     {
       key: "name",
       header: "Name",
-      render: (entry) => (
-        <span className="font-medium text-gray-900">
-          {entry.lastName}, {entry.firstName}
-        </span>
-      ),
-      sortValue: (entry) =>
-        `${entry.lastName.toLowerCase()} ${entry.firstName.toLowerCase()}`,
+      render: (row) => {
+        const { firstName, lastName } = rowName(row);
+        return (
+          <span
+            className={
+              row.kind === "student"
+                ? "text-gray-700"
+                : "font-medium text-gray-900"
+            }
+          >
+            {lastName}, {firstName}
+          </span>
+        );
+      },
+      sortValue: (row) => {
+        const { firstName, lastName } = rowName(row);
+        return `${lastName.toLowerCase()} ${firstName.toLowerCase()}`;
+      },
     },
     {
       key: "schoolClass",
       header: "Klasse",
-      render: (entry) => (
-        <span className="text-gray-700">{entry.schoolClass}</span>
-      ),
-      sortValue: (entry) => entry.schoolClass.toLowerCase(),
+      render: (row) => <span className="text-gray-700">{rowClass(row)}</span>,
+      sortValue: rowSortKey,
     },
     {
       key: "status",
       header: "Status",
-      render: (entry) =>
-        entry.matchingStudentIds.length > 0 ? (
+      render: (row) => {
+        if (row.kind === "student") {
+          return (
+            <StatusBadge
+              tone="green"
+              label="In moto angelegt"
+              title="Reguläres Kind mit vollständigem Datensatz. Gepflegt wird es in der Kinder-Datenbank."
+            />
+          );
+        }
+        return row.entry.matchingStudentIds.length > 0 ? (
           <StatusBadge
             tone="orange"
             label="Mögliche Dublette"
@@ -283,49 +413,65 @@ export default function ClassListEntriesPage() {
           />
         ) : (
           <StatusBadge tone="gray" label="Keine Betreuung" />
-        ),
+        );
+      },
     },
     {
       key: "actions",
       header: "",
       align: "right",
-      render: (entry) => (
-        <div className="flex items-center justify-end gap-1">
-          {entry.matchingStudentIds.length > 0 && (
+      render: (row) => {
+        if (row.kind === "student") {
+          return (
+            <div className="flex items-center justify-end">
+              <Link
+                href={`/students/${row.student.id}`}
+                className="rounded-md px-2.5 py-1 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              >
+                Öffnen
+              </Link>
+            </div>
+          );
+        }
+        const entry = row.entry;
+        return (
+          <div className="flex items-center justify-end gap-1">
+            {entry.matchingStudentIds.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => {
+                  setModalError(null);
+                  setModal({ kind: "assign", entry });
+                }}
+              >
+                Zuordnen
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"
               size="compact"
+              onClick={() => openEdit(entry)}
+            >
+              Bearbeiten
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              className="text-[#DC2626] hover:text-[#DC2626]"
               onClick={() => {
                 setModalError(null);
-                setModal({ kind: "assign", entry });
+                setModal({ kind: "delete", entry });
               }}
             >
-              Zuordnen
+              Löschen
             </Button>
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => openEdit(entry)}
-          >
-            Bearbeiten
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            className="text-[#DC2626] hover:text-[#DC2626]"
-            onClick={() => {
-              setModalError(null);
-              setModal({ kind: "delete", entry });
-            }}
-          >
-            Löschen
-          </Button>
-        </div>
-      ),
+          </div>
+        );
+      },
     },
   ];
 
@@ -340,12 +486,14 @@ export default function ClassListEntriesPage() {
               Klassenlisteneinträge
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Kinder ohne OGS-Betreuung
+              Der vollständige Klassenverband
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Diese Einträge vervollständigen den Klassenverband auf
-              Klassenlisten und in der Klassenansicht. Sie bestehen nur aus Name
-              und Klasse — ohne Betreuung, Anwesenheit oder Kontaktdaten.
+              Alle Kinder pro Klasse auf einen Blick: regulär angelegte Kinder
+              und Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung,
+              Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über{" "}
+              <span className="font-medium">Eintrag anlegen</span> oder den{" "}
+              <span className="font-medium">Sammelimport</span> ergänzt.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -368,13 +516,29 @@ export default function ClassListEntriesPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-md sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-2xl sm:grid-cols-5">
           <div className="rounded-xl bg-gray-50 px-3 py-2">
             <span className="block text-sm font-semibold text-gray-900">
-              {rows.length}
+              {allRows.length}
             </span>
             <span className="block text-[11px] font-medium text-gray-500">
-              Einträge
+              Kinder gesamt
+            </span>
+          </div>
+          <div className="rounded-xl bg-gray-50 px-3 py-2">
+            <span className="block text-sm font-semibold text-gray-900">
+              {studentCount}
+            </span>
+            <span className="block text-[11px] font-medium text-gray-500">
+              In moto angelegt
+            </span>
+          </div>
+          <div className="rounded-xl bg-gray-50 px-3 py-2">
+            <span className="block text-sm font-semibold text-gray-900">
+              {entryRows.length}
+            </span>
+            <span className="block text-[11px] font-medium text-gray-500">
+              Ohne Betreuung
             </span>
           </div>
           <div className="rounded-xl bg-gray-50 px-3 py-2">
@@ -404,16 +568,50 @@ export default function ClassListEntriesPage() {
           </div>
         ) : null}
 
-        <div className="mt-4">
+        <div className="mt-4 flex items-center gap-2">
+          <span
+            id="class-list-filter-label"
+            className="text-sm font-medium text-gray-700"
+          >
+            Klasse
+          </span>
+          <div className="w-48">
+            <CustomSelect
+              id="class-list-filter"
+              ariaLabelledBy="class-list-filter-label"
+              value={classFilter}
+              options={[
+                { value: "all", label: "Alle Klassen" },
+                ...classOptions.map((option) => ({
+                  value: option.key,
+                  label: option.display,
+                })),
+              ]}
+              onChange={setClassFilter}
+            />
+          </div>
+        </div>
+
+        <div className="mt-3">
           <DataTable
             columns={columns}
             rows={rows}
-            getRowKey={(entry) => entry.id}
+            getRowKey={(row) =>
+              row.kind === "student"
+                ? `student-${row.student.id}`
+                : `entry-${row.entry.id}`
+            }
             isLoading={isLoading && entries === undefined}
             defaultSortKey="schoolClass"
+            pageSize={50}
+            paginationResetKey={classFilter}
             emptyState={
               <EmptyState
-                title="Noch keine Klassenlisteneinträge"
+                title={
+                  classFilter === "all"
+                    ? "Noch keine Kinder erfasst"
+                    : "Keine Kinder in dieser Klasse"
+                }
                 description="Legen Sie Kinder ohne OGS-Betreuung mit Name und Klasse an, damit Klassenlisten den vollständigen Klassenverband zeigen."
                 action={
                   <Button
