@@ -912,6 +912,9 @@ type stubOpActiveService struct{}
 
 func (stubOpActiveService) CreateVisit(context.Context, *activeModels.Visit) error { return nil }
 func (stubOpActiveService) EndVisit(context.Context, int64) error                  { return nil }
+func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+}
 
 type stubOpArrivalService struct{}
 

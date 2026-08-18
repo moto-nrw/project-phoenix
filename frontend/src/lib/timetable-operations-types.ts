@@ -102,6 +102,13 @@ interface TimetableRosterWarning {
 export interface TimetableRoster {
   instance: TimetableRosterInstance;
   rows: TimetableRosterRow[];
+  /**
+   * Set only on check-in responses that auto-moved the child out of another
+   * running session (#2386). Carries the origin's display name; an empty
+   * string means the move happened but the origin has no resolvable name.
+   * Null when no move happened; older backends omit the field.
+   */
+  movedFrom?: string | null;
 }
 
 export interface StartOperationResult {
@@ -195,6 +202,7 @@ interface BackendRosterWarning {
 export interface BackendTimetableRoster {
   instance: BackendRosterInstance;
   rows: BackendRosterRow[];
+  moved_from?: string | null;
 }
 
 export interface BackendStartOperationResult {
@@ -287,6 +295,7 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       completeAvailableAt: raw.instance.complete_available_at ?? "",
     },
     rows: raw.rows.map(mapRosterRow),
+    movedFrom: raw.moved_from ?? null,
   };
 }
 

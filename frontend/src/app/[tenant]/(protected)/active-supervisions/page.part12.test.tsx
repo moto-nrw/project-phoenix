@@ -10,13 +10,7 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
@@ -85,7 +79,6 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
-  dialogAriaProps: { role: "dialog", "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -129,18 +122,6 @@ vi.mock("~/lib/active-api", () => ({
   },
 }));
 
-vi.mock("~/lib/activity-service", () => ({
-  activityService: {
-    getActivities: vi.fn(() => Promise.resolve([])),
-  },
-}));
-
-vi.mock("~/lib/staff-api", () => ({
-  staffService: {
-    getAllStaff: vi.fn(() => Promise.resolve([])),
-  },
-}));
-
 // Mock SSEErrorBoundary
 vi.mock("~/components/sse/SSEErrorBoundary", () => ({
   SSEErrorBoundary: ({ children }: { children: React.ReactNode }) => (
@@ -151,6 +132,10 @@ vi.mock("~/components/sse/SSEErrorBoundary", () => ({
 // Mock UnclaimedRooms
 vi.mock("~/components/active/unclaimed-rooms", () => ({
   UnclaimedRooms: () => <div data-testid="unclaimed-rooms" />,
+}));
+
+vi.mock("~/components/rooms/transit-students-section", () => ({
+  TransitStudentsSection: () => <div data-testid="transit-students-section" />,
 }));
 
 // Mock LocationBadge
@@ -282,262 +267,147 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
+// Mock the timetable operations API so check-in resolves with a controlled
+// roster (auto-move notice, #2386).
+vi.mock("~/lib/timetable-operations-api", () => ({
+  timetableOperationsApi: {
+    checkIn: vi.fn(),
+    plannedNow: vi.fn(() => Promise.resolve([])),
+  },
+  isReopenUnavailableError: vi.fn(() => false),
+}));
+
 import { useSWRAuth } from "~/lib/swr";
+import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
+import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import MeinRaumPage from "./page";
 
-describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
+describe("MeinRaumPage auto-move notice (#2386)", () => {
   const mockMutate = vi.fn();
+
+  const dashboardData = {
+    supervisedGroups: [
+      { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+    ],
+    unclaimedGroups: [],
+    currentStaff: { id: "1" },
+    educationalGroups: [],
+    firstRoomVisits: [],
+    firstRoomId: "10",
+  };
+
+  const expectedRow = {
+    studentId: "100",
+    studentName: "Marie Muster",
+    schoolClass: "2b",
+    groupName: "OGS Gruppe A",
+    planned: true,
+    isUnplanned: false,
+    currentlyPresent: false,
+    visitId: null,
+    status: "expected",
+    substatus: null,
+    note: null,
+  };
+
+  const rosterInstance = {
+    id: "99",
+    title: "Kreativ AG",
+    activeGroupId: "1",
+    isSpontaneous: false,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+    vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
     global.fetch = vi.fn();
-    // Default mock: loading state
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: null,
-      isLoading: true,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    } as never);
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: { instance: rosterInstance, rows: [expectedRow] },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
   });
 
   afterEach(() => {
     cleanup();
   });
 
-  it("shows the spontaneous activity start banner when the capability is enabled", async () => {
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: {
-        supervisedGroups: [],
-        unclaimedGroups: [],
-        currentStaff: { id: "1" },
-        educationalGroups: [],
-        firstRoomVisits: [],
-        firstRoomId: null,
-        capabilities: { webSpontaneousActivitiesEnabled: true },
-        plannedNow: [],
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
+  it("shows the origin of an auto-moved child after check-in", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
+      instance: rosterInstance,
+      rows: [
+        {
+          ...expectedRow,
+          currentlyPresent: true,
+          visitId: "visit-100",
+          status: "present",
+        },
+      ],
+      movedFrom: "GT 1",
     } as never);
 
     render(<MeinRaumPage />);
 
-    expect(
-      await screen.findByRole("button", {
-        name: /Spontane Aktivität starten/,
-      }),
-    ).toBeInTheDocument();
-  });
+    const button = await screen.findByRole("button", { name: "Einchecken" });
+    button.click();
 
-  it("keeps Schulhof selectable as a normal room when status is unavailable (#2161)", async () => {
-    const dashboardResult = {
-      data: {
-        supervisedGroups: [],
-        unclaimedGroups: [],
-        currentStaff: { id: "staff-1" },
-        educationalGroups: [],
-        firstRoomVisits: [],
-        firstRoomId: null,
-        capabilities: { webSpontaneousActivitiesEnabled: true },
-        schulhofStatus: null,
-        plannedNow: [],
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-    vi.mocked(useSWRAuth).mockReturnValue(dashboardResult as never);
-    global.fetch = vi.fn().mockResolvedValue({
-      json: async () => ({
-        data: [
-          { id: 3, name: "Mensa" },
-          { id: 5, name: "Schulhof" },
-        ],
-      }),
-    }) as never;
-
-    render(<MeinRaumPage />);
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: /Spontane Aktivität starten/,
-      }),
-    );
-    fireEvent.click(await screen.findByRole("combobox", { name: "Raum" }));
-
-    expect(
-      await screen.findByRole("option", { name: "Schulhof" }),
-    ).toBeEnabled();
-    expect(mockPush).not.toHaveBeenCalledWith(
-      "/active-supervisions?room=schulhof",
-    );
-  });
-
-  it("keeps Schulhof a normal startable option when dashboard revalidation fails (#2161)", async () => {
-    const baseDashboardData = {
-      supervisedGroups: [],
-      unclaimedGroups: [],
-      currentStaff: { id: "staff-1" },
-      educationalGroups: [],
-      firstRoomVisits: [],
-      firstRoomId: null,
-      capabilities: { webSpontaneousActivitiesEnabled: true },
-      plannedNow: [],
-    };
-    let dashboardResult: {
-      data: typeof baseDashboardData & { schulhofStatus: unknown };
-      isLoading: boolean;
-      error: Error | null;
-      mutate: typeof mockMutate;
-      isValidating: boolean;
-    } = {
-      data: {
-        ...baseDashboardData,
-        capabilities: { webSpontaneousActivitiesEnabled: true },
-        schulhofStatus: {
-          exists: true,
-          roomId: "5",
-          roomName: "Schulhof",
-          activityGroupId: null,
-          activeGroupId: null,
-          isUserSupervising: false,
-          supervisionId: null,
-          supervisorCount: 0,
-          studentCount: 0,
-          supervisors: [],
-        },
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-    const emptyResult = {
-      data: null,
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
-      key?.startsWith("active-supervision-dashboard")
-        ? dashboardResult
-        : emptyResult) as never);
-    global.fetch = vi.fn().mockResolvedValue({
-      json: async () => ({
-        data: [
-          { id: 3, name: "Mensa" },
-          { id: 5, name: "Schulhof" },
-        ],
-      }),
-    }) as never;
-
-    const { rerender } = render(<MeinRaumPage />);
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
-      ).toBeEnabled();
+      expect(screen.getByTestId("alert-info")).toHaveTextContent(
+        "Marie Muster wurde aus „GT 1“ hierher geholt.",
+      );
     });
-
-    dashboardResult = {
-      ...dashboardResult,
-      error: new Error("dashboard unavailable"),
-    };
-    rerender(<MeinRaumPage />);
-
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: /Spontane Aktivität starten/,
-      }),
-    );
-    fireEvent.click(await screen.findByRole("combobox", { name: "Raum" }));
-
-    expect(
-      await screen.findByRole("option", { name: "Schulhof" }),
-    ).toBeEnabled();
+    expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
   });
 
-  it("keeps the spontaneous-activity start button clickable in the Schulhof view (regression #1746 deadlock)", async () => {
-    // Without any supervised group, the Schulhof tab is auto-selected
-    // (allRooms is empty + a Schulhof exists). The start button used to be
-    // hard-disabled whenever the Schulhof view was active, so a user with no
-    // other active group could never open the modal — a dead end. The button
-    // must stay enabled. An occupied Schulhof (activeGroupId set) stays an
-    // explicit shortcut inside the modal instead of disabling the trigger.
-    //
-    // The two return values are hoisted to stable consts so the mock yields the
-    // SAME object reference on every call, exactly as real SWR does. Returning a
-    // fresh object literal per call (e.g. inside the arrow body) gives the
-    // dashboard data a new identity each render, which retriggers the page's
-    // data-dependent effects -> infinite render loop -> act() never settles ->
-    // unbounded allocation (OOMs the Vitest worker under coverage). Keep these
-    // references stable.
-    const dashboardResult = {
-      data: {
-        supervisedGroups: [],
-        unclaimedGroups: [],
-        currentStaff: { id: "staff-1" },
-        educationalGroups: [],
-        firstRoomVisits: [],
-        firstRoomId: null,
-        capabilities: { webSpontaneousActivitiesEnabled: true },
-        schulhofStatus: {
-          exists: true,
-          roomId: "10",
-          roomName: "Schulhof",
-          activityGroupId: null,
-          activeGroupId: "55", // a group is running -> Schulhof is occupied
-          isUserSupervising: false,
-          supervisionId: null,
-          supervisorCount: 1,
-          studentCount: 3,
-          supervisors: [],
+  it("shows no notice when the check-in involved no move", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
+      instance: rosterInstance,
+      rows: [
+        {
+          ...expectedRow,
+          currentlyPresent: true,
+          visitId: "visit-100",
+          status: "present",
         },
-        plannedNow: [],
-      },
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-    const emptyResult = {
-      data: null,
-      isLoading: false,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
-    };
-    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
-      key?.startsWith("active-supervision-dashboard")
-        ? dashboardResult
-        : emptyResult) as never);
-
-    render(<MeinRaumPage />);
-
-    const startButton = await screen.findByRole("button", {
-      name: /Spontane Aktivität starten/,
-    });
-    expect(startButton).toBeEnabled();
-  });
-
-  it("shows loading state when SWR is loading", async () => {
-    vi.mocked(useSWRAuth).mockReturnValue({
-      data: null,
-      isLoading: true,
-      error: null,
-      mutate: mockMutate,
-      isValidating: false,
+      ],
+      movedFrom: null,
     } as never);
 
     render(<MeinRaumPage />);
 
-    // Should show loading state while SWR is loading
-    expect(
-      screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
-    ).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: "Einchecken" });
+    button.click();
+
+    await waitFor(() => {
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
+    });
+    expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
   });
 });

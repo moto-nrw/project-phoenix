@@ -830,19 +830,107 @@ func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing
 	assert.Equal(t, studentID, roster.Rows[0].StudentID)
 }
 
-func TestTimetableOperationsCheckInRejectsStudentActiveElsewhere(t *testing.T) {
+// The cross-group 409 was retired with #2386: a child still recorded present
+// in another running block now moves automatically instead of being rejected.
+func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 	instanceID := int64(400)
 	activeGroupID := int64(290)
+	originInstanceID := int64(405)
+	originActiveGroupID := int64(291)
 	studentID := int64(550)
-	deps := newTimetableOpsDeps()
-	wireAssignedStaff(deps, 670, 490, 251, instanceID)
-	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
-	deps.visitRepo.currentByStudent[studentID] = &activeModel.Visit{StudentID: studentID, ActiveGroupID: 291, EntryTime: time.Now()}
+	rowID := int64(395)
 
-	_, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+	newDeps := func() *timetableOpsTestDeps {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 670, 490, 251, instanceID)
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.visitRepo.currentByStudent[studentID] = &activeModel.Visit{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()}
+		return deps
+	}
 
-	require.ErrorIs(t, err, ErrTimetableOperationConflict)
-	assert.Empty(t, deps.activeService.created)
+	t.Run("moves via active service and names the origin instance", func(t *testing.T) {
+		deps := newDeps()
+		origin := activeInstance(originInstanceID, originActiveGroupID)
+		origin.Title = "GT 1"
+		deps.instanceRepo.byID[originInstanceID] = origin
+		row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+		row.ID = rowID
+		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+		deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+		deps.students.byID[studentID] = &usersModel.Student{PersonID: 491, SchoolClass: "2b"}
+		deps.personService.people[491] = &usersModel.Person{FirstName: "Marie", LastName: "Muster"}
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		assert.Empty(t, deps.activeService.created)
+		require.Len(t, deps.activeService.moveCalls, 1)
+		assert.Equal(t, []int64{studentID}, deps.activeService.moveCalls[0].studentIDs)
+		assert.Equal(t, activeGroupID, deps.activeService.moveCalls[0].activeGroupID)
+		assert.Equal(t, int64(251), deps.activeService.moveCalls[0].auth.StaffID)
+		assert.True(t, deps.activeService.moveCalls[0].auth.BypassResourceChecks)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "GT 1", *roster.MovedFrom)
+		require.Len(t, deps.studentRepo.updates, 1)
+		assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
+		assert.Equal(t, scheduleModel.AttendanceStatusPresent, *deps.studentRepo.updates[0].patch.Status)
+	})
+
+	t.Run("falls back to the activity group name when no instance owns the origin session", func(t *testing.T) {
+		deps := newDeps()
+		originGroup := &activeModel.Group{GroupID: testpkg.Int64Ptr(640), RoomID: 810}
+		originGroup.ID = originActiveGroupID
+		deps.activeGroups.byID = map[int64]*activeModel.Group{originActiveGroupID: originGroup}
+		activityGroup := &activitiesModel.Group{Name: "Fußball AG"}
+		activityGroup.ID = 640
+		deps.activityGroups.byID[640] = activityGroup
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "Fußball AG", *roster.MovedFrom)
+	})
+
+	t.Run("still reports a move when no origin name is resolvable", func(t *testing.T) {
+		deps := newDeps()
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "", *roster.MovedFrom)
+	})
+
+	t.Run("propagates move errors", func(t *testing.T) {
+		deps := newDeps()
+		deps.activeService.moveErr = errors.New("move failed")
+
+		_, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.EqualError(t, err, "move failed")
+	})
+
+	t.Run("maps a skipped move to a conflict", func(t *testing.T) {
+		deps := newDeps()
+		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
+			Skipped: []activeSvc.StudentMoveSkipped{{StudentID: studentID, Reason: activeSvc.StudentMoveSkipConflict}},
+		}
+
+		_, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationConflict)
+	})
+
+	t.Run("treats an unchanged result as same-group success without move notice", func(t *testing.T) {
+		deps := newDeps()
+		deps.activeService.moveResult = &activeSvc.StudentMoveResult{Unchanged: []int64{studentID}}
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		assert.Nil(t, roster.MovedFrom)
+	})
 }
 
 func TestTimetableOperationsCheckOutEndsMatchingVisit(t *testing.T) {
@@ -1765,8 +1853,17 @@ func (s *fakeOpsInstanceService) Reopen(_ context.Context, instanceID, _ int64, 
 
 type fakeOpsActiveGroupRepo struct {
 	activeModel.GroupRepository
+	byID         map[int64]*activeModel.Group
 	lastActivity map[int64]time.Time
 	updateErr    error
+}
+
+func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id interface{}) (*activeModel.Group, error) {
+	group := r.byID[id.(int64)]
+	if group == nil {
+		return nil, sql.ErrNoRows
+	}
+	return group, nil
 }
 
 func (r *fakeOpsActiveGroupRepo) UpdateLastActivity(_ context.Context, id int64, lastActivity time.Time) error {
@@ -1804,10 +1901,30 @@ func (r *fakeOpsActivityGroupRepo) FindByID(_ context.Context, id interface{}) (
 }
 
 type fakeOpsActiveService struct {
-	created   []*activeModel.Visit
-	ended     []int64
-	createErr error
-	endErr    error
+	created    []*activeModel.Visit
+	ended      []int64
+	createErr  error
+	endErr     error
+	moveCalls  []opsMoveCall
+	moveResult *activeSvc.StudentMoveResult
+	moveErr    error
+}
+
+type opsMoveCall struct {
+	studentIDs    []int64
+	activeGroupID int64
+	auth          activeSvc.StudentMoveAuthorization
+}
+
+func (s *fakeOpsActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, auth activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	s.moveCalls = append(s.moveCalls, opsMoveCall{studentIDs: studentIDs, activeGroupID: activeGroupID, auth: auth})
+	if s.moveErr != nil {
+		return nil, s.moveErr
+	}
+	if s.moveResult != nil {
+		return s.moveResult, nil
+	}
+	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
 
 func (s *fakeOpsActiveService) CreateVisit(_ context.Context, visit *activeModel.Visit) error {

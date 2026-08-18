@@ -610,7 +610,7 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict),
-		errors.Is(err, activeSvc.ErrRoomCapacityExceeded):
+		errors.Is(err, activeSvc.ErrRoomCapacityExceeded), errors.Is(err, activeSvc.ErrStudentsNotPresent):
 		common.RenderError(w, r, common.ErrorConflict(err))
 	case errors.Is(err, activeSvc.ErrStudentNotFound), errors.Is(err, activeSvc.ErrVisitNotFound),
 		// A graduated (alumnus) student left on a roster is treated like an
