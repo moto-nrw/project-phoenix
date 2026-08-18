@@ -1287,7 +1287,7 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 		RoomID:    s.roomID,
 		Status:    scheduleModels.InstanceStatusPlanned,
 	}
-	plannedManual.SetTenantID(1)
+	plannedManual.SetTenantID(tenant.FromContext(s.ctx))
 	_, err := s.db.NewInsert().Model(plannedManual).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 
