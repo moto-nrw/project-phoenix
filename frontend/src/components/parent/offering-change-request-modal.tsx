@@ -238,7 +238,7 @@ export function OfferingChangeRequestModal({
       return item.automatic ? t("careOfferings.autoAdded") : undefined;
     }
     const dayText = DAY_ORDER.filter((day) => days.has(day))
-      .map(weekdayLabel)
+      .map((day) => weekdayLabel(day))
       .join(", ");
     const names = [...(preview.autoAddContributors[item.id] ?? [])]
       .map((id) => items.find((other) => other.id === id)?.name)
@@ -439,7 +439,7 @@ export function OfferingChangeRequestModal({
                       <p className="mt-2 pl-8 text-xs text-gray-500">
                         {t("careOfferingsModal.fixedDays", {
                           days: item.available_days
-                            .map(weekdayLabel)
+                            .map((day) => weekdayLabel(day))
                             .join(", "),
                         })}
                       </p>
