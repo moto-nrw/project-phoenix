@@ -1090,6 +1090,7 @@
       "decisionRequested": "You had requested:",
       "autoAdded": "Added automatically.",
       "autoAddedWithTrigger": "Added automatically because {trigger} is selected.",
+      "autoAddedDaysWithTrigger": "Automatically booked: {days}, because {trigger} is selected.",
       "decisionApplied": "This was changed:",
       "decisionConsidered": "Requested change:",
       "decisionOverridden": "The care team did not book {names}."

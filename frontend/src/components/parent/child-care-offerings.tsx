@@ -48,19 +48,27 @@ function quoteNames(names: readonly string[]): string {
 function autoAddedHint(
   line: {
     new_automatic_days?: string[];
+    new_rule_days?: string[];
     auto_trigger_names?: string[];
   },
   t: ReturnType<typeof useTranslations>,
+  formatDays: (days: string[]) => string,
 ) {
   if (!line.new_automatic_days?.length) return null;
   const names = line.auto_trigger_names ?? [];
+  const ruleDays = line.new_rule_days ?? [];
   return (
     <p className="mt-0.5 text-xs text-gray-500">
-      {names.length > 0
-        ? t("careOfferings.autoAddedWithTrigger", {
+      {names.length > 0 && ruleDays.length > 0
+        ? t("careOfferings.autoAddedDaysWithTrigger", {
+            days: formatDays(ruleDays),
             trigger: quoteNames(names),
           })
-        : t("careOfferings.autoAdded")}
+        : names.length > 0
+          ? t("careOfferings.autoAddedWithTrigger", {
+              trigger: quoteNames(names),
+            })
+          : t("careOfferings.autoAdded")}
     </p>
   );
 }
@@ -349,7 +357,7 @@ export function ChildCareOfferingsSection({
                         {diffValue(line.new_state, line.new_days)}
                       </dd>
                     </div>
-                    {autoAddedHint(line, t)}
+                    {autoAddedHint(line, t, dayKeyList)}
                   </div>
                 ))}
               </dl>
@@ -444,7 +452,7 @@ export function ChildCareOfferingsSection({
                           {diffValue(line.new_state, line.new_days)}
                         </dd>
                       </div>
-                      {autoAddedHint(line, t)}
+                      {autoAddedHint(line, t, dayKeyList)}
                     </div>
                   ))}
                 </dl>

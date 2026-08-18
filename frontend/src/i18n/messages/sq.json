@@ -1090,6 +1090,7 @@
       "decisionRequested": "Beantragt war:",
       "autoAdded": "Shtohet automatikisht.",
       "autoAddedWithTrigger": "Shtohet automatikisht sepse është zgjedhur {trigger}.",
+      "autoAddedDaysWithTrigger": "Rezervohet automatikisht: {days}, sepse është zgjedhur {trigger}.",
       "decisionApplied": "Kjo u ndryshua:",
       "decisionConsidered": "Ndryshimi i kërkuar:",
       "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}."

@@ -138,6 +138,49 @@ func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *t
 	assert.True(t, found, "the queue diff must mark the rule-added offering")
 }
 
+func TestOfferingChangeRequestService_ListPending_IncludesUnchangedRuleTargetForOverride(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "QueueUnchangedAuto")
+	auto := createAutoAddTarget(t, env, "QueueUnchangedAuto", fx.oldOffering.ID)
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+		RequestChildID:        fx.childID,
+		CareOfferingID:        auto.ID,
+		SelectedDays:          []string{"mon"},
+		AutomaticSelectedDays: []string{"mon"},
+	}))
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.oldOffering.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	views, err := svc.ListPending(ctx)
+	require.NoError(t, err)
+	for _, view := range views {
+		if view.Request == nil || view.Request.ID != row.ID {
+			continue
+		}
+		for _, entry := range view.Diff {
+			if entry.OfferingID != auto.ID {
+				continue
+			}
+			assert.Equal(t, []string{"mon"}, entry.OldDays)
+			assert.Equal(t, []string{"mon"}, entry.NewDays)
+			assert.Equal(t, []string{"mon"}, entry.NewRuleDays)
+			assert.Equal(t, []int64{fx.oldOffering.ID}, entry.AutoTriggerIDs)
+			return
+		}
+	}
+	t.Fatal("unchanged rule-added offering is missing from the staff review")
+}
+
 func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsOverride(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -487,12 +530,19 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 	assert.Equal(t, []string{fx.newOffering.Name}, autoSnap.AutoTriggerNames)
 }
 
-func TestOfferingChangeRequestService_Decide_RejectionStaysPendingWhenSnapshotCannotBeBuilt(t *testing.T) {
+func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext()
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RejectSnapshotFailure")
+	auto := createAutoAddTarget(t, env, "RejectSnapshotFailure", fx.oldOffering.ID)
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+		RequestChildID:        fx.childID,
+		CareOfferingID:        auto.ID,
+		SelectedDays:          []string{"mon"},
+		AutomaticSelectedDays: []string{"mon"},
+	}))
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
 	fx.newOffering.IsActive = false
 	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
@@ -500,10 +550,22 @@ func TestOfferingChangeRequestService_Decide_RejectionStaysPendingWhenSnapshotCa
 	err := svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: row.ID, Approve: false, Reason: "Kapazität", ReviewedBy: env.creatorID,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
 
-	pending, findErr := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	decided, findErr := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
 	require.NoError(t, findErr)
-	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
-	assert.Nil(t, pending.DecisionSnapshot)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusRejected, decided.Status)
+	require.NotNil(t, decided.DecisionSnapshot)
+	require.NotEmpty(t, decided.DecisionSnapshot.Diff)
+	assert.Contains(t, decided.DecisionSnapshot.Diff, enrollmentModels.OfferingChangeSnapshotEntry{
+		OfferingID: fx.newOffering.ID,
+		Label:      fx.newOffering.Name,
+		OldState:   "not_booked",
+		NewState:   "booked",
+		NewDays:    []string{"mon"},
+	})
+	for _, entry := range decided.DecisionSnapshot.Diff {
+		assert.NotEqual(t, auto.ID, entry.OfferingID,
+			"the payload fallback must not report an automatic-only booking as explicitly removed")
+	}
 }

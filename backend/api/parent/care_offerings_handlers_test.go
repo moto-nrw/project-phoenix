@@ -55,6 +55,21 @@ func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
 	}}, response.PendingRequest.Diff)
 }
 
+func TestOfferingDiffResponseSeparatesRuleDaysFromRequiredAutomaticDays(t *testing.T) {
+	response := offeringDiffResponse(enrollmentService.OfferingChangeDiffEntry{
+		Label:            "Mittagessen",
+		NewState:         "booked",
+		NewDays:          []string{"mon", "tue", "wed"},
+		NewAutomaticDays: []string{"tue", "wed"},
+		NewRuleDays:      []string{"tue"},
+		AutoTriggerNames: []string{"Randstunde"},
+	})
+
+	assert.Equal(t, []string{"tue", "wed"}, response.NewAutomaticDays)
+	assert.Equal(t, []string{"tue"}, response.NewRuleDays)
+	assert.Equal(t, []string{"Randstunde"}, response.AutoTriggerNames)
+}
+
 func TestToCareOfferingsResponsePreservesEmptyDecisionSnapshot(t *testing.T) {
 	response := toCareOfferingsResponse(&parentService.ChildCareOfferings{
 		LastDecision: &enrollmentService.OfferingChangeDecision{

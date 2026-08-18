@@ -388,6 +388,38 @@ describe("ChildCareOfferingsSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("attributes only rule-derived days to a co-booking trigger", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        pending_request: {
+          ...pending,
+          diff: [
+            {
+              label: "Mittagessen",
+              old_state: "not_booked",
+              old_days: [],
+              new_state: "booked",
+              new_days: ["mon", "tue", "wed"],
+              new_automatic_days: ["tue", "wed"],
+              new_rule_days: ["tue"],
+              auto_trigger_names: ["Randstunde"],
+            },
+          ],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(
+      await screen.findByText(
+        "Automatisch mitgebucht: Di, weil „Randstunde“ gewählt ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Mi.*weil „Randstunde“ gewählt ist/),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the applied result and a school override in the decided recap", async () => {
     mockGet.mockResolvedValue(
       view({

@@ -188,6 +188,9 @@ func offeringDiffResponse(entry enrollmentService.OfferingChangeDiffEntry) Offer
 	}
 	if len(entry.NewAutomaticDays) > 0 {
 		resp.NewAutomaticDays = append([]string{}, entry.NewAutomaticDays...)
+	}
+	if len(entry.NewRuleDays) > 0 {
+		resp.NewRuleDays = append([]string{}, entry.NewRuleDays...)
 		resp.AutoTriggerNames = append([]string{}, entry.AutoTriggerNames...)
 	}
 	return resp
@@ -263,11 +266,13 @@ type OfferingDiffResponse struct {
 	OldDays  []string `json:"old_days"` // Empty for not_booked.
 	NewState string   `json:"new_state"`
 	NewDays  []string `json:"new_days"` // Empty for removed.
-	// NewAutomaticDays is the share of NewDays a Mitbuchungs-Regel added rather
-	// than the guardian's own selection (#2365); empty for a manual line.
+	// NewAutomaticDays is the share of NewDays added automatically by a
+	// Mitbuchungs-Regel or the required-lunch derivation (#2365).
 	NewAutomaticDays []string `json:"new_automatic_days,omitempty"`
+	// NewRuleDays is the subset caused by the named Mitbuchungs-Regeln.
+	NewRuleDays []string `json:"new_rule_days,omitempty"`
 	// AutoTriggerNames names the selected offerings that triggered the
-	// automatic share, so the portal can say WHY a line appeared.
+	// rule-specific share, so the portal can say WHY those days appeared.
 	AutoTriggerNames []string `json:"auto_trigger_names,omitempty"`
 }
 

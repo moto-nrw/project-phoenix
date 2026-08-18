@@ -1099,9 +1099,11 @@ interface OfferingDiffLine {
   readonly new_state: "removed" | "booked";
   /** Canonical day keys; empty for an all-day booking. */
   readonly new_days: string[];
-  /** Share of new_days a co-booking rule added rather than the guardian (#2365). */
+  /** Share of new_days added by a co-booking rule or required lunch (#2365). */
   readonly new_automatic_days?: string[];
-  /** Names of the selected offerings whose rule added the automatic share. */
+  /** Rule-derived part of new_automatic_days, excluding required-lunch days. */
+  readonly new_rule_days?: string[];
+  /** Names of the selected offerings whose rule added new_rule_days. */
   readonly auto_trigger_names?: string[];
 }
 

@@ -1155,17 +1155,20 @@ func (s *offeringChangeRequestService) pendingDiffs(
 		}
 		ids, currentByID, requestedByID := offeringChangeSides(currentByChild[child.ID], offeringChangeSelections(materialized[0]))
 		entries := make([]OfferingChangeDiffEntry, 0, len(ids))
+		changedByOfferingID := make(map[int64]bool, len(ids))
 		for _, id := range ids {
 			name := ""
 			if offering := offeringsByID[id]; offering != nil {
 				name = offering.Name
 			}
 			entry, changed := offeringDiffEntry(id, name, currentByID[id], requestedByID)
-			if changed {
-				entries = append(entries, entry)
-			}
+			changedByOfferingID[id] = changed
+			entries = append(entries, entry)
 		}
 		annotateAutomaticShares(entries, materialized[0], offeringsByID)
+		entries = slices.DeleteFunc(entries, func(entry OfferingChangeDiffEntry) bool {
+			return !changedByOfferingID[entry.OfferingID] && len(entry.NewRuleDays) == 0
+		})
 		sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
 		diffs[row.ID] = entries
 	}
@@ -1206,7 +1209,7 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		if len(input.ExcludedAutoOfferingIDs) > 0 {
 			return fmt.Errorf("%w: co-booking overrides only apply to an approval", ErrOfferingChangeInvalid)
 		}
-		diff, err := s.decisionDiff(ctx, row, nil)
+		diff, err := s.rejectionDecisionDiff(ctx, row)
 		if err != nil {
 			return err
 		}
@@ -1295,6 +1298,67 @@ func (s *offeringChangeRequestService) PreviewDecision(
 		})
 	}
 	return preview, nil
+}
+
+func (s *offeringChangeRequestService) rejectionDecisionDiff(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+) (*offeringDecisionDiff, error) {
+	diff, err := s.decisionDiff(ctx, row, nil)
+	if err == nil {
+		return diff, nil
+	}
+	fallback, fallbackErr := s.payloadDecisionDiff(ctx, row)
+	if fallbackErr != nil {
+		return nil, fmt.Errorf("offering change: build rejection snapshot: %v; payload fallback: %w", err, fallbackErr)
+	}
+	s.Logger.Warn("offering change: rejection snapshot uses request payload",
+		slog.Int64("request_id", row.ID),
+		slog.String("materialization_error", err.Error()),
+	)
+	return fallback, nil
+}
+
+func (s *offeringChangeRequestService) payloadDecisionDiff(
+	ctx context.Context,
+	row *enrollmentModels.OfferingChangeRequest,
+) (*offeringDecisionDiff, error) {
+	requested, err := selectionsFromPayload(row.Payload)
+	if err != nil {
+		return nil, err
+	}
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
+		ctx, row.RequestChildID, appliedOfferingChangeDate(row.EffectiveFrom),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list current offerings: %w", err)
+	}
+	current = explicitOfferingLinks(current)
+	ids, currentByID, requestedByID := offeringChangeSides(current, requested)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("list snapshot offerings: %w", err)
+	}
+	entries := offeringDiffEntries(ids, offeringsByID(offerings), currentByID, requestedByID)
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
+	return &offeringDecisionDiff{entries: entries, current: current}, nil
+}
+
+func explicitOfferingLinks(
+	links []*enrollmentModels.RequestChildOffering,
+) []*enrollmentModels.RequestChildOffering {
+	explicit := make([]*enrollmentModels.RequestChildOffering, 0, len(links))
+	for _, link := range links {
+		if link == nil || (len(link.ManualSelectedDays) == 0 && len(link.AutomaticSelectedDays) > 0) {
+			continue
+		}
+		clone := *link
+		if len(link.AutomaticSelectedDays) > 0 {
+			clone.SelectedDays = append([]string(nil), link.ManualSelectedDays...)
+		}
+		explicit = append(explicit, &clone)
+	}
+	return explicit
 }
 
 // storeDecisionSnapshot freezes the diff on the decided row (ADR 0002).
