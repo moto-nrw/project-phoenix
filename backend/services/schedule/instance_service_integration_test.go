@@ -1256,25 +1256,40 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 	from := timezone.NewDate(2026, 4, 20)
 	to := from.AddDays(6)
 
-	// Five seeded rows inside the window — one of each protected kind.
+	// Six seeded rows inside the window — one of each protected kind.
 	plannedNormal := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
 	plannedSpont := insertInstance(t, s, from.AddDays(1), scheduleModels.InstanceStatusPlanned, true)
 	active := insertInstance(t, s, from.AddDays(2), scheduleModels.InstanceStatusActive, false)
 	completed := insertInstance(t, s, from.AddDays(3), scheduleModels.InstanceStatusCompleted, false)
 	cancelled := insertInstance(t, s, from.AddDays(4), scheduleModels.InstanceStatusCancelled, false)
+	// #2299: a manual planning-module block without an offering is planned
+	// (is_spontaneous=false) but has no template — materialization could never
+	// recreate it, so a whole-grid re-plan must not delete it.
+	plannedManual := &scheduleModels.ActivityInstance{
+		Date:      from.AddDays(1),
+		Title:     fmt.Sprintf("Row-manual-%d", time.Now().UnixNano()),
+		StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		RoomID:    s.roomID,
+		Status:    scheduleModels.InstanceStatusPlanned,
+	}
+	plannedManual.SetTenantID(1)
+	_, err := s.db.NewInsert().Model(plannedManual).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
 
 	// Manual cleanup for the survivors (the planned-normal row may be deleted
 	// by ReplanWeek; if so, the cleanup becomes a no-op).
 	t.Cleanup(func() {
 		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances",
-			plannedNormal, plannedSpont, active, completed, cancelled)
+			plannedNormal, plannedSpont, active, completed, cancelled, plannedManual.ID)
 	})
 
-	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
+	_, err = s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
 	require.NoError(t, err)
 
 	assert.False(t, instanceExists(t, s, plannedNormal), "planned non-spontaneous must be deleted")
 	assert.True(t, instanceExists(t, s, plannedSpont), "spontaneous planned must survive")
+	assert.True(t, instanceExists(t, s, plannedManual.ID), "manual no-offering planned block must survive a whole-grid re-plan")
 	assert.True(t, instanceExists(t, s, active), "active must survive")
 	assert.True(t, instanceExists(t, s, completed), "completed must survive")
 	assert.True(t, instanceExists(t, s, cancelled), "cancelled must survive")
@@ -1489,7 +1504,10 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	assert.True(t, inst.IsSpontaneous)
+	// #2299: is_spontaneous records the creation origin. A planning-module
+	// create without an explicit flag is a planned block even without an
+	// offering link — the lifecycle time guards must apply.
+	assert.False(t, inst.IsSpontaneous)
 	assert.Nil(t, inst.ActivityGroupID)
 
 	isSpontaneous := true
@@ -1536,13 +1554,36 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 
 	assert.Equal(t, "Updated planned instance", updated.Title)
 	assert.Equal(t, "16:00", updated.StartTime.Format("15:04"))
-	assert.True(t, updated.IsSpontaneous, "nil ActivityGroupID should toggle to spontaneous")
+	// #2299: unlinking the offering must NOT flip the block to spontaneous —
+	// is_spontaneous keeps recording the creation origin.
+	assert.False(t, updated.IsSpontaneous, "removing the offering link must not toggle is_spontaneous")
 	assert.Nil(t, updated.ActivityGroupID)
 	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_staff", "instance_id", ai.ID))
 	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_students", "instance_id", ai.ID))
 
 	row := fetchAttendance(t, s, ai.ID, s.student2)
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
+}
+
+// #2299: is_spontaneous records the creation origin, so an edit that links an
+// offering to a spontaneous block must not reclassify it as planned either.
+func TestInstance_UpdatePlanned_KeepsSpontaneousOriginWhenLinkingOffering(t *testing.T) {
+	s := buildLifecycle(t)
+	ai := seedSpontaneousInstance(t, s, false)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
+		Date:            ai.Date,
+		StartTime:       ai.StartTime,
+		EndTime:         ai.EndTime,
+		Title:           ai.Title,
+		RoomID:          s.roomID,
+		ActivityGroupID: &s.tmplID,
+	}, nil)
+	require.NoError(t, err)
+
+	assert.True(t, updated.IsSpontaneous, "linking an offering must not toggle is_spontaneous")
+	require.NotNil(t, updated.ActivityGroupID)
+	assert.Equal(t, s.tmplID, *updated.ActivityGroupID)
 }
 
 func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *testing.T) {
