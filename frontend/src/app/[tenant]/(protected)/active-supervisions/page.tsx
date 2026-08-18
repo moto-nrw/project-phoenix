@@ -614,14 +614,21 @@ function AddUnplannedStudentForm({
   onAdd,
   onSearchChange,
 }: AddUnplannedStudentFormProps) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Derived against the current results so a stale selection from a previous
+  // search can never add the wrong child.
+  const selectedStudent =
+    results.find((student) => student.id.toString() === selectedId) ?? null;
+  const targetStudent =
+    selectedStudent ?? (results.length === 1 ? (results[0] ?? null) : null);
   const addStudent = async (studentId: string) => {
     await onAdd(studentId);
+    setSelectedId(null);
   };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const onlyResult = results[0];
-    if (onlyResult && results.length === 1) {
-      await addStudent(onlyResult.id.toString());
+    if (targetStudent && !isAddingStudent) {
+      await addStudent(targetStudent.id.toString());
     }
   };
 
@@ -649,7 +656,7 @@ function AddUnplannedStudentForm({
         />
         <button
           type="submit"
-          disabled={isAddingStudent || results.length !== 1}
+          disabled={isAddingStudent || !targetStudent}
           className="bg-moto-green hover:bg-moto-green-hover rounded-lg px-4 py-2 text-sm font-medium text-gray-950 shadow-sm transition-colors disabled:opacity-50"
         >
           Hinzufügen
@@ -657,28 +664,46 @@ function AddUnplannedStudentForm({
       </div>
       {results.length > 0 ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {results.map((student) => (
-            <button
-              key={student.id}
-              type="button"
-              disabled={isAddingStudent}
-              onClick={() => addStudent(student.id.toString())}
-              className="hover:border-moto-green rounded-md border border-gray-200 px-3 py-2 text-left text-sm disabled:opacity-50"
-            >
-              <span className="font-medium text-gray-900">
-                {student.name ||
-                  [student.first_name, student.second_name]
+          {results.map((student) => {
+            const studentId = student.id.toString();
+            const isSelected = selectedStudent?.id.toString() === studentId;
+            return (
+              <button
+                key={student.id}
+                type="button"
+                disabled={isAddingStudent}
+                aria-pressed={isSelected}
+                onClick={() =>
+                  setSelectedId((prev) =>
+                    prev === studentId ? null : studentId,
+                  )
+                }
+                className={`min-h-11 rounded-md border px-3 py-2 text-left text-sm disabled:opacity-50 ${
+                  isSelected
+                    ? "border-moto-green bg-moto-green/10"
+                    : "hover:border-moto-green border-gray-200"
+                }`}
+              >
+                <span className="font-medium text-gray-900">
+                  {student.name ||
+                    [student.first_name, student.second_name]
+                      .filter(Boolean)
+                      .join(" ")}
+                </span>
+                <span className="ml-2 text-gray-500">
+                  {[student.school_class, student.group_name]
                     .filter(Boolean)
-                    .join(" ")}
-              </span>
-              <span className="ml-2 text-gray-500">
-                {[student.school_class, student.group_name]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
-            </button>
-          ))}
+                    .join(" · ")}
+                </span>
+              </button>
+            );
+          })}
         </div>
+      ) : null}
+      {results.length > 1 && !selectedStudent ? (
+        <p className="mt-2 text-sm text-gray-500">
+          Bitte ein Kind aus der Liste antippen.
+        </p>
       ) : null}
     </form>
   );
