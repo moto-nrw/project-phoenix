@@ -667,10 +667,15 @@ export const UNKNOWN_CHILD_TODAY: ChildToday = {
  * Holt den Tagesstatus des Kindes.
  *
  * Faellt auf `unknown` zurueck, statt zu werfen: der Endpunkt kann fehlen
- * (404, waehrend das Backend nachzieht) oder die Schule fuehrt keine
- * Anwesenheit. Beides ist "wir wissen es nicht", kein Fehlerzustand, den ein
+ * (404, waehrend das Backend nachzieht) oder der Zugriff auf das Kind ist
+ * entzogen (403). Beides ist "wir wissen es nicht", kein Fehlerzustand, den ein
  * Elternteil sehen muesste. 401 laesst throwResponseError weiterhin zur
- * Anmeldung umleiten, deshalb wird nur ab 403 abgefangen.
+ * Anmeldung umleiten.
+ *
+ * Genau diese zwei Codes, nicht "ab 403": ein 500er oder ein ausgefallener
+ * Proxy ist ein echter Fehler und darf nicht als gueltiger Unbekannt-Zustand
+ * durchgehen. Alle Aufrufer fangen den Wurf ab und zeigen weiterhin
+ * UNKNOWN_CHILD_TODAY — nur bleibt der Ausfall jetzt als Fehler sichtbar.
  */
 export async function getChildToday(studentId: string): Promise<ChildToday> {
   try {
@@ -678,7 +683,10 @@ export async function getChildToday(studentId: string): Promise<ChildToday> {
       `/api/parent/me/children/${encodeURIComponent(studentId)}/today`,
     );
   } catch (err) {
-    if (err instanceof ParentApiError && err.status >= 403) {
+    if (
+      err instanceof ParentApiError &&
+      (err.status === 403 || err.status === 404)
+    ) {
       logger.warn("parent_child_today_unavailable", {
         status: err.status,
         student_id: studentId,

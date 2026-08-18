@@ -177,7 +177,11 @@ describe("ParentCalendarPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("begrenzt das Monatsraster auf vollständig geladene Monate", async () => {
+  // Die Grenze ist der Monat, in den das Ladefenster endet — hier November
+  // (Fenster 17.08. bis 16.11.). Der Teilmonat gehoert dazu, weil seine
+  // Termine links in der Liste stehen; welche Tage darin nicht geladen sind,
+  // zeigt das Raster pro Tag.
+  it("begrenzt das Monatsraster auf das geladene Fenster", async () => {
     mockedCalendar.mockResolvedValue(calendarResponse([event()]));
     renderPage();
 
@@ -197,7 +201,29 @@ describe("ParentCalendarPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Nächster Monat" }),
+    ).not.toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
+
+    expect(
+      screen.getByRole("heading", { name: "November 2026" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Nächster Monat" }),
     ).toBeDisabled();
+  });
+
+  // Ein Termin im angebrochenen Schlussmonat ist auch per Deep-Link
+  // erreichbar: er liegt im Ladefenster, also darf die Seite dorthin springen.
+  it("öffnet einen URL-Fokus im angebrochenen Schlussmonat", async () => {
+    searchParams = new URLSearchParams("date=2026-11-05");
+    mockedCalendar.mockResolvedValue(calendarResponse([event()]));
+
+    renderPage();
+
+    expect(
+      await screen.findByRole("heading", { name: "November 2026" }),
+    ).toBeInTheDocument();
   });
 
   it("fällt bei einem URL-Fokus außerhalb des Ladefensters auf heute zurück", async () => {

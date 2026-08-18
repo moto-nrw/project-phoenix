@@ -136,9 +136,12 @@ describe("ParentEnrollFormPage", () => {
     expect(
       screen.queryByRole("link", { name: "Zurück zum Elternportal" }),
     ).not.toBeInTheDocument();
+    // Der oeffentliche Pfad, nicht die interne /parents-Route: auf dem
+    // Eltern-Host schreibt der Proxy ohnehin um, und parentPath haelt die
+    // Adresszeile sauber (siehe lib/parent-url.ts).
     expect(
       screen.getByRole("link", { name: "Andere Anmeldung wählen" }),
-    ).toHaveAttribute("href", "/parents/enroll");
+    ).toHaveAttribute("href", "/enroll");
     expect(form.closest(".w-full")).toBeInTheDocument();
     expect(form.closest(".max-w-4xl")).not.toBeInTheDocument();
     expect(form).toHaveAttribute("data-grade-level-max", "13");

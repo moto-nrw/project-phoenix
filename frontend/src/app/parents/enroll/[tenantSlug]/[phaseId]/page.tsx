@@ -24,6 +24,7 @@ import {
   fetchParentEnrollmentBootstrap,
   type PublicEnrollmentBootstrap,
 } from "~/lib/enrollment-submission-api";
+import { parentPath } from "~/lib/parent-url";
 import { resolveTenant, type TenantInfo } from "~/lib/tenant-api";
 
 interface PageProps {
@@ -126,7 +127,7 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         kicker={t("parentEmbeddedKicker")}
         title={t("formEyebrow")}
         description={t("parentEmbeddedDescription")}
-        backHref="/parents/enroll"
+        backHref={parentPath("/parents/enroll")}
         backLabel={t("backToPicker")}
       />
 

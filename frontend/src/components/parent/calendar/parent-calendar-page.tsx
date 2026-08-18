@@ -203,20 +203,19 @@ export function ParentCalendarPage() {
     () => addDays(today, MAX_CALENDAR_WINDOW_OFFSET),
     [today],
   );
-  const lastCompleteMonth = useMemo(() => {
-    const end = parseISODate(rangeEnd);
-    return new Date(end.getFullYear(), end.getMonth() - 1, 1);
-  }, [rangeEnd]);
+  // Der Monat, in den rangeEnd faellt, ist die obere Grenze — nicht der letzte
+  // volle Monat davor. Seine Termine werden geladen und stehen links in der
+  // Liste; waere er im Raster nicht erreichbar, koennte man einen dort
+  // sichtbaren Termin nicht im Monat nachschlagen. Dass er nur teilweise
+  // abgedeckt ist, zeigt das Raster ohnehin pro Tag (inLoadedRange).
+  const lastLoadedMonth = useMemo(() => monthReference(rangeEnd), [rangeEnd]);
   const focusDate = searchParams.get("date");
   const validFocusDate =
     focusDate !== null && isValidISODate(focusDate) ? focusDate : null;
-  const focusMonth = validFocusDate ? monthReference(validFocusDate) : null;
   const focusIsLoaded =
     validFocusDate !== null &&
     validFocusDate >= today &&
-    validFocusDate <= rangeEnd &&
-    focusMonth !== null &&
-    focusMonth <= lastCompleteMonth;
+    validFocusDate <= rangeEnd;
   const initialDate = focusIsLoaded ? validFocusDate : today;
   const [referenceDate, setReferenceDate] = useState(() =>
     monthReference(initialDate),
@@ -334,7 +333,7 @@ export function ParentCalendarPage() {
             locale={locale}
             respondingId={respondingId}
             canGoBack={referenceDate > monthReference(today)}
-            canGoForward={referenceDate < lastCompleteMonth}
+            canGoForward={referenceDate < lastLoadedMonth}
             onChangeMonth={(offset) => {
               const next = new Date(
                 referenceDate.getFullYear(),

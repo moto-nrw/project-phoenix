@@ -14,6 +14,8 @@ import {
   withdrawExcusedRequest,
   getChildFeatures,
   getChildMealPlan,
+  getChildToday,
+  UNKNOWN_CHILD_TODAY,
   getChildCareOfferings,
   getChildOfferingCatalog,
   submitOfferingChangeRequest,
@@ -1178,5 +1180,27 @@ describe("acknowledgeAnnouncement", () => {
     await expect(
       acknowledgeAnnouncement("5", "2026-07-01T08:00:00Z"),
     ).rejects.toThrow(/veraltet/);
+  });
+});
+
+describe("getChildToday", () => {
+  // 403 und 404 sind "wir wissen es nicht": der Zugriff ist entzogen oder der
+  // Endpunkt fehlt noch. Beides ist kein Fehler, den Eltern sehen muessen.
+  it.each([403, 404])(
+    "meldet bei %i einen unbekannten Tagesstatus statt zu werfen",
+    async (status) => {
+      mockFetch(async () => jsonResponse({ error: "nope" }, { status }));
+
+      await expect(getChildToday("42")).resolves.toEqual(UNKNOWN_CHILD_TODAY);
+    },
+  );
+
+  // Ein Serverfehler ist ein echter Ausfall. Wuerde er als "unbekannt"
+  // durchgehen, saehe ein kaputtes Backend wie ein gueltiger Zustand aus und
+  // niemand erfuehre davon.
+  it.each([500, 502, 503])("wirft bei %i weiter", async (status) => {
+    mockFetch(async () => jsonResponse({ error: "kaputt" }, { status }));
+
+    await expect(getChildToday("42")).rejects.toThrow();
   });
 });
