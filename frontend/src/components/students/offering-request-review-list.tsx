@@ -14,9 +14,11 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import {
   OfferingRequestApiError,
   type OfferingRequestDiffLine,
+  type OfferingRequestPreviewSelection,
   type StaffOfferingRequest,
   decideOfferingChangeRequest,
   listOfferingChangeRequests,
+  previewOfferingChangeRequest,
 } from "~/lib/offering-request-review-api";
 
 const logger = createLogger({ component: "OfferingRequestReviewList" });
@@ -58,41 +60,6 @@ function automaticHint(entry: OfferingRequestDiffLine): string {
     : `Kommt automatisch dazu, weil ${joinNames(names)} gewählt ist.`;
 }
 
-// removedOfferings resolves the cascade of unticked rule lines: a line whose
-// NEW side is fully automatic falls away once every offering that triggers it
-// is itself removed. Triggers outside the diff count as still selected. The
-// server recomputes this authoritatively on approval; the preview mirrors it.
-function removedOfferings(
-  diff: readonly OfferingRequestDiffLine[],
-  excluded: readonly string[],
-): Set<string> {
-  const removed = new Set(
-    diff
-      .filter(
-        (entry) =>
-          excluded.includes(entry.offering_id) &&
-          entry.new_when_excluded === undefined,
-      )
-      .map((entry) => entry.offering_id),
-  );
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const entry of diff) {
-      if (removed.has(entry.offering_id)) continue;
-      const triggers = entry.trigger_ids ?? [];
-      if (!entry.automatic || triggers.length === 0) continue;
-      if (entry.new_when_excluded !== undefined) continue;
-      if (entry.automatic_days !== entry.new) continue;
-      if (triggers.every((id) => removed.has(id))) {
-        removed.add(entry.offering_id);
-        changed = true;
-      }
-    }
-  }
-  return removed;
-}
-
 // cascadeSourceName names the unticked line a greyed dependent hangs on.
 function cascadeSourceName(
   entry: OfferingRequestDiffLine,
@@ -119,6 +86,9 @@ export function OfferingRequestReviewList() {
   // Rule-added offerings the reviewer unticked, per request id (#2370).
   const [excludedByRow, setExcludedByRow] = useState<
     Record<string, readonly string[]>
+  >({});
+  const [previewByRow, setPreviewByRow] = useState<
+    Record<string, readonly OfferingRequestPreviewSelection[]>
   >({});
   const [notice, setNotice] = useState<string | null>(null);
   // Set while THIS list dispatches change-requests-refresh so its own listener
@@ -221,15 +191,42 @@ export function OfferingRequestReviewList() {
     [reasons, excludedByRow],
   );
 
-  const toggleExcluded = useCallback((rowId: string, offeringId: string) => {
-    setExcludedByRow((prev) => {
-      const current = prev[rowId] ?? [];
+  const toggleExcluded = useCallback(
+    async (rowId: string, offeringId: string) => {
+      const current = excludedByRow[rowId] ?? [];
       const next = current.includes(offeringId)
         ? current.filter((id) => id !== offeringId)
         : [...current, offeringId];
-      return { ...prev, [rowId]: next };
-    });
-  }, []);
+      setBusyId(rowId);
+      setError(null);
+      try {
+        const preview =
+          next.length > 0
+            ? await previewOfferingChangeRequest(rowId, next)
+            : undefined;
+        setExcludedByRow((prev) => ({ ...prev, [rowId]: next }));
+        setPreviewByRow((prev) => {
+          if (preview) {
+            return { ...prev, [rowId]: preview.selections };
+          }
+          const { [rowId]: _removed, ...rest } = prev;
+          return rest;
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.warn("offering_request_review_preview_failed", {
+          error: message,
+          request_id: rowId,
+        });
+        setError(
+          "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
+        );
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [excludedByRow],
+  );
 
   if (loading) {
     return (
@@ -282,15 +279,29 @@ export function OfferingRequestReviewList() {
               )}
               {(() => {
                 const excluded = excludedByRow[row.id] ?? [];
-                const removed = removedOfferings(row.diff, excluded);
+                const preview = previewByRow[row.id];
+                const previewByOffering = new Map(
+                  preview?.map((selection) => [
+                    selection.offering_id,
+                    selection,
+                  ]),
+                );
+                const removed = new Set(
+                  row.diff
+                    .filter((entry) => {
+                      const selection = previewByOffering.get(
+                        entry.offering_id,
+                      );
+                      return selection?.removed && selection.new !== entry.new;
+                    })
+                    .map((entry) => entry.offering_id),
+                );
                 return row.diff.map((entry) => {
                   const isExcluded = excluded.includes(entry.offering_id);
                   const isRemoved = removed.has(entry.offering_id);
                   const cascaded = isRemoved && !isExcluded;
                   const displayedNew =
-                    isExcluded && entry.new_when_excluded !== undefined
-                      ? entry.new_when_excluded
-                      : entry.new;
+                    previewByOffering.get(entry.offering_id)?.new ?? entry.new;
                   return (
                     <div
                       key={entry.offering_id}
@@ -342,9 +353,9 @@ export function OfferingRequestReviewList() {
                           <Checkbox
                             id={`mitbuchen-${row.id}-${entry.offering_id}`}
                             checked={!isExcluded}
-                            onChange={() =>
-                              toggleExcluded(row.id, entry.offering_id)
-                            }
+                            onChange={() => {
+                              void toggleExcluded(row.id, entry.offering_id);
+                            }}
                             disabled={busyId === row.id}
                             aria-label={`${entry.label} automatisch mitbuchen`}
                           />

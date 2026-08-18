@@ -18,7 +18,9 @@ import (
 )
 
 type fakeOfferingChangeRequestService struct {
-	input enrollmentService.DecideOfferingChangeInput
+	input           enrollmentService.DecideOfferingChangeInput
+	previewExcluded []int64
+	preview         []enrollmentService.OfferingChangePreviewSelection
 }
 
 func (f *fakeOfferingChangeRequestService) Catalog(context.Context, int64) (*enrollmentService.OfferingChangeCatalog, error) {
@@ -49,6 +51,11 @@ func (f *fakeOfferingChangeRequestService) PendingCount(context.Context) (int, e
 	return 0, nil
 }
 
+func (f *fakeOfferingChangeRequestService) PreviewDecision(_ context.Context, _ int64, excluded []int64) ([]enrollmentService.OfferingChangePreviewSelection, error) {
+	f.previewExcluded = excluded
+	return f.preview, nil
+}
+
 func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input enrollmentService.DecideOfferingChangeInput) error {
 	f.input = input
 	return nil
@@ -74,6 +81,28 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(55), svc.input.ReviewedBy)
 	assert.Equal(t, "group_supervisor,staff", svc.input.ActorRole)
+}
+
+func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
+	svc := &fakeOfferingChangeRequestService{preview: []enrollmentService.OfferingChangePreviewSelection{{
+		OfferingID: 11,
+		State:      "booked",
+		Days:       []string{"mon", "wed"},
+	}}}
+	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
+		strings.NewReader(`{"excluded_offering_ids":["9"]}`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("requestId", "100")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.previewOfferingChangeRequest(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, []int64{9}, svc.previewExcluded)
+	assert.Contains(t, w.Body.String(), `"offering_id":"11"`)
+	assert.Contains(t, w.Body.String(), `"new":"Mo, Mi"`)
 }
 
 func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *testing.T) {

@@ -14,6 +14,7 @@ import {
   decideOfferingChangeRequest,
   listOfferingChangeRequests,
   OfferingRequestApiError,
+  previewOfferingChangeRequest,
   type StaffOfferingRequest,
 } from "./offering-request-review-api";
 
@@ -161,5 +162,29 @@ describe("decideOfferingChangeRequest", () => {
       message: "Kein gültiger Betreuungsvertrag mehr",
       code: "offering_change_no_enrollment",
     });
+  });
+});
+
+describe("previewOfferingChangeRequest", () => {
+  it("posts all current exclusions and returns materialized selections", async () => {
+    const preview = {
+      selections: [{ offering_id: "11", new: "Mo, Mi" }],
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ data: preview }));
+    globalThis.fetch = fetchMock;
+
+    await expect(
+      previewOfferingChangeRequest("request/77", ["9", "12"]),
+    ).resolves.toEqual(preview);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/students/offering-change-requests/request%2F77/preview",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ excluded_offering_ids: ["9", "12"] }),
+      },
+    );
   });
 });

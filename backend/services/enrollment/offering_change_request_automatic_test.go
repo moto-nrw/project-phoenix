@@ -180,6 +180,62 @@ func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFrom
 	}
 }
 
+func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomaticBooking(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "GrandfatheredSnapshot")
+	automatic := createAutoAddTarget(t, env, "GrandfatheredSnapshot", fx.oldOffering.ID)
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+		RequestChildID:        fx.childID,
+		CareOfferingID:        automatic.ID,
+		SelectedDays:          []string{"mon"},
+		AutomaticSelectedDays: []string{"mon"},
+	}))
+	automatic.AvailabilityRule = &enrollmentModels.CareOfferingAvailabilityRule{
+		Match: enrollmentModels.AvailabilityMatchAll,
+		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
+			Source:   enrollmentModels.AvailabilitySourceGradeLevel,
+			Operator: enrollmentModels.AvailabilityOperatorIn,
+			Value:    []int{1},
+		}},
+	}
+	require.NoError(t, env.repos.CareOffering.Update(ctx, automatic))
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.oldOffering.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"tue"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
+	}))
+	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	require.NoError(t, err)
+	applied := false
+	for _, link := range links {
+		if link.CareOfferingID == automatic.ID {
+			applied = true
+			assert.Equal(t, []string{"mon"}, link.SelectedDays)
+		}
+	}
+	require.True(t, applied, "the applier must retain the grandfathered automatic booking")
+
+	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, decided.DecisionSnapshot)
+	for _, entry := range decided.DecisionSnapshot.Diff {
+		assert.NotEqual(t, automatic.ID, entry.OfferingID,
+			"the snapshot must not record a retained grandfathered booking as removed")
+	}
+}
+
 func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunchDays(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -233,6 +289,48 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 		}
 	}
 	t.Fatal("the manual and required-lunch shares must keep the target booked")
+}
+
+func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusionCascade(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "PreviewPartialCascade")
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag PreviewPartialCascade", func(o *enrollmentModels.CareOffering) {
+		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = true, true, 203
+	})
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde PreviewPartialCascade", func(o *enrollmentModels.CareOffering) {
+		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = false, true, 204
+	})
+	mixed := createAutoAddTarget(t, env, "PreviewPartialCascade", trigger.ID)
+	mixed.IsRequired, mixed.IncludesLunch = true, true
+	mixed.CountsAsCare, mixed.CountsAsCareSet, mixed.SortOrder = false, true, 205
+	require.NoError(t, env.repos.CareOffering.Update(ctx, mixed))
+	downstream := createAutoAddTarget(t, env, "PreviewPartialCascade downstream", mixed.ID)
+	downstream.CountsAsCare, downstream.CountsAsCareSet, downstream.SortOrder = false, true, 206
+	require.NoError(t, env.repos.CareOffering.Update(ctx, downstream))
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: care.ID, SelectedDays: []string{"wed"}},
+			{OfferingID: trigger.ID, SelectedDays: []string{"tue"}},
+			{OfferingID: mixed.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID})
+	require.NoError(t, err)
+	byID := make(map[int64][]string, len(preview))
+	for _, selection := range preview {
+		byID[selection.OfferingID] = selection.Days
+	}
+	assert.Equal(t, []string{"mon", "wed"}, byID[mixed.ID])
+	assert.Equal(t, []string{"mon", "wed"}, byID[downstream.ID],
+		"the downstream rule must use the partially retained trigger days")
 }
 
 func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffering(t *testing.T) {

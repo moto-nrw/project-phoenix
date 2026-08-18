@@ -197,6 +197,14 @@ type OfferingChangeRequestedItem struct {
 	Days []string
 }
 
+// OfferingChangePreviewSelection is one offering from the authoritative
+// materialization for a review card's current override selection.
+type OfferingChangePreviewSelection struct {
+	OfferingID int64
+	State      string
+	Days       []string
+}
+
 // offeringDecisionRecencyDays bounds how long a decided request keeps being
 // reported. Same window the excused-absence requests use for the same purpose:
 // long enough that a guardian sees the outcome on their next visit, short
@@ -250,6 +258,9 @@ type OfferingChangeRequestService interface {
 	ListPending(ctx context.Context) ([]*OfferingChangeView, error)
 	// PendingCount backs the staff sidebar badge without constructing queue diffs.
 	PendingCount(ctx context.Context) (int, error)
+	// PreviewDecision materializes a pending approval with the supplied
+	// Mitbuchungs-Regel overrides without writing it.
+	PreviewDecision(ctx context.Context, requestID int64, excludedIDs []int64) ([]OfferingChangePreviewSelection, error)
 
 	// Decide approves (and applies) or rejects a pending request.
 	Decide(ctx context.Context, input DecideOfferingChangeInput) error
@@ -563,7 +574,7 @@ func (s *offeringChangeRequestService) catalogAt(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: filter eligible offerings: %w", err)
 	}
-	if err := s.addHeldOfferingsAtDate(ctx, period.RequestChildID, onDate, allowed); err != nil {
+	if _, err := s.addHeldOfferingsAtDate(ctx, period.RequestChildID, onDate, allowed); err != nil {
 		return nil, err
 	}
 	catalog := &OfferingChangeCatalog{
@@ -1208,9 +1219,9 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 			usersModels.ParentMessageRequestStatusRejected, reason)
 		return nil
 	}
-	// With overrides the diff is load-bearing (it validates the excluded ids),
-	// so its errors are strict. A plain approval keeps the old tolerance: the
-	// decision matters more than the frozen recap.
+	// With overrides the pre-apply diff is load-bearing because it validates the
+	// excluded ids and records their names. A plain approval needs no preliminary
+	// materialization: its snapshot is built from the applier's exact result.
 	var diff *offeringDecisionDiff
 	if len(input.ExcludedAutoOfferingIDs) > 0 {
 		var diffErr error
@@ -1218,12 +1229,14 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		if diffErr != nil {
 			return diffErr
 		}
-	} else {
-		diff = s.decisionDiffBestEffort(ctx, row, nil)
 	}
-	if err := s.applyApproved(ctx, row, input, overriddenOfferings(diff)); err != nil {
+	applied, err := s.applyApproved(ctx, row, input, overriddenOfferings(diff))
+	if err != nil {
 		return err
 	}
+	diff = materializedDecisionDiff(
+		applied.Before, applied.Selections, nil, applied.Offerings, overriddenOfferings(diff),
+	)
 	if err := s.ChangeRepo.Decide(
 		ctx, row.ID, enrollmentModels.OfferingChangeStatusApproved, optionalString(reason), &input.ReviewedBy, true,
 	); err != nil {
@@ -1240,6 +1253,56 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		slog.String("effective_from", row.EffectiveFrom.String()),
 	)
 	return nil
+}
+
+func (s *offeringChangeRequestService) PreviewDecision(
+	ctx context.Context,
+	requestID int64,
+	excludedIDs []int64,
+) ([]OfferingChangePreviewSelection, error) {
+	if requestID <= 0 {
+		return nil, fmt.Errorf("%w: request is required", ErrOfferingChangeInvalid)
+	}
+	row, err := s.ChangeRepo.FindByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if row.IsTerminal() {
+		return nil, enrollmentModels.ErrOfferingChangeNotPending
+	}
+	student, err := s.StudentRepo.FindByID(ctx, row.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: load student for preview: %w", err)
+	}
+	if student == nil || student.IsAlumnus() {
+		return nil, enrollmentModels.ErrOfferingChangeNotFound
+	}
+	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
+		return nil, ErrOfferingChangeForbidden
+	}
+	diff, err := s.decisionDiff(ctx, row, excludedIDs)
+	if err != nil {
+		return nil, err
+	}
+	ids, _, _ := offeringChangeSides(diff.current, offeringChangeSelections(diff.base))
+	selectedByID := materializedSelectionPointers(diff.selected)
+	preview := make([]OfferingChangePreviewSelection, 0, len(ids))
+	for _, offeringID := range ids {
+		selection := selectedByID[offeringID]
+		if selection == nil {
+			preview = append(preview, OfferingChangePreviewSelection{
+				OfferingID: offeringID,
+				State:      "removed",
+			})
+			continue
+		}
+		preview = append(preview, OfferingChangePreviewSelection{
+			OfferingID: offeringID,
+			State:      "booked",
+			Days:       append([]string(nil), selection.SelectedDays...),
+		})
+	}
+	return preview, nil
 }
 
 // decisionDiffBestEffort builds the review diff for the snapshot without
@@ -1332,32 +1395,32 @@ func (s *offeringChangeRequestService) applyApproved(
 	row *enrollmentModels.OfferingChangeRequest,
 	input DecideOfferingChangeInput,
 	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
-) error {
+) (*appliedOfferingAdjustment, error) {
 	if s.Settings == nil {
-		return ErrCareOfferingsDisabled
+		return nil, ErrCareOfferingsDisabled
 	}
 	careOfferingsEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
 	if err != nil {
-		return fmt.Errorf("offering change: resolve care offerings setting: %w", err)
+		return nil, fmt.Errorf("offering change: resolve care offerings setting: %w", err)
 	}
 	if !careOfferingsEnabled {
-		return ErrCareOfferingsDisabled
+		return nil, ErrCareOfferingsDisabled
 	}
 	child, err := s.RequestChildRepo.FindByID(ctx, row.RequestChildID)
 	if err != nil || child == nil {
-		return fmt.Errorf("offering change: load request child: %w", err)
+		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
 	request, err := s.RequestRepo.FindByID(ctx, child.RequestID)
 	if err != nil || request == nil {
-		return fmt.Errorf("offering change: load request: %w", err)
+		return nil, fmt.Errorf("offering change: load request: %w", err)
 	}
 	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
 	if err != nil || phase == nil {
-		return fmt.Errorf("offering change: load phase: %w", err)
+		return nil, fmt.Errorf("offering change: load phase: %w", err)
 	}
 	selections, err := selectionsFromPayload(row.Payload)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	effectiveFrom := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
 	// A request whose date has passed while it waited applies as soon as
@@ -1365,17 +1428,17 @@ func (s *offeringChangeRequestService) applyApproved(
 	// office agreed, and a date in the past would be rejected by the adjustment
 	// validator.
 	if effectiveFrom.After(phase.ServiceEndDate) {
-		return fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
+		return nil, fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
 	if _, err := s.validateSelections(ctx, phase, row.RequestChildID, effectiveFrom, selections); err != nil {
-		return err
+		return nil, err
 	}
 	excluded := make(map[int64]bool, len(input.ExcludedAutoOfferingIDs))
 	for _, id := range input.ExcludedAutoOfferingIDs {
 		excluded[id] = true
 	}
 	if err := s.assertCapacityAvailable(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded); err != nil {
-		return err
+		return nil, err
 	}
 	// Keep the actual date in memory for the adjustment audit. Persist it only
 	// after the switch succeeds, so a client error leaves the pending row intact.
@@ -1398,13 +1461,14 @@ func (s *offeringChangeRequestService) applyApproved(
 		EffectiveFrom:            &effectiveFrom,
 		ExcludedAutoAddTargetIDs: excluded,
 	}
-	if _, err := s.Applier.applyApprovedChangeRequestOfferings(ctx, adjustment); err != nil {
-		return fmt.Errorf("offering change: apply: %w", err)
+	applied, err := s.Applier.applyApprovedChangeRequestOfferingsWithResult(ctx, adjustment)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: apply: %w", err)
 	}
 	if err := s.ChangeRepo.UpdateEffectiveFrom(ctx, row.ID, effectiveFrom); err != nil {
-		return fmt.Errorf("offering change: update applied effective date: %w", err)
+		return nil, fmt.Errorf("offering change: update applied effective date: %w", err)
 	}
-	return nil
+	return applied, nil
 }
 
 func appliedOfferingChangeDate(effectiveFrom timezone.Date) timezone.Date {
@@ -1506,32 +1570,14 @@ func (s *offeringChangeRequestService) materializedOfferingIDs(
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
 ) ([]int64, error) {
-	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
-	}
-	allowed := offeringsByID(active)
-	if err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed); err != nil {
-		return nil, err
-	}
-	_, submit, err := normalizeOfferingSelections(selections, allowed)
-	if err != nil {
-		return nil, err
-	}
-	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
-	if err != nil || child == nil {
-		return nil, fmt.Errorf("offering change: load request child: %w", err)
-	}
-	submit.TargetGradeLevel = child.TargetGradeLevel
-	submit.ExcludedAutoAddTargetIDs = excluded
-	materialized, err := materializeAndValidateChildrenOfferingSelections(
-		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+	materialized, err := s.materializedSelectionsExcluding(
+		ctx, phase, requestChildID, effectiveFrom, selections, excluded,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
+		return nil, err
 	}
-	ids := make([]int64, 0, len(materialized[0]))
-	for _, selection := range materialized[0] {
+	ids := make([]int64, 0, len(materialized))
+	for _, selection := range materialized {
 		ids = append(ids, selection.OfferingID)
 	}
 	return ids, nil
@@ -1613,7 +1659,8 @@ func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 		return nil, fmt.Errorf("offering change: list active offerings: %w", err)
 	}
 	allowed := offeringsByID(active)
-	if err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed); err != nil {
+	current, err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed)
+	if err != nil {
 		return nil, err
 	}
 	_, submit, err := normalizeOfferingSelections(selections, allowed)
@@ -1626,8 +1673,9 @@ func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 	}
 	submit.TargetGradeLevel = child.TargetGradeLevel
 	submit.ExcludedAutoAddTargetIDs = excluded
-	materialized, err := materializeAndValidateChildrenOfferingSelections(
+	materialized, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+		grandfatheredOfferingsFromLinks(current),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
@@ -1654,7 +1702,8 @@ func (s *offeringChangeRequestService) validateSelections(
 	// Offerings the child already holds stay selectable even when the admin
 	// deactivated them in the catalog: keeping the status quo must never be
 	// blocked by a catalog edit.
-	if err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed); err != nil {
+	current, err := s.addHeldOfferingsAtDate(ctx, requestChildID, effectiveFrom, allowed)
+	if err != nil {
 		return nil, err
 	}
 	normalized, submit, err := normalizeOfferingSelections(selections, allowed)
@@ -1666,8 +1715,9 @@ func (s *offeringChangeRequestService) validateSelections(
 		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
 	submit.TargetGradeLevel = child.TargetGradeLevel
-	_, err = materializeAndValidateChildrenOfferingSelections(
+	_, err = materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
+		grandfatheredOfferingsFromLinks(current),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
@@ -1696,13 +1746,13 @@ func (s *offeringChangeRequestService) addHeldOfferingsAtDate(
 	requestChildID int64,
 	onDate timezone.Date,
 	allowed map[int64]*enrollmentModels.CareOffering,
-) error {
+) ([]*enrollmentModels.RequestChildOffering, error) {
 	if requestChildID <= 0 {
-		return nil
+		return nil, nil
 	}
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, onDate)
 	if err != nil {
-		return fmt.Errorf("offering change: list current offerings: %w", err)
+		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	heldIDs := make([]int64, 0, len(current))
 	for _, link := range current {
@@ -1711,16 +1761,16 @@ func (s *offeringChangeRequestService) addHeldOfferingsAtDate(
 		}
 	}
 	if len(heldIDs) == 0 {
-		return nil
+		return current, nil
 	}
 	held, err := s.CareOfferingRepo.ListByIDs(ctx, heldIDs)
 	if err != nil {
-		return fmt.Errorf("offering change: list held offerings: %w", err)
+		return nil, fmt.Errorf("offering change: list held offerings: %w", err)
 	}
 	for id, offering := range offeringsByID(held) {
 		allowed[id] = offering
 	}
-	return nil
+	return current, nil
 }
 
 func normalizeOfferingSelections(
@@ -1787,6 +1837,9 @@ func (s *offeringChangeRequestService) diffForRequest(
 type offeringDecisionDiff struct {
 	entries    []OfferingChangeDiffEntry
 	overridden []enrollmentModels.OfferingChangeSnapshotOffering
+	current    []*enrollmentModels.RequestChildOffering
+	base       []materializedOfferingSelection
+	selected   []materializedOfferingSelection
 }
 
 type offeringDecisionMaterialization struct {
@@ -1817,7 +1870,7 @@ func (s *offeringChangeRequestService) decisionDiff(
 	}
 	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(materialization.selected))
 	return s.buildDecisionDiff(
-		ctx, excludedIDs, materialization.base, materialization.selected, ids, currentByID, requestedByID,
+		ctx, excludedIDs, current, materialization.base, materialization.selected, ids, currentByID, requestedByID,
 	)
 }
 
@@ -1896,6 +1949,7 @@ func appendMissingOfferingIDs(ids []int64, selections []materializedOfferingSele
 func (s *offeringChangeRequestService) buildDecisionDiff(
 	ctx context.Context,
 	excludedIDs []int64,
+	current []*enrollmentModels.RequestChildOffering,
 	base, materialized []materializedOfferingSelection,
 	ids []int64,
 	currentByID map[int64]*enrollmentModels.RequestChildOffering,
@@ -1911,10 +1965,39 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 	if err != nil {
 		return nil, err
 	}
+	return materializedDecisionDiffFromSides(
+		currentByID, requestedByID, ids, current, base, materialized, offeringByID, overridden,
+	), nil
+}
+
+func materializedDecisionDiff(
+	current []*enrollmentModels.RequestChildOffering,
+	materialized, base []materializedOfferingSelection,
+	offeringByID map[int64]*enrollmentModels.CareOffering,
+	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
+) *offeringDecisionDiff {
+	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(materialized))
+	return materializedDecisionDiffFromSides(
+		currentByID, requestedByID, ids, current, base, materialized, offeringByID, overridden,
+	)
+}
+
+func materializedDecisionDiffFromSides(
+	currentByID map[int64]*enrollmentModels.RequestChildOffering,
+	requestedByID map[int64]OfferingChangeSelection,
+	ids []int64,
+	current []*enrollmentModels.RequestChildOffering,
+	base, materialized []materializedOfferingSelection,
+	offeringByID map[int64]*enrollmentModels.CareOffering,
+	overridden []enrollmentModels.OfferingChangeSnapshotOffering,
+) *offeringDecisionDiff {
 	entries := offeringDiffEntries(ids, offeringByID, currentByID, requestedByID)
 	annotateAutomaticShares(entries, materialized, offeringByID)
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
-	return &offeringDecisionDiff{entries: entries, overridden: overridden}, nil
+	return &offeringDecisionDiff{
+		entries: entries, overridden: overridden, current: current, base: base,
+		selected: materialized,
+	}
 }
 
 func offeringDiffEntries(

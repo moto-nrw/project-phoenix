@@ -50,6 +50,16 @@ export interface StaffOfferingRequest {
   readonly reviewed_at?: string;
 }
 
+export interface OfferingRequestPreviewSelection {
+  readonly offering_id: string;
+  readonly new: string;
+  readonly removed?: boolean;
+}
+
+export interface OfferingRequestPreview {
+  readonly selections: readonly OfferingRequestPreviewSelection[];
+}
+
 interface Envelope<T> {
   readonly data?: T;
 }
@@ -144,4 +154,28 @@ export async function decideOfferingChangeRequest(
       "Entscheidung konnte nicht gespeichert werden",
     );
   }
+}
+
+/** Materializes the review card with its current co-booking overrides. */
+export async function previewOfferingChangeRequest(
+  requestId: string,
+  excludedOfferingIds: readonly string[],
+): Promise<OfferingRequestPreview> {
+  const response = await fetch(
+    `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        excluded_offering_ids: excludedOfferingIds,
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Vorschau konnte nicht aktualisiert werden",
+    );
+  }
+  return unwrap((await response.json()) as Envelope<OfferingRequestPreview>);
 }
