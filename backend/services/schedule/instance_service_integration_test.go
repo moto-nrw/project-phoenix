@@ -1565,6 +1565,84 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
 }
 
+// guardedLifecycleSettings satisfies scheduleSvc.LifecycleSettings for the
+// time-policy pass-through test below.
+type guardedLifecycleSettings struct {
+	leadMinutes       int
+	enforcePlannedEnd bool
+}
+
+func (s guardedLifecycleSettings) ResolveInt(context.Context, string) (int, error) {
+	return s.leadMinutes, nil
+}
+
+func (s guardedLifecycleSettings) ResolveBool(context.Context, string) (bool, error) {
+	return s.enforcePlannedEnd, nil
+}
+
+// #2299 guard pass-through: a block created in the planning module WITHOUT an
+// offering link is subject to the lead-time guard, while an ad-hoc block
+// (explicit IsSpontaneous=true) stays exempt at the same clock.
+func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) {
+	s := buildLifecycle(t)
+	date := timezone.NewDate(2026, 4, 22)
+	// 08:00 Berlin — far before the 14:00 start minus the 15-minute lead.
+	now := time.Date(2026, 4, 22, 8, 0, 0, 0, timezone.Berlin)
+	guarded := scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
+		InstanceRepo:       s.repos.ActivityInstance,
+		InstanceStaffRepo:  s.repos.InstanceStaff,
+		InstanceStudents:   s.repos.InstanceStudent,
+		ExceptionRepo:      s.repos.ActivityException,
+		ActiveGroupRepo:    s.repos.ActiveGroup,
+		SupervisorRepo:     s.repos.GroupSupervisor,
+		VisitRepo:          s.repos.ActiveVisit,
+		RoomRepo:           s.repos.Room,
+		ActivityGroupRepo:  s.repos.ActivityGroup,
+		StaffRepo:          s.repos.Staff,
+		StudentRepo:        s.repos.Student,
+		ActiveService:      s.factory.Active,
+		Materialization:    s.factory.Materialization,
+		CareDayService:     s.factory.CareDay,
+		DeviationEventRepo: s.repos.DeviationEvent,
+		DB:                 s.db,
+		Logger:             slog.Default(),
+		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(s.db),
+		Settings:           guardedLifecycleSettings{leadMinutes: 15, enforcePlannedEnd: true},
+		Now:                func() time.Time { return now },
+		EnforceTimePolicy:  true,
+	})
+
+	planned, err := guarded.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:      date,
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:     "Guarded no-offering block",
+		RoomID:    s.roomID,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", planned.ID) })
+
+	_, err = guarded.Start(s.ctx, planned.ID, s.staffID)
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceStartTooEarly,
+		"planning-module block without offering must hit the lead-time guard")
+
+	isSpontaneous := true
+	adhoc, err := guarded.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:          date,
+		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:         "Ad-hoc block",
+		RoomID:        s.roomID,
+		IsSpontaneous: &isSpontaneous,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", adhoc.ID) })
+
+	started, err := guarded.Start(s.ctx, adhoc.ID, s.staffID)
+	require.NoError(t, err, "ad-hoc block stays exempt from the time policy")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID) })
+}
+
 // #2299: is_spontaneous records the creation origin, so an edit that links an
 // offering to a spontaneous block must not reclassify it as planned either.
 func TestInstance_UpdatePlanned_KeepsSpontaneousOriginWhenLinkingOffering(t *testing.T) {
