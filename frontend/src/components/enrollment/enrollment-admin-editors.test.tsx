@@ -579,6 +579,54 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
+  it("names the edited offering in the auto-add rule and previews the rule direction", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ id: "trigger", name: "Ganztag" }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Ganztag")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+
+    // Without a name yet, the generic wording stays.
+    expect(
+      screen.getByText(
+        "Dieses Angebot wird automatisch mitgebucht, wenn Eltern eines dieser Angebote wählen:",
+      ),
+    ).toBeVisible();
+
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Randstunde" },
+    });
+    expect(
+      screen.getByText(
+        "„Randstunde“ wird automatisch mitgebucht, wenn Eltern eines dieser Angebote wählen:",
+      ),
+    ).toBeVisible();
+
+    // No preview until a trigger is checked.
+    expect(
+      screen.queryByText(/Die Regel gilt nur in diese Richtung/),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
+
+    expect(
+      screen.getByText(
+        "Wenn Eltern „Ganztag“ wählen, wird „Randstunde“ automatisch mitgebucht.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Die Regel gilt nur in diese Richtung, nicht umgekehrt.",
+      ),
+    ).toBeVisible();
+  });
+
   it("clears hidden auto-add trigger IDs when an edited offering changes phase", async () => {
     mocks.listPhases.mockResolvedValue([
       phase(),
