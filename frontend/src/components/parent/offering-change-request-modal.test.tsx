@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OfferingChangeRequestModal } from "./offering-change-request-modal";
@@ -435,6 +441,101 @@ describe("Mitbuchungs-Regel preview (#2366)", () => {
       expect(
         screen.queryByText(/Automatisch mitgebucht:/),
       ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("removes an existing automatic offering when its trigger is deselected", async () => {
+    const base = catalogWithAutoRule();
+    mockCatalog.mockResolvedValue({
+      ...base,
+      items: base.items.map((item) =>
+        item.id === "7"
+          ? {
+              ...item,
+              automatic: true,
+              selected: true,
+              selected_days: ["mon", "tue"],
+            }
+          : item,
+      ),
+    });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const trigger = (await screen.findByText("Regelbetreuung")).closest(
+      "label",
+    );
+    fireEvent.click(trigger!.querySelector("input")!);
+
+    expect(
+      screen.getByRole("checkbox", { name: /Ganztagsbetreuung/ }),
+    ).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        offerings: [],
+        effective_from: "2026-08-14",
+        note: undefined,
+      }),
+    );
+  });
+
+  it("renders a newly auto-added offering as selected with locked days", async () => {
+    mockCatalog.mockResolvedValue(catalogWithAutoRule());
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const offering = await screen.findByRole("checkbox", {
+      name: /Ganztagsbetreuung/,
+    });
+    expect(offering).toBeChecked();
+    const card = offering.closest("label")?.parentElement;
+    expect(within(card!).getByRole("checkbox", { name: "Mo" })).toBeDisabled();
+    expect(within(card!).getByRole("checkbox", { name: "Di" })).toBeDisabled();
+  });
+
+  it("accepts parent-choice offerings whose only days are automatic", async () => {
+    const base = catalogWithAutoRule();
+    mockCatalog.mockResolvedValue({
+      ...base,
+      items: base.items.map((item) =>
+        item.id === "7" ? { ...item, selected: true } : item,
+      ),
+    });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anfrage senden" }),
+    );
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        offerings: [
+          { offering_id: "5", selected_days: ["mon", "tue"] },
+          { offering_id: "7", selected_days: [] },
+        ],
+        effective_from: "2026-08-14",
+        note: undefined,
+      }),
     );
   });
 

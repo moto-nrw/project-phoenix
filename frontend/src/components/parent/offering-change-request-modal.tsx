@@ -217,7 +217,7 @@ export function OfferingChangeRequestModal({
     const offeringDays: Record<string, string[]> = {};
     for (const item of items) {
       const row = draft[item.id];
-      if (!row?.selected) continue;
+      if (!row?.selected || item.automatic) continue;
       selectedIds.push(item.id);
       if (item.days_of_week_mode === "parent_choice") {
         offeringDays[item.id] = orderedDays(row.days);
@@ -256,17 +256,24 @@ export function OfferingChangeRequestModal({
     const offerings: OfferingChangeSelectionInput[] = [];
     for (const item of items) {
       const row = draft[item.id];
-      if (!row?.selected) continue;
-      const days = orderedDays(row.days);
+      if (!row?.selected || item.automatic) continue;
+      const manualDays = orderedDays(row.days);
+      const selectedDays = orderedDays(
+        new Set([...manualDays, ...(preview.automaticDays[item.id] ?? [])]),
+      );
       // A parent-choice offering without a day would be booked "all days" by the
       // backend's own convention, which is not what an empty checkbox row means.
-      if (item.days_of_week_mode === "parent_choice" && days.length === 0) {
+      if (
+        item.days_of_week_mode === "parent_choice" &&
+        selectedDays.length === 0
+      ) {
         setError(t("careOfferingsModal.noDaysSelected"));
         return;
       }
       offerings.push({
         offering_id: item.id,
-        selected_days: item.days_of_week_mode === "parent_choice" ? days : [],
+        selected_days:
+          item.days_of_week_mode === "parent_choice" ? manualDays : [],
       });
     }
     setSubmitting(true);
@@ -342,7 +349,7 @@ export function OfferingChangeRequestModal({
             <div className="space-y-3">
               {items.map((item) => {
                 const row = draft[item.id];
-                const selected = row?.selected ?? false;
+                const selected = preview.offeringIds.has(item.id);
                 const autoHint = autoHintFor(item);
                 const full =
                   item.free_slots !== undefined &&
