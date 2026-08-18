@@ -470,7 +470,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	}
 	if current != nil {
 		if current.ActiveGroupID != *inst.ActiveGroupID {
-			return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID, current.ActiveGroupID)
+			return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID)
 		}
 		if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
 			return nil, err
@@ -507,8 +507,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 // attendance mirroring, and SSE broadcasts for both the old and new visit.
 // Target authorization already happened in requireCanOperate, so the move's
 // own supervision check is bypassed.
-func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID, originActiveGroupID int64) (*OperationRoster, error) {
-	movedFrom := s.resolveActiveGroupLabel(ctx, originActiveGroupID)
+func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) (*OperationRoster, error) {
 	result, err := s.deps.ActiveService.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentID}, *inst.ActiveGroupID, activeSvc.StudentMoveAuthorization{
 		StaffID:              staffID,
 		BypassResourceChecks: true,
@@ -528,6 +527,10 @@ func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Con
 		return nil, err
 	}
 	if len(result.Moved) > 0 {
+		movedFrom := ""
+		if previousActiveGroupID := result.PreviousActiveGroupIDs[studentID]; previousActiveGroupID > 0 {
+			movedFrom = s.resolveActiveGroupLabel(ctx, previousActiveGroupID)
+		}
 		roster.MovedFrom = &movedFrom
 	}
 	return roster, nil

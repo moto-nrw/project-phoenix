@@ -195,8 +195,18 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		}
 	}
 	if s.GetPresenceMode(ctx) == "binary" {
+		_, currentVisits, err := s.loadMoveState(ctx, uniqueIDs, op)
+		if err != nil {
+			return nil, err
+		}
 		result := newStudentMoveResult(&targetGroup.ID, &targetGroup.RoomID)
-		result.Unchanged = append(result.Unchanged, uniqueIDs...)
+		for _, studentID := range uniqueIDs {
+			if currentVisits[studentID] != nil {
+				result.Skipped = append(result.Skipped, StudentMoveSkipped{StudentID: studentID, Reason: StudentMoveSkipConflict})
+				continue
+			}
+			result.Unchanged = append(result.Unchanged, studentID)
+		}
 		return result, nil
 	}
 
@@ -221,7 +231,9 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 			continue
 		}
 
+		var previousActiveGroupID int64
 		if currentVisit != nil {
+			previousActiveGroupID = currentVisit.ActiveGroupID
 			if err := s.EndVisit(ctx, currentVisit.ID); err != nil {
 				if !errors.Is(err, ErrVisitAlreadyEnded) && !errors.Is(err, ErrVisitNotFound) {
 					return nil, err
@@ -242,6 +254,9 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 			return nil, err
 		}
 		result.Moved = append(result.Moved, studentID)
+		if previousActiveGroupID > 0 {
+			result.PreviousActiveGroupIDs[studentID] = previousActiveGroupID
+		}
 	}
 
 	if len(result.Moved) > 0 {
@@ -377,11 +392,12 @@ func moveResultOnlySkippedNotPresent(result *StudentMoveResult) bool {
 
 func newStudentMoveResult(activeGroupID, roomID *int64) *StudentMoveResult {
 	return &StudentMoveResult{
-		Moved:         []int64{},
-		Unchanged:     []int64{},
-		Skipped:       []StudentMoveSkipped{},
-		ActiveGroupID: activeGroupID,
-		RoomID:        roomID,
+		Moved:                  []int64{},
+		Unchanged:              []int64{},
+		Skipped:                []StudentMoveSkipped{},
+		ActiveGroupID:          activeGroupID,
+		RoomID:                 roomID,
+		PreviousActiveGroupIDs: map[int64]int64{},
 	}
 }
 

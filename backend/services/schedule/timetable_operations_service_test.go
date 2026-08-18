@@ -845,6 +845,11 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		wireAssignedStaff(deps, 670, 490, 251, instanceID)
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 		deps.visitRepo.currentByStudent[studentID] = &activeModel.Visit{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()}
+		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
+			Moved:                  []int64{studentID},
+			PreviousActiveGroupIDs: map[int64]int64{studentID: originActiveGroupID},
+			ActiveGroupID:          &activeGroupID,
+		}
 		return deps
 	}
 
@@ -874,6 +879,21 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		require.Len(t, deps.studentRepo.updates, 1)
 		assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
 		assert.Equal(t, scheduleModel.AttendanceStatusPresent, *deps.studentRepo.updates[0].patch.Status)
+	})
+
+	t.Run("names the origin observed by the serialized move", func(t *testing.T) {
+		deps := newDeps()
+		const concurrentOriginActiveGroupID int64 = 292
+		origin := activeInstance(originInstanceID, concurrentOriginActiveGroupID)
+		origin.Title = "GT 2"
+		deps.instanceRepo.byID[originInstanceID] = origin
+		deps.activeService.moveResult.PreviousActiveGroupIDs[studentID] = concurrentOriginActiveGroupID
+
+		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+
+		require.NoError(t, err)
+		require.NotNil(t, roster.MovedFrom)
+		assert.Equal(t, "GT 2", *roster.MovedFrom)
 	})
 
 	t.Run("falls back to the activity group name when no instance owns the origin session", func(t *testing.T) {
@@ -922,6 +942,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 
 		require.ErrorIs(t, err, ErrTimetableOperationConflict)
 		assert.True(t, tenant.RollbackRequested(ctx))
+		assert.Empty(t, deps.studentRepo.updates)
 	})
 
 	t.Run("treats an unchanged result as same-group success without move notice", func(t *testing.T) {
