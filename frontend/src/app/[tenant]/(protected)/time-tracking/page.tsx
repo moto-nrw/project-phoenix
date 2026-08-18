@@ -88,7 +88,6 @@ import {
 import {
   DEVIATION_REASON_REQUIRED_CODE,
   PLANNED_START_NOT_REACHED_CODE,
-  REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
 import { userContextService } from "~/lib/usercontext-api";
@@ -1724,9 +1723,19 @@ function OwnZeiterfassungSection({
     [],
   );
 
-  const handleEdit = (date: Date) => {
+  // The table names the exact block to edit — a day can carry several
+  // (#2402), so re-deriving "the session of the day" from the date alone
+  // would open an arbitrary block. `tableSession` is the table's snake_case
+  // row; the edit modal needs the camelCase history entry, matched by id.
+  const handleEdit = (
+    date: Date,
+    tableSession: { id?: number } | null = null,
+  ) => {
     const dateKey = toISODate(date);
-    const session = tableHistory.find((h) => h.date === dateKey) ?? null;
+    const session =
+      tableSession?.id != null
+        ? (tableHistory.find((h) => h.id === String(tableSession.id)) ?? null)
+        : null;
     const absence =
       tableAbsences.find(
         (a) => a.dateStart <= dateKey && a.dateEnd >= dateKey,
@@ -1948,7 +1957,7 @@ function OwnZeiterfassungSection({
             }
             today={today}
             isAdminView={ownStaffId !== null}
-            onEditDay={(date) => handleEdit(date)}
+            onEditDay={(date, session) => handleEdit(date, session)}
             plannedShifts={tableShifts ?? []}
             fetchEdits={fetchOwnEdits}
           />
@@ -2003,9 +2012,13 @@ function WeekChart({
       d.setDate(d.getDate() - 1);
     }
 
-    const sessionMap = new Map<string, WorkSessionHistory>();
+    // A day can carry several work blocks (#2402) — sum them instead of
+    // letting the last block win.
+    const sessionMap = new Map<string, WorkSessionHistory[]>();
     for (const session of history) {
-      sessionMap.set(session.date, session);
+      const list = sessionMap.get(session.date);
+      if (list) list.push(session);
+      else sessionMap.set(session.date, [session]);
     }
 
     return allDays.map((day) => {
@@ -2020,15 +2033,15 @@ function WeekChart({
       }
 
       const dateKey = toISODate(day);
-      const session = sessionMap.get(dateKey);
+      const daySessions = sessionMap.get(dateKey) ?? [];
       const dayIndex = (day.getDay() + 6) % 7; // Mon=0..Sun=6
 
       let netMins = 0;
       let breakMins = 0;
 
-      if (session) {
+      for (const session of daySessions) {
         if (session.checkOutTime) {
-          netMins = session.netMinutes;
+          netMins += session.netMinutes;
         } else if (
           isSameDay(day, today) &&
           currentSession &&
@@ -2037,9 +2050,9 @@ function WeekChart({
           const elapsed = Math.floor(
             (Date.now() - new Date(session.checkInTime).getTime()) / 60000,
           );
-          netMins = Math.max(0, elapsed - session.breakMinutes);
+          netMins += Math.max(0, elapsed - session.breakMinutes);
         }
-        breakMins = session.breakMinutes;
+        breakMins += session.breakMinutes;
       }
 
       const dayShort = DAY_NAMES[dayIndex] ?? "";
@@ -3234,34 +3247,9 @@ function TimeTrackingContent() {
     () => setPendingCheckIn(null),
     [],
   );
-  const handleClosePendingManualEditCheckIn = useCallback(
-    () => setPendingManualEditCheckIn(null),
-    [],
-  );
-
   const [pendingCheckIn, setPendingCheckIn] = useState<SessionStatus | null>(
     null,
   );
-  const [pendingManualEditCheckIn, setPendingManualEditCheckIn] =
-    useState<SessionStatus | null>(null);
-
-  // Reopen-with-status-change confirmation. Set when the backend rejects a
-  // CheckIn with REOPEN_STATUS_CONFLICT_CODE because the requested status
-  // differs from today's existing (checked-out) session. The follow-up
-  // modal collects the audit reason and routes the change through
-  // UpdateSession instead of silently flipping status on reopen.
-  const [pendingReopenStatusChange, setPendingReopenStatusChange] = useState<{
-    sessionId: string;
-    existingStatus: SessionStatus;
-    requestedStatus: SessionStatus;
-  } | null>(null);
-  const [reopenStatusChangeReason, setReopenStatusChangeReason] = useState("");
-  const [reopenStatusChangeSubmitting, setReopenStatusChangeSubmitting] =
-    useState(false);
-  const handleClosePendingReopenStatusChange = useCallback(() => {
-    setPendingReopenStatusChange(null);
-    setReopenStatusChangeReason("");
-  }, []);
 
   // F9 deviation-reason prompt. Set when the backend rejects a stamp with
   // DEVIATION_REASON_REQUIRED_CODE because it falls outside the tolerance
@@ -3442,18 +3430,6 @@ function TimeTrackingContent() {
       return sum;
     }, 0);
 
-  // Check if today has a checked-out session that was manually edited.
-  // After checkout, currentSession is null (backend only returns active sessions),
-  // so we look in history for today's session and its editCount.
-  const hasTodayEditedSession = useMemo(
-    () =>
-      !currentSession &&
-      history.some(
-        (s) => s.date === todayISO && s.checkOutTime && s.editCount > 0,
-      ),
-    [currentSession, history, todayISO],
-  );
-
   const executeCheckIn = useCallback(
     async (status: SessionStatus) => {
       try {
@@ -3487,53 +3463,6 @@ function TimeTrackingContent() {
           });
           return;
         }
-        if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
-          // Audit-trail gate: silent status change on reopen is forbidden.
-          // Surface the prompt; the user supplies a reason and we route
-          // the change through UpdateSession (which emits a FieldStatus
-          // edit). See work_session_service.go ReopenStatusConflictError.
-          //
-          // The conflict's identifying fields come from the API response so
-          // this works regardless of which week the user is viewing — the
-          // historyData fetch is offset-based and won't contain today's
-          // session when weekOffset < 0.
-          const details = apiErr.details;
-          const sessionId =
-            typeof details?.session_id === "string"
-              ? details.session_id
-              : undefined;
-          const existingStatus =
-            typeof details?.existing_status === "string"
-              ? (details.existing_status as SessionStatus)
-              : undefined;
-          const requestedStatus =
-            typeof details?.requested_status === "string"
-              ? (details.requested_status as SessionStatus)
-              : status;
-
-          if (sessionId && existingStatus) {
-            setReopenStatusChangeReason("");
-            setPendingReopenStatusChange({
-              sessionId,
-              existingStatus,
-              requestedStatus,
-            });
-            return;
-          }
-          // Backend returned the conflict code without the details payload —
-          // older server, schema drift, or middleware stripping fields. Log
-          // loudly so this regression is visible in Grafana and fall back to
-          // a user-facing error instead of opening an unfilled modal.
-          logger.warn("reopen_conflict_missing_details", {
-            requested_status: status,
-            has_session_id: Boolean(sessionId),
-            has_existing_status: Boolean(existingStatus),
-          });
-          toast.error(
-            "Heute liegt bereits eine Sitzung vor. Bitte kurz warten und erneut versuchen.",
-          );
-          return;
-        }
         if (apiErr.code === PLANNED_START_NOT_REACHED_CODE) {
           const plannedStart =
             typeof apiErr.details?.planned_start_time === "string"
@@ -3555,92 +3484,15 @@ function TimeTrackingContent() {
     [mutateCurrentSession, mutateHistory, refreshTableData, toast],
   );
 
-  // Confirm path: reopen the session at its existing status, then route
-  // the status change through UpdateSession with the user's reason. Two
-  // round-trips, but each one carries a distinct audit meaning: reopen =
-  // resume work, update = change of work mode.
-  //
-  // Partial-state handling: if the reopen succeeds but UpdateSession fails,
-  // the session is now active again at the OLD status with no audit edit.
-  // That is a consistent state — old status, no edit — but the user's
-  // intent (status flip) wasn't applied. We refresh the data so the UI
-  // reflects reality, close the modal so the now-active session is visible,
-  // and surface a specific toast pointing the user at the "edit session"
-  // path for retrying just the status change. We deliberately do NOT
-  // attempt to roll back the reopen via checkOut, because that would
-  // introduce a second failure point and leave the audit trail with two
-  // unrelated state changes for one user action.
-  const confirmReopenStatusChange = useCallback(async () => {
-    const pending = pendingReopenStatusChange;
-    if (!pending) return;
-    const reason = reopenStatusChangeReason.trim();
-    if (!reason) return;
-
-    setReopenStatusChangeSubmitting(true);
-    let reopenSucceeded = false;
-    try {
-      await timeTrackingService.checkIn(pending.existingStatus);
-      reopenSucceeded = true;
-      await timeTrackingService.updateSession(pending.sessionId, {
-        status: pending.requestedStatus,
-        notes: reason,
-      });
-      await Promise.all([
-        mutateCurrentSession(),
-        mutateHistory(),
-        refreshTableData(),
-      ]);
-      toast.success("Status geändert");
-      setPendingReopenStatusChange(null);
-      setReopenStatusChangeReason("");
-    } catch (err) {
-      logger.error("reopen_status_change_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        reopen_succeeded: reopenSucceeded,
-        session_id: pending.sessionId,
-      });
-      if (reopenSucceeded) {
-        // Refresh so the UI shows the now-active session at the old status,
-        // then close the modal so the user can act on it via the edit flow.
-        await Promise.all([
-          mutateCurrentSession(),
-          mutateHistory(),
-          refreshTableData(),
-        ]);
-        toast.error(
-          "Sitzung wurde wiedereröffnet, aber der Statuswechsel ist fehlgeschlagen. Bitte den Status über „Sitzung bearbeiten“ ändern.",
-        );
-        setPendingReopenStatusChange(null);
-        setReopenStatusChangeReason("");
-      } else {
-        // Reopen itself failed — modal stays open so the user can retry.
-        toast.error(friendlyError(err, "Fehler beim Statuswechsel"));
-      }
-    } finally {
-      setReopenStatusChangeSubmitting(false);
-    }
-  }, [
-    pendingReopenStatusChange,
-    reopenStatusChangeReason,
-    mutateCurrentSession,
-    mutateHistory,
-    refreshTableData,
-    toast,
-  ]);
-
   const handleCheckIn = useCallback(
     async (status: SessionStatus) => {
-      if (hasTodayEditedSession) {
-        setPendingManualEditCheckIn(status);
-        return;
-      }
       if (todayAbsence) {
         setPendingCheckIn(status);
         return;
       }
       await executeCheckIn(status);
     },
-    [hasTodayEditedSession, todayAbsence, executeCheckIn],
+    [todayAbsence, executeCheckIn],
   );
 
   const handleCheckOut = useCallback(async () => {
@@ -3955,52 +3807,6 @@ function TimeTrackingContent() {
         onSave={handleCreateAbsence}
       />
 
-      {/* Check-in confirmation when session was manually edited */}
-      <Modal
-        isOpen={pendingManualEditCheckIn !== null}
-        onClose={handleClosePendingManualEditCheckIn}
-        title="Arbeitszeit manuell bearbeitet"
-        footer={
-          <ModalActions
-            onCancel={() => setPendingManualEditCheckIn(null)}
-            onConfirm={() => {
-              const status = pendingManualEditCheckIn;
-              setPendingManualEditCheckIn(null);
-              if (!status) return;
-              if (todayAbsence) {
-                setPendingCheckIn(status);
-              } else {
-                void executeCheckIn(status);
-              }
-            }}
-            confirmLabel="Trotzdem einstempeln"
-          />
-        }
-      >
-        <div className="py-4 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F78C10]/10">
-            <svg
-              className="h-6 w-6 text-[#8A5600]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
-              />
-            </svg>
-          </div>
-          <p className="mt-2 text-gray-600">
-            Du hast diese Arbeitszeit manuell bearbeitet. Beim erneuten
-            Einstempeln wird die Ausstempelzeit zurückgesetzt. Trotzdem
-            einstempeln?
-          </p>
-        </div>
-      </Modal>
-
       {/* Check-in confirmation when absence exists */}
       <Modal
         isOpen={pendingCheckIn !== null}
@@ -4041,65 +3847,6 @@ function TimeTrackingContent() {
               : ""}
             . Trotzdem einstempeln?
           </p>
-        </div>
-      </Modal>
-
-      {/* Reopen-with-status-change: collect a reason and route through
-          UpdateSession so the audit trail gets a FieldStatus edit. */}
-      <Modal
-        isOpen={pendingReopenStatusChange !== null}
-        onClose={handleClosePendingReopenStatusChange}
-        title="Status für heute ändern"
-        footer={
-          <ModalActions
-            onCancel={handleClosePendingReopenStatusChange}
-            cancelDisabled={reopenStatusChangeSubmitting}
-            onConfirm={confirmReopenStatusChange}
-            confirmDisabled={
-              reopenStatusChangeSubmitting ||
-              reopenStatusChangeReason.trim() === ""
-            }
-            confirmLabel={
-              pendingReopenStatusChange?.requestedStatus === "home_office"
-                ? "Auf Homeoffice ändern"
-                : "Auf Vor Ort ändern"
-            }
-          />
-        }
-      >
-        <div className="py-2">
-          <p className="text-sm text-gray-600">
-            Du hast heute bereits eine{" "}
-            <span className="font-medium text-gray-900">
-              {pendingReopenStatusChange?.existingStatus === "home_office"
-                ? "Homeoffice"
-                : "Vor-Ort"}
-              -Sitzung
-            </span>
-            . Möchtest du sie als{" "}
-            <span className="font-medium text-gray-900">
-              {pendingReopenStatusChange?.requestedStatus === "home_office"
-                ? "Homeoffice"
-                : "Vor Ort"}
-            </span>{" "}
-            fortsetzen? Bitte gib einen kurzen Grund an — er erscheint im
-            Audit-Trail.
-          </p>
-          <label
-            htmlFor="reopen-status-change-reason"
-            className="mt-4 block text-xs font-medium text-gray-700"
-          >
-            Grund
-          </label>
-          <Textarea
-            id="reopen-status-change-reason"
-            value={reopenStatusChangeReason}
-            onChange={(e) => setReopenStatusChangeReason(e.target.value)}
-            disabled={reopenStatusChangeSubmitting}
-            placeholder="z. B. Mittags ins Homeoffice gewechselt"
-            rows={3}
-            className="mt-1"
-          />
         </div>
       </Modal>
 

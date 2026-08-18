@@ -880,8 +880,12 @@ function buildWeeklyBalanceSeriesRange(
   to: Date,
 ): TrendPoint[] {
   const points: TrendPoint[] = [];
-  const sessionsByDate = new Map<string, StaffHistorySession>();
-  for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
+  // Summed per day — a day can carry several work blocks (#2402).
+  const istByDate = new Map<string, number>();
+  for (const s of sessions) {
+    const key = s.date.slice(0, 10);
+    istByDate.set(key, (istByDate.get(key) ?? 0) + s.net_minutes);
+  }
   const creditByDate = indexAbsenceCreditByDay(targets, absences);
   // Stundenkonto-Buchungen (#1420) als Stufen am Wirksamkeitstag — gespiegelt
   // zum Server (addAdjustments): der Saldo-Verlauf muss nach einer Auszahlung
@@ -912,7 +916,7 @@ function buildWeeklyBalanceSeriesRange(
     const clippedEnd = weekEnd > to ? to : weekEnd;
     const weekDelta = computeWeekDelta(
       targets,
-      sessionsByDate,
+      istByDate,
       creditByDate,
       adjustmentByDate,
       clippedStart,
@@ -929,7 +933,7 @@ function buildWeeklyBalanceSeriesRange(
 
 function computeWeekDelta(
   targets: TargetsByDay,
-  sessionsByDate: Map<string, StaffHistorySession>,
+  istByDate: ReadonlyMap<string, number>,
   creditByDate: ReadonlyMap<string, number>,
   adjustmentByDate: ReadonlyMap<string, number>,
   weekStart: Date,
@@ -945,9 +949,9 @@ function computeWeekDelta(
     day.setDate(day.getDate() + i);
     const key = toDateKey(day);
     soll += targets.get(key) ?? 0;
-    const session = sessionsByDate.get(key);
-    if (session) {
-      ist += session.net_minutes;
+    const dayIst = istByDate.get(key);
+    if (dayIst !== undefined) {
+      ist += dayIst;
     } else {
       ist += creditByDate.get(key) ?? 0;
     }
@@ -986,8 +990,12 @@ function buildDailyIstSollSeriesRange(
   from: Date,
   to: Date,
 ): DailyTrendPoint[] {
-  const sessionsByDate = new Map<string, StaffHistorySession>();
-  for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
+  // Summed per day — a day can carry several work blocks (#2402).
+  const istByDate = new Map<string, number>();
+  for (const s of sessions) {
+    const key = s.date.slice(0, 10);
+    istByDate.set(key, (istByDate.get(key) ?? 0) + s.net_minutes);
+  }
   const creditByDate = indexAbsenceCreditByDay(targets, absences);
 
   const result: DailyTrendPoint[] = [];
@@ -1003,10 +1011,10 @@ function buildDailyIstSollSeriesRange(
     if (dow < 5) {
       const key = toDateKey(day);
       const soll = targets.get(key) ?? 0;
-      const session = sessionsByDate.get(key);
+      const dayIst = istByDate.get(key);
       let ist = 0;
-      if (session) {
-        ist = session.net_minutes;
+      if (dayIst !== undefined) {
+        ist = dayIst;
       } else {
         ist = creditByDate.get(key) ?? 0;
       }

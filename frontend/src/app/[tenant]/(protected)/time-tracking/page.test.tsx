@@ -143,7 +143,11 @@ vi.mock("~/components/staff/staff-session-table", () => ({
       half_day?: boolean;
     }>;
     absencesUnresolved?: boolean;
-    onEditDay?: (date: Date) => void;
+    onEditDay?: (
+      date: Date,
+      session: { id?: number } | null,
+      absence: unknown,
+    ) => void;
   }) => {
     const session = sessions[0];
     const absence = absences[0];
@@ -152,7 +156,10 @@ vi.mock("~/components/staff/staff-session-table", () => ({
     );
     const absenceLabel =
       absence?.absence_type === "vacation" ? "Urlaub" : "Krank";
-    const triggerEdit = () => onEditDay?.(editDate);
+    // Mirrors the real table since #2402: the pencil names the exact block to
+    // edit instead of letting the page re-derive it from the date.
+    const triggerEdit = () =>
+      onEditDay?.(editDate, session ?? null, absence ?? null);
     const triggerHistory = () => {
       if (session?.id != null) {
         void mockTimeTrackingService.getSessionEdits(String(session.id));
@@ -1429,44 +1436,7 @@ describe("TimeTrackingPage", () => {
   // (code: "reopen_status_conflict"), prompt for an audit reason, then
   // route the change through CheckIn(existingStatus) + UpdateSession.
 
-  describe("reopen-with-status-change", () => {
-    // makeReopenConflictError builds the typed 409 the backend returns from
-    // CheckIn when the requested status differs from today's existing
-    // (checked-out) session's status. The structured `details` payload comes
-    // straight from ErrorConflictWithDetails on the backend (see
-    // api/time-tracking/errors.go) and is what drives the modal — the
-    // frontend no longer reads today's session out of historyData, because
-    // history is fetched per-week and won't include today when the user is
-    // viewing a past week.
-    function makeReopenConflictError(
-      overrides?: Partial<{
-        sessionId: string;
-        existingStatus: string;
-        requestedStatus: string;
-        omitDetails: boolean;
-      }>,
-    ): Error & {
-      code?: string;
-      status?: number;
-      details?: Record<string, unknown>;
-    } {
-      const err = new Error("reopen status conflict") as Error & {
-        code?: string;
-        status?: number;
-        details?: Record<string, unknown>;
-      };
-      err.code = "reopen_status_conflict";
-      err.status = 409;
-      if (!overrides?.omitDetails) {
-        err.details = {
-          session_id: overrides?.sessionId ?? mockHistorySession.id,
-          existing_status: overrides?.existingStatus ?? "present",
-          requested_status: overrides?.requestedStatus ?? "home_office",
-        };
-      }
-      return err;
-    }
-
+  describe("erneutes Einstempeln nach Checkout (#2402)", () => {
     function makePlannedStartError(): Error & {
       code?: string;
       status?: number;
@@ -1485,30 +1455,6 @@ describe("TimeTrackingPage", () => {
       };
       return err;
     }
-
-    it("opens the status-change modal on reopen_status_conflict", async () => {
-      // Today: existing checked-out 'present' session in history.
-      setupDefaultMocks({ history: [mockHistorySession] });
-      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
-        makeReopenConflictError(),
-      );
-      render(<TimeTrackingPage />);
-
-      // User picks Homeoffice — different from the existing 'present'.
-      fireEvent.click(screen.getByText("Homeoffice"));
-
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
-      });
-
-      // Confirm button is disabled until the user enters a reason.
-      const confirmBtn = screen.getByText("Auf Homeoffice ändern");
-      expect(confirmBtn).toBeDisabled();
-    });
 
     it("shows planned-start message when check-in is too early", async () => {
       const mockToast = {
@@ -1538,83 +1484,9 @@ describe("TimeTrackingPage", () => {
       });
     });
 
-    it("confirm calls checkIn(existingStatus) then updateSession with reason", async () => {
-      setupDefaultMocks({ history: [mockHistorySession] });
-      // First CheckIn (Homeoffice) → conflict. Second CheckIn (the reopen
-      // with the existing 'present' status) → succeeds.
-      vi.mocked(timeTrackingService.checkIn)
-        .mockRejectedValueOnce(makeReopenConflictError())
-        .mockResolvedValueOnce(mockActiveSession);
-      vi.mocked(timeTrackingService.updateSession).mockResolvedValue({
-        ...mockActiveSession,
-        status: "home_office",
-      });
-      render(<TimeTrackingPage />);
-
-      fireEvent.click(screen.getByText("Homeoffice"));
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
-      });
-
-      // Enter the audit reason.
-      const textarea = screen.getByLabelText("Grund");
-      fireEvent.change(textarea, {
-        target: { value: "Mittags ins Homeoffice gewechselt" },
-      });
-
-      const confirmBtn = screen.getByText("Auf Homeoffice ändern");
-      expect(confirmBtn).not.toBeDisabled();
-
-      await act(async () => {
-        fireEvent.click(confirmBtn);
-      });
-
-      await waitFor(() => {
-        // Reopen at the EXISTING status, not the requested one.
-        expect(timeTrackingService.checkIn).toHaveBeenLastCalledWith("present");
-        // Status change carries the reason as notes.
-        expect(timeTrackingService.updateSession).toHaveBeenCalledWith(
-          mockHistorySession.id,
-          { status: "home_office", notes: "Mittags ins Homeoffice gewechselt" },
-        );
-      });
-    });
-
-    it("cancel closes the modal without calling checkIn or updateSession again", async () => {
-      setupDefaultMocks({ history: [mockHistorySession] });
-      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
-        makeReopenConflictError(),
-      );
-      render(<TimeTrackingPage />);
-
-      fireEvent.click(screen.getByText("Homeoffice"));
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
-      });
-
-      // CheckIn was called once (the failed initial call). Reset history so
-      // the assertion below can prove no further calls happen on cancel.
-      vi.mocked(timeTrackingService.checkIn).mockClear();
-
-      await act(async () => {
-        fireEvent.click(screen.getByText("Abbrechen"));
-      });
-
-      expect(timeTrackingService.checkIn).not.toHaveBeenCalled();
-      expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
-    });
-
-    it("same-status reopen does not surface the modal", async () => {
-      // Existing 'present' session, user picks Vor Ort again — a normal
-      // recovery reopen. CheckIn succeeds; no conflict, no modal.
+    it("checking in again with the same status stamps a new block without a modal", async () => {
+      // Existing checked-out 'present' block today; picking Vor Ort again
+      // starts a second block — one stamp, no dialog (#2402).
       setupDefaultMocks({ history: [mockHistorySession] });
       vi.mocked(timeTrackingService.checkIn).mockResolvedValueOnce(
         mockActiveSession,
@@ -1634,32 +1506,15 @@ describe("TimeTrackingPage", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("partial-state failure: reopen succeeds but updateSession fails — modal closes with explicit toast", async () => {
-      // Issue #1368: the two-step confirm flow can leave the session
-      // reopened at the OLD status if UpdateSession fails. The UI must:
-      //   (a) refresh data so the now-active session is visible,
-      //   (b) close the modal (don't trap the user in the reason prompt),
-      //   (c) surface a toast that names the partial state and points at
-      //       "Sitzung bearbeiten" as the recovery path.
+    it("checking in again with a DIFFERENT status stamps directly — no conflict flow, no updateSession", async () => {
+      // The Swantje case: Homeoffice morning already checked out, the
+      // afternoon block starts in der OGS. Since #2402 the backend simply
+      // creates a new block with the requested status, so the page stamps
+      // once and never routes through UpdateSession.
       setupDefaultMocks({ history: [mockHistorySession] });
-      // Step 1: initial CheckIn(home_office) → typed conflict.
-      // Step 2: CheckIn(present) (the reopen at existing status) → succeeds.
-      // Step 3: UpdateSession → fails. This is the partial-state branch.
-      vi.mocked(timeTrackingService.checkIn)
-        .mockRejectedValueOnce(makeReopenConflictError())
-        .mockResolvedValueOnce(mockActiveSession);
-      vi.mocked(timeTrackingService.updateSession).mockRejectedValue(
-        new Error("network down"),
+      vi.mocked(timeTrackingService.checkIn).mockResolvedValueOnce(
+        mockActiveSession,
       );
-      const errorToast = vi.fn();
-      vi.mocked(useToast).mockReturnValue({
-        success: vi.fn(),
-        error: errorToast,
-        info: vi.fn(),
-        warning: vi.fn(),
-        remove: vi.fn(),
-      });
-
       render(<TimeTrackingPage />);
 
       fireEvent.click(screen.getByText("Homeoffice"));
@@ -1668,138 +1523,15 @@ describe("TimeTrackingPage", () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
+        expect(timeTrackingService.checkIn).toHaveBeenCalledWith("home_office");
       });
-
-      fireEvent.change(screen.getByLabelText("Grund"), {
-        target: { value: "Mittags ins Homeoffice gewechselt" },
-      });
-
-      await act(async () => {
-        fireEvent.click(screen.getByText("Auf Homeoffice ändern"));
-      });
-
-      // Modal closed so the user can see the now-active session and act.
-      await waitFor(() => {
-        expect(
-          screen.queryByText("Status für heute ändern"),
-        ).not.toBeInTheDocument();
-      });
-
-      // Toast names the partial state and points at the recovery path.
-      expect(errorToast).toHaveBeenCalledTimes(1);
-      const toastMsg = errorToast.mock.calls[0]?.[0] as string;
-      expect(toastMsg).toMatch(/wiedereröffnet/);
-      expect(toastMsg).toMatch(/Sitzung bearbeiten/);
-    });
-
-    it("reopen itself fails: modal stays open so the user can retry", async () => {
-      // Distinct from the partial-state branch above. If the reopen call
-      // never succeeded, no state changed on the server; the modal must
-      // stay open so the user can retry without re-entering the reason.
-      setupDefaultMocks({ history: [mockHistorySession] });
-      vi.mocked(timeTrackingService.checkIn)
-        .mockRejectedValueOnce(makeReopenConflictError())
-        .mockRejectedValueOnce(new Error("network down"));
-
-      render(<TimeTrackingPage />);
-
-      fireEvent.click(screen.getByText("Homeoffice"));
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
-      });
-
-      fireEvent.change(screen.getByLabelText("Grund"), {
-        target: { value: "Mittags ins Homeoffice gewechselt" },
-      });
-
-      await act(async () => {
-        fireEvent.click(screen.getByText("Auf Homeoffice ändern"));
-      });
-
-      // Reopen failed → no UpdateSession attempt and modal stays open.
+      expect(timeTrackingService.checkIn).toHaveBeenCalledTimes(1);
       expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
-      expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
-    });
-
-    it("reopen conflict without details payload: warns and shows toast instead of modal", async () => {
-      // Defensive branch: the typed code arrives but the structured details
-      // payload is missing (older server, middleware stripping fields, schema
-      // drift). Without session_id + existing_status we cannot drive the
-      // reason modal, so the UI must surface a user-visible toast — not
-      // swallow the conflict behind a generic error.
-      setupDefaultMocks({ history: [] });
-      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
-        makeReopenConflictError({ omitDetails: true }),
-      );
-      const errorToast = vi.fn();
-      vi.mocked(useToast).mockReturnValue({
-        success: vi.fn(),
-        error: errorToast,
-        info: vi.fn(),
-        warning: vi.fn(),
-        remove: vi.fn(),
-      });
-
-      render(<TimeTrackingPage />);
-
-      fireEvent.click(screen.getByText("Homeoffice"));
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(errorToast).toHaveBeenCalledTimes(1);
-      });
-      const msg = errorToast.mock.calls[0]?.[0] as string;
-      expect(msg).toMatch(/bereits eine Sitzung/);
       expect(
         screen.queryByText("Status für heute ändern"),
       ).not.toBeInTheDocument();
     });
-
-    it("home_office → present: modal text and confirm button reflect the inverse direction", async () => {
-      // Inverse of the other tests: today's existing session is home_office,
-      // user picks Vor Ort. Exercises the false branches of the
-      // existingStatus / requestedStatus ternaries in the modal copy.
-      const homeOfficeHistory: WorkSessionHistory = {
-        ...mockHistorySession,
-        status: "home_office",
-      };
-      setupDefaultMocks({ history: [homeOfficeHistory] });
-      vi.mocked(timeTrackingService.checkIn).mockRejectedValueOnce(
-        makeReopenConflictError({
-          existingStatus: "home_office",
-          requestedStatus: "present",
-        }),
-      );
-
-      render(<TimeTrackingPage />);
-
-      selectPresentMode();
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Status für heute ändern")).toBeInTheDocument();
-      });
-
-      // Confirm button label flips when target is "present".
-      expect(screen.getByText("Auf Vor Ort ändern")).toBeInTheDocument();
-      // Modal copy names the existing Homeoffice session and the requested
-      // Vor Ort target.
-      const body = screen.getByTestId("modal-body");
-      expect(body.textContent).toMatch(/Homeoffice-Sitzung/);
-      expect(body.textContent).toMatch(/Vor Ort/);
-    });
   });
-
-  // ── Edit Modal ──────────────────────────────────────────────────────────
 
   describe("EditSessionModal", () => {
     it("opens edit modal when edit button clicked on a session row", async () => {
@@ -4577,47 +4309,21 @@ describe("TimeTrackingPage", () => {
 
   // ── Check-in with manually edited session (confirmation modal) ──────────
 
-  describe("check-in with manually edited session", () => {
-    const todayEditedHistory: WorkSessionHistory = {
-      ...mockHistorySession,
-      date: todayISO,
-      checkInTime: testTimestamp(todayISO, "08:00"),
-      checkOutTime: testTimestamp(todayISO, "16:30"),
-      editCount: 1,
-    };
-
-    it("shows confirmation modal when checking in after manual edit", async () => {
-      setupDefaultMocks({
-        currentSession: null,
-        history: [todayEditedHistory],
-      });
-      render(<TimeTrackingPage />);
-
-      selectPresentMode(); // Issue #1368: no pre-selection — must pick first.
-
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(
-          screen.getByText("Arbeitszeit manuell bearbeitet"),
-        ).toBeInTheDocument();
-        expect(screen.getByText("Trotzdem einstempeln")).toBeInTheDocument();
-      });
-    });
-
-    it("does not show modal when session has no edits", async () => {
-      const uneditedHistory: WorkSessionHistory = {
+  describe("check-in after a manually edited session (#2402)", () => {
+    it("stamps a new block directly — the edited block stays untouched", async () => {
+      // Pre-#2402 a re-check-in reopened (and thereby altered) the edited
+      // session, so a confirmation modal warned first. A new block never
+      // touches the edited one, so the stamp goes through directly.
+      const todayEditedHistory: WorkSessionHistory = {
         ...mockHistorySession,
         date: todayISO,
         checkInTime: testTimestamp(todayISO, "08:00"),
         checkOutTime: testTimestamp(todayISO, "16:30"),
-        editCount: 0,
+        editCount: 1,
       };
       setupDefaultMocks({
         currentSession: null,
-        history: [uneditedHistory],
+        history: [todayEditedHistory],
       });
       vi.mocked(timeTrackingService.checkIn).mockResolvedValue(
         mockActiveSession,
@@ -4637,116 +4343,9 @@ describe("TimeTrackingPage", () => {
         screen.queryByText("Arbeitszeit manuell bearbeitet"),
       ).not.toBeInTheDocument();
     });
-
-    it("cancels check-in when Abbrechen clicked", async () => {
-      setupDefaultMocks({
-        currentSession: null,
-        history: [todayEditedHistory],
-      });
-      render(<TimeTrackingPage />);
-
-      selectPresentMode(); // Issue #1368: no pre-selection — must pick first.
-
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(
-          screen.getByText("Arbeitszeit manuell bearbeitet"),
-        ).toBeInTheDocument();
-      });
-
-      const cancelButtons = screen.getAllByText("Abbrechen");
-      fireEvent.click(cancelButtons[cancelButtons.length - 1]!);
-
-      await waitFor(() => {
-        expect(timeTrackingService.checkIn).not.toHaveBeenCalled();
-      });
-    });
-
-    it("proceeds with check-in when confirmed", async () => {
-      setupDefaultMocks({
-        currentSession: null,
-        history: [todayEditedHistory],
-      });
-      vi.mocked(timeTrackingService.checkIn).mockResolvedValue(
-        mockActiveSession,
-      );
-      render(<TimeTrackingPage />);
-
-      selectPresentMode(); // Issue #1368: no pre-selection — must pick first.
-
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Trotzdem einstempeln")).toBeInTheDocument();
-      });
-
-      await act(async () => {
-        fireEvent.click(screen.getByText("Trotzdem einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(timeTrackingService.checkIn).toHaveBeenCalledWith("present");
-      });
-    });
-
-    it("chains to absence modal when both edited session and absence exist", async () => {
-      setupDefaultMocks({
-        currentSession: null,
-        history: [todayEditedHistory],
-        absences: [mockAbsence],
-      });
-      render(<TimeTrackingPage />);
-
-      selectPresentMode(); // Issue #1368: no pre-selection — must pick first.
-
-      // Step 1: Click check-in → manual edit warning appears first
-      await act(async () => {
-        fireEvent.click(screen.getByLabelText("Einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(
-          screen.getByText("Arbeitszeit manuell bearbeitet"),
-        ).toBeInTheDocument();
-      });
-
-      // Step 2: Confirm manual edit warning → absence modal appears
-      await act(async () => {
-        fireEvent.click(screen.getByText("Trotzdem einstempeln"));
-      });
-
-      await waitFor(() => {
-        expect(screen.getByText("Abwesenheit eingetragen")).toBeInTheDocument();
-      });
-
-      // Check-in should NOT have been called yet
-      expect(timeTrackingService.checkIn).not.toHaveBeenCalled();
-    });
-
-    it("does not show modal when session is still active", async () => {
-      // Active session (no checkOutTime) with edits — should not trigger warning
-      // because currentSession is set, hasTodayEditedSession requires !currentSession
-      setupDefaultMocks({
-        currentSession: mockActiveSession,
-        history: [{ ...todayEditedHistory, checkOutTime: null }],
-      });
-      render(<TimeTrackingPage />);
-
-      // Should not show check-in button at all when session is active
-      expect(screen.queryByLabelText("Einstempeln")).not.toBeInTheDocument();
-    });
   });
 });
 
-// F9: the backend rejects stamps outside the tolerance window around the
-// planned shift window with code "deviation_reason_required". The page must
-// prompt for a reason and retry the SAME stamp with the reason attached
-// (see api/time-tracking/errors.go and work_session_service.go).
 describe("deviation-reason gate (F9)", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -152,12 +152,22 @@ export function StaffSessionTable({
     sessionId: string,
   ) => Promise<WorkSessionEdit[]>;
 }) {
+  // A day can carry several work blocks since #2402 (Homeoffice-Vormittag,
+  // OGS-Nachmittag), so the lookup keeps a LIST per day in check-in order.
   const sessionsByDate = useMemo(() => {
-    const map = new Map<string, StaffHistorySession>();
+    const map = new Map<string, StaffHistorySession[]>();
     for (const session of sessions) {
       // Normalise to YYYY-MM-DD; sessions can come back as either bare dates
       // or ISO timestamps depending on the backend serializer.
-      map.set(session.date.slice(0, 10), session);
+      const key = session.date.slice(0, 10);
+      const list = map.get(key);
+      if (list) list.push(session);
+      else map.set(key, [session]);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) =>
+        (a.check_in_time ?? "").localeCompare(b.check_in_time ?? ""),
+      );
     }
     return map;
   }, [sessions]);
@@ -348,7 +358,14 @@ export function StaffSessionTable({
               {days.map((day) => {
                 const key = toDateKey(day);
                 const dow = toIsoDayOfWeek(day);
-                const session = sessionsByDate.get(key);
+                const daySessions = sessionsByDate.get(key) ?? [];
+                // Single-block days keep their familiar row; multi-block days
+                // (#2402) aggregate on the day row and list each block in a
+                // sub-row underneath.
+                const session = daySessions[0];
+                const hasMultipleBlocks = daySessions.length > 1;
+                const openSession = daySessions.find((s) => !s.check_out_time);
+                const lastSession = daySessions[daySessions.length - 1];
                 const absence = absencesByDate.get(key);
                 const holidayName = holidays?.get(key);
                 const closingReason = closingDays?.get(key);
@@ -361,7 +378,14 @@ export function StaffSessionTable({
                   resolveDayTarget(day);
                 const isFuture = day > today;
                 const isToday = sameDay(day, today);
-                const ist = session?.net_minutes ?? 0;
+                const ist = daySessions.reduce(
+                  (sum, s) => sum + (s.net_minutes ?? 0),
+                  0,
+                );
+                const pause = daySessions.reduce(
+                  (sum, s) => sum + (s.break_minutes ?? 0),
+                  0,
+                );
                 // Saldo eines Tages ist Ist minus Soll — auch bei Soll 0 auf
                 // einem geplanten freien Tag (#1967). Vor einem untermonatigen
                 // Stundenkonto-Start zählt die Monatskarte allerdings weder
@@ -378,7 +402,7 @@ export function StaffSessionTable({
                   targetUnresolved || (target === 0 && accountStartDatePending);
                 const delta = session ? ist - target : 0;
                 const status = computeRowStatus(
-                  session,
+                  daySessions,
                   absence,
                   key,
                   holidayName,
@@ -387,7 +411,9 @@ export function StaffSessionTable({
                   isFuture,
                 );
                 const isExpanded = expandedKey === key;
-                const hasAuditHistory = (session?.audit_count ?? 0) > 0;
+                const hasAuditHistory = daySessions.some(
+                  (s) => (s.audit_count ?? 0) > 0,
+                );
                 // Only rows with audit history are interactive — clicking an
                 // unchanged row should not toggle anything since there is
                 // nothing to reveal.
@@ -482,19 +508,19 @@ export function StaffSessionTable({
                           : "–"}
                       </td>
                       <td className="px-4 py-3 text-gray-700 tabular-nums">
-                        {session?.check_out_time ? (
-                          formatTimeOnly(session.check_out_time)
-                        ) : session ? (
+                        {openSession ? (
                           <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
                             <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
                             eingestempelt
                           </span>
+                        ) : lastSession?.check_out_time ? (
+                          formatTimeOnly(lastSession.check_out_time)
                         ) : (
                           "–"
                         )}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
-                        {session ? formatDuration(session.break_minutes) : "–"}
+                        {session ? formatDuration(pause) : "–"}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
                         {targetUnresolved ? (
@@ -532,12 +558,12 @@ export function StaffSessionTable({
                         {status && <RowStatusBadge status={status} />}
                       </td>
                       <td className="px-4 py-3">
-                        <SourceBadge session={session} />
+                        <SourceBadges sessions={daySessions} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <HintBadges
-                            session={session}
+                            sessions={daySessions}
                             holidayName={holidayName}
                           />
                           {canEdit && (
@@ -547,30 +573,42 @@ export function StaffSessionTable({
                               size="icon"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                // On a multi-block day the pencil adds a
+                                // further block; each existing block has its
+                                // own pencil in its sub-row.
+                                const targetSession = hasMultipleBlocks
+                                  ? null
+                                  : (session ?? null);
                                 if (onEditDay) {
                                   onEditDay(
                                     day,
-                                    session ?? null,
+                                    targetSession,
                                     absence ?? null,
                                   );
                                 } else {
                                   setEditModal({
                                     mode:
-                                      session == null ? "nachtragen" : "edit",
+                                      targetSession == null
+                                        ? "nachtragen"
+                                        : "edit",
                                     date: day,
-                                    session: session ?? null,
+                                    session: targetSession,
                                   });
                                 }
                               }}
                               aria-label={
                                 session == null
                                   ? "Eintrag nachtragen"
-                                  : "Eintrag bearbeiten"
+                                  : hasMultipleBlocks
+                                    ? "Block nachtragen"
+                                    : "Eintrag bearbeiten"
                               }
                               title={
                                 session == null
                                   ? "Eintrag nachtragen"
-                                  : "Eintrag bearbeiten"
+                                  : hasMultipleBlocks
+                                    ? "Block nachtragen"
+                                    : "Eintrag bearbeiten"
                               }
                               className="h-7 w-7 shrink-0 text-gray-400 hover:text-gray-700"
                             >
@@ -580,32 +618,134 @@ export function StaffSessionTable({
                         </div>
                       </td>
                     </tr>
-                    {isExpanded && session && (
-                      <tr className="border-b border-gray-100 bg-gray-50/50">
-                        <td colSpan={columnCount} className="px-4 py-3">
-                          <SessionEditHistory
-                            staffId={staffId}
-                            sessionId={session.id}
-                            fetchEdits={fetchEdits}
-                            onEdit={
-                              isAdminView
-                                ? () => {
+                    {hasMultipleBlocks &&
+                      daySessions.map((block, blockIndex) => (
+                        <tr
+                          key={`${key}-block-${block.id ?? blockIndex}`}
+                          className="bg-gray-50/40 text-xs"
+                        >
+                          <td className="py-2 pr-4 pl-9 text-gray-400">
+                            Block {blockIndex + 1}
+                          </td>
+                          <td className="px-4 py-2" />
+                          {showPlan && <td className="px-4 py-2" />}
+                          <td className="px-4 py-2 text-gray-600 tabular-nums">
+                            {block.check_in_time
+                              ? formatTimeOnly(block.check_in_time)
+                              : "–"}
+                          </td>
+                          <td className="px-4 py-2 text-gray-600 tabular-nums">
+                            {block.check_out_time ? (
+                              formatTimeOnly(block.check_out_time)
+                            ) : (
+                              <span className="text-moto-green-strong font-medium">
+                                eingestempelt
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right text-gray-500 tabular-nums">
+                            {formatDuration(block.break_minutes ?? 0)}
+                          </td>
+                          <td className="px-4 py-2" />
+                          <td className="px-4 py-2 text-right text-gray-600 tabular-nums">
+                            {formatDuration(block.net_minutes ?? 0)}
+                          </td>
+                          <td className="px-4 py-2" />
+                          <td className="px-4 py-2">
+                            <RowStatusBadge
+                              status={
+                                block.status === "home_office"
+                                  ? { kind: "home-office" }
+                                  : { kind: "present" }
+                              }
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <SourceBadges sessions={[block]} />
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <HintBadges
+                                sessions={[block]}
+                                holidayName={undefined}
+                              />
+                              {canEdit && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     if (onEditDay) {
-                                      onEditDay(day, session, absence ?? null);
+                                      onEditDay(day, block, absence ?? null);
                                     } else {
                                       setEditModal({
                                         mode: "edit",
                                         date: day,
-                                        session,
+                                        session: block,
                                       });
                                     }
-                                  }
-                                : undefined
-                            }
-                          />
-                        </td>
-                      </tr>
-                    )}
+                                  }}
+                                  aria-label={`Block ${blockIndex + 1} bearbeiten`}
+                                  title={`Block ${blockIndex + 1} bearbeiten`}
+                                  className="h-6 w-6 shrink-0 text-gray-400 hover:text-gray-700"
+                                >
+                                  <SquarePen className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    {isExpanded &&
+                      daySessions
+                        .filter((block) => (block.audit_count ?? 0) > 0)
+                        .map((block, blockIndex) => (
+                          <tr
+                            key={`${key}-audit-${block.id ?? blockIndex}`}
+                            className="border-b border-gray-100 bg-gray-50/50"
+                          >
+                            <td colSpan={columnCount} className="px-4 py-3">
+                              {hasMultipleBlocks && (
+                                <p className="mb-1 text-xs font-medium text-gray-500">
+                                  {`Block ${daySessions.indexOf(block) + 1}${
+                                    block.check_in_time
+                                      ? ` · ${formatTimeOnly(block.check_in_time)}${
+                                          block.check_out_time
+                                            ? `–${formatTimeOnly(block.check_out_time)}`
+                                            : ""
+                                        }`
+                                      : ""
+                                  }`}
+                                </p>
+                              )}
+                              <SessionEditHistory
+                                staffId={staffId}
+                                sessionId={block.id}
+                                fetchEdits={fetchEdits}
+                                onEdit={
+                                  isAdminView
+                                    ? () => {
+                                        if (onEditDay) {
+                                          onEditDay(
+                                            day,
+                                            block,
+                                            absence ?? null,
+                                          );
+                                        } else {
+                                          setEditModal({
+                                            mode: "edit",
+                                            date: day,
+                                            session: block,
+                                          });
+                                        }
+                                      }
+                                    : undefined
+                                }
+                              />
+                            </td>
+                          </tr>
+                        ))}
                   </Fragment>
                 );
               })}
@@ -697,6 +837,9 @@ function SessionEditHistory({
 type RowStatus =
   | { kind: "present" }
   | { kind: "home-office" }
+  // Multi-block day (#2402) whose blocks carry BOTH work modes — the row
+  // shows both pills, because collapsing to one would hide the other mode.
+  | { kind: "mixed" }
   | { kind: "absence"; absenceType: string; halfDay: boolean }
   | { kind: "holiday"; name: string }
   | { kind: "closing"; reason: string }
@@ -734,7 +877,7 @@ function PlannedShiftCell({
 }
 
 function computeRowStatus(
-  session: StaffHistorySession | undefined,
+  sessions: readonly StaffHistorySession[],
   absence: StaffAbsenceRow | undefined,
   dateKey: string,
   holidayName: string | undefined,
@@ -742,8 +885,13 @@ function computeRowStatus(
   target: number,
   isFuture: boolean,
 ): RowStatus | null {
-  if (session) {
-    if (session.status === "home_office") {
+  if (sessions.length > 0) {
+    const hasHomeOffice = sessions.some((s) => s.status === "home_office");
+    const hasPresent = sessions.some((s) => s.status !== "home_office");
+    if (hasHomeOffice && hasPresent) {
+      return { kind: "mixed" };
+    }
+    if (hasHomeOffice) {
       return { kind: "home-office" };
     }
     return { kind: "present" };
@@ -798,6 +946,17 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "present") {
     return <StatusBadge label="OGS" tone="green" />;
   }
+  if (status.kind === "mixed") {
+    return (
+      <div className="flex flex-wrap gap-1">
+        <StatusBadge label="OGS" tone="green" />
+        <StatusDotBadge
+          label="Homeoffice"
+          color={MOTO_COLOR_PALETTE.timeTracking.base}
+        />
+      </div>
+    );
+  }
   if (status.kind === "holiday") {
     return <StatusBadge label="Feiertag" tone="orange" title={status.name} />;
   }
@@ -817,39 +976,49 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   return <StatusBadge label="Nicht erfasst" tone="gray" />;
 }
 
-// Quelle-Badge ist der reine Origin der Session: über welchen Kanal sie
-// entstanden ist (mutually exclusive). Korrekturen und Auto-Checkouts sind
-// orthogonal und landen in der Hinweis-Spalte (HintBadges), damit z.B. eine
-// NFC-Session mit nachträglicher Korrektur weiterhin als "NFC" erkennbar bleibt.
-function SourceBadge({
-  session,
+// Quelle-Badges sind der reine Origin der Blöcke: über welchen Kanal sie
+// entstanden sind. Korrekturen und Auto-Checkouts sind orthogonal und landen
+// in der Hinweis-Spalte (HintBadges), damit z.B. eine NFC-Session mit
+// nachträglicher Korrektur weiterhin als "NFC" erkennbar bleibt. Ein Tag mit
+// mehreren Blöcken (#2402) zeigt jede vorkommende Quelle genau einmal.
+function SourceBadges({
+  sessions,
 }: {
-  readonly session: StaffHistorySession | undefined;
+  readonly sessions: readonly StaffHistorySession[];
 }) {
-  if (!session) {
+  if (sessions.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
   }
-  if (session.source === "nfc") {
-    return <StatusBadge label="NFC" tone="blue" />;
-  }
-  if (session.source === "unknown") {
-    // Pre-Migration Legacy-Row (Tristan PR #1398).
-    return <span className="text-xs text-gray-400">–</span>;
-  }
-  return <StatusBadge label="App" tone="gray" />;
+  const sources = [...new Set(sessions.map((s) => s.source ?? "app"))];
+  const badges = sources.map((source) => {
+    if (source === "nfc") {
+      return <StatusBadge key="nfc" label="NFC" tone="blue" />;
+    }
+    if (source === "unknown") {
+      // Pre-Migration Legacy-Row (Tristan PR #1398).
+      return (
+        <span key="unknown" className="text-xs text-gray-400">
+          –
+        </span>
+      );
+    }
+    return <StatusBadge key="app" label="App" tone="gray" />;
+  });
+  if (badges.length === 1) return badges[0];
+  return <div className="flex flex-wrap gap-1">{badges}</div>;
 }
 
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
 // Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
 // UND nachträglicher Korrektur).
 function HintBadges({
-  session,
+  sessions,
   holidayName,
 }: {
-  readonly session: StaffHistorySession | undefined;
+  readonly sessions: readonly StaffHistorySession[];
   readonly holidayName?: string;
 }) {
-  if (!session) {
+  if (sessions.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
   }
   const pills: {
@@ -858,6 +1027,15 @@ function HintBadges({
     title?: string;
     tone: StatusBadgeTone;
   }[] = [];
+  // Mehrere Blöcke an einem Tag (#2402) — der Zähler macht sichtbar, dass die
+  // Tageszeile eine Summe ist und die Details in den Block-Zeilen stehen.
+  if (sessions.length > 1) {
+    pills.push({
+      key: "blocks",
+      label: `${sessions.length} Blöcke`,
+      tone: "blue",
+    });
+  }
   // Arbeit an einem gesetzlichen Feiertag ist nach §9 ArbZG grundsätzlich
   // untersagt (OGS-Ausnahmen nach §10 möglich) — Warnung, kein Block
   // (#1418 3a/3f).
@@ -869,10 +1047,10 @@ function HintBadges({
       tone: "red",
     });
   }
-  if ((session.edit_count ?? 0) > 0) {
+  if (sessions.some((s) => (s.edit_count ?? 0) > 0)) {
     pills.push({ key: "edited", label: "Manuell korrigiert", tone: "orange" });
   }
-  if (session.auto_checked_out) {
+  if (sessions.some((s) => s.auto_checked_out)) {
     pills.push({
       key: "auto-checkout",
       label: "Auto-Checkout",
