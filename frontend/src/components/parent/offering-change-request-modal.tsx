@@ -17,6 +17,7 @@ import {
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
+import { materializeCareSelection } from "~/lib/care-offering-materialization";
 
 const logger = createLogger({ component: "OfferingChangeRequestModal" });
 
@@ -209,6 +210,44 @@ export function OfferingChangeRequestModal({
   const items = useMemo(() => catalog?.items ?? [], [catalog]);
   const emptyCatalog = catalog !== null && items.length === 0;
 
+  // Mirrors the backend materializer so parents see, before submitting, which
+  // offerings (and days) a Mitbuchungs-Regel adds to their selection (#2366).
+  const preview = useMemo(() => {
+    const selectedIds: string[] = [];
+    const offeringDays: Record<string, string[]> = {};
+    for (const item of items) {
+      const row = draft[item.id];
+      if (!row?.selected) continue;
+      selectedIds.push(item.id);
+      if (item.days_of_week_mode === "parent_choice") {
+        offeringDays[item.id] = orderedDays(row.days);
+      }
+    }
+    return materializeCareSelection(
+      { gradeLevel: "", offeringIds: selectedIds, offeringDays },
+      items,
+    );
+  }, [items, draft]);
+
+  const autoHintFor = (item: OfferingCatalogItem): string | undefined => {
+    const days = preview.automaticDays[item.id];
+    if (!days || days.size === 0) {
+      return item.automatic ? t("careOfferings.autoAdded") : undefined;
+    }
+    const dayText = DAY_ORDER.filter((day) => days.has(day))
+      .map(weekdayLabel)
+      .join(", ");
+    const names = [...(preview.autoAddContributors[item.id] ?? [])]
+      .map((id) => items.find((other) => other.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+    return names.length > 0
+      ? t("careOfferings.autoAddedDaysWithTrigger", {
+          days: dayText,
+          trigger: names.join(", "),
+        })
+      : t("careOfferings.autoAddedDays", { days: dayText });
+  };
+
   const handleSubmit = async () => {
     if (!catalog) return;
     const offerings: OfferingChangeSelectionInput[] = [];
@@ -301,6 +340,7 @@ export function OfferingChangeRequestModal({
               {items.map((item) => {
                 const row = draft[item.id];
                 const selected = row?.selected ?? false;
+                const autoHint = autoHintFor(item);
                 const full =
                   item.free_slots !== undefined &&
                   item.free_slots <= 0 &&
@@ -348,6 +388,11 @@ export function OfferingChangeRequestModal({
                         {item.description && (
                           <span className="mt-0.5 block text-xs leading-5 text-gray-500">
                             {item.description}
+                          </span>
+                        )}
+                        {autoHint && (
+                          <span className="mt-1 block text-xs leading-5 font-medium text-gray-700">
+                            {autoHint}
                           </span>
                         )}
                       </span>

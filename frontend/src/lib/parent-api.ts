@@ -1263,6 +1263,12 @@ export interface OfferingCatalogItem {
   readonly price_cents?: number;
   readonly includes_lunch: boolean;
   readonly includes_holiday_care: boolean;
+  readonly counts_as_care?: boolean;
+  /**
+   * Offerings whose selection books this one automatically
+   * (Mitbuchungs-Regel, #2366). Already filtered to the child's grade.
+   */
+  readonly auto_add_trigger_offering_ids?: string[];
   readonly selected: boolean;
   readonly selected_days: string[];
   /** True when the current booking is derived from another offering. */

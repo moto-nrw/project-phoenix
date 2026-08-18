@@ -816,7 +816,9 @@
       "ruleExactlyOne": "Bitte genau eines wählen",
       "ruleAtLeastOne": "Bitte mindestens eines wählen",
       "ruleAtMostOne": "Höchstens eines",
-      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt."
+      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt.",
+      "autoAddedDays": "Automatisch mitgebucht: {days}.",
+      "autoAddedDaysWithTrigger": "Automatisch mitgebucht: {days}, weil {trigger} gewählt ist."
     },
     "consent": {
       "agb": "Ich akzeptiere die AGB der Schule.",
@@ -1222,7 +1224,8 @@
       "autoAddedDaysWithTrigger": "Automatisch mitgebucht: {days}, weil {trigger} gewählt ist.",
       "decisionApplied": "Das wurde geändert:",
       "decisionConsidered": "Angefragte Änderung:",
-      "decisionOverridden": "Die Betreuung hat {names} nicht mitgebucht."
+      "decisionOverridden": "Die Betreuung hat {names} nicht mitgebucht.",
+      "autoAddedDays": "Automatisch mitgebucht: {days}."
     },
     "careOfferingsModal": {
       "title": "Gebuchte Betreuung ändern",

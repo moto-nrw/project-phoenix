@@ -813,7 +813,9 @@
       "ruleExactlyOne": "Please choose exactly one",
       "ruleAtLeastOne": "Please choose at least one",
       "ruleAtMostOne": "At most one",
-      "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed."
+      "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed.",
+      "autoAddedDays": "Automatically booked: {days}.",
+      "autoAddedDaysWithTrigger": "Automatically booked: {days}, because {trigger} is selected."
     },
     "consent": {
       "agb": "I accept the school's terms and conditions.",
@@ -1222,7 +1224,8 @@
       "autoAddedDaysWithTrigger": "Automatically booked: {days}, because {trigger} is selected.",
       "decisionApplied": "This was changed:",
       "decisionConsidered": "Requested change:",
-      "decisionOverridden": "The care team did not book {names}."
+      "decisionOverridden": "The care team did not book {names}.",
+      "autoAddedDays": "Automatically booked: {days}."
     },
     "careOfferingsModal": {
       "title": "Change booked care",

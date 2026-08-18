@@ -371,3 +371,98 @@ describe("OfferingChangeRequestModal", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("Mitbuchungs-Regel preview (#2366)", () => {
+  function catalogWithAutoRule(): OfferingCatalog {
+    const base = catalog();
+    return {
+      ...base,
+      items: [
+        ...base.items,
+        {
+          id: "7",
+          name: "Ganztagsbetreuung",
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          selection_rule: "optional",
+          is_required: false,
+          includes_lunch: false,
+          includes_holiday_care: false,
+          counts_as_care: true,
+          auto_add_trigger_offering_ids: ["5"],
+          selected: false,
+          selected_days: [],
+        },
+      ],
+    };
+  }
+
+  it("shows which days the rule books automatically while the trigger is selected", async () => {
+    mockCatalog.mockResolvedValue(catalogWithAutoRule());
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    // Regelbetreuung (the trigger) is booked mon+tue, so the rule target
+    // announces the automatic booking before anything is submitted.
+    expect(
+      await screen.findByText(
+        "Automatisch mitgebucht: Mo, Di, weil Regelbetreuung gewählt ist.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the preview when the trigger is deselected", async () => {
+    mockCatalog.mockResolvedValue(catalogWithAutoRule());
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    const trigger = (await screen.findByText("Regelbetreuung")).closest(
+      "label",
+    );
+    fireEvent.click(trigger!.querySelector("input")!);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/Automatisch mitgebucht:/),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("labels an existing automatic booking", async () => {
+    const base = catalog();
+    mockCatalog.mockResolvedValue({
+      ...base,
+      items: [
+        {
+          ...base.items[0]!,
+          id: "8",
+          name: "Mittagessen",
+          automatic: true,
+          selected: true,
+          selected_days: ["mon"],
+        },
+      ],
+    });
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Kommt automatisch dazu."),
+    ).toBeInTheDocument();
+  });
+});

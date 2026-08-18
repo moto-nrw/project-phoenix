@@ -45,6 +45,10 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
+import {
+  materializeCareSelection,
+  type MaterializedCareSelection,
+} from "~/lib/care-offering-materialization";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import {
   copyStableObjectKey,
@@ -1875,6 +1879,12 @@ export function EnrollmentForm({
                                 automaticDays={
                                   materializedCare.automaticDays[o.id]
                                 }
+                                autoHint={autoAddHintFor(
+                                  o.id,
+                                  materializedCare,
+                                  childOfferings,
+                                  tr,
+                                )}
                                 toggleLocked
                                 dayError={
                                   offeringDayErrors[`${i}_${o.id}`] ?? false
@@ -1939,6 +1949,12 @@ export function EnrollmentForm({
                                     bucket.offering.id
                                   ]
                                 }
+                                autoHint={autoAddHintFor(
+                                  bucket.offering.id,
+                                  materializedCare,
+                                  childOfferings,
+                                  tr,
+                                )}
                                 toggleLocked={
                                   Boolean(
                                     materializedCare.automaticDays[
@@ -2000,6 +2016,12 @@ export function EnrollmentForm({
                                       automaticDays={
                                         materializedCare.automaticDays[o.id]
                                       }
+                                      autoHint={autoAddHintFor(
+                                        o.id,
+                                        materializedCare,
+                                        childOfferings,
+                                        tr,
+                                      )}
                                       toggleLocked={
                                         Boolean(
                                           materializedCare.automaticDays[o.id],
@@ -2627,6 +2649,7 @@ function OfferingCard({
   checked,
   selectedDays,
   automaticDays,
+  autoHint,
   toggleLocked = false,
   dayError,
   stats,
@@ -2639,6 +2662,8 @@ function OfferingCard({
   readonly checked: boolean;
   readonly selectedDays: Set<string> | undefined;
   readonly automaticDays?: Set<string>;
+  /** Pre-submit Mitbuchungs-Regel preview line (#2366). */
+  readonly autoHint?: string;
   readonly toggleLocked?: boolean;
   readonly dayError: boolean;
   /** Admin-only occupancy (#2186); undefined on the parent form. */
@@ -2717,6 +2742,11 @@ function OfferingCard({
                 {tr("care.requiredBadge")}
               </span>
             )}
+            {autoIncluded && (
+              <span className="bg-moto-green/20 rounded-full px-2 py-0.5 text-xs font-medium text-gray-700">
+                {tr("care.automaticBadge")}
+              </span>
+            )}
           </div>
           {offering.description && (
             <div className="text-xs break-words text-gray-600">
@@ -2733,6 +2763,9 @@ function OfferingCard({
             {offering.includes_holiday_care && ` · ${tr("care.holiday")}`}
             {offering.includes_lunch && ` · ${tr("care.lunch")}`}
           </div>
+          {autoHint && (
+            <p className="mt-1 text-xs font-medium text-gray-700">{autoHint}</p>
+          )}
           <OfferingOccupancyLine stats={stats} />
         </div>
       </label>
@@ -3975,113 +4008,45 @@ function selectedCareDaysForChild(
   return WEEKDAYS.filter((day) => days.has(day));
 }
 
-interface MaterializedCareSelection {
-  offeringIds: Set<string>;
-  offeringDays: Record<string, Set<string>>;
-  automaticDays: Record<string, Set<string>>;
+/**
+ * Plain-language line telling parents which days a Mitbuchungs-Regel (or the
+ * required-lunch derivation) books automatically for this offering (#2366).
+ */
+function autoAddHintFor(
+  offeringId: string,
+  materialized: MaterializedCareSelection,
+  offerings: readonly PublicCareOffering[],
+  tr: EnrollmentFormTranslator,
+): string | undefined {
+  const days = materialized.automaticDays[offeringId];
+  if (!days || days.size === 0) return undefined;
+  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
+  const dayText = WEEKDAYS.filter((day) => days.has(day))
+    .map((day) => weekdayLabels[day] ?? day)
+    .join(", ");
+  const names = [...(materialized.autoAddContributors[offeringId] ?? [])]
+    .map((id) => offerings.find((offering) => offering.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
+  return names.length > 0
+    ? tr("care.autoAddedDaysWithTrigger", {
+        days: dayText,
+        trigger: names.join(", "),
+      })
+    : tr("care.autoAddedDays", { days: dayText });
 }
 
 function materializeCareOfferings(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
 ): MaterializedCareSelection {
-  const offeringIds = new Set(child.offering_ids);
-  const offeringDays: Record<string, Set<string>> = {};
-  const automaticDays: Record<string, Set<string>> = {};
-  for (const [id, days] of Object.entries(child.offering_days)) {
-    offeringDays[id] = new Set(days);
-  }
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const target of offerings) {
-      if (!autoAddAppliesToGrade(child.target_grade_level, target)) continue;
-      const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
-      if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
-
-      const auto = new Set<string>();
-      const targetDays = new Set(target.available_days);
-      for (const triggerID of triggerIDs) {
-        if (!offeringIds.has(triggerID)) continue;
-        const trigger = offerings.find((offering) => offering.id === triggerID);
-        if (!trigger) continue;
-        const triggerDays =
-          trigger.days_of_week_mode === "parent_choice"
-            ? Array.from(offeringDays[triggerID] ?? new Set<string>())
-            : trigger.available_days;
-        for (const day of triggerDays) {
-          if (targetDays.has(day)) auto.add(day);
-        }
-      }
-      if (isRequiredLunchOffering(target)) {
-        for (const source of offerings) {
-          if (source.id === target.id || !(source.counts_as_care ?? true)) {
-            continue;
-          }
-          if (!offeringIds.has(source.id)) {
-            continue;
-          }
-          const sourceDays =
-            source.days_of_week_mode === "parent_choice"
-              ? Array.from(offeringDays[source.id] ?? new Set<string>())
-              : source.available_days;
-          for (const day of sourceDays) {
-            if (targetDays.has(day)) auto.add(day);
-          }
-        }
-      }
-      if (auto.size === 0) continue;
-
-      if (!offeringIds.has(target.id)) {
-        offeringIds.add(target.id);
-        changed = true;
-      }
-      if (!sameSet(automaticDays[target.id], auto)) {
-        automaticDays[target.id] = auto;
-        changed = true;
-      }
-      const merged = new Set(offeringDays[target.id] ?? []);
-      const beforeSize = merged.size;
-      for (const day of auto) merged.add(day);
-      if (
-        merged.size !== beforeSize ||
-        !sameSet(offeringDays[target.id], merged)
-      ) {
-        offeringDays[target.id] = merged;
-        changed = true;
-      }
-    }
-  }
-
-  return { offeringIds, offeringDays, automaticDays };
-}
-
-function sameSet(left: Set<string> | undefined, right: Set<string>): boolean {
-  if (!left || left.size !== right.size) return false;
-  for (const value of left) {
-    if (!right.has(value)) return false;
-  }
-  return true;
-}
-
-function isRequiredLunchOffering(offering: PublicCareOffering): boolean {
-  return (
-    offering.is_required &&
-    offering.includes_lunch &&
-    offering.days_of_week_mode === "parent_choice"
+  return materializeCareSelection(
+    {
+      gradeLevel: child.target_grade_level,
+      offeringIds: child.offering_ids,
+      offeringDays: child.offering_days,
+    },
+    offerings,
   );
-}
-
-function autoAddAppliesToGrade(
-  gradeValue: string,
-  offering: PublicCareOffering,
-): boolean {
-  const gradeLevels = offering.auto_add_grade_levels ?? [];
-  if (gradeLevels.length === 0) return true;
-  const grade = Number(gradeValue);
-  if (!Number.isFinite(grade) || grade <= 0) return false;
-  return gradeLevels.includes(grade);
 }
 
 function relevantCareDaysForChild(

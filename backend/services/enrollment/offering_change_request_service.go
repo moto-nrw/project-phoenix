@@ -87,6 +87,11 @@ type OfferingChangeCatalogItem struct {
 	PriceCents      *int
 	IncludesLunch   bool
 	IncludesHoliday bool
+	CountsAsCare    bool
+	// AutoAddTriggerOfferingIDs lists the offerings whose selection books this
+	// one automatically (Mitbuchungs-Regel, #2366). Already filtered to the
+	// child's grade, so the modal can preview the rule without grade logic.
+	AutoAddTriggerOfferingIDs []int64
 	// Selected marks the child's current booking, so the modal opens prefilled.
 	Selected     bool
 	SelectedDays []string
@@ -594,6 +599,9 @@ func (s *offeringChangeRequestService) catalogAt(
 			return nil, itemErr
 		}
 		item.IsActive = activeByID[offering.ID] != nil
+		if autoAddAppliesToGrade(child.TargetGradeLevel, offering.AutoAddGradeLevels) {
+			item.AutoAddTriggerOfferingIDs = append([]int64(nil), offering.AutoAddTriggerOfferingIDs...)
+		}
 		catalog.Items = append(catalog.Items, item)
 	}
 	sort.SliceStable(catalog.Items, func(i, j int) bool {
@@ -619,6 +627,7 @@ func (s *offeringChangeRequestService) catalogItem(
 		PriceCents:      offering.PriceCents,
 		IncludesLunch:   offering.IncludesLunch,
 		IncludesHoliday: offering.IncludesHolidayCare,
+		CountsAsCare:    offering.CountsAsCare,
 	}
 	if offering.Description != nil {
 		item.Description = *offering.Description

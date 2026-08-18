@@ -267,12 +267,16 @@ type OfferingCatalogItemResponse struct {
 	PriceCents      *int     `json:"price_cents,omitempty"`
 	IncludesLunch   bool     `json:"includes_lunch"`
 	IncludesHoliday bool     `json:"includes_holiday_care"`
-	Selected        bool     `json:"selected"`
-	SelectedDays    []string `json:"selected_days"`
-	Automatic       bool     `json:"automatic"`
-	IsActive        bool     `json:"is_active"`
-	Capacity        *int     `json:"capacity,omitempty"`
-	FreeSlots       *int     `json:"free_slots,omitempty"`
+	CountsAsCare    bool     `json:"counts_as_care"`
+	// AutoAddTriggerOfferingIDs powers the pre-submit Mitbuchungs-Regel
+	// preview (#2366); already filtered to the child's grade.
+	AutoAddTriggerOfferingIDs []string `json:"auto_add_trigger_offering_ids,omitempty"`
+	Selected                  bool     `json:"selected"`
+	SelectedDays              []string `json:"selected_days"`
+	Automatic                 bool     `json:"automatic"`
+	IsActive                  bool     `json:"is_active"`
+	Capacity                  *int     `json:"capacity,omitempty"`
+	FreeSlots                 *int     `json:"free_slots,omitempty"`
 }
 
 // OfferingChangeRequestBody is the wire shape for POST .../care-offerings/requests.
@@ -412,26 +416,39 @@ func toOfferingCatalogResponse(catalog *enrollmentService.OfferingChangeCatalog)
 	}
 	for _, item := range catalog.Items {
 		resp.Items = append(resp.Items, OfferingCatalogItemResponse{
-			ID:              strconv.FormatInt(item.OfferingID, 10),
-			Name:            item.Name,
-			Description:     item.Description,
-			DaysOfWeekMode:  item.DaysOfWeekMode,
-			AvailableDays:   stringsOrEmpty(item.AvailableDays),
-			SelectionGroup:  item.SelectionGroup,
-			SelectionRule:   item.SelectionRule,
-			IsRequired:      item.IsRequired,
-			PriceCents:      item.PriceCents,
-			IncludesLunch:   item.IncludesLunch,
-			IncludesHoliday: item.IncludesHoliday,
-			Selected:        item.Selected,
-			SelectedDays:    stringsOrEmpty(item.SelectedDays),
-			Automatic:       item.Automatic,
-			IsActive:        item.IsActive,
-			Capacity:        item.Capacity,
-			FreeSlots:       item.FreeSlots,
+			ID:                        strconv.FormatInt(item.OfferingID, 10),
+			Name:                      item.Name,
+			Description:               item.Description,
+			DaysOfWeekMode:            item.DaysOfWeekMode,
+			AvailableDays:             stringsOrEmpty(item.AvailableDays),
+			SelectionGroup:            item.SelectionGroup,
+			SelectionRule:             item.SelectionRule,
+			IsRequired:                item.IsRequired,
+			PriceCents:                item.PriceCents,
+			IncludesLunch:             item.IncludesLunch,
+			IncludesHoliday:           item.IncludesHoliday,
+			CountsAsCare:              item.CountsAsCare,
+			AutoAddTriggerOfferingIDs: formatIDs(item.AutoAddTriggerOfferingIDs),
+			Selected:                  item.Selected,
+			SelectedDays:              stringsOrEmpty(item.SelectedDays),
+			Automatic:                 item.Automatic,
+			IsActive:                  item.IsActive,
+			Capacity:                  item.Capacity,
+			FreeSlots:                 item.FreeSlots,
 		})
 	}
 	return resp
+}
+
+func formatIDs(ids []int64) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = strconv.FormatInt(id, 10)
+	}
+	return out
 }
 
 func stringsOrEmpty(values []string) []string {

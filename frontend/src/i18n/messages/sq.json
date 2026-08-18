@@ -826,7 +826,9 @@
       "ruleExactlyOne": "Ju lutemi zgjidhni saktësisht një",
       "ruleAtLeastOne": "Ju lutemi zgjidhni të paktën një",
       "ruleAtMostOne": "Më së shumti një",
-      "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën."
+      "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën.",
+      "autoAddedDays": "Rezervohet automatikisht: {days}.",
+      "autoAddedDaysWithTrigger": "Rezervohet automatikisht: {days}, sepse është zgjedhur {trigger}."
     },
     "captchaMisconfigured": "Regjistrimi aktualisht nuk është i mundur: konfigurimi i mbrojtjes kundër botëve është i paplotë. Ju lutemi kontaktoni drejtimin e OGS-së.",
     "structured": {
@@ -1222,7 +1224,8 @@
       "autoAddedDaysWithTrigger": "Rezervohet automatikisht: {days}, sepse është zgjedhur {trigger}.",
       "decisionApplied": "Kjo u ndryshua:",
       "decisionConsidered": "Ndryshimi i kërkuar:",
-      "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}."
+      "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}.",
+      "autoAddedDays": "Rezervohet automatikisht: {days}."
     },
     "careOfferingsModal": {
       "title": "Kërko ndryshim të përkujdesjes së rezervuar",
