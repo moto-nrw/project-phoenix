@@ -174,6 +174,9 @@ func (rs *Resource) Router() chi.Router {
 				// landed in pending_admin_review on a phase created
 				// FROM this phase. Both require config:manage.
 				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
+				// Read-only dry run for the rollover form (#2251); same
+				// permission as the create it precedes.
+				r.With(authorize.RequiresPermission("config:manage")).Get("/rollover-preview", rs.previewRollover)
 				r.With(authorize.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
 				r.With(authorize.RequiresPermission("config:manage")).Get("/manual-bootstrap", rs.getManualEnrollmentBootstrap)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/late-invites", rs.createLateInvite)

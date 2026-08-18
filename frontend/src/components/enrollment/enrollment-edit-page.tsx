@@ -23,14 +23,19 @@ const logger = createLogger({ component: "EnrollmentEditPage" });
 
 interface Props {
   readonly params: Promise<{ token: string }>;
+  /**
+   * Reduced Halbjahreswechsel flow (#2251): only care offerings and
+   * booked weekdays are editable; everything else travels unchanged.
+   */
+  readonly adjustOnly?: boolean;
 }
 
-export function EnrollmentEditPage({ params }: Props) {
+export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
   const { token } = use(params);
   const t = useTranslations("enrollmentStatus");
   const router = useRouter();
   const pathname = usePathname();
-  const statusHref = pathname?.replace(/\/edit\/?$/, "") || ".";
+  const statusHref = pathname?.replace(/\/(edit|adjust)\/?$/, "") || ".";
   const [bootstrap, setBootstrap] = useState<EnrollmentEditBootstrap | null>(
     null,
   );
@@ -154,9 +159,17 @@ export function EnrollmentEditPage({ params }: Props) {
           {t("backToStatus")}
         </Link>
         <h1 className="text-2xl font-semibold text-wrap text-gray-900">
-          {isChangeRequestMode ? t("changeRequestTitle") : t("editFull")}
+          {adjustOnly
+            ? t("adjustTitle")
+            : isChangeRequestMode
+              ? t("changeRequestTitle")
+              : t("editFull")}
         </h1>
-        {isChangeRequestMode ? (
+        {adjustOnly ? (
+          <p className="max-w-3xl text-sm leading-6 text-gray-600">
+            {t("adjustDescription")}
+          </p>
+        ) : isChangeRequestMode ? (
           <p className="max-w-3xl text-sm leading-6 text-gray-600">
             {t("changeRequestDescription")}
           </p>
@@ -210,9 +223,14 @@ export function EnrollmentEditPage({ params }: Props) {
           skipCaptcha
           localizedCopy
           lockedGuardianEmail
-          lockChildStructure={isChangeRequestMode}
+          lockChildStructure={isChangeRequestMode || adjustOnly}
+          restrictToOfferings={adjustOnly}
           submitLabel={
-            isChangeRequestMode ? t("changeRequestSubmit") : t("editSubmit")
+            adjustOnly
+              ? t("adjustSubmit")
+              : isChangeRequestMode
+                ? t("changeRequestSubmit")
+                : t("editSubmit")
           }
         />
       </TenantProvider>

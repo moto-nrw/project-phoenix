@@ -304,6 +304,35 @@ export async function createRollover(
   return readJSON<RolloverResult>(response);
 }
 
+export interface RolloverPreview {
+  carry_candidate_count: number;
+  carried_count: number;
+  review_count: number;
+  review_by_reason: Record<string, number>;
+  excluded_count: number;
+  excluded_by_status: Record<string, number>;
+  request_count: number;
+}
+
+/**
+ * Read-only dry run of a rollover (#2251): how many children would be
+ * carried, need admin review, or are excluded (not approved in the
+ * source phase). Shown in the rollover form before executing.
+ */
+export async function fetchRolloverPreview(
+  sourcePhaseID: string,
+  bumpsGrade: boolean,
+): Promise<RolloverPreview> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(sourcePhaseID)}/rollover-preview?bumps_grade=${bumpsGrade}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Vorschau konnte nicht geladen werden");
+  }
+  return readJSON<RolloverPreview>(response);
+}
+
 export interface ReviewQueueItem {
   child_id: string;
   request_id: string;

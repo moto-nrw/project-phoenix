@@ -728,7 +728,10 @@
       "newStudentsOnlyNotice": "This enrollment phase is for new children only. Children already enrolled at the school cannot be re-enrolled here.",
       "consentKicker": "Step 3",
       "consentTitle": "Consents",
-      "consentDescription": "Please read the consents carefully. Required consents must be selected actively."
+      "consentDescription": "Please read the consents carefully. Required consents must be selected actively.",
+      "offeringsOnlyKicker": "Care",
+      "offeringsOnlyTitle": "Offerings per child",
+      "offeringsOnlyDescription": "Choose each child's care offerings and weekdays for the new period."
     },
     "fields": {
       "firstName": "First name *",
@@ -1097,7 +1100,12 @@
         "sat": "Sat",
         "sun": "Sun"
       }
-    }
+    },
+    "renewalAdjust": "Adjust offerings and weekdays",
+    "renewalAdjustHint": "You can continue care unchanged, adjust only offerings or weekdays, or end care at the end of the current period. All other data stays unchanged.",
+    "adjustTitle": "Adjust offerings and weekdays",
+    "adjustDescription": "Adjust only the care offerings and booked weekdays. All other data stays unchanged and is not requested again.",
+    "adjustSubmit": "Send adjustment"
   },
   "parentMasterData": {
     "title": "Details and care",

@@ -728,7 +728,10 @@
       "extraDescription": "OGS-ja ka nevojë për këto të dhëna shtesë krahas të dhënave bazë. Pyetjet e detyrueshme janë shënuar me yll.",
       "childrenDescription": "Regjistroni çdo fëmijë veçmas. Për motrat/vëllezërit mund të shtoni të dhëna të tjera fëmije me butonin.",
       "newStudentsOnlyNotice": "Kjo fazë regjistrimi është vetëm për fëmijë të rinj. Fëmijët tashmë të regjistruar në shkollë nuk mund të riregjistrohen këtu.",
-      "consentDescription": "Ju lutemi lexoni me kujdes pëlqimet. Pëlqimet e detyrueshme duhet të zgjidhen aktivisht."
+      "consentDescription": "Ju lutemi lexoni me kujdes pëlqimet. Pëlqimet e detyrueshme duhet të zgjidhen aktivisht.",
+      "offeringsOnlyKicker": "Kujdesi",
+      "offeringsOnlyTitle": "Ofertat për çdo fëmijë",
+      "offeringsOnlyDescription": "Zgjidhni për çdo fëmijë ofertat e kujdesit dhe ditët e javës për periudhën e re."
     },
     "fields": {
       "firstName": "Emri *",
@@ -1097,7 +1100,12 @@
         "sat": "Sht",
         "sun": "Die"
       }
-    }
+    },
+    "renewalAdjust": "Përshtat ofertat dhe ditët e javës",
+    "renewalAdjustHint": "Mund ta vazhdoni kujdesin pa ndryshime, të përshtatni vetëm ofertat ose ditët e javës, ose ta përfundoni kujdesin në fund të periudhës aktuale. Të gjitha të dhënat e tjera mbeten të pandryshuara.",
+    "adjustTitle": "Përshtat ofertat dhe ditët e javës",
+    "adjustDescription": "Përshtatni vetëm ofertat e kujdesit dhe ditët e javës të rezervuara. Të gjitha të dhënat e tjera mbeten të pandryshuara dhe nuk kërkohen përsëri.",
+    "adjustSubmit": "Dërgo përshtatjen"
   },
   "parentMasterData": {
     "title": "Të dhënat dhe përkujdesja",

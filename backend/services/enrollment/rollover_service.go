@@ -86,6 +86,13 @@ type RolloverService interface {
 	// tenant tx so the whole rollover is atomic.
 	CreatePhaseFromSource(ctx context.Context, req CreatePhaseFromSourceRequest) (*RolloverResult, error)
 
+	// PreviewPhaseFromSource is the read-only dry run of
+	// CreatePhaseFromSource (#2251): it classifies every child of the
+	// source phase — carried, needing admin review, or excluded — so the
+	// admin sees the blast radius BEFORE executing the rollover. Creates
+	// nothing; a real rollover may follow immediately.
+	PreviewPhaseFromSource(ctx context.Context, sourcePhaseID int64, bumpsGrade bool) (*RolloverPreview, error)
+
 	// ListReviewQueue returns every request_children row in the new
 	// phase that landed in pending_admin_review, along with enough
 	// context (parent + source child) for the admin UI to render.
@@ -158,6 +165,19 @@ type RolloverResult struct {
 	RequestCount        int            // distinct parent requests created in the new phase
 	EnqueuedEmails      int
 	SkippedEmptyEmail   int // rows whose parent had no email (no enqueue)
+}
+
+// RolloverPreview summarises what a rollover WOULD do. Only approved
+// source children are carry candidates; everything else counts as
+// excluded (they are never silently carried — issue #2251's guarantee).
+type RolloverPreview struct {
+	CarryCandidateCount int            // approved children in the source phase
+	CarriedCount        int            // would land in renewal state
+	ReviewCount         int            // would land in pending_admin_review
+	ReviewByReason      map[string]int // per-reason breakdown for the UI
+	ExcludedCount       int            // non-approved children, never carried
+	ExcludedByStatus    map[string]int // per-status breakdown for the UI
+	RequestCount        int            // distinct parent requests among candidates
 }
 
 // ReviewQueueItem is one row in the admin review UI. SourceChild is
@@ -721,6 +741,74 @@ func (s *rolloverService) resolveMaxGrade(ctx context.Context) (int, error) {
 		)
 	}
 	return value, nil
+}
+
+// PreviewPhaseFromSource classifies the source phase's children without
+// writing anything. Mirrors the classification CreatePhaseFromSource
+// applies (computeNewGrade + the collect-grade-level setting), so the
+// numbers the admin confirms are the numbers the rollover produces.
+func (s *rolloverService) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID int64, bumpsGrade bool) (*RolloverPreview, error) {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return nil, fmt.Errorf("rollover preview: tenant not in context")
+	}
+	if _, err := s.loadRolloverSourcePhase(ctx, tenantID, sourcePhaseID); err != nil {
+		return nil, err
+	}
+	maxGrade, err := s.resolveMaxGrade(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("rollover preview: %w", err)
+	}
+	collectGradeLevel, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return nil, fmt.Errorf("rollover preview: resolve collect grade level: %w", err)
+	}
+
+	// Every status the child model knows. Kept explicit so a future
+	// status shows up as a compile-visible gap here rather than a
+	// silently mis-counted preview.
+	allStatuses := []string{
+		enrollmentModels.ChildStatusSubmitted,
+		enrollmentModels.ChildStatusUnderReview,
+		enrollmentModels.ChildStatusApproved,
+		enrollmentModels.ChildStatusWaitlisted,
+		enrollmentModels.ChildStatusRejected,
+		enrollmentModels.ChildStatusWithdrawn,
+		enrollmentModels.ChildStatusPendingRenewal,
+		enrollmentModels.ChildStatusAutoRenewed,
+		enrollmentModels.ChildStatusPendingAdminReview,
+	}
+	children, err := s.RequestChildRepo.ListByPhaseAndStatuses(ctx, sourcePhaseID, allStatuses)
+	if err != nil {
+		return nil, fmt.Errorf("rollover preview: list source children: %w", err)
+	}
+
+	preview := &RolloverPreview{
+		ReviewByReason:   make(map[string]int),
+		ExcludedByStatus: make(map[string]int),
+	}
+	candidateRequests := make(map[int64]struct{})
+	for _, child := range children {
+		if child.Status != enrollmentModels.ChildStatusApproved {
+			preview.ExcludedCount++
+			preview.ExcludedByStatus[child.Status]++
+			continue
+		}
+		preview.CarryCandidateCount++
+		candidateRequests[child.RequestID] = struct{}{}
+		reviewReason := ""
+		if collectGradeLevel {
+			_, reviewReason = computeNewGrade(child.TargetGradeLevel, bumpsGrade, maxGrade)
+		}
+		if reviewReason == "" {
+			preview.CarriedCount++
+		} else {
+			preview.ReviewCount++
+			preview.ReviewByReason[reviewReason]++
+		}
+	}
+	preview.RequestCount = len(candidateRequests)
+	return preview, nil
 }
 
 // ListReviewQueue loads admin-review rows + their parent request + the
