@@ -1,24 +1,28 @@
 /**
- * Tests for the "Kind ungeplant hinzufügen" panel (issue #2387): selection
- * flow with multiple search results. Shares the identical mock header with
- * page.test.tsx / page.part2..11.test.tsx (see the note in page.part5.test.tsx);
- * heavy full-dashboard renders stay at <=3 per file.
+ * Tests for Active Supervisions Page
+ * Tests the rendering states and user interactions of the active supervisions dashboard
+ *
+ * NOTE: split into 13 files (page.test.tsx + page.part2..13.test.tsx). The full-dashboard
+ * render tests in the "MeinRaumPage (Active Supervisions)" describe are memory-heavy under
+ * happy-dom + v8 coverage (~1.5 GB heap each), so a single combined file OOMs the Vitest
+ * worker. Those heavy tests are pre-split into (N/M) chunks of 3 renders each, one chunk per
+ * file (a 3-render chunk fits comfortably in a 6 GB heap; CI runs with 8 GB). All other
+ * describes render cheaply and are packed together. All files share the identical mock header
+ * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
-import { useLayoutEffect } from "react";
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
 }));
-
-function CommitProbe({
-  children,
-  onCommit,
-}: Readonly<{ children: React.ReactNode; onCommit: () => void }>) {
-  useLayoutEffect(onCommit);
-  return children;
-}
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
@@ -65,9 +69,25 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
 vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: vi.fn(
-    ({ title, badge }: { title: string; badge?: { count: number } }) => (
+    ({
+      title,
+      badge,
+      tabs,
+    }: {
+      title: string;
+      badge?: { count: number };
+      tabs?: {
+        items: { id: string; label: string }[];
+        onTabChange: (id: string) => void;
+      };
+    }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
+        {tabs?.items.map((item) => (
+          <button key={item.id} onClick={() => tabs.onTabChange(item.id)}>
+            {item.label}
+          </button>
+        ))}
       </div>
     ),
   ),
@@ -270,63 +290,49 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
+// Mock the student search so the unplanned-add form can surface a result.
+vi.mock("~/lib/student-api", () => ({
+  fetchStudents: vi.fn(() =>
+    Promise.resolve({
+      students: [
+        {
+          id: 200,
+          name: "Ben Neu",
+          first_name: "Ben",
+          second_name: "Neu",
+          school_class: "1a",
+          group_name: "OGS Gruppe B",
+        },
+      ],
+    }),
+  ),
+}));
+
+// Mock the timetable operations API so check-in resolves with a controlled
+// roster (auto-move notice, #2386).
+vi.mock("~/lib/timetable-operations-api", () => ({
+  timetableOperationsApi: {
+    checkIn: vi.fn(),
+    plannedNow: vi.fn(() => Promise.resolve([])),
+  },
+  isReopenUnavailableError: vi.fn(() => false),
+}));
+
 import { useSWRAuth } from "~/lib/swr";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
+import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import MeinRaumPage from "./page";
 
-vi.mock("~/lib/student-api", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("~/lib/student-api")>();
-  return {
-    ...actual,
-    fetchStudents: vi.fn(() => Promise.resolve({ students: [] })),
-  };
-});
-
-vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("~/lib/timetable-operations-api")>();
-  return {
-    ...actual,
-    timetableOperationsApi: {
-      ...actual.timetableOperationsApi,
-      checkIn: vi.fn(() =>
-        Promise.resolve({
-          instance: {
-            id: "99",
-            title: "Kreativ AG",
-            activeGroupId: "1",
-            isSpontaneous: false,
-          },
-          rows: [],
-        }),
-      ),
-    },
-  };
-});
-
-import { fireEvent } from "@testing-library/react";
-import { fetchStudents } from "~/lib/student-api";
-import { timetableOperationsApi } from "~/lib/timetable-operations-api";
-
-const makeStudent = (id: string, first: string, last: string) => ({
-  id,
-  name: `${first} ${last}`,
-  first_name: first,
-  second_name: last,
-  school_class: "2c",
-  group_name: "OGS Gruppe A",
-  current_location: "",
-});
-
-describe("AddUnplannedStudentForm selection flow (#2387)", () => {
+describe("MeinRaumPage auto-move notice (#2386)", () => {
   const mockMutate = vi.fn();
 
   const dashboardData = {
     supervisedGroups: [
       { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      { id: "2", name: "Raum 202", room: { id: "20", name: "Raum 202" } },
     ],
     unclaimedGroups: [],
     currentStaff: { id: "1" },
@@ -335,23 +341,50 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     firstRoomId: "10",
   };
 
-  const rosterData = {
-    instance: {
-      id: "99",
-      title: "Kreativ AG",
-      activeGroupId: "1",
-      isSpontaneous: false,
-    },
-    rows: [],
+  const expectedRow = {
+    studentId: "100",
+    studentName: "Marie Muster",
+    schoolClass: "2b",
+    groupName: "OGS Gruppe A",
+    planned: true,
+    isUnplanned: false,
+    currentlyPresent: false,
+    visitId: null,
+    status: "expected",
+    substatus: null,
+    note: null,
   };
-  let currentRosterData = rosterData;
+
+  const rosterInstance = {
+    id: "99",
+    title: "Kreativ AG",
+    activeGroupId: "1",
+    isSpontaneous: false,
+  };
+
+  const secondRoster = {
+    instance: {
+      ...rosterInstance,
+      id: "199",
+      title: "Sport AG",
+      activeGroupId: "2",
+    },
+    rows: [
+      {
+        ...expectedRow,
+        studentId: "300",
+        studentName: "Nora Neu",
+      },
+    ],
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
     vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
-    currentRosterData = rosterData;
+    window.innerWidth = 800;
+    localStorage.clear();
     global.fetch = vi.fn();
     vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
       if (key?.startsWith("active-supervision-dashboard")) {
@@ -365,7 +398,9 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       }
       if (key?.startsWith("timetable-roster-active-group")) {
         return {
-          data: currentRosterData,
+          data: key.endsWith("-2")
+            ? secondRoster
+            : { instance: rosterInstance, rows: [expectedRow] },
           isLoading: false,
           error: null,
           mutate: mockMutate,
@@ -386,159 +421,187 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     cleanup();
   });
 
-  const searchFor = async (value: string) => {
-    const input = await screen.findByRole("searchbox", {
-      name: "Kind ungeplant suchen",
-    });
-    fireEvent.change(input, { target: { value } });
-  };
-
-  it("requires a selection and resets it when the instance or search changes", async () => {
-    vi.mocked(fetchStudents).mockResolvedValue({
-      students: [
-        makeStudent("201", "Marie", "Beier"),
-        makeStudent("202", "Marie", "Garschagen"),
-        makeStudent("203", "Lara Marie", "Brüggemann"),
+  it("shows the origin of an auto-moved child after check-in", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
+      instance: rosterInstance,
+      rows: [
+        {
+          ...expectedRow,
+          currentlyPresent: true,
+          visitId: "visit-100",
+          status: "present",
+        },
       ],
-    });
-
-    const { rerender } = render(<MeinRaumPage />);
-    await searchFor("Marie");
-
-    const beierCard = await screen.findByRole("button", {
-      name: /Marie Beier/,
-    });
-    const addButton = screen.getByRole("button", { name: "Hinzufügen" });
-
-    expect(addButton).toBeDisabled();
-    expect(
-      screen.getByText("Bitte ein Kind aus der Liste antippen."),
-    ).toBeInTheDocument();
-
-    fireEvent.click(beierCard);
-
-    expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
-    expect(beierCard).toHaveAttribute("aria-pressed", "true");
-    expect(addButton).toBeEnabled();
-    expect(
-      screen.queryByText("Bitte ein Kind aus der Liste antippen."),
-    ).not.toBeInTheDocument();
-
-    currentRosterData = {
-      ...rosterData,
-      instance: { ...rosterData.instance, id: "100", title: "Sport" },
-    };
-    rerender(<MeinRaumPage />);
-
-    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
-
-    expect(
-      await screen.findByRole("button", { name: /Marie Beier/ }),
-    ).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
-
-    await searchFor("Lara");
-
-    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
-    expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
-  });
-
-  it("switches the selection when another result is tapped", async () => {
-    vi.mocked(fetchStudents).mockResolvedValue({
-      students: [
-        makeStudent("201", "Marie", "Beier"),
-        makeStudent("202", "Marie", "Garschagen"),
-      ],
-    });
+      movedFrom: "GT 1",
+    } as never);
 
     render(<MeinRaumPage />);
-    await searchFor("Marie");
 
-    const beierCard = await screen.findByRole("button", {
-      name: /Marie Beier/,
-    });
-    fireEvent.click(beierCard);
-    const garschagenCard = screen.getByRole("button", {
-      name: /Marie Garschagen/,
-    });
-    fireEvent.click(garschagenCard);
-
-    expect(beierCard).toHaveAttribute("aria-pressed", "false");
-    expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
-
-    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
-      new Error("check-in failed"),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+    const button = await screen.findByRole("button", { name: "Einchecken" });
+    button.click();
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Kind konnte nicht zur Aktivität hinzugefügt werden."),
-      ).toBeInTheDocument();
-    });
-    expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
-
-    await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(2);
-      expect(timetableOperationsApi.checkIn).toHaveBeenLastCalledWith(
-        "99",
-        "202",
+      expect(screen.getByTestId("alert-info")).toHaveTextContent(
+        "Marie Muster wurde aus „GT 1“ hierher geholt.",
       );
+    });
+    expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
+  });
+
+  it("shows no notice when the check-in involved no move", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
+      instance: rosterInstance,
+      rows: [
+        {
+          ...expectedRow,
+          currentlyPresent: true,
+          visitId: "visit-100",
+          status: "present",
+        },
+      ],
+      movedFrom: null,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    const button = await screen.findByRole("button", { name: "Einchecken" });
+    button.click();
+
+    await waitFor(() => {
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
+    });
+    expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
+  });
+
+  it("shows the origin notice when an unplanned child is added", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
+      instance: rosterInstance,
+      rows: [
+        expectedRow,
+        {
+          ...expectedRow,
+          studentId: "200",
+          studentName: "Ben Neu",
+          planned: false,
+          isUnplanned: true,
+          currentlyPresent: true,
+          visitId: "visit-200",
+          status: "present",
+        },
+      ],
+      movedFrom: "GT 1",
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    const search = await screen.findByRole("searchbox", {
+      name: "Kind ungeplant suchen",
+    });
+    fireEvent.change(search, { target: { value: "Ben" } });
+    const result = await screen.findByRole("button", {
+      name: /Ben Neu/,
+    });
+    fireEvent.click(result);
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-info")).toHaveTextContent(
+        "Ben Neu wurde aus „GT 1“ hierher geholt.",
+      );
+    });
+    expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "200");
+  });
+
+  it("clears the notice on the next roster action", async () => {
+    const presentRow = {
+      ...expectedRow,
+      currentlyPresent: true,
+      visitId: "visit-100",
+      status: "present",
+    };
+    vi.mocked(timetableOperationsApi.checkIn)
+      .mockResolvedValueOnce({
+        instance: rosterInstance,
+        rows: [presentRow],
+        movedFrom: "GT 1",
+      } as never)
+      .mockResolvedValueOnce({
+        instance: rosterInstance,
+        rows: [presentRow],
+        movedFrom: null,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    const button = await screen.findByRole("button", { name: "Einchecken" });
+    button.click();
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-info")).toBeInTheDocument();
+    });
+
+    button.click();
+    await waitFor(() => {
+      expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     });
   });
 
-  it("clears a single match on instance change, then restores the quick path", async () => {
-    vi.mocked(fetchStudents).mockResolvedValue({
-      students: [makeStudent("201", "Marie", "Beier")],
-    });
-
-    const unsafeCommits: boolean[] = [];
-    const recordCommit = () => {
-      const result = screen.queryByRole("button", { name: /Marie Beier/ });
-      const addButton = screen.queryByRole("button", { name: "Hinzufügen" });
-      unsafeCommits.push(
-        result !== null &&
-          addButton !== null &&
-          !addButton.hasAttribute("disabled"),
+  it.each(["single", "bulk", "unplanned"] as const)(
+    "discards a late %s check-in notice after switching sessions",
+    async (action) => {
+      let resolveCheckIn!: (value: unknown) => void;
+      const checkIn = new Promise((resolve) => {
+        resolveCheckIn = resolve;
+      });
+      vi.mocked(timetableOperationsApi.checkIn).mockReturnValue(
+        checkIn as never,
       );
-    };
-    const renderPage = () => (
-      <CommitProbe onCommit={recordCommit}>
-        <MeinRaumPage />
-      </CommitProbe>
-    );
-    const { rerender } = render(renderPage());
-    await searchFor("Marie Beier");
 
-    await screen.findByRole("button", { name: /Marie Beier/ });
-    const addButton = screen.getByRole("button", { name: "Hinzufügen" });
+      render(<MeinRaumPage />);
 
-    expect(addButton).toBeEnabled();
-    expect(
-      screen.queryByText("Bitte ein Kind aus der Liste antippen."),
-    ).not.toBeInTheDocument();
+      if (action === "single") {
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Einchecken" }),
+        );
+      } else if (action === "bulk") {
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: "1 erwartete bestätigen",
+          }),
+        );
+      } else {
+        fireEvent.change(
+          await screen.findByRole("searchbox", {
+            name: "Kind ungeplant suchen",
+          }),
+          { target: { value: "Ben" } },
+        );
+        fireEvent.click(await screen.findByRole("button", { name: /Ben Neu/ }));
+        fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
+      }
 
-    currentRosterData = {
-      ...rosterData,
-      instance: { ...rosterData.instance, id: "100", title: "Sport" },
-    };
-    unsafeCommits.length = 0;
-    rerender(renderPage());
+      await waitFor(() => {
+        expect(timetableOperationsApi.checkIn).toHaveBeenCalled();
+      });
+      fireEvent.click(await screen.findByRole("button", { name: "Raum 202" }));
+      await screen.findByText("Nora Neu");
 
-    expect(unsafeCommits).not.toContain(true);
-    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+      await act(async () => {
+        resolveCheckIn({
+          instance: rosterInstance,
+          rows: [
+            {
+              ...expectedRow,
+              currentlyPresent: true,
+              visitId: "visit-100",
+              status: "present",
+            },
+          ],
+          movedFrom: "GT 1",
+        });
+        await checkIn;
+      });
 
-    await screen.findByRole("button", { name: /Marie Beier/ });
-    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
-
-    await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("100", "201");
-    });
-  });
+      expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
+    },
+  );
 });

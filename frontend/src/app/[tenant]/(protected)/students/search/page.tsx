@@ -20,7 +20,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -69,12 +69,14 @@ import { StudentExportModal } from "~/components/students/student-export-modal";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
 import {
   checkoutConfirmationRoom,
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import type { SchoolCheckinAction } from "~/lib/student-api";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
@@ -577,6 +579,27 @@ function compareByName(a: Student, b: Student) {
   );
   if (lastCmp !== 0) return lastCmp;
   return (a.first_name ?? "").localeCompare(b.first_name ?? "", "de");
+}
+
+/**
+ * Snapshot of one student a bulk action operates on (#2359): the id for the
+ * API call plus the display name for the failure dialog. Taken from the
+ * Student row at snapshot time because the row itself can leave the result
+ * set (live update, changed filter) while a dialog still has to name — and
+ * retry — the child (review #2372).
+ */
+interface BulkStudentRef {
+  id: string;
+  name: string;
+}
+
+function toBulkStudentRef(student: Student): BulkStudentRef {
+  return {
+    id: student.id.toString(),
+    name:
+      `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+      student.name,
+  };
 }
 
 function statusLabelForStudent(student: Student): string {
@@ -1306,6 +1329,29 @@ function SearchPageContent() {
     studentName: string;
     room: string;
   } | null>(null);
+  // Bulk checkout of a selection containing children who are currently in
+  // rooms mirrors the single-tap confirmation (#2220): ending running room
+  // visits deserves one explicit ok — but one for the whole batch, not per
+  // child (#2359). The dialog holds a SNAPSHOT of the selection taken when it
+  // opened, and confirming executes exactly that snapshot: the live selection
+  // can shift underneath an open dialog (an SWR/SSE update re-shaping the
+  // visible list), and the operation must stay the one the user confirmed
+  // (review #2372).
+  const [pendingBulkCheckout, setPendingBulkCheckout] = useState<{
+    students: BulkStudentRef[];
+    roomCount: number;
+  } | null>(null);
+  // Per-child failures of a bulk action, named for the user (#2359
+  // acceptance criteria). The successful part of the batch is already
+  // processed when this shows. Carries id+name snapshots, not just names:
+  // the dialog's own retry button executes exactly this list, which keeps
+  // the promised one-tap retry reachable even when a scope change during
+  // the run hid the retained marks from the selection bar (review #2372).
+  const [bulkFailures, setBulkFailures] = useState<{
+    action: SchoolCheckinAction;
+    succeeded: number;
+    students: BulkStudentRef[];
+  } | null>(null);
   const {
     enabled: studentPhotosEnabled,
     isLoading: studentPhotosSettingLoading,
@@ -1406,6 +1452,26 @@ function SearchPageContent() {
   // the free-text term: the term may contain dashes ("Anna-Lena"), so no
   // segment after it can be located positionally. See lib/swr/search-students-key.
   const studentsCacheKey = `${SEARCH_STUDENTS_KEY_PREFIX}${searchStudentsGroupScope(selectedGroupIds)}-${debouncedSearchTerm}-${encodeMultiValueParam(selectedSchoolClasses)}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${encodeMultiValueParam(selectedYears)}-${pickupStatusFilter}`;
+
+  // Any change to the result query — the server-side cache key or one of the
+  // client-only filters — replaces the visual context a selection was made
+  // in. Clearing keeps the invariant that a marked card is always on screen:
+  // a selection hidden by a new filter must never survive into a later bulk
+  // run (review #2372). Data revalidation after a bulk run does NOT change
+  // this signature, so retained failure marks survive their retry window.
+  // A scope change WHILE a batch is in flight is safe too: the hook defers
+  // this clear until the run has been processed against the selection it
+  // started from, then applies it while KEEPING the run's failed students —
+  // the failure dialog promises them a one-tap retry (review #2372). The
+  // new scope may HIDE those retained marks, so the selection bar (which
+  // counts visible cards only) cannot be the retry surface then; the
+  // failure dialog therefore carries its own retry that executes its named
+  // snapshot regardless of what the current filters show (review #2372).
+  const selectionScopeSignature = `${studentsCacheKey}|${effectiveAttendanceFilter}|${pickupTimeFilter}|${arrivalTimeFilter}|${effectiveTrackingFilter}`;
+  const clearCheckinSelection = schoolCheckin.clearSelection;
+  useEffect(() => {
+    clearCheckinSelection();
+  }, [selectionScopeSignature, clearCheckinSelection]);
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -1706,6 +1772,7 @@ function SearchPageContent() {
         : studentsData.students,
     [studentsData, isDateTransition],
   );
+
   // Gated on the same staleness check as the rows themselves: a held response
   // from the previous date must not warn about the new one.
   const truncatedTotal =
@@ -2559,6 +2626,86 @@ function SearchPageContent() {
     });
   }, [filteredStudents, sortMode, planningNow, isToday]);
 
+  // The students currently marked in the selection sub-mode (#2359). Derived
+  // from the VISIBLE rows (client-side filters applied), never the raw fetch:
+  // confirmation counts and the executed batch must cover exactly the cards
+  // on screen, or a mark hidden by a filter could be acted on sight-unseen
+  // (review #2372). The selection bars' count/activation must come from this
+  // list too — selectedIds may still hold students a live update removed,
+  // and a count the bar shows must never exceed what a bulk action executes.
+  const selectedStudentsForBulk = useMemo(
+    () =>
+      filteredStudents.filter((student) =>
+        schoolCheckin.selectedIds.has(student.id.toString()),
+      ),
+    [filteredStudents, schoolCheckin.selectedIds],
+  );
+
+  // Runs the bulk action for an explicit snapshot list: the caller passes
+  // the visible selection for the direct path, the confirmation dialog's
+  // snapshot, or the failure dialog's retry snapshot — never the live
+  // selection at execute time, so a dialog always executes what it
+  // displayed (review #2372). runBulk executes the snapshot exactly as
+  // given — deliberately NOT intersected with the live selection: a
+  // search/filter change committing while a dialog is open clears the
+  // selection, and an intersected run would silently shrink to nothing
+  // despite the dialog's promise (review #2372). Every snapshot was on
+  // screen when the user triggered it, so nothing runs sight-unseen.
+  const executeBulk = useCallback(
+    async (action: SchoolCheckinAction, targets: readonly BulkStudentRef[]) => {
+      // The snapshot names travel with the ids: after the run the hook
+      // shrinks the selection to the failed students, and the failure
+      // dialog must still name (and be able to retry) them.
+      const nameById = new Map(
+        targets.map((target) => [target.id, target.name]),
+      );
+
+      const outcome = await schoolCheckin.runBulk(
+        action,
+        targets.map((target) => target.id),
+      );
+      // null: nothing selected or whole request failed (hook toasted the
+      // error). failed === 0: the hook toasted the success summary.
+      if (!outcome || outcome.failed === 0) return;
+
+      setBulkFailures({
+        action,
+        succeeded: outcome.succeeded,
+        students: outcome.results
+          .filter((result) => !result.ok)
+          .map((result) => ({
+            id: result.studentId,
+            name: nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
+          })),
+      });
+    },
+    [schoolCheckin],
+  );
+
+  const handleBulkAction = useCallback(
+    (action: SchoolCheckinAction) => {
+      if (selectedStudentsForBulk.length === 0) return;
+      if (action === "out") {
+        // Same rule as the single tap (#2220): checking a child out of a room
+        // ends the running visit, so that asks first — once per batch. The
+        // dialog snapshots the selection it is asking about (review #2372).
+        const roomCount = selectedStudentsForBulk.filter(
+          (student) =>
+            checkoutConfirmationRoom(student.current_location) !== null,
+        ).length;
+        if (roomCount > 0) {
+          setPendingBulkCheckout({
+            students: selectedStudentsForBulk.map(toBulkStudentRef),
+            roomCount,
+          });
+          return;
+        }
+      }
+      void executeBulk(action, selectedStudentsForBulk.map(toBulkStudentRef));
+    },
+    [selectedStudentsForBulk, executeBulk],
+  );
+
   const groupedStudents = useMemo(
     () => groupStudents(sortedStudents, effectiveGroupMode),
     [sortedStudents, effectiveGroupMode],
@@ -2593,6 +2740,7 @@ function SearchPageContent() {
                 onToggle={schoolCheckin.toggleActive}
                 successCount={schoolCheckin.successCount}
                 pendingCount={schoolCheckin.pendingIds.size}
+                disabled={schoolCheckin.isBulkRunning}
               />
             ) : undefined
           }
@@ -2680,8 +2828,25 @@ function SearchPageContent() {
             onToggle={schoolCheckin.toggleActive}
             successCount={schoolCheckin.successCount}
             pendingCount={schoolCheckin.pendingIds.size}
+            selectionActive={schoolCheckin.selectionActive}
+            selectedCount={selectedStudentsForBulk.length}
+            disabled={schoolCheckin.isBulkRunning}
           />
         </div>
+      )}
+
+      {/* Sub-mode bar of the active check-in mode (#2359): switch between
+          immediate taps (door operation, default) and the selection mode
+          with its bulk Anmelden/Abmelden actions. */}
+      {checkinModeAvailable && schoolCheckin.isActive && (
+        <SchoolCheckinSelectionBar
+          selectionActive={schoolCheckin.selectionActive}
+          onSelectionActiveChange={schoolCheckin.setSelectionActive}
+          selectedCount={selectedStudentsForBulk.length}
+          onClearSelection={schoolCheckin.clearSelection}
+          onBulkAction={handleBulkAction}
+          isRunning={schoolCheckin.isBulkRunning}
+        />
       )}
 
       {/* Student Grid. Bottom padding reserves room for the mobile sticky
@@ -2807,8 +2972,16 @@ function SearchPageContent() {
                 }
                 checkinMode={checkinModeAvailable && schoolCheckin.isActive}
                 checkinState={checkinState}
+                checkinSelectMode={schoolCheckin.selectionActive}
+                isCheckinSelected={schoolCheckin.selectedIds.has(studentIdStr)}
                 isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
                 onCheckinClick={() => {
+                  // Selection sub-mode (#2359): a tap only marks the child;
+                  // nothing is written until the bar's bulk action runs.
+                  if (schoolCheckin.selectionActive) {
+                    schoolCheckin.toggleSelected(studentIdStr);
+                    return;
+                  }
                   if (roomToConfirm) {
                     setPendingRoomCheckout({
                       studentId: studentIdStr,
@@ -3011,6 +3184,7 @@ function SearchPageContent() {
             onToggle={schoolCheckin.toggleActive}
             successCount={schoolCheckin.successCount}
             pendingCount={schoolCheckin.pendingIds.size}
+            disabled={schoolCheckin.isBulkRunning}
           />
         </div>
       )}
@@ -3042,6 +3216,108 @@ function SearchPageContent() {
           für heute als gegangen.
         </p>
       </ConfirmationModal>
+
+      {/* Bulk checkout of a selection with children currently in rooms: one
+          confirmation for the whole batch (#2359), mirroring the single-tap
+          room dialog above. Confirming executes the snapshot the dialog
+          displays — not the live selection, which may have shifted while it
+          was open (review #2372). */}
+      <ConfirmationModal
+        isOpen={pendingBulkCheckout !== null}
+        onClose={() => setPendingBulkCheckout(null)}
+        onConfirm={() => {
+          if (!pendingBulkCheckout) return;
+          const snapshot = pendingBulkCheckout.students;
+          setPendingBulkCheckout(null);
+          void executeBulk("out", snapshot);
+        }}
+        title="Ausgewählte Kinder abmelden?"
+        confirmText="Abmelden"
+        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
+      >
+        <p className="text-sm text-gray-600">
+          <span className="font-medium text-gray-900">
+            {pendingBulkCheckout?.students.length}
+          </span>{" "}
+          {pendingBulkCheckout?.students.length === 1
+            ? "Kind ist"
+            : "Kinder sind"}{" "}
+          ausgewählt,{" "}
+          <span className="font-medium text-gray-900">
+            {pendingBulkCheckout?.roomCount}
+          </span>{" "}
+          davon {pendingBulkCheckout?.roomCount === 1 ? "ist" : "sind"} gerade
+          in einem Raum. Beim Abmelden werden laufende Raumbesuche beendet und
+          die Kinder gelten für heute als gegangen.
+        </p>
+      </ConfirmationModal>
+
+      {/* Per-child failures of a bulk action, named (#2359). The successful
+          part of the batch is already applied at this point. The retry
+          button executes the dialog's OWN snapshot — the named children on
+          screen right here — not the selection bar's visible-rows view: a
+          scope change during the run keeps the failed students selected but
+          may hide their cards, and the promised one-tap retry must stay
+          reachable then (review #2372). Acting on the snapshot is not
+          sight-unseen (the dialog lists every child by name), and runBulk
+          executes exactly this snapshot — a scope change committing while
+          this dialog is open may clear the selection, and an intersected
+          retry would then be a silent no-op (review #2372). */}
+      <Modal
+        isOpen={bulkFailures !== null}
+        onClose={() => setBulkFailures(null)}
+        title={
+          bulkFailures?.action === "in"
+            ? "Nicht alle Kinder angemeldet"
+            : "Nicht alle Kinder abgemeldet"
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            {bulkFailures?.succeeded === 1
+              ? "1 Kind wurde"
+              : `${bulkFailures?.succeeded} Kinder wurden`}{" "}
+            {bulkFailures?.action === "in" ? "angemeldet" : "abgemeldet"}. Bei
+            {bulkFailures?.students.length === 1
+              ? " diesem Kind"
+              : ` diesen ${bulkFailures?.students.length} Kindern`}{" "}
+            hat es nicht geklappt:
+          </p>
+          <ul className="list-inside list-disc text-sm font-medium text-gray-900">
+            {bulkFailures?.students.map((student) => (
+              <li key={student.id}>{student.name}</li>
+            ))}
+          </ul>
+          <p className="text-sm text-gray-600">
+            Diese Kinder bleiben ausgewählt. Mit „Erneut versuchen“ führst du
+            die Aktion für genau diese Kinder noch einmal aus, auch wenn ein
+            geänderter Filter sie gerade ausblendet.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={() => setBulkFailures(null)}
+            >
+              Schließen
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => {
+                if (!bulkFailures) return;
+                const { action, students: failedStudents } = bulkFailures;
+                setBulkFailures(null);
+                void executeBulk(action, failedStudents);
+              }}
+            >
+              Erneut versuchen
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {isExportOpen && (
         <StudentExportModal

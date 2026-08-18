@@ -1610,6 +1610,44 @@ func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noW
 	return student, nil
 }
 
+// FindByIDsForUpdate fetches and locks the given student rows in one
+// SELECT … ORDER BY id FOR UPDATE. Ascending id order is the project-wide
+// student lock convention (see FindByIDForUpdateNoWait), so overlapping
+// batch callers serialize on their first shared row instead of deadlocking.
+// The class-writes shared gate is taken once for the whole batch, exactly
+// like the single-row lock does per row. Unknown or foreign ids are simply
+// absent from the returned map — callers re-validate per id.
+func (r *StudentRepository) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	result := make(map[int64]*users.Student, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return nil, err
+	}
+
+	var students []*users.Student
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&students).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Where(`"student".id IN (?)`, bun.List(ids)).
+		OrderExpr(`"student".id ASC`).
+		For("UPDATE")
+
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find_by_ids_for_update", Err: err}
+	}
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		result[student.ID] = student
+	}
+	return result, nil
+}
+
 // applyCompanionLinkDays fills the non-persisted Student.DepartureCompanionDays
 // from users.student_companions, so Student.Validate() accepts an accompanied
 // weekday whose "mit wem" is answered by a link on THAT day instead of the

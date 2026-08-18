@@ -272,6 +272,9 @@ func (s *stubActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ boo
 func (s *stubActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (s *stubActiveService) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeSvc.SchoolCheckinBatchResult, error) {
+	return nil, nil
+}
 func (s *stubActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }

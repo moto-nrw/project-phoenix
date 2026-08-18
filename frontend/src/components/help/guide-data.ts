@@ -546,7 +546,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Gruppieren` die Liste nach `Status`, `Raum`, `Ankunftszeit`, `Gehzeit`, `Abholregelung` oder `Laufgemeinschaft` bündeln. `Nach Laufgemeinschaft` zeigt die Kinder blockweise so, wie sie gemeinsam nach Hause gehen; Kinder ohne Verknüpfung stehen gesammelt am Ende unter `Ohne Laufgemeinschaft`.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Zur Abholzeit über `An- & Abmelden` (am Handy die Leiste über der Liste) den Sammelmodus starten: Ein Tipp auf eine Kinderkarte meldet das Kind an oder ab, ohne die Karte zu öffnen. Der farbige Streifen unten auf der Karte nennt die nächste Aktion, grün für `Anmelden` und rot für `Abmelden`. So lässt sich eine gefilterte Aufrufliste abarbeiten, ohne zwischen Ansichten zu wechseln. Der Modus gilt immer für heute; `Fertig` beendet ihn.",
-          "Ist ein Kind gerade in einem Raum, fragt die App vor dem Abmelden nach und beendet den laufenden Raumbesuch mit; danach ist das Kind für heute abgemeldet. Ein Kind, das über die Web-App angemeldet wird, hat noch keinen Raum und erscheint als `Unterwegs`, bis das Tablet oder eine Aktivität es einem Raum zuordnet. Erscheint `Keine Berechtigung`, darf nur die Gruppenbetreuung des Kindes an- und abmelden; ein Admin kann das unter `Einstellungen` -> `Betrieb` -> `Web-An/Abmeldung Zugriff` auf alle berechtigten Mitarbeitenden ausweiten.",
+          "In der Leiste unter dem Seitenkopf lässt sich das Tippverhalten von `Sofort` auf `Auswahl` umschalten: Ein Tipp markiert das Kind dann nur (`Ausgewählt`), ohne etwas auszulösen. So sieht man zum Beispiel im Verabschiedungskreis, wer schon dasteht und wer noch fehlt. `Anmelden` oder `Abmelden` in der Leiste führt die Aktion anschließend für alle markierten Kinder gesammelt aus. Kinder, bei denen es nicht klappt, werden namentlich genannt und bleiben markiert, sodass ein zweiter Versuch nur ein Tipp ist.",
+          "Ist ein Kind gerade in einem Raum, fragt die App vor dem Abmelden nach und beendet den laufenden Raumbesuch mit; danach ist das Kind für heute abgemeldet. Bei einer Sammelaktion kommt diese Nachfrage einmal für die ganze Auswahl. Ein Kind, das über die Web-App angemeldet wird, hat noch keinen Raum und erscheint als `Unterwegs`, bis das Tablet oder eine Aktivität es einem Raum zuordnet. Erscheint `Keine Berechtigung`, fehlt dem Konto das Recht zum An- und Abmelden von Kindern; ein Admin kann es über die Rollenverwaltung vergeben.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
         callout: {
@@ -697,7 +698,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
           "Falsche Markierung mit `Zurück auf erwartet` korrigieren.",
-          "Ungeplantes Kind über `Weiteres Kind suchen...` hinzufügen.",
+          "Ungeplantes Kind über `Weiteres Kind suchen...` finden.",
+          "Bei mehreren Treffern ein Kind antippen. Danach `Hinzufügen` wählen. Bei einem Treffer direkt `Hinzufügen` wählen.",
           "Im Bereich `Kinder unterwegs` Kinder ohne Raum auswählen, einen Zielraum wählen und mit `In Raum setzen` zuweisen.",
           "Den Schulhof über den Schulhof-Tab und `Beaufsichtigen` führen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
           "Für ein neues Angebot `Spontane Aktivität starten`.",
@@ -712,7 +714,7 @@ export const appChapters: readonly GuideChapter[] = [
           body: "Wird einer Aktivität eine ganze Gruppe, Klasse oder Jahrgangsstufe zugewiesen, gehören alle Kinder dauerhaft dazu. Wer laut seinen `Betreuungszeiten` an diesem Wochentag gar nicht in der OGS ist, erscheint deshalb grau als `Nicht eingeplant` und zählt nicht zu `Erwartet`. Das Kind bleibt trotzdem in der Liste: Kommt es doch, checken Sie es ganz normal ein. Kinder ohne hinterlegte Betreuungszeiten gelten weiterhin als erwartet.",
         },
         screenshot:
-          "Laufende Aufsicht mit Anwesend, Kinder unterwegs und Spontane Aktivität.",
+          "Laufende Aufsicht mit ausgewähltem Suchtreffer vor dem Hinzufügen.",
         image: "/help/screens/aktuelle-aufsicht.webp",
       },
       {

@@ -1411,7 +1411,7 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, open))
 		createdIDs = append(createdIDs, open.ID)
 
-		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, data.Staff2.ID)
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.DateFromTime(now), data.Staff2.ID)
 		require.NoError(t, err)
 		require.NotNil(t, closed, "open row must have been closed")
 		assert.Equal(t, open.ID, closed.ID)
@@ -1426,7 +1426,7 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Idempotent", "2y")
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Now(), data.Staff1.ID)
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Now(), timezone.TodayDate(), data.Staff1.ID)
 		require.NoError(t, err)
 		assert.Nil(t, closed, "no open row → idempotent success, repo returns nil")
 	})
@@ -1448,9 +1448,51 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, open))
 		createdIDs = append(createdIDs, open.ID)
 
-		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, 0)
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.DateFromTime(now), 0)
 		require.NoError(t, err)
 		require.NotNil(t, closed)
 		assert.Nil(t, closed.CheckedOutBy, "staffID=0 must not write a bogus FK")
 	})
+}
+
+// TestAttendanceRepository_CloseOpenForTodayUsesCallerDate pins that the
+// repository closes rows of the CALLER-supplied calendar day instead of
+// re-deriving "today" internally (review #2372): the batch school checkout
+// snapshots one date for the whole run, and a batch crossing Berlin midnight
+// must keep closing the snapshot day's rows — not silently switch to the new
+// day mid-batch.
+func TestAttendanceRepository_CloseOpenForTodayUsesCallerDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Attendance
+	ctx := testpkg.TenantContext(1)
+	data := createAttendanceTestData(t, db)
+	defer cleanupAttendanceTestData(t, db, data)
+
+	student := testpkg.CreateTestStudent(t, db, "Close", "SnapshotDay", "2w")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	now := time.Now()
+	yesterday := timezone.TodayDate().AddDays(-1)
+	open := &active.Attendance{
+		StudentID:   student.ID,
+		Date:        yesterday,
+		CheckInTime: now.Add(-25 * time.Hour),
+		CheckedInBy: data.Staff1.ID,
+		DeviceID:    data.Device1.ID,
+	}
+	require.NoError(t, repo.Create(ctx, open))
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", open.ID)
+
+	// A close scoped to the CURRENT day must not touch yesterday's open row.
+	closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.TodayDate(), data.Staff1.ID)
+	require.NoError(t, err)
+	assert.Nil(t, closed, "a different-day close must not match the snapshot day's row")
+
+	// The same close scoped to the snapshot day closes exactly that row.
+	closed, err = repo.CloseOpenForToday(ctx, student.ID, now, yesterday, data.Staff1.ID)
+	require.NoError(t, err)
+	require.NotNil(t, closed, "the caller-supplied day's open row must be closed")
+	assert.Equal(t, open.ID, closed.ID)
 }
