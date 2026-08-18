@@ -94,29 +94,21 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 	})
 	assert.Equal(t, "checked_out", checkedOut["data"].(map[string]any)["state"])
 
-	// Reopening with a different work location must never silently rewrite
-	// status. The first request returns a typed conflict; a reason-bearing
-	// retry reopens and records the audited status change atomically.
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Mount("/", staffclockAPI.NewResource(ctx.services.StaffClock).Router())
-	conflictReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/staff-clock", map[string]any{
+	// Checking in again with a different work location starts a NEW block
+	// carrying that status (#2402): one stamp, no conflict, no reason. The
+	// first block stays closed with its own status.
+	secondBlock := ctx.execute(t, "/staff-clock", map[string]any{
 		"rfid_tag": card.ID,
 		"action":   "checkin",
 		"status":   "home_office",
-	}, testutil.WithDeviceContext(ctx.device))
-	conflictResponse := testutil.ExecuteRequest(router, conflictReq)
-	require.Equal(t, http.StatusConflict, conflictResponse.Code, "response: %s", conflictResponse.Body.String())
-	assert.Equal(t, "reopen_status_conflict", testutil.ParseJSONResponse(t, conflictResponse.Body.Bytes())["code"])
-
-	reopened := ctx.execute(t, "/staff-clock", map[string]any{
-		"rfid_tag": card.ID,
-		"action":   "checkin",
-		"status":   "home_office",
-		"reason":   "Nachmittags im Homeoffice",
 	})
-	reopenedSession := reopened["data"].(map[string]any)["session"].(map[string]any)
-	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, reopenedSession["status"])
-	assert.Equal(t, activeModels.WorkSessionSourceNFC, reopenedSession["source"])
+	secondBlockData := secondBlock["data"].(map[string]any)
+	assert.Equal(t, "checked_in", secondBlockData["state"])
+	secondBlockSession := secondBlockData["session"].(map[string]any)
+	assert.Equal(t, activeModels.WorkSessionStatusHomeOffice, secondBlockSession["status"])
+	assert.Equal(t, activeModels.WorkSessionSourceNFC, secondBlockSession["source"])
+	assert.NotEqual(t, session["id"], secondBlockSession["id"],
+		"the second check-in must create a new block, not reopen the first")
 }
 
 func TestStaffClock_RejectsStudentCard(t *testing.T) {

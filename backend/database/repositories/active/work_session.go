@@ -41,26 +41,30 @@ func (r *WorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staf
 	return lockStaffBalanceWrites(ctx, r.db, staffID)
 }
 
-// GetByStaffAndDate returns the work session for a staff member on a given date
-func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
-	session := new(active.WorkSession)
+// ListByStaffAndDate returns all work session blocks of a staff member on a
+// given date, ordered by check-in time. Since #2402 a day can carry several
+// closed blocks (plus at most one open one), so "the session of the day" is a
+// list, not a single row.
+func (r *WorkSessionRepository) ListByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*active.WorkSession, error) {
+	var sessions []*active.WorkSession
 	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(session).
+		Model(&sessions).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date = ?`, date)
+		Where(`"work_session".date = ?`, date).
+		OrderExpr(`"work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
-			Op:  "get by staff and date",
+			Op:  "list by staff and date",
 			Err: err,
 		}
 	}
 
-	return session, nil
+	return sessions, nil
 }
 
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
@@ -120,7 +124,7 @@ func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staf
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".check_out_time IS NULL`).
-		OrderExpr(`"work_session".date DESC`).
+		OrderExpr(`"work_session".date DESC, "work_session".check_in_time DESC`).
 		Limit(1)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
@@ -167,7 +171,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date >= ?`, from).
 		Where(`"work_session".date <= ?`, to).
-		OrderExpr(`"work_session".date ASC`)
+		OrderExpr(`"work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 
@@ -319,7 +323,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffI
 		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
 		Where(`"work_session".date >= ?`, from).
 		Where(`"work_session".date <= ?`, to).
-		OrderExpr(`"work_session".staff_id ASC, "work_session".date ASC`)
+		OrderExpr(`"work_session".staff_id ASC, "work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 

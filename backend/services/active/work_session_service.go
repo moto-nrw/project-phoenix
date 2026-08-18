@@ -122,25 +122,6 @@ type WorkSessionEditView struct {
 	IsSelfEdit bool   `json:"is_self_edit"`
 }
 
-// ReopenStatusConflictError is returned by CheckIn when the staff member
-// already has a checked-out session for today and the requested status
-// differs from the existing one. Reopening would silently change the status
-// without an audit edit; the caller (App UI) must instead reopen with the
-// existing status and then go through UpdateSession (which requires a
-// notes reason and emits a FieldStatus edit).
-//
-// The frontend disambiguates this from other 409s via the typed code
-// "reopen_status_conflict" produced by api/time-tracking/errors.go.
-type ReopenStatusConflictError struct {
-	SessionID       int64
-	ExistingStatus  string
-	RequestedStatus string
-}
-
-func (e *ReopenStatusConflictError) Error() string {
-	return "reopen status conflict"
-}
-
 // PlannedStartNotReachedError is returned by CheckIn when the optional
 // planned-start enforcement setting is enabled and today's work schedule has a
 // start time later than the current wall clock.
@@ -181,17 +162,16 @@ type settingsResolver interface {
 
 // WorkSessionService defines operations for staff time tracking
 type WorkSessionService interface {
-	// CheckIn opens or reopens today's session for staffID. `source` records
-	// the channel that triggered the check-in (app/nfc) so the export can
-	// label "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from
-	// status alone (Issue #1368).
+	// CheckIn opens a new work block for staffID. `source` records the
+	// channel that triggered the check-in (app/nfc) so the export can label
+	// "Vor Ort (App)" vs "Vor Ort (NFC)" without inferring it from status
+	// alone (Issue #1368).
 	//
-	// Reopen rules: the originating Source AND Status are both preserved.
-	// The channel is an audit-relevant fact with no audit edit to capture
-	// a change; status changes carry audit weight and must go through
-	// UpdateSession (which gates on a notes reason). If `status` differs
-	// from the existing session's status, CheckIn returns
-	// *ReopenStatusConflictError instead of silently overwriting.
+	// Since #2402 a day can carry several blocks: checking in again after a
+	// checkout creates a NEW session with its own check-in, checkout and
+	// status instead of reopening the closed one. At most one block per day
+	// may be open at a time ("already checked in" otherwise), enforced both
+	// here and by the partial unique index uq_work_sessions_staff_date_open.
 	//
 	// `reason` is the F9 deviation reason. It is only consulted when the
 	// tenant setting operations.time_tracking_require_deviation_reason is
@@ -427,10 +407,10 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 	return s.checkIn(ctx, staffID, timezone.DateFromTime(s.now()), status, source, reason, true)
 }
 
-// CheckInOn resolves the existing session of an explicit calendar day instead
-// of deriving that day from the server clock: a kiosk that pinned its day
-// before stamping must reopen the row it saw, and its day-pinned reads have to
-// keep seeing it.
+// CheckInOn resolves the open session of an explicit calendar day instead of
+// deriving that day from the server clock: a kiosk that pinned its day before
+// stamping must see the running block it resolved, and its day-pinned reads
+// have to keep seeing it.
 //
 // The pin covers the lookup only. A session that is newly created is filed on
 // the day its own stamp falls on — see checkIn.
@@ -465,66 +445,46 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 	now := s.now()
 	stampDay := timezone.DateFromTime(now)
 
-	// Check if there's already a session on the day this call acts on
-	existingSession, err := s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf("failed to check existing session: %w", err)
-	}
-
-	// A pinned day that no longer matches the stamp may only carry a session
-	// that is still running: that is a night shift the caller is right to act
-	// on. A closed row on that day is finished business from a day this stamp
-	// does not belong to, and reopening it would move yesterday's arrival and
-	// erase yesterday's departure. Act on the stamp's own day instead.
-	if existingSession != nil && !existingSession.IsActive() && lookupDay != stampDay {
-		lookupDay = stampDay
-		existingSession, err = s.repo.GetByStaffAndDate(ctx, staffID, lookupDay)
+	// A still-open block on the pinned day means the person is already
+	// clocked in (night shift the caller is right to act on). A CLOSED block
+	// on a stale pinned day is finished business — the new block belongs to
+	// the stamp's own day, which is checked below.
+	if lookupDay != stampDay {
+		openSession, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, lookupDay)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("failed to check existing session: %w", err)
 		}
-	}
-
-	if existingSession != nil {
-		if existingSession.IsActive() {
+		if openSession != nil {
 			return nil, fmt.Errorf("already checked in")
 		}
-		if err := s.ensurePlannedStartReached(ctx, staffID, lookupDay, now); err != nil {
-			return nil, err
-		}
-		// A status mismatch on reopen would silently rewrite an audit-relevant
-		// field with no FieldStatus edit emitted. Force the caller to reopen
-		// with the existing status, then change it via UpdateSession (which
-		// gates on a notes reason and produces the audit edit).
-		if existingSession.Status != status {
-			return nil, &ReopenStatusConflictError{
-				SessionID:       existingSession.ID,
-				ExistingStatus:  existingSession.Status,
-				RequestedStatus: status,
-			}
-		}
-		// Re-open the checked-out session (accidental checkout recovery).
-		// Source and Status are both preserved (see reopenSession comment).
-		reopened, err := s.reopenSession(ctx, existingSession, staffID)
-		if err != nil {
-			return nil, err
-		}
-		s.broadcastTimeTrackingChanged(ctx)
-		return reopened, nil
 	}
 
-	// From here the session is created, so it belongs to the day of its own
-	// stamp: the schedule and deviation checks below have to be read on that
-	// same day, or a stamp taken just after midnight is measured against the
-	// previous day's shift.
+	// Since #2402 a day carries a LIST of blocks. Closed blocks never block a
+	// new check-in — checking in again after a checkout starts a new block
+	// with its own status. Only an open block does.
+	existingBlocks, err := s.repo.ListByStaffAndDate(ctx, staffID, stampDay)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing sessions: %w", err)
+	}
+	for _, block := range existingBlocks {
+		if block.IsActive() {
+			return nil, fmt.Errorf("already checked in")
+		}
+	}
+
+	// The session is created on the day of its own stamp: the schedule and
+	// deviation checks below have to be read on that same day, or a stamp
+	// taken just after midnight is measured against the previous day's shift.
 	if err := s.ensurePlannedStartReached(ctx, staffID, stampDay, now); err != nil {
 		return nil, err
 	}
 
 	// F9: checking in more than the tolerance before the planned shift start
-	// needs a reason ("früher kommen"). The reopen path above is exempt —
-	// resuming after an accidental checkout is not a new arrival.
+	// needs a reason ("früher kommen"). Only the day's FIRST block is gated —
+	// a later block resumes an already-started work day, exactly like the
+	// pre-#2402 reopen path, which was exempt for the same reason.
 	var deviation *plannedDeviation
-	if enforceDeviationGate {
+	if enforceDeviationGate && len(existingBlocks) == 0 {
 		var err error
 		deviation, err = s.detectPlannedDeviation(ctx, staffID, stampDay, now, deviationActionCheckIn)
 		if err != nil {
@@ -611,32 +571,6 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 		return nil
 	}
 	return nil
-}
-
-// reopenSession clears checkout on an existing session so the staff member
-// can continue working. Both Source and Status are intentionally preserved:
-// the originating channel and the previously-chosen work mode are
-// audit-relevant facts, and overwriting either on reopen would silently
-// drop the signal with no audit edit. CheckIn rejects the call with
-// ReopenStatusConflictError before this point if the requested status
-// differs from the existing one. The caller is expected to follow up
-// with UpdateSession (which gates on a notes reason).
-func (s *workSessionService) reopenSession(ctx context.Context, session *activeModels.WorkSession, staffID int64) (*activeModels.WorkSession, error) {
-	now := time.Now()
-	session.CheckOutTime = nil
-	session.AutoCheckedOut = false
-	session.ReopenedAt = &now
-	session.UpdatedBy = &staffID
-
-	if err := session.Validate(); err != nil {
-		return nil, fmt.Errorf(errInvalidSessionData, err)
-	}
-
-	if err := s.repo.Update(ctx, session); err != nil {
-		return nil, fmt.Errorf("failed to reopen session: %w", err)
-	}
-
-	return session, nil
 }
 
 // CheckOut ends the current work session for the staff member
@@ -1192,6 +1126,11 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
 
+	// Edited times must not slide into a sibling block of the same day.
+	if err := s.assertNoBlockOverlap(ctx, session.StaffID, session.Date, session.ID, session.CheckInTime, session.CheckOutTime); err != nil {
+		return nil, err
+	}
+
 	if err := s.repo.Update(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to update session: %w", err)
 	}
@@ -1240,6 +1179,11 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 
 	checkOut := req.CheckOutTime
 	date := timezone.DateFromTime(req.Date)
+	// A day can carry several blocks since #2402, so the Nachtrag no longer
+	// collides with an existing session per se — but it must not overlap one.
+	if err := s.assertNoBlockOverlap(ctx, targetStaffID, date, 0, req.CheckInTime, &checkOut); err != nil {
+		return nil, err
+	}
 	session := &activeModels.WorkSession{
 		StaffID:      targetStaffID,
 		Date:         date,
@@ -1295,6 +1239,40 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 
 	s.broadcastTimeTrackingChanged(ctx)
 	return session, nil
+}
+
+// assertNoBlockOverlap rejects a block whose [check-in, check-out) interval
+// overlaps another block of the same staff member on the same day (#2402).
+// Overlapping blocks would double-count work time in every sum built from the
+// day's rows. Touching boundaries (one block ends exactly when the next
+// starts) are allowed; an open sibling block occupies [check-in, ∞).
+func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID int64, date timezone.Date, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
+	siblings, err := s.repo.ListByStaffAndDate(ctx, staffID, date)
+	if err != nil {
+		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
+	}
+	for _, sibling := range siblings {
+		if sibling.ID == excludeID {
+			continue
+		}
+		if checkOut != nil && !checkOut.After(sibling.CheckInTime) {
+			continue // new block ends before (or exactly when) the sibling starts
+		}
+		if sibling.CheckOutTime != nil && !sibling.CheckOutTime.After(checkIn) {
+			continue // sibling ends before (or exactly when) the new block starts
+		}
+		return fmt.Errorf("work session overlaps an existing block (%s–%s)",
+			sibling.CheckInTime.In(timezone.Berlin).Format("15:04"),
+			formatBlockEnd(sibling.CheckOutTime))
+	}
+	return nil
+}
+
+func formatBlockEnd(checkOut *time.Time) string {
+	if checkOut == nil {
+		return "offen"
+	}
+	return checkOut.In(timezone.Berlin).Format("15:04")
 }
 
 func (s *workSessionService) handleSessionNotFoundError(err error) error {
@@ -2115,14 +2093,17 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 		return currentSession, nil
 	}
 
-	// Check if there's already a checked-out session today
+	// Check if there's already a checked-out block today. Deliberately no
+	// auto-created second block (#2402): whoever stamped out made a
+	// conscious decision, and a supervision start must not silently begin a
+	// new work block behind their back.
 	today := timezone.DateFromTime(s.now())
-	todaySession, err := s.repo.GetByStaffAndDate(ctx, staffID, today)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	todaySessions, err := s.repo.ListByStaffAndDate(ctx, staffID, today)
+	if err != nil {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)
 	}
 
-	if todaySession != nil {
+	if len(todaySessions) > 0 {
 		// Already checked out today, don't re-check-in
 		return nil, nil
 	}
@@ -2149,7 +2130,10 @@ var germanAbsenceTypeLabels = map[string]string{
 // exportRow represents a single row in the export (either a work session or an absence day)
 type exportRow struct {
 	Date timezone.Date
-	Row  []string
+	// Start orders multiple blocks of the same day chronologically (#2402).
+	// Absence rows carry the zero value and sort before the day's sessions.
+	Start time.Time
+	Row   []string
 }
 
 // timeTrackingConfidentialityNote matches the wording of the other
@@ -2314,11 +2298,12 @@ func clampAbsencesToRange(absences []*activeModels.StaffAbsence, from, to timezo
 func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absences []*activeModels.StaffAbsence) []exportRow {
 	var rows []exportRow
 
-	// Add session rows
+	// Add session rows (a day can carry several blocks since #2402)
 	for _, sr := range sessions {
 		rows = append(rows, exportRow{
-			Date: sr.Date,
-			Row:  s.sessionToRow(sr),
+			Date:  sr.Date,
+			Start: sr.CheckInTime,
+			Row:   s.sessionToRow(sr),
 		})
 	}
 
@@ -2351,9 +2336,12 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 		}
 	}
 
-	// Sort by date
+	// Sort by date, blocks of the same day by check-in time
 	sort.Slice(rows, func(i, j int) bool {
-		return rows[i].Date.Before(rows[j].Date)
+		if rows[i].Date != rows[j].Date {
+			return rows[i].Date.Before(rows[j].Date)
+		}
+		return rows[i].Start.Before(rows[j].Start)
 	})
 
 	return rows

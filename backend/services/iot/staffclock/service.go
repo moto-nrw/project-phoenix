@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -18,10 +17,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// workSessionDateConstraint is the unique index behind one work session per
-// staff member and day (migration 1.10.1). Two kiosks scanning the same card at
-// once both find no session and both insert; the loser hits this constraint.
-const workSessionDateConstraint = "uq_work_sessions_staff_date"
+// workSessionOpenConstraint is the partial unique index behind "at most one
+// OPEN work session per staff member and day" (migration 1.15.305, #2402).
+// Two kiosks scanning the same card at once both find no open session and
+// both insert an open row; the loser hits this constraint.
+const workSessionOpenConstraint = "uq_work_sessions_staff_date_open"
 
 const (
 	ActionCheckIn    = "checkin"
@@ -60,7 +60,6 @@ type workSessionService interface {
 	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
 	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, error)
-	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
 	GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
 }
@@ -232,19 +231,18 @@ func (s *Service) Execute(ctx context.Context, command Command) (*State, error) 
 	return s.loadState(ctx, person, staff, day, s.currentTime())
 }
 
-// checkIn stamps the arrival, resolving the reopen-status conflict when the
-// caller supplied a reason.
+// checkIn stamps the arrival. Since #2402 a repeated check-in after a
+// checkout creates a NEW work block with its own status — the old
+// reopen-status-conflict dance is gone, so a Homeoffice morning followed by
+// an OGS afternoon needs no reason and no follow-up edit.
 //
 // A concurrent scan of the same card is reported as ErrCheckInRaced rather than
-// bubbling the raw unique violation out as a 500: both requests read "no
-// session today" before either inserted, so the loser is looking at a state
+// bubbling the raw unique violation out as a 500: both requests read "no open
+// session" before either inserted, so the loser is looking at a state
 // conflict the winner just created. The duplicate INSERT also leaves the
 // request transaction aborted — nothing can be re-read or retried on it — so
 // the rollback is requested explicitly and the kiosk is told to rescan for
 // authoritative state.
-// Both the first stamp and the reopen retry are pinned to the day the request
-// resolved, so the retry cannot land on a fresh session of the following day
-// while the status update it is paired with rewrites the previous day's row.
 // The stamped session is returned so the caller can read the state back on the
 // day the row actually carries.
 func (s *Service) checkIn(ctx context.Context, staffID int64, day timezone.Date, command Command) (*activeModels.WorkSession, error) {
@@ -256,24 +254,6 @@ func (s *Service) checkIn(ctx context.Context, staffID int64, day timezone.Date,
 	}
 
 	session, err := s.workSessions.CheckInOn(ctx, staffID, day, command.Status, activeModels.WorkSessionSourceNFC, command.Reason)
-	var conflict *activeSvc.ReopenStatusConflictError
-	if errors.As(err, &conflict) {
-		if strings.TrimSpace(command.Reason) == "" {
-			return nil, conflict
-		}
-		if _, err = s.workSessions.CheckInOn(ctx, staffID, day, conflict.ExistingStatus, activeModels.WorkSessionSourceNFC, command.Reason); err != nil {
-			return nil, s.classifyCheckInError(ctx, fmt.Errorf("reopen session with existing status: %w", err))
-		}
-		reason := strings.TrimSpace(command.Reason)
-		status := command.Status
-		updated, updateErr := s.workSessions.UpdateSession(ctx, staffID, conflict.SessionID, activeSvc.SessionUpdateRequest{Status: &status, Notes: &reason})
-		if updateErr != nil {
-			// The request transaction must roll back the successful reopen if
-			// this audit-bearing status update cannot be persisted.
-			return nil, fmt.Errorf("update reopened session status: %w", updateErr)
-		}
-		return updated, nil
-	}
 	if err != nil {
 		return nil, s.classifyCheckInError(ctx, err)
 	}
@@ -281,7 +261,7 @@ func (s *Service) checkIn(ctx context.Context, staffID int64, day timezone.Date,
 }
 
 func (s *Service) classifyCheckInError(ctx context.Context, err error) error {
-	if modelBase.IsUniqueViolationOn(err, workSessionDateConstraint) {
+	if modelBase.IsUniqueViolationOn(err, workSessionOpenConstraint) {
 		tenant.MarkRollback(ctx)
 		return ErrCheckInRaced
 	}
@@ -346,19 +326,30 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 		IsBreakCompliant: true,
 	}
 
-	session, breaks, err := s.resolveDay(ctx, staff.ID, day)
+	sessions, breaksBySession, err := s.resolveDay(ctx, staff.ID, day)
 	if err != nil {
 		return nil, err
 	}
-	if session == nil {
+	if len(sessions) == 0 {
 		return result, nil
 	}
 
-	result.Session = newSession(session)
-	if session.CheckOutTime == nil {
+	// The block the kiosk acts on: the open one when someone is clocked in,
+	// otherwise the chronologically last block of the day (checked-out
+	// summary + the offer to start a new block).
+	current := sessions[len(sessions)-1]
+	for _, session := range sessions {
+		if session.CheckOutTime == nil {
+			current = session
+			break
+		}
+	}
+
+	result.Session = newSession(current)
+	if current.CheckOutTime == nil {
 		result.State = StateCheckedIn
 		result.AllowedActions = []string{ActionBreakStart, ActionCheckOut}
-		for _, workBreak := range breaks {
+		for _, workBreak := range breaksBySession[current.ID] {
 			if workBreak.IsActive() {
 				result.State = StateOnBreak
 				result.ActiveBreak = newBreak(workBreak)
@@ -368,7 +359,11 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 		}
 	}
 
-	evaluation := activeSvc.EvaluateLaborTime(session, breaks, now)
+	// The labor-time figures cover the WHOLE day, not just the current block:
+	// with a Homeoffice morning and an OGS afternoon (#2402) the kiosk must
+	// show the summed work time, and §4 ArbZG judges the day as a whole (the
+	// gap between blocks counts as break for the compliance check).
+	evaluation := activeSvc.EvaluateDayLaborTime(sessions, breaksBySession, now)
 	result.NetMinutes = evaluation.NetMinutes
 	result.BreakMinutes = evaluation.BreakMinutes
 	result.RequiredBreakMinutes = evaluation.RequiredBreakMinutes
@@ -376,21 +371,27 @@ func (s *Service) loadState(ctx context.Context, person *userModels.Person, staf
 	return result, nil
 }
 
-// resolveDay returns the session of `day` together with its breaks.
+// resolveDay returns all work blocks of `day` together with their breaks,
+// keyed by session ID, in check-in order.
 //
 // The day is asked for explicitly instead of going through the open-session
 // lookup, which is scoped to the server's current date and would come back
 // empty for a session stamped seconds before midnight. This query returns the
-// row whether it is still open or already closed, so open and closed state are
-// derived from check_out_time rather than from which read happened to hit.
-func (s *Service) resolveDay(ctx context.Context, staffID int64, day timezone.Date) (*activeModels.WorkSession, []*activeModels.WorkSessionBreak, error) {
+// rows whether they are still open or already closed, so open and closed state
+// are derived from check_out_time rather than from which read happened to hit.
+func (s *Service) resolveDay(ctx context.Context, staffID int64, day timezone.Date) ([]*activeModels.WorkSession, map[int64][]*activeModels.WorkSessionBreak, error) {
 	history, err := s.workSessions.GetHistory(ctx, staffID, day, day)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load work session of the day: %w", err)
+		return nil, nil, fmt.Errorf("load work sessions of the day: %w", err)
 	}
 	if history == nil || len(history.Sessions) == 0 {
 		return nil, nil, nil
 	}
-	daySession := history.Sessions[0]
-	return daySession.WorkSession, daySession.Breaks, nil
+	sessions := make([]*activeModels.WorkSession, 0, len(history.Sessions))
+	breaksBySession := make(map[int64][]*activeModels.WorkSessionBreak, len(history.Sessions))
+	for _, daySession := range history.Sessions {
+		sessions = append(sessions, daySession.WorkSession)
+		breaksBySession[daySession.ID] = daySession.Breaks
+	}
+	return sessions, breaksBySession, nil
 }

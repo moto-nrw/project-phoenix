@@ -3,7 +3,6 @@ package active
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/csv"
 	"errors"
 	"slices"
@@ -1613,8 +1612,8 @@ func TestWSEndBreak_FindByIDError(t *testing.T) {
 func TestWSCheckIn_CreateError(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
-	sessionRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.WorkSession, error) {
-		return nil, sql.ErrNoRows
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
 	}
 
 	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {

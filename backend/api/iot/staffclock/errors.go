@@ -29,14 +29,6 @@ func classifyError(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
 	}
 
-	var reopenConflict *activeSvc.ReopenStatusConflictError
-	if errors.As(err, &reopenConflict) {
-		return common.ErrorConflictWithDetails(err, "reopen_status_conflict", map[string]any{
-			"session_id":       strconv.FormatInt(reopenConflict.SessionID, 10),
-			"existing_status":  reopenConflict.ExistingStatus,
-			"requested_status": reopenConflict.RequestedStatus,
-		})
-	}
 	var plannedStart *activeSvc.PlannedStartNotReachedError
 	if errors.As(err, &plannedStart) {
 		return common.ErrorConflictWithDetails(err, "planned_start_not_reached", map[string]any{

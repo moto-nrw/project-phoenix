@@ -56,6 +56,48 @@ func EvaluateLaborTime(ws *activeModels.WorkSession, breaks []*activeModels.Work
 	}
 }
 
+// EvaluateDayLaborTime aggregates the ArbZG view over ALL blocks of one
+// calendar day (#2402). Net and break minutes are summed per block; the gap
+// between two consecutive blocks (checkout → next check-in) additionally
+// counts as break time for the compliance judgment — a 90-minute Fahrtzeit
+// between Homeoffice and OGS satisfies §4 ArbZG exactly like a stamped break,
+// while the required amount is derived from the summed net work of the day.
+// The gap itself is NOT part of BreakMinutes (it is simply not work time);
+// only the compliance comparison credits it.
+//
+// `breaksBySession` carries each block's break rows keyed by session ID;
+// blocks must be passed in check-in order (the repository guarantees it).
+func EvaluateDayLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time) LaborTimeEvaluation {
+	var net, taken, gaps int
+	var prevEnd *time.Time
+	for _, ws := range sessions {
+		breaks := breaksBySession[ws.ID]
+		net += netMinutesWithBreaks(ws, breaks, now)
+		taken += totalBreakMinutes(ws, breaks, now)
+		if prevEnd != nil && ws.CheckInTime.After(*prevEnd) {
+			gaps += int(ws.CheckInTime.Sub(*prevEnd).Minutes())
+		}
+		if ws.CheckOutTime != nil {
+			end := *ws.CheckOutTime
+			if prevEnd == nil || end.After(*prevEnd) {
+				prevEnd = &end
+			}
+		}
+	}
+	required := 0
+	if net > breakShortThresholdMinutes {
+		required = breakLongRequiredMinutes
+	} else if net > breakNoneThresholdMinutes {
+		required = breakShortRequiredMinutes
+	}
+	return LaborTimeEvaluation{
+		NetMinutes:           net,
+		BreakMinutes:         taken,
+		RequiredBreakMinutes: required,
+		IsBreakCompliant:     taken+gaps >= required,
+	}
+}
+
 // grossMinutes is the wall-clock span of a session. For an open session (no
 // check-out) it measures against now.
 func grossMinutes(ws *activeModels.WorkSession, now time.Time) int {

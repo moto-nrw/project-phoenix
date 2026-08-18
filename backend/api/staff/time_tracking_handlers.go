@@ -389,6 +389,8 @@ func classifyAdminEditError(err error) render.Renderer {
 	case strings.Contains(msg, "session not found"),
 		strings.Contains(msg, "does not belong"):
 		return common.ErrorNotFound(err)
+	case strings.Contains(msg, "work session overlaps an existing block"):
+		return common.ErrorConflict(err)
 	default:
 		return common.ErrorInternalServer(err)
 	}

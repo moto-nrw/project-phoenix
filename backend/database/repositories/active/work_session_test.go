@@ -87,7 +87,7 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 // Query Tests
 // ============================================================================
 
-func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
+func TestWorkSessionRepository_ListByStaffAndDate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -97,30 +97,83 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
-	t.Run("finds existing session by staff and date", func(t *testing.T) {
+	t.Run("returns all blocks of the day ordered by check-in", func(t *testing.T) {
 		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		firstOut := time.Now().Add(-2 * time.Hour)
+		first := &active.WorkSession{
+			StaffID:      staff.ID,
+			Date:         today,
+			Status:       active.WorkSessionStatusHomeOffice,
+			CheckInTime:  time.Now().Add(-6 * time.Hour),
+			CheckOutTime: &firstOut,
+			CreatedBy:    staff.ID,
+		}
+		require.NoError(t, repo.Create(ctx, first))
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", first.ID)
+
+		second := &active.WorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
 			Status:      active.WorkSessionStatusPresent,
-			CheckInTime: time.Now(),
+			CheckInTime: time.Now().Add(-30 * time.Minute),
 			CreatedBy:   staff.ID,
 		}
-		err := repo.Create(ctx, session)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+		require.NoError(t, repo.Create(ctx, second),
+			"a second block on the same day must be insertable since #2402")
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", second.ID)
 
-		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
+		found, err := repo.ListByStaffAndDate(ctx, staff.ID, today)
 		require.NoError(t, err)
-		assert.Equal(t, session.ID, found.ID)
-		assert.Equal(t, staff.ID, found.StaffID)
+		require.Len(t, found, 2)
+		assert.Equal(t, first.ID, found[0].ID, "blocks come back in check-in order")
+		assert.Equal(t, second.ID, found[1].ID)
+		assert.Equal(t, active.WorkSessionStatusHomeOffice, found[0].Status)
+		assert.Equal(t, active.WorkSessionStatusPresent, found[1].Status)
 	})
 
-	t.Run("returns error for non-existent session", func(t *testing.T) {
-		today := timezone.TodayDate()
-		_, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
-		require.Error(t, err)
+	t.Run("returns empty list for a day without sessions", func(t *testing.T) {
+		found, err := repo.ListByStaffAndDate(ctx, staff.ID, timezone.TodayDate().AddDays(7))
+		require.NoError(t, err)
+		assert.Empty(t, found)
 	})
+}
+
+// TestWorkSessionRepository_SecondOpenBlockPerDayIsRejected pins the partial
+// unique index from migration 1.15.305: several CLOSED blocks per day are
+// fine, but at most one block per staff and day may be open.
+func TestWorkSessionRepository_SecondOpenBlockPerDayIsRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).WorkSession
+	ctx := testpkg.TenantContext(1)
+
+	staff := testpkg.CreateTestStaff(t, db, "Open", "Blocks")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+
+	today := timezone.TodayDate()
+	open := &active.WorkSession{
+		StaffID:     staff.ID,
+		Date:        today,
+		Status:      active.WorkSessionStatusPresent,
+		CheckInTime: time.Now().Add(-1 * time.Hour),
+		CreatedBy:   staff.ID,
+	}
+	require.NoError(t, repo.Create(ctx, open))
+	defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", open.ID)
+
+	secondOpen := &active.WorkSession{
+		StaffID:     staff.ID,
+		Date:        today,
+		Status:      active.WorkSessionStatusPresent,
+		CheckInTime: time.Now(),
+		CreatedBy:   staff.ID,
+	}
+	err := repo.Create(ctx, secondOpen)
+	require.Error(t, err, "two OPEN blocks on one day must hit uq_work_sessions_staff_date_open")
+	if secondOpen.ID != 0 {
+		testpkg.CleanupTableRecords(t, db, "active.work_sessions", secondOpen.ID)
+	}
 }
 
 func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {

@@ -87,16 +87,14 @@ type stubWorkSessions struct {
 func (s *stubWorkSessions) CheckInOn(_ context.Context, staffID int64, day timezone.Date, status, source, _ string) (*activeModels.WorkSession, error) {
 	s.checkInCall++
 	s.checkInDays = append(s.checkInDays, day)
-	// Only the first attempt fails: the reopen retry that follows a status
-	// conflict has to be able to succeed.
 	if s.checkInErr != nil && s.checkInCall == 1 {
 		return nil, s.checkInErr
 	}
 	if existing, ok := s.openSessionByDay[day.String()]; ok {
 		return existing, nil
 	}
-	// Mirrors the work session service: the pinned day selects the session to
-	// reopen, but a session created fresh carries the day of its own stamp.
+	// Mirrors the work session service: the pinned day selects the open block
+	// to act on, but a session created fresh carries the day of its own stamp.
 	stampedAt := s.now()
 	return &activeModels.WorkSession{
 		StaffID:     staffID,
@@ -134,10 +132,6 @@ func (s *stubWorkSessions) StartBreakOn(_ context.Context, _ int64, day timezone
 
 func (s *stubWorkSessions) EndBreakOn(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
 	return s.openOn(day)
-}
-
-func (s *stubWorkSessions) UpdateSession(context.Context, int64, int64, activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error) {
-	return nil, nil
 }
 
 func (s *stubWorkSessions) GetHistory(_ context.Context, _ int64, from, _ timezone.Date) (*activeSvc.HistoryResponse, error) {
@@ -182,7 +176,7 @@ func checkInCommand() Command {
 // server broke.
 func TestExecute_ConcurrentCheckInReportsStateConflict(t *testing.T) {
 	service, sessions := newRacedService(
-		&modelBase.DatabaseError{Op: "create", Err: pgUniqueViolation(workSessionDateConstraint)},
+		&modelBase.DatabaseError{Op: "create", Err: pgUniqueViolation(workSessionOpenConstraint)},
 	)
 	ctx := tenant.WithRollbackMarker(context.Background())
 
@@ -353,40 +347,20 @@ func TestExecute_ActionsAfterMidnightUseTheOpenSessionDay(t *testing.T) {
 	}
 }
 
-// The reopen retry after a status conflict has to stay on the day that produced
-// the conflict. Letting it re-derive the day opens a fresh session on the new
-// day while the paired status update rewrites the previous day's closed row.
-func TestExecute_ReopenRetryStaysOnTheConflictedDay(t *testing.T) {
-	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
-	requestDay := timezone.DateFromTime(requestedAt)
-
-	service, sessions := newRacedService(&activeSvc.ReopenStatusConflictError{
-		SessionID:       91,
-		ExistingStatus:  activeModels.WorkSessionStatusHomeOffice,
-		RequestedStatus: activeModels.WorkSessionStatusPresent,
-	})
-	sessions.historyByDay = map[string]*activeSvc.SessionResponse{
-		requestDay.String(): {WorkSession: nightSession(requestedAt.Add(-8 * time.Hour))},
-	}
-
-	// The clock crosses midnight between the conflicting stamp and the retry.
-	calls := 0
-	setClock(service, sessions, func() time.Time {
-		calls++
-		if calls == 1 {
-			return requestedAt
-		}
-		return requestedAt.Add(2 * time.Second)
-	})
+// A check-in with a DIFFERENT status after a same-day checkout simply starts a
+// new block carrying that status (#2402) — one stamp, no conflict retry, no
+// reason required.
+func TestExecute_SecondBlockWithDifferentStatusStampsOnce(t *testing.T) {
+	service, sessions := newRacedService(nil)
 
 	command := checkInCommand()
-	command.Reason = "Statuswechsel nach Rücksprache"
+	command.Status = activeModels.WorkSessionStatusHomeOffice
 
 	state, err := service.Execute(context.Background(), command)
 
 	require.NoError(t, err)
 	require.NotNil(t, state)
-	assert.Equal(t, []timezone.Date{requestDay, requestDay}, sessions.checkInDays)
+	assert.Equal(t, 1, sessions.checkInCall, "a status switch needs exactly one stamp")
 }
 
 // A unique violation on another constraint is a genuine fault and must keep

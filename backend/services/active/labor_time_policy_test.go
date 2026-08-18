@@ -260,3 +260,64 @@ func TestIsBreakCompliant(t *testing.T) {
 		assert.False(t, isBreakCompliant(ws, breaks, fixedNow))
 	})
 }
+
+func TestEvaluateDayLaborTime(t *testing.T) {
+	fixedNow := time.Date(2026, 8, 17, 17, 0, 0, 0, time.UTC)
+	block := func(id int64, inHour, inMin, outHour, outMin, breakMin int) *activeModels.WorkSession {
+		checkIn := time.Date(2026, 8, 17, inHour, inMin, 0, 0, time.UTC)
+		checkOut := time.Date(2026, 8, 17, outHour, outMin, 0, 0, time.UTC)
+		ws := &activeModels.WorkSession{
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+			BreakMinutes: breakMin,
+		}
+		ws.ID = id
+		return ws
+	}
+
+	t.Run("sums net and break minutes across blocks", func(t *testing.T) {
+		// 08:00–12:00 Homeoffice, 13:30–16:00 OGS — the Swantje case (#2402).
+		sessions := []*activeModels.WorkSession{
+			block(1, 8, 0, 12, 0, 0),
+			block(2, 13, 30, 16, 0, 0),
+		}
+		eval := EvaluateDayLaborTime(sessions, nil, fixedNow)
+		assert.Equal(t, 240+150, eval.NetMinutes, "the 90-minute gap is not work time")
+		assert.Equal(t, 0, eval.BreakMinutes, "the gap is not a stamped break either")
+		assert.Equal(t, 30, eval.RequiredBreakMinutes, "6.5h summed net work requires 30min")
+		assert.True(t, eval.IsBreakCompliant, "the 90-minute gap satisfies the break requirement")
+	})
+
+	t.Run("two adjacent blocks without a gap are not compliant", func(t *testing.T) {
+		sessions := []*activeModels.WorkSession{
+			block(1, 8, 0, 12, 0, 0),
+			block(2, 12, 0, 16, 0, 0),
+		}
+		eval := EvaluateDayLaborTime(sessions, nil, fixedNow)
+		assert.Equal(t, 480, eval.NetMinutes)
+		assert.Equal(t, 30, eval.RequiredBreakMinutes)
+		assert.False(t, eval.IsBreakCompliant, "back-to-back blocks earn no gap credit")
+	})
+
+	t.Run("open second block measures against now", func(t *testing.T) {
+		open := &activeModels.WorkSession{
+			CheckInTime: time.Date(2026, 8, 17, 13, 30, 0, 0, time.UTC),
+		}
+		open.ID = 2
+		sessions := []*activeModels.WorkSession{
+			block(1, 8, 0, 12, 0, 30),
+			open,
+		}
+		eval := EvaluateDayLaborTime(sessions, nil, fixedNow)
+		// Block 1: 240 gross − 30 break = 210. Block 2: 13:30 → 17:00 = 210.
+		assert.Equal(t, 420, eval.NetMinutes)
+		assert.Equal(t, 30, eval.BreakMinutes)
+	})
+
+	t.Run("single block matches EvaluateLaborTime", func(t *testing.T) {
+		ws := block(1, 8, 0, 15, 0, 45)
+		day := EvaluateDayLaborTime([]*activeModels.WorkSession{ws}, nil, fixedNow)
+		single := EvaluateLaborTime(ws, nil, fixedNow)
+		assert.Equal(t, single, day)
+	})
+}

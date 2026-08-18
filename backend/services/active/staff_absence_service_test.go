@@ -241,9 +241,13 @@ func (m *absWorkSessionRepoMock) List(ctx context.Context, options *base.QueryOp
 	return nil, nil
 }
 
-func (m *absWorkSessionRepoMock) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
+func (m *absWorkSessionRepoMock) ListByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error) {
 	if m.getByStaffAndDateFunc != nil {
-		return m.getByStaffAndDateFunc(ctx, staffID, date)
+		session, err := m.getByStaffAndDateFunc(ctx, staffID, date)
+		if err != nil || session == nil {
+			return nil, err
+		}
+		return []*activeModels.WorkSession{session}, nil
 	}
 	return nil, nil
 }
