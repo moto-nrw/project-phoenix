@@ -7,6 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -254,6 +256,24 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 		trail, err := repos.ClassListEntryChange.ListByEntryID(ctx, entry.ID)
 		require.NoError(t, err)
 		assert.Empty(t, trail, "a no-op update must not spam the audit trail")
+	})
+
+	t.Run("the unique index reports as the documented duplicate error", func(t *testing.T) {
+		// The advisory duplicate check cannot catch a concurrent create; the
+		// DB index is the backstop. Pin that a raw insert collision carries
+		// the index name the service maps to ErrClassListEntryDuplicate.
+		entry := testpkg.CreateTestClassListEntry(t, db, "CleRace", "Kind", "6v")
+		defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+
+		clone := &userModels.ClassListEntry{
+			FirstName:   "clerace",
+			LastName:    "KIND",
+			SchoolClass: "6V",
+		}
+		err := repos.ClassListEntry.Create(testpkg.TenantContext(1), clone)
+		require.Error(t, err)
+		assert.True(t, modelBase.IsUniqueViolationOn(err, userModels.ClassListEntryUniqueIndexName),
+			"the collision must be recognizable via the pinned index name")
 	})
 
 	t.Run("update into an existing entry's identity is refused", func(t *testing.T) {

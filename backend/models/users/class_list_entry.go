@@ -16,6 +16,12 @@ import (
 // portal or any planning view. SchoolClass stores the display form as
 // entered; comparisons go through schoolclass.Normalize like every other
 // class string (see models/education.ClassTeacher).
+// ClassListEntryUniqueIndexName is the unique index behind the "one child
+// once per class" rule (tenant, LOWER(BTRIM(first/last/class))). The service
+// maps a 23505 on it to ErrClassListEntryDuplicate so a concurrent create
+// loses with the documented duplicate response instead of a 500.
+const ClassListEntryUniqueIndexName = "uniq_class_list_entries_name_class"
+
 type ClassListEntry struct {
 	base.Model `bun:"schema:users,table:class_list_entries"`
 	base.TenantModel

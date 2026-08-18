@@ -495,23 +495,27 @@ export default function ClassListImportPage() {
 
           {/* Action Buttons */}
           <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              className="flex-1"
               onClick={resetForm}
-              className="flex-1 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="primary"
+              size="md"
+              className="flex-1"
               onClick={() => void handleImport()}
               disabled={stats.new === 0 || isImporting}
-              className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
               {isImporting
                 ? "Importiere..."
                 : `${stats.new} Einträge importieren`}
-            </button>
+            </Button>
           </div>
         </>
       )}

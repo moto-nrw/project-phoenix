@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -180,6 +181,12 @@ func (s *classListEntryService) Create(ctx context.Context, input ClassListEntry
 		return nil, err
 	}
 	if err := s.entryRepo.Create(ctx, entry); err != nil {
+		if modelBase.IsUniqueViolationOn(err, userModels.ClassListEntryUniqueIndexName) {
+			// A concurrent create slipped past the advisory check above; the
+			// DB index is the race-safe backstop — report it as the duplicate
+			// it is, not as a server error.
+			return nil, ErrClassListEntryDuplicate
+		}
 		return nil, fmt.Errorf("create class list entry: %w", err)
 	}
 	if err := s.recordChange(ctx, entry.ID, auditModels.ClassListEntryActionCreated, "", entry.DisplayValue(), nil, changedBy); err != nil {
@@ -209,6 +216,9 @@ func (s *classListEntryService) Update(ctx context.Context, id int64, input Clas
 		return nil, err
 	}
 	if err := s.entryRepo.Update(ctx, entry); err != nil {
+		if modelBase.IsUniqueViolationOn(err, userModels.ClassListEntryUniqueIndexName) {
+			return nil, ErrClassListEntryDuplicate
+		}
 		return nil, fmt.Errorf("update class list entry: %w", err)
 	}
 	if err := s.recordChange(ctx, entry.ID, auditModels.ClassListEntryActionUpdated, oldValue, entry.DisplayValue(), nil, changedBy); err != nil {

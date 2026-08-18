@@ -165,7 +165,9 @@ const ROSTER_PAGE_SIZE = 1000;
 
 // Loads EVERY student page: the /api/students route caps page_size at 1000,
 // so a larger school needs more than one request or the roster (and every
-// derived count) would silently stop at the first thousand children.
+// derived count) would silently stop at the first thousand children. A failed
+// page THROWS — a partial roster rendered as if complete would misreport who
+// is already in moto.
 async function fetchRosterStudents(): Promise<RosterStudent[]> {
   const students: RosterStudent[] = [];
   let page = 1;
@@ -175,7 +177,11 @@ async function fetchRosterStudents(): Promise<RosterStudent[]> {
       `/api/students?page=${page}&page_size=${ROSTER_PAGE_SIZE}`,
       { credentials: "include", cache: "no-store" },
     );
-    if (!response.ok) return students;
+    if (!response.ok) {
+      throw new Error(
+        `Kinderliste konnte nicht geladen werden (Seite ${page}, Status ${response.status})`,
+      );
+    }
     // The route wrapper wraps GET results, so the paginated list arrives as
     // { data: { data: [...], pagination } }.
     const payload = (await response.json()) as RosterStudentsPage;
@@ -241,10 +247,11 @@ export default function ClassListEntriesPage() {
   // beurteilen, welche Kinder einer Klasse schon erfasst sind und welche
   // fehlen. Nach jeder Eintrags-Änderung mit-revalidiert (Zuordnen ersetzt
   // einen Eintrag durch das reguläre Kind).
-  const { data: students, mutate: mutateStudents } = useSWRAuth(
-    "class-list-roster-students",
-    fetchRosterStudents,
-  );
+  const {
+    data: students,
+    error: studentsError,
+    mutate: mutateStudents,
+  } = useSWRAuth("class-list-roster-students", fetchRosterStudents);
   const [classFilter, setClassFilter] = useState("all");
 
   const [modal, setModal] = useState<
@@ -257,6 +264,10 @@ export default function ClassListEntriesPage() {
   const [form, setForm] = useState<EntryFormState>(EMPTY_FORM);
   const [modalError, setModalError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Das Zuordnungs-Ziel: bei genau einem Kandidaten vorbelegt, bei mehreren
+  // gleichnamigen Kindern MUSS die Person bewusst wählen — sonst könnte der
+  // Eintrag dem falschen Kind zugeschlagen und dabei gelöscht werden.
+  const [assignTarget, setAssignTarget] = useState<string | null>(null);
 
   const entryRows = useMemo(() => entries ?? [], [entries]);
   const duplicateCount = useMemo(
@@ -306,6 +317,7 @@ export default function ClassListEntriesPage() {
     setModal(null);
     setModalError(null);
     setForm(EMPTY_FORM);
+    setAssignTarget(null);
   };
 
   const openCreate = () => {
@@ -368,7 +380,7 @@ export default function ClassListEntriesPage() {
 
   const confirmAssign = async () => {
     if (modal?.kind !== "assign") return;
-    const studentId = modal.entry.matchingStudentIds[0];
+    const studentId = assignTarget;
     if (!studentId) return;
     setSaving(true);
     try {
@@ -466,6 +478,11 @@ export default function ClassListEntriesPage() {
                 size="compact"
                 onClick={() => {
                   setModalError(null);
+                  setAssignTarget(
+                    entry.matchingStudentIds.length === 1
+                      ? (entry.matchingStudentIds[0] ?? null)
+                      : null,
+                  );
                   setModal({ kind: "assign", entry });
                 }}
               >
@@ -587,6 +604,15 @@ export default function ClassListEntriesPage() {
             <Alert
               type="error"
               message="Die Klassenlisteneinträge konnten nicht geladen werden."
+            />
+          </div>
+        ) : null}
+
+        {studentsError ? (
+          <div className="mt-4">
+            <Alert
+              type="error"
+              message="Die regulär angelegten Kinder konnten nicht vollständig geladen werden. Die Liste ist unvollständig, bitte laden Sie die Seite neu."
             />
           </div>
         ) : null}
@@ -729,6 +755,7 @@ export default function ClassListEntriesPage() {
         title="Eintrag zuordnen"
         confirmText="Zuordnen"
         isConfirmLoading={saving}
+        isConfirmDisabled={!assignTarget}
       >
         {modal?.kind === "assign" ? (
           <div className="space-y-3">
@@ -742,6 +769,38 @@ export default function ClassListEntriesPage() {
               Klassenlisteneintrag entfernt — das Kind steht dann nur noch über
               seinen regulären Datensatz auf der Klassenliste.
             </p>
+            {modal.entry.matchingStudentIds.length > 1 ? (
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium text-gray-900">
+                  Mehrere Kinder tragen diesen Namen in dieser Klasse. Bitte den
+                  richtigen Datensatz auswählen:
+                </legend>
+                {modal.entry.matchingStudentIds.map((studentId) => (
+                  <label
+                    key={studentId}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                  >
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="assign-target"
+                        className="accent-moto-green"
+                        checked={assignTarget === studentId}
+                        onChange={() => setAssignTarget(studentId)}
+                      />
+                      Kind-Datensatz #{studentId}
+                    </span>
+                    <Link
+                      href={`/students/${studentId}`}
+                      target="_blank"
+                      className="text-xs font-medium text-gray-600 underline hover:text-gray-900"
+                    >
+                      Öffnen
+                    </Link>
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
             <p className="text-xs text-gray-500">
               Die Zuordnung passiert nie automatisch: Bitte nur bestätigen, wenn
               es sich wirklich um dasselbe Kind handelt.
