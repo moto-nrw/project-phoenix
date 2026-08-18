@@ -216,16 +216,19 @@ func (r *VisitRepository) EndVisitsByIDs(ctx context.Context, ids []int64, at ti
 		return []*active.Visit{}, nil
 	}
 
+	// Model + ModelTableExpr, never Model + Table: adding Table on top of a
+	// typed Model makes bun reference active.visits twice and the WHERE's
+	// "id" becomes ambiguous.
 	var ended []*active.Visit
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.Visit)(nil)).
-		Table(tableActiveVisits).
+		ModelTableExpr(tableActiveVisits+` AS "visit"`).
 		Set(`exit_time = ?`, at).
-		Where(`id IN (?) AND exit_time IS NULL`, bun.List(ids)).
+		Where(`"visit".id IN (?) AND "visit".exit_time IS NULL`, bun.List(ids)).
 		Returning("*")
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
+		query = query.Where(`"visit".tenant_id = ?`, tenantID)
 	}
 
 	if err := query.Scan(ctx, &ended); err != nil {

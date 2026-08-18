@@ -1087,3 +1087,135 @@ func TestMirrorCheckOutForVisits_NoInstanceBridgedIsNoop(t *testing.T) {
 
 	assert.Zero(t, isRepo.checkoutBatchCalls)
 }
+
+func TestMirrorCheckInAtBatch_EmptyIDsNoop(t *testing.T) {
+	isRepo := &fakeInstanceStudentRepo{}
+	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), nil, time.Now())
+	assert.Zero(t, isRepo.checkinBatchCalls)
+}
+
+func TestMirrorCheckInAtBatch_AllPreservedSkipsUpdate(t *testing.T) {
+	// The only candidate is already observably present-open — the preserve
+	// rule empties the key set and the guarded UPDATE must not run at all.
+	at := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
+	checkedIn := at.Add(-time.Hour)
+	preserved := expectedRow(50)
+	preserved.Status = scheduleModel.AttendanceStatusPresent
+	preserved.CheckedInAt = &checkedIn
+
+	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{preserved}}
+	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100}, at)
+
+	assert.Zero(t, isRepo.checkinBatchCalls)
+}
+
+func TestMirrorCheckInAtBatch_UpdateErrorLogged(t *testing.T) {
+	// A failing batch UPDATE degrades gracefully: logged, no panic, no retry.
+	row := expectedRow(51)
+	row.InstanceID = 75
+	isRepo := &fakeInstanceStudentRepo{
+		candidates: []*scheduleModel.InstanceStudent{row},
+		updateErr:  errors.New("update failed"),
+	}
+	require.NotPanics(t, func() {
+		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckInAtBatch(context.Background(), []int64{100}, time.Now())
+	})
+	assert.Equal(t, 1, isRepo.checkinBatchCalls)
+}
+
+func TestMirrorCheckOutAtBatch_EmptyIDsNoop(t *testing.T) {
+	isRepo := &fakeInstanceStudentRepo{}
+	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), nil, time.Now())
+	assert.Zero(t, isRepo.checkoutBatchCalls)
+}
+
+func TestMirrorCheckOutAtBatch_NoOpenRowsSkipsUpdate(t *testing.T) {
+	// Only closed / never-checked-in rows on the day: nothing to close, the
+	// guarded UPDATE must not run.
+	checkedIn := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
+	closed := expectedRow(52)
+	closed.Status = scheduleModel.AttendanceStatusPresent
+	closed.CheckedInAt = &checkedIn
+	closed.CheckedOutAt = &checkedIn
+	neverIn := expectedRow(53)
+
+	isRepo := &fakeInstanceStudentRepo{dateRows: []*scheduleModel.InstanceStudent{closed, neverIn}}
+	newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+
+	assert.Zero(t, isRepo.checkoutBatchCalls)
+}
+
+func TestMirrorCheckOutAtBatch_HandlesFailures(t *testing.T) {
+	t.Run("lookup error", func(t *testing.T) {
+		isRepo := &fakeInstanceStudentRepo{dateErr: errors.New("lookup failed")}
+		newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+		assert.Zero(t, isRepo.checkoutBatchCalls)
+	})
+
+	t.Run("update error", func(t *testing.T) {
+		checkedIn := time.Now().Add(-time.Hour)
+		row := expectedRow(54)
+		row.Status = scheduleModel.AttendanceStatusPresent
+		row.CheckedInAt = &checkedIn
+		isRepo := &fakeInstanceStudentRepo{
+			dateRows:    []*scheduleModel.InstanceStudent{row},
+			checkoutErr: errors.New("update failed"),
+		}
+		require.NotPanics(t, func() {
+			newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+		})
+		assert.Equal(t, 1, isRepo.checkoutBatchCalls)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		isRepo := &fakeInstanceStudentRepo{datePanic: "boom"}
+		require.NotPanics(t, func() {
+			newUnitSyncer(&fakeInstanceRepo{}, isRepo).MirrorCheckOutAtBatch(context.Background(), []int64{100}, time.Now())
+		})
+	})
+}
+
+func TestMirrorCheckOutForVisits_EmptyVisitsNoop(t *testing.T) {
+	isRepo := &fakeInstanceStudentRepo{}
+	newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+		MirrorCheckOutForVisits(context.Background(), nil, time.Now())
+	assert.Zero(t, isRepo.checkoutBatchCalls)
+}
+
+func TestMirrorCheckOutForVisits_HandlesFailures(t *testing.T) {
+	t.Run("instance lookup error", func(t *testing.T) {
+		// The group's instance lookup fails: logged, the visit is skipped, and
+		// with no keys left the UPDATE never runs.
+		instRepo := &fakeInstanceRepo{findErr: errors.New("db down")}
+		isRepo := &fakeInstanceStudentRepo{}
+		newUnitSyncer(instRepo, isRepo).
+			MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+		assert.Zero(t, isRepo.checkoutBatchCalls)
+	})
+
+	t.Run("update error", func(t *testing.T) {
+		isRepo := &fakeInstanceStudentRepo{checkoutErr: errors.New("update failed")}
+		require.NotPanics(t, func() {
+			newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+				MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+		})
+		assert.Equal(t, 1, isRepo.checkoutBatchCalls)
+	})
+
+	t.Run("panic", func(t *testing.T) {
+		instRepo := &fakeInstanceRepo{findPanic: "kaboom"}
+		isRepo := &fakeInstanceStudentRepo{}
+		require.NotPanics(t, func() {
+			newUnitSyncer(instRepo, isRepo).
+				MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{validVisit()}, time.Now())
+		})
+		assert.Zero(t, isRepo.checkoutBatchCalls)
+	})
+
+	t.Run("nil visit entry skipped", func(t *testing.T) {
+		isRepo := &fakeInstanceStudentRepo{}
+		newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+			MirrorCheckOutForVisits(context.Background(), []*activeModel.Visit{nil}, time.Now())
+		assert.Zero(t, isRepo.checkoutBatchCalls)
+	})
+}
