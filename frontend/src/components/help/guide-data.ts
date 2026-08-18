@@ -472,7 +472,7 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "betreuungszeiten-mehrere-kinder",
         title: "Zeiten für mehrere Kinder gleichzeitig setzen",
         summary:
-          "Wenn viele Kinder dieselben Zeiten haben, zum Beispiel eine ganze Klasse, setzen Sie Ankunfts- und Gehzeiten gesammelt in der Datenverwaltung, statt jedes Kind einzeln zu öffnen.",
+          "Wenn viele Kinder dieselben Ankunftszeiten haben, zum Beispiel eine ganze Klasse, setzen Sie sie gesammelt in der Datenverwaltung. Für Gehzeiten wählen Sie die Kinder zuerst selbst aus.",
         searchTerms: ["Sammelaktion", "Auswahlleiste", "Gruppieren"],
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
