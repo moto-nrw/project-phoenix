@@ -80,7 +80,7 @@ func TestClassListEntriesAPI(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Zoe", "Aalders", className+"-b")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 
-	assignBody := fmt.Sprintf(`{"student_id":%d}`, student.ID)
+	assignBody := fmt.Sprintf(`{"student_id":"%d"}`, student.ID)
 	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/%d/assign", entryID), strings.NewReader(assignBody))
 	req.Header.Set("Content-Type", "application/json")
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})

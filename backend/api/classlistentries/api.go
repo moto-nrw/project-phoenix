@@ -77,9 +77,12 @@ func (req *EntryRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// AssignRequest names the student an entry is resolved into.
+// AssignRequest names the student an entry is resolved into. StudentID binds
+// via `,string` (the wire value is a quoted decimal): JavaScript clients and
+// the Next.js proxy round JSON numbers beyond 2^53, so 64-bit IDs must travel
+// as strings to stay lossless.
 type AssignRequest struct {
-	StudentID int64 `json:"student_id"`
+	StudentID int64 `json:"student_id,string"`
 }
 
 // Bind validates the payload.

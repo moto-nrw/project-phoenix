@@ -56,75 +56,6 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Unbekannter Fehler";
 }
 
-function EntryFormFields({
-  form,
-  onChange,
-  classSuggestions,
-}: Readonly<{
-  form: EntryFormState;
-  onChange: (next: EntryFormState) => void;
-  classSuggestions: string[];
-}>) {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label
-            htmlFor="entry-first-name"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Vorname
-          </label>
-          <Input
-            id="entry-first-name"
-            value={form.firstName}
-            onChange={(e) => onChange({ ...form, firstName: e.target.value })}
-            placeholder="z.B. Lena"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="entry-last-name"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Nachname
-          </label>
-          <Input
-            id="entry-last-name"
-            value={form.lastName}
-            onChange={(e) => onChange({ ...form, lastName: e.target.value })}
-            placeholder="z.B. Beispiel"
-          />
-        </div>
-      </div>
-      <div>
-        <label
-          htmlFor="entry-school-class"
-          className="mb-1 block text-sm font-medium text-gray-700"
-        >
-          Klasse
-        </label>
-        <Input
-          id="entry-school-class"
-          value={form.schoolClass}
-          onChange={(e) => onChange({ ...form, schoolClass: e.target.value })}
-          placeholder="z.B. 1a"
-          list="class-list-class-suggestions"
-        />
-        <datalist id="class-list-class-suggestions">
-          {classSuggestions.map((klass) => (
-            <option key={klass} value={klass} />
-          ))}
-        </datalist>
-        <p className="mt-1 text-xs text-gray-500">
-          Genau wie bei den regulären Kindern geschrieben, damit der Eintrag in
-          derselben Klassenliste landet.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 async function fetchClassSuggestions(): Promise<string[]> {
   const response = await fetch("/api/students/school-classes", {
     credentials: "include",
@@ -689,11 +620,66 @@ export default function ClassListEntriesPage() {
       >
         <div className="space-y-4">
           {modalError ? <Alert type="error" message={modalError} /> : null}
-          <EntryFormFields
-            form={form}
-            onChange={setForm}
-            classSuggestions={classSuggestions ?? []}
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="entry-first-name"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Vorname
+              </label>
+              <Input
+                id="entry-first-name"
+                value={form.firstName}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, firstName: e.target.value }))
+                }
+                placeholder="z.B. Lena"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="entry-last-name"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Nachname
+              </label>
+              <Input
+                id="entry-last-name"
+                value={form.lastName}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, lastName: e.target.value }))
+                }
+                placeholder="z.B. Beispiel"
+              />
+            </div>
+          </div>
+          <div>
+            <label
+              htmlFor="entry-school-class"
+              className="mb-1 block text-sm font-medium text-gray-700"
+            >
+              Klasse
+            </label>
+            <Input
+              id="entry-school-class"
+              value={form.schoolClass}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, schoolClass: e.target.value }))
+              }
+              placeholder="z.B. 1a"
+              list="class-list-class-suggestions"
+            />
+            <datalist id="class-list-class-suggestions">
+              {(classSuggestions ?? []).map((klass) => (
+                <option key={klass} value={klass} />
+              ))}
+            </datalist>
+            <p className="mt-1 text-xs text-gray-500">
+              Genau wie bei den regulären Kindern geschrieben, damit der Eintrag
+              in derselben Klassenliste landet.
+            </p>
+          </div>
           <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
             <Button
               type="button"

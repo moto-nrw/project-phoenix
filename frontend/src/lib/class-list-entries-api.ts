@@ -128,8 +128,10 @@ export async function assignClassListEntry(
   await request<Envelope<null>>(
     `/api/class-list-entries/${id}/assign`,
     "POST",
+    // int64-IDs reisen als JSON-String (Backend bindet mit `,string`): als
+    // JSON-Zahl würden IDs oberhalb von 2^53 beim Parsen gerundet.
     {
-      student_id: Number(studentId),
+      student_id: studentId,
     },
   );
 }
