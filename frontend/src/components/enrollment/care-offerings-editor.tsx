@@ -1825,7 +1825,8 @@ function CareOfferingAutomationFields({
                 </p>
               ))}
               <p className="mt-1 text-gray-500">
-                Die Regel gilt nur in diese Richtung, nicht umgekehrt.
+                Andersherum gilt das nicht: Wer nur {offeringLabelMidSentence}{" "}
+                wählt, bekommt die anderen Angebote nicht automatisch dazu.
               </p>
             </div>
           ) : null}

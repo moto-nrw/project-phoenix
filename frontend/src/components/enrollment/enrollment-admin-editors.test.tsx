@@ -610,7 +610,7 @@ describe("CareOfferingsEditor", () => {
 
     // No preview until a trigger is checked.
     expect(
-      screen.queryByText(/Die Regel gilt nur in diese Richtung/),
+      screen.queryByText(/Andersherum gilt das nicht/),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
@@ -622,7 +622,7 @@ describe("CareOfferingsEditor", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "Die Regel gilt nur in diese Richtung, nicht umgekehrt.",
+        "Andersherum gilt das nicht: Wer nur „Randstunde“ wählt, bekommt die anderen Angebote nicht automatisch dazu.",
       ),
     ).toBeVisible();
   });
