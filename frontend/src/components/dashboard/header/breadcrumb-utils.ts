@@ -99,6 +99,8 @@ const subPageLabels: Record<string, string> = {
   details: "Details",
   permissions: "Berechtigungen",
   "opening-balances": "Eröffnungssalden",
+  // Klassenlisteneinträge (#2382): Kinder ohne OGS-Datensatz.
+  "class-list": "Klassenliste",
 };
 
 /**
