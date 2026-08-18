@@ -8,6 +8,10 @@ export interface ClassDayRow {
   student_id: number;
   first_name: string;
   last_name: string;
+  // Klassenlisteneintrag (#2382): Kind des Klassenverbands OHNE OGS-Datensatz
+  // ("Keine Betreuung"). student_id ist dann 0, list_entry_id trägt die ID.
+  list_entry?: boolean;
+  list_entry_id?: number;
   group_name?: string;
   registered: boolean;
   stays_today: boolean;

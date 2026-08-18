@@ -244,6 +244,18 @@ type StudentRepository interface {
 	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*Student, error)
 }
 
+// ClassListEntryRepository defines operations for the class-list-only entries
+// (#2382). School classes are free-text strings; every class comparison uses
+// LOWER(BTRIM(...)) — see models/users.ClassListEntry.
+type ClassListEntryRepository interface {
+	base.CRUDRepository[*ClassListEntry]
+	// FindBySchoolClass returns the entries of one class, name-sorted.
+	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*ClassListEntry, error)
+	// FindByNameAndClass returns entries matching first name, last name and
+	// class case-insensitively (duplicate guard for create and import).
+	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*ClassListEntry, error)
+}
+
 // StaffRepository defines operations for managing staff members
 type StaffRepository interface {
 	base.CRUDRepository[*Staff]

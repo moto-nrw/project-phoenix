@@ -75,6 +75,10 @@ function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
 }
 
 function rowDetailLine(row: ClassDayRow, enrollmentKnown: boolean): string {
+  // Klassenlisteneintrag (#2382): "Keine Betreuung" ist die ganze Aussage —
+  // das Badge rechts trägt sie, die Detailzeile bleibt leer (keine erfundene
+  // Gehregel, keine Abholzeit).
+  if (row.list_entry) return "";
   const parts: string[] = [];
   if (row.stays_today && row.offerings.length > 0) {
     parts.push(row.offerings.join(", "));
@@ -111,6 +115,14 @@ function StudentRow({
           <span className="text-xs font-medium text-gray-600 tabular-nums">
             bis {row.pickup}
           </span>
+        ) : null}
+        {/* Klassenlisteneintrag (#2382): Kind ohne OGS-Datensatz — eindeutig
+            als "Keine Betreuung" gekennzeichnet, unabhängig von Anmeldephasen. */}
+        {row.list_entry ? (
+          <StatusDotBadge
+            label="Keine Betreuung"
+            color={LOCATION_COLORS.HOME}
+          />
         ) : null}
         {row.status ? (
           <StatusDotBadge
@@ -149,7 +161,8 @@ function Section({
       <ul className="grid gap-1.5 lg:grid-cols-2">
         {rows.map((row) => (
           <StudentRow
-            key={row.student_id}
+            // Klassenlisteneinträge haben student_id 0 — eigener Key-Raum.
+            key={row.list_entry ? `entry-${row.list_entry_id}` : row.student_id}
             row={row}
             enrollmentKnown={enrollmentKnown}
           />

@@ -131,9 +131,10 @@ type Factory struct {
 	GuardianProfileLoader    *users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
-	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
-	OpeningBalanceImport     importService.OpeningBalanceImportFactory                   // Opening balance import (#2132), request-scoped
+	Import                   *importService.ImportService[importModels.StudentImportRow]        // Student import service
+	StaffImport              *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
+	ClassListImport          *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
+	OpeningBalanceImport     importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
 	ListExport               *listexport.RendererService
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
@@ -159,6 +160,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
+	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      users.StudentDeletionService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
@@ -347,15 +349,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize grade transition service
 	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
-		TransitionRepo:   repos.GradeTransition,
-		StudentRepo:      repos.Student,
-		PersonRepo:       repos.Person,
-		VisitRepo:        repos.ActiveVisit,
-		AttendanceRepo:   repos.Attendance,
-		ClassTeacherRepo: repos.ClassTeacher,
-		StaffRepo:        repos.Staff,
-		RosterReconciler: rosterReconciler,
-		DB:               db,
+		TransitionRepo:      repos.GradeTransition,
+		StudentRepo:         repos.Student,
+		PersonRepo:          repos.Person,
+		VisitRepo:           repos.ActiveVisit,
+		AttendanceRepo:      repos.Attendance,
+		ClassTeacherRepo:    repos.ClassTeacher,
+		StaffRepo:           repos.Staff,
+		ClassListEntryRepo:  repos.ClassListEntry,
+		ClassListEntryAudit: repos.ClassListEntryChange,
+		RosterReconciler:    rosterReconciler,
+		DB:                  db,
 	})
 
 	// Initialize settings service (new schema-driven settings system)
@@ -1394,6 +1398,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffImportService := importService.NewImportService(staffImportConfig)
 	staffImportService.SetAuditRepository(repos.DataImport)
 
+	// Class-list entry import (#2382): creates through the entry service so
+	// the duplicate guards and the audit trail apply to imported rows too.
+	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
+		EntryService: users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
+		EntryRepo:    repos.ClassListEntry,
+	})
+	classListImportService := importService.NewImportService(classListImportConfig)
+	classListImportService.SetAuditRepository(repos.DataImport)
+
 	// Opening balance import (#2132): the config is request-scoped (Stichtag,
 	// Begründung, and acting staff member come from the upload form), so the
 	// factory closes over the request-independent deps and builds a fresh
@@ -1742,6 +1755,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
 		StudentStatusDayRepo:     repos.StudentStatusDay,
+		ClassListEntryRepo:       repos.ClassListEntry,
 		PickupScheduleSvc:        pickupScheduleService,
 		ArrivalScheduleSvc:       arrivalScheduleService,
 		CareDaySvc:               careDayService,
@@ -2273,6 +2287,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Database:                 databaseService,
 		Import:                   studentImportService,        // Student import service
 		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
+		ClassListImport:          classListImportService,      // Class-list entry import (#2382)
 		OpeningBalanceImport:     openingBalanceImportFactory, // Opening balance import (#2132)
 		ListExport:               listExportService,
 		PlanExport:               planExportService,
@@ -2305,6 +2320,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:                 platform.NewSchoolService(repos.School),
 		WorkTimeModels:          workTimeModelService,
 		Students:                studentService,
+		ClassListEntries:        users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		StudentDeletion:         studentDeletionService,
 		StudentAudit:            studentAuditService,
 		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),

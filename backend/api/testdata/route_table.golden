@@ -10,6 +10,7 @@ DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
 DELETE /api/calendar/appointments/{appointmentId}
+DELETE /api/class-list-entries/{id}
 DELETE /api/display/{id}/
 DELETE /api/enrollment/admin/requests/{id}/
 DELETE /api/enrollment/admin/requests/{id}/children/{childId}
@@ -160,6 +161,7 @@ GET /api/calendar/my
 GET /api/calendar/recipient-options
 GET /api/class-day/
 GET /api/class-day/classes
+GET /api/class-list-entries/
 GET /api/database/stats
 GET /api/display/
 GET /api/display/dashboard
@@ -219,6 +221,7 @@ GET /api/guardians/{id}
 GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/import/class-list-entries/template
 GET /api/import/opening-balances/template
 GET /api/import/students/template
 GET /api/import/teachers/template
@@ -563,6 +566,8 @@ POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
 POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
 POST /api/calendar/recipients/{recipientId}/response
+POST /api/class-list-entries/
+POST /api/class-list-entries/{id}/assign
 POST /api/display/
 POST /api/display/{id}/regenerate
 POST /api/emergency/snapshot/export
@@ -603,6 +608,8 @@ POST /api/guardians/students/{studentId}/invite
 POST /api/guardians/{id}/invite
 POST /api/guardians/{id}/phone-numbers/
 POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+POST /api/import/class-list-entries/import
+POST /api/import/class-list-entries/preview
 POST /api/import/opening-balances/import
 POST /api/import/opening-balances/preview
 POST /api/import/students/import
@@ -846,6 +853,7 @@ PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
 PUT /api/birthdays/opt-out
 PUT /api/calendar/appointments/{appointmentId}
+PUT /api/class-list-entries/{id}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
 PUT /api/enrollment/care-offerings/{id}/
