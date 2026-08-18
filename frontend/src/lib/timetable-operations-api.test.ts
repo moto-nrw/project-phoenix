@@ -253,6 +253,21 @@ describe("timetableOperationsApi", () => {
     );
   });
 
+  it("maps moved_from from auto-move check-in responses (#2386)", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { ...rosterPayload(134), moved_from: "GT 1" } }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: rosterPayload(134) }));
+
+    const moved = await timetableOperationsApi.checkIn("134", "440");
+    const plain = await timetableOperationsApi.checkIn("134", "440");
+
+    expect(moved.movedFrom).toBe("GT 1");
+    expect(plain.movedFrom).toBeNull();
+  });
+
   it("patches attendance and completes an instance", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch

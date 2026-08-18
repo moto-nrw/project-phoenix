@@ -290,6 +290,21 @@ const ATTENDANCE_SUBSTATUS_LABELS: Record<
   other: "Sonstiges",
 };
 
+// Builds the info notice after a check-in auto-moved the child out of another
+// running session (#2386). Null when the response reports no move.
+function moveNoticeFromRoster(
+  roster: TimetableRoster,
+  studentId: string,
+): string | null {
+  if (roster.movedFrom == null) return null;
+  const name =
+    roster.rows.find((row) => row.studentId === studentId)?.studentName ??
+    "Das Kind";
+  return roster.movedFrom
+    ? `${name} wurde aus „${roster.movedFrom}“ hierher geholt.`
+    : `${name} wurde aus einer anderen Aktivität hierher geholt.`;
+}
+
 function rosterStudentMeta(
   row: TimetableRosterRow,
   instanceIsSpontaneous: boolean,
@@ -935,6 +950,9 @@ function MeinRaumPageContent() {
     readonly students: Student[];
   } | null>(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  // Info notice after a check-in auto-moved the child out of another running
+  // session (#2386). Cleared by the next roster action.
+  const [moveNotice, setMoveNotice] = useState<string | null>(null);
 
   // OGS group rooms for color detection
   const [myGroupRooms, setMyGroupRooms] = useState<string[]>([]);
@@ -1554,6 +1572,7 @@ function MeinRaumPageContent() {
     : null;
   const activeTimetableInstanceId =
     currentTimetableRoster?.instance?.id ?? null;
+  const activeTimetableInstanceIdRef = useLatest(activeTimetableInstanceId);
   const addStudentResults =
     addStudentResult?.instanceId === activeTimetableInstanceId
       ? addStudentResult.students
@@ -1563,6 +1582,12 @@ function MeinRaumPageContent() {
     (timetableRoster === undefined ||
       (timetableRoster !== null && !timetableRosterMatchesSelection)) &&
     isTimetableRosterLoading;
+
+  // The move notice belongs to the session it happened in — drop it when the
+  // supervisor switches to another session tab.
+  useEffect(() => {
+    setMoveNotice(null);
+  }, [activeTimetableInstanceId]);
 
   useEffect(() => {
     if (!activeTimetableInstanceId || addStudentSearch.trim().length < 2) {
@@ -1814,37 +1839,45 @@ function MeinRaumPageContent() {
       row: TimetableRosterRow,
     ) => {
       if (!activeTimetableInstanceId) return;
+      const instanceId = activeTimetableInstanceId;
+      setMoveNotice(null);
       try {
         if (action === "check-in") {
           const roster = await timetableOperationsApi.checkIn(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
+          setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
           await mutateRoster(roster, { revalidate: false });
         } else if (action === "check-out") {
           const roster = await timetableOperationsApi.checkOut(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           await mutateRoster(roster, { revalidate: false });
         } else if (action === "expected") {
           await timetableOperationsApi.patchAttendance(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
             { status: "expected", substatus: null, note: null },
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           await mutateRoster();
         } else {
           await timetableOperationsApi.patchAttendance(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
             action === "excused"
               ? { status: "absent", substatus: "excused" }
               : { status: "absent" },
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           await mutateRoster();
         }
       } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed timetable roster action", {
           action,
           student_id: row.studentId,
@@ -1853,7 +1886,7 @@ function MeinRaumPageContent() {
         setError("Aktion im Betreuungsplan konnte nicht ausgeführt werden.");
       }
     },
-    [activeTimetableInstanceId, mutateRoster],
+    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
   );
 
   const confirmCompleteTimetableInstance = useCallback(async () => {
@@ -1923,25 +1956,36 @@ function MeinRaumPageContent() {
   const handleConfirmExpectedStudents = useCallback(
     async (rows: TimetableRosterRow[]) => {
       if (!activeTimetableInstanceId || rows.length === 0) return;
+      const instanceId = activeTimetableInstanceId;
+      setMoveNotice(null);
       try {
         setIsConfirmingExpected(true);
         let nextRoster: TimetableRoster | null = null;
+        const notices: string[] = [];
         for (const row of rows) {
           nextRoster = await timetableOperationsApi.checkIn(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) continue;
+          const notice = moveNoticeFromRoster(nextRoster, row.studentId);
+          if (notice) notices.push(notice);
         }
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
+        if (notices.length > 0) setMoveNotice(notices.join(" "));
         if (nextRoster) {
           await mutateRoster(nextRoster, { revalidate: false });
         } else {
           await mutateRoster();
         }
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         await mutateDashboard();
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         setRefreshKey((prev) => prev + 1);
       } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed to confirm expected timetable students", {
-          instance_id: activeTimetableInstanceId,
+          instance_id: instanceId,
           count: rows.length,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -1950,23 +1994,33 @@ function MeinRaumPageContent() {
         setIsConfirmingExpected(false);
       }
     },
-    [activeTimetableInstanceId, mutateDashboard, mutateRoster],
+    [
+      activeTimetableInstanceId,
+      activeTimetableInstanceIdRef,
+      mutateDashboard,
+      mutateRoster,
+    ],
   );
 
   const handleAddUnplannedStudent = useCallback(
     async (studentId: string) => {
       if (!activeTimetableInstanceId) return false;
+      const instanceId = activeTimetableInstanceId;
+      setMoveNotice(null);
       try {
         setIsAddingStudent(true);
         const roster = await timetableOperationsApi.checkIn(
-          activeTimetableInstanceId,
+          instanceId,
           studentId,
         );
+        if (activeTimetableInstanceIdRef.current !== instanceId) return false;
+        setMoveNotice(moveNoticeFromRoster(roster, studentId));
         setAddStudentSearch("");
         setAddStudentResult(null);
         await mutateRoster(roster, { revalidate: false });
         return true;
       } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return false;
         logger.error("failed to add unplanned timetable student", {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
@@ -1977,7 +2031,7 @@ function MeinRaumPageContent() {
         setIsAddingStudent(false);
       }
     },
-    [activeTimetableInstanceId, mutateRoster],
+    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
   );
 
   // Handle releasing Schulhof supervision
@@ -2322,24 +2376,31 @@ function MeinRaumPageContent() {
 
     if (currentTimetableRoster) {
       return (
-        <TimetableRosterContent
-          addStudentResults={addStudentResults}
-          addStudentSearch={addStudentSearch}
-          attendanceWebEnabled={attendanceWebEnabled}
-          isAddingStudent={isAddingStudent}
-          isCompletingInstance={isCompletingInstance}
-          isConfirmingExpected={isConfirmingExpected}
-          roster={currentTimetableRoster}
-          showTimetableCounts={showTimetableCounts}
-          onAddStudent={handleAddUnplannedStudent}
-          onComplete={handleCompleteTimetableInstance}
-          onConfirmExpected={handleConfirmExpectedStudents}
-          onRosterAction={handleRosterAction}
-          onSearchChange={(value) => {
-            setAddStudentSearch(value);
-            setAddStudentResult(null);
-          }}
-        />
+        <>
+          {moveNotice && (
+            <div className="mb-4">
+              <Alert type="info" message={moveNotice} />
+            </div>
+          )}
+          <TimetableRosterContent
+            addStudentResults={addStudentResults}
+            addStudentSearch={addStudentSearch}
+            attendanceWebEnabled={attendanceWebEnabled}
+            isAddingStudent={isAddingStudent}
+            isCompletingInstance={isCompletingInstance}
+            isConfirmingExpected={isConfirmingExpected}
+            roster={currentTimetableRoster}
+            showTimetableCounts={showTimetableCounts}
+            onAddStudent={handleAddUnplannedStudent}
+            onComplete={handleCompleteTimetableInstance}
+            onConfirmExpected={handleConfirmExpectedStudents}
+            onRosterAction={handleRosterAction}
+            onSearchChange={(value) => {
+              setAddStudentSearch(value);
+              setAddStudentResult(null);
+            }}
+          />
+        </>
       );
     }
 

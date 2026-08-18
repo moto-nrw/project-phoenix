@@ -205,6 +205,9 @@ type StudentMoveResult struct {
 	Skipped       []StudentMoveSkipped `json:"skipped"`
 	ActiveGroupID *int64               `json:"active_group_id,omitempty"`
 	RoomID        *int64               `json:"room_id,omitempty"`
+	// PreviousActiveGroupIDs records the source observed after move serialization.
+	// It is service metadata and intentionally not part of the bulk-move API.
+	PreviousActiveGroupIDs map[int64]int64 `json:"-"`
 }
 
 // StudentMoveAuthorization carries the caller context needed to authorize
