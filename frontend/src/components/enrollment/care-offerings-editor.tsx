@@ -430,6 +430,35 @@ export function CareOfferingsEditor() {
     if (offering.capacity == null) return sum;
     return sum + offering.capacity;
   }, 0);
+  const autoAddRules = useMemo(() => {
+    const offeringsById = new Map(
+      offerings.map((offering) => [offering.id, offering]),
+    );
+    return offerings
+      .filter((offering) => offering.is_active)
+      .flatMap((target) =>
+        [...new Set(target.auto_add_trigger_offering_ids ?? [])].flatMap(
+          (triggerId) => {
+            const trigger = offeringsById.get(triggerId);
+            // Eltern sehen nur aktive Angebote; Regeln an oder von inaktiven
+            // Angeboten können nicht greifen und bleiben hier draußen.
+            if (!trigger?.is_active) return [];
+            const grades = formatGradeLevelList(
+              target.auto_add_grade_levels ?? [],
+            );
+            const gradeSuffix = grades
+              ? ` (${gradeNoun(target.auto_add_grade_levels ?? [])} ${grades})`
+              : "";
+            return [
+              {
+                key: `${target.id}-${trigger.id}`,
+                sentence: `„${target.name}“ wird automatisch mitgebucht, wenn „${trigger.name}“ gewählt wird${gradeSuffix}.`,
+              },
+            ];
+          },
+        ),
+      );
+  }, [offerings]);
 
   const loadPlannerMetadata = useCallback(async () => {
     const requestSeq = ++metadataLoadSeq.current;
@@ -925,8 +954,18 @@ export function CareOfferingsEditor() {
             />
           ) : null}
 
-          {!draft && !cloneSource ? (
-            <AutoAddRuleOverview offerings={offerings} />
+          {!draft && !cloneSource && autoAddRules.length > 0 ? (
+            <SectionCard
+              title="Mitbuchungs-Regeln"
+              description="Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
+              bodyClassName="mt-2"
+            >
+              <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                {autoAddRules.map((rule) => (
+                  <li key={rule.key}>{rule.sentence}</li>
+                ))}
+              </ul>
+            </SectionCard>
           ) : null}
 
           {selectedPhaseId &&
@@ -1278,57 +1317,6 @@ function EmptyCareOfferingState({
         Erstes Betreuungsangebot anlegen
       </button>
     </section>
-  );
-}
-
-// Eine falsch herum konfigurierte Mitbuchungs-Regel (#2367, Fall OGS am Berg
-// in #2365) fällt erst bei einer echten Anmeldung auf, solange jede Regel nur
-// im Editor ihres Ziel-Angebots sichtbar ist. Dieses Panel sammelt alle
-// aktiven Regeln der Phase als Klartext-Sätze (ziel-zuerst, wie das Beispiel
-// in #2367), damit die Wirkrichtung ohne Testanmeldung ablesbar ist.
-function AutoAddRuleOverview({
-  offerings,
-}: Readonly<{ offerings: CareOffering[] }>) {
-  const offeringsById = new Map(
-    offerings.map((offering) => [offering.id, offering]),
-  );
-  const rules = offerings
-    .filter((offering) => offering.is_active)
-    .flatMap((target) =>
-      [...new Set(target.auto_add_trigger_offering_ids ?? [])].flatMap(
-        (triggerId) => {
-          const trigger = offeringsById.get(triggerId);
-          // Eltern sehen nur aktive Angebote; Regeln an oder von inaktiven
-          // Angeboten können nicht greifen und bleiben hier draußen.
-          if (!trigger?.is_active) return [];
-          const grades = formatGradeLevelList(
-            target.auto_add_grade_levels ?? [],
-          );
-          const gradeSuffix = grades
-            ? ` (${gradeNoun(target.auto_add_grade_levels ?? [])} ${grades})`
-            : "";
-          return [
-            {
-              key: `${target.id}-${trigger.id}`,
-              sentence: `„${target.name}“ wird automatisch mitgebucht, wenn „${trigger.name}“ gewählt wird${gradeSuffix}.`,
-            },
-          ];
-        },
-      ),
-    );
-  if (rules.length === 0) return null;
-  return (
-    <SectionCard
-      title="Mitbuchungs-Regeln"
-      description="Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
-      bodyClassName="mt-2"
-    >
-      <ul className="mt-2 space-y-1 text-sm text-gray-700">
-        {rules.map((rule) => (
-          <li key={rule.key}>{rule.sentence}</li>
-        ))}
-      </ul>
-    </SectionCard>
   );
 }
 
