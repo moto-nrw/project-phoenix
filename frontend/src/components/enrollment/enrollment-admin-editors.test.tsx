@@ -1912,7 +1912,12 @@ describe("CareOfferingsEditor", () => {
         id: "1",
         name: "Ganztagsbetreuung bis 14.30 Uhr",
         auto_add_trigger_offering_ids: ["2"],
-        auto_add_grade_levels: [1, 2],
+        availability_rule: {
+          match: "all",
+          conditions: [
+            { source: "grade_level", operator: "in", value: [1, 2] },
+          ],
+        },
       }),
       offering({ id: "2", name: "Randstunde" }),
       offering({

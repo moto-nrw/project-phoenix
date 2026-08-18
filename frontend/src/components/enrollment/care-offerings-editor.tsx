@@ -21,6 +21,9 @@ import {
 import {
   type CareOfferingBookingGradeCounts,
   careOfferingAvailabilityRuleError,
+  careOfferingRuleExcludesNobody,
+  careOfferingRuleGradeLevels,
+  careOfferingIsAvailable,
   countCareOfferingRuleConflicts,
   describeCareOfferingAvailabilityRule,
   formatGradeLevelList,
@@ -443,11 +446,27 @@ export function CareOfferingsEditor() {
             // Eltern sehen nur aktive Angebote; Regeln an oder von inaktiven
             // Angeboten können nicht greifen und bleiben hier draußen.
             if (!trigger?.is_active) return [];
-            const grades = formatGradeLevelList(
-              target.auto_add_grade_levels ?? [],
-            );
+            const autoAddGrades = target.auto_add_grade_levels ?? [];
+            const unrestricted =
+              autoAddGrades.length === 0 &&
+              careOfferingRuleExcludesNobody(
+                target.availability_rule,
+                gradeLevelMax ?? undefined,
+              );
+            const applicableGrades = autoAddGrades.length
+              ? autoAddGrades.filter((grade) =>
+                  careOfferingIsAvailable(target, grade),
+                )
+              : unrestricted
+                ? []
+                : careOfferingRuleGradeLevels(
+                    target.availability_rule,
+                    gradeLevelMax ?? undefined,
+                  );
+            if (!unrestricted && applicableGrades.length === 0) return [];
+            const grades = formatGradeLevelList(applicableGrades);
             const gradeSuffix = grades
-              ? ` (${gradeNoun(target.auto_add_grade_levels ?? [])} ${grades})`
+              ? ` (${gradeNoun(applicableGrades)} ${grades})`
               : "";
             return [
               {
@@ -458,7 +477,7 @@ export function CareOfferingsEditor() {
           },
         ),
       );
-  }, [offerings]);
+  }, [offerings, gradeLevelMax]);
 
   const loadPlannerMetadata = useCallback(async () => {
     const requestSeq = ++metadataLoadSeq.current;

@@ -424,7 +424,8 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
-		Where(`"activity_instance".is_spontaneous = ?`, false)
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		Where(`"activity_instance".activity_group_id IS NOT NULL`)
 
 	if preserveDeviations {
 		// Keep deviated instances (#1840, re-plan only). RLS already scopes
