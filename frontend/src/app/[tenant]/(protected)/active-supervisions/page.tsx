@@ -1537,6 +1537,7 @@ function MeinRaumPageContent() {
     : null;
   const activeTimetableInstanceId =
     currentTimetableRoster?.instance?.id ?? null;
+  const activeTimetableInstanceIdRef = useLatest(activeTimetableInstanceId);
   const isWaitingForTimetableRoster =
     timetableRosterKey !== null &&
     (timetableRoster === undefined ||
@@ -1788,39 +1789,45 @@ function MeinRaumPageContent() {
       row: TimetableRosterRow,
     ) => {
       if (!activeTimetableInstanceId) return;
+      const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
       try {
         if (action === "check-in") {
           const roster = await timetableOperationsApi.checkIn(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
           await mutateRoster(roster, { revalidate: false });
         } else if (action === "check-out") {
           const roster = await timetableOperationsApi.checkOut(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           await mutateRoster(roster, { revalidate: false });
         } else if (action === "expected") {
           await timetableOperationsApi.patchAttendance(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
             { status: "expected", substatus: null, note: null },
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           await mutateRoster();
         } else {
           await timetableOperationsApi.patchAttendance(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
             action === "excused"
               ? { status: "absent", substatus: "excused" }
               : { status: "absent" },
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           await mutateRoster();
         }
       } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed timetable roster action", {
           action,
           student_id: row.studentId,
@@ -1829,7 +1836,7 @@ function MeinRaumPageContent() {
         setError("Aktion im Betreuungsplan konnte nicht ausgeführt werden.");
       }
     },
-    [activeTimetableInstanceId, mutateRoster],
+    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
   );
 
   const confirmCompleteTimetableInstance = useCallback(async () => {
@@ -1899,6 +1906,7 @@ function MeinRaumPageContent() {
   const handleConfirmExpectedStudents = useCallback(
     async (rows: TimetableRosterRow[]) => {
       if (!activeTimetableInstanceId || rows.length === 0) return;
+      const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
       try {
         setIsConfirmingExpected(true);
@@ -1906,9 +1914,10 @@ function MeinRaumPageContent() {
         const notices: string[] = [];
         for (const row of rows) {
           nextRoster = await timetableOperationsApi.checkIn(
-            activeTimetableInstanceId,
+            instanceId,
             row.studentId,
           );
+          if (activeTimetableInstanceIdRef.current !== instanceId) return;
           const notice = moveNoticeFromRoster(nextRoster, row.studentId);
           if (notice) notices.push(notice);
         }
@@ -1918,11 +1927,14 @@ function MeinRaumPageContent() {
         } else {
           await mutateRoster();
         }
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         await mutateDashboard();
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         setRefreshKey((prev) => prev + 1);
       } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed to confirm expected timetable students", {
-          instance_id: activeTimetableInstanceId,
+          instance_id: instanceId,
           count: rows.length,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -1931,24 +1943,32 @@ function MeinRaumPageContent() {
         setIsConfirmingExpected(false);
       }
     },
-    [activeTimetableInstanceId, mutateDashboard, mutateRoster],
+    [
+      activeTimetableInstanceId,
+      activeTimetableInstanceIdRef,
+      mutateDashboard,
+      mutateRoster,
+    ],
   );
 
   const handleAddUnplannedStudent = useCallback(
     async (studentId: string) => {
       if (!activeTimetableInstanceId) return;
+      const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
       try {
         setIsAddingStudent(true);
         const roster = await timetableOperationsApi.checkIn(
-          activeTimetableInstanceId,
+          instanceId,
           studentId,
         );
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         setMoveNotice(moveNoticeFromRoster(roster, studentId));
         setAddStudentSearch("");
         setAddStudentResults([]);
         await mutateRoster(roster, { revalidate: false });
       } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed to add unplanned timetable student", {
           student_id: studentId,
           error: err instanceof Error ? err.message : String(err),
@@ -1958,7 +1978,7 @@ function MeinRaumPageContent() {
         setIsAddingStudent(false);
       }
     },
-    [activeTimetableInstanceId, mutateRoster],
+    [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
   );
 
   // Handle releasing Schulhof supervision

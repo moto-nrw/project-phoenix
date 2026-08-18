@@ -16,6 +16,7 @@ import {
   waitFor,
   cleanup,
   fireEvent,
+  act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -68,9 +69,25 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
 vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: vi.fn(
-    ({ title, badge }: { title: string; badge?: { count: number } }) => (
+    ({
+      title,
+      badge,
+      tabs,
+    }: {
+      title: string;
+      badge?: { count: number };
+      tabs?: {
+        items: { id: string; label: string }[];
+        onTabChange: (id: string) => void;
+      };
+    }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
+        {tabs?.items.map((item) => (
+          <button key={item.id} onClick={() => tabs.onTabChange(item.id)}>
+            {item.label}
+          </button>
+        ))}
       </div>
     ),
   ),
@@ -315,6 +332,7 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
   const dashboardData = {
     supervisedGroups: [
       { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      { id: "2", name: "Raum 202", room: { id: "20", name: "Raum 202" } },
     ],
     unclaimedGroups: [],
     currentStaff: { id: "1" },
@@ -344,11 +362,29 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
     isSpontaneous: false,
   };
 
+  const secondRoster = {
+    instance: {
+      ...rosterInstance,
+      id: "199",
+      title: "Sport AG",
+      activeGroupId: "2",
+    },
+    rows: [
+      {
+        ...expectedRow,
+        studentId: "300",
+        studentName: "Nora Neu",
+      },
+    ],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
     vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
+    window.innerWidth = 800;
+    localStorage.clear();
     global.fetch = vi.fn();
     vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
       if (key?.startsWith("active-supervision-dashboard")) {
@@ -362,7 +398,9 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
       }
       if (key?.startsWith("timetable-roster-active-group")) {
         return {
-          data: { instance: rosterInstance, rows: [expectedRow] },
+          data: key.endsWith("-2")
+            ? secondRoster
+            : { instance: rosterInstance, rows: [expectedRow] },
           isLoading: false,
           error: null,
           mutate: mockMutate,
@@ -505,4 +543,63 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
       expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     });
   });
+
+  it.each(["single", "bulk", "unplanned"] as const)(
+    "discards a late %s check-in notice after switching sessions",
+    async (action) => {
+      let resolveCheckIn!: (value: unknown) => void;
+      const checkIn = new Promise((resolve) => {
+        resolveCheckIn = resolve;
+      });
+      vi.mocked(timetableOperationsApi.checkIn).mockReturnValue(
+        checkIn as never,
+      );
+
+      render(<MeinRaumPage />);
+
+      if (action === "single") {
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Einchecken" }),
+        );
+      } else if (action === "bulk") {
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: "1 erwartete bestätigen",
+          }),
+        );
+      } else {
+        fireEvent.change(
+          await screen.findByRole("searchbox", {
+            name: "Kind ungeplant suchen",
+          }),
+          { target: { value: "Ben" } },
+        );
+        fireEvent.click(await screen.findByRole("button", { name: /Ben Neu/ }));
+      }
+
+      await waitFor(() => {
+        expect(timetableOperationsApi.checkIn).toHaveBeenCalled();
+      });
+      fireEvent.click(await screen.findByRole("button", { name: "Raum 202" }));
+      await screen.findByText("Nora Neu");
+
+      await act(async () => {
+        resolveCheckIn({
+          instance: rosterInstance,
+          rows: [
+            {
+              ...expectedRow,
+              currentlyPresent: true,
+              visitId: "visit-100",
+              status: "present",
+            },
+          ],
+          movedFrom: "GT 1",
+        });
+        await checkIn;
+      });
+
+      expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
+    },
+  );
 });

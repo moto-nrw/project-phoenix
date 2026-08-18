@@ -916,10 +916,12 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		deps.activeService.moveResult = &activeSvc.StudentMoveResult{
 			Skipped: []activeSvc.StudentMoveSkipped{{StudentID: studentID, Reason: activeSvc.StudentMoveSkipConflict}},
 		}
+		ctx := tenant.WithRollbackMarker(context.Background())
 
-		_, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
+		_, err := deps.service.CheckInStudent(ctx, 670, false, instanceID, studentID)
 
 		require.ErrorIs(t, err, ErrTimetableOperationConflict)
+		assert.True(t, tenant.RollbackRequested(ctx))
 	})
 
 	t.Run("treats an unchanged result as same-group success without move notice", func(t *testing.T) {

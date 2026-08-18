@@ -517,6 +517,7 @@ func (s *timetableOperationsService) moveStudentFromOtherSession(ctx context.Con
 		return nil, err
 	}
 	if len(result.Moved) == 0 && len(result.Unchanged) == 0 {
+		tenant.MarkRollback(ctx)
 		return nil, fmt.Errorf("%w: student could not be moved from other session", ErrTimetableOperationConflict)
 	}
 	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
