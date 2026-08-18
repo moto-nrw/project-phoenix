@@ -61,6 +61,21 @@ func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
 	}}, response.PendingRequest.Diff)
 }
 
+func TestToOfferingCatalogResponseSeparatesManualDays(t *testing.T) {
+	response := toOfferingCatalogResponse(&enrollmentService.OfferingChangeCatalog{
+		Items: []enrollmentService.OfferingChangeCatalogItem{{
+			OfferingID:         42,
+			Selected:           true,
+			SelectedDays:       []string{"mon", "tue"},
+			ManualSelectedDays: []string{"mon"},
+		}},
+	})
+
+	require.Len(t, response.Items, 1)
+	assert.Equal(t, []string{"mon", "tue"}, response.Items[0].SelectedDays)
+	assert.Equal(t, []string{"mon"}, response.Items[0].ManualSelectedDays)
+}
+
 func TestOfferingDiffResponseSeparatesRuleDaysFromRequiredAutomaticDays(t *testing.T) {
 	response := offeringDiffResponse(enrollmentService.OfferingChangeDiffEntry{
 		Label:            "Mittagessen",

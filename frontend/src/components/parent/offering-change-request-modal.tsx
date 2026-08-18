@@ -17,6 +17,7 @@ import {
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
+import { materializeCareSelection } from "~/lib/care-offering-materialization";
 
 const logger = createLogger({ component: "OfferingChangeRequestModal" });
 
@@ -45,7 +46,7 @@ function draftFromCatalog(items: OfferingCatalogItem[]): DraftMap {
   for (const item of items) {
     draft[item.id] = {
       selected: item.selected,
-      days: new Set(item.selected_days),
+      days: new Set(item.manual_selected_days ?? item.selected_days),
     };
   }
   return draft;
@@ -209,22 +210,72 @@ export function OfferingChangeRequestModal({
   const items = useMemo(() => catalog?.items ?? [], [catalog]);
   const emptyCatalog = catalog !== null && items.length === 0;
 
+  // Mirrors the backend materializer so parents see, before submitting, which
+  // offerings (and days) a Mitbuchungs-Regel adds to their selection (#2366).
+  const preview = useMemo(() => {
+    const selectedIds: string[] = [];
+    const offeringDays: Record<string, string[]> = {};
+    for (const item of items) {
+      const row = draft[item.id];
+      if (!row?.selected || item.automatic) continue;
+      selectedIds.push(item.id);
+      if (item.days_of_week_mode === "parent_choice") {
+        offeringDays[item.id] = orderedDays(row.days);
+      }
+    }
+    // gradeLevel "" is correct here: the catalog endpoint already evaluated
+    // the grade condition — trigger IDs arrive pre-filtered and
+    // auto_add_applies carries the gate for the lunch derivation.
+    return materializeCareSelection(
+      { gradeLevel: "", offeringIds: selectedIds, offeringDays },
+      items,
+    );
+  }, [items, draft]);
+
+  const autoHintFor = (item: OfferingCatalogItem): string | undefined => {
+    const days = preview.automaticDays[item.id];
+    if (!days || days.size === 0) {
+      return item.automatic && preview.offeringIds.has(item.id)
+        ? t("careOfferings.autoAdded")
+        : undefined;
+    }
+    const dayText = DAY_ORDER.filter((day) => days.has(day))
+      .map((day) => weekdayLabel(day))
+      .join(", ");
+    const names = [...(preview.autoAddContributors[item.id] ?? [])]
+      .map((id) => items.find((other) => other.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+    return names.length > 0
+      ? t("careOfferings.autoAddedDaysWithTrigger", {
+          days: dayText,
+          trigger: names.join(", "),
+        })
+      : t("careOfferings.autoAddedDays", { days: dayText });
+  };
+
   const handleSubmit = async () => {
     if (!catalog) return;
     const offerings: OfferingChangeSelectionInput[] = [];
     for (const item of items) {
       const row = draft[item.id];
-      if (!row?.selected) continue;
-      const days = orderedDays(row.days);
+      if (!row?.selected || item.automatic) continue;
+      const manualDays = orderedDays(row.days);
+      const selectedDays = orderedDays(
+        new Set([...manualDays, ...(preview.automaticDays[item.id] ?? [])]),
+      );
       // A parent-choice offering without a day would be booked "all days" by the
       // backend's own convention, which is not what an empty checkbox row means.
-      if (item.days_of_week_mode === "parent_choice" && days.length === 0) {
+      if (
+        item.days_of_week_mode === "parent_choice" &&
+        selectedDays.length === 0
+      ) {
         setError(t("careOfferingsModal.noDaysSelected"));
         return;
       }
       offerings.push({
         offering_id: item.id,
-        selected_days: item.days_of_week_mode === "parent_choice" ? days : [],
+        selected_days:
+          item.days_of_week_mode === "parent_choice" ? manualDays : [],
       });
     }
     setSubmitting(true);
@@ -300,7 +351,9 @@ export function OfferingChangeRequestModal({
             <div className="space-y-3">
               {items.map((item) => {
                 const row = draft[item.id];
-                const selected = row?.selected ?? false;
+                const selected = preview.offeringIds.has(item.id);
+                const previewOnlyAutomatic = selected && !row?.selected;
+                const autoHint = autoHintFor(item);
                 const full =
                   item.free_slots !== undefined &&
                   item.free_slots <= 0 &&
@@ -318,6 +371,7 @@ export function OfferingChangeRequestModal({
                           full ||
                           unavailable ||
                           item.automatic ||
+                          previewOnlyAutomatic ||
                           (item.is_required && selected)
                         }
                         onChange={() => toggleOffering(item)}
@@ -350,6 +404,11 @@ export function OfferingChangeRequestModal({
                             {item.description}
                           </span>
                         )}
+                        {autoHint && (
+                          <span className="mt-1 block text-xs leading-5 font-medium text-gray-700">
+                            {autoHint}
+                          </span>
+                        )}
                       </span>
                     </label>
 
@@ -361,21 +420,28 @@ export function OfferingChangeRequestModal({
                         <div className="flex flex-wrap gap-2">
                           {DAY_ORDER.filter((day) =>
                             item.available_days.includes(day),
-                          ).map((day) => (
-                            <label
-                              key={day}
-                              className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${item.automatic ? "cursor-not-allowed" : "cursor-pointer"}`}
-                            >
-                              <Checkbox
-                                checked={row?.days.has(day) ?? false}
-                                disabled={item.automatic}
-                                onChange={() => toggleDay(item.id, day)}
-                              />
-                              <span className="text-sm text-gray-700">
-                                {weekdayLabel(day)}
-                              </span>
-                            </label>
-                          ))}
+                          ).map((day) => {
+                            const autoDay =
+                              preview.automaticDays[item.id]?.has(day) ?? false;
+                            const locked = item.automatic || autoDay;
+                            return (
+                              <label
+                                key={day}
+                                className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+                              >
+                                <Checkbox
+                                  checked={
+                                    (row?.days.has(day) ?? false) || autoDay
+                                  }
+                                  disabled={locked}
+                                  onChange={() => toggleDay(item.id, day)}
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {weekdayLabel(day)}
+                                </span>
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -384,7 +450,7 @@ export function OfferingChangeRequestModal({
                       <p className="mt-2 pl-8 text-xs text-gray-500">
                         {t("careOfferingsModal.fixedDays", {
                           days: item.available_days
-                            .map(weekdayLabel)
+                            .map((day) => weekdayLabel(day))
                             .join(", "),
                         })}
                       </p>

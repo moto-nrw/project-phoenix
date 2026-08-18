@@ -681,6 +681,45 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 	assert.Equal(t, 3, *other.FreeSlots)
 }
 
+func TestOfferingChangeRequestService_Catalog_ExposesGradeFilteredAutoAddTriggers(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "AutoTrig")
+
+	require.NoError(t, env.repos.CareOffering.ReplaceAutoAddTriggers(ctx, fx.newOffering.ID, []int64{fx.oldOffering.ID}))
+
+	catalog, err := svc.Catalog(ctx, fx.studentID)
+	require.NoError(t, err)
+	byID := map[int64]enrollmentService.OfferingChangeCatalogItem{}
+	for _, item := range catalog.Items {
+		byID[item.OfferingID] = item
+	}
+	target, ok := byID[fx.newOffering.ID]
+	require.True(t, ok)
+	assert.Equal(t, []int64{fx.oldOffering.ID}, target.AutoAddTriggerOfferingIDs,
+		"the modal needs the rule to preview the Mitbuchung before submitting")
+	assert.True(t, target.AutoAddApplies)
+	assert.True(t, target.CountsAsCare)
+
+	// A grade condition the child does not meet hides the rule: the preview
+	// must never announce a Mitbuchung the materializer would not perform.
+	// (The fixture child enrolls into grade 2.)
+	fx.newOffering.AutoAddGradeLevels = []int{3}
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
+
+	catalog, err = svc.Catalog(ctx, fx.studentID)
+	require.NoError(t, err)
+	for _, item := range catalog.Items {
+		if item.OfferingID == fx.newOffering.ID {
+			assert.Empty(t, item.AutoAddTriggerOfferingIDs)
+			assert.False(t, item.AutoAddApplies,
+				"the client's lunch derivation must also respect the grade gate")
+		}
+	}
+}
+
 func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()

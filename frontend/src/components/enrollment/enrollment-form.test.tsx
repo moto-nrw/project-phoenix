@@ -3164,6 +3164,65 @@ describe("EnrollmentForm", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("explains an automatic Mitbuchung with days and trigger before submitting (#2366)", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [
+        {
+          id: "11",
+          phase_id: "5",
+          name: "Ganztag",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: true,
+          capacity: null,
+        },
+        {
+          id: "22",
+          phase_id: "5",
+          name: "Randstunde",
+          description: null,
+          days_of_week_mode: "parent_choice",
+          available_days: ["mon", "tue", "wed", "thu", "fri"],
+          includes_holiday_care: false,
+          includes_lunch: false,
+          is_active: true,
+          is_required: false,
+          counts_as_care: false,
+          auto_add_trigger_offering_ids: ["11"],
+          capacity: null,
+        },
+      ],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      screen.queryByText(/Automatisch mitgebucht:/),
+    ).not.toBeInTheDocument();
+
+    const ganztagInput = document.querySelector<HTMLInputElement>(
+      'input[name="children_0_offering_11"]',
+    );
+    fireEvent.click(ganztagInput as HTMLInputElement);
+    for (const day of ["Mo", "Di"]) {
+      fireEvent.click(dayButton(offeringCard("children_0_offering_11"), day));
+    }
+
+    expect(
+      screen.getByText(
+        "Automatisch mitgebucht: Mo, Di, weil Ganztag gewählt ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("automatisch")).toBeInTheDocument();
+  });
+
   it("validates selection groups against auto-added offerings", async () => {
     mockFetchPublicCareOfferings.mockResolvedValueOnce({
       offerings: [

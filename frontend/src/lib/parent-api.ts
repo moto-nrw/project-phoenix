@@ -1263,8 +1263,18 @@ export interface OfferingCatalogItem {
   readonly price_cents?: number;
   readonly includes_lunch: boolean;
   readonly includes_holiday_care: boolean;
+  readonly counts_as_care?: boolean;
+  /**
+   * Offerings whose selection books this one automatically
+   * (Mitbuchungs-Regel, #2366). Already filtered to the child's grade.
+   */
+  readonly auto_add_trigger_offering_ids?: string[];
+  /** Server-evaluated grade gate for automatic days on this offering. */
+  readonly auto_add_applies?: boolean;
   readonly selected: boolean;
   readonly selected_days: string[];
+  /** The manually selected subset of selected_days, excluding rule-derived days. */
+  readonly manual_selected_days?: string[];
   /** True when the current booking is derived from another offering. */
   readonly automatic?: boolean;
   /** False for a booking retained after the school deactivated the offering. */
