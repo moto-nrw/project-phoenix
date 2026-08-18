@@ -165,6 +165,15 @@ export interface FormField {
    * any off-list time. Empty/undefined = free time entry.
    */
   allowed_times?: string[];
+  /**
+   * Heimweg-Beschränkung (#2381) for the `weekday_multi_mode` field
+   * targeting `student.allowed_departure_modes`: target grade levels
+   * whose children may pick at most ONE departure mode per weekday.
+   * Parents still choose which one. Empty/undefined = unrestricted
+   * multi-select; only valid on that field, the backend rejects it
+   * everywhere else.
+   */
+  single_mode_grades?: number[];
   validation?: FormFieldValidation | null;
   sort_order: number;
   applies_to_child?: boolean;

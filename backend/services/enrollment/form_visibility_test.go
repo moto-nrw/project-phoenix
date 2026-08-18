@@ -1074,3 +1074,83 @@ func TestMatchExistingChildrenBySubmittedIdentityAllowsUniqueIDLessReorder(t *te
 	assert.Same(t, existing[1], matches[0])
 	assert.Same(t, existing[0], matches[1])
 }
+
+// ---- Heimweg-Beschränkung (single_mode_grades, #2381) ---------------------
+
+func departureModesField() enrollmentModels.FormField {
+	return enrollmentModels.FormField{
+		Key: "heimwege", Label: "Erlaubte Heimwege",
+		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
+		AppliesToCh: true, Target: enrollmentModels.TargetStudentAllowedDepartureModes,
+		SingleModeGrades: []int{1},
+	}
+}
+
+func TestValidateConstrainedSchedules_SingleModeRejectsMultiSelection(t *testing.T) {
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	grade := int16(1)
+	req := SubmitRequest{Children: []SubmitChild{{
+		TargetGradeLevel: &grade,
+		CustomData:       map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
+	}}}
+	err := s.validateConstrainedSchedules(schema, req, nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrDepartureModeLimitExceeded))
+	assert.True(t, errors.Is(err, ErrInvalidSubmission))
+	assert.Contains(t, err.Error(), "child 0")
+}
+
+func TestValidateConstrainedSchedules_SingleModeAcceptsOnePerDay(t *testing.T) {
+	// Different modes across days stay allowed — only same-day multi-select
+	// is restricted (Q9: eine Abholart PRO Wochentag).
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	grade := int16(1)
+	req := SubmitRequest{Children: []SubmitChild{{
+		TargetGradeLevel: &grade,
+		CustomData:       map[string]any{"heimwege": map[string]any{"mon": []any{"bus"}, "tue": []any{"pickup"}}},
+	}}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
+
+func TestValidateConstrainedSchedules_SingleModeIgnoresUnrestrictedGrade(t *testing.T) {
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	grade := int16(2)
+	req := SubmitRequest{Children: []SubmitChild{{
+		TargetGradeLevel: &grade,
+		CustomData:       map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
+	}}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
+
+func TestValidateConstrainedSchedules_SingleModeIgnoresNilGrade(t *testing.T) {
+	// No declared target grade (grade collection off / legacy request) →
+	// the rule silently does not apply; the fallback is multi-select.
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	req := SubmitRequest{Children: []SubmitChild{{
+		CustomData: map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
+	}}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}
+
+func TestValidateConstrainedSchedules_SingleModeHiddenFieldExempt(t *testing.T) {
+	s := &requestService{}
+	field := departureModesField()
+	field.VisibleWhen = &enrollmentModels.VisibilityCondition{
+		Source: enrollmentModels.ConditionSourceField, Field: "needs_modes",
+		Operator: enrollmentModels.ConditionOpEquals, Value: true,
+	}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{
+		{Key: "needs_modes", Label: "Heimwege angeben?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true},
+		field,
+	}}
+	grade := int16(1)
+	req := SubmitRequest{Children: []SubmitChild{{
+		TargetGradeLevel: &grade,
+		CustomData:       map[string]any{"needs_modes": false, "heimwege": map[string]any{"mon": []any{"bus", "pickup"}}},
+	}}}
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
+}

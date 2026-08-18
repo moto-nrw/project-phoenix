@@ -738,6 +738,8 @@
       "busDaysHelp": "Wählen Sie die Tage aus, an denen Ihr Kind mit dem Bus fährt.",
       "departureModeHelp": "Wählen Sie pro Wochentag, wie Ihr Kind nach Hause geht. Standard ist „Geht zu Fuß“.",
       "weekdayMultiModeHelp": "Wählen Sie pro Betreuungstag alle Heimwege aus, die für Ihr Kind erlaubt sind.",
+      "weekdayMultiModeSingleHelp": "Wählen Sie pro Betreuungstag einen Heimweg aus.",
+      "weekdayMultiModeSingleLimit": "Bitte wählen Sie nur einen Heimweg pro Betreuungstag aus.",
       "weekdayMultiModeNoDays": "Wählen Sie zuerst die Betreuungstage aus.",
       "weekdayMultiModeUniform": "Gleiche Heimwege für alle Betreuungstage",
       "weekdayMultiModeUniformHint": "Treffen Sie die Auswahl einmal; sie gilt dann für jeden Betreuungstag.",

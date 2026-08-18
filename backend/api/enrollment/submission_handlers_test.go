@@ -243,6 +243,18 @@ func TestMapSubmitError_SelectedDayNotAvailable400WithCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentSelectedDayNotAvailable)
 }
 
+func TestMapSubmitError_WrappedDepartureModeLimit400WithCode(t *testing.T) {
+	// Heimweg-Beschränkung (#2381): the wrapped sentinel must map to its
+	// stable code so the parent form can localize the message.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	wrapped := fmt.Errorf("%w: child 0 field %q: weekday \"mon\" allows only one departure mode, got 2",
+		enrollmentService.ErrDepartureModeLimitExceeded, "heimwege")
+	MapSubmitError(w, r, wrapped)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDepartureModeLimit)
+}
+
 func TestMapSubmitError_WrappedSelectedDayNotAvailable400WithCode(t *testing.T) {
 	// The service wraps the sentinel with the offending day; the mapper
 	// must still resolve the code via errors.Is traversal.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
@@ -2120,6 +2120,10 @@ export function EnrollmentForm({
                         offerings,
                         previewMode,
                       )}
+                      singleMode={
+                        f.type === "weekday_multi_mode" &&
+                        singleModeApplies(f, child.target_grade_level)
+                      }
                       tr={tr}
                     />
                   ),
@@ -3455,6 +3459,11 @@ interface CustomFieldInputProps {
   // from `error` so the modes fieldset and the note input show their own
   // messages.
   readonly companionNoteError?: string;
+  // Heimweg-Beschränkung (#2381): true when the field's single_mode_grades
+  // restrict this child's target grade — the multi-mode picker then allows
+  // at most one way home per care day (selecting a mode replaces the
+  // previous one). Backend re-validates, this is the honest UI for it.
+  readonly singleMode?: boolean;
 }
 
 function CustomFieldInput({
@@ -3468,6 +3477,7 @@ function CustomFieldInput({
   companionNote,
   onCompanionNoteChange,
   companionNoteError,
+  singleMode,
 }: CustomFieldInputProps) {
   const datePicker = useLocalizedDatePicker();
   const labelEl = (
@@ -3618,6 +3628,7 @@ function CustomFieldInput({
         companionNote={companionNote}
         onCompanionNoteChange={onCompanionNoteChange}
         companionNoteError={companionNoteError}
+        singleMode={singleMode}
       />
     );
   }
@@ -3855,6 +3866,18 @@ const DEPARTURE_MULTI_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
 
 const DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION: ReadonlyArray<DepartureModeValue> =
   ["alone", "bus", "pickup"];
+
+// singleModeApplies reports whether a field's Heimweg-Beschränkung (#2381)
+// restricts the child's declared target grade. An unparseable or missing
+// grade is never restricted — mirrors the backend's SingleModeAppliesTo.
+function singleModeApplies(
+  field: PublicFormSchema["fields"][number],
+  targetGradeLevel: string,
+): boolean {
+  const grade = Number(targetGradeLevel);
+  if (!Number.isInteger(grade)) return false;
+  return (field.single_mode_grades ?? []).includes(grade);
+}
 
 function departureMultiModeOptionsForField(
   field: PublicFormSchema["fields"][number],
@@ -4373,10 +4396,15 @@ function WeekdayMultiModeInput({
   companionNote,
   onCompanionNoteChange,
   companionNoteError,
+  singleMode,
 }: CustomFieldInputProps) {
   const daysToRender = relevantDays ?? WEEKDAYS;
   const modeOptions = departureMultiModeOptionsForField(field);
   const modes = asWeekdayMultiModeObject(value, daysToRender, modeOptions);
+  // Instance-unique radio-group prefix for single mode: field.key repeats
+  // across children, so naming groups by key alone would couple the
+  // siblings' radios in the same form.
+  const radioGroupId = useId();
   const [expandedDays, setExpandedDays] = useState<Set<string>>(
     () => new Set(daysToRender.filter((day) => (modes[day]?.length ?? 0) > 0)),
   );
@@ -4416,7 +4444,14 @@ function WeekdayMultiModeInput({
   };
   const updateDay = (day: string, mode: DepartureModeValue) => {
     const current = new Set(modes[day] ?? []);
-    if (current.has(mode)) current.delete(mode);
+    if (singleMode) {
+      // Heimweg-Beschränkung (#2381): a radio group — picking a mode
+      // replaces the previous one, so a day never carries more than one,
+      // including stale multi-selections prefilled from before the rule.
+      // Clearing a day happens by collapsing it (toggleDay).
+      current.clear();
+      current.add(mode);
+    } else if (current.has(mode)) current.delete(mode);
     else current.add(mode);
     const nextRaw = {
       ...modes,
@@ -4491,7 +4526,10 @@ function WeekdayMultiModeInput({
   };
   const updateUniform = (mode: DepartureModeValue) => {
     const current = new Set(uniformSelection);
-    if (current.has(mode)) current.delete(mode);
+    if (singleMode) {
+      current.clear();
+      current.add(mode);
+    } else if (current.has(mode)) current.delete(mode);
     else current.add(mode);
     const arr = modeOptions.filter((m) => current.has(m));
     setUniformSelection(arr);
@@ -4519,8 +4557,21 @@ function WeekdayMultiModeInput({
         </p>
       )}
       <p className="text-xs text-gray-500">
-        {tr("structured.weekdayMultiModeHelp")}
+        {tr(
+          singleMode
+            ? "structured.weekdayMultiModeSingleHelp"
+            : "structured.weekdayMultiModeHelp",
+        )}
       </p>
+      {singleMode &&
+      daysToRender.some((day) => (modes[day]?.length ?? 0) > 1) ? (
+        // Stale multi-selection carried over from before the rule (e.g. a
+        // change request on an older submission): the backend rejects it,
+        // so warn up front instead of failing on submit.
+        <p className="text-moto-red mt-1 text-xs">
+          {tr("structured.weekdayMultiModeSingleLimit")}
+        </p>
+      ) : null}
       <div className="mt-3">
         {daysToRender.length > 0 ? (
           <>
@@ -4554,10 +4605,22 @@ function WeekdayMultiModeInput({
                             : "border-gray-200 text-gray-700 hover:border-gray-300"
                         }`}
                       >
-                        <Checkbox
-                          checked={checked}
-                          onChange={() => updateUniform(mode)}
-                        />
+                        {singleMode ? (
+                          // Heimweg-Beschränkung (#2381): a real radio group,
+                          // not a checkbox that merely behaves like one.
+                          <input
+                            type="radio"
+                            name={`${radioGroupId}-uniform`}
+                            checked={checked}
+                            onChange={() => updateUniform(mode)}
+                            className="h-4 w-4 shrink-0 accent-gray-900"
+                          />
+                        ) : (
+                          <Checkbox
+                            checked={checked}
+                            onChange={() => updateUniform(mode)}
+                          />
+                        )}
                         <span>{departureModeLabels[mode] ?? mode}</span>
                       </label>
                     );
@@ -4607,10 +4670,20 @@ function WeekdayMultiModeInput({
                                   : "border-gray-200 text-gray-700 hover:border-gray-300"
                               }`}
                             >
-                              <Checkbox
-                                checked={checked}
-                                onChange={() => updateDay(day, mode)}
-                              />
+                              {singleMode ? (
+                                <input
+                                  type="radio"
+                                  name={`${radioGroupId}-${day}`}
+                                  checked={checked}
+                                  onChange={() => updateDay(day, mode)}
+                                  className="h-4 w-4 shrink-0 accent-gray-900"
+                                />
+                              ) : (
+                                <Checkbox
+                                  checked={checked}
+                                  onChange={() => updateDay(day, mode)}
+                                />
+                              )}
                               <span>{departureModeLabels[mode] ?? mode}</span>
                             </label>
                           );

@@ -273,6 +273,7 @@ const (
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
+	ErrCodeEnrollmentDepartureModeLimit          = "enrollment.departure_mode_limit"
 	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
 	ErrCodeEnrollmentSelectedDayNotAvailable     = "enrollment.selected_day_not_available"
 	ErrCodeEnrollmentDaySelectionRequired        = "enrollment.day_selection_required"
@@ -335,6 +336,9 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
 	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentPickupTimeNotAllowed))
+	// Heimweg-Beschränkung (#2381) also wraps ErrInvalidSubmission.
+	case errors.Is(err, enrollmentService.ErrDepartureModeLimitExceeded):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDepartureModeLimit))
 	// The three offering-day errors (#1885) also wrap ErrInvalidSubmission,
 	// so their specific matches must precede the generic case below.
 	case errors.Is(err, enrollmentService.ErrSelectedDayNotAvailable):

@@ -1527,6 +1527,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Repo:        repos.FormSchema,
 		PhaseRepo:   repos.Phase,
 		RequestRepo: repos.Request,
+		Settings:    settingsService,
 		Logger:      logger.With("service", "enrollment-form-schema"),
 	})
 

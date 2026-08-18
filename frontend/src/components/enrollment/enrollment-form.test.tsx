@@ -1707,6 +1707,92 @@ describe("EnrollmentForm", () => {
     expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
   });
 
+  it("restricts a rule grade to one way home per day (Heimweg-Beschraenkung)", async () => {
+    const restricted = schema();
+    restricted.fields = [
+      {
+        key: "heimwege",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: false,
+        applies_to_child: true,
+        target: "student.allowed_departure_modes",
+        single_mode_grades: [1],
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(restricted);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "1. Klasse");
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    expect(
+      within(group).getByText(
+        "Wählen Sie pro Betreuungstag einen Heimweg aus.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    // The modes render as a real radio group, not checkboxes.
+    fireEvent.click(within(group).getByRole("radio", { name: "Bus" }));
+    expect(within(group).getByRole("radio", { name: "Bus" })).toBeChecked();
+    // Picking another way home replaces the first instead of adding to it.
+    fireEvent.click(
+      within(group).getByRole("radio", { name: "Wird abgeholt" }),
+    );
+    expect(
+      within(group).getByRole("radio", { name: "Wird abgeholt" }),
+    ).toBeChecked();
+    expect(within(group).getByRole("radio", { name: "Bus" })).not.toBeChecked();
+  });
+
+  it("keeps the multi-select for grades outside single_mode_grades", async () => {
+    const restricted = schema();
+    restricted.fields = [
+      {
+        key: "heimwege",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: false,
+        applies_to_child: true,
+        target: "student.allowed_departure_modes",
+        single_mode_grades: [1],
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(restricted);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "2. Klasse");
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: "Wird abgeholt" }),
+    );
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+    expect(
+      within(group).getByRole("checkbox", { name: "Wird abgeholt" }),
+    ).toBeChecked();
+  });
+
   it("applies one selection to every care day when 'same ways home' is on", async () => {
     const previewSchema = schema();
     previewSchema.fields = [

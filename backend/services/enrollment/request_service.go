@@ -78,6 +78,12 @@ var (
 	// (enrollment.pickup_time_not_allowed) so the parent form can localize the
 	// message and highlight the offending schedule field.
 	ErrPickupTimeNotAllowed = fmt.Errorf("%w: pickup time not allowed", ErrInvalidSubmission)
+	// ErrDepartureModeLimitExceeded wraps ErrInvalidSubmission the same way
+	// and is returned when a child of a restricted target grade submits more
+	// than one departure mode per weekday on a field with single_mode_grades
+	// (Heimweg-Beschränkung, #2381). Own identity so the handler can attach a
+	// stable code (enrollment.departure_mode_limit) for a localized message.
+	ErrDepartureModeLimitExceeded = fmt.Errorf("%w: only one departure mode per weekday allowed", ErrInvalidSubmission)
 	// The three parent-input day errors (#1846/#1885) wrap
 	// ErrInvalidSubmission (HTTP 400) and carry their own identity so the
 	// handler can attach stable codes for localized form messages.

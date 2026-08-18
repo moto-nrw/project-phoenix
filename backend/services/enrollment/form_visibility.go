@@ -562,16 +562,42 @@ func (s *requestService) validateConstrainedSchedules(
 		scheduleDays := relevantCareDaysForChild(child, openByID)
 		for i := range schema.Fields {
 			f := &schema.Fields[i]
-			if f.Target != enrollmentModels.TargetSchedulePickup || len(f.AllowedTimes) == 0 || !f.AppliesToCh {
+			if !f.AppliesToCh || !fieldVisible(f, childCtx) {
 				continue
 			}
-			if !fieldVisible(f, childCtx) {
-				continue
+			if f.Target == enrollmentModels.TargetSchedulePickup && len(f.AllowedTimes) > 0 {
+				if err := check(f, child.CustomData, idx, scheduleDays); err != nil {
+					return err
+				}
 			}
-			if err := check(f, child.CustomData, idx, scheduleDays); err != nil {
-				return err
+			if f.Target == enrollmentModels.TargetStudentAllowedDepartureModes &&
+				f.SingleModeAppliesTo(child.TargetGradeLevel) {
+				if err := checkSingleModeDeparture(f, child.CustomData, idx); err != nil {
+					return err
+				}
 			}
 		}
+	}
+	return nil
+}
+
+// checkSingleModeDeparture enforces the Heimweg-Beschränkung (#2381) on one
+// child's allowed-departure-modes answer: at most one mode per weekday. Only
+// called for children whose target grade the field restricts. Unlike the
+// pickup-times gate this checks every submitted day, not just care days —
+// multi-mode answers are not care-day-pruned before persistence, so an
+// off-care-day entry would be stored as-is and must satisfy the rule too.
+func checkSingleModeDeparture(f *enrollmentModels.FormField, answers map[string]any, childIdx int) error {
+	raw, ok := answers[f.Key]
+	if !ok || raw == nil {
+		return nil
+	}
+	var modes enrollmentModels.WeekdayMultiMode
+	if err := decodeStructured(raw, &modes); err != nil {
+		return fmt.Errorf("%w: child %d field %q: invalid departure modes", ErrInvalidSubmission, childIdx, f.Key)
+	}
+	if err := modes.ValidateSingleSelection(); err != nil {
+		return fmt.Errorf("%w: child %d field %q: %v", ErrDepartureModeLimitExceeded, childIdx, f.Key, err)
 	}
 	return nil
 }
