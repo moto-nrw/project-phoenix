@@ -335,12 +335,14 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     },
     rows: [],
   };
+  let currentRosterData = rosterData;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
     vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
+    currentRosterData = rosterData;
     global.fetch = vi.fn();
     vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
       if (key?.startsWith("active-supervision-dashboard")) {
@@ -354,7 +356,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       }
       if (key?.startsWith("timetable-roster-active-group")) {
         return {
-          data: rosterData,
+          data: currentRosterData,
           isLoading: false,
           error: null,
           mutate: mockMutate,
@@ -382,7 +384,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     fireEvent.change(input, { target: { value } });
   };
 
-  it("requires a selection and invalidates old results when the search changes", async () => {
+  it("requires a selection and resets it when the instance or search changes", async () => {
     vi.mocked(fetchStudents).mockResolvedValue({
       students: [
         makeStudent("201", "Marie", "Beier"),
@@ -391,7 +393,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       ],
     });
 
-    render(<MeinRaumPage />);
+    const { rerender } = render(<MeinRaumPage />);
     await searchFor("Marie");
 
     const beierCard = await screen.findByRole("button", {
@@ -413,10 +415,22 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
     ).not.toBeInTheDocument();
 
+    currentRosterData = {
+      ...rosterData,
+      instance: { ...rosterData.instance, id: "100", title: "Sport" },
+    };
+    rerender(<MeinRaumPage />);
+
+    expect(screen.getByRole("button", { name: /Marie Beier/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+
     await searchFor("Lara");
 
     expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
-    expect(addButton).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
     expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
   });
 

@@ -818,6 +818,7 @@ function TimetableRosterContent({
       />
       {attendanceWebEnabled ? (
         <AddUnplannedStudentForm
+          key={roster.instance.id}
           isAddingStudent={isAddingStudent}
           results={addStudentResults}
           search={addStudentSearch}
