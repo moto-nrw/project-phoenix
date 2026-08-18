@@ -12,10 +12,24 @@ const logger = createLogger({ component: "OfferingRequestReviewAPI" });
 type OfferingRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
 /** One "current → requested" line, pre-rendered in German by the backend. */
-interface OfferingRequestDiffLine {
+export interface OfferingRequestDiffLine {
+  readonly offering_id: string;
   readonly label: string;
   readonly old: string;
   readonly new: string;
+  /** True when a Mitbuchungs-Regel (or the required lunch) added days here. */
+  readonly automatic?: boolean;
+  /** German day list of the automatic share ("Do, Fr"). */
+  readonly automatic_days?: string;
+  /** Rule-derived part of automatic_days, excluding required-lunch days. */
+  readonly rule_days?: string;
+  /** Materialized German day list after this co-booking rule is suppressed. */
+  readonly new_when_excluded?: string;
+  /** Offerings whose rule produced the automatic share (for cascade greying). */
+  readonly trigger_ids?: readonly string[];
+  readonly trigger_names?: readonly string[];
+  /** True when staff may exclude this rule-added line per request (#2370). */
+  readonly optoutable?: boolean;
 }
 
 /**
@@ -34,6 +48,16 @@ export interface StaffOfferingRequest {
   readonly reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
+}
+
+export interface OfferingRequestPreviewSelection {
+  readonly offering_id: string;
+  readonly new: string;
+  readonly removed?: boolean;
+}
+
+export interface OfferingRequestPreview {
+  readonly selections: readonly OfferingRequestPreviewSelection[];
 }
 
 interface Envelope<T> {
@@ -110,13 +134,18 @@ export async function decideOfferingChangeRequest(
   requestId: string,
   approve: boolean,
   reason?: string,
+  excludedOfferingIds?: readonly string[],
 ): Promise<void> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, reason: reason ?? "" }),
+      body: JSON.stringify({
+        approve,
+        reason: reason ?? "",
+        excluded_offering_ids: excludedOfferingIds,
+      }),
     },
   );
   if (!response.ok) {
@@ -125,4 +154,28 @@ export async function decideOfferingChangeRequest(
       "Entscheidung konnte nicht gespeichert werden",
     );
   }
+}
+
+/** Materializes the review card with its current co-booking overrides. */
+export async function previewOfferingChangeRequest(
+  requestId: string,
+  excludedOfferingIds: readonly string[],
+): Promise<OfferingRequestPreview> {
+  const response = await fetch(
+    `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        excluded_offering_ids: excludedOfferingIds,
+      }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Vorschau konnte nicht aktualisiert werden",
+    );
+  }
+  return unwrap((await response.json()) as Envelope<OfferingRequestPreview>);
 }

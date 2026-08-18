@@ -1214,7 +1214,13 @@
       "decisionReason": "Arsyeja e ekipit të përkujdesjes: {reason}",
       "decisionDecidedAt": "Vendosur më {date}",
       "noRequests": "Aktualisht nuk ka kërkesë për ndryshim.",
-      "decisionRequested": "Ishte kërkuar:"
+      "decisionRequested": "Ishte kërkuar:",
+      "autoAdded": "Shtohet automatikisht.",
+      "autoAddedWithTrigger": "Shtohet automatikisht sepse është zgjedhur {trigger}.",
+      "autoAddedDaysWithTrigger": "Rezervohet automatikisht: {days}, sepse është zgjedhur {trigger}.",
+      "decisionApplied": "Kjo u ndryshua:",
+      "decisionConsidered": "Ndryshimi i kërkuar:",
+      "decisionOverridden": "Ekipi i kujdesit nuk e rezervoi {names}."
     },
     "careOfferingsModal": {
       "title": "Kërko ndryshim të përkujdesjes së rezervuar",

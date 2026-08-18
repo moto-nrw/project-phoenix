@@ -1214,7 +1214,13 @@
       "decisionReason": "Причина от команды продлёнки: {reason}",
       "decisionDecidedAt": "Решение принято {date}",
       "noRequests": "Сейчас нет запросов на изменение.",
-      "decisionRequested": "Было запрошено:"
+      "decisionRequested": "Было запрошено:",
+      "autoAdded": "Добавляется автоматически.",
+      "autoAddedWithTrigger": "Добавляется автоматически, потому что выбрано {trigger}.",
+      "autoAddedDaysWithTrigger": "Автоматически забронировано: {days}, потому что выбрано {trigger}.",
+      "decisionApplied": "Вот что изменилось:",
+      "decisionConsidered": "Запрошенное изменение:",
+      "decisionOverridden": "Команда группы продлённого дня не забронировала {names}."
     },
     "careOfferingsModal": {
       "title": "Запросить изменение забронированного ухода",

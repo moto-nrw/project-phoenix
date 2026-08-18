@@ -75,22 +75,7 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 		resp.EarliestEffectiveFrom = v.EarliestEffectiveFrom.String()
 	}
 	if v.LastDecision != nil {
-		decision := &OfferingDecisionResponse{
-			ID:            strconv.FormatInt(v.LastDecision.ID, 10),
-			Status:        v.LastDecision.Status,
-			DecidedAt:     v.LastDecision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
-			EffectiveFrom: v.LastDecision.EffectiveFrom.String(),
-			Reason:        v.LastDecision.Reason,
-			Requested:     make([]OfferingRequestedItemResponse, 0, len(v.LastDecision.Requested)),
-		}
-		for _, item := range v.LastDecision.Requested {
-			decision.Requested = append(decision.Requested, OfferingRequestedItemResponse{
-				ID:       strconv.FormatInt(item.OfferingID, 10),
-				Name:     item.Name,
-				Weekdays: weekdaysFromDayKeys(item.Days),
-			})
-		}
-		resp.LastDecision = decision
+		resp.LastDecision = offeringDecisionResponse(v.LastDecision)
 	}
 	if v.PendingRequest != nil {
 		pending := &PendingOfferingChangeResponse{
@@ -102,18 +87,41 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 			SubmittedBySelf: v.PendingRequest.SubmittedBySelf,
 		}
 		for _, entry := range v.PendingRequest.Diff {
-			pending.Diff = append(pending.Diff, OfferingDiffResponse{
-				Label:    entry.Label,
-				OldState: entry.OldState,
-				OldDays:  append([]string{}, entry.OldDays...),
-				NewState: entry.NewState,
-				NewDays:  append([]string{}, entry.NewDays...),
-			})
+			pending.Diff = append(pending.Diff, offeringDiffResponse(entry))
 		}
 		resp.PendingRequest = pending
 	}
 	for _, offering := range v.Offerings {
 		resp.Offerings = append(resp.Offerings, careOfferingItemResponse(offering))
+	}
+	return resp
+}
+
+func offeringDecisionResponse(decision *enrollmentService.OfferingChangeDecision) *OfferingDecisionResponse {
+	resp := &OfferingDecisionResponse{
+		ID:            strconv.FormatInt(decision.ID, 10),
+		Status:        decision.Status,
+		DecidedAt:     decision.DecidedAt.Format("2006-01-02T15:04:05Z07:00"),
+		EffectiveFrom: decision.EffectiveFrom.String(),
+		Reason:        decision.Reason,
+		Requested:     make([]OfferingRequestedItemResponse, 0, len(decision.Requested)),
+	}
+	for _, item := range decision.Requested {
+		resp.Requested = append(resp.Requested, OfferingRequestedItemResponse{
+			ID:       strconv.FormatInt(item.OfferingID, 10),
+			Name:     item.Name,
+			Weekdays: weekdaysFromDayKeys(item.Days),
+		})
+	}
+	if decision.AppliedDiff != nil {
+		applied := make([]OfferingDiffResponse, 0, len(decision.AppliedDiff))
+		for _, entry := range decision.AppliedDiff {
+			applied = append(applied, offeringDiffResponse(entry))
+		}
+		resp.Applied = &applied
+	}
+	for _, offering := range decision.OverriddenOfferings {
+		resp.OverriddenNames = append(resp.OverriddenNames, offering.Name)
 	}
 	return resp
 }
@@ -137,6 +145,24 @@ func careOfferingItemResponse(offering parentService.CareOfferingSelection) Care
 		item.ValidUntil = offering.ValidUntil.AddDays(-1).String()
 	}
 	return item
+}
+
+func offeringDiffResponse(entry enrollmentService.OfferingChangeDiffEntry) OfferingDiffResponse {
+	resp := OfferingDiffResponse{
+		Label:    entry.Label,
+		OldState: entry.OldState,
+		OldDays:  append([]string{}, entry.OldDays...),
+		NewState: entry.NewState,
+		NewDays:  append([]string{}, entry.NewDays...),
+	}
+	if len(entry.NewAutomaticDays) > 0 {
+		resp.NewAutomaticDays = append([]string{}, entry.NewAutomaticDays...)
+	}
+	if len(entry.NewRuleDays) > 0 {
+		resp.NewRuleDays = append([]string{}, entry.NewRuleDays...)
+		resp.AutoTriggerNames = append([]string{}, entry.AutoTriggerNames...)
+	}
+	return resp
 }
 
 // weekdaysFromDayKeys maps stored day abbreviations to ISO weekdays so the
@@ -185,6 +211,13 @@ type OfferingDecisionResponse struct {
 	// Requested recaps what the family asked for, so a decision stays readable
 	// on its own.
 	Requested []OfferingRequestedItemResponse `json:"requested"`
+	// Applied is the frozen diff the decision was made on (including what a
+	// Mitbuchungs-Regel added). Absent for rows decided before the snapshot
+	// existed (#2365).
+	Applied *[]OfferingDiffResponse `json:"applied,omitempty"`
+	// OverriddenNames lists rule-added offerings the school excluded for this
+	// one request at approval time (#2370).
+	OverriddenNames []string `json:"overridden_names,omitempty"`
 }
 
 // OfferingRequestedItemResponse is one offering of a decided request.
@@ -202,6 +235,14 @@ type OfferingDiffResponse struct {
 	OldDays  []string `json:"old_days"` // Empty for not_booked.
 	NewState string   `json:"new_state"`
 	NewDays  []string `json:"new_days"` // Empty for removed.
+	// NewAutomaticDays is the share of NewDays added automatically by a
+	// Mitbuchungs-Regel or the required-lunch derivation (#2365).
+	NewAutomaticDays []string `json:"new_automatic_days,omitempty"`
+	// NewRuleDays is the subset caused by the named Mitbuchungs-Regeln.
+	NewRuleDays []string `json:"new_rule_days,omitempty"`
+	// AutoTriggerNames names the selected offerings that triggered the
+	// rule-specific share, so the portal can say WHY those days appeared.
+	AutoTriggerNames []string `json:"auto_trigger_names,omitempty"`
 }
 
 // OfferingCatalogResponse is the selectable catalog for the request modal.
