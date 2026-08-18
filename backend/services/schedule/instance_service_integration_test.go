@@ -780,10 +780,24 @@ func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
 	_, err = s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
 
+	// active.group_supervisors carries a BEFORE UPDATE trigger
+	// (update_modified_column) that overwrites updated_at with the DB clock's
+	// now(), so an explicit future timestamp cannot be written. Bump the row
+	// (the trigger stamps it "now") and move the recorded completion instant
+	// two minutes into the past instead: the conflict predicate
+	// updated_at > completed_at then holds regardless of Go-vs-Postgres clock
+	// skew. Comparing the trigger stamp against the Go-clock completed_at
+	// directly is a sub-millisecond race that made this test flaky.
 	_, err = s.db.NewUpdate().
 		Table("active.group_supervisors").
-		Set("updated_at = ?", time.Now().Add(time.Minute)).
+		Set("updated_at = now()").
 		Where("group_id = ?", started.ActiveGroupID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("completed_at = completed_at - interval '2 minutes'").
+		Where("id = ?", ai.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
 
