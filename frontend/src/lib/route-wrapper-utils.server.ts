@@ -41,12 +41,83 @@ export async function extractParams(
   return safeParams;
 }
 
-export async function parseRequestBody<B>(request: NextRequest): Promise<B> {
-  const text = await request.text();
+export async function parseRequestBody<B>(
+  request: NextRequest,
+  maxBodyBytes?: number,
+): Promise<B> {
+  if (maxBodyBytes === undefined) {
+    const text = await request.text();
+    if (!text) {
+      return {} as B;
+    }
+    return JSON.parse(text) as B;
+  }
+  // The bounded path validates the body strictly: size while reading (413)
+  // and JSON shape after (400). A bare JSON.parse SyntaxError carries no
+  // "API error (<status>)" marker, so handleApiError would answer 500 for
+  // what is a client-side malformed request (review #2372).
+  const text = await readBodyBounded(request, maxBodyBytes);
   if (!text) {
     return {} as B;
   }
-  return JSON.parse(text) as B;
+  try {
+    return JSON.parse(text) as B;
+  } catch {
+    throw new Error("API error (400): request body is not valid JSON");
+  }
+}
+
+/**
+ * Reads the request body while enforcing a byte limit DURING the read: an
+ * oversized payload is rejected as soon as the counter passes the limit,
+ * instead of being buffered whole by request.text() and only then bounced by
+ * the backend. The thrown message carries the "API error (413)" shape so
+ * handleApiError maps it to a 413 response.
+ */
+async function readBodyBounded(
+  request: NextRequest,
+  maxBodyBytes: number,
+): Promise<string> {
+  // Fast reject on the declared size; chunked requests without the header
+  // still hit the streaming counter below.
+  const declared = request.headers.get("content-length");
+  if (declared !== null) {
+    const declaredBytes = Number(declared);
+    if (Number.isFinite(declaredBytes) && declaredBytes > maxBodyBytes) {
+      throw bodyTooLargeError(maxBodyBytes);
+    }
+  }
+  if (!request.body) {
+    return "";
+  }
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBodyBytes) {
+      await reader.cancel();
+      throw bodyTooLargeError(maxBodyBytes);
+    }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(merged);
+}
+
+function bodyTooLargeError(maxBodyBytes: number): Error {
+  return new Error(
+    `API error (413): request body exceeds ${maxBodyBytes} bytes`,
+  );
 }
 
 export function wrapInApiResponse<T>(data: T): ApiResponse<T> {

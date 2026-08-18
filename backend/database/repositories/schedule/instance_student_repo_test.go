@@ -2350,3 +2350,88 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 	require.NoError(t, err)
 	assert.Empty(t, empty)
 }
+
+// TestInstanceStudentRepository_BatchAttendanceMirrors exercises the batch
+// mirror forms (#2372): the composite-(instance_id, student_id)-IN updates
+// flip only guard-matching rows, and the plural finds resolve several
+// students in one query.
+func TestInstanceStudentRepository_BatchAttendanceMirrors(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	day := timezone.NewDate(2026, 10, 20)
+	inst, cleanupInst := createInstanceFixture(t, db, "batch-mirror", day)
+	defer cleanupInst()
+
+	studentA := testpkg.CreateTestStudent(t, db, "BatchA", fmt.Sprintf("MirrorA-%d", time.Now().UnixNano()), "3a")
+	studentB := testpkg.CreateTestStudent(t, db, "BatchB", fmt.Sprintf("MirrorB-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
+
+	// A is expected — the batch check-in must flip it. B is already present
+	// and open — the guard must preserve its original check-in.
+	rowA := &scheduleModels.InstanceStudent{
+		InstanceID: inst.ID,
+		StudentID:  studentA.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	rowA.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, rowA))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rowA.ID)
+
+	firstCheckin := time.Date(2026, 10, 20, 13, 0, 0, 0, time.UTC)
+	rowB := &scheduleModels.InstanceStudent{
+		InstanceID:  inst.ID,
+		StudentID:   studentB.ID,
+		Status:      scheduleModels.AttendanceStatusPresent,
+		CheckedInAt: &firstCheckin,
+	}
+	rowB.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, rowB))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rowB.ID)
+
+	keys := []scheduleModels.InstanceStudentKey{
+		{InstanceID: inst.ID, StudentID: studentA.ID},
+		{InstanceID: inst.ID, StudentID: studentB.ID},
+	}
+	batchCheckin := time.Date(2026, 10, 20, 14, 0, 0, 0, time.UTC)
+	require.NoError(t, repo.UpdateAttendanceFromCheckinBatch(ctx, keys, batchCheckin))
+
+	gotA, err := repo.FindByID(ctx, rowA.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, gotA.Status)
+	require.NotNil(t, gotA.CheckedInAt)
+	assert.WithinDuration(t, batchCheckin, *gotA.CheckedInAt, time.Second)
+
+	gotB, err := repo.FindByID(ctx, rowB.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotB.CheckedInAt)
+	assert.WithinDuration(t, firstCheckin, *gotB.CheckedInAt, time.Second,
+		"already-open present row must keep its original check-in")
+
+	// Plural finds resolve both students in one query.
+	studentIDs := []int64{studentA.ID, studentB.ID}
+	candidateAt := time.Date(2026, 10, 20, 14, 30, 0, 0, timezone.Berlin)
+	candidates, err := repo.FindCurrentCandidatesByStudentIDs(ctx, studentIDs, day, candidateAt)
+	require.NoError(t, err)
+	assert.Len(t, candidates, 2)
+
+	dateRows, err := repo.FindByStudentIDsAndDate(ctx, studentIDs, day)
+	require.NoError(t, err)
+	assert.Len(t, dateRows, 2)
+
+	// The batch checkout closes both open present rows at the shared instant.
+	batchCheckout := batchCheckin.Add(time.Hour)
+	require.NoError(t, repo.UpdateAttendanceCheckoutBatch(ctx, keys, batchCheckout))
+
+	gotA, err = repo.FindByID(ctx, rowA.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotA.CheckedOutAt)
+	assert.WithinDuration(t, batchCheckout, *gotA.CheckedOutAt, time.Second)
+
+	gotB, err = repo.FindByID(ctx, rowB.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotB.CheckedOutAt)
+	assert.WithinDuration(t, batchCheckout, *gotB.CheckedOutAt, time.Second)
+}

@@ -15,6 +15,12 @@ interface SchoolCheckinFabBaseProps {
   readonly successCount: number;
   /** Open API calls in flight — surfaces as a small spinner badge top-right. */
   readonly pendingCount: number;
+  /**
+   * Locks the trigger, e.g. while a bulk request is in flight (#2359): the
+   * hook ignores mode exits during a run, so the button mirrors that as a
+   * visible disabled state instead of a dead tap.
+   */
+  readonly disabled?: boolean;
 }
 
 type SchoolCheckinFabProps = SchoolCheckinFabBaseProps &
@@ -54,6 +60,7 @@ export function SchoolCheckinFab({
   pendingCount,
   variant,
   floatingUntil,
+  disabled = false,
 }: SchoolCheckinFabProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const reduceMotion = useReducedMotion();
@@ -134,11 +141,12 @@ export function SchoolCheckinFab({
       <button
         type="button"
         onClick={onToggle}
+        disabled={disabled}
         aria-pressed={isActive}
         aria-label={label}
         data-checkin-fab-variant={resolved}
         data-checkin-fab-active={isActive || undefined}
-        className={`group relative inline-flex items-center gap-2.5 rounded-full font-semibold transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.98] ${sizeClasses}`}
+        className={`group relative inline-flex items-center gap-2.5 rounded-full font-semibold transition-[background-color,color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 ${sizeClasses}`}
         style={buttonStyle}
       >
         <span

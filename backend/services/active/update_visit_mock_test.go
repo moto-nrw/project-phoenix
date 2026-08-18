@@ -51,6 +51,17 @@ func (r *recordingAttendanceSyncer) MirrorVisitRevision(_ context.Context, previ
 
 func (r *recordingAttendanceSyncer) MirrorCheckOutAt(context.Context, int64, time.Time) {}
 
+func (r *recordingAttendanceSyncer) MirrorCheckInAtBatch(context.Context, []int64, time.Time) {}
+
+func (r *recordingAttendanceSyncer) MirrorCheckOutAtBatch(context.Context, []int64, time.Time) {}
+
+func (r *recordingAttendanceSyncer) MirrorCheckOutForVisits(_ context.Context, visits []*activeModels.Visit, _ time.Time) {
+	for _, visit := range visits {
+		copy := *visit
+		r.loaded = append(r.loaded, &copy)
+	}
+}
+
 func TestGetVisitLookupErrorClassification(t *testing.T) {
 	ctx := context.Background()
 

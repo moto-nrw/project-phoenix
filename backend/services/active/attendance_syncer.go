@@ -66,6 +66,23 @@ type AttendanceSyncer interface {
 	// MirrorCheckOutAt closes the most recently checked-in open slot for a
 	// roomless attendance flow.
 	MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time)
+
+	// MirrorCheckInAtBatch is MirrorCheckInAt for many students at one shared
+	// instant: one candidate query and one guarded UPDATE for the whole batch
+	// instead of two round trips per student (review #2372). No snapshots —
+	// the batch caller emits bulk SSE events, which carry no attendance
+	// enrichment by design (#848).
+	MirrorCheckInAtBatch(ctx context.Context, studentIDs []int64, at time.Time)
+
+	// MirrorCheckOutAtBatch is MirrorCheckOutAt for many students at one
+	// shared instant: one slot query and one guarded UPDATE for the batch.
+	MirrorCheckOutAtBatch(ctx context.Context, studentIDs []int64, at time.Time)
+
+	// MirrorCheckOutForVisits is MirrorCheckOutForVisit for a set of visits
+	// ended at one shared instant: instances are resolved once per distinct
+	// active group and every slot checkout lands in one guarded UPDATE. No
+	// snapshots, same reason as MirrorCheckInAtBatch.
+	MirrorCheckOutForVisits(ctx context.Context, visits []*active.Visit, at time.Time)
 }
 
 // applyAttendanceSnapshot copies the three WP-B10 fields from snapshot into

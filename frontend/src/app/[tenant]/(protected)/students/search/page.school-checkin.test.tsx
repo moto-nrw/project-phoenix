@@ -14,6 +14,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -270,6 +271,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     vi.mocked(useImmutableSWR).mockReturnValue({
@@ -327,6 +335,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     render(<StudentSearchPage />);
@@ -348,6 +363,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     render(<StudentSearchPage />);
@@ -381,6 +403,13 @@ describe("StudentSearchPage — school check-in wiring", () => {
       pendingIds: new Set<string>(["7", "8"]),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     render(<StudentSearchPage />);
@@ -393,5 +422,116 @@ describe("StudentSearchPage — school check-in wiring", () => {
       "data-pending",
       "2",
     );
+  });
+
+  // A live update (SWR/SSE) can remove a marked student from the result set
+  // while its ID lingers in selectedIds. The bar must count and activate only
+  // what a bulk action would actually execute — the visible cards.
+  it("selection bar counts only students still in the result set", async () => {
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["7", "999"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("1 ausgewählt")).toBeInTheDocument();
+  });
+
+  it("selection bar disables actions when only removed students are marked", async () => {
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["999"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("0 ausgewählt")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
+  });
+
+  // A scope change during a running batch keeps the failed students selected
+  // but may hide their cards, and the selection bar counts visible cards
+  // only. The failure dialog therefore carries its own retry that executes
+  // its named snapshot, so the promised one-tap retry stays reachable
+  // regardless of the current filters (review #2372).
+  it("failure dialog retries its named snapshot via Erneut versuchen", async () => {
+    const mockRunBulk = vi.fn().mockResolvedValue({
+      action: "out",
+      results: [
+        { studentId: "7", ok: false, changed: false, error: "checkin_failed" },
+      ],
+      succeeded: 0,
+      failed: 1,
+    });
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["7"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: mockRunBulk,
+    });
+
+    render(<StudentSearchPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Abmelden/ }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("Nicht alle Kinder abgemeldet"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("Max Mustermann")).toBeInTheDocument();
+    expect(mockRunBulk).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Erneut versuchen" }),
+    );
+
+    await waitFor(() => {
+      expect(mockRunBulk).toHaveBeenCalledTimes(2);
+    });
+    expect(mockRunBulk).toHaveBeenLastCalledWith("out", ["7"]);
   });
 });
