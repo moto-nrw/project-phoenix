@@ -193,6 +193,11 @@ type GradeTransitionRepository interface {
 	CreateClassTeacherHistoryBatch(ctx context.Context, history []*GradeTransitionClassTeacher) error
 	GetClassTeacherHistory(ctx context.Context, transitionID int64) ([]*GradeTransitionClassTeacher, error)
 
+	// Class-list-entry ledger (#2382): what the apply did to
+	// users.class_list_entries, replayed exactly by the revert.
+	CreateClassListEntryHistoryBatch(ctx context.Context, history []*GradeTransitionClassListEntry) error
+	GetClassListEntryHistory(ctx context.Context, transitionID int64) ([]*GradeTransitionClassListEntry, error)
+
 	// Bulk operations
 	GetDistinctClasses(ctx context.Context) ([]string, error)
 	GetStudentCountByClass(ctx context.Context, className string) (int, error)

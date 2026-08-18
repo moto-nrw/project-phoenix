@@ -27,6 +27,9 @@ interface ClassDayTotals {
   staying: number;
   leaving: number;
   absent: number;
+  // Klassenlisteneinträge (#2382) unter students: weder "bleiben" noch
+  // "gehen", sondern der neutrale "Keine Betreuung"-Anteil des Verbands.
+  list_entries: number;
 }
 
 export interface ClassDayReport {

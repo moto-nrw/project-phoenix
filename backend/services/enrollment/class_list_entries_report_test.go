@@ -132,5 +132,8 @@ func TestBuildClassDayReportListEntryProjection(t *testing.T) {
 
 	assert.Equal(t, 2, report.Totals.Students)
 	assert.Equal(t, 1, report.Totals.Staying)
-	assert.Equal(t, 1, report.Totals.Leaving)
+	// The entry is NOT "geht nach Hause" — it lands in its own neutral
+	// "Keine Betreuung" bucket (#2399 review).
+	assert.Equal(t, 0, report.Totals.Leaving)
+	assert.Equal(t, 1, report.Totals.ListEntries)
 }

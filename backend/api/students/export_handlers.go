@@ -153,6 +153,13 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	// Re-check the cap on the FINAL merged source set: the class-list entries
+	// joined after the student-side check above, and the document limit is a
+	// limit on rows in the file, not on students alone.
+	if errResp := exportSelectionCapError(len(sources)); errResp != nil {
+		renderError(w, r, errResp)
+		return
+	}
 	rows := buildExportRowSources(sources, req.Filters.GroupByClass)
 	doc := listexport.Document{
 		Title:       exportTitle(req),

@@ -52,6 +52,11 @@ type ClassDayTotals struct {
 	Staying  int `json:"staying"`
 	Leaving  int `json:"leaving"`
 	Absent   int `json:"absent"`
+	// ListEntries counts the class-list-only entries (#2382) among Students.
+	// They are neither staying nor leaving: "Keine Betreuung" is a roster
+	// statement, not a handoff instruction, so they get their own bucket
+	// instead of inflating "Gehen nach Hause".
+	ListEntries int `json:"list_entries"`
 }
 
 type ClassDayReport struct {
@@ -666,6 +671,11 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		report.Rows = append(report.Rows, dayRow)
 		report.Totals.Students++
 		switch {
+		case row.ListEntry:
+			// A class-list-only entry neither stays nor leaves — "Keine
+			// Betreuung" is its own neutral roster bucket, never a
+			// "geht nach Hause" claim.
+			report.Totals.ListEntries++
 		case status != "":
 			report.Totals.Absent++
 		case stays:
@@ -680,6 +690,7 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		report.Totals.Staying = 0
 		report.Totals.Leaving = 0
 		report.Totals.Absent = 0
+		report.Totals.ListEntries = 0
 	}
 	return report
 }

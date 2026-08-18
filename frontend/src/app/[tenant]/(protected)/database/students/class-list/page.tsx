@@ -33,6 +33,7 @@ import {
   type ClassListEntry,
 } from "~/lib/class-list-entries-api";
 import { createLogger } from "~/lib/logger";
+import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "ClassListEntriesPage" });
@@ -144,31 +145,53 @@ interface RosterStudent {
   schoolClass: string;
 }
 
-interface RosterStudentWire {
-  id: number | string;
-  first_name?: string;
-  second_name?: string;
-  school_class?: string;
+// The /api/students route maps the backend rows through mapStudentResponse,
+// which emits the surname as `second_name` (see ~/lib/student-helpers) —
+// pinning the wire type to that mapper output keeps this page honest about
+// what actually arrives.
+type RosterStudentWire = Pick<
+  Student,
+  "id" | "first_name" | "second_name" | "school_class"
+>;
+
+interface RosterStudentsPage {
+  data?: {
+    data?: RosterStudentWire[];
+    pagination?: { total_pages?: number };
+  };
 }
 
+const ROSTER_PAGE_SIZE = 1000;
+
+// Loads EVERY student page: the /api/students route caps page_size at 1000,
+// so a larger school needs more than one request or the roster (and every
+// derived count) would silently stop at the first thousand children.
 async function fetchRosterStudents(): Promise<RosterStudent[]> {
-  const response = await fetch("/api/students?page=1&page_size=1000", {
-    credentials: "include",
-    cache: "no-store",
-  });
-  if (!response.ok) return [];
-  // The route wrapper wraps GET results, so the paginated list arrives as
-  // { data: { data: [...], pagination } }.
-  const payload = (await response.json()) as {
-    data?: { data?: RosterStudentWire[] };
-  };
-  const students = payload.data?.data ?? [];
-  return students.map((student) => ({
-    id: String(student.id),
-    firstName: student.first_name ?? "",
-    lastName: student.second_name ?? "",
-    schoolClass: student.school_class ?? "",
-  }));
+  const students: RosterStudent[] = [];
+  let page = 1;
+  let totalPages = 1;
+  while (page <= totalPages) {
+    const response = await fetch(
+      `/api/students?page=${page}&page_size=${ROSTER_PAGE_SIZE}`,
+      { credentials: "include", cache: "no-store" },
+    );
+    if (!response.ok) return students;
+    // The route wrapper wraps GET results, so the paginated list arrives as
+    // { data: { data: [...], pagination } }.
+    const payload = (await response.json()) as RosterStudentsPage;
+    const rows = payload.data?.data ?? [];
+    students.push(
+      ...rows.map((student) => ({
+        id: String(student.id),
+        firstName: student.first_name ?? "",
+        lastName: student.second_name ?? "",
+        schoolClass: student.school_class ?? "",
+      })),
+    );
+    totalPages = payload.data?.pagination?.total_pages ?? page;
+    page += 1;
+  }
+  return students;
 }
 
 // One row of the combined roster: a regular student (read-only) or a

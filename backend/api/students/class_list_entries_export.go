@@ -129,25 +129,55 @@ func (rs *Resource) mergeClassListEntrySources(r *http.Request, req studentExpor
 			row:         classListEntryExportRow(entry),
 		})
 	}
-	return mergeClassListEntryRowSources(sources, entrySources, exportSortMode(req) == ""), nil
+	return mergeClassListEntryRowSources(sources, entrySources, exportSortMode(req) == "", req.Filters.GroupByClass), nil
 }
 
 // mergeClassListEntryRowSources interleaves entry rows into the
-// already-sorted student rows: by class, then German name collation. When the
-// students follow a non-name sort (pickup/arrival time), entries land at the
-// end of their class block — they have no time to sort by. The result feeds
-// the same grouped/ungrouped row builders as before.
-func mergeClassListEntryRowSources(students []exportRowSource, entries []exportRowSource, nameSorted bool) []exportRowSource {
+// already-sorted student rows. Class ordering is applied ONLY where the
+// document shape requires it — a grouped export, whose class headings depend
+// on class-contiguous rows. An ungrouped export keeps the order the requested
+// sort mode produced: name-sorted documents interleave the entries by German
+// name collation, and a time/birthday sort (which an entry has no value for)
+// keeps the student order untouched and appends the entries at the end,
+// class-then-name sorted among themselves.
+func mergeClassListEntryRowSources(students []exportRowSource, entries []exportRowSource, nameSorted, grouped bool) []exportRowSource {
 	if len(entries) == 0 {
 		return students
 	}
-	merged := make([]exportRowSource, 0, len(students)+len(entries))
-	merged = append(merged, students...)
-	merged = append(merged, entries...)
-	// Stable: within a class the existing student order (whatever sort mode
-	// produced it) survives; entries slot in by name or sink to the block end.
-	stableSortRowSources(merged, nameSorted)
-	return merged
+	if grouped {
+		merged := make([]exportRowSource, 0, len(students)+len(entries))
+		merged = append(merged, students...)
+		merged = append(merged, entries...)
+		// Stable: within a class the existing student order (whatever sort
+		// mode produced it) survives; entries slot in by name or sink to the
+		// block end.
+		stableSortRowSources(merged, nameSorted)
+		return merged
+	}
+	if nameSorted {
+		merged := make([]exportRowSource, 0, len(students)+len(entries))
+		merged = append(merged, students...)
+		merged = append(merged, entries...)
+		sortRowSourcesByName(merged)
+		return merged
+	}
+	stableSortRowSources(entries, true)
+	return append(students, entries...)
+}
+
+// sortRowSourcesByName orders by German name collation only — the ungrouped,
+// name-sorted document shape. Students win ties against entries.
+func sortRowSourcesByName(sources []exportRowSource) {
+	sort.SliceStable(sources, func(i, j int) bool {
+		a, b := sources[i], sources[j]
+		if r := collation.CompareGermanNames(a.lastName, a.firstName, b.lastName, b.firstName); r != 0 {
+			return r < 0
+		}
+		if a.entryTie != b.entryTie {
+			return !a.entryTie
+		}
+		return false
+	})
 }
 
 func stableSortRowSources(sources []exportRowSource, nameSorted bool) {

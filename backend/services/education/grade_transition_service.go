@@ -894,8 +894,9 @@ func (s *GradeTransitionService) executeApply(
 	}
 
 	// The class-list-only entries (#2382) follow the same renames: promoted
-	// classes keep their entries, graduating classes lose them.
-	if err := s.remapClassListEntries(ctx, transition.Mappings, accountID); err != nil {
+	// classes keep their entries, graduating classes lose them. Every rewrite
+	// lands in the transition's class-list-entry ledger for the revert.
+	if err := s.remapClassListEntries(ctx, transition.ID, transition.Mappings, accountID); err != nil {
 		return err
 	}
 
@@ -1549,10 +1550,11 @@ func (s *GradeTransitionService) executeRevert(
 		return err
 	}
 
-	// The class-list-only entries (#2382) rename back along the reversed
-	// mappings; entries a graduation deleted stay deleted (no ledger — see
-	// grade_transition_class_list_entries.go).
-	if err := s.revertClassListEntries(ctx, transition.Mappings, accountID); err != nil {
+	// The class-list-only entries (#2382) replay their recorded ledger
+	// backwards, mirroring the Klassenlehrer revert above: created rows are
+	// deleted, removed rows (promotions AND graduations) are restored, and
+	// entries the apply never touched stay untouched.
+	if err := s.revertClassListEntries(ctx, transition.ID, transition.Mappings, accountID); err != nil {
 		return err
 	}
 

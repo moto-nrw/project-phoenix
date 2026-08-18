@@ -11,7 +11,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -64,8 +64,13 @@ type EntryRequest struct {
 	SchoolClass string `json:"school_class"`
 }
 
-// Bind validates the payload.
+// Bind validates the payload. Fields are trimmed here so a whitespace-only
+// value is rejected as the invalid request it is (400) instead of tripping
+// the service-level validation later.
 func (req *EntryRequest) Bind(_ *http.Request) error {
+	req.FirstName = strings.TrimSpace(req.FirstName)
+	req.LastName = strings.TrimSpace(req.LastName)
+	req.SchoolClass = strings.TrimSpace(req.SchoolClass)
 	if req.FirstName == "" || req.LastName == "" || req.SchoolClass == "" {
 		return errors.New("Vorname, Nachname und Klasse sind erforderlich") //nolint:staticcheck // ST1005: user-facing German message
 	}
@@ -200,7 +205,8 @@ func (rs *Resource) renderServiceError(w http.ResponseWriter, r *http.Request, e
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, usersService.ErrClassListEntryDuplicate),
 		errors.Is(err, usersService.ErrClassListEntryStudentExists),
-		errors.Is(err, usersService.ErrClassListEntryStudentNotFound):
+		errors.Is(err, usersService.ErrClassListEntryStudentNotFound),
+		errors.Is(err, usersService.ErrClassListEntryAssignMismatch):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		rs.getLogger().Error("class list entries: request failed", "error", err.Error())
@@ -209,12 +215,7 @@ func (rs *Resource) renderServiceError(w http.ResponseWriter, r *http.Request, e
 }
 
 func entryID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid entry ID")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, "id", "invalid entry ID")
 }
 
 func accountID(r *http.Request) int64 {

@@ -26,6 +26,10 @@ var (
 	ErrClassListEntryStudentExists = errors.New("Ein Kind mit diesem Namen ist in dieser Klasse bereits angelegt") //nolint:staticcheck // ST1005: user-facing German message
 	// ErrClassListEntryStudentNotFound: the assign target does not exist.
 	ErrClassListEntryStudentNotFound = errors.New("Das ausgewählte Kind wurde nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+	// ErrClassListEntryAssignMismatch: the assign target is a real student but
+	// does not carry the entry's name and class — resolving the entry into it
+	// would delete one child's row in favor of a different child.
+	ErrClassListEntryAssignMismatch = errors.New("Das ausgewählte Kind stimmt nicht mit dem Eintrag überein: Name und Klasse müssen übereinstimmen") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // ClassListEntryInput carries the three fields an entry consists of.
@@ -238,6 +242,24 @@ func (s *classListEntryService) Assign(ctx context.Context, id int64, studentID 
 	}
 	if student == nil || student.IsAlumnus() {
 		return ErrClassListEntryStudentNotFound
+	}
+	// The target must BE the child the entry names: same name in the same
+	// class, matched exactly like the "Mögliche Dublette" hint (case-
+	// insensitive, trimmed). Anything else would resolve the entry into an
+	// unrelated child and silently drop the named child from the list.
+	matches, err := s.studentRepo.FindByNameAndClass(ctx, entry.FirstName, entry.LastName, entry.SchoolClass)
+	if err != nil {
+		return fmt.Errorf("assign class list entry: match student: %w", err)
+	}
+	matched := false
+	for _, match := range matches {
+		if match != nil && match.ID == student.ID {
+			matched = true
+			break
+		}
+	}
+	if !matched {
+		return ErrClassListEntryAssignMismatch
 	}
 	if err := s.entryRepo.Delete(ctx, entry.ID); err != nil {
 		return fmt.Errorf("assign class list entry: delete entry: %w", err)
