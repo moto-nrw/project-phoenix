@@ -184,6 +184,7 @@ func (rs *Resource) Router() chi.Router {
 		// the child between activity groups on a chosen date, so it shares the
 		// users:update gate of the queues it sits next to on the same page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests", rs.listOfferingChangeRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/preview", rs.previewOfferingChangeRequest)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
 		// Excused-absence approval requests (#1845): staff review queue.

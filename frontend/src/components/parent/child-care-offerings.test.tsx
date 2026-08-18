@@ -257,6 +257,52 @@ describe("ChildCareOfferingsSection", () => {
     expect(screen.queryByText(/Gültig ab/)).not.toBeInTheDocument();
   });
 
+  it("labels a rejected frozen diff as requested rather than applied", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "79",
+          status: "rejected",
+          decided_at: "2026-07-30T10:00:00Z",
+          effective_from: "2027-02-01",
+          requested: [{ id: "5", name: "Regelbetreuung", weekdays: [1, 2] }],
+          applied: [
+            {
+              label: "Regelbetreuung",
+              old_state: "booked",
+              old_days: ["mon", "tue", "wed"],
+              new_state: "booked",
+              new_days: ["mon", "tue"],
+            },
+          ],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Angefragte Änderung:")).toBeInTheDocument();
+    expect(screen.queryByText("Das wurde geändert:")).not.toBeInTheDocument();
+  });
+
+  it("does not fall back to the request when the frozen diff is empty", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "80",
+          status: "approved",
+          decided_at: "2026-07-30T10:00:00Z",
+          effective_from: "2027-02-01",
+          requested: [{ id: "5", name: "Regelbetreuung", weekdays: [1, 2] }],
+          applied: [],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Änderung übernommen")).toBeInTheDocument();
+    expect(screen.queryByText("Beantragt war:")).not.toBeInTheDocument();
+  });
+
   it("prefers the open request over an older decision", async () => {
     mockGet.mockResolvedValue(
       view({
@@ -308,6 +354,102 @@ describe("ChildCareOfferingsSection", () => {
 
     expect(
       await screen.findByText(/konnten nicht geladen werden/),
+    ).toBeInTheDocument();
+  });
+
+  // Mitbuchungs-Regeln (#2365/#2370): rule-added lines are explained, and an
+  // override by the school is named in the decided recap.
+  it("explains a rule-added line in the pending request", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        pending_request: {
+          ...pending,
+          diff: [
+            ...pending!.diff,
+            {
+              label: "Ganztagsbetreuung bis 14.30 Uhr",
+              old_state: "not_booked",
+              old_days: [],
+              new_state: "booked",
+              new_days: ["mon", "tue"],
+              new_automatic_days: ["mon", "tue"],
+              auto_trigger_names: ["Randstunde"],
+            },
+          ],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(
+      await screen.findByText(
+        /Kommt automatisch dazu, weil „Randstunde“ gewählt ist\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("attributes only rule-derived days to a co-booking trigger", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        pending_request: {
+          ...pending,
+          diff: [
+            {
+              label: "Mittagessen",
+              old_state: "not_booked",
+              old_days: [],
+              new_state: "booked",
+              new_days: ["mon", "tue", "wed"],
+              new_automatic_days: ["tue", "wed"],
+              new_rule_days: ["tue"],
+              auto_trigger_names: ["Randstunde"],
+            },
+          ],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(
+      await screen.findByText(
+        "Automatisch mitgebucht: Di, weil „Randstunde“ gewählt ist.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Mi.*weil „Randstunde“ gewählt ist/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the applied result and a school override in the decided recap", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "88",
+          status: "approved",
+          decided_at: "2026-08-17T09:00:00Z",
+          effective_from: "2027-02-01",
+          requested: [{ id: "5", name: "Randstunde", weekdays: [1, 2] }],
+          applied: [
+            {
+              label: "Randstunde",
+              old_state: "not_booked",
+              old_days: [],
+              new_state: "booked",
+              new_days: ["mon", "tue"],
+            },
+          ],
+          overridden_names: ["Ganztagsbetreuung bis 14.30 Uhr"],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Das wurde geändert:")).toBeInTheDocument();
+    expect(screen.getByText("Randstunde")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Die Betreuung hat „Ganztagsbetreuung bis 14\.30 Uhr“ nicht mitgebucht\./,
+      ),
     ).toBeInTheDocument();
   });
 });

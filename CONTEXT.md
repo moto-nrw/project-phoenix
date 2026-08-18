@@ -107,3 +107,26 @@ erscheinen nur in der Teilnehmerliste eines Termin-Details.
 
 Der **Familienschutz** ist eine von der OGS verwaltete Regel für ein Kind, die
 das Teilen privater Anfrageangaben zwischen Sorgeberechtigten verhindert.
+
+## Mitbuchungs-Regel
+
+Eine **Mitbuchungs-Regel** legt an einem Ziel-Angebot fest, dass es automatisch
+mitgebucht wird, sobald ein Auslöser-Angebot gewählt wird (optional beschränkt
+auf Klassenstufen). Sie wirkt nur in dieser einen Richtung, nie umgekehrt. In
+Texten für Nutzerinnen heißt das Ergebnis „wird automatisch mitgebucht";
+„Auto-Regel" und „Zubuchregel" sind interne Synonyme und tauchen in der
+Oberfläche nicht auf.
+
+## Elternauswahl
+
+Die **Elternauswahl** ist die von den Eltern selbst getroffene Angebots- und
+Tage-Auswahl einer Anmeldung oder Änderungsanfrage — ohne alles, was
+Mitbuchungs-Regeln ergänzen. Sie bleibt dauerhaft von den automatisch
+ergänzten Buchungen unterscheidbar.
+
+## Übersteuerung
+
+Eine **Übersteuerung** setzt eine Mitbuchungs-Regel für genau eine
+Änderungsanfrage außer Kraft: Die Schule wählt bei der Freigabe einzelne
+automatisch ergänzte Angebote ab. Die Regel selbst bleibt aktiv; die
+Übersteuerung ist an der entschiedenen Anfrage dauerhaft nachvollziehbar.

@@ -1087,7 +1087,13 @@
       "decisionReason": "Reason given by the care team: {reason}",
       "decisionDecidedAt": "Decided on {date}",
       "noRequests": "There is no change request at the moment.",
-      "decisionRequested": "You had requested:"
+      "decisionRequested": "You had requested:",
+      "autoAdded": "Added automatically.",
+      "autoAddedWithTrigger": "Added automatically because {trigger} is selected.",
+      "autoAddedDaysWithTrigger": "Automatically booked: {days}, because {trigger} is selected.",
+      "decisionApplied": "This was changed:",
+      "decisionConsidered": "Requested change:",
+      "decisionOverridden": "The care team did not book {names}."
     },
     "careOfferingsModal": {
       "title": "Request a change to the care offerings",

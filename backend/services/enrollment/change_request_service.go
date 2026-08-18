@@ -74,6 +74,7 @@ type CompanionGraphCoordinator interface {
 
 type ChangeRequestDecisionApplier interface {
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	applyApprovedChangeRequestOfferingsWithResult(ctx context.Context, input UpdateChildOfferingsInput) (*appliedOfferingAdjustment, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
 	// ReconcileOfferingPickupForStudentsByAccount realigns the students'
 	// Angebots-Gehzeit rows after an approved change replaced their offering
