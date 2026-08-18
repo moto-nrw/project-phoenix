@@ -97,8 +97,9 @@ type OfferingChangeCatalogItem struct {
 	// derivation, which has no trigger list to filter (#2366).
 	AutoAddApplies bool
 	// Selected marks the child's current booking, so the modal opens prefilled.
-	Selected     bool
-	SelectedDays []string
+	Selected           bool
+	SelectedDays       []string
+	ManualSelectedDays []string
 	// Automatic marks a current booking that is derived solely from another
 	// offering. It remains visible, but is not a guardian selection.
 	Automatic bool
@@ -640,6 +641,7 @@ func (s *offeringChangeRequestService) catalogItem(
 	if current != nil {
 		item.Selected = true
 		item.SelectedDays = append([]string(nil), current.SelectedDays...)
+		item.ManualSelectedDays = append([]string(nil), current.ManualSelectedDays...)
 		item.Automatic = len(current.ManualSelectedDays) == 0 && len(current.AutomaticSelectedDays) > 0
 	}
 	if offering.Capacity == nil {

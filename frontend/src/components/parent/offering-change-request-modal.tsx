@@ -46,7 +46,7 @@ function draftFromCatalog(items: OfferingCatalogItem[]): DraftMap {
   for (const item of items) {
     draft[item.id] = {
       selected: item.selected,
-      days: new Set(item.selected_days),
+      days: new Set(item.manual_selected_days ?? item.selected_days),
     };
   }
   return draft;
@@ -235,7 +235,9 @@ export function OfferingChangeRequestModal({
   const autoHintFor = (item: OfferingCatalogItem): string | undefined => {
     const days = preview.automaticDays[item.id];
     if (!days || days.size === 0) {
-      return item.automatic ? t("careOfferings.autoAdded") : undefined;
+      return item.automatic && preview.offeringIds.has(item.id)
+        ? t("careOfferings.autoAdded")
+        : undefined;
     }
     const dayText = DAY_ORDER.filter((day) => days.has(day))
       .map((day) => weekdayLabel(day))
@@ -350,6 +352,7 @@ export function OfferingChangeRequestModal({
               {items.map((item) => {
                 const row = draft[item.id];
                 const selected = preview.offeringIds.has(item.id);
+                const previewOnlyAutomatic = selected && !row?.selected;
                 const autoHint = autoHintFor(item);
                 const full =
                   item.free_slots !== undefined &&
@@ -368,6 +371,7 @@ export function OfferingChangeRequestModal({
                           full ||
                           unavailable ||
                           item.automatic ||
+                          previewOnlyAutomatic ||
                           (item.is_required && selected)
                         }
                         onChange={() => toggleOffering(item)}

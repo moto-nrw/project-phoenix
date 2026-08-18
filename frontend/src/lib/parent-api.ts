@@ -1273,6 +1273,8 @@ export interface OfferingCatalogItem {
   readonly auto_add_applies?: boolean;
   readonly selected: boolean;
   readonly selected_days: string[];
+  /** The manually selected subset of selected_days, excluding rule-derived days. */
+  readonly manual_selected_days?: string[];
   /** True when the current booking is derived from another offering. */
   readonly automatic?: boolean;
   /** False for a booking retained after the school deactivated the offering. */

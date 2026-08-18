@@ -476,6 +476,9 @@ describe("Mitbuchungs-Regel preview (#2366)", () => {
     expect(
       screen.getByRole("checkbox", { name: /Ganztagsbetreuung/ }),
     ).not.toBeChecked();
+    expect(
+      screen.queryByText("Kommt automatisch dazu."),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     await waitFor(() =>
@@ -501,6 +504,7 @@ describe("Mitbuchungs-Regel preview (#2366)", () => {
       name: /Ganztagsbetreuung/,
     });
     expect(offering).toBeChecked();
+    expect(offering).toBeDisabled();
     const card = offering.closest("label")?.parentElement;
     expect(within(card!).getByRole("checkbox", { name: "Mo" })).toBeDisabled();
     expect(within(card!).getByRole("checkbox", { name: "Di" })).toBeDisabled();
@@ -539,20 +543,67 @@ describe("Mitbuchungs-Regel preview (#2366)", () => {
     );
   });
 
-  it("labels an existing automatic booking", async () => {
-    const base = catalog();
+  it("does not submit former automatic days as manual after removing their trigger", async () => {
+    const base = catalogWithAutoRule();
     mockCatalog.mockResolvedValue({
       ...base,
-      items: [
-        {
-          ...base.items[0]!,
-          id: "8",
-          name: "Mittagessen",
-          automatic: true,
-          selected: true,
-          selected_days: ["mon"],
-        },
-      ],
+      items: base.items.map((item) => {
+        if (item.id === "5") {
+          return {
+            ...item,
+            selected_days: ["tue"],
+            manual_selected_days: ["tue"],
+          };
+        }
+        if (item.id === "7") {
+          return {
+            ...item,
+            selected: true,
+            selected_days: ["mon", "tue"],
+            manual_selected_days: ["mon"],
+          };
+        }
+        return item;
+      }),
+    });
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const trigger = (await screen.findByText("Regelbetreuung")).closest(
+      "label",
+    );
+    fireEvent.click(trigger!.querySelector("input")!);
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        offerings: [{ offering_id: "7", selected_days: ["mon"] }],
+        effective_from: "2026-08-14",
+        note: undefined,
+      }),
+    );
+  });
+
+  it("explains an existing automatic booking while its trigger remains selected", async () => {
+    const base = catalogWithAutoRule();
+    mockCatalog.mockResolvedValue({
+      ...base,
+      items: base.items.map((item) =>
+        item.id === "7"
+          ? {
+              ...item,
+              automatic: true,
+              selected: true,
+              selected_days: ["mon", "tue"],
+            }
+          : item,
+      ),
     });
     render(
       <OfferingChangeRequestModal
@@ -563,7 +614,9 @@ describe("Mitbuchungs-Regel preview (#2366)", () => {
     );
 
     expect(
-      await screen.findByText("Kommt automatisch dazu."),
+      await screen.findByText(
+        "Automatisch mitgebucht: Mo, Di, weil Regelbetreuung gewählt ist.",
+      ),
     ).toBeInTheDocument();
   });
 });

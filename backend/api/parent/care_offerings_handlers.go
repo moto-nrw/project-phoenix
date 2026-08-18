@@ -273,13 +273,14 @@ type OfferingCatalogItemResponse struct {
 	AutoAddTriggerOfferingIDs []string `json:"auto_add_trigger_offering_ids,omitempty"`
 	// AutoAddApplies is the server-evaluated grade gate for automatic days
 	// (incl. the required-lunch derivation) on this offering.
-	AutoAddApplies bool     `json:"auto_add_applies"`
-	Selected       bool     `json:"selected"`
-	SelectedDays   []string `json:"selected_days"`
-	Automatic      bool     `json:"automatic"`
-	IsActive       bool     `json:"is_active"`
-	Capacity       *int     `json:"capacity,omitempty"`
-	FreeSlots      *int     `json:"free_slots,omitempty"`
+	AutoAddApplies     bool     `json:"auto_add_applies"`
+	Selected           bool     `json:"selected"`
+	SelectedDays       []string `json:"selected_days"`
+	ManualSelectedDays []string `json:"manual_selected_days"`
+	Automatic          bool     `json:"automatic"`
+	IsActive           bool     `json:"is_active"`
+	Capacity           *int     `json:"capacity,omitempty"`
+	FreeSlots          *int     `json:"free_slots,omitempty"`
 }
 
 // OfferingChangeRequestBody is the wire shape for POST .../care-offerings/requests.
@@ -435,6 +436,7 @@ func toOfferingCatalogResponse(catalog *enrollmentService.OfferingChangeCatalog)
 			AutoAddApplies:            item.AutoAddApplies,
 			Selected:                  item.Selected,
 			SelectedDays:              stringsOrEmpty(item.SelectedDays),
+			ManualSelectedDays:        stringsOrEmpty(item.ManualSelectedDays),
 			Automatic:                 item.Automatic,
 			IsActive:                  item.IsActive,
 			Capacity:                  item.Capacity,
