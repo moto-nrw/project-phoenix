@@ -1325,7 +1325,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Kinder, die nicht im Ganztag sind, fehlen sonst auf Klassenlisten. Ein Klassenlisteneintrag besteht nur aus Name und Klasse und vervollständigt den Klassenverband — ohne Betreuung, Anwesenheit oder Kontaktdaten.",
         steps: [
-          "`Datenverwaltung` -> `Kinder` -> `Klassenliste` öffnen.",
+          "`Datenverwaltung` -> `Kinder` öffnen und oben rechts im Menü mit den drei Punkten `Klassenliste` wählen.",
           "`Eintrag anlegen` wählen und Vorname, Nachname und Klasse eintragen. Die Klasse genauso schreiben wie bei den regulären Kindern, damit der Eintrag in derselben Klassenliste landet.",
           "Für ganze Klassen den `Sammelimport` nutzen: Vorlage mit den Spalten `Vorname`, `Nachname`, `Klasse` herunterladen, ausfüllen und hochladen. Bereits angelegte Kinder werden übersprungen.",
           "Die Einträge erscheinen auf den Klassenlisten-Exporten und in der `Klassenansicht` der Lehrkräfte, deutlich gekennzeichnet als `Keine Betreuung`. In Kindersuche, Anwesenheit, Betreuungsplanung und Elternportal tauchen sie nicht auf.",
