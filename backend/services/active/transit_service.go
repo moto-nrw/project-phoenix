@@ -174,14 +174,25 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, op)
-	if err != nil {
-		return nil, err
-	}
-
 	uniqueIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
+	}
+	if s.StudentRepo != nil {
+		lockedStudents, err := s.StudentRepo.FindByIDsForUpdate(ctx, uniqueIDs)
+		if err != nil {
+			return nil, &ActiveError{Op: op, Err: err}
+		}
+		for _, studentID := range uniqueIDs {
+			if student := lockedStudents[studentID]; student != nil && student.IsAlumnus() {
+				return nil, &ActiveError{Op: op, Err: ErrStudentGraduated}
+			}
+		}
+	}
+
+	targetGroup, err := s.lockActiveGroupForMove(ctx, activeGroupID, op)
+	if err != nil {
+		return nil, err
 	}
 
 	var supervisedGroups map[int64]struct{}

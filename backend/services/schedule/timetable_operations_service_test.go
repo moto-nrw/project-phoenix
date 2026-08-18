@@ -830,6 +830,39 @@ func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing
 	assert.Equal(t, studentID, roster.Rows[0].StudentID)
 }
 
+func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) {
+	instanceID := int64(381)
+	targetActiveGroupID := int64(281)
+	originActiveGroupID := int64(282)
+	studentID := int64(541)
+	rowID := int64(391)
+	deps := newTimetableOpsDeps()
+	wireAssignedStaff(deps, 661, 471, 251, instanceID)
+	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, targetActiveGroupID)
+	row := &scheduleModel.InstanceStudent{InstanceID: instanceID, StudentID: studentID, Status: scheduleModel.AttendanceStatusExpected}
+	row.ID = rowID
+	deps.studentRepo.byInstance[instanceID] = []*scheduleModel.InstanceStudent{row}
+	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
+	deps.students.byID[studentID] = &usersModel.Student{PersonID: 481, SchoolClass: "2c"}
+	deps.personService.people[481] = &usersModel.Person{FirstName: "Mila", LastName: "Muster"}
+	deps.visitRepo.currentByStudentSequence[studentID] = []*activeModel.Visit{
+		nil,
+		{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: time.Now()},
+	}
+	deps.activeService.createErr = activeSvc.ErrStudentAlreadyActive
+
+	roster, err := deps.service.CheckInStudent(context.Background(), 661, false, instanceID, studentID)
+
+	require.NoError(t, err)
+	require.NotNil(t, roster)
+	require.Len(t, deps.activeService.moveCalls, 1)
+	assert.Equal(t, []int64{studentID}, deps.activeService.moveCalls[0].studentIDs)
+	assert.Equal(t, targetActiveGroupID, deps.activeService.moveCalls[0].activeGroupID)
+	require.Len(t, deps.studentRepo.updates, 1)
+	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
+	assert.Equal(t, scheduleModel.AttendanceStatusPresent, *deps.studentRepo.updates[0].patch.Status)
+}
+
 // The cross-group 409 was retired with #2386: a child still recorded present
 // in another running block now moves automatically instead of being rejected.
 func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
@@ -1710,13 +1743,17 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*EffectiveArrivalTime{}},
 		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
-		visitRepo:       &fakeOpsVisitRepo{byActiveGroup: map[int64][]*activeModel.Visit{}, currentByStudent: map[int64]*activeModel.Visit{}},
-		students:        &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
-		groups:          &fakeOpsEducationGroupRepo{byID: map[int64]*educationModel.Group{}},
-		rooms:           &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{Model: modelBase.Model{ID: 810}, Name: "Lernraum"}}},
-		personService:   &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}},
-		settings:        &fakeOpsSettings{},
-		broadcaster:     testpkg.NewRecordingBroadcaster(),
+		visitRepo: &fakeOpsVisitRepo{
+			byActiveGroup:            map[int64][]*activeModel.Visit{},
+			currentByStudent:         map[int64]*activeModel.Visit{},
+			currentByStudentSequence: map[int64][]*activeModel.Visit{},
+		},
+		students:      &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
+		groups:        &fakeOpsEducationGroupRepo{byID: map[int64]*educationModel.Group{}},
+		rooms:         &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{Model: modelBase.Model{ID: 810}, Name: "Lernraum"}}},
+		personService: &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}},
+		settings:      &fakeOpsSettings{},
+		broadcaster:   testpkg.NewRecordingBroadcaster(),
 	}
 	deps.service = NewTimetableOperationsService(TimetableOperationsDependencies{
 		InstanceRepo:       deps.instanceRepo,
@@ -1997,9 +2034,10 @@ func (r *fakeOpsSupervisorRepo) FindByActiveGroupID(_ context.Context, activeGro
 
 type fakeOpsVisitRepo struct {
 	activeModel.VisitRepository
-	byActiveGroup    map[int64][]*activeModel.Visit
-	currentByStudent map[int64]*activeModel.Visit
-	err              error
+	byActiveGroup            map[int64][]*activeModel.Visit
+	currentByStudent         map[int64]*activeModel.Visit
+	currentByStudentSequence map[int64][]*activeModel.Visit
+	err                      error
 }
 
 func (r *fakeOpsVisitRepo) FindByActiveGroupID(_ context.Context, activeGroupID int64) ([]*activeModel.Visit, error) {
@@ -2010,6 +2048,11 @@ func (r *fakeOpsVisitRepo) FindByActiveGroupID(_ context.Context, activeGroupID 
 }
 
 func (r *fakeOpsVisitRepo) GetCurrentByStudentID(_ context.Context, studentID int64) (*activeModel.Visit, error) {
+	if sequence := r.currentByStudentSequence[studentID]; len(sequence) > 0 {
+		current := sequence[0]
+		r.currentByStudentSequence[studentID] = sequence[1:]
+		return current, nil
+	}
 	return r.currentByStudent[studentID], nil
 }
 

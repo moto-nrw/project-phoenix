@@ -354,6 +354,7 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
     substatus: null,
     note: null,
   };
+  let primaryRosterRows = [expectedRow];
 
   const rosterInstance = {
     id: "99",
@@ -385,6 +386,7 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
     navigationMockState.roomParam = null;
     window.innerWidth = 800;
     localStorage.clear();
+    primaryRosterRows = [expectedRow];
     global.fetch = vi.fn();
     vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
       if (key?.startsWith("active-supervision-dashboard")) {
@@ -400,7 +402,7 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
         return {
           data: key.endsWith("-2")
             ? secondRoster
-            : { instance: rosterInstance, rows: [expectedRow] },
+            : { instance: rosterInstance, rows: primaryRosterRows },
           isLoading: false,
           error: null,
           mutate: mockMutate,
@@ -604,4 +606,61 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
       expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
     },
   );
+
+  it("finishes every bulk check-in after switching sessions", async () => {
+    const secondExpectedRow = {
+      ...expectedRow,
+      studentId: "101",
+      studentName: "Max Muster",
+    };
+    primaryRosterRows = [expectedRow, secondExpectedRow];
+
+    let resolveFirst!: (value: unknown) => void;
+    let resolveSecond!: (value: unknown) => void;
+    const firstCheckIn = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondCheckIn = new Promise((resolve) => {
+      resolveSecond = resolve;
+    });
+    vi.mocked(timetableOperationsApi.checkIn)
+      .mockReturnValueOnce(firstCheckIn as never)
+      .mockReturnValueOnce(secondCheckIn as never);
+
+    render(<MeinRaumPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "2 erwartete bestätigen",
+      }),
+    );
+    await waitFor(() => {
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Raum 202" }));
+    await screen.findByText("Nora Neu");
+
+    await act(async () => {
+      resolveFirst({
+        instance: rosterInstance,
+        rows: primaryRosterRows,
+        movedFrom: null,
+      });
+      await firstCheckIn;
+    });
+
+    await waitFor(() => {
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "101");
+    });
+
+    await act(async () => {
+      resolveSecond({
+        instance: rosterInstance,
+        rows: primaryRosterRows,
+        movedFrom: null,
+      });
+      await secondCheckIn;
+    });
+  });
 });

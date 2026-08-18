@@ -1967,10 +1967,11 @@ function MeinRaumPageContent() {
             instanceId,
             row.studentId,
           );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
+          if (activeTimetableInstanceIdRef.current !== instanceId) continue;
           const notice = moveNoticeFromRoster(nextRoster, row.studentId);
           if (notice) notices.push(notice);
         }
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         if (notices.length > 0) setMoveNotice(notices.join(" "));
         if (nextRoster) {
           await mutateRoster(nextRoster, { revalidate: false });

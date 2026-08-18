@@ -469,13 +469,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 		return nil, err
 	}
 	if current != nil {
-		if current.ActiveGroupID != *inst.ActiveGroupID {
-			return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID)
-		}
-		if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
-			return nil, err
-		}
-		return s.buildRoster(ctx, instanceID)
+		return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
 	}
 	now := time.Now()
 	visit := &activeModel.Visit{
@@ -487,8 +481,28 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	staff := &usersModel.Staff{}
 	staff.ID = staffID
 	visitCtx := context.WithValue(ctx, device.CtxStaff, staff)
-	if err := s.deps.ActiveService.CreateVisit(visitCtx, visit); err != nil {
-		return nil, err
+	var createErr error
+	if _, inTx := modelBase.TxFromContext(visitCtx); inTx {
+		createErr = tenant.WithSavepoint(visitCtx, func(savepointCtx context.Context) error {
+			return s.deps.ActiveService.CreateVisit(savepointCtx, visit)
+		})
+	} else {
+		createErr = s.deps.ActiveService.CreateVisit(visitCtx, visit)
+	}
+	if createErr != nil {
+		if errors.Is(createErr, tenant.ErrSavepointControl) {
+			return nil, createErr
+		}
+		if errors.Is(createErr, activeSvc.ErrStudentAlreadyActive) {
+			current, lookupErr := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
+			if lookupErr != nil && !modelBase.IsNoRows(lookupErr) {
+				return nil, lookupErr
+			}
+			if current != nil {
+				return s.checkInStudentWithCurrentVisit(ctx, staffID, inst, instanceID, studentID, current)
+			}
+		}
+		return nil, createErr
 	}
 	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
 		return nil, err
@@ -497,6 +511,16 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 		s.logger().WarnContext(ctx, "failed to update active group activity after timetable check-in",
 			slog.Int64("active_group_id", *inst.ActiveGroupID),
 			slog.String("error", err.Error()))
+	}
+	return s.buildRoster(ctx, instanceID)
+}
+
+func (s *timetableOperationsService) checkInStudentWithCurrentVisit(ctx context.Context, staffID int64, inst *scheduleModel.ActivityInstance, instanceID, studentID int64, current *activeModel.Visit) (*OperationRoster, error) {
+	if current.ActiveGroupID != *inst.ActiveGroupID {
+		return s.moveStudentFromOtherSession(ctx, staffID, inst, instanceID, studentID)
+	}
+	if err := s.markPlannedStudentPresent(ctx, instanceID, studentID); err != nil {
+		return nil, err
 	}
 	return s.buildRoster(ctx, instanceID)
 }
