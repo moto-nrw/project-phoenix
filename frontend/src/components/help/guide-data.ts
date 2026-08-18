@@ -1555,6 +1555,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Schränkst du eine Regel nachträglich ein, meldet der Bereich `Bedingungen für die Verfügbarkeit`, wie viele bestehende Buchungen die neue Bedingung nicht erfüllen. Das ist nur ein Hinweis: Bestehende Buchungen bleiben bestehen, die Regel gilt nur für neue Auswahlen.",
           "Unter `Betreuungstage & Mitbuchung` festlegen, ob das Angebot als Betreuungstage zählt und ob es mitgebucht wird, wenn Eltern bestimmte andere Angebote wählen.",
           "Bei der Mitbuchung die auslösenden Angebote auswählen und optional auf Klassenstufen eingrenzen. Diese Klassenstufen steuern nur die automatische Mitbuchung; sie sind von den Bedingungen für die Verfügbarkeit getrennt.",
+          "Über der Angebotsliste stehen die `Mitbuchungs-Regeln` der Phase. Jeder Satz zeigt: Das erste Angebot wird gebucht, wenn Eltern das zweite wählen. Klassenstufen stehen bei Bedarf dabei.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
           "`Aktiv` setzen - nur aktive Angebote sind für Eltern auswählbar.",
         ],
