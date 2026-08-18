@@ -425,6 +425,11 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
 		Where(`"activity_instance".is_spontaneous = ?`, false).
+		// Re-plan deletes only what materialization can recreate. Since
+		// is_spontaneous became a creation-origin flag (#2299), a manual
+		// planning-module block WITHOUT an offering is non-spontaneous too —
+		// but it has no template, so a whole-grid re-plan (activityGroupID
+		// nil) must never delete it: nothing would ever bring it back.
 		Where(`"activity_instance".activity_group_id IS NOT NULL`)
 
 	if preserveDeviations {

@@ -229,11 +229,12 @@ type InstanceService interface {
 // CreateInstanceInput bundles the fields needed to insert a fresh instance
 // (spontaneous or scheduled) outside the materialization flow.
 //
-// By default, IsSpontaneous is computed from ActivityGroupID: when nil the
-// instance is purely free-form; when set it is bound to a template (e.g. an
-// admin-scheduled extra Yoga slot using the existing Yoga template's metadata,
-// but on a date that materialization would not have emitted). Operational
-// spontaneous starts may override this while still linking template metadata.
+// IsSpontaneous records the creation origin (#2299), not the template
+// binding: nil defaults to false — a planned block created in the planning
+// module, with or without a linked offering, so the lifecycle time guards
+// apply. Ad-hoc start flows (web spontaneous start, kiosk sessions) pass an
+// explicit true and stay exempt from the time policy; they may still link
+// template metadata via ActivityGroupID.
 type CreateInstanceInput struct {
 	Date             timezone.Date
 	StartTime        time.Time // 2000-01-01 HH:MM in UTC
@@ -1458,9 +1459,10 @@ func (s *instanceService) rejectAmbiguousTemplateDelete(ctx context.Context, act
 }
 
 // Create inserts a new activity instance and optionally pre-assigns staff.
-// Spontaneity is derived from the absence of an ActivityGroupID — a value
-// of nil means there is no template binding, so is_spontaneous is set to
-// true. Conflict detection is intentionally not run here; the read-side
+// is_spontaneous records the creation origin (#2299): the default is a
+// planned block (planning module), and only ad-hoc start flows pass an
+// explicit IsSpontaneous=true. Conflict detection is intentionally not run
+// here; the read-side
 // of the planner surfaces conflicts on the response, and surfacing them
 // in the create path would block admins from creating overlapping rows
 // they may explicitly want (e.g. parallel offers in different rooms).
@@ -1485,7 +1487,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 
-	isSpontaneous := req.ActivityGroupID == nil
+	isSpontaneous := false
 	if req.IsSpontaneous != nil {
 		isSpontaneous = *req.IsSpontaneous
 	}
@@ -1650,7 +1652,6 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	instance.ActivityGroupID = req.ActivityGroupID
 	instance.RequiredStaff = req.RequiredStaff
 	instance.ListKind = req.ListKind
-	instance.IsSpontaneous = req.ActivityGroupID == nil
 	columns := []string{
 		"date",
 		"start_time",
@@ -1662,11 +1663,17 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		"activity_group_id",
 		"required_staff",
 		"list_kind",
-		"is_spontaneous",
 	}
+	// is_spontaneous records the creation origin (#2299) and is never
+	// recomputed from the offering link: linking or unlinking an Angebot must
+	// not toggle the lifecycle time guards. The one exception is
+	// convert-to-series (the only caller passing CalendarPeriodID), which
+	// stamps the full materializer marker — activity_group_id + period +
+	// is_spontaneous=false — so the seed behaves like a materialized row.
 	if req.CalendarPeriodID != nil {
 		instance.CalendarPeriodID = req.CalendarPeriodID
-		columns = append(columns, "calendar_period_id")
+		instance.IsSpontaneous = false
+		columns = append(columns, "calendar_period_id", "is_spontaneous")
 	}
 
 	if err := s.updateLifecycleColumns(ctx, instance, columns...); err != nil {
