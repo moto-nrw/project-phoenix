@@ -3604,6 +3604,6 @@ func CleanupClassListEntryFixtures(tb testing.TB, db *bun.DB, entryIDs ...int64)
 		return
 	}
 	ctx := context.Background()
-	_, _ = db.NewDelete().TableExpr("audit.class_list_entry_changes").Where("entry_id IN (?)", bun.In(entryIDs)).Exec(ctx)
-	_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id IN (?)", bun.In(entryIDs)).Exec(ctx)
+	_, _ = db.NewDelete().TableExpr("audit.class_list_entry_changes").Where("entry_id IN (?)", bun.List(entryIDs)).Exec(ctx)
+	_, _ = db.NewDelete().TableExpr("users.class_list_entries").Where("id IN (?)", bun.List(entryIDs)).Exec(ctx)
 }

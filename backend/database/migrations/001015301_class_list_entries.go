@@ -123,8 +123,10 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
 			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
 
-		-- Append-only from the application's point of view; DELETE stays with
-		-- the retention cleanup, which runs on the superuser CLI connection.
+		-- Append-only from the application's point of view: the app role gets
+		-- no DELETE. No retention cleanup consumes this table yet (same as
+		-- audit.staff_master_data_changes); a future cleanup would run on the
+		-- superuser CLI connection and needs no extra grant here.
 		GRANT SELECT, INSERT ON audit.class_list_entry_changes TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE audit.class_list_entry_changes_id_seq TO phoenix_tenant;
 	`)
