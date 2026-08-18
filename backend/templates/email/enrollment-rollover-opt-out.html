@@ -9,6 +9,16 @@
 
     <p>{{if .SchoolName}}die <strong>{{.SchoolName}}</strong> hat{{else}}wir haben{{end}} Ihre Anmeldung für <strong>{{.PhaseName}}</strong> automatisch übernommen. Sie müssen nichts weiter tun, damit Ihr Kind im neuen Zeitraum dabei ist.</p>
 
+    <div class="highlight-box">
+        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Sie haben drei Möglichkeiten:</strong></p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            <li>Nichts tun – die Betreuung läuft unverändert weiter</li>
+            <li>Betreuungsangebote oder Wochentage über den Link anpassen</li>
+            <li>Betreuung zum Ende des aktuellen Zeitraums beenden</li>
+        </ul>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Ihre übrigen Daten bleiben unverändert und müssen nicht neu eingegeben werden.</p>
+    </div>
+
     {{if .ChildNames}}
     <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .ChildNames) 1}}Verlängerte Anmeldung:{{else}}Verlängerte Anmeldungen:{{end}}</strong></p>

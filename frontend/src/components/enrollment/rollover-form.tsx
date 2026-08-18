@@ -1,19 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check } from "lucide-react";
 import {
   createRollover,
+  fetchRolloverPreview,
   type Phase,
   type RolloverInput,
   type RolloverMode,
+  type RolloverPreview,
   type RolloverResult,
 } from "~/lib/enrollment-phase-api";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge";
+import type { ChildStatus } from "~/lib/enrollment-admin-api";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
+import { Alert } from "~/components/ui/alert";
+import { InfoCard, InfoItem } from "~/components/ui/info-card";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -82,6 +88,9 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<RolloverPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(true);
 
   const update = <K extends keyof RolloverInput>(
     key: K,
@@ -92,6 +101,50 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       setNameError(null);
     }
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingPreview(true);
+    fetchRolloverPreview(source.id, draft.rollover_bumps_grade ?? true)
+      .then((result) => {
+        if (cancelled) return;
+        setPreview(result);
+        setPreviewError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Vorschau konnte nicht geladen werden";
+        logger.warn("rollover_preview_failed", { error: message });
+        setPreview(null);
+        setPreviewError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPreview(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [source.id, draft.rollover_bumps_grade]);
+
+  const excludedDetails = preview
+    ? Object.entries(preview.excluded_by_status)
+        .map(
+          ([status, count]) =>
+            `${CHILD_STATUS_LABELS[status as ChildStatus] ?? status}: ${count}`,
+        )
+        .join(" · ")
+    : "";
+  const reviewDetails = preview
+    ? Object.entries(preview.review_by_reason)
+        .map(
+          ([reason, count]) =>
+            `${PREVIEW_REVIEW_REASON_LABELS[reason] ?? reason}: ${count}`,
+        )
+        .join(" · ")
+    : "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -151,6 +204,50 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
           {error}
         </div>
       )}
+
+      {loadingPreview ? (
+        <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />} loading>
+          {null}
+        </InfoCard>
+      ) : previewError !== null ? (
+        <Alert type="warning" message={previewError} />
+      ) : preview ? (
+        <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />}>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <InfoItem label="Werden übernommen" value={preview.carried_count} />
+            <InfoItem
+              label="Manuell zu prüfen"
+              value={
+                <>
+                  {preview.review_count}
+                  {reviewDetails && (
+                    <span className="mt-1 block text-xs font-normal text-gray-500">
+                      {reviewDetails}
+                    </span>
+                  )}
+                </>
+              }
+            />
+            <InfoItem
+              label="Nicht übernommen"
+              value={
+                <>
+                  {preview.excluded_count}
+                  {excludedDetails && (
+                    <span className="mt-1 block text-xs font-normal text-gray-500">
+                      {excludedDetails}
+                    </span>
+                  )}
+                </>
+              }
+            />
+          </div>
+          <p className="text-xs text-gray-500">
+            Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene,
+            abgelehnte oder noch offene Anmeldungen werden nicht fortgeführt.
+          </p>
+        </InfoCard>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block">
@@ -341,6 +438,11 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
     </form>
   );
 }
+
+const PREVIEW_REVIEW_REASON_LABELS: Record<string, string> = {
+  grade_above_max: "Klassenstufe über der Höchstgrenze",
+  no_grade_level: "Keine Klassenstufe hinterlegt",
+};
 
 function RolloverCheckbox({
   checked,
