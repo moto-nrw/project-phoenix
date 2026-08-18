@@ -133,6 +133,9 @@ type OfferingChangeDiffEntry struct {
 	// required-lunch derivation) adds rather than the parents (#2365). Empty for
 	// a purely parent-chosen line.
 	NewAutomaticDays []string
+	// NewDaysWithoutRules is the materialized NEW side after suppressing this
+	// target's Mitbuchungs-Regeln. It keeps manual and required-lunch days.
+	NewDaysWithoutRules []string
 	// AutoTriggerIDs / AutoTriggerNames identify the selected offerings whose
 	// Mitbuchungs-Regel produced the automatic share; both empty when the share
 	// comes only from the required-lunch derivation. Rule-triggered lines are the
@@ -1941,10 +1944,7 @@ func validateExcludedAutoTargets(
 	if len(excludedIDs) == 0 {
 		return nil, nil
 	}
-	baseByID := make(map[int64]materializedOfferingSelection, len(base))
-	for _, sel := range base {
-		baseByID[sel.OfferingID] = sel
-	}
+	baseByID := materializedSelectionPointers(base)
 	overridden := make([]enrollmentModels.OfferingChangeSnapshotOffering, 0, len(excludedIDs))
 	seen := make(map[int64]bool, len(excludedIDs))
 	for _, id := range excludedIDs {
@@ -1954,8 +1954,7 @@ func validateExcludedAutoTargets(
 		seen[id] = true
 		sel, ok := baseByID[id]
 		offering := offeringByID[id]
-		if !ok || offering == nil || len(sel.AutomaticSelectedDays) == 0 ||
-			len(offering.AutoAddTriggerOfferingIDs) == 0 {
+		if !ok || offering == nil || len(ruleContributionForTarget(offering, sel, baseByID, offeringByID)) == 0 {
 			return nil, fmt.Errorf(
 				"%w: offering %d is not added by a co-booking rule and cannot be excluded", ErrOfferingChangeInvalid, id,
 			)
@@ -2019,10 +2018,7 @@ func annotateAutomaticShares(
 	materialized []materializedOfferingSelection,
 	offeringByID map[int64]*enrollmentModels.CareOffering,
 ) {
-	selByID := make(map[int64]materializedOfferingSelection, len(materialized))
-	for _, sel := range materialized {
-		selByID[sel.OfferingID] = sel
-	}
+	selByID := materializedSelectionPointers(materialized)
 	for i := range entries {
 		annotateAutomaticShare(&entries[i], selByID, offeringByID)
 	}
@@ -2030,11 +2026,11 @@ func annotateAutomaticShares(
 
 func annotateAutomaticShare(
 	entry *OfferingChangeDiffEntry,
-	selections map[int64]materializedOfferingSelection,
+	selections map[int64]*materializedOfferingSelection,
 	offerings map[int64]*enrollmentModels.CareOffering,
 ) {
 	selection, ok := selections[entry.OfferingID]
-	if !ok || len(selection.AutomaticSelectedDays) == 0 {
+	if !ok || selection == nil || len(selection.AutomaticSelectedDays) == 0 {
 		return
 	}
 	entry.NewAutomaticDays = append([]string(nil), selection.AutomaticSelectedDays...)
@@ -2042,8 +2038,14 @@ func annotateAutomaticShare(
 	if target == nil {
 		return
 	}
+	ruleDays := ruleContributionForTarget(target, selection, selections, offerings)
+	if len(ruleDays) == 0 {
+		return
+	}
+	entry.NewDaysWithoutRules = nonRuleDaysForTarget(target, selection, selections, offerings)
 	for _, triggerID := range target.AutoAddTriggerOfferingIDs {
-		if _, selected := selections[triggerID]; !selected {
+		triggerDays := autoDaysForTarget(target, []int64{triggerID}, selections, offerings)
+		if !daysOverlap(triggerDays, ruleDays) {
 			continue
 		}
 		name := fmt.Sprintf("Angebot %d", triggerID)
@@ -2053,6 +2055,58 @@ func annotateAutomaticShare(
 		entry.AutoTriggerIDs = append(entry.AutoTriggerIDs, triggerID)
 		entry.AutoTriggerNames = append(entry.AutoTriggerNames, name)
 	}
+}
+
+func materializedSelectionPointers(
+	materialized []materializedOfferingSelection,
+) map[int64]*materializedOfferingSelection {
+	byID := make(map[int64]*materializedOfferingSelection, len(materialized))
+	for i := range materialized {
+		byID[materialized[i].OfferingID] = &materialized[i]
+	}
+	return byID
+}
+
+func ruleContributionForTarget(
+	target *enrollmentModels.CareOffering,
+	selection *materializedOfferingSelection,
+	selections map[int64]*materializedOfferingSelection,
+	offerings map[int64]*enrollmentModels.CareOffering,
+) []string {
+	if target == nil || selection == nil {
+		return nil
+	}
+	ruleDays := autoDaysForTarget(target, target.AutoAddTriggerOfferingIDs, selections, offerings)
+	nonRuleDays := nonRuleDaysForTarget(target, selection, selections, offerings)
+	return daysExcept(ruleDays, nonRuleDays)
+}
+
+func nonRuleDaysForTarget(
+	target *enrollmentModels.CareOffering,
+	selection *materializedOfferingSelection,
+	selections map[int64]*materializedOfferingSelection,
+	offerings map[int64]*enrollmentModels.CareOffering,
+) []string {
+	return unionDaysInOfferingOrder(
+		target.AvailableDays,
+		selection.ManualSelectedDays,
+		autoLunchDaysForTarget(target, selections, offerings),
+	)
+}
+
+func daysExcept(days, excluded []string) []string {
+	return slices.DeleteFunc(slices.Clone(days), func(day string) bool {
+		return slices.Contains(excluded, day)
+	})
+}
+
+func daysOverlap(left, right []string) bool {
+	for _, day := range left {
+		if slices.Contains(right, day) {
+			return true
+		}
+	}
+	return false
 }
 
 func offeringDiffEntry(

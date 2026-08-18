@@ -21,6 +21,8 @@ export interface OfferingRequestDiffLine {
   readonly automatic?: boolean;
   /** German day list of the automatic share ("Do, Fr"). */
   readonly automatic_days?: string;
+  /** Materialized German day list after this co-booking rule is suppressed. */
+  readonly new_when_excluded?: string;
   /** Offerings whose rule produced the automatic share (for cascade greying). */
   readonly trigger_ids?: readonly string[];
   readonly trigger_names?: readonly string[];

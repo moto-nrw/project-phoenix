@@ -66,7 +66,15 @@ function removedOfferings(
   diff: readonly OfferingRequestDiffLine[],
   excluded: readonly string[],
 ): Set<string> {
-  const removed = new Set(excluded);
+  const removed = new Set(
+    diff
+      .filter(
+        (entry) =>
+          excluded.includes(entry.offering_id) &&
+          entry.new_when_excluded === undefined,
+      )
+      .map((entry) => entry.offering_id),
+  );
   let changed = true;
   while (changed) {
     changed = false;
@@ -74,6 +82,7 @@ function removedOfferings(
       if (removed.has(entry.offering_id)) continue;
       const triggers = entry.trigger_ids ?? [];
       if (!entry.automatic || triggers.length === 0) continue;
+      if (entry.new_when_excluded !== undefined) continue;
       if (entry.automatic_days !== entry.new) continue;
       if (triggers.every((id) => removed.has(id))) {
         removed.add(entry.offering_id);
@@ -278,6 +287,10 @@ export function OfferingRequestReviewList() {
                   const isExcluded = excluded.includes(entry.offering_id);
                   const isRemoved = removed.has(entry.offering_id);
                   const cascaded = isRemoved && !isExcluded;
+                  const displayedNew =
+                    isExcluded && entry.new_when_excluded !== undefined
+                      ? entry.new_when_excluded
+                      : entry.new;
                   return (
                     <div
                       key={entry.offering_id}
@@ -306,7 +319,7 @@ export function OfferingRequestReviewList() {
                               : "font-medium text-gray-900"
                           }
                         >
-                          {entry.new}
+                          {displayedNew}
                         </span>
                       </div>
                       {entry.automatic && !cascaded && (
@@ -340,7 +353,8 @@ export function OfferingRequestReviewList() {
                       )}
                       {isExcluded && (
                         <p className="mt-0.5 text-xs text-gray-500">
-                          Wird bei der Freigabe nicht gebucht.
+                          Die automatisch ergänzten Tage werden nicht
+                          mitgebucht.
                         </p>
                       )}
                     </div>

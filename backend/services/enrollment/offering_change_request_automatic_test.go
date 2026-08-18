@@ -158,6 +158,60 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 	assert.NotEmpty(t, view.LastDecision.AppliedDiff, "the recap must read from the frozen snapshot")
 }
 
+func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunchDays(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "OptOutMixed")
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutMixed", func(o *enrollmentModels.CareOffering) {
+		o.CountsAsCare, o.CountsAsCareSet, o.SortOrder = true, true, 203
+	})
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutMixed", func(o *enrollmentModels.CareOffering) {
+		o.CountsAsCare, o.CountsAsCareSet = false, true
+		o.SortOrder = 204
+	})
+	lunch := createAutoAddTarget(t, env, "OptOutMixed", trigger.ID)
+	lunch.IsRequired, lunch.IncludesLunch = true, true
+	lunch.CountsAsCare, lunch.CountsAsCareSet = false, true
+	require.NoError(t, env.repos.CareOffering.Update(ctx, lunch))
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: care.ID, SelectedDays: []string{"wed"}},
+			{OfferingID: trigger.ID, SelectedDays: []string{"tue"}},
+			{OfferingID: lunch.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	view, err := svc.GetForStudent(ctx, fx.studentID)
+	require.NoError(t, err)
+	found := false
+	for _, entry := range view.Diff {
+		if entry.OfferingID == lunch.ID {
+			found = true
+			assert.Equal(t, []string{"mon", "wed"}, entry.NewDaysWithoutRules)
+		}
+	}
+	require.True(t, found, "the mixed automatic target must appear in the review diff")
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
+		ExcludedAutoOfferingIDs: []int64{lunch.ID},
+	}))
+	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	require.NoError(t, err)
+	for _, link := range links {
+		if link.CareOfferingID == lunch.ID {
+			assert.Equal(t, []string{"mon", "wed"}, link.SelectedDays)
+			return
+		}
+	}
+	t.Fatal("the manual and required-lunch shares must keep the target booked")
+}
+
 func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffering(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -175,6 +229,54 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 	})
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid,
 		"a parent-chosen offering cannot be overridden away")
+
+	pending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, pending.Status)
+}
+
+func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedDays(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "OptOutNoRuleDays")
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+		o.CountsAsCare = true
+		o.CountsAsCareSet = true
+		o.SortOrder = 203
+	})
+	trigger := createAdjustmentCareOfferingWith(t, env, "Randstunde OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+		o.SortOrder = 204
+	})
+	lunch := createAdjustmentCareOfferingWith(t, env, "Mittagessen OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
+		o.AvailableDays = []string{"mon"}
+		o.IsRequired = true
+		o.IncludesLunch = true
+		o.CountsAsCare = false
+		o.CountsAsCareSet = true
+		o.SortOrder = 205
+	})
+	require.NoError(t, env.repos.CareOffering.ReplaceAutoAddTriggers(ctx, lunch.ID, []int64{trigger.ID}))
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: care.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: trigger.ID, SelectedDays: []string{"tue"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
+
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID:               row.ID,
+		Approve:                 true,
+		ReviewedBy:              env.creatorID,
+		ExcludedAutoOfferingIDs: []int64{lunch.ID},
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid,
+		"a selected trigger that contributes no target days must not authorize an override")
 
 	pending, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
 	require.NoError(t, err)

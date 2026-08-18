@@ -43,6 +43,9 @@ type OfferingRequestDiffResponse struct {
 	Automatic bool `json:"automatic,omitempty"`
 	// AutomaticDays is the German day list of that automatic share ("Do, Fr").
 	AutomaticDays string `json:"automatic_days,omitempty"`
+	// NewWhenExcluded is the materialized NEW side after this line's
+	// Mitbuchungs-Regel is suppressed. Manual and required-lunch days remain.
+	NewWhenExcluded string `json:"new_when_excluded,omitempty"`
 	// TriggerIDs / TriggerNames identify the selected offerings whose rule
 	// produced the automatic share. TriggerIDs lets the review card grey out
 	// dependent lines while staff untick an override (#2370).
@@ -66,6 +69,9 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 			line.Automatic = true
 			line.AutomaticDays = germanOfferingDiffLabel("booked", entry.NewAutomaticDays)
 			line.Optoutable = len(entry.AutoTriggerIDs) > 0
+			if len(entry.NewDaysWithoutRules) > 0 {
+				line.NewWhenExcluded = germanOfferingDiffLabel("booked", entry.NewDaysWithoutRules)
+			}
 			for _, triggerID := range entry.AutoTriggerIDs {
 				line.TriggerIDs = append(line.TriggerIDs, strconv.FormatInt(triggerID, 10))
 			}

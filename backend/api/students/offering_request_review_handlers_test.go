@@ -75,3 +75,25 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 	assert.Equal(t, int64(55), svc.input.ReviewedBy)
 	assert.Equal(t, "group_supervisor,staff", svc.input.ActorRole)
 }
+
+func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *testing.T) {
+	view := &enrollmentService.OfferingChangeView{
+		Request: &enrollmentModels.OfferingChangeRequest{},
+		Diff: []enrollmentService.OfferingChangeDiffEntry{{
+			OfferingID:          9,
+			Label:               "Mittagessen",
+			NewState:            "booked",
+			NewDays:             []string{"mon", "tue", "wed"},
+			NewAutomaticDays:    []string{"tue", "wed"},
+			NewDaysWithoutRules: []string{"mon", "wed"},
+			AutoTriggerIDs:      []int64{5},
+			AutoTriggerNames:    []string{"Randstunde"},
+		}},
+	}
+
+	response := toOfferingRequestResponse(view)
+
+	require.Len(t, response.Diff, 1)
+	assert.Equal(t, "Mo, Mi", response.Diff[0].NewWhenExcluded)
+	assert.True(t, response.Diff[0].Optoutable)
+}

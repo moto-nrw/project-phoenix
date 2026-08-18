@@ -199,6 +199,39 @@ describe("OfferingRequestReviewList", () => {
     );
   });
 
+  it("keeps manual and required days visible when rule days are unticked", async () => {
+    mockList.mockResolvedValue([
+      request({
+        diff: [
+          {
+            offering_id: "9",
+            label: "Ganztagsbetreuung bis 14.30 Uhr",
+            old: "nicht gebucht",
+            new: "Mo, Di, Mi",
+            automatic: true,
+            automatic_days: "Di, Mi",
+            new_when_excluded: "Mo, Mi",
+            trigger_ids: ["5"],
+            trigger_names: ["Randstunde"],
+            optoutable: true,
+          },
+        ],
+      }),
+    ]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(screen.getByText("Mo, Mi")).toBeInTheDocument();
+    expect(screen.queryByText("Mo, Di, Mi")).not.toBeInTheDocument();
+  });
+
   it("greys a line whose trigger was unticked", async () => {
     mockList.mockResolvedValue([request({ diff: ruleDiff })]);
     render(<OfferingRequestReviewList />);
