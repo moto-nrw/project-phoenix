@@ -9,16 +9,6 @@
 
     <p>{{if .SchoolName}}die <strong>{{.SchoolName}}</strong> bereitet{{else}}wir bereiten{{end}} die Anmeldungen für <strong>{{.PhaseName}}</strong> vor. Damit Ihr Kind im neuen Zeitraum dabei sein kann, müssen Sie die Anmeldung aktiv bestätigen.</p>
 
-    <div class="highlight-box">
-        <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Sie haben drei Möglichkeiten:</strong></p>
-        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
-            <li>Betreuung unverändert bestätigen</li>
-            <li>Betreuungsangebote oder Wochentage anpassen</li>
-            <li>Betreuung zum Ende des aktuellen Zeitraums beenden</li>
-        </ul>
-        <p style="margin: 8px 0 0 0; font-size: 14px;">Alles erledigen Sie über den Link unten. Ihre übrigen Daten bleiben unverändert und müssen nicht neu eingegeben werden.</p>
-    </div>
-
     {{if .ChildNames}}
     <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{if eq (len .ChildNames) 1}}Vorgemerktes Kind:{{else}}Vorgemerkte Kinder:{{end}}</strong></p>

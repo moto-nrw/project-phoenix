@@ -182,16 +182,6 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 		if err := s.ensureNoOpenChangeRequest(txCtx, lockedReq.ID); err != nil {
 			return err
 		}
-		// A change request on a rolled-forward renewal request IS the
-		// parent's reaction to the Halbjahreswechsel (#2251): take the
-		// children out of the automatic renewal pipeline before the base
-		// snapshot is captured. Otherwise the deadline worker would still
-		// withdraw (opt-in) or auto-process (opt-out) them despite the
-		// reaction — and its status transition would trip the snapshot
-		// conflict guard, leaving the change request unapprovable.
-		if err := s.flipRenewalChildrenToSubmitted(txCtx, children); err != nil {
-			return err
-		}
 		capabilities, err := s.formCapabilities(txCtx, nil)
 		if err != nil {
 			return err
@@ -734,24 +724,6 @@ func (s *changeRequestService) requestByToken(ctx context.Context, token string)
 		return nil, 0, err
 	}
 	return req, req.GetTenantID(), nil
-}
-
-// flipRenewalChildrenToSubmitted moves pending_renewal / auto_renewed
-// children into submitted and mirrors the transition on the in-memory rows
-// (the caller builds the base snapshot from them). Idempotent: rows in any
-// other status are untouched.
-func (s *changeRequestService) flipRenewalChildrenToSubmitted(ctx context.Context, children []*enrollmentModels.RequestChild) error {
-	for _, child := range children {
-		if child.Status != enrollmentModels.ChildStatusPendingRenewal &&
-			child.Status != enrollmentModels.ChildStatusAutoRenewed {
-			continue
-		}
-		if err := s.RequestChildRepo.UpdateStatus(ctx, child.ID, enrollmentModels.ChildStatusSubmitted, nil, 0); err != nil {
-			return fmt.Errorf("change request: promote renewal child %d: %w", child.ID, err)
-		}
-		child.Status = enrollmentModels.ChildStatusSubmitted
-	}
-	return nil
 }
 
 func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {

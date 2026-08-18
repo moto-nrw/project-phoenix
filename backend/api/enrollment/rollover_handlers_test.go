@@ -36,11 +36,6 @@ type mockRolloverService struct {
 
 	decideInput enrollmentService.DecideReviewRequest
 	decideErr   error
-
-	previewPhaseID    int64
-	previewBumpsGrade bool
-	previewResult     *enrollmentService.RolloverPreview
-	previewErr        error
 }
 
 func (m *mockRolloverService) CreatePhaseFromSource(_ context.Context, req enrollmentService.CreatePhaseFromSourceRequest) (*enrollmentService.RolloverResult, error) {
@@ -56,12 +51,6 @@ func (m *mockRolloverService) ListReviewQueue(_ context.Context, phaseID int64) 
 func (m *mockRolloverService) DecideReview(_ context.Context, req enrollmentService.DecideReviewRequest) error {
 	m.decideInput = req
 	return m.decideErr
-}
-
-func (m *mockRolloverService) PreviewPhaseFromSource(_ context.Context, sourcePhaseID int64, bumpsGrade bool) (*enrollmentService.RolloverPreview, error) {
-	m.previewPhaseID = sourcePhaseID
-	m.previewBumpsGrade = bumpsGrade
-	return m.previewResult, m.previewErr
 }
 
 func (m *mockRolloverService) RunDeadlineWorker(_ context.Context, _ time.Time) (*enrollmentService.DeadlineWorkerSummary, error) {
@@ -80,7 +69,6 @@ func buildRolloverRouter(svc enrollmentService.RolloverService) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Post("/enrollment/phases/{id}/rollover", rs.createRollover)
-	r.Get("/enrollment/phases/{id}/rollover-preview", rs.previewRollover)
 	r.Get("/enrollment/phases/{id}/review", rs.listRolloverReview)
 	r.Post("/enrollment/admin/request-children/{id}/rollover-review", rs.decideRolloverReview)
 	return r
@@ -350,60 +338,4 @@ func TestDecideRolloverReviewHandler_ServiceErrorReturns500(t *testing.T) {
 	body := map[string]any{"decision": "keep"}
 	w := executeJSON(t, router, http.MethodPost, "/enrollment/admin/request-children/1/rollover-review", body)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
-// --- previewRollover ---
-
-func TestPreviewRolloverHandler_HappyPath(t *testing.T) {
-	mock := &mockRolloverService{
-		previewResult: &enrollmentService.RolloverPreview{
-			CarryCandidateCount: 3,
-			CarriedCount:        2,
-			ReviewCount:         1,
-			ReviewByReason:      map[string]int{"grade_above_max": 1},
-			ExcludedCount:       2,
-			ExcludedByStatus:    map[string]int{"withdrawn": 2},
-			RequestCount:        2,
-		},
-	}
-	router := buildRolloverRouter(mock)
-
-	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/42/rollover-preview?bumps_grade=false", nil)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, int64(42), mock.previewPhaseID)
-	assert.False(t, mock.previewBumpsGrade)
-	var resp struct {
-		Data RolloverPreviewResponse `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, 2, resp.Data.CarriedCount)
-	assert.Equal(t, 1, resp.Data.ReviewCount)
-	assert.Equal(t, 2, resp.Data.ExcludedCount)
-	assert.Equal(t, map[string]int{"withdrawn": 2}, resp.Data.ExcludedByStatus)
-}
-
-func TestPreviewRolloverHandler_DefaultsBumpsGradeTrue(t *testing.T) {
-	mock := &mockRolloverService{previewResult: &enrollmentService.RolloverPreview{}}
-	router := buildRolloverRouter(mock)
-
-	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/7/rollover-preview", nil)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	assert.True(t, mock.previewBumpsGrade)
-}
-
-func TestPreviewRolloverHandler_MapsAlreadyRolledToConflict(t *testing.T) {
-	mock := &mockRolloverService{previewErr: enrollmentService.ErrRolloverSourceAlreadyRolled}
-	router := buildRolloverRouter(mock)
-
-	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/7/rollover-preview", nil)
-
-	require.Equal(t, http.StatusConflict, w.Code)
-}
-
-func TestPreviewRolloverHandler_RejectsInvalidSourceID(t *testing.T) {
-	router := buildRolloverRouter(&mockRolloverService{})
-	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/abc/rollover-preview", nil)
-	require.Equal(t, http.StatusBadRequest, w.Code)
 }
