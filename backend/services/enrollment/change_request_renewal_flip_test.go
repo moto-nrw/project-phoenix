@@ -17,7 +17,7 @@ import (
 func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status string) {
 	t.Helper()
 	require.NoError(t, repositories.NewFactory(env.db).RequestChild.UpdateStatus(
-		testpkg.TenantContext(1), childID, status, nil, env.creatorID,
+		testpkg.TenantContext(env.phase.GetTenantID()), childID, status, nil, env.creatorID,
 	))
 }
 
@@ -31,7 +31,7 @@ func setChildStatus(t *testing.T, env *requestTestEnv, childID int64, status str
 func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(env.phase.GetTenantID())
 
 	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestChangeRequestService_Create_FlipsPendingRenewalToSubmitted(t *testing.T
 func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(env.phase.GetTenantID())
 
 	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestChangeRequestService_Create_FlipsAutoRenewedToSubmitted(t *testing.T) {
 func TestChangeRequestService_Create_LeavesNonRenewalStatusesAlone(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(env.phase.GetTenantID())
 
 	result, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
 	require.NoError(t, err)

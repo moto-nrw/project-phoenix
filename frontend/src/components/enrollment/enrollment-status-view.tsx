@@ -670,21 +670,6 @@ interface RenewalBannersProps {
   readonly onWithdraw: (childId?: string) => void;
 }
 
-// The link into the reduced offerings/weekdays flow (#2251), shared by both
-// renewal banners. It is available only while the backend accepts a change
-// request and no request is already open.
-function RenewalAdjustLink({
-  adjustHref,
-  label,
-}: Readonly<{ adjustHref: string | null; label: string }>) {
-  if (!adjustHref) return null;
-  return (
-    <ButtonLink href={adjustHref} variant="surface" size="md">
-      {label}
-    </ButtonLink>
-  );
-}
-
 function RenewalBanners({
   adjustHref,
   confirmingRenewal,
@@ -721,10 +706,11 @@ function RenewalBanners({
             >
               {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
             </button>
-            <RenewalAdjustLink
-              adjustHref={adjustHref}
-              label={t("renewalAdjust")}
-            />
+            {adjustHref && (
+              <ButtonLink href={adjustHref} variant="surface" size="md">
+                {t("renewalAdjust")}
+              </ButtonLink>
+            )}
             <button
               type="button"
               onClick={handleWithdraw}
@@ -744,10 +730,11 @@ function RenewalBanners({
           </h2>
           <p className="mt-2 text-sm text-gray-700">{t("autoRenewedText")}</p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <RenewalAdjustLink
-              adjustHref={adjustHref}
-              label={t("renewalAdjust")}
-            />
+            {adjustHref && (
+              <ButtonLink href={adjustHref} variant="surface" size="md">
+                {t("renewalAdjust")}
+              </ButtonLink>
+            )}
             <button
               type="button"
               onClick={handleWithdraw}
