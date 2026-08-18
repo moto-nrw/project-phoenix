@@ -168,6 +168,22 @@ describe("OfferingRequestReviewList", () => {
     },
   ];
 
+  const mixedRuleDiff = [
+    {
+      offering_id: "9",
+      label: "Ganztagsbetreuung bis 14.30 Uhr",
+      old: "nicht gebucht",
+      new: "Mo, Di, Mi",
+      automatic: true,
+      automatic_days: "Di, Mi",
+      rule_days: "Di",
+      new_when_excluded: "Mo, Mi",
+      trigger_ids: ["5"],
+      trigger_names: ["Randstunde"],
+      optoutable: true,
+    },
+  ];
+
   it("marks a rule-added line and names its trigger", async () => {
     mockList.mockResolvedValue([request({ diff: ruleDiff })]);
     render(<OfferingRequestReviewList />);
@@ -177,6 +193,54 @@ describe("OfferingRequestReviewList", () => {
     expect(screen.getAllByText("Automatisch mitgebucht")).toHaveLength(2);
     expect(
       screen.getByText(/weil „Randstunde“ gewählt ist/),
+    ).toBeInTheDocument();
+  });
+
+  it("attributes only rule-derived days to the selected trigger", async () => {
+    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    expect(
+      screen.getByText(/Die Tage Di kommen automatisch dazu, weil/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Die Tage Di, Mi kommen automatisch dazu, weil/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the automatic-addition hint after opting out", async () => {
+    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(
+      screen.queryByText(/kommen automatisch dazu/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("describes the disabled co-booking rule after opting out", async () => {
+    mockList.mockResolvedValue([request({ diff: mixedRuleDiff })]);
+    render(<OfferingRequestReviewList />);
+    await screen.findByText(/Lara Beispiel/);
+    expandAll();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
+      }),
+    );
+
+    expect(
+      screen.getByText("Die Mitbuchungs-Regel gilt für diese Anfrage nicht."),
     ).toBeInTheDocument();
   });
 

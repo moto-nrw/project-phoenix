@@ -1091,6 +1091,7 @@
       "autoAdded": "Добавляется автоматически.",
       "autoAddedWithTrigger": "Добавляется автоматически, потому что выбрано {trigger}.",
       "decisionApplied": "Вот что изменилось:",
+      "decisionConsidered": "Запрошенное изменение:",
       "decisionOverridden": "Команда группы продлённого дня не забронировала {names}."
     },
     "careOfferingsModal": {

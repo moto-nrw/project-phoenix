@@ -1,6 +1,7 @@
 package parent
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,4 +53,18 @@ func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
 		NewState: "booked",
 		NewDays:  []string{"mon", "wed"},
 	}}, response.PendingRequest.Diff)
+}
+
+func TestToCareOfferingsResponsePreservesEmptyDecisionSnapshot(t *testing.T) {
+	response := toCareOfferingsResponse(&parentService.ChildCareOfferings{
+		LastDecision: &enrollmentService.OfferingChangeDecision{
+			Status:      "approved",
+			AppliedDiff: []enrollmentService.OfferingChangeDiffEntry{},
+		},
+	})
+
+	body, err := json.Marshal(response)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"applied":[]`,
+		"an empty frozen snapshot must remain distinguishable from a missing legacy snapshot")
 }

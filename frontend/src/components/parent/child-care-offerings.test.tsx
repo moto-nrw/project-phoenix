@@ -257,6 +257,52 @@ describe("ChildCareOfferingsSection", () => {
     expect(screen.queryByText(/Gültig ab/)).not.toBeInTheDocument();
   });
 
+  it("labels a rejected frozen diff as requested rather than applied", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "79",
+          status: "rejected",
+          decided_at: "2026-07-30T10:00:00Z",
+          effective_from: "2027-02-01",
+          requested: [{ id: "5", name: "Regelbetreuung", weekdays: [1, 2] }],
+          applied: [
+            {
+              label: "Regelbetreuung",
+              old_state: "booked",
+              old_days: ["mon", "tue", "wed"],
+              new_state: "booked",
+              new_days: ["mon", "tue"],
+            },
+          ],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Angefragte Änderung:")).toBeInTheDocument();
+    expect(screen.queryByText("Das wurde geändert:")).not.toBeInTheDocument();
+  });
+
+  it("does not fall back to the request when the frozen diff is empty", async () => {
+    mockGet.mockResolvedValue(
+      view({
+        last_decision: {
+          id: "80",
+          status: "approved",
+          decided_at: "2026-07-30T10:00:00Z",
+          effective_from: "2027-02-01",
+          requested: [{ id: "5", name: "Regelbetreuung", weekdays: [1, 2] }],
+          applied: [],
+        },
+      }),
+    );
+    render(<ChildCareOfferingsSection studentId="42" />);
+
+    expect(await screen.findByText("Änderung übernommen")).toBeInTheDocument();
+    expect(screen.queryByText("Beantragt war:")).not.toBeInTheDocument();
+  });
+
   it("prefers the open request over an older decision", async () => {
     mockGet.mockResolvedValue(
       view({

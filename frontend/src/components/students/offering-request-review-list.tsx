@@ -46,15 +46,15 @@ function joinNames(names: readonly string[]): string {
 // review card must be readable at a glance.
 function automaticHint(entry: OfferingRequestDiffLine): string {
   const names = entry.trigger_names ?? [];
-  const partial =
-    entry.automatic_days !== undefined && entry.automatic_days !== entry.new;
+  const attributedDays = entry.rule_days ?? entry.automatic_days;
+  const partial = attributedDays !== undefined && attributedDays !== entry.new;
   if (names.length === 0) {
     return partial
       ? `Die Tage ${entry.automatic_days} kommen automatisch dazu.`
       : "Kommt automatisch dazu.";
   }
   return partial
-    ? `Die Tage ${entry.automatic_days} kommen automatisch dazu, weil ${joinNames(names)} gewählt ist.`
+    ? `Die Tage ${attributedDays} kommen automatisch dazu, weil ${joinNames(names)} gewählt ist.`
     : `Kommt automatisch dazu, weil ${joinNames(names)} gewählt ist.`;
 }
 
@@ -322,7 +322,7 @@ export function OfferingRequestReviewList() {
                           {displayedNew}
                         </span>
                       </div>
-                      {entry.automatic && !cascaded && (
+                      {entry.automatic && !cascaded && !isExcluded && (
                         <p className="mt-0.5 text-xs text-gray-500">
                           {automaticHint(entry)}
                         </p>
@@ -353,8 +353,7 @@ export function OfferingRequestReviewList() {
                       )}
                       {isExcluded && (
                         <p className="mt-0.5 text-xs text-gray-500">
-                          Die automatisch ergänzten Tage werden nicht
-                          mitgebucht.
+                          Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
                         </p>
                       )}
                     </div>

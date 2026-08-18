@@ -158,6 +158,28 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 	assert.NotEmpty(t, view.LastDecision.AppliedDiff, "the recap must read from the frozen snapshot")
 }
 
+func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFromSnapshot(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext()
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "OptOutSnapshot")
+	auto := createAutoAddTarget(t, env, "OptOutSnapshot", fx.newOffering.ID)
+	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
+
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
+		ExcludedAutoOfferingIDs: []int64{auto.ID},
+	}))
+	decided, err := env.repos.OfferingChangeRequest.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, decided.DecisionSnapshot)
+	for _, entry := range decided.DecisionSnapshot.Diff {
+		assert.NotEqual(t, auto.ID, entry.OfferingID,
+			"an excluded target that was never booked must not appear as removed")
+	}
+}
+
 func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunchDays(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -193,6 +215,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 	for _, entry := range view.Diff {
 		if entry.OfferingID == lunch.ID {
 			found = true
+			assert.Equal(t, []string{"tue"}, entry.NewRuleDays)
 			assert.Equal(t, []string{"mon", "wed"}, entry.NewDaysWithoutRules)
 		}
 	}
@@ -311,5 +334,6 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 	}
 	require.NotNil(t, autoSnap, "the frozen diff keeps the rule-added line")
 	assert.Equal(t, []string{"mon"}, autoSnap.NewAutomaticDays)
+	assert.Equal(t, []string{"mon"}, autoSnap.NewRuleDays)
 	assert.Equal(t, []string{fx.newOffering.Name}, autoSnap.AutoTriggerNames)
 }

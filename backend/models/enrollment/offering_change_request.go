@@ -92,6 +92,8 @@ type OfferingChangeSnapshotEntry struct {
 	// NewAutomaticDays is the share of NewDays a Mitbuchungs-Regel (or the
 	// required-lunch derivation) added rather than the parents.
 	NewAutomaticDays []string `json:"new_automatic_days,omitempty"`
+	// NewRuleDays is the subset added specifically by a Mitbuchungs-Regel.
+	NewRuleDays []string `json:"new_rule_days,omitempty"`
 	// AutoTriggerNames names the selected offerings that triggered the
 	// automatic share; empty for the required-lunch derivation.
 	AutoTriggerNames []string `json:"auto_trigger_names,omitempty"`

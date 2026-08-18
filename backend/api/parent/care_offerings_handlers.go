@@ -144,8 +144,12 @@ func offeringDecisionResponse(decision *enrollmentService.OfferingChangeDecision
 			Weekdays: weekdaysFromDayKeys(item.Days),
 		})
 	}
-	for _, entry := range decision.AppliedDiff {
-		resp.Applied = append(resp.Applied, offeringDiffResponse(entry))
+	if decision.AppliedDiff != nil {
+		applied := make([]OfferingDiffResponse, 0, len(decision.AppliedDiff))
+		for _, entry := range decision.AppliedDiff {
+			applied = append(applied, offeringDiffResponse(entry))
+		}
+		resp.Applied = &applied
 	}
 	for _, offering := range decision.OverriddenOfferings {
 		resp.OverriddenNames = append(resp.OverriddenNames, offering.Name)
@@ -238,7 +242,7 @@ type OfferingDecisionResponse struct {
 	// Applied is the frozen diff the decision was made on (including what a
 	// Mitbuchungs-Regel added). Absent for rows decided before the snapshot
 	// existed (#2365).
-	Applied []OfferingDiffResponse `json:"applied,omitempty"`
+	Applied *[]OfferingDiffResponse `json:"applied,omitempty"`
 	// OverriddenNames lists rule-added offerings the school excluded for this
 	// one request at approval time (#2370).
 	OverriddenNames []string `json:"overridden_names,omitempty"`

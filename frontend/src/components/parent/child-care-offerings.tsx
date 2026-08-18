@@ -421,10 +421,14 @@ export function ChildCareOfferingsSection({
             {/* What the decision actually compared and applied, frozen at
                 decision time (#2365). Older decisions have no snapshot and fall
                 back to the submitted request below. */}
-            {decision.applied && decision.applied.length > 0 ? (
+            {decision.applied !== undefined && decision.applied.length > 0 ? (
               <div className="mt-3">
                 <p className="text-xs text-gray-500">
-                  {t("careOfferings.decisionApplied")}
+                  {t(
+                    decision.status === "rejected"
+                      ? "careOfferings.decisionConsidered"
+                      : "careOfferings.decisionApplied",
+                  )}
                 </p>
                 <dl className="mt-1 space-y-1">
                   {decision.applied.map((line) => (
@@ -445,7 +449,7 @@ export function ChildCareOfferingsSection({
                   ))}
                 </dl>
               </div>
-            ) : (
+            ) : decision.applied === undefined ? (
               decision.requested.length > 0 && (
                 <div className="mt-3">
                   <p className="text-xs text-gray-500">
@@ -464,7 +468,7 @@ export function ChildCareOfferingsSection({
                   </ul>
                 </div>
               )
-            )}
+            ) : null}
             {decision.overridden_names &&
               decision.overridden_names.length > 0 && (
                 <p className="mt-2 text-xs text-gray-500">

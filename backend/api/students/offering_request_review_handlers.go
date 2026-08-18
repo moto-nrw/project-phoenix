@@ -43,6 +43,9 @@ type OfferingRequestDiffResponse struct {
 	Automatic bool `json:"automatic,omitempty"`
 	// AutomaticDays is the German day list of that automatic share ("Do, Fr").
 	AutomaticDays string `json:"automatic_days,omitempty"`
+	// RuleDays is the part attributed to TriggerNames. Required-lunch days are
+	// excluded so the explanation does not ascribe them to a Mitbuchungs-Regel.
+	RuleDays string `json:"rule_days,omitempty"`
 	// NewWhenExcluded is the materialized NEW side after this line's
 	// Mitbuchungs-Regel is suppressed. Manual and required-lunch days remain.
 	NewWhenExcluded string `json:"new_when_excluded,omitempty"`
@@ -68,6 +71,9 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 		if len(entry.NewAutomaticDays) > 0 {
 			line.Automatic = true
 			line.AutomaticDays = germanOfferingDiffLabel("booked", entry.NewAutomaticDays)
+			if len(entry.NewRuleDays) > 0 {
+				line.RuleDays = germanOfferingDiffLabel("booked", entry.NewRuleDays)
+			}
 			line.Optoutable = len(entry.AutoTriggerIDs) > 0
 			if len(entry.NewDaysWithoutRules) > 0 {
 				line.NewWhenExcluded = germanOfferingDiffLabel("booked", entry.NewDaysWithoutRules)

@@ -133,6 +133,9 @@ type OfferingChangeDiffEntry struct {
 	// required-lunch derivation) adds rather than the parents (#2365). Empty for
 	// a purely parent-chosen line.
 	NewAutomaticDays []string
+	// NewRuleDays is the share of NewAutomaticDays added specifically by a
+	// Mitbuchungs-Regel. Required-lunch days are not included.
+	NewRuleDays []string
 	// NewDaysWithoutRules is the materialized NEW side after suppressing this
 	// target's Mitbuchungs-Regeln. It keeps manual and required-lunch days.
 	NewDaysWithoutRules []string
@@ -176,7 +179,8 @@ type OfferingChangeDecision struct {
 	Requested []OfferingChangeRequestedItem
 	// AppliedDiff is the frozen review diff from the decision snapshot (ADR
 	// 0002): what the decision actually compared and, for an approval, applied.
-	// Empty for rows decided before the snapshot column existed.
+	// Nil for rows decided before the snapshot column existed; a non-nil empty
+	// slice represents a frozen zero-change decision.
 	AppliedDiff []OfferingChangeDiffEntry
 	// OverriddenOfferings lists the Mitbuchungs-Regel targets staff excluded for
 	// this one request at approval time (#2370).
@@ -1280,6 +1284,7 @@ func (s *offeringChangeRequestService) storeDecisionSnapshot(
 			NewState:         entry.NewState,
 			NewDays:          entry.NewDays,
 			NewAutomaticDays: entry.NewAutomaticDays,
+			NewRuleDays:      entry.NewRuleDays,
 			AutoTriggerNames: entry.AutoTriggerNames,
 		})
 	}
@@ -1302,6 +1307,7 @@ func diffEntriesFromSnapshot(entries []enrollmentModels.OfferingChangeSnapshotEn
 			NewState:         entry.NewState,
 			NewDays:          entry.NewDays,
 			NewAutomaticDays: entry.NewAutomaticDays,
+			NewRuleDays:      entry.NewRuleDays,
 			AutoTriggerNames: entry.AutoTriggerNames,
 		})
 	}
@@ -1810,7 +1816,6 @@ func (s *offeringChangeRequestService) decisionDiff(
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(materialization.selected))
-	ids = appendMissingOfferingIDs(ids, materialization.base)
 	return s.buildDecisionDiff(
 		ctx, excludedIDs, materialization.base, materialization.selected, ids, currentByID, requestedByID,
 	)
@@ -1896,7 +1901,8 @@ func (s *offeringChangeRequestService) buildDecisionDiff(
 	currentByID map[int64]*enrollmentModels.RequestChildOffering,
 	requestedByID map[int64]OfferingChangeSelection,
 ) (*offeringDecisionDiff, error) {
-	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
+	offeringIDs := appendMissingOfferingIDs(ids, base)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list offerings for diff: %w", err)
 	}
@@ -2042,6 +2048,7 @@ func annotateAutomaticShare(
 	if len(ruleDays) == 0 {
 		return
 	}
+	entry.NewRuleDays = append([]string(nil), ruleDays...)
 	entry.NewDaysWithoutRules = nonRuleDaysForTarget(target, selection, selections, offerings)
 	for _, triggerID := range target.AutoAddTriggerOfferingIDs {
 		triggerDays := autoDaysForTarget(target, []int64{triggerID}, selections, offerings)

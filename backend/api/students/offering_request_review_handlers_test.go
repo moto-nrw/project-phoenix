@@ -85,6 +85,7 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 			NewState:            "booked",
 			NewDays:             []string{"mon", "tue", "wed"},
 			NewAutomaticDays:    []string{"tue", "wed"},
+			NewRuleDays:         []string{"tue"},
 			NewDaysWithoutRules: []string{"mon", "wed"},
 			AutoTriggerIDs:      []int64{5},
 			AutoTriggerNames:    []string{"Randstunde"},
@@ -94,6 +95,7 @@ func TestToOfferingRequestResponse_IncludesRemainingDaysForOverridePreview(t *te
 	response := toOfferingRequestResponse(view)
 
 	require.Len(t, response.Diff, 1)
+	assert.Equal(t, "Di", response.Diff[0].RuleDays)
 	assert.Equal(t, "Mo, Mi", response.Diff[0].NewWhenExcluded)
 	assert.True(t, response.Diff[0].Optoutable)
 }
