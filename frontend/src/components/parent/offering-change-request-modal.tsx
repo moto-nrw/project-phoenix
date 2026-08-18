@@ -406,21 +406,28 @@ export function OfferingChangeRequestModal({
                         <div className="flex flex-wrap gap-2">
                           {DAY_ORDER.filter((day) =>
                             item.available_days.includes(day),
-                          ).map((day) => (
-                            <label
-                              key={day}
-                              className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${item.automatic ? "cursor-not-allowed" : "cursor-pointer"}`}
-                            >
-                              <Checkbox
-                                checked={row?.days.has(day) ?? false}
-                                disabled={item.automatic}
-                                onChange={() => toggleDay(item.id, day)}
-                              />
-                              <span className="text-sm text-gray-700">
-                                {weekdayLabel(day)}
-                              </span>
-                            </label>
-                          ))}
+                          ).map((day) => {
+                            const autoDay =
+                              preview.automaticDays[item.id]?.has(day) ?? false;
+                            const locked = item.automatic || autoDay;
+                            return (
+                              <label
+                                key={day}
+                                className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+                              >
+                                <Checkbox
+                                  checked={
+                                    (row?.days.has(day) ?? false) || autoDay
+                                  }
+                                  disabled={locked}
+                                  onChange={() => toggleDay(item.id, day)}
+                                />
+                                <span className="text-sm text-gray-700">
+                                  {weekdayLabel(day)}
+                                </span>
+                              </label>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
