@@ -32,6 +32,21 @@ Gehzeit. Sie ist optional und dient als Vorgabe für die Gehzeiten der Kinder,
 die das Angebot an diesem Wochentag gebucht haben. Eine für ein einzelnes Kind
 gepflegte Gehzeit geht der Angebots-Gehzeit vor.
 
+## Abholart
+
+Die **Abholart** beschreibt, wie ein Kind an einem Betreuungstag nach Hause
+kommt: es geht alleine, fährt Bus, wird abgeholt oder geht in Begleitung. Sie
+ist von der Gehzeit unabhängig; beide zusammen beschreiben den Heimweg eines
+Tages.
+
+## Heimweg-Beschränkung
+
+Eine **Heimweg-Beschränkung** legt am Formularfeld „Erlaubte Heimwege" einer
+Anmeldung fest, dass Kinder bestimmter Zieljahrgänge je Wochentag nur eine
+Abholart wählen dürfen. Welche Abholart es ist, entscheiden die Eltern.
+Jahrgänge ohne Beschränkung behalten die Mehrfachauswahl; bereits übernommene
+Angaben bleiben unangetastet, bis sie erneut eingereicht werden.
+
 ## Ausrollen
 
 Das **Ausrollen** überträgt die Angebots-Gehzeit eines Betreuungsangebots auf

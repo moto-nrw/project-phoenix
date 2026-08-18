@@ -39,6 +39,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.invalid_email": "Bitte gib eine gültige E-Mail-Adresse ein.",
   "enrollment.pickup_time_not_allowed":
     "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste. Die markierte Zeit ist nicht mehr verfügbar.",
+  "enrollment.departure_mode_limit":
+    "Bitte wähle bei den Heimwegen nur eine Möglichkeit pro Wochentag aus.",
   "enrollment.selected_day_not_available":
     "Der gewählte Wochentag ist für dieses Angebot nicht verfügbar. Bitte wähle nur die angezeigten Tage aus.",
   "enrollment.day_selection_required":

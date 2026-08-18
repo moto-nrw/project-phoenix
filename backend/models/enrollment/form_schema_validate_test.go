@@ -368,3 +368,88 @@ func TestFormSchema_Validate_AcceptsMultipleDistinctFields(t *testing.T) {
 	}
 	assert.NoError(t, s.Validate())
 }
+
+// ---- Heimweg-Beschränkung (single_mode_grades, #2381) ---------------------
+
+func singleModeField() FormField {
+	return FormField{
+		Key: "heimwege", Label: "Erlaubte Heimwege",
+		Type: FormFieldWeekdayMultiMode, AppliesToCh: true,
+		Target:           TargetStudentAllowedDepartureModes,
+		SingleModeGrades: []int{1},
+	}
+}
+
+func TestFormField_Validate_SingleModeGradesHappyPath(t *testing.T) {
+	f := singleModeField()
+	assert.NoError(t, f.Validate())
+	assert.Equal(t, []int{1}, f.SingleModeGrades)
+}
+
+func TestFormField_Validate_SingleModeGradesWrongTarget(t *testing.T) {
+	f := FormField{
+		Key: "pickup_times", Label: "Abholzeiten",
+		Type: FormFieldWeekdaySchedule, AppliesToCh: true,
+		Target:           TargetSchedulePickup,
+		SingleModeGrades: []int{1},
+	}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "single_mode_grades")
+}
+
+func TestFormField_Validate_SingleModeGradesRequiresChildField(t *testing.T) {
+	f := singleModeField()
+	f.AppliesToCh = false
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "single_mode_grades")
+}
+
+func TestFormField_Validate_SingleModeGradesOutOfRange(t *testing.T) {
+	f := singleModeField()
+	f.SingleModeGrades = []int{0}
+	require.Error(t, f.Validate())
+	f = singleModeField()
+	f.SingleModeGrades = []int{14}
+	require.Error(t, f.Validate())
+}
+
+func TestFormField_Validate_SingleModeGradesDeduped(t *testing.T) {
+	f := singleModeField()
+	f.SingleModeGrades = []int{1, 2, 1}
+	require.NoError(t, f.Validate())
+	assert.Equal(t, []int{1, 2}, f.SingleModeGrades)
+}
+
+func TestFormField_Validate_InfoFieldRejectsSingleModeGrades(t *testing.T) {
+	f := FormField{
+		Key: "hinweis", Type: FormFieldInfo, Content: "Text",
+		SingleModeGrades: []int{1},
+	}
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "single_mode_grades")
+}
+
+func TestFormField_SingleModeAppliesTo(t *testing.T) {
+	f := singleModeField()
+	one, two := int16(1), int16(2)
+	assert.True(t, f.SingleModeAppliesTo(&one))
+	assert.False(t, f.SingleModeAppliesTo(&two))
+	assert.False(t, f.SingleModeAppliesTo(nil), "children without a target grade are never restricted")
+}
+
+func TestWeekdayMultiMode_ValidateSingleSelection(t *testing.T) {
+	ok := WeekdayMultiMode{"mon": {"bus"}, "tue": {"pickup"}}
+	assert.NoError(t, ok.ValidateSingleSelection(),
+		"one mode per day is fine, even different modes across days")
+
+	bad := WeekdayMultiMode{"mon": {"bus", "pickup"}}
+	err := bad.ValidateSingleSelection()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only one departure mode")
+
+	malformed := WeekdayMultiMode{"mon": {"jetpack"}}
+	require.Error(t, malformed.ValidateSingleSelection())
+}

@@ -738,6 +738,8 @@
       "busDaysHelp": "Zgjidhni ditët kur fëmija udhëton me autobus.",
       "departureModeHelp": "Zgjidhni për çdo ditë jave si shkon fëmija në shtëpi. Parazgjedhja është: shkon në këmbë.",
       "weekdayMultiModeHelp": "Zgjidhni të gjitha mënyrat e kthimit që lejohen për fëmijën tuaj në çdo ditë kujdesi.",
+      "weekdayMultiModeSingleHelp": "Zgjidhni një mënyrë kthimi për çdo ditë kujdesi.",
+      "weekdayMultiModeSingleLimit": "Ju lutemi zgjidhni vetëm një mënyrë kthimi për çdo ditë kujdesi.",
       "weekdayMultiModeNoDays": "Së pari zgjidhni ditët e kujdesit.",
       "weekdayMultiModeUniform": "Të njëjtat mënyra kthimi për të gjitha ditët e kujdesit",
       "weekdayMultiModeUniformHint": "Bëni zgjedhjen një herë; vlen për çdo ditë kujdesi.",

@@ -735,6 +735,8 @@
       "busDaysHelp": "Select the days on which the child takes the bus.",
       "departureModeHelp": "Choose how your child goes home for each weekday. The default is “Walks home”.",
       "weekdayMultiModeHelp": "Choose every way home that is allowed for your child on each care day.",
+      "weekdayMultiModeSingleHelp": "Choose one way home for each care day.",
+      "weekdayMultiModeSingleLimit": "Please choose only one way home per care day.",
       "weekdayMultiModeNoDays": "Choose the care days first.",
       "weekdayMultiModeUniform": "Same ways home for all care days",
       "weekdayMultiModeUniformHint": "Make the selection once; it applies to every care day.",
