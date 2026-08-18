@@ -680,7 +680,9 @@ func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(
 		requested[date] = struct{}{}
 	}
 	for _, row := range rows {
-		if _, ok := requested[row.ExceptionDate]; ok && row.ExcusedFrom != nil {
+		// Only manual partial absences conflict; auto-derived excusals
+		// (pulled-forward pickup time, #2360) coexist with a full-day status.
+		if _, ok := requested[row.ExceptionDate]; ok && row.HasManualPartialAbsence() {
 			return ErrExcusedRequestStatusConflict
 		}
 	}

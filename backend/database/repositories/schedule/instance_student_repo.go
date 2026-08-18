@@ -293,6 +293,34 @@ func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Contex
 	return rows, nil
 }
 
+// FindByStudentIDsAndDate is the multi-student form of
+// FindByStudentAndDateRange for a single day: one query for the whole batch,
+// so the roomless checkout mirror can resolve every student's slot rows
+// without a per-student round trip (review #2372).
+func (r *InstanceStudentRepository) FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*schedule.InstanceStudent, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.InstanceStudent{}, nil
+	}
+	var rows []*schedule.InstanceStudent
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id`).
+		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"activity_instance".date = ?`, date).
+		OrderExpr(`"instance_student".student_id ASC, "activity_instance".start_time ASC`)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by student ids and date",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // FindByInstanceAndStudent returns a single attendance row, or nil if the
 // student is not expected at the instance.
 func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context, instanceID, studentID int64) (*schedule.InstanceStudent, error) {
@@ -369,6 +397,88 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+// UpdateAttendanceFromCheckinBatch is the multi-row form of
+// UpdateAttendanceFromCheckin for one shared check-in instant: identical SET
+// and guard predicates, restricted to the given (instance_id, student_id)
+// pairs in ONE statement instead of a per-student UPDATE (review #2372).
+// Rows whose guards no longer match are silently skipped, exactly like the
+// single-row zero-rows race path.
+func (r *InstanceStudentRepository) UpdateAttendanceFromCheckinBatch(
+	ctx context.Context, keys []schedule.InstanceStudentKey, checkedInAt time.Time,
+) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`status = ?`, schedule.AttendanceStatusPresent).
+		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL OR "instance_student".pickup_exception_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
+		Set(`student_status_day_id = NULL`).
+		Set(`pickup_exception_id = NULL`).
+		Set(`checked_in_at = CASE
+			WHEN "instance_student".checked_out_at IS NOT NULL THEN ?
+			ELSE COALESCE("instance_student".checked_in_at, ?) END`, checkedInAt, checkedInAt).
+		Set(`checked_out_at = NULL`).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`("instance_student".instance_id, "instance_student".student_id) IN (?)`, bun.List(instanceStudentKeyTuples(keys))).
+		Where(`(
+				"instance_student".status = ?
+				OR "instance_student".student_status_day_id IS NOT NULL
+				OR "instance_student".pickup_exception_id IS NOT NULL
+			OR ("instance_student".status = ? AND "instance_student".checked_out_at IS NOT NULL)
+		)`, schedule.AttendanceStatusExpected, schedule.AttendanceStatusPresent)
+
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{
+			Op:  "update attendance from checkin batch",
+			Err: err,
+		}
+	}
+	return nil
+}
+
+// UpdateAttendanceCheckoutBatch is the multi-row form of
+// UpdateAttendanceCheckout for one shared checkout instant: identical SET and
+// guard predicates over the given (instance_id, student_id) pairs in ONE
+// statement (review #2372). Guarded rows that no longer match are skipped,
+// like the single-row form's silent zero-rows outcome.
+func (r *InstanceStudentRepository) UpdateAttendanceCheckoutBatch(
+	ctx context.Context, keys []schedule.InstanceStudentKey, checkedOutAt time.Time,
+) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`checked_out_at = CASE
+			WHEN "instance_student".checked_out_at IS NULL OR "instance_student".checked_out_at < ? THEN ?
+			ELSE "instance_student".checked_out_at END`, checkedOutAt, checkedOutAt).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`("instance_student".instance_id, "instance_student".student_id) IN (?)`, bun.List(instanceStudentKeyTuples(keys))).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusPresent).
+		Where(`"instance_student".checked_in_at IS NOT NULL`).
+		Where(`"instance_student".checked_in_at <= ?`, checkedOutAt)
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "update slot attendance checkout batch", Err: err}
+	}
+	return nil
+}
+
+// instanceStudentKeyTuples renders keys as a bun.List of bun.Tuple values so
+// the composite IN predicate emits ((instance_id, student_id), …).
+func instanceStudentKeyTuples(keys []schedule.InstanceStudentKey) []any {
+	tuples := make([]any, 0, len(keys))
+	for _, key := range keys {
+		tuples = append(tuples, bun.Tuple([]int64{key.InstanceID, key.StudentID}))
+	}
+	return tuples
 }
 
 func (r *InstanceStudentRepository) CreateUnplannedPresentIfAbsent(
@@ -478,6 +588,36 @@ func (r *InstanceStudentRepository) FindCurrentCandidates(
 	return rows, nil
 }
 
+// FindCurrentCandidatesByStudentIDs is the multi-student form of
+// FindCurrentCandidates: one query resolves every student's currently-running
+// booked slots so the batch check-in mirror needs no per-student round trip
+// (review #2372). Callers group the rows per student and apply the same
+// exactly-one-candidate rule as the single-student path.
+func (r *InstanceStudentRepository) FindCurrentCandidatesByStudentIDs(
+	ctx context.Context, studentIDs []int64, date timezone.Date, at time.Time,
+) ([]*schedule.InstanceStudent, error) {
+	if len(studentIDs) == 0 {
+		return []*schedule.InstanceStudent{}, nil
+	}
+	var rows []*schedule.InstanceStudent
+	clock := at.In(timezone.Berlin).Format("15:04:05")
+	q := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Join(`JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
+		Where(`"instance_student".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"activity_instance".date = ?`, date).
+		Where(`"activity_instance".status IN (?, ?)`, schedule.InstanceStatusPlanned, schedule.InstanceStatusActive).
+		Where(`"activity_instance".start_time <= ?::time`, clock).
+		Where(`"activity_instance".end_time > ?::time`, clock).
+		OrderExpr(`"instance_student".student_id ASC, "activity_instance".start_time ASC, "activity_instance".id ASC`)
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+	if err := q.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates batch", Err: err}
+	}
+	return rows, nil
+}
+
 // ApplyStatusDay stamps a broad day status (sick / excused / class trip) onto
 // the student's slots for that date.
 //
@@ -578,6 +718,60 @@ func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, status
 		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}
 	}
 	n, _ := res.RowsAffected()
+
+	// Replay any partial excusal for the released day (#2360): a broad day
+	// status may coexist with an AUTO-derived partial absence (a pulled-forward
+	// pickup time). The release above restores the status day's rows to
+	// 'expected'; without this replay the blocks after the pickup cutoff would
+	// stay expected even though the child is still picked up early. Mirrors
+	// ApplyPartialAbsence keyed by (student, date) instead of exception id; a
+	// no-op when no timed excusal exists for the day. Completed instances are
+	// additionally excluded: the release above deliberately preserves them as
+	// historical absent, and the replay must not rewrite that record to excused
+	// with fresh pickup provenance (#2360 review).
+	_, err = base.GetDB(ctx, r.db).NewRaw(`
+		WITH released AS (
+			SELECT tenant_id, student_id, date
+			FROM active.student_status_days
+			WHERE tenant_id = ? AND id = ?
+		)
+		UPDATE schedule.instance_students AS attendance
+		SET status = ?,
+			substatus = ?,
+			student_status_day_id = NULL,
+			pickup_exception_id = exc.id,
+			updated_at = ?
+		FROM schedule.activity_instances AS instance,
+			released,
+			schedule.student_pickup_exceptions AS exc
+		WHERE exc.tenant_id = released.tenant_id
+			AND exc.student_id = released.student_id
+			AND exc.exception_date = released.date
+			AND exc.excused_from IS NOT NULL
+			AND attendance.tenant_id = exc.tenant_id
+			AND attendance.student_id = exc.student_id
+			AND attendance.manual_status_at IS NULL
+			AND NOT attendance.not_scheduled
+			AND (
+				attendance.status = ?
+				OR (
+					attendance.status = ?
+					AND attendance.pickup_exception_id IS NULL
+					AND attendance.student_status_day_id IS NULL
+				)
+			)
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+			AND instance.date = exc.exception_date
+			AND instance.start_time >= exc.excused_from
+			AND instance.status NOT IN (?, ?)
+	`, tenant.FromContext(ctx), statusDayID,
+		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
+		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
+		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "replay partial absence after status day release", Err: err}
+	}
 	return int(n), nil
 }
 
@@ -629,7 +823,11 @@ func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
 // The predicate also claims bare absences (status=absent, no provenance): the
 // session-end bridge flips expected → absent without the shared care-day lock,
 // so a concurrent partial write can otherwise persist the exception with no
-// owned rows and leave ReleasePartialAbsence unable to reconcile them.
+// owned rows and leave ReleasePartialAbsence unable to reconcile them. The
+// bridge only touches still-active instances; completed instances are a
+// closed historical record and excluded here — the auto-excusal sync runs
+// this projection on same-day pickup and weekly-baseline changes and must
+// not rewrite what already happened (#2360 review).
 func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH partial_absence AS (
@@ -660,11 +858,11 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 			AND instance.tenant_id = attendance.tenant_id
 			AND instance.date = partial_absence.exception_date
 			AND instance.start_time >= partial_absence.excused_from
-			AND instance.status <> ?
+			AND instance.status NOT IN (?, ?)
 	`, tenant.FromContext(ctx), pickupExceptionID,
 		schedule.AttendanceStatusAbsent, schedule.AttendanceSubstatusExcused, time.Now().UTC(),
 		schedule.AttendanceStatusExpected, schedule.AttendanceStatusAbsent,
-		schedule.InstanceStatusCancelled).Exec(ctx)
+		schedule.InstanceStatusCancelled, schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "apply partial absence to slots", Err: err}
 	}
@@ -673,8 +871,11 @@ func (r *InstanceStudentRepository) ApplyPartialAbsence(ctx context.Context, pic
 }
 
 // ReleasePartialAbsence restores only rows still owned by this pickup
-// exception. A broad active day status takes ownership; otherwise completed
-// blocks remain absent and actionable blocks return to expected.
+// exception. A broad active day status takes ownership; otherwise actionable
+// blocks return to expected. Completed instances are excluded entirely — they
+// are a closed historical record, and the apply side treats them as immutable
+// for the same reason (#2360 review): the row keeps its excused substatus and
+// pickup provenance instead of being rewritten by a later pickup-time change.
 func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH released AS (
@@ -698,7 +899,6 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 		UPDATE schedule.instance_students AS attendance
 		SET status = CASE
 				WHEN replacement.id IS NOT NULL THEN ?
-				WHEN instance.status = ? THEN ?
 				ELSE ?
 			END,
 			substatus = CASE replacement.status
@@ -716,12 +916,13 @@ func (r *InstanceStudentRepository) ReleasePartialAbsence(ctx context.Context, p
 			AND attendance.student_id = replacement.student_id
 			AND instance.id = attendance.instance_id
 			AND instance.tenant_id = attendance.tenant_id
+			AND instance.status <> ?
 	`, tenant.FromContext(ctx), pickupExceptionID,
-		schedule.AttendanceStatusAbsent,
-		schedule.InstanceStatusCompleted, schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
+		schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
 		schedule.AttendanceSubstatusSick, schedule.AttendanceSubstatusExcused,
 		schedule.AttendanceSubstatusFieldTrip,
-		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID).Exec(ctx)
+		time.Now().UTC(), tenant.FromContext(ctx), pickupExceptionID,
+		schedule.InstanceStatusCompleted).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "release partial absence from slots", Err: err}
 	}

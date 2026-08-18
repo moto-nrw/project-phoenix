@@ -158,9 +158,37 @@ type StudentPickupException struct {
 	ExcusedReason         *string    `bun:"excused_reason" json:"excused_reason,omitempty"`
 	ExcusedCreatedBy      *int64     `bun:"excused_created_by" json:"excused_created_by,omitempty"`
 	ExcusedOwnsPickupTime bool       `bun:"excused_owns_pickup_time,notnull,default:false" json:"excused_owns_pickup_time"`
-	Source                string     `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
-	CreatedBy             int64      `bun:"created_by,nullzero" json:"created_by,omitempty"`
-	CreatedByGuardian     *int64     `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
+	// ExcusedAuto marks a partial excusal that was derived automatically from a
+	// pulled-forward pickup time (#2360). Auto rows always mirror PickupTime,
+	// carry no staff author, and are re-synced (or released) whenever the
+	// pickup exception changes. Manual partial absences keep ExcusedAuto false
+	// and are never touched by the sync.
+	ExcusedAuto       bool   `bun:"excused_auto,notnull,default:false" json:"excused_auto"`
+	Source            string `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CreatedBy         int64  `bun:"created_by,nullzero" json:"created_by,omitempty"`
+	CreatedByGuardian *int64 `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
+}
+
+// HasManualPartialAbsence reports whether this exception carries a staff-set
+// partial excusal. Auto-derived excusals (ExcusedAuto) follow the pickup time
+// and must not lock the exception against edits the way a manual one does.
+func (e *StudentPickupException) HasManualPartialAbsence() bool {
+	return e.ExcusedFrom != nil && !e.ExcusedAuto
+}
+
+// NormalizeWallClockTimes re-anchors the TIME-column values onto the
+// canonical wall-clock reference date. The driver scans TIME columns onto
+// year 0, which bun would bind back out of range on a full-row update —
+// every writer that updates a loaded row must normalize first.
+func (e *StudentPickupException) NormalizeWallClockTimes() {
+	if e.PickupTime != nil {
+		clock := timezone.WallClock(*e.PickupTime)
+		e.PickupTime = &clock
+	}
+	if e.ExcusedFrom != nil {
+		clock := timezone.WallClock(*e.ExcusedFrom)
+		e.ExcusedFrom = &clock
+	}
 }
 
 // Validate ensures pickup exception data is valid
@@ -177,13 +205,24 @@ func (e *StudentPickupException) Validate() error {
 	if e.ExcusedReason != nil && utf8.RuneCountInString(*e.ExcusedReason) > scheduleReasonMaxLength {
 		return errors.New("excused_reason cannot exceed 255 characters")
 	}
-	if e.ExcusedFrom == nil {
-		if e.ExcusedReason != nil || e.ExcusedCreatedBy != nil || e.ExcusedOwnsPickupTime {
+	switch {
+	case e.ExcusedFrom == nil:
+		if e.ExcusedReason != nil || e.ExcusedCreatedBy != nil || e.ExcusedOwnsPickupTime || e.ExcusedAuto {
 			return errors.New("partial absence metadata requires excused_from")
 		}
-	} else if e.ExcusedCreatedBy == nil || *e.ExcusedCreatedBy <= 0 {
+	case e.ExcusedAuto:
+		if e.ExcusedCreatedBy != nil {
+			return errors.New("auto partial absences must not carry excused_created_by")
+		}
+		if e.ExcusedOwnsPickupTime {
+			return errors.New("auto partial absences never own the pickup time")
+		}
+		if e.PickupTime == nil {
+			return errors.New("auto partial absences require a pickup time")
+		}
+	case e.ExcusedCreatedBy == nil || *e.ExcusedCreatedBy <= 0:
 		return errors.New("excused_created_by is required for partial absences")
-	} else if e.ExcusedOwnsPickupTime && e.PickupTime == nil {
+	case e.ExcusedOwnsPickupTime && e.PickupTime == nil:
 		return errors.New("owned partial-absence pickup time is required")
 	}
 	if err := validateExceptionAuthor(e.Source, e.CreatedBy, e.CreatedByGuardian); err != nil {

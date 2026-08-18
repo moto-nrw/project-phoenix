@@ -173,6 +173,14 @@ type ParallelPresence struct {
 	EndTime    time.Time
 }
 
+// InstanceStudentKey addresses one instance_students row by its natural key.
+// Used by the batch attendance-mirror updates to pass a set of target rows
+// into a single composite-IN UPDATE (review #2372).
+type InstanceStudentKey struct {
+	InstanceID int64
+	StudentID  int64
+}
+
 // InstanceStudentRepository defines operations for managing expected/actual
 // attendance on materialized activity instances.
 type InstanceStudentRepository interface {
@@ -230,6 +238,28 @@ type InstanceStudentRepository interface {
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*InstanceStudent, error)
+
+	// FindByStudentIDsAndDate is the multi-student form of
+	// FindByStudentAndDateRange for a single day. One query for the whole
+	// batch; empty input returns an empty slice without hitting the DB.
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*InstanceStudent, error)
+
+	// FindCurrentCandidatesByStudentIDs is the multi-student form of
+	// FindCurrentCandidates: every student's currently-running booked slots
+	// in one query. Callers group per student and apply the same
+	// exactly-one-candidate rule as the single-student path.
+	FindCurrentCandidatesByStudentIDs(ctx context.Context, studentIDs []int64, date timezone.Date, at time.Time) ([]*InstanceStudent, error)
+
+	// UpdateAttendanceFromCheckinBatch applies UpdateAttendanceFromCheckin's
+	// SET and guards to the given (instance, student) pairs in one statement
+	// for one shared check-in instant. Guard-failing rows are skipped like
+	// the single-row zero-rows race path.
+	UpdateAttendanceFromCheckinBatch(ctx context.Context, keys []InstanceStudentKey, checkedInAt time.Time) error
+
+	// UpdateAttendanceCheckoutBatch applies UpdateAttendanceCheckout's SET
+	// and guards to the given (instance, student) pairs in one statement for
+	// one shared checkout instant.
+	UpdateAttendanceCheckoutBatch(ctx context.Context, keys []InstanceStudentKey, checkedOutAt time.Time) error
 
 	// FindByInstanceAndStudent returns a single attendance row, or nil if the
 	// student is not expected at the instance.

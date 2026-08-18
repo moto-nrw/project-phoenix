@@ -5,6 +5,8 @@ export interface StudentPartialAbsence {
   fromTime: string;
   reason?: string;
   pickupTime?: string;
+  /** true = automatisch aus vorverlegter Abholzeit abgeleitet (#2360). */
+  auto: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -23,6 +25,7 @@ interface BackendPartialAbsence {
   from_time: string;
   reason?: string;
   pickup_time?: string;
+  auto?: boolean;
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -36,6 +39,7 @@ function mapPartialAbsence(row: BackendPartialAbsence): StudentPartialAbsence {
     fromTime: row.from_time,
     reason: row.reason,
     pickupTime: row.pickup_time,
+    auto: row.auto ?? false,
     createdBy: row.created_by.toString(),
     createdAt: row.created_at,
     updatedAt: row.updated_at,

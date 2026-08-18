@@ -15,6 +15,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -250,6 +251,13 @@ function activateCheckinMode() {
     pendingIds: new Set<string>(),
     successCount: 0,
     toggle: mockToggleStudent,
+    selectionActive: false,
+    setSelectionActive: vi.fn(),
+    selectedIds: new Set<string>(),
+    toggleSelected: vi.fn(),
+    clearSelection: vi.fn(),
+    isBulkRunning: false,
+    runBulk: vi.fn(),
   });
 }
 
@@ -265,6 +273,13 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
       pendingIds: new Set<string>(),
       successCount: 0,
       toggle: mockToggleStudent,
+      selectionActive: false,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: vi.fn(),
     });
 
     vi.mocked(useImmutableSWR).mockReturnValue({
@@ -406,5 +421,64 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
     expect(
       screen.queryByText("Aus der Betreuung abmelden?"),
     ).not.toBeInTheDocument();
+  });
+
+  // The bulk-checkout confirmation snapshots the selection when it opens and
+  // confirming executes exactly that snapshot: a live update (SWR/SSE) may
+  // re-shape the visible list while the dialog is open, and the operation
+  // must stay the one the user confirmed (review #2372).
+  it("bulk checkout confirmation executes the snapshot it displayed, not the live selection", async () => {
+    const mockRunBulk = vi
+      .fn()
+      .mockResolvedValue({ succeeded: 2, failed: 0, results: [] });
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["11", "12"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: mockRunBulk,
+    });
+
+    const { rerender } = render(<StudentSearchPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-11")).toBeInTheDocument();
+    });
+
+    // Mia (11) sits in a room → the batch asks once before checking out.
+    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("Ausgewählte Kinder abmelden?"),
+    ).toBeInTheDocument();
+    expect(within(dialog).getByText("2")).toBeInTheDocument();
+
+    // While the dialog is open, a live update removes Tom (12) from the
+    // visible result set. The snapshot must not shrink underneath the
+    // confirmation the user is reading.
+    vi.mocked(useSWRAuth).mockImplementation((key) => {
+      if (key === "search-rooms-list") {
+        return { data: [], isLoading: false, error: null } as never;
+      }
+      return {
+        data: { students: mockStudents.filter((s) => s.id !== "12") },
+        isLoading: false,
+        error: null,
+      } as never;
+    });
+    rerender(<StudentSearchPage />);
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abmelden" }));
+
+    // The executed batch is the snapshot the dialog displayed — both
+    // children, not the shrunken live selection.
+    expect(mockRunBulk).toHaveBeenCalledWith("out", ["11", "12"]);
   });
 });

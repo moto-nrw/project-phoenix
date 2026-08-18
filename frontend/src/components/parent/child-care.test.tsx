@@ -306,6 +306,46 @@ describe("PickupTimeModal — failed preload guard", () => {
     );
     expect(onRemove).toHaveBeenCalledWith(todayISO());
   });
+
+  // Schaltet die OGS das Aendern ab, waehrend ein Antrag fuer einen spaeteren
+  // Tag offen ist, muss der Dialog auf diesem Tag aufgehen. Auf heute stehend
+  // zeigte er zu dem Antrag nichts und der Zuruecknehmen-Knopf fehlte.
+  it("opens on the pending request's day when changes are switched off", () => {
+    const inThreeDays = parseISODate(todayISO());
+    inThreeDays.setDate(inThreeDays.getDate() + 3);
+    const pendingDay = toISODate(inThreeDays);
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        pickupChangeRequests={[
+          {
+            id: "request-2",
+            date: pendingDay,
+            pickup_time: "14:30",
+            previous_pickup_time: "15:30",
+            reason: "Arzttermin",
+            status: "pending",
+            created_at: "2026-08-16T10:00:00Z",
+          },
+        ]}
+        careExceptionsLoaded
+        pickupChangeEnabled={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        onRemove={onRemove}
+      />,
+    );
+
+    expect(
+      document.querySelector<HTMLInputElement>('input[type="date"]'),
+    ).toHaveValue(pendingDay);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+    );
+    expect(onRemove).toHaveBeenCalledWith(pendingDay);
+  });
 });
 
 // Issue #1735: the former "Krank melden" modal became a generic "Abmelden" modal

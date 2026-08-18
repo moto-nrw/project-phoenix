@@ -116,6 +116,27 @@ describe("SchoolCheckinFab", () => {
       expect(onToggle).toHaveBeenCalledOnce();
     });
 
+    it("locks the trigger while disabled (bulk request in flight)", () => {
+      const onToggle = vi.fn();
+      render(
+        <SchoolCheckinFab
+          variant="inline"
+          isActive
+          onToggle={onToggle}
+          successCount={0}
+          pendingCount={1}
+          disabled
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: /An- und Abmelde-Modus beenden/i,
+      });
+      expect(button).toBeDisabled();
+      fireEvent.click(button);
+      expect(onToggle).not.toHaveBeenCalled();
+    });
+
     it("does not render the floating positioning wrapper", () => {
       const { container } = render(
         <SchoolCheckinFab

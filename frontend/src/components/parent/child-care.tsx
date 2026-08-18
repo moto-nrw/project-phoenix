@@ -907,13 +907,21 @@ export function PickupTimeModal({
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
+  // Ist das Aendern abgeschaltet, oeffnet der Dialog auf dem einzigen Tag, den
+  // die Eltern noch bearbeiten koennen. Ein offener Antrag geht dabei vor: er
+  // ist der Tag mit dem Zuruecknehmen-Knopf, und ohne diese Vorauswahl stuende
+  // der Dialog auf heute, wo es zu dem Antrag nichts zu sehen gibt.
   const initial = useMemo(() => {
     if (pickupChangeEnabled) return today;
+    const pendingRequest = pickupChangeRequests.find(
+      (request) => request.status === "pending",
+    );
+    if (pendingRequest) return pendingRequest.date;
     return (
       careExceptions.find((entry) => entry.pickup_source === "guardian")
         ?.date ?? today
     );
-  }, [careExceptions, pickupChangeEnabled, today]);
+  }, [careExceptions, pickupChangeEnabled, pickupChangeRequests, today]);
   // Two calendar months ahead — mirrors the backend cap in SubmitCareException
   // and the parent-portal list window, so the picker can't offer a date the
   // server would reject.

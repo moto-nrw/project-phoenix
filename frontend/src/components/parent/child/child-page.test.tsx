@@ -53,19 +53,41 @@ vi.mock("~/components/parent/child-master-data", () => ({
 vi.mock("~/components/parent/guardians-panel", () => ({
   default: () => <div data-testid="section-people">Eltern</div>,
 }));
+// Der Betreuungszustand ist pro Test austauschbar: die Erreichbarkeit des
+// Abhol-Dialogs haengt davon ab, was die Schule freigeschaltet hat und was an
+// Antraegen offen ist.
+const careMock = vi.hoisted(() => ({
+  value: undefined as unknown as ReturnType<typeof buildCare>,
+}));
+
 vi.mock("~/components/parent/child-care", () => ({
-  useChildCare: () => ({
+  useChildCare: () => careMock.value,
+  SickNoteModal: () => <div data-testid="sick-modal" />,
+  PickupTimeModal: () => <div data-testid="pickup-modal" />,
+}));
+
+function buildCare(
+  overrides: {
+    features?: Record<string, unknown>;
+    pickupChangeRequests?: { id: string; date: string; status: string }[];
+  } = {},
+) {
+  return {
     loading: false,
     features: {
       sick_note_enabled: true,
       pickup_change_enabled: true,
+      pickup_manage_allowed: true,
       notes_enabled: true,
       related_accounts_invite_enabled: false,
       related_accounts_remove_enabled: false,
       excused_requires_approval: false,
+      ...overrides.features,
     },
     careExceptions: [],
     careExceptionsLoaded: true,
+    pickupChangeRequests: overrides.pickupChangeRequests ?? [],
+    pickupChangeRequestsLoaded: true,
     todayPickup: { kind: "time", time: "15:00", changed: false },
     sickDays: [],
     excusedRequests: [],
@@ -73,10 +95,8 @@ vi.mock("~/components/parent/child-care", () => ({
     withdrawExcused: vi.fn(),
     saveCareException: vi.fn(),
     removeCareException: vi.fn(),
-  }),
-  SickNoteModal: () => <div data-testid="sick-modal" />,
-  PickupTimeModal: () => <div data-testid="pickup-modal" />,
-}));
+  };
+}
 
 const mockedChildren = vi.mocked(listMyChildren);
 const mockedToday = vi.mocked(getChildToday);
@@ -105,6 +125,7 @@ function renderPage(studentId?: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockSearchParams = new URLSearchParams();
+  careMock.value = buildCare();
   mockedChildren.mockResolvedValue([felix]);
   mockedToday.mockResolvedValue({ at_ogs: null, state: "unknown" });
 });
@@ -278,5 +299,35 @@ describe("ChildPage", () => {
     await waitFor(() =>
       expect(document.querySelectorAll("input")).toHaveLength(0),
     );
+  });
+
+  // Schaltet die OGS das Aendern der Abholzeit ab, waehrend ein Antrag noch
+  // offen ist, bleibt der Dialog der einzige Ort zum Zuruecknehmen. Er muss
+  // erreichbar bleiben, sonst sitzt der Antrag fest.
+  it("oeffnet den Abhol-Dialog bei offenem Antrag trotz abgeschalteter Funktion", async () => {
+    careMock.value = buildCare({
+      features: { pickup_change_enabled: false },
+      pickupChangeRequests: [
+        { id: "9", date: "2026-09-01", status: "pending" },
+      ],
+    });
+    mockSearchParams = new URLSearchParams("action=pickup");
+
+    renderPage();
+
+    expect(await screen.findByTestId("pickup-modal")).toBeInTheDocument();
+  });
+
+  // Ohne offenen Antrag und ohne eigene Ausnahme gibt es nichts zu verwalten:
+  // dann bleibt der Dialog zu, sonst verspricht er eine Aenderung, die das
+  // Backend ablehnen wuerde.
+  it("oeffnet den Abhol-Dialog ohne offenen Antrag nicht, wenn die Funktion aus ist", async () => {
+    careMock.value = buildCare({ features: { pickup_change_enabled: false } });
+    mockSearchParams = new URLSearchParams("action=pickup");
+
+    renderPage();
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
+
+    expect(screen.queryByTestId("pickup-modal")).not.toBeInTheDocument();
   });
 });

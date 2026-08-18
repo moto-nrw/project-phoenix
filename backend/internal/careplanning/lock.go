@@ -26,15 +26,13 @@ func LockExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date tim
 	return nil
 }
 
-// LockStudentAndExceptionDay takes the student row FOR UPDATE first, then the
-// shared care-day advisory lock. Full-day status writers already use this order
-// (GetByIDForUpdate → LockExceptionDay). Pickup/arrival exception and partial-
-// absence writers must match it: taking the care-day lock first deadlocks when
-// a concurrent full-day writer holds the student row and waits for care-day,
-// while an exception INSERT's FK check needs a KEY SHARE on the student.
+// LockStudent takes only the student row FOR UPDATE — the first lock every
+// care-day writer acquires. Weekly-schedule writers take it BEFORE touching
+// their schedule rows so the global order stays student → schedule rows →
+// care-day locks and cannot deadlock against exception writers.
 //
 // Returns sql.ErrNoRows when the student is missing under the tenant.
-func LockStudentAndExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date timezone.Date) error {
+func LockStudent(ctx context.Context, db *bun.DB, studentID int64) error {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return errors.New("tenant id is required")
@@ -52,6 +50,21 @@ func LockStudentAndExceptionDay(ctx context.Context, db *bun.DB, studentID int64
 			return err
 		}
 		return fmt.Errorf("lock student for care exception day: %w", err)
+	}
+	return nil
+}
+
+// LockStudentAndExceptionDay takes the student row FOR UPDATE first, then the
+// shared care-day advisory lock. Full-day status writers already use this order
+// (GetByIDForUpdate → LockExceptionDay). Pickup/arrival exception and partial-
+// absence writers must match it: taking the care-day lock first deadlocks when
+// a concurrent full-day writer holds the student row and waits for care-day,
+// while an exception INSERT's FK check needs a KEY SHARE on the student.
+//
+// Returns sql.ErrNoRows when the student is missing under the tenant.
+func LockStudentAndExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date timezone.Date) error {
+	if err := LockStudent(ctx, db, studentID); err != nil {
+		return err
 	}
 	return LockExceptionDay(ctx, db, studentID, date)
 }

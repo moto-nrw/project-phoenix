@@ -386,7 +386,9 @@ func (s *service) ensureNoPartialAbsenceForStatusWrite(
 		requested[date] = struct{}{}
 	}
 	for _, row := range rows {
-		if _, ok := requested[row.ExceptionDate]; ok && row.ExcusedFrom != nil {
+		// Only manual partial absences conflict; auto-derived excusals
+		// (pulled-forward pickup time, #2360) coexist with a full-day status.
+		if _, ok := requested[row.ExceptionDate]; ok && row.HasManualPartialAbsence() {
 			return ErrCareExceptionConflict
 		}
 	}
@@ -986,6 +988,20 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 			return err
 		}
 
+		// Parent-set day pickup times couple with the per-block excusal the
+		// same way staff-set ones do (#2360): a pull-forward against the
+		// weekly baseline excuses the blocks after the new time; moving it
+		// back (or clearing it) releases them again.
+		if s.PickupAutoExcusal != nil {
+			if row, findErr := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date); findErr != nil {
+				return findErr
+			} else if row != nil {
+				if _, err := s.PickupAutoExcusal.Sync(txCtx, row.ID); err != nil {
+					return err
+				}
+			}
+		}
+
 		merged, err := s.loadCareException(txCtx, studentID, date)
 		if err != nil {
 			return err
@@ -1040,12 +1056,18 @@ func (s *service) childAlreadyLeftToday(ctx context.Context, studentID int64, da
 	return facts.HasAttendanceToday && facts.CheckOut != "", nil
 }
 
+// Only the PICKUP leg of the day can block a parent: since arrival times became
+// OGS-only, a staff-set Bringzeit says nothing about who owns the Abholzeit, and
+// treating it as a conflict would let one OGS entry silently forbid every parent
+// pickup change for that day (TestSubmitCareExceptionWithReasonPreservesExistingArrival).
+// An AUTO-derived partial absence is the school's own bookkeeping, not a
+// decision, so only a manual one counts (#2360).
 func (s *service) pickupHasStaffException(ctx context.Context, studentID int64, date timezone.Date) (bool, error) {
 	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err != nil {
 		return false, err
 	}
-	return pickup != nil && (pickup.Source == scheduleModels.ExceptionSourceStaff || pickup.ExcusedFrom != nil), nil
+	return pickup != nil && (pickup.Source == scheduleModels.ExceptionSourceStaff || pickup.HasManualPartialAbsence()), nil
 }
 
 // applyGuardianPickupException reconciles the guardian-owned pickup leg for the
@@ -1062,6 +1084,14 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 		},
 		func(e *scheduleModels.StudentPickupException) string { return e.Source },
 		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
+			// Release the auto excusal's block absences BEFORE the row goes
+			// away — the FK's ON DELETE SET NULL would otherwise strand them
+			// as absent with no provenance to restore from (#2360).
+			if s.PickupAutoExcusal != nil {
+				if err := s.PickupAutoExcusal.ReleaseBeforeDelete(ctx, e); err != nil {
+					return err
+				}
+			}
 			return s.PickupExceptionRepo.Delete(ctx, e.ID)
 		},
 		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
@@ -1070,6 +1100,9 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 			e.Source = scheduleModels.ExceptionSourceGuardian
 			e.CreatedBy = 0
 			e.CreatedByGuardian = &guardianID
+			// Re-anchor scanned TIME values (e.g. a carried-over excused_from)
+			// before the full-row update — the driver scans them onto year 0.
+			e.NormalizeWallClockTimes()
 			return s.PickupExceptionRepo.Update(ctx, e)
 		},
 		func(ctx context.Context) error {
@@ -1227,10 +1260,18 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if err != nil {
 			return err
 		}
-		if pickup != nil && pickup.ExcusedFrom != nil {
+		if pickup != nil && pickup.HasManualPartialAbsence() {
 			return ErrCareExceptionConflict
 		}
 		if pickup != nil && pickup.Source == scheduleModels.ExceptionSourceGuardian {
+			// An auto-derived excusal follows the pickup time: withdrawing the
+			// override releases the excused blocks before the row is removed
+			// (#2360).
+			if s.PickupAutoExcusal != nil {
+				if err := s.PickupAutoExcusal.ReleaseBeforeDelete(txCtx, pickup); err != nil {
+					return err
+				}
+			}
 			if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
 				return err
 			}
@@ -1283,7 +1324,7 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 		if p.UpdatedAt.After(ce.UpdatedAt) {
 			ce.UpdatedAt = p.UpdatedAt
 		}
-		if p.Source == scheduleModels.ExceptionSourceStaff || p.ExcusedFrom != nil {
+		if p.Source == scheduleModels.ExceptionSourceStaff || p.HasManualPartialAbsence() {
 			ce.Source = scheduleModels.ExceptionSourceStaff
 		}
 	}

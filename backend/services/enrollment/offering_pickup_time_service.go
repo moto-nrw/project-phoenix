@@ -241,6 +241,9 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 	if weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
 		return nil, fmt.Errorf("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
+	if err := s.lockPickupStudents(ctx, []int64{studentID}); err != nil {
+		return nil, err
+	}
 	desired, err := s.desiredOfferingPickupTimes(ctx, []int64{studentID}, timezone.TodayDate())
 	if err != nil {
 		return nil, err
@@ -261,6 +264,9 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 		if existing != nil {
 			if err := s.PickupScheduleRepo.Delete(ctx, existing.ID); err != nil {
 				return nil, fmt.Errorf("delete pickup schedule: %w", err)
+			}
+			if err := s.resyncPickupAutoExcusals(ctx, []int64{studentID}); err != nil {
+				return nil, err
 			}
 		}
 		return nil, nil
@@ -285,6 +291,9 @@ func (s *decisionService) ResetStudentPickupDayToOffering(ctx context.Context, s
 	}
 	if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
 		return nil, fmt.Errorf("upsert pickup schedule: %w", err)
+	}
+	if err := s.resyncPickupAutoExcusals(ctx, []int64{studentID}); err != nil {
+		return nil, err
 	}
 	return row, nil
 }
@@ -326,6 +335,16 @@ func (s *offeringPickupReconcileStats) changedStudentIDs() []int64 {
 func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, studentIDs []int64, opts offeringPickupReconcileOptions) (*offeringPickupReconcileStats, error) {
 	if opts.onDate.IsZero() {
 		opts.onDate = timezone.TodayDate()
+	}
+	lockIDs := make([]int64, 0, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if !opts.skipStudents[studentID] {
+			lockIDs = append(lockIDs, studentID)
+		}
+	}
+	slices.Sort(lockIDs)
+	if err := s.lockPickupStudents(ctx, slices.Compact(lockIDs)); err != nil {
+		return nil, err
 	}
 	desired, err := s.desiredOfferingPickupTimes(ctx, studentIDs, opts.onDate)
 	if err != nil {
@@ -378,8 +397,39 @@ func (s *decisionService) reconcileOfferingPickupRows(ctx context.Context, stude
 			}
 		}
 	}
+	if err := s.resyncPickupAutoExcusals(ctx, stats.changedStudentIDs()); err != nil {
+		return nil, err
+	}
 	s.deferOfferingPickupBroadcasts(ctx, stats.changedStudentIDs())
 	return stats, nil
+}
+
+// lockPickupStudents serializes offering-sourced weekly writes against the
+// staff weekly editors: student row locks FIRST, schedule-row writes second,
+// care-day locks last — the order every care-day writer uses, so the two
+// weekly writers cannot deadlock against each other (#2360 review). Nil-safe
+// for mock-only wirings.
+func (s *decisionService) lockPickupStudents(ctx context.Context, studentIDs []int64) error {
+	if s.LockPickupStudents == nil || len(studentIDs) == 0 {
+		return nil
+	}
+	if err := s.LockPickupStudents(ctx, studentIDs); err != nil {
+		return fmt.Errorf("lock students for pickup reconcile: %w", err)
+	}
+	return nil
+}
+
+// resyncPickupAutoExcusals re-derives the auto partial absences of the
+// students' future day pickup exceptions after their weekly Gehzeit baseline
+// changed (#2360). Nil-safe for mock-only wirings.
+func (s *decisionService) resyncPickupAutoExcusals(ctx context.Context, studentIDs []int64) error {
+	if s.ResyncPickupAutoExcusals == nil || len(studentIDs) == 0 {
+		return nil
+	}
+	if err := s.ResyncPickupAutoExcusals(ctx, studentIDs); err != nil {
+		return fmt.Errorf("resync pickup auto excusals: %w", err)
+	}
+	return nil
 }
 
 func (s *decisionService) deferOfferingPickupBroadcasts(ctx context.Context, studentIDs []int64) {

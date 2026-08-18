@@ -222,8 +222,19 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
   const hasGuardianPickup = care.careExceptions.some(
     (entry) => entry.pickup_source === "guardian",
   );
+  // Ein noch offener Abholantrag haelt den Dialog ebenso offen wie eine
+  // bestehende eigene Ausnahme: er hat noch keine Ausnahme geschrieben (die
+  // entsteht erst mit der Freigabe), und der Dialog ist der einzige Ort, an
+  // dem er zurueckgezogen werden kann. Schaltet die OGS das Aendern nach dem
+  // Absenden ab, saesse der Antrag sonst fest, obwohl das Backend das
+  // Zuruecknehmen weiter erlaubt (es haengt nur an pickup_manage, nicht am
+  // Schulschalter) — dieselbe Regel wie beim Wochenplan-Antrag.
+  const hasPendingPickupRequest = care.pickupChangeRequests.some(
+    (request) => request.status === "pending",
+  );
   const canManageExistingPickup =
-    hasGuardianPickup && care.features.pickup_manage_allowed === true;
+    (hasGuardianPickup || hasPendingPickupRequest) &&
+    care.features.pickup_manage_allowed === true;
   useEffect(() => {
     if (care.loading || !requestedAction) return;
     if (requestedAction === "sick" && care.features.sick_note_enabled) {

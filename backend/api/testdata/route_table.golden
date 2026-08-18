@@ -681,6 +681,7 @@ POST /api/students/master-data-change-requests/{requestId}/decide
 POST /api/students/offering-change-requests/{requestId}/decide
 POST /api/students/pickup-schedules/bulk
 POST /api/students/pickup-times/bulk
+POST /api/students/school-checkin/batch
 POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes

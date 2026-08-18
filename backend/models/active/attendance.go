@@ -63,12 +63,29 @@ type AttendanceRepository interface {
 	Update(ctx context.Context, attendance *Attendance) error
 
 	// CloseOpenForToday closes the currently-open attendance row for the
-	// given student today via a state-checked UPDATE
-	// (WHERE check_out_time IS NULL). Returns the updated row when an open
-	// row was actually closed, nil when no open row existed (e.g. student
-	// was never checked in or another concurrent caller already closed it).
-	// The caller treats both cases as successful idempotent checkouts.
-	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*Attendance, error)
+	// given student on the given calendar day via a state-checked UPDATE
+	// (WHERE check_out_time IS NULL). The caller supplies the day instead of
+	// the repository re-deriving it: single checkouts pass the day of their
+	// own now, batch checkouts pass their batch-wide snapshot date so a batch
+	// crossing Berlin midnight closes every item on the same day it read and
+	// refreshes (review #2372). Returns the updated row when an open row was
+	// actually closed, nil when no open row existed (e.g. student was never
+	// checked in or another concurrent caller already closed it). The caller
+	// treats both cases as successful idempotent checkouts.
+	CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID int64) (*Attendance, error)
+
+	// CreateIfNoOpenForTodayBatch is the multi-row form of
+	// CreateIfNoOpenForToday: one INSERT … ON CONFLICT DO NOTHING for the
+	// whole batch. Returns the student ids whose row was actually inserted;
+	// conflicting students are absorbed like the single-row method. The
+	// caller must hold the students' row locks in ascending id order.
+	CreateIfNoOpenForTodayBatch(ctx context.Context, rows []*Attendance) ([]int64, error)
+
+	// CloseOpenForDateByStudentIDs is the multi-student form of
+	// CloseOpenForToday: one state-checked UPDATE over the whole batch,
+	// returning only the rows actually closed. Students without an open row
+	// on the date are idempotent no-ops and missing from the result.
+	CloseOpenForDateByStudentIDs(ctx context.Context, studentIDs []int64, now time.Time, day timezone.Date, staffID int64) ([]*Attendance, error)
 
 	// FindByID finds an attendance record by ID
 	FindByID(ctx context.Context, id int64) (*Attendance, error)
