@@ -2293,7 +2293,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := s.validateAccompaniedCompanionNote(schema, editReq, openByID); err != nil {
 			return err
 		}
-		if err := s.validateConstrainedSchedules(schema, editReq, openByID); err != nil {
+		if err := s.validateConstrainedSchedules(schema, editReq, openByID, children); err != nil {
 			return err
 		}
 		byKey := buildFieldsByKey(schema)

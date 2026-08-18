@@ -930,7 +930,7 @@ func (s *changeRequestService) prepareProposed(
 	if err := rs.validateAccompaniedCompanionNote(schema, editReq, changeRequestByID); err != nil {
 		return editReq, nil, nil, nil, err
 	}
-	if err := rs.validateConstrainedSchedules(schema, editReq, changeRequestByID); err != nil {
+	if err := rs.validateConstrainedSchedules(schema, editReq, changeRequestByID, children); err != nil {
 		return editReq, nil, nil, nil, err
 	}
 	byKey := buildFieldsByKey(schema)

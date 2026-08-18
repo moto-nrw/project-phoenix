@@ -398,6 +398,14 @@ func TestFormField_Validate_SingleModeGradesWrongTarget(t *testing.T) {
 	assert.Contains(t, err.Error(), "single_mode_grades")
 }
 
+func TestFormField_Validate_SingleModeGradesRequiresChildField(t *testing.T) {
+	f := singleModeField()
+	f.AppliesToCh = false
+	err := f.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "single_mode_grades")
+}
+
 func TestFormField_Validate_SingleModeGradesOutOfRange(t *testing.T) {
 	f := singleModeField()
 	f.SingleModeGrades = []int{0}

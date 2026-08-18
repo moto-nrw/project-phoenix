@@ -483,6 +483,9 @@ func (f *FormField) validateQuestion() error {
 		if f.Target != TargetStudentAllowedDepartureModes {
 			return fmt.Errorf("field %q: single_mode_grades is only valid on the allowed-departure-modes field", f.Key)
 		}
+		if !f.AppliesToCh {
+			return fmt.Errorf("field %q: single_mode_grades requires a child field", f.Key)
+		}
 		normalized, err := normalizeGradeLevelList("single_mode_grades", f.SingleModeGrades)
 		if err != nil {
 			return fmt.Errorf("field %q: %w", f.Key, err)

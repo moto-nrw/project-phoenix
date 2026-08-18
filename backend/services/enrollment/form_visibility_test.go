@@ -1154,3 +1154,45 @@ func TestValidateConstrainedSchedules_SingleModeHiddenFieldExempt(t *testing.T) 
 	}}}
 	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil))
 }
+
+func TestValidateConstrainedSchedules_SingleModePreservesUnchangedLegacyAnswer(t *testing.T) {
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	grade := int16(1)
+	legacy := map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}}
+	req := SubmitRequest{Children: []SubmitChild{{
+		ID:               42,
+		TargetGradeLevel: &grade,
+		CustomData:       legacy,
+	}}}
+	existingChild := &enrollmentModels.RequestChild{
+		TargetGradeLevel: &grade,
+		CustomData:       legacy,
+	}
+	existingChild.ID = 42
+	existing := []*enrollmentModels.RequestChild{existingChild}
+
+	assert.NoError(t, s.validateConstrainedSchedules(schema, req, nil, existing))
+}
+
+func TestValidateConstrainedSchedules_SingleModeRejectsLegacyAnswerAfterGradeChange(t *testing.T) {
+	s := &requestService{}
+	schema := &enrollmentModels.FormSchema{Fields: []enrollmentModels.FormField{departureModesField()}}
+	oldGrade, restrictedGrade := int16(2), int16(1)
+	legacy := map[string]any{"heimwege": map[string]any{"mon": []any{"bus", "pickup"}}}
+	req := SubmitRequest{Children: []SubmitChild{{
+		ID:               42,
+		TargetGradeLevel: &restrictedGrade,
+		CustomData:       legacy,
+	}}}
+	existingChild := &enrollmentModels.RequestChild{
+		TargetGradeLevel: &oldGrade,
+		CustomData:       legacy,
+	}
+	existingChild.ID = 42
+	existing := []*enrollmentModels.RequestChild{existingChild}
+
+	err := s.validateConstrainedSchedules(schema, req, nil, existing)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDepartureModeLimitExceeded)
+}

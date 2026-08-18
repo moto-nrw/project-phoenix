@@ -496,11 +496,16 @@ func (s *requestService) validateConstrainedSchedules(
 	schema *enrollmentModels.FormSchema,
 	req SubmitRequest,
 	openByID map[int64]*enrollmentModels.CareOffering,
+	existingChildren ...[]*enrollmentModels.RequestChild,
 ) error {
 	if schema == nil {
 		return nil
 	}
 	byKey := buildFieldsByKey(schema)
+	var existingBySubmittedChild []*enrollmentModels.RequestChild
+	if len(existingChildren) > 0 {
+		existingBySubmittedChild = matchExistingChildrenBySubmittedIdentity(existingChildren[0], req.Children)
+	}
 
 	// scheduleDays scopes which weekdays are inspected. A nil set means "all
 	// days" (guardian-level fields, which are not care-day scoped); a per-child
@@ -572,6 +577,10 @@ func (s *requestService) validateConstrainedSchedules(
 			}
 			if f.Target == enrollmentModels.TargetStudentAllowedDepartureModes &&
 				f.SingleModeAppliesTo(child.TargetGradeLevel) {
+				if idx < len(existingBySubmittedChild) &&
+					unchangedSingleModeDepartureAnswer(existingBySubmittedChild[idx], child, f.Key) {
+					continue
+				}
 				if err := checkSingleModeDeparture(f, child.CustomData, idx); err != nil {
 					return err
 				}
@@ -579,6 +588,22 @@ func (s *requestService) validateConstrainedSchedules(
 		}
 	}
 	return nil
+}
+
+// unchangedSingleModeDepartureAnswer preserves a multi-select answer that was
+// accepted before a single-mode rule was configured. A replacement edit or
+// change request may resubmit every custom-data value while changing something
+// unrelated. A changed target grade still revalidates because it can newly put
+// the child under the rule.
+func unchangedSingleModeDepartureAnswer(existing *enrollmentModels.RequestChild, submitted SubmitChild, key string) bool {
+	if existing == nil || !sameGradeLevel(existing.TargetGradeLevel, submitted.TargetGradeLevel) {
+		return false
+	}
+	return jsonEqual(existing.CustomData[key], submitted.CustomData[key])
+}
+
+func sameGradeLevel(left, right *int16) bool {
+	return left == nil && right == nil || left != nil && right != nil && *left == *right
 }
 
 // checkSingleModeDeparture enforces the Heimweg-Beschränkung (#2381) on one
