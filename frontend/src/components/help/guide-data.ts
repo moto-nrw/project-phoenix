@@ -2438,7 +2438,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Welche Buttons erscheinen",
-          body: "Welche Ziele unter `Wohin geht ...?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an.",
+          body: "Welche Ziele unter `Wohin geht ...?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an. `nach Hause` erscheint beim Auschecken aus dem eigenen Gruppenraum und vom Schulhof; ist eine Checkout-Zeit hinterlegt, erst ab dieser Uhrzeit.",
           tone: "gray",
         },
         screenshot:

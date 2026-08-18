@@ -2,6 +2,7 @@ package checkin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
 // timeNow is a package-local clock hook that tests may override to pin the
@@ -63,15 +65,35 @@ func (s *CheckinService) studentDailyCheckoutTime(ctx context.Context) (*time.Ti
 	return &checkoutTime, nil
 }
 
-// ShouldUpgradeToDailyCheckout checks if a checkout should be upgraded to daily checkout.
+// ShouldUpgradeToDailyCheckout reports whether a plain checkout should be
+// rewritten to "checked_out_daily" — the child went home, without being asked.
+//
+// This is deliberately STRICTER than ShouldShowDailyCheckoutWithGroup: the
+// upgrade decides FOR the child, so it only fires where leaving is unambiguous
+// (the child's own group room). PyrePortal builds its destination modal only
+// for action "checked_out", so anything upgraded here shows no buttons at all
+// — see the contract note on ShouldShowDailyCheckoutWithGroup.
 func (s *CheckinService) ShouldUpgradeToDailyCheckout(ctx context.Context, action string, student *users.Student, currentVisit *active.Visit) bool {
 	if action != "checked_out" {
 		return false
 	}
-	if student.GroupID == nil || currentVisit == nil || currentVisit.ActiveGroup == nil {
+	if !dailyCheckoutPreconditions(student, currentVisit) {
 		return false
 	}
-	return s.ShouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
+	if !s.IsAfterCheckoutTimeGate(ctx, student) {
+		return false
+	}
+	return s.isFromOwnGroupRoom(ctx, student, currentVisit)
+}
+
+// dailyCheckoutPreconditions reports whether the student/visit pair carries the
+// data both daily-checkout gates need: a group membership and a resolved active
+// group on the visit being closed.
+func dailyCheckoutPreconditions(student *users.Student, currentVisit *active.Visit) bool {
+	if student == nil || student.GroupID == nil {
+		return false
+	}
+	return currentVisit != nil && currentVisit.ActiveGroup != nil
 }
 
 // IsAfterCheckoutTimeGate checks whether the current time is past the applicable
@@ -144,12 +166,23 @@ func (s *CheckinService) isAfterGlobalCheckoutTime(ctx context.Context) bool {
 	return timeNow().After(*checkoutTime)
 }
 
-// ShouldShowDailyCheckoutWithGroup checks if daily checkout should be shown by verifying education group room.
+// ShouldShowDailyCheckoutWithGroup reports whether the kiosk may OFFER "nach
+// Hause" after this checkout — it drives the daily_checkout_available response
+// flag that PyrePortal renders the button from.
+//
+// Cross-repo contract: PyrePortal only builds the checkout destination modal
+// for action "checked_out" (ActivityScanningPage: handleCheckoutAction runs in
+// that case alone). A response flagged available but upgraded to
+// "checked_out_daily" therefore shows the child NO buttons, so this predicate
+// must stay independent of ShouldUpgradeToDailyCheckout rather than share it.
+//
+// Two rooms qualify as "on the way out":
+//   - the child's own group room (or any room, when the group has none), and
+//   - the Schulhof, which since #2161 is a regular room but is precisely the
+//     route home. Without it a yard kiosk never offered "nach Hause" and
+//     children stayed "unterwegs" until staff logged them out by hand (#2377).
 func (s *CheckinService) ShouldShowDailyCheckoutWithGroup(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
-	if student.GroupID == nil {
-		return false
-	}
-	if currentVisit == nil || currentVisit.ActiveGroup == nil {
+	if !dailyCheckoutPreconditions(student, currentVisit) {
 		return false
 	}
 
@@ -157,15 +190,52 @@ func (s *CheckinService) ShouldShowDailyCheckoutWithGroup(ctx context.Context, s
 		return false
 	}
 
+	if s.isFromOwnGroupRoom(ctx, student, currentVisit) {
+		return true
+	}
+
+	// Checked last: it costs a room lookup, and the common case is a child
+	// leaving their own group room.
+	return s.isSchulhofRoom(ctx, currentVisit.ActiveGroup.RoomID)
+}
+
+// isFromOwnGroupRoom reports whether the visit being closed happened in the
+// room assigned to the student's education group. A group without a room is
+// unconstrained, so every room counts as its own.
+func (s *CheckinService) isFromOwnGroupRoom(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
 	educationGroup, err := s.education.GetGroup(ctx, *student.GroupID)
 	if err != nil || educationGroup == nil {
 		return false
 	}
 
-	// If the group has no room assigned, daily checkout is available from any room
 	if educationGroup.RoomID == nil {
 		return true
 	}
 
 	return currentVisit.ActiveGroup.RoomID == *educationGroup.RoomID
+}
+
+// isSchulhofRoom reports whether roomID is this tenant's canonical Schulhof
+// room. A school that never provisioned the yard has no such room, which is
+// normal and simply means the answer is no — the scan must not fail over it.
+func (s *CheckinService) isSchulhofRoom(ctx context.Context, roomID int64) bool {
+	if s.facilities == nil {
+		return false
+	}
+
+	room, err := facilitiesSvc.FindCanonicalSchulhofRoom(ctx, s.facilities)
+	if err != nil {
+		if !errors.Is(err, facilitiesSvc.ErrRoomNotFound) {
+			// A non-canonical or unprotected room named "Schulhof" is a
+			// configuration problem that silently disables "nach Hause" at the
+			// yard kiosk — worth surfacing rather than swallowing.
+			s.getLogger().WarnContext(ctx, "could not resolve Schulhof room for daily-checkout gate",
+				slog.Int64("room_id", roomID),
+				slog.String("error", err.Error()),
+			)
+		}
+		return false
+	}
+
+	return room != nil && room.ID == roomID
 }
