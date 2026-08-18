@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 /**
  * The canonical content section of the calm design language the app converged
@@ -26,12 +27,14 @@ export function SectionCard({
   title,
   description,
   icon: Icon,
+  leading,
   action,
   actions,
   collapsible = false,
   defaultCollapsed = false,
   onCollapsedChange,
   headingLevel = 2,
+  titleClassName,
   bodyClassName,
   className = "",
   children,
@@ -41,6 +44,8 @@ export function SectionCard({
   title: string;
   description?: string;
   icon?: LucideIcon;
+  /** Existing icon tile or other leading visual for non-Lucide icon systems. */
+  leading?: ReactNode;
   /** Single header action. `actions` is the multi-element form. */
   action?: ReactNode;
   actions?: ReactNode;
@@ -49,6 +54,7 @@ export function SectionCard({
   onCollapsedChange?: (collapsed: boolean) => void;
   /** 1 for a page's primary section, 2 (default) for the rest. */
   headingLevel?: 1 | 2 | 3;
+  titleClassName?: string;
   /** Overrides the default `mt-4` spacing above the body. */
   bodyClassName?: string;
   className?: string;
@@ -67,11 +73,12 @@ export function SectionCard({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
-          {Icon && (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
-              <Icon className="h-5 w-5" aria-hidden="true" />
-            </span>
-          )}
+          {leading ??
+            (Icon && (
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 shadow-sm">
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
+            ))}
           <div className="min-w-0">
             {kicker && (
               <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
@@ -79,7 +86,11 @@ export function SectionCard({
               </p>
             )}
             <Heading
-              className={`text-base font-semibold text-balance text-gray-900 ${kicker ? "mt-1" : ""}`}
+              className={cn(
+                "text-base font-semibold text-balance text-gray-900",
+                kicker && "mt-1",
+                titleClassName,
+              )}
             >
               {title}
             </Heading>

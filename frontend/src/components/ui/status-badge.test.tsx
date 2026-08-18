@@ -24,4 +24,11 @@ describe("StatusBadge", () => {
     const dot = container.querySelector("span[aria-hidden='true']");
     expect(dot).not.toBeNull();
   });
+
+  it("can render without the decorative dot", () => {
+    const { container } = render(
+      <StatusBadge label="In der OGS" tone="green" showDot={false} />,
+    );
+    expect(container.querySelector("span[aria-hidden='true']")).toBeNull();
+  });
 });

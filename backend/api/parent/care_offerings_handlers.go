@@ -16,7 +16,7 @@ import (
 )
 
 // CareOfferingsResponse is the parent-facing view of a child's booked care
-// offerings and activity groups (#1665).
+// offerings (#1665).
 type CareOfferingsResponse struct {
 	// Period* describe the care period the offerings belong to. Empty when the
 	// child has no approved enrollment behind it.
@@ -25,7 +25,6 @@ type CareOfferingsResponse struct {
 	PeriodEnd   string `json:"period_end,omitempty"`
 
 	Offerings []CareOfferingItemResponse `json:"offerings"`
-	Groups    []CareGroupItemResponse    `json:"groups"`
 
 	CanRequest bool `json:"can_request"`
 	// PendingRequest is the child's open change request, absent when none.
@@ -59,25 +58,10 @@ type CareOfferingItemResponse struct {
 	StartsLater bool   `json:"starts_later"`
 }
 
-// CareGroupItemResponse is one activity-group membership.
-type CareGroupItemResponse struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Weekdays []int  `json:"weekdays"`
-	// ValidFrom is the first day (YYYY-MM-DD); ValidUntil is the LAST day, not
-	// the exclusive end the column stores, because a guardian reading "bis
-	// 31.07." must not be shown 01.08.
-	ValidFrom    string `json:"valid_from"`
-	ValidUntil   string `json:"valid_until,omitempty"`
-	FromOffering bool   `json:"from_offering"`
-	StartsLater  bool   `json:"starts_later"`
-}
-
 func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsResponse {
 	resp := CareOfferingsResponse{
 		PeriodName:            v.PeriodName,
 		Offerings:             make([]CareOfferingItemResponse, 0, len(v.Offerings)),
-		Groups:                make([]CareGroupItemResponse, 0, len(v.Groups)),
 		CanRequest:            v.CanRequest,
 		ChangesDisabledReason: v.ChangesDisabledReason,
 	}
@@ -109,21 +93,6 @@ func toCareOfferingsResponse(v *parentService.ChildCareOfferings) CareOfferingsR
 	}
 	for _, offering := range v.Offerings {
 		resp.Offerings = append(resp.Offerings, careOfferingItemResponse(offering))
-	}
-	for _, group := range v.Groups {
-		item := CareGroupItemResponse{
-			ID:           strconv.FormatInt(group.GroupID, 10),
-			Name:         group.Name,
-			Weekdays:     weekdaysOrEmpty(group.Weekdays),
-			ValidFrom:    group.ValidFrom.String(),
-			FromOffering: group.FromOffering,
-			StartsLater:  group.StartsLater,
-		}
-		if group.ValidUntil != nil {
-			// Stored end is exclusive; report the inclusive last day.
-			item.ValidUntil = group.ValidUntil.AddDays(-1).String()
-		}
-		resp.Groups = append(resp.Groups, item)
 	}
 	return resp
 }

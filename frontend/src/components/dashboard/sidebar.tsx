@@ -33,11 +33,6 @@ import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending"
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
-import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
-import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
-import { useParentFeedbackUnread } from "~/lib/hooks/use-parent-feedback-unread";
-import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
-import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -337,48 +332,6 @@ const NFC_ONLY_HREFS = new Set<string>([
 // accordion is gated separately below (it's not in NAV_ITEMS).
 const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
-// `tKey` is the parentNav catalog key; the German `label` is the fallback used
-// only when the preview list is rendered outside an intl context. Mapping on a
-// stable key (not the German label) keeps the translation correct even if the
-// fallback wording changes.
-const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
-  {
-    href: "#",
-    label: "Kontaktdaten",
-    tKey: "contactData",
-    icon: navigationIcons.profile,
-    concept: "accounts",
-    comingSoon: true,
-  },
-];
-
-/**
- * Sidebar nav icon. The nav renders icons as raw `<path d>` strings from
- * `navigationIcons`, so this wraps the identical 8-line `<svg>` every item used
- * to repeat inline.
- */
-function NavIcon({
-  d,
-  muted = false,
-}: Readonly<{ d: string; muted?: boolean }>) {
-  return (
-    <svg
-      className={`mr-3 h-5 w-5 shrink-0 ${muted ? "text-gray-300" : "text-gray-400 group-hover:text-gray-500"}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d={d}
-      />
-    </svg>
-  );
-}
-
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -432,15 +385,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
-  const parentPreviewItems = useMemo(
-    () =>
-      PARENT_PREVIEW_ITEMS.map((item) => ({
-        ...item,
-        label: tParentNav(item.tKey),
-      })),
-    [tParentNav],
-  );
-
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
   // subdomains.
@@ -460,7 +404,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   } = useOptionalSupervision();
 
   // Get unread suggestions count for badge (teacher mode)
-  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
+  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread(
+    mode === "teacher",
+  );
   // Pending staff absence requests badge (Mitarbeiter; vacation:approve, #1419)
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Get unread suggestions count for badge (operator mode)
@@ -472,26 +418,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
-  // Unread OGS messages badge (parents portal) — only fetches in parent mode.
-  const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
-    mode === "parent",
-  );
-  // Unread announcements badge for the parents-portal Neuigkeiten item (#1669).
-  const { unreadCount: parentNewsUnread } = useParentNewsUnread(
-    mode === "parent",
-  );
-  // Only advertise Essensplan in the parents portal once a linked school runs
-  // a meal plan; otherwise the link leads to an empty/unavailable page.
-  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
-  // Only advertise Neuigkeiten in the parents portal once a linked school
-  // broadcasts announcements; otherwise the feed is empty (the backend excludes
-  // disabled tenants) and the link dead-ends. Distinct from the staff-side
-  // parentNewsEnabled below, which reads the tenant settings schema.
-  const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
-  // Unread product-team replies on the guardian's feedback board (#1678).
-  const { unreadCount: parentFeedbackUnread } = useParentFeedbackUnread(
-    mode === "parent",
-  );
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -1144,120 +1070,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 </div>
               </div>
             ))}
-          </nav>
-        </div>
-      </aside>
-    );
-  }
-
-  if (mode === "parent") {
-    // One item list instead of eight near-identical hand-written <Link> blocks
-    // with inline <svg><path d={...}> — every item differed only in href, icon
-    // and badge, so a change to the row markup had to be made eight times.
-    const parentNavItems: readonly {
-      href: string;
-      label: string;
-      icon: string;
-      badge?: number;
-      visible?: boolean;
-    }[] = [
-      {
-        href: "/parents",
-        label: tParentNav("start"),
-        icon: navigationIcons.home,
-      },
-      {
-        href: "/parents/children",
-        label: tParentNav("children"),
-        icon: navigationIcons.group,
-      },
-      {
-        href: "/parents/messages",
-        label: tParentNav("messages"),
-        icon: navigationIcons.chat,
-        badge: parentMessagesUnread,
-      },
-      {
-        href: "/parents/calendar",
-        label: tParentNav("calendar"),
-        icon: navigationIcons.calendar,
-      },
-      {
-        href: "/parents/news",
-        label: tParentNav("news"),
-        icon: navigationIcons.newspaper,
-        badge: parentNewsUnread,
-        visible: parentPortalNewsEnabled,
-      },
-      {
-        href: "/parents/meal-plan",
-        label: tParentNav("mealPlan"),
-        icon: navigationIcons.utensils,
-        visible: parentMealPlanEnabled,
-      },
-    ];
-
-    return (
-      <aside
-        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
-      >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          <nav className="flex-1 p-3 lg:p-4 xl:p-3">
-            {parentNavItems
-              .filter((item) => item.visible !== false)
-              .map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={getLinkClasses(item.href)}
-                >
-                  <NavIcon d={item.icon} />
-                  <span>{item.label}</span>
-                  {item.badge !== undefined && (
-                    <UnreadBadge count={item.badge} className="ml-auto" />
-                  )}
-                </Link>
-              ))}
-            <div className="mt-5">
-              <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
-                {tParentNav("comingSoon")}
-              </p>
-              <div className="space-y-1">
-                {parentPreviewItems.map((item) => (
-                  <div
-                    key={item.label}
-                    className={getLinkClasses(item.href, true)}
-                    aria-disabled="true"
-                  >
-                    <NavIcon d={item.icon} muted />
-                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                      <span className="truncate">{item.label}</span>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                        {tParentNav("soon")}
-                      </span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </nav>
-
-          {/* Bottom-pinned, like the staff sidebar's Feedback item: this is a
-              channel to the moto product team, not a daily-use area, so it must
-              not compete with the child's own pages above. */}
-          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-            <Link
-              href="/parents/feedback"
-              className={getLinkClasses("/parents/feedback")}
-            >
-              <NavIcon d={navigationIcons.feedback} />
-              <span>{tParentNav("feedback")}</span>
-              <UnreadBadge
-                count={parentFeedbackUnread}
-                tone="feedback"
-                className="ml-auto"
-              />
-            </Link>
           </nav>
         </div>
       </aside>

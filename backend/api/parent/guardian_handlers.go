@@ -83,6 +83,16 @@ type updateGuardianRelationshipRequest struct {
 	PickupNotes        *string `json:"pickup_notes"`
 }
 
+// createGuardianContactRequest creates an accountless contact. It never grants
+// app access, which remains the responsibility of related-accounts invitations.
+type createGuardianContactRequest struct {
+	updateGuardianContactRequest
+	RelationshipType   string  `json:"relationship_type"`
+	CanPickup          bool    `json:"can_pickup"`
+	IsEmergencyContact bool    `json:"is_emergency_contact"`
+	PickupNotes        *string `json:"pickup_notes"`
+}
+
 // listChildGuardians returns the guardians of the parent's child with contact +
 // pickup detail. Ownership is verified in the service.
 func (rs *Resource) listChildGuardians(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +118,38 @@ func (rs *Resource) listChildGuardians(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, out, "Guardians")
 }
 
+// createGuardianContact adds a contact without creating or inviting an account.
+func (rs *Resource) createGuardianContact(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
+	var body createGuardianContactRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+
+	created, err := rs.ParentService.CreateGuardianContact(r.Context(), accountID, studentID, parentService.CreateGuardianContactInput{
+		Contact:            guardianContactInput(body.updateGuardianContactRequest),
+		RelationshipType:   body.RelationshipType,
+		CanPickup:          body.CanPickup,
+		IsEmergencyContact: body.IsEmergencyContact,
+		PickupNotes:        body.PickupNotes,
+	})
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, guardianResponse(created), "Guardian contact created")
+}
+
 // updateGuardianContact edits a contact-only guardian's contact data.
 func (rs *Resource) updateGuardianContact(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
@@ -130,6 +172,17 @@ func (rs *Resource) updateGuardianContact(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	input := guardianContactInput(body)
+
+	updated, err := rs.ParentService.UpdateGuardianContact(r.Context(), accountID, studentID, guardianProfileID, input)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, guardianResponse(updated), "Guardian contact updated")
+}
+
+func guardianContactInput(body updateGuardianContactRequest) parentService.GuardianContactInput {
 	input := parentService.GuardianContactInput{
 		FirstName:         body.FirstName,
 		LastName:          body.LastName,
@@ -146,13 +199,7 @@ func (rs *Resource) updateGuardianContact(w http.ResponseWriter, r *http.Request
 			IsPrimary:   p.IsPrimary,
 		})
 	}
-
-	updated, err := rs.ParentService.UpdateGuardianContact(r.Context(), accountID, studentID, guardianProfileID, input)
-	if err != nil {
-		renderParentWriteError(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, guardianResponse(updated), "Guardian contact updated")
+	return input
 }
 
 // updateGuardianRelationship edits the per-child pickup/relationship fields.

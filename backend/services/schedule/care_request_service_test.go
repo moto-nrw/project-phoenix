@@ -14,6 +14,7 @@ package schedule_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -56,12 +57,14 @@ func newCareFixture(t *testing.T) *careFixture {
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
 
-	svc := schedule.NewCareScheduleRequestService(
+	svc := schedule.NewCareScheduleRequestServiceWithPickupChanges(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
+		repos.StudentPickupException,
+		repos.Attendance,
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
@@ -105,6 +108,15 @@ func careWeekdays(entries ...map[string]any) map[string]any {
 		list = append(list, e)
 	}
 	return map[string]any{"weekdays": list}
+}
+
+type failingPickupDeleteService struct {
+	schedule.PickupScheduleService
+	err error
+}
+
+func (s failingPickupDeleteService) DeleteStudentPickupSchedule(context.Context, int64) error {
+	return s.err
 }
 
 // createPending stores a pending request submitted by the chain's guardian.
@@ -247,6 +259,100 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 		[]usersModels.DepartureMode{usersModels.DepartureBus, usersModels.DeparturePickup},
 		reloaded.AllowedDepartureModes["tue"],
 		"a bus+pickup day must survive an unrelated Monday confirm")
+}
+
+func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	seedCareDay(t, f, ctx, 2)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
+
+	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := f.svc.Decide(txCtx, schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		return err
+	})
+	require.NoError(t, err)
+
+	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, arrivals)
+	pickups, err := f.sf.PickupSchedule.GetStudentPickupSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, pickups)
+	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.NotContains(t, student.AllowedDepartureModes, "tue")
+}
+
+func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	seedCareDay(t, f, ctx, 2)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
+	wantErr := errors.New("pickup delete failed")
+	failingService := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		failingPickupDeleteService{PickupScheduleService: f.sf.PickupSchedule, err: wantErr},
+		f.sf.UserContext,
+		nil,
+		nil,
+		slog.Default(),
+		f.sf.StudentAudit,
+	)
+
+	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := failingService.Decide(txCtx, schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, wantErr)
+
+	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, arrivals, 1)
+	pickups, err := f.sf.PickupSchedule.GetStudentPickupSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, pickups, 1)
+	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.Equal(t, []usersModels.DepartureMode{usersModels.DeparturePickup}, student.AllowedDepartureModes["tue"])
+	pending, _, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, pending)
+	assert.Equal(t, req.ID, pending.ID)
+}
+
+func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int) {
+	t.Helper()
+	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	student.AllowedDepartureModes = usersModels.AllowedDepartureModes{
+		usersModels.PickupDayOrder[weekday-1]: {usersModels.DeparturePickup},
+	}
+	student.DepartureDays = nil
+	student.BusDays = nil
+	student.PickupDays = nil
+	require.NoError(t, f.repos.Student.Update(ctx, student))
+	require.NoError(t, f.sf.ArrivalSchedule.UpsertStudentArrivalSchedule(ctx,
+		&scheduleModels.StudentArrivalSchedule{
+			StudentID:       f.chain.StudentID,
+			Weekday:         weekday,
+			ExpectedArrival: timezone.WallClock(time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC)),
+			CreatedBy:       f.staffID,
+		}))
+	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx,
+		&scheduleModels.StudentPickupSchedule{
+			StudentID:  f.chain.StudentID,
+			Weekday:    weekday,
+			PickupTime: timezone.WallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+			CreatedBy:  f.staffID,
+		}))
 }
 
 // TestDecide_NonStaffConfirmerForbidden: an account without a users.staff row

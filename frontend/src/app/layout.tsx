@@ -6,7 +6,13 @@ import localFont from "next/font/local";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { getLocale } from "next-intl/server";
-import { faviconMetadata, resolveFaviconVariant } from "~/lib/favicon-variants";
+import {
+  faviconMetadata,
+  isParentsHost,
+  resolveFaviconVariant,
+} from "~/lib/favicon-variants";
+import { getParentAppMetadata } from "~/i18n/parent-app-metadata";
+import type { AppLocale } from "~/i18n/locales";
 
 const inter = localFont({
   src: "../fonts/inter-latin-variable.woff2",
@@ -44,14 +50,20 @@ export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host =
     requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
-  const variant = resolveFaviconVariant(host, {
+  const config = {
     operatorHostname: requiredEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME"),
     parentsHostname: requiredEnv("NEXT_PUBLIC_PARENTS_HOSTNAME"),
     tenantDomain: requiredEnv("TENANT_DOMAIN"),
-  });
+  };
+  const variant = resolveFaviconVariant(host, config);
+  const parentCopy = isParentsHost(host, config)
+    ? getParentAppMetadata((await getLocale()) as AppLocale)
+    : null;
 
   return {
-    ...baseMetadata,
+    ...(parentCopy
+      ? { title: parentCopy.name, description: parentCopy.description }
+      : baseMetadata),
     ...faviconMetadata(variant),
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
 import { Modal } from "~/components/ui/modal";
@@ -16,6 +16,7 @@ import {
   type OfferingChangeSelectionInput,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { formatDate } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "OfferingChangeRequestModal" });
 
@@ -105,6 +106,7 @@ export function OfferingChangeRequestModal({
   }) => Promise<void>;
 }>) {
   const t = useTranslations("parentMasterData");
+  const locale = useLocale();
   const [catalog, setCatalog] = useState<OfferingCatalog | null>(null);
   const [draft, setDraft] = useState<DraftMap>({});
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -250,15 +252,22 @@ export function OfferingChangeRequestModal({
       isOpen
       onClose={onClose}
       title={t("careOfferingsModal.title")}
+      mobileSheet
       footer={
         <>
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="surface"
+            size="md"
+            className="hidden sm:inline-flex"
+            onClick={onClose}
+          >
             {t("careOfferingsModal.cancel")}
           </Button>
           <Button
             type="button"
             size="md"
-            className="gap-2"
+            className="w-full gap-2 sm:w-auto"
             onClick={() => void handleSubmit()}
             disabled={submitting || loading || !catalog || emptyCatalog}
           >
@@ -397,7 +406,11 @@ export function OfferingChangeRequestModal({
               />
               <p className="mt-1 text-xs text-gray-500">
                 {t("careOfferingsModal.effectiveFromHint", {
-                  date: formatGermanDate(catalog.earliest_effective_from),
+                  date: formatDate(
+                    catalog.earliest_effective_from,
+                    false,
+                    locale,
+                  ),
                 })}
               </p>
             </div>
@@ -422,11 +435,4 @@ export function OfferingChangeRequestModal({
       </div>
     </Modal>
   );
-}
-
-/** Renders an ISO day as DD.MM.YYYY without going through a Date object. */
-function formatGermanDate(iso: string): string {
-  const [year, month, day] = iso.split("-");
-  if (!year || !month || !day) return iso;
-  return `${day}.${month}.${year}`;
 }

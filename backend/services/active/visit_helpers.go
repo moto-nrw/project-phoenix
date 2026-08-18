@@ -103,6 +103,9 @@ func (s *service) syncAttendanceForVisitRevision(
 	if s.AttendanceRepo == nil || previous == nil || updated == nil || previous.StudentID != updated.StudentID {
 		return nil
 	}
+	if err := s.AttendanceRepo.LockStudentAttendance(ctx, previous.StudentID); err != nil {
+		return err
+	}
 	rows, err := s.AttendanceRepo.FindByStudentAndDate(
 		ctx, previous.StudentID, timezone.DateFromTime(previous.EntryTime),
 	)
@@ -367,6 +370,11 @@ func (s *service) clearPlannedStatusRows(
 // attendance_status/substatus/note so subscribers see the flipped attendance
 // state alongside the check-in line.
 func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot) {
+	// Der Raum-Check-in der detaillierten Betriebsart schreibt seine eigene
+	// Anwesenheitszeile und laeuft NICHT ueber registerCheckinBroadcast, also
+	// weckt er die Sorgeberechtigten hier selbst.
+	s.wakeGuardiansAfterCommit(ctx, visit.StudentID)
+
 	if s.Broadcaster == nil {
 		return
 	}

@@ -71,6 +71,12 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	_, err := db.NewUpdate().
+		TableExpr("users.guardian_profiles").
+		Set("portal_locale = ?", "en").
+		Where("account_id = ?", chain.AccountID).
+		Exec(context.Background())
+	require.NoError(t, err)
 
 	notifier := &capturingNotifier{}
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -82,8 +88,8 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	require.Len(t, notifier.events, 1)
 	event := notifier.events[0]
 	assert.Equal(t, notifications.TypeParentRequestDecided, event.Type)
-	assert.Equal(t, "Anfrage genehmigt", event.Title)
-	assert.Contains(t, event.Body, "Betreuungszeiten")
+	assert.Equal(t, "Request approved", event.Title)
+	assert.Contains(t, event.Body, "care schedule")
 	assert.Equal(t, notifications.ScopeGuardian, event.Audience.Scope)
 	assert.Equal(t, chain.TenantID, event.Audience.TenantID)
 	assert.Equal(t, []int64{chain.AccountID}, event.Audience.GuardianAccountIDs)

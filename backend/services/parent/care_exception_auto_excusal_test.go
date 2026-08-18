@@ -20,8 +20,11 @@ import (
 )
 
 // buildCareServiceWithAutoExcusal mirrors buildCareService but wires the
-// pickup auto-excusal syncer (#2360) the production factory injects.
-func buildCareServiceWithAutoExcusal(t *testing.T) (parentService.Service, *bun.DB) {
+// pickup auto-excusal syncer (#2360) the production factory injects. It
+// returns the careTestService shim so the submit calls below keep reading as
+// "parent sets a pickup time for one day" — the parent submit now carries a
+// mandatory reason and no arrival leg.
+func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -45,7 +48,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (parentService.Service, *bun.
 		DB:          db,
 		Logger:      slog.Default(),
 	})
-	return svc, db
+	return careTestService{Service: svc}, db
 }
 
 // nextMonday returns the first Monday at least seven days out, safely inside

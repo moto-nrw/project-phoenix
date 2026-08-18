@@ -141,6 +141,21 @@ func TestBuildCareScheduleChanges_Valid(t *testing.T) {
 	}
 }
 
+func TestBuildCareScheduleChanges_CareDays(t *testing.T) {
+	active := careDay(2, "pickup", "", "15:30")
+	active["scheduled"] = true
+	inactive := careDay(4, "", "", "")
+	inactive["scheduled"] = false
+
+	changes, err := buildCareScheduleChanges(carePayload(active, inactive))
+	if err != nil {
+		t.Fatalf("buildCareScheduleChanges care days = %v", err)
+	}
+	if !changes.scheduled[2] || changes.scheduled[4] {
+		t.Fatalf("scheduled changes = %v, want Tuesday active and Thursday inactive", changes.scheduled)
+	}
+}
+
 func TestBuildCareScheduleChanges_Rejections(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -157,6 +172,8 @@ func TestBuildCareScheduleChanges_Rejections(t *testing.T) {
 		{"midnight pickup", carePayload(careDay(1, "", "", "00:00"))},
 		{"malformed arrival", carePayload(careDay(1, "", "7:3", ""))},
 		{"out-of-range clock", carePayload(careDay(1, "", "25:00", ""))},
+		{"active day without plan", carePayload(map[string]any{"weekday": 1, "scheduled": true})},
+		{"inactive day with pickup", carePayload(map[string]any{"weekday": 1, "scheduled": false, "pickup": "15:00"})},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

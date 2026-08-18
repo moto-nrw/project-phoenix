@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { TenantProvider } from "~/lib/tenant-context";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
@@ -93,9 +94,10 @@ export function EnrollmentEditPage({ params }: Props) {
   if (loading) {
     return (
       <main className="mx-auto w-full max-w-4xl px-4 py-5 sm:px-6 sm:py-6">
-        <div className="moto-content-surface rounded-xl border p-5 text-sm font-medium text-gray-600 shadow-sm sm:p-6">
+        <span role="status" className="sr-only">
           {t("editLoading")}
-        </div>
+        </span>
+        <PublicEnrollmentContentSkeleton sections={3} />
       </main>
     );
   }

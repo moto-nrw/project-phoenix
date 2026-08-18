@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import {
+  CircleNotchIcon,
+  PaperPlaneRightIcon,
+} from "@phosphor-icons/react/ssr";
 import { Button } from "~/components/ui/button";
 
 // Hard client cap mirroring the backend's 2000-rune message/note limit
@@ -30,6 +34,10 @@ export function MessageComposer({
   sending,
   placeholder = "Nachricht schreiben...",
   disabled: externallyDisabled = false,
+  tone = "staff",
+  sendLabel = "Senden",
+  sendingLabel = "Senden...",
+  fieldLabel = "Nachricht",
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -37,6 +45,14 @@ export function MessageComposer({
   readonly sending: boolean;
   readonly placeholder?: string;
   readonly disabled?: boolean;
+  /**
+   * "parent" ist die kompakte Variante der Eltern-App. Das Feld bleibt mit
+   * 16 px Schrift mobil zoomfest, die Schaltflaeche steht daneben.
+   */
+  readonly tone?: "staff" | "parent";
+  readonly sendLabel?: string;
+  readonly sendingLabel?: string;
+  readonly fieldLabel?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
@@ -52,11 +68,19 @@ export function MessageComposer({
 
   const disabled = externallyDisabled || sending || value.trim().length === 0;
 
+  const parent = tone === "parent";
+
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+    <div
+      className={
+        parent
+          ? "flex flex-row items-end gap-2"
+          : "flex flex-col gap-2 sm:flex-row sm:items-end"
+      }
+    >
       <div className="flex w-full min-w-0 flex-col gap-1">
         <label htmlFor="message-composer" className="sr-only">
-          Nachricht
+          {fieldLabel}
         </label>
         <textarea
           id="message-composer"
@@ -82,11 +106,15 @@ export function MessageComposer({
           }}
           disabled={externallyDisabled || sending}
           placeholder={placeholder}
-          className="moto-content-surface max-h-40 min-h-[46px] w-full resize-none overflow-hidden rounded-lg border border-gray-300 px-4 py-3 text-sm text-gray-900 transition-shadow focus:border-gray-400 focus:ring-1 focus:ring-gray-300 focus:outline-none disabled:opacity-60"
+          className={`moto-content-surface w-full resize-none overflow-hidden rounded-lg border border-gray-300 text-gray-900 transition-[border-color,box-shadow] hover:border-gray-400 focus:border-gray-400 focus:ring-2 focus:ring-gray-300 focus:outline-none disabled:opacity-60 ${
+            parent
+              ? "max-h-40 min-h-9 px-3 py-2 text-base leading-5"
+              : "max-h-40 min-h-[46px] px-4 py-3 text-sm"
+          }`}
         />
         {value.length >= COUNTER_VISIBLE_FROM ? (
           <span
-            className={`self-end text-xs ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}
+            className={`self-end ${parent ? "text-[15px]" : "text-xs"} ${value.length >= MAX_MESSAGE_LEN ? "text-moto-red" : "text-gray-400"}`}
           >
             {value.length}/{MAX_MESSAGE_LEN}
           </span>
@@ -95,14 +123,37 @@ export function MessageComposer({
       <Button
         type="button"
         variant="primary"
-        size="md"
+        size={parent ? "icon" : "md"}
         onClick={onSend}
-        isLoading={sending}
-        loadingText="Senden..."
         disabled={disabled}
-        className="h-[46px] sm:flex-shrink-0"
+        aria-label={parent ? (sending ? sendingLabel : sendLabel) : undefined}
+        aria-busy={sending}
+        title={parent ? sendLabel : undefined}
+        className={
+          parent
+            ? "relative h-9 w-9 shrink-0 rounded-full p-0 after:absolute after:-inset-1 after:content-[''] active:scale-[0.96]"
+            : "h-[46px] sm:flex-shrink-0"
+        }
       >
-        Senden
+        {parent ? (
+          sending ? (
+            <CircleNotchIcon
+              size={19}
+              weight="bold"
+              className="animate-spin"
+              aria-hidden="true"
+            />
+          ) : (
+            <PaperPlaneRightIcon
+              size={19}
+              weight="fill"
+              className="translate-x-px"
+              aria-hidden="true"
+            />
+          )
+        ) : (
+          sendLabel
+        )}
       </Button>
     </div>
   );

@@ -1242,6 +1242,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	emailTemplateRegistry.Register(
+		platformModels.EmailKindParentMessage,
+		platform.RendererFunc(messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
+	)
 	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
 	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
 		DefaultFrom: defaultFrom,
@@ -1589,6 +1593,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "parent-events"),
 	)
 
+	// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der Tagesstatus in der Eltern-App (#2252) live nachlaedt.
+	if waker, ok := activeService.(interface {
+		SetGuardianWaker(active.GuardianWaker)
+	}); ok {
+		waker.SetGuardianWaker(pillEmitter)
+	}
+
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		RequestRepo:              repos.Request,
 		RequestChildRepo:         repos.RequestChild,
@@ -1833,12 +1844,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
-	careRequestService := schedule.NewCareScheduleRequestService(
+	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChanges(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
 		arrivalScheduleService,
 		pickupScheduleService,
+		repos.StudentPickupException,
+		repos.Attendance,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -1942,6 +1955,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "messaging"),
 		Notifier:    notificationsService,
 		Preferences: notificationPreferencesService,
+		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307): der
+		// Rueckfall fuer alle, die Push nicht eingerichtet haben.
+		Outbox:           emailOutboxService,
+		GuardianProfiles: repos.GuardianProfile,
+		Schools:          repos.School,
+		LoginImages:      settingsService,
+		ParentsURL:       parentsURL,
 	})
 
 	calendarSvc := calendarService.NewService(calendarService.Config{
@@ -1958,12 +1978,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ChildRepo:            repos.ParentChild,
 		GroupRepo:            repos.Group,
 		InstanceStaffRepo:    repos.InstanceStaff,
-		InstanceStudentRepo:  repos.InstanceStudent,
 		ActivityInstanceRepo: repos.ActivityInstance,
 		RoomRepo:             repos.Room,
 		StaffShiftRepo:       repos.StaffShift,
 		ShiftTypeRepo:        repos.ShiftType,
-		CareDays:             careDayService,
 		UserContext:          userContextService,
 		DB:                   db,
 		Outbox:               emailOutboxService,
@@ -1982,6 +2000,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollablePhaseRepo:      repos.ParentEnrollablePhase,
 		EnrollmentRequestRepo:    repos.ParentEnrollmentRequest,
 		GuardianProfileRepo:      repos.GuardianProfile,
+		AttendanceRepo:           repos.Attendance,
 		StatusDayRepo:            repos.StudentStatusDay,
 		MealPlanRepo:             repos.MealPlanEntry,
 		StudentRepo:              repos.Student,
@@ -2012,8 +2031,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		CareOfferingRepo:         repos.CareOffering,
-		StudentEnrollmentRepo:    repos.StudentEnrollment,
-		ActivityGroupRepo:        repos.ActivityGroup,
 		OfferingChanges:          offeringChangeRequestService,
 		DB:                       db,
 		Logger:                   logger.With("service", "parent"),

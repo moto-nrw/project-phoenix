@@ -9,7 +9,6 @@ import { LogoutModal } from "~/components/ui/logout-modal";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
-import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import {
   useTenantRoutingModeSafe,
   useTenantSafe,
@@ -87,8 +86,12 @@ export function Header() {
   const parentPageTitle = (() => {
     if (mode !== "parent") return null;
     if (pathname === "/" || pathname === "/parents") return tParentNav("start");
-    if (pathname === "/parents/children") return tParentNav("children");
-    if (pathname.startsWith("/parents/children/"))
+    if (pathname === "/parents/children" || pathname === "/children")
+      return tParentNav("children");
+    if (
+      pathname.startsWith("/parents/children/") ||
+      pathname.startsWith("/children/")
+    )
       return tParentNav("childProfile");
     if (matchesPathPrefix(pathname, "/parents/messages"))
       return tParentNav("messages");
@@ -253,12 +256,10 @@ export function Header() {
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
-              <RefreshButton />
+              {mode !== "parent" && <RefreshButton />}
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}
-            {mode === "parent" ? <LanguageSwitcher compact /> : null}
-
             {/* User menu */}
             <div ref={profileMenuRef} className="relative">
               <ProfileTrigger
@@ -266,6 +267,7 @@ export function Header() {
                 displayAvatar={displayAvatar}
                 userRole={userRole}
                 isOpen={isProfileMenuOpen}
+                compactOnTablet={mode === "parent"}
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
               />
               <ProfileDropdownMenu

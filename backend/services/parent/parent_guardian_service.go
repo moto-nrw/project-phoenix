@@ -176,6 +176,122 @@ type GuardianRelationshipInput struct {
 	PickupNotes        *string
 }
 
+// CreateGuardianContactInput creates an accountless person and their
+// relationship to one child. App access is granted only by the separate
+// related-account invitation flow.
+type CreateGuardianContactInput struct {
+	Contact            GuardianContactInput
+	RelationshipType   string
+	CanPickup          bool
+	IsEmergencyContact bool
+	PickupNotes        *string
+}
+
+// CreateGuardianContact adds an accountless contact to the child.
+func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentID int64, input CreateGuardianContactInput) (*ChildGuardian, error) {
+	if err := validateCreateGuardianContactInput(&input); err != nil {
+		return nil, err
+	}
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionGuardianEdit)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+		return nil, err
+	}
+	if (input.CanPickup || input.IsEmergencyContact) && !child.hasPermission(authorize.GuardianPermissionPickupManage) {
+		return nil, ErrGuardianPermissionDenied
+	}
+
+	var result *ChildGuardian
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if input.Contact.Email != nil {
+			email := strings.TrimSpace(*input.Contact.Email)
+			if email != "" {
+				existing, findErr := s.GuardianProfileRepo.FindByEmail(txCtx, email)
+				if findErr != nil && !errors.Is(findErr, usersModels.ErrGuardianProfileNotFound) {
+					return findErr
+				}
+				if existing != nil {
+					return ErrGuardianEmailConflict
+				}
+			}
+		}
+
+		profile := &usersModels.GuardianProfile{
+			PreferredContactMethod: "phone",
+			LanguagePreference:     "de",
+		}
+		profile.SetTenantID(child.tenantID)
+		applyContactInput(profile, &input.Contact)
+		if profile.Email != nil {
+			profile.PreferredContactMethod = "email"
+		}
+		if err := s.GuardianProfileRepo.Create(txCtx, profile); err != nil {
+			return err
+		}
+		if err := s.replaceGuardianPhones(txCtx, profile, input.Contact.Phones); err != nil {
+			return err
+		}
+
+		link := &usersModels.StudentGuardian{
+			StudentID:          studentID,
+			GuardianProfileID:  profile.ID,
+			RelationshipType:   strings.TrimSpace(input.RelationshipType),
+			IsEmergencyContact: input.IsEmergencyContact,
+			CanPickup:          input.CanPickup,
+			PickupNotes:        strutil.TrimPtrToNil(input.PickupNotes),
+			EmergencyPriority:  1,
+		}
+		authorize.ApplyDefaultStudentGuardianRole(link)
+		link.SetTenantID(child.tenantID)
+		inserted, err := s.StudentGuardianRepo.LinkIfNotExists(txCtx, link)
+		if err != nil {
+			return err
+		}
+		if !inserted {
+			return fmt.Errorf("parent: new guardian profile %d was already linked to student %d", profile.ID, studentID)
+		}
+
+		phones, err := s.GuardianPhoneRepo.FindByGuardianID(txCtx, profile.ID)
+		if err != nil {
+			return err
+		}
+		if err := s.auditContactChanges(txCtx, child.tenantID, accountID, studentID, profile.ID, guardianContactSnapshot{}, profile, phones); err != nil {
+			return err
+		}
+		flagInput := GuardianRelationshipInput{
+			CanPickup:          &input.CanPickup,
+			IsEmergencyContact: &input.IsEmergencyContact,
+		}
+		if err := s.auditPickupFlagChanges(txCtx, child.tenantID, accountID, studentID, profile.ID, flagInput, false, false); err != nil {
+			return err
+		}
+
+		result = projectChildGuardian(profile, link, phones, accountID, true,
+			child.hasPermission(authorize.GuardianPermissionPickupManage), false)
+		capturedTenant := child.tenantID
+		tenant.RegisterAfterCommit(txCtx, func() {
+			s.broadcastStudentUpdated(capturedTenant, studentID)
+		})
+		return nil
+	})
+	if txErr != nil {
+		if isGuardianEmailUniqueViolation(txErr) {
+			return nil, ErrGuardianEmailConflict
+		}
+		return nil, txErr
+	}
+
+	s.Logger.Info("parent created guardian contact",
+		slog.Int64("account_id", accountID),
+		slog.Int64("student_id", studentID),
+		slog.Int64("guardian_profile_id", result.GuardianProfileID),
+		slog.Int64("tenant_id", child.tenantID),
+	)
+	return result, nil
+}
+
 // ListChildGuardians returns every guardian linked to the child with contact +
 // pickup detail and the caller's per-guardian edit capabilities. Authorization
 // only (parent_portal.access).
@@ -1180,4 +1296,15 @@ func validateRelationshipInput(input *GuardianRelationshipInput) error {
 		return fmt.Errorf("%w: pickup note too long", ErrGuardianRelationshipInvalid)
 	}
 	return nil
+}
+
+func validateCreateGuardianContactInput(input *CreateGuardianContactInput) error {
+	if err := validateContactInput(&input.Contact); err != nil {
+		return err
+	}
+	input.RelationshipType = strings.ToLower(strings.TrimSpace(input.RelationshipType))
+	if !usersModels.IsValidRelationshipType(input.RelationshipType) {
+		return fmt.Errorf("%w: invalid relationship type", ErrGuardianRelationshipInvalid)
+	}
+	return validateRelationshipInput(&GuardianRelationshipInput{PickupNotes: input.PickupNotes})
 }

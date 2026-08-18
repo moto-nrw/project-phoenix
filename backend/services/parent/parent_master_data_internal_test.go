@@ -60,6 +60,32 @@ func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
 	assert.JSONEq(t, `{"mon":["pickup"],"tue":["bus"]}`, string(newRaw))
 }
 
+func TestTrackBFieldState_SchoolClass(t *testing.T) {
+	person := &usersModels.Person{}
+	student := &usersModels.Student{SchoolClass: "1a"}
+
+	oldRaw, newRaw, changed, err := trackBFieldState(
+		usersModels.DataChangeTargetStudent,
+		"school_class",
+		person,
+		student,
+		json.RawMessage(`"2b"`),
+	)
+	require.NoError(t, err)
+	assert.True(t, changed)
+	assert.JSONEq(t, `"1a"`, string(oldRaw))
+	assert.JSONEq(t, `"2b"`, string(newRaw))
+
+	_, _, _, err = trackBFieldState(
+		usersModels.DataChangeTargetStudent,
+		"school_class",
+		person,
+		student,
+		json.RawMessage(`""`),
+	)
+	assert.ErrorIs(t, err, ErrMasterDataInvalidValue)
+}
+
 func TestTrackBFieldState_InvalidInputs(t *testing.T) {
 	person := &usersModels.Person{FirstName: "Felix", LastName: "Schneider"}
 	student := &usersModels.Student{}

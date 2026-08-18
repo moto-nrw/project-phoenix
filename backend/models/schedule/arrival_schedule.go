@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -85,7 +86,7 @@ func (e *StudentArrivalException) Validate() error {
 	if e.ExceptionDate.IsZero() {
 		return errors.New("exception_date is required")
 	}
-	if e.Reason != nil && len(*e.Reason) > scheduleReasonMaxLength {
+	if e.Reason != nil && utf8.RuneCountInString(*e.Reason) > scheduleReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
 	}
 	if err := validateExceptionAuthor(e.Source, e.CreatedBy, e.CreatedByGuardian); err != nil {

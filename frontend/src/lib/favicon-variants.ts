@@ -41,6 +41,27 @@ function legacyParentsHost(
   return `parents.${parentsHost.slice("eltern.".length)}`;
 }
 
+/**
+ * Meldet, ob die Anfrage auf dem Eltern-Host liegt.
+ *
+ * Bewusst getrennt von resolveFaviconVariant: die Eltern-App nutzt seit
+ * 23a2650e8 absichtlich das normale Produktions-Favicon, die Variante
+ * "eltern" bleibt Staging vorbehalten. Wer den Eltern-Host erkennen will,
+ * darf die Variante deshalb nicht als Stellvertreter missbrauchen.
+ */
+export function isParentsHost(rawHost: string, config: FaviconConfig): boolean {
+  const host = normalizeHost(rawHost);
+  const parentsHost = normalizeHost(config.parentsHostname);
+  const legacyParents = legacyParentsHost(
+    parentsHost,
+    normalizeHost(config.tenantDomain),
+  );
+
+  return (
+    host === parentsHost || (legacyParents !== "" && host === legacyParents)
+  );
+}
+
 export function resolveFaviconVariant(
   rawHost: string,
   config: FaviconConfig,

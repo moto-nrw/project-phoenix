@@ -45,6 +45,10 @@ func (a *Attendance) IsCheckedIn() bool {
 
 // AttendanceRepository defines the interface for attendance data operations
 type AttendanceRepository interface {
+	// LockStudentAttendance serializes attendance-sensitive decisions for one
+	// student within the current transaction.
+	LockStudentAttendance(ctx context.Context, studentID int64) error
+
 	// Create creates a new attendance record
 	Create(ctx context.Context, attendance *Attendance) error
 
@@ -90,6 +94,12 @@ type AttendanceRepository interface {
 	// calendar date is still open (check_out_time IS NULL). Used by the
 	// operator presence-mode switch guard.
 	HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error)
+
+	// HasAnyInRange reports whether any attendance row of the current tenant
+	// exists between the two dates (inclusive), regardless of student. Used
+	// as the "school records attendance at all" signal by the parent
+	// today-status derivation.
+	HasAnyInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error)
 
 	// FindByStudentAndDate finds all attendance records for a student on a specific date
 	FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*Attendance, error)

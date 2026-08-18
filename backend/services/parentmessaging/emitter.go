@@ -342,24 +342,12 @@ func isStaffDecisionPill(ev ChildEvent) bool {
 	}
 }
 
-// requestDecisionCopy returns the display-safe German title and body for a
+// requestDecisionCopy returns the display-safe localized title and body for a
 // decided request. It names the subject area but never the child: the payload
 // is rendered on a lock screen, and which child it concerns is behind the
 // authenticated deep link.
-func requestDecisionCopy(requestType, requestStatus string) (title, body string) {
-	subject := "Ihre Anfrage"
-	switch requestType {
-	case usersModels.ParentMessageRequestCareSchedule:
-		subject = "Ihre Anfrage zu den Betreuungszeiten"
-	case usersModels.ParentMessageRequestMasterData:
-		subject = "Ihre Anfrage zu den Stammdaten"
-	case usersModels.ParentMessageRequestExcusedAbsence:
-		subject = "Ihre Abmeldung"
-	}
-	if requestStatus == usersModels.ParentMessageRequestStatusRejected {
-		return "Anfrage abgelehnt", subject + " wurde abgelehnt."
-	}
-	return "Anfrage genehmigt", subject + " wurde genehmigt."
+func requestDecisionCopy(locale, requestType, requestStatus string) (title, body string) {
+	return notifications.ParentRequestDecisionCopy(locale, requestType, requestStatus)
 }
 
 // notifyRequestDecision pushes a staff decision to the submitting guardian.
@@ -387,9 +375,18 @@ func (e *Emitter) notifyRequestDecision(tenantID, studentID, guardianAccountID i
 		// against the students_guardians row this transaction sees, not against a
 		// verdict from a snapshot that is already history. Consent is the second
 		// gate and never a substitute for the first.
-		hasAccess, aerr := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
+		guardians, aerr := e.threadRepo.ListGuardiansForStudent(txCtx, studentID)
 		if aerr != nil {
 			return aerr
+		}
+		locale := ""
+		hasAccess := false
+		for _, guardian := range guardians {
+			if guardian != nil && guardian.AccountID == guardianAccountID {
+				hasAccess = true
+				locale = guardian.PortalLocale
+				break
+			}
 		}
 		if !hasAccess {
 			return nil
@@ -401,7 +398,7 @@ func (e *Emitter) notifyRequestDecision(tenantID, studentID, guardianAccountID i
 		if len(optedIn) == 0 {
 			return nil
 		}
-		title, body := requestDecisionCopy(ev.RequestType, ev.RequestStatus)
+		title, body := requestDecisionCopy(locale, ev.RequestType, ev.RequestStatus)
 		return e.notifier.Notify(txCtx, notifications.Event{
 			Type:     notifications.TypeParentRequestDecided,
 			Title:    title,

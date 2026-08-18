@@ -58,11 +58,15 @@ export function ParentRealtimeBridge() {
     if (event.type === "parent_child_updated") {
       // Message-independent care-state invalidation: the child's care view
       // refetches, but this is NOT a message — do NOT touch the unread badge or the
-      // thread list. Reuse the same `parent-conversation-refresh` window event the
-      // care view already listens on, carrying the affected studentId so only that
-      // child's view refetches (others skip on the id mismatch).
+      // thread list. The conversation care view and the daily-status views use
+      // separate refresh events, so invalidate both for the affected child.
       window.dispatchEvent(
         new CustomEvent("parent-conversation-refresh", {
+          detail: { studentId: event.data?.student_id ?? null },
+        }),
+      );
+      window.dispatchEvent(
+        new CustomEvent("parent-child-status-refresh", {
           detail: { studentId: event.data?.student_id ?? null },
         }),
       );

@@ -40,6 +40,7 @@ function mkRequest(
     first_name: "Max",
     last_name: "M.",
     status: "pending",
+    request_kind: "weekly_schedule",
     diff: [mkDiff()],
     created_at: "2026-07-01T10:00:00Z",
     ...overrides,

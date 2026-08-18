@@ -100,6 +100,17 @@ describe("Button", () => {
     expect(button.className).toContain("text-gray-950");
   });
 
+  it("applies login-style surface variant styles", () => {
+    render(<Button variant="surface">Surface</Button>);
+
+    const button = screen.getByRole("button");
+    expect(button.className).toContain("bg-white");
+    expect(button.className).toContain("ring-gray-200");
+    expect(button.className).toContain("shadow-sm");
+    expect(button.className).toContain("hover:ring-gray-300");
+    expect(button.className).toContain("hover:bg-gray-50");
+  });
+
   it("applies sm size styles", () => {
     render(<Button size="sm">Small</Button>);
 
@@ -135,6 +146,16 @@ describe("Button", () => {
 
     const button = screen.getByRole("button");
     expect(button.className).toContain("text-xl");
+  });
+
+  it("applies touch size styles", () => {
+    render(<Button size="touch">Krank melden</Button>);
+
+    const button = screen.getByRole("button");
+    // Eltern-App: 48px Mindesthoehe (Apple HIG 44pt, Material 48dp) und
+    // 17px Schrift als Untergrenze fuer alles Bedienbare.
+    expect(button.className).toContain("min-h-12");
+    expect(button.className).toContain("text-[17px]");
   });
 
   it("passes custom className", () => {

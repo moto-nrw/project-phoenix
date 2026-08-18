@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,9 +75,17 @@ type careRepoWrap struct {
 	arrival func(scheduleModels.StudentArrivalExceptionRepository) scheduleModels.StudentArrivalExceptionRepository
 }
 
+type careTestService struct {
+	parentService.Service
+}
+
+func (s careTestService) SubmitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime, _ *time.Time) (*parentService.CareException, error) {
+	return s.SubmitCareExceptionWithReason(ctx, accountID, studentID, date, pickupTime, "Testgrund")
+}
+
 // buildCareServiceWithRepos builds the care service, optionally wrapping the
 // pickup and/or arrival repositories so individual reads can be forced to fail.
-func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Service, *bun.DB) {
+func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -91,6 +100,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Serv
 	}
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
+		AttendanceRepo:       repos.Attendance,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  pickup,
@@ -102,16 +112,16 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Serv
 		DB:          db,
 		Logger:      slog.Default(),
 	})
-	return svc, db
+	return careTestService{Service: svc}, db
 }
 
 // buildCareServiceWithPickupRepo builds the care service with a wrapped pickup
 // repository, used to inject read failures.
-func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository) (parentService.Service, *bun.DB) {
+func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.StudentPickupExceptionRepository) scheduleModels.StudentPickupExceptionRepository) (careTestService, *bun.DB) {
 	return buildCareServiceWithRepos(t, careRepoWrap{pickup: wrap})
 }
 
-func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
+func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -119,6 +129,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Ser
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
+		AttendanceRepo:       repos.Attendance,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
@@ -130,7 +141,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Ser
 		DB:          db,
 		Logger:      slog.Default(),
 	})
-	return svc, bc, db
+	return careTestService{Service: svc}, bc, db
 }
 
 // wallClock builds a reference-date-anchored wall-clock instant matching the
@@ -150,9 +161,8 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.PickupTime)
-	require.NotNil(t, result.ArrivalTime)
 	assert.Equal(t, "14:30", result.PickupTime.Format("15:04"))
-	assert.Equal(t, "08:15", result.ArrivalTime.Format("15:04"))
+	assert.Nil(t, result.ArrivalTime)
 	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, result.Source)
 	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire")
 
@@ -205,6 +215,38 @@ func TestSubmitCareException_PastDate(t *testing.T) {
 	assert.ErrorIs(t, err, parentService.ErrPastCareDate)
 }
 
+func TestSubmitCareException_TodayAfterCheckout(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaff(t, db, "Care", "Checkout")
+	device := testpkg.CreateTestDevice(t, db, "parent-care-checkout")
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("active.attendance").
+			Where("student_id = ?", chain.StudentID).Exec(context.Background())
+		testpkg.CleanupActivityFixtures(t, db, staff.ID, device.ID)
+		testpkg.CleanupParentGuardianChain(t, db, chain)
+	})
+
+	_, err := svc.SubmitCareException(
+		context.Background(), chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), wallClock(16, 0), nil,
+	)
+	require.NoError(t, err)
+
+	now := timezone.Now()
+	checkout := now.Add(-5 * time.Minute)
+	testpkg.CreateTestAttendance(t, db, chain.StudentID, staff.ID, device.ID, now.Add(-2*time.Hour), &checkout)
+
+	_, err = svc.SubmitCareException(
+		context.Background(), chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), wallClock(15, 0), nil,
+	)
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionAlreadyLeft)
+
+	err = svc.DeleteCareException(context.Background(), chain.AccountID, chain.StudentID, timezone.TodayDate())
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionAlreadyLeft)
+}
+
 func TestSubmitCareException_TooFarDate(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -239,6 +281,32 @@ func TestSubmitCareException_NotOwnedChild(t *testing.T) {
 	assert.ErrorIs(t, err, parentService.ErrChildNotLinked)
 }
 
+func TestCareExceptionRequiresPickupManagePermission(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	ctx := context.Background()
+	date := timezone.TodayDate().AddDays(1)
+
+	_, err := svc.SubmitCareExceptionWithReason(ctx, chain.AccountID, chain.StudentID, date, wallClock(15, 0), "Arzttermin")
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `
+		UPDATE users.students_guardians
+		SET permissions = '{"parent_portal.access": true}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	_, err = svc.SubmitCareExceptionWithReason(ctx, chain.AccountID, chain.StudentID, date.AddDays(1), wallClock(14, 30), "Termin")
+	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)
+	assert.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
+
+	persisted, err := repositories.NewFactory(db).StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, date)
+	require.NoError(t, err)
+	require.NotNil(t, persisted)
+}
+
 func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -265,48 +333,6 @@ func TestSubmitCareException_ConflictWithStaffException(t *testing.T) {
 	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID,
 		date, wallClock(14, 0), nil)
 	assert.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
-}
-
-// TestSubmitCareException_ConflictWhenStaffOwnsOtherLeg guards the day-level
-// staff check: staff own only the pickup leg, the parent submits only an
-// arrival. The whole day is staff-owned, so the arrival write must be refused
-// rather than silently persisting while the day still renders as staff-set.
-func TestSubmitCareException_ConflictWhenStaffOwnsOtherLeg(t *testing.T) {
-	svc, _, db := buildCareService(t, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
-	defer func() {
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
-	}()
-
-	date := timezone.TodayDate().AddDays(2)
-	staffEx := &scheduleModels.StudentPickupException{
-		StudentID:     chain.StudentID,
-		ExceptionDate: date,
-		PickupTime:    wallClock(16, 0),
-		CreatedBy:     staff.ID,
-	}
-	staffEx.SetTenantID(chain.TenantID)
-	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.StudentPickupException.Create(context.Background(), staffEx))
-
-	// Parent submits ONLY an arrival; the staff-owned pickup leg must still block it.
-	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID,
-		date, nil, wallClock(8, 0))
-	assert.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
-
-	// And no guardian arrival row leaked through.
-	var count int
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("COUNT(*)").
-		TableExpr("schedule.student_arrival_exceptions").
-		Where("student_id = ?", chain.StudentID).
-		Scan(context.Background(), &count))
-	assert.Equal(t, 0, count, "arrival write must not persist when the day is staff-owned")
 }
 
 // TestSubmitCareException_ClearingLegRemovesIt locks in the full-replacement
@@ -351,14 +377,24 @@ func TestSubmitCareException_ClearingLegRemovesIt(t *testing.T) {
 	assert.Nil(t, list[0].ArrivalTime)
 }
 
-func TestListAndDeleteCareException(t *testing.T) {
+func TestDeleteCareExceptionPreservesArrival(t *testing.T) {
 	svc, _, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 
 	date := timezone.TodayDate().AddDays(3)
-	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
+	guardianID := chain.AccountID
+	arrival := &scheduleModels.StudentArrivalException{
+		StudentID:         chain.StudentID,
+		ExceptionDate:     date,
+		ExpectedArrival:   wallClock(8, 15),
+		Source:            scheduleModels.ExceptionSourceGuardian,
+		CreatedByGuardian: &guardianID,
+	}
+	arrival.SetTenantID(chain.TenantID)
+	require.NoError(t, repositories.NewFactory(db).StudentArrivalException.Create(ctx, arrival))
+	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(14, 45), wallClock(8, 15))
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()
@@ -368,13 +404,18 @@ func TestListAndDeleteCareException(t *testing.T) {
 	require.Len(t, list, 1)
 	require.NotNil(t, list[0].PickupTime)
 	assert.Equal(t, "14:45", list[0].PickupTime.Format("15:04"))
+	require.NotNil(t, list[0].ArrivalTime)
+	assert.Equal(t, "08:15", list[0].ArrivalTime.Format("15:04"))
 	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, list[0].Source)
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
 
 	after, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID, from, to)
 	require.NoError(t, err)
-	assert.Empty(t, after, "delete must revert the day to the standard plan")
+	require.Len(t, after, 1)
+	assert.Nil(t, after[0].PickupTime)
+	require.NotNil(t, after[0].ArrivalTime)
+	assert.Equal(t, "08:15", after[0].ArrivalTime.Format("15:04"))
 }
 
 // TestGuardianExceptionSurvivesAccountDeletion guards migration 1.15.136: a
@@ -452,84 +493,6 @@ func TestDeleteCareException_PastDate(t *testing.T) {
 	assert.Equal(t, exception.ID, persisted.ID)
 }
 
-// TestSubmitCareException_ArrivalOnlyThenUpdateInPlace exercises the arrival
-// leg in isolation: an arrival-only submit (pickup stays nil, so no pickup row
-// is created), followed by a second arrival-only submit that updates the same
-// guardian row in place rather than inserting a duplicate. The pickup-leg
-// equivalents are covered elsewhere; this is the arrival mirror.
-func TestSubmitCareException_ArrivalOnlyThenUpdateInPlace(t *testing.T) {
-	svc, _, db := buildCareService(t, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	ctx := context.Background()
-	repos := repositories.NewFactory(db)
-
-	date := timezone.TodayDate().AddDays(1)
-
-	first, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, nil, wallClock(8, 0))
-	require.NoError(t, err)
-	require.NotNil(t, first.ArrivalTime)
-	assert.Nil(t, first.PickupTime, "arrival-only submit must not create a pickup row")
-	assert.Equal(t, "08:00", first.ArrivalTime.Format("15:04"))
-
-	original, err := repos.StudentArrivalException.FindByStudentIDAndDate(ctx, chain.StudentID, date)
-	require.NoError(t, err)
-	require.NotNil(t, original)
-
-	// Second arrival-only submit: same date, new time. Must update the existing
-	// guardian row, keeping its id, not insert a second row.
-	second, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, nil, wallClock(9, 30))
-	require.NoError(t, err)
-	require.NotNil(t, second.ArrivalTime)
-	assert.Equal(t, "09:30", second.ArrivalTime.Format("15:04"))
-
-	updated, err := repos.StudentArrivalException.FindByStudentIDAndDate(ctx, chain.StudentID, date)
-	require.NoError(t, err)
-	require.NotNil(t, updated)
-	assert.Equal(t, original.ID, updated.ID, "arrival leg must be updated in place, not duplicated")
-	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, updated.Source)
-
-	var pickupCount int
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("COUNT(*)").
-		TableExpr("schedule.student_pickup_exceptions").
-		Where("student_id = ?", chain.StudentID).
-		Scan(ctx, &pickupCount))
-	assert.Equal(t, 0, pickupCount, "arrival-only flow must never touch the pickup table")
-}
-
-// TestSubmitCareException_ClearPickupKeepsArrival locks in the per-leg
-// full-replacement contract from the opposite side of
-// TestSubmitCareException_ClearingLegRemovesIt: clearing the pickup leg deletes
-// its guardian row while the arrival leg is updated in the same submit.
-func TestSubmitCareException_ClearPickupKeepsArrival(t *testing.T) {
-	svc, _, db := buildCareService(t, true)
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-	ctx := context.Background()
-
-	date := timezone.TodayDate().AddDays(1)
-
-	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(14, 30), wallClock(8, 15))
-	require.NoError(t, err)
-
-	// Clear the pickup leg (nil) and change the arrival leg in one submit.
-	result, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, nil, wallClock(8, 45))
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Nil(t, result.PickupTime, "cleared pickup leg must not linger")
-	require.NotNil(t, result.ArrivalTime)
-	assert.Equal(t, "08:45", result.ArrivalTime.Format("15:04"))
-
-	var pickupCount int
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("COUNT(*)").
-		TableExpr("schedule.student_pickup_exceptions").
-		Where("student_id = ?", chain.StudentID).
-		Scan(ctx, &pickupCount))
-	assert.Equal(t, 0, pickupCount, "emptying the pickup field must delete its guardian row")
-}
-
 // TestListCareExceptions_MergesBothLegsAndFlagsStaffSource covers the merge
 // projection across multiple days: a day with BOTH guardian legs (the second
 // leg must reuse the same merged entry), plus staff-authored pickup and arrival
@@ -553,9 +516,19 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 	staffPickupDay := timezone.TodayDate().AddDays(2)
 	staffArrivalDay := timezone.TodayDate().AddDays(3)
 
-	// Day 1: both guardian legs (forces the merge to fold two rows into one entry).
+	// Day 1: a parent pickup and a legacy guardian arrival row on the same date.
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, guardianDay, wallClock(15, 0), wallClock(8, 0))
 	require.NoError(t, err)
+	guardianID := chain.AccountID
+	guardianArrival := &scheduleModels.StudentArrivalException{
+		StudentID:         chain.StudentID,
+		ExceptionDate:     guardianDay,
+		ExpectedArrival:   wallClock(8, 0),
+		Source:            scheduleModels.ExceptionSourceGuardian,
+		CreatedByGuardian: &guardianID,
+	}
+	guardianArrival.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentArrivalException.Create(ctx, guardianArrival))
 
 	// Day 2: a staff-authored pickup row.
 	staffPickup := &scheduleModels.StudentPickupException{
@@ -686,34 +659,48 @@ func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
 
 // TestDeleteCareException_RemovesBothLegs covers the arrival side of the delete
 // path (the pickup-only delete is covered by TestListAndDeleteCareException):
-// a day with both guardian legs must have both rows removed and broadcast once.
-func TestDeleteCareException_RemovesBothLegs(t *testing.T) {
+// A legacy guardian arrival row is no longer part of the parent delete action.
+func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 	svc, bc, db := buildCareService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	ctx := context.Background()
 
 	date := timezone.TodayDate().AddDays(2)
+	guardianID := chain.AccountID
+	arrival := &scheduleModels.StudentArrivalException{
+		StudentID:         chain.StudentID,
+		ExceptionDate:     date,
+		ExpectedArrival:   wallClock(8, 30),
+		Source:            scheduleModels.ExceptionSourceGuardian,
+		CreatedByGuardian: &guardianID,
+	}
+	arrival.SetTenantID(chain.TenantID)
+	require.NoError(t, repositories.NewFactory(db).StudentArrivalException.Create(ctx, arrival))
 	_, err := svc.SubmitCareException(ctx, chain.AccountID, chain.StudentID, date, wallClock(15, 30), wallClock(8, 30))
 	require.NoError(t, err)
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
 	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "deleting guardian rows must broadcast a student update")
 
-	for _, table := range []string{"schedule.student_pickup_exceptions", "schedule.student_arrival_exceptions"} {
-		var count int
-		require.NoError(t, db.NewSelect().
-			ColumnExpr("COUNT(*)").
-			TableExpr(table).
-			Where("student_id = ?", chain.StudentID).
-			Scan(ctx, &count))
-		assert.Equalf(t, 0, count, "%s guardian row must be deleted", table)
-	}
+	var pickupCount int
+	require.NoError(t, db.NewSelect().ColumnExpr("COUNT(*)").
+		TableExpr("schedule.student_pickup_exceptions").
+		Where("student_id = ?", chain.StudentID).Scan(ctx, &pickupCount))
+	assert.Equal(t, 0, pickupCount)
+
+	var arrivalCount int
+	require.NoError(t, db.NewSelect().ColumnExpr("COUNT(*)").
+		TableExpr("schedule.student_arrival_exceptions").
+		Where("student_id = ?", chain.StudentID).Scan(ctx, &arrivalCount))
+	assert.Equal(t, 1, arrivalCount)
 
 	after, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
 		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
 	require.NoError(t, err)
-	assert.Empty(t, after)
+	require.Len(t, after, 1)
+	assert.Nil(t, after[0].PickupTime)
+	require.NotNil(t, after[0].ArrivalTime)
 }
 
 // TestSubmitCareException_RepoErrorSurfaces verifies a read failure inside the
@@ -776,24 +763,6 @@ func TestDeleteCareException_RepoErrorSurfaces(t *testing.T) {
 	assert.ErrorIs(t, err, errBoom)
 }
 
-// TestSubmitCareException_ArrivalRepoErrorSurfaces is the arrival-leg mirror of
-// TestSubmitCareException_RepoErrorSurfaces: a failure reading the arrival leg
-// during the staff-ownership check must propagate, not be swallowed.
-func TestSubmitCareException_ArrivalRepoErrorSurfaces(t *testing.T) {
-	svc, db := buildCareServiceWithRepos(t, careRepoWrap{
-		arrival: func(r scheduleModels.StudentArrivalExceptionRepository) scheduleModels.StudentArrivalExceptionRepository {
-			return stubArrivalRepo{StudentArrivalExceptionRepository: r, findErr: errBoom}
-		},
-	})
-	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
-
-	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID,
-		timezone.TodayDate().AddDays(1), nil, wallClock(8, 0))
-	require.Error(t, err)
-	assert.ErrorIs(t, err, errBoom)
-}
-
 // TestListCareExceptions_ArrivalRepoErrorSurfaces mirrors the pickup range-read
 // failure for the arrival leg.
 func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
@@ -812,11 +781,7 @@ func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
 	assert.Nil(t, rows)
 }
 
-// TestDeleteCareException_ArrivalFindErrorSurfaces covers the arrival read leg
-// of the delete transaction: a guardian pickup row is removed, then the arrival
-// lookup fails and the whole delete must error (and roll back the pickup
-// delete) rather than reporting a partial success.
-func TestDeleteCareException_ArrivalFindErrorSurfaces(t *testing.T) {
+func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -845,14 +810,11 @@ func TestDeleteCareException_ArrivalFindErrorSurfaces(t *testing.T) {
 		Logger:      slog.Default(),
 	})
 
-	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, errBoom)
+	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
 
-	// The pickup delete must have rolled back with the failed transaction.
 	persisted, err := repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, date)
 	require.NoError(t, err)
-	assert.NotNil(t, persisted, "failed delete tx must roll back the pickup delete")
+	assert.Nil(t, persisted)
 }
 
 // TestListCareExceptions_NotOwnedChild and TestDeleteCareException_NotOwnedChild
@@ -886,4 +848,117 @@ func TestDeleteCareException_NotOwnedChild(t *testing.T) {
 	err := svc.DeleteCareException(context.Background(), chain.AccountID, other.ID,
 		timezone.TodayDate().AddDays(1))
 	assert.ErrorIs(t, err, parentService.ErrChildNotLinked)
+}
+
+func TestSubmitCareExceptionWithReasonPersistsReason(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	date := timezone.TodayDate().AddDays(1)
+	result, err := svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		wallClock(14, 30),
+		"  Arzttermin  ",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result.Reason)
+	assert.Equal(t, "Arzttermin", *result.Reason)
+
+	var reason string
+	require.NoError(t, db.NewSelect().
+		Column("reason").
+		TableExpr("schedule.student_pickup_exceptions").
+		Where("student_id = ?", chain.StudentID).
+		Where("exception_date = ?", date).
+		Scan(context.Background(), &reason))
+	assert.Equal(t, "Arzttermin", reason)
+}
+
+func TestSubmitCareExceptionWithReasonPreservesExistingArrival(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff := testpkg.CreateTestStaff(t, db, "Ankunft", "Team")
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
+	}()
+
+	date := timezone.TodayDate().AddDays(1)
+	arrival := &scheduleModels.StudentArrivalException{
+		StudentID:       chain.StudentID,
+		ExceptionDate:   date,
+		ExpectedArrival: wallClock(10, 30),
+		CreatedBy:       staff.ID,
+	}
+	arrival.SetTenantID(chain.TenantID)
+	require.NoError(t, repositories.NewFactory(db).StudentArrivalException.Create(context.Background(), arrival))
+
+	result, err := svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		wallClock(14, 30),
+		"  Arzttermin  ",
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result.PickupTime)
+	require.NotNil(t, result.ArrivalTime)
+	require.NotNil(t, result.Reason)
+	assert.Equal(t, "14:30", result.PickupTime.Format("15:04"))
+	assert.Equal(t, "10:30", result.ArrivalTime.Format("15:04"))
+	assert.Equal(t, "Arzttermin", *result.Reason)
+	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, result.PickupSource)
+
+	var arrivalCount int
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("COUNT(*)").
+		TableExpr("schedule.student_arrival_exceptions").
+		Where("student_id = ?", chain.StudentID).
+		Where("exception_date = ?", date).
+		Scan(context.Background(), &arrivalCount))
+	assert.Equal(t, 1, arrivalCount)
+}
+
+func TestSubmitCareExceptionWithReasonValidatesInput(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	date := timezone.TodayDate().AddDays(1)
+	_, err := svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		nil,
+		"Arzttermin",
+	)
+	assert.ErrorIs(t, err, parentService.ErrNoCareException)
+
+	_, err = svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		wallClock(14, 30),
+		"   ",
+	)
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionReasonRequired)
+
+	_, err = svc.SubmitCareExceptionWithReason(
+		context.Background(),
+		chain.AccountID,
+		chain.StudentID,
+		date,
+		wallClock(14, 30),
+		strings.Repeat("a", 256),
+	)
+	assert.ErrorIs(t, err, parentService.ErrCareExceptionReasonTooLong)
 }

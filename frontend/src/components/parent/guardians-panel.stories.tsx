@@ -14,6 +14,8 @@ const meta = {
   },
   args: {
     studentId: "1",
+    canInvite: true,
+    canRemove: true,
   },
 } satisfies Meta<typeof GuardiansPanel>;
 

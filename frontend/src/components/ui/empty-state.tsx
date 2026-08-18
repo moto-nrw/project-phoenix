@@ -10,14 +10,37 @@ export function EmptyState({
   title,
   description,
   action,
+  variant = "default",
   className = "",
 }: {
   readonly icon?: ReactNode;
   readonly title: string;
   readonly description?: string;
   readonly action?: ReactNode;
+  readonly variant?: "default" | "compact";
   readonly className?: string;
 }) {
+  if (variant === "compact") {
+    return (
+      <div className={`flex items-start gap-3 py-2 text-left ${className}`}>
+        {icon != null ? (
+          <span className="mt-0.5 shrink-0 text-gray-400" aria-hidden="true">
+            {icon}
+          </span>
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
+          {description != null && description !== "" ? (
+            <p className="mt-0.5 text-sm leading-6 text-gray-500">
+              {description}
+            </p>
+          ) : null}
+          {action != null ? <div className="mt-3">{action}</div> : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`flex flex-col items-center gap-3 py-12 text-center ${className}`}

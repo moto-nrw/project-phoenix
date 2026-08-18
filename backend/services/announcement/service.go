@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/localization"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -50,17 +51,7 @@ const (
 	// Shared by the enqueue and cancel paths so they never drift apart.
 	relatedEntityTypeAnnouncement = "parent_announcement"
 
-	parentAnnouncementNotificationType  = "parent_announcement"
-	parentAnnouncementNotificationTitle = "Neue Elternmitteilung"
-	parentAnnouncementNotificationBody  = "Eine neue Mitteilung ist im Elternportal verfügbar."
-
-	// Polls reuse the announcement notification type (one guardian consent switch
-	// covers both — a school broadcast is a school broadcast) but say what they
-	// are, so a parent can tell a question from an information at a glance.
-	parentPollNotificationTitle         = "Neue Umfrage"
-	parentPollNotificationBody          = "Eine Schule bittet um Ihre Rückmeldung im Elternportal."
-	parentPollReminderNotificationTitle = "Erinnerung: Umfrage offen"
-	parentPollReminderNotificationBody  = "Für Ihr Kind fehlt noch eine Rückmeldung im Elternportal."
+	parentAnnouncementNotificationType = "parent_announcement"
 )
 
 // Sentinel errors mapped to HTTP status by the handler.
@@ -465,6 +456,7 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		return fmt.Errorf("resolve guardian recipients: %w", err)
 	}
 	accountIDs = make([]int64, 0, len(recipients))
+	localeByAccount := make(map[int64]string, len(recipients))
 	for _, recipient := range recipients {
 		if recipient.AccountID <= 0 {
 			continue
@@ -474,6 +466,7 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		}
 		seen[recipient.AccountID] = struct{}{}
 		accountIDs = append(accountIDs, recipient.AccountID)
+		localeByAccount[recipient.AccountID] = localization.NormalizeLocale(recipient.PortalLocale)
 	}
 	if len(accountIDs) == 0 {
 		return nil
@@ -502,32 +495,39 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		}
 	}
 
-	title, body := parentAnnouncementNotificationTitle, parentAnnouncementNotificationBody
+	kind := notifications.ParentAnnouncementPublished
 	if a.IsPoll() {
-		title, body = parentPollNotificationTitle, parentPollNotificationBody
+		kind = notifications.ParentPollPublished
 	}
-	err = s.notifier.Notify(ctx, notifications.Event{
-		Type:     parentAnnouncementNotificationType,
-		Title:    title,
-		Body:     body,
-		DeepLink: "/",
-		Priority: priority,
-		Audience: notifications.Audience{
-			TenantID:           a.GetTenantID(),
-			Scope:              notifications.ScopeGuardian,
-			GuardianAccountIDs: accountIDs,
-		},
-	})
-	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
-		s.logger.Info("parent announcement push suppressed by tenant notification gate",
-			slog.Int64("announcement_id", a.ID),
-			slog.Int("recipient_count", len(accountIDs)),
-			slog.String("reason", err.Error()),
-		)
-		return nil
+	groups := make(map[string][]int64)
+	for _, accountID := range accountIDs {
+		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
 	}
-	if err != nil {
-		return fmt.Errorf("notify guardian audience: %w", err)
+	for locale, group := range groups {
+		title, body := notifications.ParentAnnouncementCopy(locale, kind)
+		err = s.notifier.Notify(ctx, notifications.Event{
+			Type:     parentAnnouncementNotificationType,
+			Title:    title,
+			Body:     body,
+			DeepLink: "/",
+			Priority: priority,
+			Audience: notifications.Audience{
+				TenantID:           a.GetTenantID(),
+				Scope:              notifications.ScopeGuardian,
+				GuardianAccountIDs: group,
+			},
+		})
+		if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+			s.logger.Info("parent announcement push suppressed by tenant notification gate",
+				slog.Int64("announcement_id", a.ID),
+				slog.Int("recipient_count", len(accountIDs)),
+				slog.String("reason", err.Error()),
+			)
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("notify guardian audience: %w", err)
+		}
 	}
 	return nil
 }

@@ -156,6 +156,12 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
 	ctx := tenantCtx()
+	_, err := db.NewUpdate().
+		TableExpr("users.guardian_profiles").
+		Set("portal_locale = ?", "en").
+		Where("account_id = ?", chain.AccountID).
+		Exec(context.Background())
+	require.NoError(t, err)
 
 	schoolWide := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
 		"Schulweit Empfänger", []*usersModels.ParentAnnouncementTarget{
@@ -180,6 +186,7 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 	require.NoError(t, err)
 	rcpt := findRecipient(recipients)
 	require.NotNil(t, rcpt, "school-wide recipients include the linked guardian account")
+	assert.Equal(t, "en", rcpt.PortalLocale)
 	assert.Nil(t, rcpt.ReadAt)
 	assert.Nil(t, rcpt.AcknowledgedAt)
 

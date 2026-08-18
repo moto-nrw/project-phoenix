@@ -202,6 +202,32 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		SELECT COUNT(*) FROM users.parent_messages cm
 		WHERE cm.thread_id = t.id AND cm.tenant_id = t.tenant_id%s
 	) AS unread_count`, unreadPredicates)
+	lastMessageReadByStaff := "FALSE AS last_message_read_by_staff"
+	if !staffReader {
+		lastMessageReadByStaff = `(
+			t.last_sender_kind = 'guardian'
+			AND EXISTS (
+				SELECT 1
+				FROM users.parent_message_reads sr
+				WHERE sr.thread_id = t.id
+				  AND sr.tenant_id = t.tenant_id
+				  AND sr.account_id <> t.guardian_account_id
+				  AND (
+					sr.last_read_at > t.last_message_at
+					OR (sr.last_read_at = t.last_message_at AND sr.last_read_message_id >= t.last_message_id)
+				  )
+				  AND EXISTS (
+					SELECT 1
+					FROM users.staff st
+					JOIN users.persons p ON p.id = st.person_id
+					WHERE p.account_id = sr.account_id
+					  AND st.tenant_id = t.tenant_id
+					  AND st.deleted_at IS NULL
+					  AND p.deleted_at IS NULL
+				  )
+			)
+		) AS last_message_read_by_staff`
+	}
 
 	return q.
 		TableExpr("users.parent_message_threads AS t").
@@ -232,6 +258,7 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		ColumnExpr("COALESCE(lm.event_type,'') AS last_event_type").
 		ColumnExpr("COALESCE(lm.request_type,'') AS last_request_type").
 		ColumnExpr("COALESCE(lm.request_status,'') AS last_request_status").
+		ColumnExpr(lastMessageReadByStaff).
 		// accountID binds the notReaderAuthored `?` in unreadSub (cm.sender_account_id
 		// <> ?). bun renders args in SQL-fragment order, so this select-list arg
 		// precedes the read-cursor join's account-id arg below; both are the same id.

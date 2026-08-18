@@ -16,8 +16,12 @@ type MessageSenderKind = "guardian" | "staff" | "system";
 /** A timeline entry kind: a plain message, a system event, or a request. */
 export type MessageKind = "message" | "event" | "request";
 
-/** The structured change-request types a guardian can submit. */
-type RequestType = "care_schedule";
+/**
+ * The structured change-request types a guardian can submit. `care_schedule` is
+ * the permanent weekly plan, `pickup_change` a single day's pickup time — two
+ * different promises to the parent, so they never share a label.
+ */
+type RequestType = "care_schedule" | "pickup_change";
 
 /** The lifecycle status of a parent-OGS change request. */
 type RequestStatus = "offen" | "erledigt" | "abgelehnt" | "zurueckgezogen";
@@ -101,6 +105,7 @@ const PARENT_STATUS_I18N_KEYS: Record<RequestStatus, string> = {
 
 const PARENT_REQUEST_TYPE_I18N_KEYS: Record<RequestType, string> = {
   care_schedule: "requestTypeCareSchedule",
+  pickup_change: "requestTypePickupChange",
 };
 
 /** German label for the German-only staff portal. Unknown → "Offen". */
@@ -133,33 +138,9 @@ export function parentRequestTypeI18nKey(requestType?: string): string {
   );
 }
 
-/**
- * next-intl keys (parentOgsMessaging namespace) for a care-schedule diff entry's
- * label on the localized parents portal, keyed by the backend's `care_kind`
- * discriminator so the German `label` is never shown to a non-German guardian.
- * Care-schedule rows compose a weekday key (`diffWeekday{1..5}`) with one of these.
- */
-export const PARENT_DIFF_CARE_KIND_I18N_KEYS: Record<string, string> = {
-  arrival: "diffCareArrival",
-  pickup: "diffCarePickup",
-  departure_mode: "diffCareDepartureMode",
-};
-
-/**
- * next-intl keys (parentOgsMessaging namespace) for a departure-mode value on a
- * departure_mode diff row, keyed by the backend's raw mode key (`old_modes` /
- * `new_mode`) so the German `old`/`new` strings are never shown to a non-German
- * guardian. Unknown keys → fall back to the raw German `old`/`new`.
- */
-export const PARENT_DEPARTURE_MODE_I18N_KEYS: Record<string, string> = {
-  alone: "diffModeAlone",
-  bus: "diffModeBus",
-  pickup: "diffModePickup",
-  accompanied: "diffModeAccompanied",
-};
-
 const PARENT_REQUEST_CREATED_I18N_KEYS: Readonly<Record<string, string>> = {
   care_schedule: "eventRequestCreatedCareSchedule",
+  pickup_change: "eventRequestCreatedPickupChange",
   master_data: "eventRequestCreatedMasterData",
   excused_absence: "eventRequestCreatedExcusedAbsence",
   care_offering: "eventRequestCreatedCareOffering",
@@ -167,6 +148,7 @@ const PARENT_REQUEST_CREATED_I18N_KEYS: Readonly<Record<string, string>> = {
 
 const PARENT_REQUEST_CONFIRMED_I18N_KEYS: Readonly<Record<string, string>> = {
   care_schedule: "eventRequestConfirmedCareSchedule",
+  pickup_change: "eventRequestConfirmedPickupChange",
   master_data: "eventRequestConfirmedMasterData",
   excused_absence: "eventRequestConfirmedExcusedAbsence",
   care_offering: "eventRequestConfirmedCareOffering",

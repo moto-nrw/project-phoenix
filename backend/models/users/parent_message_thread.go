@@ -97,4 +97,5 @@ type MessageableGuardian struct {
 	Name             string `bun:"name" json:"name"`
 	RelationshipType string `bun:"relationship_type" json:"relationship_type"`
 	IsPrimary        bool   `bun:"is_primary" json:"is_primary"`
+	PortalLocale     string `bun:"portal_locale" json:"-"`
 }

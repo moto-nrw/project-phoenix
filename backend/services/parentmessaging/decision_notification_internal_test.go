@@ -57,26 +57,33 @@ func TestRequestDecisionCopy(t *testing.T) {
 	t.Run("names the subject area, never the child", func(t *testing.T) {
 		cases := map[string]string{
 			usersModels.ParentMessageRequestCareSchedule:   "Betreuungszeiten",
+			usersModels.ParentMessageRequestPickupChange:   "Abholzeit",
 			usersModels.ParentMessageRequestMasterData:     "Stammdaten",
 			usersModels.ParentMessageRequestExcusedAbsence: "Abmeldung",
 		}
 		for requestType, expected := range cases {
-			title, body := requestDecisionCopy(requestType, usersModels.ParentMessageRequestStatusDone)
+			title, body := requestDecisionCopy("de", requestType, usersModels.ParentMessageRequestStatusDone)
 			assert.Equal(t, "Anfrage genehmigt", title)
 			assert.Contains(t, body, expected)
 		}
 	})
 
 	t.Run("an unknown request type still reads as a sentence", func(t *testing.T) {
-		title, body := requestDecisionCopy("something_new", usersModels.ParentMessageRequestStatusDone)
+		title, body := requestDecisionCopy("de", "something_new", usersModels.ParentMessageRequestStatusDone)
 		assert.Equal(t, "Anfrage genehmigt", title)
 		assert.Equal(t, "Ihre Anfrage wurde genehmigt.", body,
 			"a future request type must degrade to generic copy, not to an empty push")
 	})
 
 	t.Run("a rejection says so", func(t *testing.T) {
-		title, body := requestDecisionCopy(usersModels.ParentMessageRequestCareSchedule, usersModels.ParentMessageRequestStatusRejected)
+		title, body := requestDecisionCopy("de", usersModels.ParentMessageRequestCareSchedule, usersModels.ParentMessageRequestStatusRejected)
 		assert.Equal(t, "Anfrage abgelehnt", title)
 		assert.Contains(t, body, "abgelehnt")
+	})
+
+	t.Run("uses the guardian locale", func(t *testing.T) {
+		title, body := requestDecisionCopy("en", usersModels.ParentMessageRequestCareSchedule, usersModels.ParentMessageRequestStatusDone)
+		assert.Equal(t, "Request approved", title)
+		assert.Equal(t, "Your care schedule request was approved.", body)
 	})
 }

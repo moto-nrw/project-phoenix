@@ -20,8 +20,10 @@ export interface StaffCareRequest {
   readonly first_name: string;
   readonly last_name: string;
   readonly status: CareRequestStatus;
+  readonly request_kind: "weekly_schedule" | "pickup_change";
   readonly diff: readonly RequestDiffEntry[];
-  readonly reason?: string;
+  readonly request_reason?: string;
+  readonly decision_reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
 }

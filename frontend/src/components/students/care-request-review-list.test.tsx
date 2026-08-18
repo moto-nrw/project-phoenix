@@ -47,6 +47,7 @@ function row(overrides: Partial<StaffCareRequest> = {}): StaffCareRequest {
     first_name: "Lara",
     last_name: "Beispiel",
     status: "pending",
+    request_kind: "weekly_schedule",
     diff: [
       {
         label: "Montag · Abholzeit",
@@ -129,6 +130,30 @@ describe("CareRequestReviewList", () => {
     expect(
       await screen.findByText("Betreuungszeit-Anfrage abgelehnt"),
     ).toBeInTheDocument();
+  });
+
+  it("shows the parent's mandatory reason for a pickup change", async () => {
+    mockList.mockResolvedValue([
+      row({
+        request_kind: "pickup_change",
+        request_reason: "Arzttermin",
+        diff: [
+          {
+            label: "17.08.2026 · Abholzeit",
+            old: "15:30",
+            new: "16:30",
+            care_kind: "pickup",
+          },
+        ],
+      }),
+    ]);
+
+    render(<CareRequestReviewList />);
+
+    expect(await screen.findByText("Lara Beispiel")).toBeInTheDocument();
+    expandAll();
+    expect(screen.getByText("Grund der Eltern:")).toBeInTheDocument();
+    expect(screen.getByText("Arzttermin")).toBeInTheDocument();
   });
 
   it("shows load and decision errors without removing the row", async () => {

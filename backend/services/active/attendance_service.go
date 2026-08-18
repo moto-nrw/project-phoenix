@@ -463,6 +463,9 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 //  4. A checkout that closed attendance or healed an orphaned visit fans out
 //     over SSE after the request transaction commits (#2113).
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, today timezone.Date, checkoutType string) (*AttendanceResult, error) {
+	if err := s.AttendanceRepo.LockStudentAttendance(ctx, studentID); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("lock attendance checkout: %w", err)}
+	}
 	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, today, staffID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
@@ -555,6 +558,10 @@ func (s *service) registerCheckoutBroadcast(
 	snapshot *AttendanceSnapshot,
 	checkoutType string,
 ) {
+	// Siehe registerCheckinBroadcast: die Eltern-Weckung haengt an der
+	// Anwesenheit, nicht am Personal-Broadcaster.
+	s.wakeGuardiansAfterCommit(ctx, studentID)
+
 	if s.Broadcaster == nil {
 		return
 	}
@@ -592,6 +599,10 @@ func (s *service) registerCheckoutBroadcast(
 // broadcastVisitCreated. The two call sets are disjoint, so no request can emit
 // both.
 func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64, checkinType string) {
+	// Die Sorgeberechtigten werden unabhaengig vom Broadcaster geweckt: ihr
+	// Tagesstatus haengt an der Anwesenheit, nicht an den Personal-Topics.
+	s.wakeGuardiansAfterCommit(ctx, studentID)
+
 	if s.Broadcaster == nil {
 		return
 	}

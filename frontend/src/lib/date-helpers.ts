@@ -23,24 +23,30 @@ const BERLIN_DATE_TIME_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
-const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  timeZone: "Europe/Berlin",
-});
+function berlinDateFormatter(locale: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Berlin",
+  });
+}
 
-const BERLIN_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  timeZone: "Europe/Berlin",
-});
+function chatDayMonthFormatter(locale: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+}
 
-const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Europe/Berlin",
-});
+function chatTimeFormatter(locale: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+}
 
 /**
  * Serialize a Date to "YYYY-MM-DD" using LOCAL calendar fields.
@@ -184,24 +190,28 @@ export function groupByDate<T extends Record<string, unknown>>(
 }
 
 /**
- * Format a date string to German locale format
+ * Format a date string for the requested locale.
  * @param dateString ISO date string
  * @param includeWeekday Whether to include the weekday in the format
  * @returns Formatted date string (e.g., "15.12.2023" or "Freitag, 15. Dezember 2023")
  */
-export function formatDate(dateString: string, includeWeekday = false): string {
+export function formatDate(
+  dateString: string,
+  includeWeekday = false,
+  locale = "de-DE",
+): string {
   const date = ISO_DATE_RE.test(dateString)
     ? parseISODate(dateString)
     : new Date(dateString);
   if (includeWeekday) {
-    return date.toLocaleDateString("de-DE", {
+    return date.toLocaleDateString(locale, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
   }
-  return date.toLocaleDateString("de-DE", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -222,10 +232,10 @@ export function formatDate(dateString: string, includeWeekday = false): string {
  * Falls back to the raw input for an unparseable value, matching the chat
  * formatters — a malformed timestamp must not blank the surrounding line.
  */
-export function formatBerlinDate(dateString: string): string {
+export function formatBerlinDate(dateString: string, locale = "de-DE"): string {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return dateString;
-  return BERLIN_DATE_FORMATTER.format(date);
+  return berlinDateFormatter(locale).format(date);
 }
 
 /**
@@ -248,11 +258,11 @@ export function formatTime(dateString: string): string {
  * portions use the school timezone so the calendar date and clock cannot
  * disagree for guardians viewing from another timezone.
  */
-export function formatChatTime(iso: string): string {
+export function formatChatTime(iso: string, locale = "de-DE"): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  const dayMonth = CHAT_DAY_MONTH_FORMATTER.format(date);
-  return `${dayMonth}, ${CHAT_TIME_FORMATTER.format(date)}`;
+  const dayMonth = chatDayMonthFormatter(locale).format(date);
+  return `${dayMonth}, ${chatTimeFormatter(locale).format(date)}`;
 }
 
 /**
@@ -262,11 +272,21 @@ export function formatChatTime(iso: string): string {
  * messages list. Both portions use the school timezone so full and compact
  * chat timestamps cannot disagree for viewers outside Europe/Berlin.
  */
-export function formatChatDateTime(iso: string | undefined): string {
+export function formatChatDateTime(
+  iso: string | undefined,
+  locale = "de-DE",
+): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return `${BERLIN_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
+  return `${berlinDateFormatter(locale).format(date)}, ${chatTimeFormatter(locale).format(date)}`;
+}
+
+/** Clock-only chat timestamp for narrow list rows. */
+export function formatChatClockTime(iso: string, locale = "de-DE"): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return chatTimeFormatter(locale).format(date);
 }
 
 /**

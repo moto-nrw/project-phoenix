@@ -4,8 +4,8 @@ import { fetchAnnouncementsUnreadCount } from "~/lib/parent-api";
 import { useUnreadCount } from "./use-unread-count";
 
 /**
- * Number of unread parent announcements (Neuigkeiten, #1669) for the
- * parents-portal sidebar badge. Only fetches when `enabled` (parent mode).
+ * Number of parent announcements that still need attention in the sidebar.
+ * Only fetches when `enabled` (parent mode).
  * Refreshes on mount, on window focus, and on the parent-news-unread-refresh
  * event (dispatched after opening a news item marks it read, so the badge
  * drops without a full reload).

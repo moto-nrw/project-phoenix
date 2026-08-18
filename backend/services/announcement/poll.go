@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/localization"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/emailbranding"
@@ -219,6 +220,7 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 	}
 	accountIDs := make([]int64, 0, len(recipients))
 	seen := make(map[int64]struct{}, len(recipients))
+	localeByAccount := make(map[int64]string, len(recipients))
 	for _, r := range recipients {
 		if r.AccountID <= 0 {
 			continue
@@ -228,6 +230,7 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 		}
 		seen[r.AccountID] = struct{}{}
 		accountIDs = append(accountIDs, r.AccountID)
+		localeByAccount[r.AccountID] = localization.NormalizeLocale(r.PortalLocale)
 	}
 	if len(accountIDs) == 0 {
 		return nil, nil
@@ -242,27 +245,34 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 			return nil, nil
 		}
 	}
-	err := s.notifier.Notify(ctx, notifications.Event{
-		Type:     parentAnnouncementNotificationType,
-		Title:    parentPollReminderNotificationTitle,
-		Body:     parentPollReminderNotificationBody,
-		DeepLink: "/",
-		Priority: notifications.PriorityNormal,
-		Audience: notifications.Audience{
-			TenantID:           a.GetTenantID(),
-			Scope:              notifications.ScopeGuardian,
-			GuardianAccountIDs: accountIDs,
-		},
-	})
-	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
-		s.logger.Info("parent poll reminder push suppressed by tenant notification gate",
-			slog.Int64("announcement_id", a.ID),
-			slog.String("reason", err.Error()),
-		)
-		return nil, nil
+	groups := make(map[string][]int64)
+	for _, accountID := range accountIDs {
+		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
 	}
-	if err != nil {
-		return nil, fmt.Errorf("announcement: notify poll reminder audience: %w", err)
+	for locale, group := range groups {
+		title, body := notifications.ParentAnnouncementCopy(locale, notifications.ParentPollReminder)
+		err := s.notifier.Notify(ctx, notifications.Event{
+			Type:     parentAnnouncementNotificationType,
+			Title:    title,
+			Body:     body,
+			DeepLink: "/",
+			Priority: notifications.PriorityNormal,
+			Audience: notifications.Audience{
+				TenantID:           a.GetTenantID(),
+				Scope:              notifications.ScopeGuardian,
+				GuardianAccountIDs: group,
+			},
+		})
+		if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+			s.logger.Info("parent poll reminder push suppressed by tenant notification gate",
+				slog.Int64("announcement_id", a.ID),
+				slog.String("reason", err.Error()),
+			)
+			return nil, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("announcement: notify poll reminder audience: %w", err)
+		}
 	}
 	return accountIDs, nil
 }

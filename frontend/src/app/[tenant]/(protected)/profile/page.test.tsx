@@ -149,6 +149,16 @@ vi.mock("lucide-react", () => ({
   Cake: (props: Record<string, unknown>) => (
     <svg data-testid="cake-icon" {...props} />
   ),
+  // Used by the PushInstallSteps inside the PushNotificationSection.
+  Share: (props: Record<string, unknown>) => (
+    <svg data-testid="share-icon" {...props} />
+  ),
+  Plus: (props: Record<string, unknown>) => (
+    <svg data-testid="plus-icon" {...props} />
+  ),
+  House: (props: Record<string, unknown>) => (
+    <svg data-testid="house-icon" {...props} />
+  ),
 }));
 
 // Mock Next.js Image component

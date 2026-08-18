@@ -1,19 +1,4 @@
-// Parent-portal read view for the child's booked care offerings and activity
-// groups (#1665). Before this view a guardian could see the weekly times and
-// the meal plan, but never what the child is actually booked into — that lived
-// only in the enrollment form they filled in months earlier.
-//
-// Two lists, because neither alone is complete:
-//
-//   - Offerings are what the family chose and what a change request talks
-//     about. Some of them (schedule-only offerings without a linked group)
-//     never produce an enrollment row at all.
-//   - Groups are where the child actually is, including groups staff enrolled
-//     it into by hand, which no offering covers.
-//
-// Children that never came through an enrollment (manually created, imported)
-// have no offerings; they still get the group list, and CanRequest stays false
-// because there is no request child for an approved change to be applied to.
+// Parent-portal read view for the child's booked care offerings (#1665).
 package parent
 
 import (
@@ -25,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -56,23 +40,6 @@ type CareOfferingSelection struct {
 	StartsLater bool
 }
 
-// CareGroupMembership is one activity-group enrollment of the child: where the
-// child is, from when, and on which weekdays.
-type CareGroupMembership struct {
-	GroupID   int64
-	Name      string
-	Weekdays  []int
-	ValidFrom timezone.Date
-	// ValidUntil is exclusive, mirroring the column. Nil means open-ended.
-	ValidUntil *timezone.Date
-	// FromOffering marks rows materialized from an enrollment selection, as
-	// opposed to a group staff enrolled the child into directly.
-	FromOffering bool
-	// StartsLater is true when the row has not begun yet — an approved change
-	// that takes effect on a future date shows up here before it applies.
-	StartsLater bool
-}
-
 // PendingOfferingChange is the child's open change request as the guardian sees
 // it: the live "current → requested" diff, when it would take effect, and
 // whether the CALLING guardian submitted it (only the submitter may withdraw).
@@ -93,7 +60,6 @@ type ChildCareOfferings struct {
 	PeriodStart timezone.Date
 	PeriodEnd   timezone.Date
 	Offerings   []CareOfferingSelection
-	Groups      []CareGroupMembership
 	// CanRequest gates the "Änderung anfragen" button. False without an
 	// approved enrollment behind the child, without the guardian permission,
 	// or when the school has post-enrollment changes switched off.
@@ -133,7 +99,6 @@ func (s *service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 	}
 	view := &ChildCareOfferings{
 		Offerings: []CareOfferingSelection{},
-		Groups:    []CareGroupMembership{},
 	}
 	today := timezone.TodayDate()
 	var period *enrollmentModels.StudentCarePeriod
@@ -180,8 +145,7 @@ func (s *service) loadChildCareOfferings(
 			return nil, err
 		}
 	}
-	view.Groups, err = s.careGroupMemberships(ctx, studentID, today)
-	return period, err
+	return period, nil
 }
 
 func (s *service) loadOfferingChangeState(
@@ -462,108 +426,6 @@ func sortCareOfferingSelections(
 		}
 		return left < right
 	})
-}
-
-// careGroupMemberships lists the child's group enrollments that are current or
-// still ahead. Rows that already ended are left out: the view answers "where is
-// my child", not "where has it ever been".
-func (s *service) careGroupMemberships(
-	ctx context.Context,
-	studentID int64,
-	today timezone.Date,
-) ([]CareGroupMembership, error) {
-	if s.StudentEnrollmentRepo == nil {
-		return []CareGroupMembership{}, nil
-	}
-	rows, err := s.StudentEnrollmentRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, fmt.Errorf("list student enrollments: %w", err)
-	}
-	relevant, groupIDs := relevantGroupEnrollments(rows, today)
-	if len(relevant) == 0 {
-		return []CareGroupMembership{}, nil
-	}
-	nameByID, err := s.careGroupNames(ctx, groupIDs)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]CareGroupMembership, 0, len(relevant))
-	for _, row := range relevant {
-		item, ok := careGroupMembership(row, nameByID, today)
-		if !ok {
-			continue
-		}
-		items = append(items, item)
-	}
-	sort.SliceStable(items, func(i, j int) bool {
-		if items[i].ValidFrom == items[j].ValidFrom {
-			return items[i].Name < items[j].Name
-		}
-		return items[i].ValidFrom.Before(items[j].ValidFrom)
-	})
-	return items, nil
-}
-
-func relevantGroupEnrollments(
-	rows []*activitiesModels.StudentEnrollment,
-	today timezone.Date,
-) ([]*activitiesModels.StudentEnrollment, []int64) {
-	relevant := make([]*activitiesModels.StudentEnrollment, 0, len(rows))
-	groupIDs := make([]int64, 0, len(rows))
-	seenGroup := make(map[int64]bool, len(rows))
-	for _, row := range rows {
-		// valid_until is exclusive: a row ending today is already over.
-		if row == nil || row.ValidUntil != nil && !row.ValidUntil.After(today) {
-			continue
-		}
-		relevant = append(relevant, row)
-		if !seenGroup[row.ActivityGroupID] {
-			seenGroup[row.ActivityGroupID] = true
-			groupIDs = append(groupIDs, row.ActivityGroupID)
-		}
-	}
-	return relevant, groupIDs
-}
-
-func (s *service) careGroupNames(ctx context.Context, groupIDs []int64) (map[int64]string, error) {
-	names := map[int64]string{}
-	if s.ActivityGroupRepo == nil {
-		return names, nil
-	}
-	groups, err := s.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
-	if err != nil {
-		return nil, fmt.Errorf("list activity groups: %w", err)
-	}
-	for _, group := range groups {
-		if group != nil {
-			names[group.ID] = group.Name
-		}
-	}
-	return names, nil
-}
-
-func careGroupMembership(
-	row *activitiesModels.StudentEnrollment,
-	nameByID map[int64]string,
-	today timezone.Date,
-) (CareGroupMembership, bool) {
-	name, ok := nameByID[row.ActivityGroupID]
-	if !ok {
-		// A group the guardian cannot be told the name of is not worth a
-		// nameless card.
-		return CareGroupMembership{}, false
-	}
-	weekdays := append([]int(nil), row.SelectedWeekdays...)
-	sort.Ints(weekdays)
-	return CareGroupMembership{
-		GroupID:      row.ActivityGroupID,
-		Name:         name,
-		Weekdays:     weekdays,
-		ValidFrom:    row.ValidFrom,
-		ValidUntil:   row.ValidUntil,
-		FromOffering: row.EnrollmentRequestChildID != nil,
-		StartsLater:  row.ValidFrom.After(today),
-	}, true
 }
 
 // weekdaysFromOfferingDays maps stored day abbreviations ("mon") to ISO

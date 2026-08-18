@@ -3,9 +3,6 @@
 import type React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { Alert } from "~/components/ui/alert";
-import { ButtonLink } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 
 /**
@@ -37,11 +34,9 @@ export function ParentPage({
 }
 
 /**
- * The page's identity block, on the same white surface as the sections below.
- * The calm comes from the typography (blue kicker, `text-xl` title, no oversized
- * display type) and from dropping the old split hero with its dotted panel —
- * not from stripping the card, which left the title floating on the dotted page
- * background.
+ * The page identity block. Detail and list pages use the default white surface.
+ * Dashboards may use the plain variant when the app chrome already provides
+ * enough context and daily content should stay above the fold.
  */
 export function ParentPageHeader({
   kicker,
@@ -51,6 +46,7 @@ export function ParentPageHeader({
   backHref,
   backLabel,
   media,
+  prominent = false,
 }: Readonly<{
   kicker?: string;
   title: string;
@@ -60,6 +56,8 @@ export function ParentPageHeader({
   backLabel?: string;
   /** Optional leading element, e.g. a child's initials avatar. */
   media?: React.ReactNode;
+  /** Gives dashboard greetings one clear step above section headings. */
+  prominent?: boolean;
 }>) {
   return (
     <header className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
@@ -76,7 +74,7 @@ export function ParentPageHeader({
               </p>
             )}
             <h1
-              className={`text-xl font-semibold text-balance break-words text-gray-900 sm:text-2xl ${kicker ? "mt-1" : ""}`}
+              className={`${prominent ? "text-2xl sm:text-[28px]" : "text-xl sm:text-2xl"} leading-tight font-semibold tracking-tight text-balance break-words text-gray-900 ${kicker ? "mt-1" : ""}`}
             >
               {title}
             </h1>
@@ -114,137 +112,69 @@ function ParentBackLink({
 }
 
 /**
- * Primary page action rendered as a link. Matches `Button` `variant="primary"`
- * `size="md"` so a link and a button can sit next to each other without a
- * height or weight mismatch.
- */
-export function ParentLinkAction({
-  href,
-  children,
-  variant = "primary",
-  className = "",
-}: Readonly<{
-  href: string;
-  children: React.ReactNode;
-  variant?: "primary" | "secondary";
-  className?: string;
-}>) {
-  return (
-    <ButtonLink
-      href={href}
-      variant={variant === "primary" ? "primary" : "outline"}
-      size="md"
-      className={className}
-    >
-      {children}
-    </ButtonLink>
-  );
-}
-
-/**
- * A labelled fact inside a section. Replaces the three different `InfoRow` /
- * `CompactInfoRow` implementations the portal used to carry, and reads the same
- * at every breakpoint (label above value, no desktop-only two-column split).
- */
-export function ParentField({
-  label,
-  children,
-}: Readonly<{ label: string; children: React.ReactNode }>) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm font-medium break-words text-gray-900">
-        {children}
-      </dd>
-    </div>
-  );
-}
-
-/** Grid of `ParentField`s. */
-export function ParentFieldGrid({
-  children,
-  className = "",
-}: Readonly<{ children: React.ReactNode; className?: string }>) {
-  return (
-    <dl className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${className}`}>
-      {children}
-    </dl>
-  );
-}
-
-/**
- * Compact status line inside a section: neutral icon tile, label, value.
- * Used for the child page's "Heute" facts, where a colored badge per row would
- * turn three quiet statements into an alarm.
- */
-export function ParentStatusRow({
-  icon: Icon,
-  label,
-  children,
-}: Readonly<{
-  icon: LucideIcon;
-  label: string;
-  children: React.ReactNode;
-}>) {
-  return (
-    <div className="flex items-start gap-3 rounded-xl bg-gray-50 px-3 py-2.5">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm">
-        <Icon className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-          {label}
-        </p>
-        <div className="mt-0.5 text-sm font-medium break-words text-gray-900">
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Shared load-failure block. */
-export function ParentLoadError({ message }: Readonly<{ message: string }>) {
-  return (
-    <ParentPage>
-      <Alert type="error" message={message} />
-    </ParentPage>
-  );
-}
-
-/**
- * Section placeholders only — no header skeleton. Use this when the page's
- * `ParentPageHeader` is static (title/description don't depend on the
- * fetched data): render the real header immediately and reserve the
- * skeleton for the data-dependent region below it, so navigation never
- * flashes a placeholder over chrome that was already known.
- */
-export function ParentSectionSkeletons({
-  rows = 2,
-}: Readonly<{ rows?: number }>) {
-  return (
-    <>
-      {Array.from({ length: rows }, (_, index) => (
-        <Skeleton key={index} className="h-40 w-full rounded-2xl" />
-      ))}
-    </>
-  );
-}
-
-/**
- * Shared page skeleton, header included. `rows` controls how many section
- * placeholders follow the header so a page can approximate its own shape
- * without redefining the whole block. Reserve this for pages whose header
- * itself depends on the fetched data (e.g. a child's name) — when the header
- * is static, render it directly and use `ParentSectionSkeletons` instead.
+ * Shared page skeleton. `rows` controls how many section placeholders follow
+ * the header so a page can approximate its own shape without redefining the
+ * whole block.
  */
 export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
   return (
     <ParentPage>
-      <Skeleton className="h-28 w-full rounded-2xl" />
-      <ParentSectionSkeletons rows={rows} />
+      <div
+        data-testid="parent-page-header-skeleton"
+        className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
+        aria-hidden="true"
+      >
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="mt-2 h-7 w-56 max-w-3/4" />
+        <Skeleton className="mt-2 h-4 w-full max-w-xl" />
+        <Skeleton className="mt-2 h-4 w-2/3 max-w-md" />
+      </div>
+      {Array.from({ length: rows }, (_, index) => (
+        <ParentSectionSkeleton key={index} />
+      ))}
     </ParentPage>
+  );
+}
+
+export function ParentSectionSkeleton({
+  rows = 3,
+  showHeader = true,
+  className = "",
+}: Readonly<{
+  rows?: number;
+  showHeader?: boolean;
+  className?: string;
+}>) {
+  return (
+    <div
+      data-testid="parent-page-section-skeleton"
+      className={`overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm ${className}`}
+      aria-hidden="true"
+    >
+      {showHeader ? (
+        <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">
+          <Skeleton className="size-10 shrink-0 rounded-xl" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-5 w-40 max-w-2/3" />
+            <Skeleton className="h-3 w-56 max-w-full" />
+          </div>
+        </div>
+      ) : null}
+      <div className="divide-y divide-gray-100 px-4 sm:px-5">
+        {Array.from({ length: rows }, (_, rowIndex) => (
+          <div
+            key={rowIndex}
+            data-testid="parent-page-section-row-skeleton"
+            className="flex min-h-16 items-center gap-3 py-3"
+          >
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+            <Skeleton className="h-8 w-12 shrink-0 rounded-lg" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

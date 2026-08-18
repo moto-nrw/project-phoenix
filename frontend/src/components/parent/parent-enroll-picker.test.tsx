@@ -51,6 +51,18 @@ describe("ParentEnrollPicker", () => {
     mocks.listEnrollableSchools.mockReset();
   });
 
+  it("reserves school headers and phase rows while loading", () => {
+    mocks.listEnrollableSchools.mockReturnValue(new Promise(() => {}));
+
+    render(<ParentEnrollPicker />);
+
+    const skeleton = screen.getByTestId("parent-enroll-skeleton");
+    expect(skeleton.querySelectorAll(".rounded-2xl.border")).toHaveLength(2);
+    expect(skeleton.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
+      10,
+    );
+  });
+
   it("renders linked/other groups, phase rows, links, kind + audience labels", async () => {
     mocks.listEnrollableSchools.mockResolvedValueOnce([
       phase(),
@@ -79,6 +91,17 @@ describe("ParentEnrollPicker", () => {
     expect(
       await screen.findByRole("heading", { name: "Neue Anmeldung", level: 1 }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText("Anmeldung für die OGS-Betreuung"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Wählen Sie eine Schule und eine Anmeldephase, um Ihr Kind anzumelden.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Zurück zum Elternportal" }),
+    ).not.toBeInTheDocument();
 
     // Section labels
     expect(screen.getByText("Ihre Schulen")).toBeInTheDocument();

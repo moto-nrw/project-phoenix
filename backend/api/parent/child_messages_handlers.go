@@ -53,11 +53,12 @@ type ThreadSummaryResponse struct {
 	// of the German LastMessageBody (which the full conversation already
 	// localizes the same way). Empty for plain messages, where LastMessageBody is
 	// the human-written, language-neutral text.
-	LastMessageKind   string `json:"last_message_kind,omitempty"`
-	LastEventType     string `json:"last_event_type,omitempty"`
-	LastRequestType   string `json:"last_request_type,omitempty"`
-	LastRequestStatus string `json:"last_request_status,omitempty"`
-	Unread            int    `json:"unread"`
+	LastMessageKind        string `json:"last_message_kind,omitempty"`
+	LastEventType          string `json:"last_event_type,omitempty"`
+	LastRequestType        string `json:"last_request_type,omitempty"`
+	LastRequestStatus      string `json:"last_request_status,omitempty"`
+	LastMessageReadByStaff bool   `json:"last_message_read_by_staff"`
+	Unread                 int    `json:"unread"`
 }
 
 // toThreadSummary maps a projected inbox thread to the parent-facing summary,
@@ -66,19 +67,20 @@ type ThreadSummaryResponse struct {
 // list and the per-child list so the two cannot drift.
 func toThreadSummary(t *usersModels.InboxThread) ThreadSummaryResponse {
 	return ThreadSummaryResponse{
-		ThreadID:          strconv.FormatInt(t.ThreadID, 10),
-		StudentID:         strconv.FormatInt(t.StudentID, 10),
-		StudentName:       t.StudentName,
-		SchoolName:        t.SchoolName,
-		CounterpartName:   ogsLabel(t.SchoolName),
-		LastMessageAt:     t.LastMessageAt,
-		LastSenderKind:    t.LastSenderKind,
-		LastMessageBody:   t.LastMessageBody,
-		LastMessageKind:   t.LastMessageKind,
-		LastEventType:     t.LastEventType,
-		LastRequestType:   t.LastRequestType,
-		LastRequestStatus: t.LastRequestStatus,
-		Unread:            t.UnreadCount,
+		ThreadID:               strconv.FormatInt(t.ThreadID, 10),
+		StudentID:              strconv.FormatInt(t.StudentID, 10),
+		StudentName:            t.StudentName,
+		SchoolName:             t.SchoolName,
+		CounterpartName:        ogsLabel(t.SchoolName),
+		LastMessageAt:          t.LastMessageAt,
+		LastSenderKind:         t.LastSenderKind,
+		LastMessageBody:        t.LastMessageBody,
+		LastMessageKind:        t.LastMessageKind,
+		LastEventType:          t.LastEventType,
+		LastRequestType:        t.LastRequestType,
+		LastRequestStatus:      t.LastRequestStatus,
+		LastMessageReadByStaff: t.LastMessageReadByStaff,
+		Unread:                 t.UnreadCount,
 	}
 }
 

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ConceptPageHeader } from "~/components/ui/concept-section-header";
+import { Skeleton } from "~/components/ui/skeleton";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { useLocale, useTranslations } from "next-intl";
 import { type EnrollablePhase, listEnrollableSchools } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
@@ -79,24 +80,12 @@ export function ParentEnrollPicker() {
   }, [phases]);
 
   return (
-    <div className="w-full space-y-6">
-      <Link
-        href="/parents"
-        className="text-moto-blue inline-flex items-center gap-2 text-sm font-semibold hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        {t("back")}
-      </Link>
-
-      <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="p-5 sm:p-6 lg:p-8">
-          <ConceptPageHeader
-            title={t("title")}
-            concept="enrollments"
-            subtitle={t("description")}
-          />
-        </div>
-      </section>
+    <ParentPage>
+      <ParentPageHeader
+        kicker={t("kicker")}
+        title={t("title")}
+        description={t("description")}
+      />
 
       {loading ? (
         <ParentEnrollSkeleton />
@@ -124,7 +113,7 @@ export function ParentEnrollPicker() {
           )}
         </div>
       )}
-    </div>
+    </ParentPage>
   );
 }
 
@@ -135,9 +124,7 @@ function SchoolSection({
 }: Readonly<{ label: string; groups: SchoolGroup[]; locale: string }>) {
   return (
     <section className="space-y-3">
-      <h2 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {label}
-      </h2>
+      <h2 className="text-[15px] font-medium text-gray-700">{label}</h2>
       <div className="space-y-4">
         {groups.map((group) => (
           <SchoolCard key={group.schoolId} group={group} locale={locale} />
@@ -258,24 +245,38 @@ function ParentEnrollSkeleton() {
   // Mirrors SchoolCard above: icon-tile header row over a divide-y list of
   // PhaseRow-shaped lines, instead of two blank blocks.
   return (
-    <div className="space-y-4" aria-hidden="true">
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-          <span className="h-11 w-11 shrink-0 animate-pulse rounded-xl bg-gray-100" />
-          <span className="h-5 w-48 animate-pulse rounded bg-gray-200" />
+    <div
+      data-testid="parent-enroll-skeleton"
+      className="space-y-4"
+      aria-hidden="true"
+    >
+      <Skeleton className="ml-1 h-5 w-32" />
+      {[0, 1].map((card) => (
+        <div
+          key={card}
+          className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+        >
+          <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
+            <Skeleton className="size-11 shrink-0 rounded-xl" />
+            <Skeleton className="h-5 w-48 max-w-2/3" />
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {[0, 1].map((row) => (
+              <li key={row} className="flex items-center gap-4 p-4 sm:px-6">
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex gap-2">
+                    <Skeleton className="h-4 w-36" />
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </div>
+                  <Skeleton className="h-4 w-56 max-w-full" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+                <Skeleton className="size-5 shrink-0 rounded" />
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="divide-y divide-gray-100">
-          {[0, 1, 2].map((row) => (
-            <li key={row} className="flex items-center gap-4 p-4 sm:px-6">
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="h-4 w-2/5 animate-pulse rounded bg-gray-200" />
-                <div className="h-3 w-3/5 animate-pulse rounded bg-gray-200" />
-              </div>
-              <div className="h-4 w-4 shrink-0 animate-pulse rounded bg-gray-200" />
-            </li>
-          ))}
-        </ul>
-      </div>
+      ))}
     </div>
   );
 }

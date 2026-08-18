@@ -14,9 +14,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -94,11 +96,27 @@ func (f *companionErrCareRequestService) WithdrawRequest(context.Context, int64,
 	return nil, nil
 }
 
+func (f *companionErrCareRequestService) WithdrawPickupChangeRequest(context.Context, int64, int64, int64) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+
 func (f *companionErrCareRequestService) GetPendingForStudent(context.Context, int64) (*scheduleModels.CareScheduleChangeRequest, []scheduleService.RequestDiffEntry, error) {
 	return nil, nil, nil
 }
 
 func (f *companionErrCareRequestService) ListPending(context.Context) ([]*scheduleService.CareRequestReviewItem, error) {
+	return nil, nil
+}
+
+func (f *companionErrCareRequestService) CreatePickupChangeRequest(context.Context, int64, int64, timezone.Date, time.Time, string) (*scheduleModels.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+
+func (f *companionErrCareRequestService) ListPendingPickupChanges(context.Context) ([]*scheduleService.CareRequestReviewItem, error) {
+	return nil, nil
+}
+
+func (f *companionErrCareRequestService) ListPickupChangeRequests(context.Context, int64, time.Time) ([]*scheduleModels.CareScheduleChangeRequest, error) {
 	return nil, nil
 }
 

@@ -12,6 +12,12 @@ import (
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 )
 
+func TestCareOfferingsResponseOmitsActivityGroups(t *testing.T) {
+	payload, err := json.Marshal(toCareOfferingsResponse(&parentService.ChildCareOfferings{}))
+	require.NoError(t, err)
+	assert.NotContains(t, string(payload), `"groups"`)
+}
+
 func TestToCareOfferingsResponseIncludesOfferingInterval(t *testing.T) {
 	starts := timezone.NewDate(2026, 10, 1)
 	endsExclusive := timezone.NewDate(2027, 2, 1)

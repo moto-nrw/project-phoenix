@@ -98,6 +98,7 @@ DELETE /operator/suggestions/{id}
 DELETE /operator/suggestions/{id}/comments/{commentId}
 DELETE /parent/me/children/{studentId}/care-exception
 DELETE /parent/me/children/{studentId}/excused-requests/{requestId}
+DELETE /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/feedback/{postId}
 DELETE /parent/me/feedback/{postId}/comments/{commentId}
@@ -497,8 +498,10 @@ GET /parent/me/children/{studentId}/guardians
 GET /parent/me/children/{studentId}/master-data
 GET /parent/me/children/{studentId}/master-data/requests
 GET /parent/me/children/{studentId}/meal-plan
+GET /parent/me/children/{studentId}/pickup-change-requests
 GET /parent/me/children/{studentId}/related-accounts
 GET /parent/me/children/{studentId}/sick-note
+GET /parent/me/children/{studentId}/today
 GET /parent/me/enrollable-schools
 GET /parent/me/enrollments
 GET /parent/me/feedback
@@ -817,6 +820,7 @@ POST /parent/me/children/{studentId}/care-offerings/requests
 POST /parent/me/children/{studentId}/care-offerings/requests/{requestId}/withdraw
 POST /parent/me/children/{studentId}/care-schedule/requests
 POST /parent/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw
+POST /parent/me/children/{studentId}/guardians
 POST /parent/me/children/{studentId}/master-data/requests
 POST /parent/me/children/{studentId}/related-accounts
 POST /parent/me/children/{studentId}/sick-note

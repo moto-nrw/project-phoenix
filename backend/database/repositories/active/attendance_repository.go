@@ -32,6 +32,18 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 	}
 }
 
+func (r *AttendanceRepository) LockStudentAttendance(ctx context.Context, studentID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 || studentID <= 0 {
+		return &modelBase.DatabaseError{Op: "lock student attendance", Err: errors.New("tenant and student are required")}
+	}
+	key := fmt.Sprintf("attendance:%d:%d", tenantID, studentID)
+	if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key); err != nil {
+		return &modelBase.DatabaseError{Op: "lock student attendance", Err: err}
+	}
+	return nil
+}
+
 // FindByStudentAndDate finds all attendance records for a student on a specific date
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
@@ -491,6 +503,28 @@ func (r *AttendanceRepository) HasOpenAttendanceOn(ctx context.Context, date tim
 			  AND check_out_time IS NULL
 		)
 	`, date).Scan(ctx, &exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// HasAnyInRange reports whether ANY attendance row of the current tenant
+// exists between the two dates (inclusive), regardless of student. Signal for
+// "does this school record attendance at all" — a per-student lookback would
+// misreport newly enrolled or long-absent children.
+//
+// Requires a tenant tx in ctx; RLS is the only tenant scope — there is no
+// tenant_id WHERE clause, so calling without a tenant tx falls back to the
+// bare *bun.DB and would read attendance across all tenants.
+func (r *AttendanceRepository) HasAnyInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
+	var exists bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS(
+			SELECT 1 FROM active.attendance
+			WHERE date >= ? AND date <= ?
+		)
+	`, startDate, endDate).Scan(ctx, &exists)
 	if err != nil {
 		return false, err
 	}

@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-
-// parent-url has a module-level _isParents cache. Each test sets the
-// window.location.host + env BEFORE importing the module to control
-// what gets cached on first call. vi.resetModules() guarantees a fresh
-// module instance per test.
+import { act } from "react";
+import { createElement } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 
 const ORIGINAL_HOSTNAME = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
 
@@ -52,6 +51,35 @@ describe("parentPath on parents subdomain", () => {
     const { parentPath } = await import("./parent-url");
     expect(parentPath("/children/123")).toBe("/children/123");
   });
+
+  it("renders the same href on the server and during hydration", async () => {
+    const actualWindow = window;
+    const { parentPath } = await import("./parent-url");
+    const Link = () =>
+      createElement("a", { href: parentPath("/parents/calendar") }, "Kalender");
+
+    vi.stubGlobal("window", undefined);
+    const serverHTML = renderToString(createElement(Link));
+    vi.stubGlobal("window", actualWindow);
+
+    const container = document.createElement("div");
+    container.innerHTML = serverHTML;
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    await act(async () => {
+      root = hydrateRoot(container, createElement(Link));
+    });
+
+    expect(container.querySelector("a")).toHaveAttribute("href", "/calendar");
+    const hydrationOutput = consoleError.mock.calls.flat().join(" ");
+    expect(hydrationOutput).not.toContain("hydrated but some attributes");
+
+    await act(async () => root?.unmount());
+    consoleError.mockRestore();
+  });
 });
 
 describe("parentPath on a non-parents host", () => {
@@ -59,26 +87,26 @@ describe("parentPath on a non-parents host", () => {
     setLocation("school.localhost:3000");
   });
 
-  it("prefixes a bare path with /parents", async () => {
+  it("keeps a public path unchanged", async () => {
     const { parentPath } = await import("./parent-url");
-    expect(parentPath("/children/123")).toBe("/parents/children/123");
+    expect(parentPath("/children/123")).toBe("/children/123");
   });
 
-  it("does not double-prefix an already-prefixed path", async () => {
+  it("strips an internal /parents prefix", async () => {
     const { parentPath } = await import("./parent-url");
-    expect(parentPath("/parents/children/123")).toBe("/parents/children/123");
+    expect(parentPath("/parents/children/123")).toBe("/children/123");
   });
 });
 
-describe("parentPath missing-env guard", () => {
+describe("parentPath without browser configuration", () => {
   beforeEach(() => {
     setLocation("anything.localhost:3000");
     delete process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
   });
 
-  it("throws a friendly error when NEXT_PUBLIC_PARENTS_HOSTNAME is unset", async () => {
+  it("is independent of the configured browser host", async () => {
     const { parentPath } = await import("./parent-url");
-    expect(() => parentPath("/foo")).toThrow(/NEXT_PUBLIC_PARENTS_HOSTNAME/);
+    expect(parentPath("/parents/settings")).toBe("/settings");
   });
 });
 

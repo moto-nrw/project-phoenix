@@ -95,15 +95,67 @@ function renderModal(
   // live outside the render container — query the document instead.
   const dateInput =
     document.querySelector<HTMLInputElement>('input[type="date"]')!;
-  const timeInputs = Array.from(
-    document.querySelectorAll<HTMLInputElement>('input[type="time"]'),
-  );
-  // Field order in the modal is arrival, then pickup.
-  const [arrivalInput, pickupInput] = timeInputs;
-  return { onSubmit, onRemove, onClose, dateInput, arrivalInput, pickupInput };
+  const pickupInput = screen.getByLabelText<HTMLInputElement>(/^Abholzeit/, {
+    selector: "input",
+  });
+  const reasonInput = document.querySelector<HTMLTextAreaElement>("textarea");
+  return {
+    onSubmit,
+    onRemove,
+    onClose,
+    dateInput,
+    pickupInput,
+    reasonInput,
+  };
 }
 
+describe("PickupTimeModal, bereits abgeholt", () => {
+  it("erklärt bei einem bereits gegangenen Kind den tatsächlichen Sperrgrund", () => {
+    render(
+      <PickupTimeModal
+        childFirstName="Hannah"
+        today={{ at_ogs: false, state: "left", until: "15:30" }}
+        careExceptions={[
+          {
+            date: todayISO(),
+            pickup_time: "15:30",
+            source: "staff",
+            pickup_source: "staff",
+            updated_at: "2026-08-16T15:30:00Z",
+          },
+        ]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Hannah ist heute bereits zuhause. Die Abholzeit kann nicht mehr geändert werden.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        /Einrichtung bereits eine abweichende Abholzeit festgelegt/,
+      ),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("PickupTimeModal — failed preload guard", () => {
+  it("uses the compact shared modal button size", () => {
+    renderModal();
+
+    const submitButton = screen.getByRole("button", {
+      name: "Anfrage senden",
+    });
+    expect(submitButton).toHaveClass("px-4", "py-2", "text-sm");
+    expect(submitButton).not.toHaveClass("min-h-12", "text-[17px]");
+  });
+
   it("blocks saving and warns when the exception list failed to load", () => {
     const { onSubmit } = renderModal({ careExceptionsLoaded: false });
 
@@ -111,7 +163,9 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(screen.getByText(LOAD_ERROR_DE)).toBeInTheDocument();
 
     // The save button is disabled so an omitted leg can't be sent as a clear.
-    const saveButton = screen.getByRole("button", { name: "Speichern" });
+    const saveButton = screen.getByRole("button", {
+      name: "Anfrage senden",
+    });
     expect(saveButton).toBeDisabled();
 
     // Even if a click slips through, handleSubmit refuses to submit.
@@ -120,7 +174,7 @@ describe("PickupTimeModal — failed preload guard", () => {
   });
 
   it("allows saving once the exception list is known", () => {
-    const { onSubmit, pickupInput } = renderModal({
+    const { onSubmit, pickupInput, reasonInput } = renderModal({
       careExceptionsLoaded: true,
     });
 
@@ -128,23 +182,58 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(screen.queryByText(LOAD_ERROR_DE)).not.toBeInTheDocument();
 
     fireEvent.change(pickupInput!, { target: { value: "14:30" } });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ pickupTime: "14:30" }),
+      expect.objectContaining({
+        pickupTime: "14:30",
+        reason: "Arzttermin",
+      }),
     );
   });
 
-  it("preserves an existing arrival leg the parent did not touch", () => {
-    // A loaded override with both legs: the parent edits pickup only. Because
-    // the list loaded, the arrival field is prefilled and travels back intact
-    // rather than being cleared.
+  it("does not offer an arrival-time field", () => {
+    renderModal();
+
+    expect(screen.queryByLabelText(/Ankunftszeit/)).not.toBeInTheDocument();
+  });
+
+  it("marks the required reason visibly", () => {
+    renderModal();
+
+    expect(screen.getByText("Grund für die Änderung")).toHaveTextContent(
+      "Grund für die Änderung *",
+    );
+  });
+
+  it("allows a pickup change when only the arrival was set by staff", () => {
+    renderModal({
+      careExceptions: [
+        {
+          date: todayISO(),
+          arrival_time: "08:30",
+          source: "staff",
+          pickup_source: "",
+          updated_at: "2026-03-10T09:00:00Z",
+        },
+      ],
+    });
+
+    expect(
+      screen.getByLabelText(/^Abholzeit/, { selector: "input" }),
+    ).toBeEnabled();
+  });
+
+  it("submits only the pickup change when an arrival override exists", () => {
     const existing: CareException = {
       date: "2026-03-17",
       pickup_time: "15:00",
       arrival_time: "08:30",
+      reason: "Termin",
       source: "guardian",
+      pickup_source: "guardian",
       updated_at: "2026-03-10T09:00:00Z",
     };
     const { onSubmit, dateInput, pickupInput } = renderModal({
@@ -152,36 +241,148 @@ describe("PickupTimeModal — failed preload guard", () => {
       careExceptionsLoaded: true,
     });
 
-    // Point the picker at the override's date so the fields prefill from it.
     fireEvent.change(dateInput, { target: { value: "2026-03-17" } });
-
-    // Change only the pickup time; arrival stays at its prefilled value.
     fireEvent.change(pickupInput!, { target: { value: "16:00" } });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
 
     expect(onSubmit).toHaveBeenCalledWith({
       date: "2026-03-17",
       pickupTime: "16:00",
-      arrivalTime: "08:30",
+      reason: "Termin",
     });
+  });
+
+  it("requires a reason for a changed pickup time", () => {
+    const { onSubmit, pickupInput, reasonInput } = renderModal();
+
+    fireEvent.change(pickupInput!, { target: { value: "14:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(
+      screen.getByText(
+        "Bitte geben Sie kurz an, warum sich die Abholzeit ändert.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(reasonInput).toHaveAttribute("aria-invalid", "true");
+    expect(reasonInput).toHaveFocus();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows a pending request and lets the guardian withdraw it", () => {
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        pickupChangeRequests={[
+          {
+            id: "request-1",
+            date: todayISO(),
+            pickup_time: "14:30",
+            previous_pickup_time: "15:30",
+            reason: "Arzttermin",
+            status: "pending",
+            created_at: "2026-08-16T10:00:00Z",
+          },
+        ]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        onRemove={onRemove}
+      />,
+    );
+
+    expect(screen.getByText("15:30 → 14:30 Uhr")).toBeInTheDocument();
+    expect(screen.getByText("Wartet auf Bestätigung")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anfrage senden" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+    ).toHaveClass("whitespace-nowrap");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+    );
+    expect(onRemove).toHaveBeenCalledWith(todayISO());
+  });
+
+  // Schaltet die OGS das Aendern ab, waehrend ein Antrag fuer einen spaeteren
+  // Tag offen ist, muss der Dialog auf diesem Tag aufgehen. Auf heute stehend
+  // zeigte er zu dem Antrag nichts und der Zuruecknehmen-Knopf fehlte.
+  it("opens on the pending request's day when changes are switched off", () => {
+    const inThreeDays = parseISODate(todayISO());
+    inThreeDays.setDate(inThreeDays.getDate() + 3);
+    const pendingDay = toISODate(inThreeDays);
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        pickupChangeRequests={[
+          {
+            id: "request-2",
+            date: pendingDay,
+            pickup_time: "14:30",
+            previous_pickup_time: "15:30",
+            reason: "Arzttermin",
+            status: "pending",
+            created_at: "2026-08-16T10:00:00Z",
+          },
+        ]}
+        careExceptionsLoaded
+        pickupChangeEnabled={false}
+        onClose={vi.fn()}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        onRemove={onRemove}
+      />,
+    );
+
+    expect(
+      document.querySelector<HTMLInputElement>('input[type="date"]'),
+    ).toHaveValue(pendingDay);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage zurückziehen" }),
+    );
+    expect(onRemove).toHaveBeenCalledWith(pendingDay);
   });
 });
 
 // Issue #1735: the former "Krank melden" modal became a generic "Abmelden" modal
 // with a Krank/Entschuldigt choice. These pin that the chosen kind reaches the
-// submit handler as the status argument — the heart of the feature.
+// submit handler as the status argument, which is the heart of the feature.
 describe("SickNoteModal — Abmeldegrund", () => {
+  it("uses the compact shared modal button size", () => {
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={vi.fn()} />);
+
+    const submitButton = screen.getByRole("button", {
+      name: "Krankmeldung an die OGS senden",
+    });
+    expect(submitButton).toHaveClass("px-4", "py-2", "text-sm");
+    expect(submitButton).not.toHaveClass("min-h-12", "text-[17px]");
+  });
+
   it("defaults to a Krankmeldung (status sick)", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     const onClose = vi.fn();
     render(<SickNoteModal onClose={onClose} onSubmit={onSubmit} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+    const reasonField = screen.getByRole("textbox", {
+      name: "Grund / Hinweis an die OGS",
+    });
+    expect(reasonField).toBeRequired();
+    expect(reasonField.closest("label")).toHaveTextContent(
+      "Grund / Hinweis an die OGS *",
+    );
+    fireEvent.change(reasonField, { target: { value: "Fieber" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     const [dates, reason, status] = onSubmit.mock.calls[0]!;
     expect(dates).toHaveLength(1); // from/to default to today
-    expect(reason).toBe("");
+    expect(reason).toBe("Fieber");
     expect(status).toBe("sick");
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
@@ -190,16 +391,20 @@ describe("SickNoteModal — Abmeldegrund", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
 
-    // Switch the kind to "Entschuldigt" via the CustomSelect combobox.
+    // Switch the kind to "Entschuldigen" via the CustomSelect combobox.
     fireEvent.click(
-      screen.getByRole("combobox", { name: "Art der Abmeldung" }),
+      screen.getByRole("combobox", { name: "Grund der Abwesenheit" }),
     );
-    fireEvent.click(screen.getByRole("option", { name: "Entschuldigt" }));
+    fireEvent.click(screen.getByRole("option", { name: "Entschuldigen" }));
 
     const reasonField = document.querySelector("textarea")!;
     fireEvent.change(reasonField, { target: { value: "Zahnarzttermin" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Entschuldigung an die OGS senden",
+      }),
+    );
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit).toHaveBeenCalledWith(
@@ -209,9 +414,33 @@ describe("SickNoteModal — Abmeldegrund", () => {
     );
   });
 
+  it("requires a note for a sick report", () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+
+    const reasonField = screen.getByRole("textbox", {
+      name: "Grund / Hinweis an die OGS",
+    });
+    expect(reasonField).toHaveAttribute("aria-invalid", "true");
+    expect(reasonField).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
+    );
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("blocks submission and surfaces an error for an invalid date range", () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<SickNoteModal onClose={vi.fn()} onSubmit={onSubmit} />);
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
 
     // Force "Bis" before "Von" so the enumerated date set is empty.
     const dateInputs = Array.from(
@@ -220,7 +449,9 @@ describe("SickNoteModal — Abmeldegrund", () => {
     const [, toInput] = dateInputs;
     fireEvent.change(toInput!, { target: { value: "2000-01-01" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
 
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -301,6 +532,7 @@ describe("resolveTodayPickup", () => {
     return {
       date: TODAY,
       source: "guardian",
+      pickup_source: "",
       updated_at: "2026-03-01T09:00:00Z",
       ...over,
     };
@@ -309,7 +541,14 @@ describe("resolveTodayPickup", () => {
   it("returns the base-plan pickup time for today (not marked changed)", () => {
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: false,
         careExceptions: [],
@@ -322,7 +561,14 @@ describe("resolveTodayPickup", () => {
   it("prefers a same-day override and marks it changed", () => {
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: false,
         careExceptions: [makeException({ pickup_time: "15:00" })],
@@ -338,7 +584,14 @@ describe("resolveTodayPickup", () => {
     // review).
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: false,
         careExceptions: [makeException({ pickup_time: "16:00" })],
@@ -351,7 +604,14 @@ describe("resolveTodayPickup", () => {
   it("falls back to the base plan when an override changes only arrival", () => {
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: false,
         careExceptions: [makeException({ arrival_time: "08:00" })],
@@ -364,7 +624,14 @@ describe("resolveTodayPickup", () => {
   it("reports an absence when the child is off today, over any configured time", () => {
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: true,
         careExceptions: [makeException({ pickup_time: "15:00" })],
@@ -380,7 +647,14 @@ describe("resolveTodayPickup", () => {
     // an absence, not fall back to the base-plan pickup (#1725 review).
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: false,
         careExceptions: [
@@ -399,7 +673,14 @@ describe("resolveTodayPickup", () => {
     // for a child who is not coming (#1725 review).
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: false,
         careExceptions: [
@@ -443,7 +724,14 @@ describe("resolveTodayPickup", () => {
     // unloaded override could contradict (#1725 review).
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: true,
         todayAbsent: false,
         careExceptions: [],
@@ -478,7 +766,14 @@ describe("resolveTodayPickup", () => {
     // this; the base entry has to be present-but-untrusted.
     expect(
       resolveTodayPickup({
-        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekdays: [
+          {
+            weekday: TODAY_WD,
+            status: "scheduled",
+            pickup: "16:00",
+            modes: [],
+          },
+        ],
         weekPlanLoaded: false,
         todayAbsent: false,
         careExceptions: [makeException({ pickup_time: "15:00" })],
@@ -506,8 +801,11 @@ describe("useChildCare reportSick", () => {
     vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
     vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "getChildCareSchedule").mockResolvedValue({
-      weekdays: [{ weekday: todayWd, pickup: "16:00", modes: [] }],
+      weekdays: [
+        { weekday: todayWd, status: "scheduled", pickup: "16:00", modes: [] },
+      ],
       can_request: false,
       request_capabilities: {
         arrival: false,
@@ -576,6 +874,7 @@ describe("useChildCare studentId switch", () => {
 
     vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
     vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "listCareExceptions").mockImplementation((id: string) =>
       // Child A resolves; child B hangs so we observe the pre-fetch window.
       id === "1"
@@ -588,7 +887,14 @@ describe("useChildCare studentId switch", () => {
       (id: string) =>
         id === "1"
           ? Promise.resolve({
-              weekdays: [{ weekday: todayWd, pickup: "16:00", modes: [] }],
+              weekdays: [
+                {
+                  weekday: todayWd,
+                  status: "scheduled",
+                  pickup: "16:00",
+                  modes: [],
+                },
+              ],
               can_request: false,
               request_capabilities: {
                 arrival: false,
@@ -638,6 +944,7 @@ describe("useChildCare studentId switch", () => {
 
     vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
     vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listPickupChangeRequests").mockResolvedValue([]);
     vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue(
       [] as CareException[],
     );
@@ -649,6 +956,7 @@ describe("useChildCare studentId switch", () => {
           weekdays: [
             {
               weekday: todayWd,
+              status: "scheduled",
               pickup: id === "1" ? "16:00" : "15:00",
               modes: [],
             },
@@ -724,5 +1032,65 @@ describe("useChildCare studentId switch", () => {
       time: "15:00",
       changed: false,
     });
+  });
+});
+
+// Aufgabe 7 des Umbaus: die Dialoge sprechen Elternsprache und sind mit dem
+// Daumen bedienbar. Fachlich aendert sich nichts (Entscheidung E5).
+describe("Dialoge in Elternsprache", () => {
+  it("benennt im Krank-Dialog die Folge und die Pflichtfelder", () => {
+    render(<SickNoteModal onClose={vi.fn()} onSubmit={vi.fn()} />);
+
+    expect(
+      screen.getByText(/Anmeldung bei der OGS bleibt/),
+    ).toBeInTheDocument();
+    // Die Hauptaktion nennt die Folge, nicht "Speichern".
+    expect(
+      screen.getByRole("button", {
+        name: "Krankmeldung an die OGS senden",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+    ).toBeRequired();
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("benennt im Abhol-Dialog die Folge und zeigt das Uhrzeitformat", () => {
+    renderModal();
+
+    expect(
+      screen.getByText(/gilt erst, nachdem die OGS sie bestätigt hat/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Uhrzeit im Format 15:30")).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeInTheDocument();
+  });
+
+  it("meldet eine fehlende Uhrzeit in Alltagssprache am Feld", () => {
+    const { onSubmit, reasonInput } = renderModal();
+
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(
+      screen.getByText("Bitte tragen Sie eine Abholzeit ein."),
+    ).toHaveAttribute("role", "alert");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("nimmt die Uhrzeit als Text an und setzt den Doppelpunkt selbst", () => {
+    const { onSubmit, pickupInput, reasonInput } = renderModal();
+
+    fireEvent.change(pickupInput, { target: { value: "1430" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ pickupTime: "14:30" }),
+    );
   });
 });
