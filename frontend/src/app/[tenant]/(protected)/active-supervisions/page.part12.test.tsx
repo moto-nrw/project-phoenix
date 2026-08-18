@@ -5,11 +5,20 @@
  * heavy full-dashboard renders stay at <=3 per file.
  */
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { useLayoutEffect } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
   roomParam: null as string | null,
 }));
+
+function CommitProbe({
+  children,
+  onCommit,
+}: Readonly<{ children: React.ReactNode; onCommit: () => void }>) {
+  useLayoutEffect(onCommit);
+  return children;
+}
 
 // Mock auth-utils with hasRole that reads session roles
 vi.mock("~/lib/auth-utils", () => ({
@@ -488,7 +497,22 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       students: [makeStudent("201", "Marie", "Beier")],
     });
 
-    const { rerender } = render(<MeinRaumPage />);
+    const unsafeCommits: boolean[] = [];
+    const recordCommit = () => {
+      const result = screen.queryByRole("button", { name: /Marie Beier/ });
+      const addButton = screen.queryByRole("button", { name: "Hinzufügen" });
+      unsafeCommits.push(
+        result !== null &&
+          addButton !== null &&
+          !addButton.hasAttribute("disabled"),
+      );
+    };
+    const renderPage = () => (
+      <CommitProbe onCommit={recordCommit}>
+        <MeinRaumPage />
+      </CommitProbe>
+    );
+    const { rerender } = render(renderPage());
     await searchFor("Marie Beier");
 
     await screen.findByRole("button", { name: /Marie Beier/ });
@@ -503,8 +527,10 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       ...rosterData,
       instance: { ...rosterData.instance, id: "100", title: "Sport" },
     };
-    rerender(<MeinRaumPage />);
+    unsafeCommits.length = 0;
+    rerender(renderPage());
 
+    expect(unsafeCommits).not.toContain(true);
     expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
 

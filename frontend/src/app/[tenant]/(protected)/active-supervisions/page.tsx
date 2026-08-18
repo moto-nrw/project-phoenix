@@ -930,7 +930,10 @@ function MeinRaumPageContent() {
   }, [storedReopen]);
   const [isConfirmingExpected, setIsConfirmingExpected] = useState(false);
   const [addStudentSearch, setAddStudentSearch] = useState("");
-  const [addStudentResults, setAddStudentResults] = useState<Student[]>([]);
+  const [addStudentResult, setAddStudentResult] = useState<{
+    readonly instanceId: string;
+    readonly students: Student[];
+  } | null>(null);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
 
   // OGS group rooms for color detection
@@ -1551,6 +1554,10 @@ function MeinRaumPageContent() {
     : null;
   const activeTimetableInstanceId =
     currentTimetableRoster?.instance?.id ?? null;
+  const addStudentResults =
+    addStudentResult?.instanceId === activeTimetableInstanceId
+      ? addStudentResult.students
+      : [];
   const isWaitingForTimetableRoster =
     timetableRosterKey !== null &&
     (timetableRoster === undefined ||
@@ -1559,11 +1566,11 @@ function MeinRaumPageContent() {
 
   useEffect(() => {
     if (!activeTimetableInstanceId || addStudentSearch.trim().length < 2) {
-      setAddStudentResults([]);
+      setAddStudentResult(null);
       return;
     }
 
-    setAddStudentResults([]);
+    setAddStudentResult(null);
     let cancelled = false;
     const timeout = window.setTimeout(() => {
       fetchStudents({
@@ -1573,7 +1580,10 @@ function MeinRaumPageContent() {
       })
         .then((result) => {
           if (!cancelled) {
-            setAddStudentResults(result.students);
+            setAddStudentResult({
+              instanceId: activeTimetableInstanceId,
+              students: result.students,
+            });
           }
         })
         .catch((err) => {
@@ -1581,7 +1591,7 @@ function MeinRaumPageContent() {
           logger.warn("failed to search students for timetable roster", {
             error: err instanceof Error ? err.message : String(err),
           });
-          setAddStudentResults([]);
+          setAddStudentResult(null);
         });
     }, 250);
 
@@ -1953,7 +1963,7 @@ function MeinRaumPageContent() {
           studentId,
         );
         setAddStudentSearch("");
-        setAddStudentResults([]);
+        setAddStudentResult(null);
         await mutateRoster(roster, { revalidate: false });
         return true;
       } catch (err) {
@@ -2327,7 +2337,7 @@ function MeinRaumPageContent() {
           onRosterAction={handleRosterAction}
           onSearchChange={(value) => {
             setAddStudentSearch(value);
-            setAddStudentResults([]);
+            setAddStudentResult(null);
           }}
         />
       );
