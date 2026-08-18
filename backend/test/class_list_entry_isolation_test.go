@@ -3,7 +3,7 @@
 // Class-list-only entries are names of children — personal data — so the
 // acceptance criteria demand proof that one school can never read or write
 // another school's entries. What guarantees that is not a WHERE clause but the
-// RLS policy from migration 1.15.303, so these tests run through real
+// RLS policy from migration 1.15.304, so these tests run through real
 // phoenix_tenant transactions (tenant.WithTenantTx): a repository-level test
 // with a plain context would pass even if the policy were missing.
 package test
