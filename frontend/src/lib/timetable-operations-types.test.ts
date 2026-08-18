@@ -182,6 +182,7 @@ describe("timetable operation mappers", () => {
           careDayStatus: "unknown",
         },
       ],
+      movedFrom: null,
     });
   });
 
@@ -358,6 +359,7 @@ describe("timetable operation mappers", () => {
           careDayStatus: "unknown",
         },
       ],
+      movedFrom: null,
     });
   });
 
