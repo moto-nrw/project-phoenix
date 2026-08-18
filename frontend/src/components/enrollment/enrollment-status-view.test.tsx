@@ -542,4 +542,29 @@ describe("EnrollmentStatusView renewal adjust (#2251)", () => {
       screen.queryByRole("link", { name: "Angebote und Wochentage anpassen" }),
     ).not.toBeInTheDocument();
   });
+
+  it("hides the adjust link when the renewal is not editable as a change request", async () => {
+    mockFetchStatus.mockResolvedValueOnce(
+      status({
+        edit_mode: "direct_edit",
+        children: [
+          {
+            id: "7",
+            first_name: "Lina",
+            last_name: "Muster",
+            status: "pending_renewal",
+          },
+        ],
+      }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByRole("button", { name: "Anmeldung bestätigen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Angebote und Wochentage anpassen" }),
+    ).not.toBeInTheDocument();
+  });
 });

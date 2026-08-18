@@ -18,6 +18,8 @@ import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
+import { Alert } from "~/components/ui/alert";
+import { InfoCard, InfoItem } from "~/components/ui/info-card";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -396,17 +398,13 @@ function RolloverPreviewPanel({
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 text-sm text-gray-500">
-        Vorschau wird geladen …
-      </div>
+      <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />} loading>
+        {null}
+      </InfoCard>
     );
   }
   if (previewError !== null) {
-    return (
-      <div className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong rounded-xl border p-4 text-sm">
-        {previewError}
-      </div>
-    );
+    return <Alert type="warning" message={previewError} />;
   }
   if (preview === null) return null;
 
@@ -424,41 +422,41 @@ function RolloverPreviewPanel({
     .join(" · ");
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4">
-      <p className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
-        Vorschau
-      </p>
-      <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-3">
-          <dt className="text-xs text-gray-500">Werden übernommen</dt>
-          <dd className="mt-1 text-lg font-semibold text-gray-900">
-            {preview.carried_count}
-          </dd>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-3">
-          <dt className="text-xs text-gray-500">Manuell zu prüfen</dt>
-          <dd className="mt-1 text-lg font-semibold text-gray-900">
-            {preview.review_count}
-          </dd>
-          {reviewDetails && (
-            <dd className="mt-1 text-xs text-gray-500">{reviewDetails}</dd>
-          )}
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-3">
-          <dt className="text-xs text-gray-500">Nicht übernommen</dt>
-          <dd className="mt-1 text-lg font-semibold text-gray-900">
-            {preview.excluded_count}
-          </dd>
-          {excludedDetails && (
-            <dd className="mt-1 text-xs text-gray-500">{excludedDetails}</dd>
-          )}
-        </div>
-      </dl>
-      <p className="mt-3 text-xs text-gray-500">
+    <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />}>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <InfoItem label="Werden übernommen" value={preview.carried_count} />
+        <InfoItem
+          label="Manuell zu prüfen"
+          value={
+            <>
+              {preview.review_count}
+              {reviewDetails && (
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  {reviewDetails}
+                </span>
+              )}
+            </>
+          }
+        />
+        <InfoItem
+          label="Nicht übernommen"
+          value={
+            <>
+              {preview.excluded_count}
+              {excludedDetails && (
+                <span className="mt-1 block text-xs font-normal text-gray-500">
+                  {excludedDetails}
+                </span>
+              )}
+            </>
+          }
+        />
+      </div>
+      <p className="text-xs text-gray-500">
         Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene, abgelehnte
         oder noch offene Anmeldungen werden nicht fortgeführt.
       </p>
-    </div>
+    </InfoCard>
   );
 }
 

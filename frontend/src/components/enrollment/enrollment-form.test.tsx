@@ -3541,14 +3541,24 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
     const submitter = vi
       .fn()
       .mockResolvedValue({ status_url: "/enroll/status/tok-1" });
+    const initialDraft = {
+      ...editDraft([{ id: "c-1", first_name: "Anton", last_name: "Alster" }]),
+      custom_data: { guardian_note: "Bitte anrufen" },
+      children: [
+        {
+          ...editDraft([
+            { id: "c-1", first_name: "Anton", last_name: "Alster" },
+          ]).children[0]!,
+          custom_data: { pickup_times: { mon: "14:30" } },
+        },
+      ],
+    };
     renderForm({
       restrictToOfferings: true,
       lockChildStructure: true,
       skipCaptcha: true,
       submitter,
-      initialDraft: editDraft([
-        { id: "c-1", first_name: "Anton", last_name: "Alster" },
-      ]),
+      initialDraft,
     });
     await waitForLoaded();
 
@@ -3566,13 +3576,19 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
         first_name: string;
         date_of_birth: string;
         offering_ids: number[];
+        custom_data: Record<string, unknown>;
       }[];
+      custom_data: Record<string, unknown>;
     };
     // Hidden master data travels unchanged from the draft.
     expect(payload.guardian_first_name).toBe("Mara");
     expect(payload.guardian_email).toBe("mara@example.test");
     expect(payload.children[0]?.first_name).toBe("Anton");
     expect(payload.children[0]?.date_of_birth).toBe("2018-04-15");
+    expect(payload.custom_data).toEqual({ guardian_note: "Bitte anrufen" });
+    expect(payload.children[0]?.custom_data).toEqual({
+      pickup_times: { mon: "14:30" },
+    });
     // The offering change is applied.
     expect(payload.children[0]?.offering_ids).toContain(11);
     expect(payload.children[0]?.offering_ids).toContain(12);

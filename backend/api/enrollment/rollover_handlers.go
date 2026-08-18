@@ -176,6 +176,10 @@ func (rs *Resource) previewRollover(w http.ResponseWriter, r *http.Request) {
 		rs.mapRolloverError(w, r, txErr)
 		return
 	}
+	if preview == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("rollover preview not returned")))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, RolloverPreviewResponse{
 		CarryCandidateCount: preview.CarryCandidateCount,

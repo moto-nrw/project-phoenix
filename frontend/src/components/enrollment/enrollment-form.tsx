@@ -1175,21 +1175,23 @@ export function EnrollmentForm({
       }
       // Strip answers to fields the parent couldn't see (hidden by a
       // show-if condition) so a stale value never reaches the backend.
-      const customData = pruneWeekdayAnswers(
-        visibleAnswerData(
-          schema?.fields ?? [],
-          true,
-          c.custom,
-          childConditionCtx(c),
-        ),
-        schema?.fields ?? [],
-        relevantCareDaysForChild(
-          c,
-          childOfferings,
-          previewMode,
-          offerings.length > 0,
-        ),
-      );
+      const customData = restrictToOfferings
+        ? { ...c.custom }
+        : pruneWeekdayAnswers(
+            visibleAnswerData(
+              schema?.fields ?? [],
+              true,
+              c.custom,
+              childConditionCtx(c),
+            ),
+            schema?.fields ?? [],
+            relevantCareDaysForChild(
+              c,
+              childOfferings,
+              previewMode,
+              offerings.length > 0,
+            ),
+          );
       // Couple the "mit wem" note (#1694) back in: it rides on a reserved key
       // (not a schema field), so visibleAnswerData drops it. A schema may carry
       // more than one field targeting student.allowed_departure_modes (only keys
@@ -1288,12 +1290,14 @@ export function EnrollmentForm({
             ? additionalGuardiansPayload
             : undefined,
         consent_flags: consentFlags,
-        custom_data: visibleAnswerData(
-          schema?.fields ?? [],
-          false,
-          customData,
-          guardianCtx,
-        ),
+        custom_data: restrictToOfferings
+          ? { ...customData }
+          : visibleAnswerData(
+              schema?.fields ?? [],
+              false,
+              customData,
+              guardianCtx,
+            ),
         children: payloadChildren,
         captcha_token: skipCaptcha ? undefined : captchaToken || undefined,
         late_invite_token: lateInviteToken?.trim()

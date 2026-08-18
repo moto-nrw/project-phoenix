@@ -393,6 +393,14 @@ func TestPreviewRolloverHandler_DefaultsBumpsGradeTrue(t *testing.T) {
 	assert.True(t, mock.previewBumpsGrade)
 }
 
+func TestPreviewRolloverHandler_RejectsNilResult(t *testing.T) {
+	router := buildRolloverRouter(&mockRolloverService{})
+
+	w := executeJSON(t, router, http.MethodGet, "/enrollment/phases/7/rollover-preview", nil)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
 func TestPreviewRolloverHandler_MapsAlreadyRolledToConflict(t *testing.T) {
 	mock := &mockRolloverService{previewErr: enrollmentService.ErrRolloverSourceAlreadyRolled}
 	router := buildRolloverRouter(mock)

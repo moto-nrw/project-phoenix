@@ -19,7 +19,7 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
@@ -510,7 +510,7 @@ function EnrollmentStatusContent({
       ) : null}
 
       <RenewalBanners
-        adjustHref={hasOpenChangeRequest ? null : adjustHref}
+        adjustHref={canRequestChange ? adjustHref : null}
         confirmingRenewal={confirmingRenewal}
         showOptInBanner={showOptInBanner}
         showOptOutBanner={showOptOutBanner}
@@ -670,20 +670,18 @@ interface RenewalBannersProps {
   readonly onWithdraw: (childId?: string) => void;
 }
 
-// The link into the reduced offerings/weekdays flow (#2251), shared by
-// both renewal banners. Renders nothing while a change request is open.
+// The link into the reduced offerings/weekdays flow (#2251), shared by both
+// renewal banners. It is available only while the backend accepts a change
+// request and no request is already open.
 function RenewalAdjustLink({
   adjustHref,
   label,
 }: Readonly<{ adjustHref: string | null; label: string }>) {
   if (!adjustHref) return null;
   return (
-    <Link
-      href={adjustHref}
-      className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
+    <ButtonLink href={adjustHref} variant="surface" size="md">
       {label}
-    </Link>
+    </ButtonLink>
   );
 }
 
