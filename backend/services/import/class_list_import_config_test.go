@@ -34,6 +34,20 @@ func (r stubClassListEntryRepo) FindByNameAndClass(ctx context.Context, firstNam
 	return r.findByNameAndClass(ctx, firstName, lastName, schoolClass)
 }
 
+// stubClassListStudentRepo only serves FindByNameAndClass.
+type stubClassListStudentRepo struct {
+	userModels.StudentRepository
+	findByNameAndClass func(ctx context.Context, firstName, lastName, schoolClass string) ([]*userModels.Student, error)
+}
+
+func (r stubClassListStudentRepo) FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*userModels.Student, error) {
+	return r.findByNameAndClass(ctx, firstName, lastName, schoolClass)
+}
+
+func noStudents(context.Context, string, string, string) ([]*userModels.Student, error) {
+	return nil, nil
+}
+
 func classListRow(firstName, lastName, schoolClass string) importModels.ClassListEntryImportRow {
 	return importModels.ClassListEntryImportRow{
 		FirstName:   firstName,
@@ -74,11 +88,11 @@ func TestClassListImportConfig_ValidateBatchFlagsInFileDuplicates(t *testing.T) 
 
 	result := config.ValidateBatch(context.Background(), rows)
 	require.Len(t, result, 1)
-	dup, ok := result[3]
-	require.True(t, ok, "the duplicate is reported on its own (1-based) row")
+	dup, ok := result[2]
+	require.True(t, ok, "the duplicate is keyed by its zero-based slice index — that is what the engine reads")
 	require.Len(t, dup, 1)
 	assert.Equal(t, "duplicate_in_file", dup[0].Code)
-	assert.Contains(t, dup[0].Message, "Zeile 1")
+	assert.Contains(t, dup[0].Message, "Zeile 2", "the message shows the 1-based file row including the header")
 }
 
 func TestClassListImportConfig_FindExisting(t *testing.T) {
@@ -92,6 +106,7 @@ func TestClassListImportConfig_FindExisting(t *testing.T) {
 			}
 			return nil, nil
 		}},
+		StudentRepo: stubClassListStudentRepo{findByNameAndClass: noStudents},
 	})
 
 	id, err := config.FindExisting(context.Background(), classListRow("Zoe", "Aalders", "1a"))
@@ -105,6 +120,46 @@ func TestClassListImportConfig_FindExisting(t *testing.T) {
 
 	failing := NewClassListImportConfig(ClassListImportDeps{
 		EntryRepo: stubClassListEntryRepo{findByNameAndClass: func(context.Context, string, string, string) ([]*userModels.ClassListEntry, error) {
+			return nil, errors.New("kaputt")
+		}},
+	})
+	_, err = failing.FindExisting(context.Background(), classListRow("Zoe", "Aalders", "1a"))
+	require.Error(t, err)
+}
+
+// A regular student with the entry's name and class IS the child's row on the
+// class list: the preview must report the row as already existing, not as
+// creatable (the actual create would fail on ErrClassListEntryStudentExists).
+func TestClassListImportConfig_FindExistingReportsMatchingStudent(t *testing.T) {
+	student := &userModels.Student{}
+	student.ID = 41
+
+	noEntries := func(context.Context, string, string, string) ([]*userModels.ClassListEntry, error) {
+		return nil, nil
+	}
+
+	config := NewClassListImportConfig(ClassListImportDeps{
+		EntryRepo: stubClassListEntryRepo{findByNameAndClass: noEntries},
+		StudentRepo: stubClassListStudentRepo{findByNameAndClass: func(_ context.Context, firstName, lastName, schoolClass string) ([]*userModels.Student, error) {
+			if firstName == "Zoe" && lastName == "Aalders" && schoolClass == "1a" {
+				return []*userModels.Student{student}, nil
+			}
+			return nil, nil
+		}},
+	})
+
+	id, err := config.FindExisting(context.Background(), classListRow("Zoe", "Aalders", "1a"))
+	require.NoError(t, err)
+	require.NotNil(t, id)
+	assert.Equal(t, student.ID, *id)
+
+	id, err = config.FindExisting(context.Background(), classListRow("Ben", "Zorn", "3c"))
+	require.NoError(t, err)
+	assert.Nil(t, id)
+
+	failing := NewClassListImportConfig(ClassListImportDeps{
+		EntryRepo: stubClassListEntryRepo{findByNameAndClass: noEntries},
+		StudentRepo: stubClassListStudentRepo{findByNameAndClass: func(context.Context, string, string, string) ([]*userModels.Student, error) {
 			return nil, errors.New("kaputt")
 		}},
 	})

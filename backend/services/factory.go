@@ -1403,6 +1403,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
 		EntryService: users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		EntryRepo:    repos.ClassListEntry,
+		StudentRepo:  repos.Student,
 	})
 	classListImportService := importService.NewImportService(classListImportConfig)
 	classListImportService.SetAuditRepository(repos.DataImport)

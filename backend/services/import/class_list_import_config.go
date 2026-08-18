@@ -18,6 +18,7 @@ import (
 type ClassListImportDeps struct {
 	EntryService usersService.ClassListEntryService
 	EntryRepo    userModels.ClassListEntryRepository
+	StudentRepo  userModels.StudentRepository
 }
 
 // ClassListImportConfig implements ImportConfig for class-list entries.
@@ -56,7 +57,9 @@ func (c *ClassListImportConfig) Validate(_ context.Context, row *importModels.Cl
 
 // ValidateBatch flags in-file duplicates: two rows with the same name and
 // class would hit the unique index on insert — report it as a row error
-// upfront instead.
+// upfront instead. The map is keyed by the zero-based slice index (that is
+// what the engine reads); the message shows the 1-based file row including
+// the header line, matching the engine's own row numbering.
 func (c *ClassListImportConfig) ValidateBatch(_ context.Context, rows []importModels.ClassListEntryImportRow) map[int][]importModels.ValidationError {
 	result := make(map[int][]importModels.ValidationError)
 	seen := make(map[string]int, len(rows))
@@ -68,22 +71,26 @@ func (c *ClassListImportConfig) ValidateBatch(_ context.Context, rows []importMo
 			continue
 		}
 		if firstRow, dup := seen[key]; dup {
-			result[i+1] = append(result[i+1], importModels.ValidationError{
+			result[i] = append(result[i], importModels.ValidationError{
 				Field:    "first_name",
-				Message:  fmt.Sprintf("Doppelter Eintrag in der Datei (bereits in Zeile %d)", firstRow),
+				Message:  fmt.Sprintf("Doppelter Eintrag in der Datei (bereits in Zeile %d)", firstRow+2),
 				Code:     "duplicate_in_file",
 				Severity: importModels.ErrorSeverityError,
 			})
 			continue
 		}
-		seen[key] = i + 1
+		seen[key] = i
 	}
 	return result
 }
 
-// FindExisting reports an already-existing entry with the same name and
-// class. The import mode is create-only, so a hit becomes the engine's
-// "already exists" row error.
+// FindExisting reports a child already on the class list: an existing entry
+// with the same name and class, or a regular student — a student IS the
+// child's row on the list, so the dry-run preview must report that case as
+// "already exists" too instead of counting it as creatable and failing only
+// on the actual create (via the service's ErrClassListEntryStudentExists
+// guard). The import mode is create-only, so the returned ID is never used
+// for an update; a hit becomes the engine's "already exists" row error.
 func (c *ClassListImportConfig) FindExisting(ctx context.Context, row importModels.ClassListEntryImportRow) (*int64, error) {
 	existing, err := c.deps.EntryRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
 	if err != nil {
@@ -91,6 +98,14 @@ func (c *ClassListImportConfig) FindExisting(ctx context.Context, row importMode
 	}
 	if len(existing) > 0 {
 		id := existing[0].ID
+		return &id, nil
+	}
+	students, err := c.deps.StudentRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
+	if err != nil {
+		return nil, err
+	}
+	if len(students) > 0 {
+		id := students[0].ID
 		return &id, nil
 	}
 	return nil, nil
