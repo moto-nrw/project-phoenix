@@ -10,7 +10,13 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
@@ -267,6 +273,24 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutate: vi.fn(() => vi.fn()),
 }));
 
+// Mock the student search so the unplanned-add form can surface a result.
+vi.mock("~/lib/student-api", () => ({
+  fetchStudents: vi.fn(() =>
+    Promise.resolve({
+      students: [
+        {
+          id: 200,
+          name: "Ben Neu",
+          first_name: "Ben",
+          second_name: "Neu",
+          school_class: "1a",
+          group_name: "OGS Gruppe B",
+        },
+      ],
+    }),
+  ),
+}));
+
 // Mock the timetable operations API so check-in resolves with a controlled
 // roster (auto-move notice, #2386).
 vi.mock("~/lib/timetable-operations-api", () => ({
@@ -409,5 +433,76 @@ describe("MeinRaumPage auto-move notice (#2386)", () => {
       expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
     });
     expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
+  });
+
+  it("shows the origin notice when an unplanned child is added", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
+      instance: rosterInstance,
+      rows: [
+        expectedRow,
+        {
+          ...expectedRow,
+          studentId: "200",
+          studentName: "Ben Neu",
+          planned: false,
+          isUnplanned: true,
+          currentlyPresent: true,
+          visitId: "visit-200",
+          status: "present",
+        },
+      ],
+      movedFrom: "GT 1",
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    const search = await screen.findByRole("searchbox", {
+      name: "Kind ungeplant suchen",
+    });
+    fireEvent.change(search, { target: { value: "Ben" } });
+    const result = await screen.findByRole("button", {
+      name: /Ben Neu/,
+    });
+    result.click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-info")).toHaveTextContent(
+        "Ben Neu wurde aus „GT 1“ hierher geholt.",
+      );
+    });
+    expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "200");
+  });
+
+  it("clears the notice on the next roster action", async () => {
+    const presentRow = {
+      ...expectedRow,
+      currentlyPresent: true,
+      visitId: "visit-100",
+      status: "present",
+    };
+    vi.mocked(timetableOperationsApi.checkIn)
+      .mockResolvedValueOnce({
+        instance: rosterInstance,
+        rows: [presentRow],
+        movedFrom: "GT 1",
+      } as never)
+      .mockResolvedValueOnce({
+        instance: rosterInstance,
+        rows: [presentRow],
+        movedFrom: null,
+      } as never);
+
+    render(<MeinRaumPage />);
+
+    const button = await screen.findByRole("button", { name: "Einchecken" });
+    button.click();
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-info")).toBeInTheDocument();
+    });
+
+    button.click();
+    await waitFor(() => {
+      expect(screen.queryByTestId("alert-info")).not.toBeInTheDocument();
+    });
   });
 });
