@@ -421,10 +421,12 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     };
     rerender(<MeinRaumPage />);
 
-    expect(screen.getByRole("button", { name: /Marie Beier/ })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+
+    expect(
+      await screen.findByRole("button", { name: /Marie Beier/ }),
+    ).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
 
     await searchFor("Lara");
@@ -481,12 +483,12 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     });
   });
 
-  it("keeps the quick path with a single match: button active without selection", async () => {
+  it("clears a single match on instance change, then restores the quick path", async () => {
     vi.mocked(fetchStudents).mockResolvedValue({
       students: [makeStudent("201", "Marie", "Beier")],
     });
 
-    render(<MeinRaumPage />);
+    const { rerender } = render(<MeinRaumPage />);
     await searchFor("Marie Beier");
 
     await screen.findByRole("button", { name: /Marie Beier/ });
@@ -497,10 +499,20 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(addButton);
+    currentRosterData = {
+      ...rosterData,
+      instance: { ...rosterData.instance, id: "100", title: "Sport" },
+    };
+    rerender(<MeinRaumPage />);
+
+    expect(screen.queryByRole("button", { name: /Marie Beier/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+
+    await screen.findByRole("button", { name: /Marie Beier/ });
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "201");
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("100", "201");
     });
   });
 });

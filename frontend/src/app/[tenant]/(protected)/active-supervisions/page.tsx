@@ -1563,6 +1563,7 @@ function MeinRaumPageContent() {
       return;
     }
 
+    setAddStudentResults([]);
     let cancelled = false;
     const timeout = window.setTimeout(() => {
       fetchStudents({
