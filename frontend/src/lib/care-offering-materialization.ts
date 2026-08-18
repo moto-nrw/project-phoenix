@@ -143,9 +143,7 @@ function sameSet(left: Set<string> | undefined, right: Set<string>): boolean {
   return true;
 }
 
-export function isRequiredLunchOffering(
-  offering: MaterializableOffering,
-): boolean {
+function isRequiredLunchOffering(offering: MaterializableOffering): boolean {
   return (
     offering.is_required &&
     offering.includes_lunch &&
