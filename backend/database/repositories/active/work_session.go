@@ -242,7 +242,13 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 	return sessions, nil
 }
 
-// GetTodayPresenceMap returns a map of staff IDs to their work status for today
+// GetTodayPresenceMap returns a map of staff IDs to their work status for today.
+//
+// Besides today's blocks it also picks up still-open blocks filed on an earlier
+// date: a block opened before Berlin midnight keeps running after the rollover,
+// and its owner is working right now even though no row carries today's date.
+// Filtering on the date alone would report that person as absent and drop them
+// out of on-duty notification filtering (#2402).
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
 	today := timezone.TodayDate()
 
@@ -257,7 +263,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		ColumnExpr(`"work_session".staff_id`).
 		ColumnExpr(`"work_session".status`).
 		ColumnExpr(`"work_session".check_out_time`).
-		Where(`"work_session".date = ?`, today)
+		Where(`"work_session".date = ? OR "work_session".check_out_time IS NULL`, today)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 

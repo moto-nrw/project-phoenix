@@ -493,6 +493,45 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 		assert.Equal(t, active.WorkSessionStatusPresent, presenceMap[staff1.ID])
 		assert.Equal(t, "checked_out", presenceMap[staff2.ID])
 	})
+
+	t.Run("counts an open block from yesterday as present", func(t *testing.T) {
+		yesterday := timezone.TodayDate().AddDays(-1)
+
+		// Opened before Berlin midnight and still running.
+		session := &active.WorkSession{
+			StaffID:     staff1.ID,
+			Date:        yesterday,
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now().Add(-3 * time.Hour),
+			CreatedBy:   staff1.ID,
+		}
+		require.NoError(t, repo.Create(ctx, session))
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		presenceMap, err := repo.GetTodayPresenceMap(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, active.WorkSessionStatusPresent, presenceMap[staff1.ID])
+	})
+
+	t.Run("ignores a closed block from yesterday", func(t *testing.T) {
+		yesterday := timezone.TodayDate().AddDays(-1)
+
+		checkOutTime := time.Now().Add(-20 * time.Hour)
+		session := &active.WorkSession{
+			StaffID:      staff2.ID,
+			Date:         yesterday,
+			Status:       active.WorkSessionStatusHomeOffice,
+			CheckInTime:  time.Now().Add(-26 * time.Hour),
+			CheckOutTime: &checkOutTime,
+			CreatedBy:    staff2.ID,
+		}
+		require.NoError(t, repo.Create(ctx, session))
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		presenceMap, err := repo.GetTodayPresenceMap(ctx)
+		require.NoError(t, err)
+		assert.NotContains(t, presenceMap, staff2.ID)
+	})
 }
 
 func TestWorkSessionRepository_List(t *testing.T) {
