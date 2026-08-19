@@ -57,6 +57,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/planexport"
 	"github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/services/pwa"
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
@@ -141,6 +142,7 @@ type Factory struct {
 	Reminders                reminders.Computer
 	Notifications            notifications.Notifier
 	PushSubscriptions        notifications.PushSubscriptionService
+	PWAUsage                 pwa.UsageService
 	NotificationPreferences  notifications.PreferenceService
 	AbsenceNotifier          notifications.AbsenceNotifier
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
@@ -2128,6 +2130,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "push_subscriptions"),
 	)
 
+	pwaUsageService := pwa.NewUsageService(
+		db,
+		repos.PWAStandaloneUsage,
+		repos.OperatorSummaries,
+		repos.AccountTenant,
+		settingsService,
+		logger.With("service", "pwa_usage"),
+	)
+
 	absenceNotifier := notifications.NewAbsenceNotifier(
 		notificationsService,
 		staffNotificationRecipients,
@@ -2299,6 +2310,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Reminders:                remindersService,
 		Notifications:            notificationsService,
 		PushSubscriptions:        pushSubscriptionsService,
+		PWAUsage:                 pwaUsageService,
 		NotificationPreferences:  notificationPreferencesService,
 		AbsenceNotifier:          absenceNotifier,
 		RealtimeHub:              realtimeHub, // Expose SSE hub for API layer

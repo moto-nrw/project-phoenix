@@ -12,6 +12,10 @@ const allowedEvents = new Set([
   "group_updated",
   "user_invited",
   "data_exported",
+  "pwa_install_prompt_shown",
+  "pwa_install_prompt_accepted",
+  "pwa_install_prompt_dismissed",
+  "pwa_installed",
 ]);
 
 const safePropertyValues: Readonly<Record<string, ReadonlySet<string>>> = {

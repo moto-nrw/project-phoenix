@@ -473,6 +473,7 @@ GET /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 GET /operator/schools/{id}/accounts/{accountId}/mfa/
 GET /operator/schools/{id}/devices
 GET /operator/schools/{id}/persons
+GET /operator/schools/{id}/pwa-usage
 GET /operator/schools/{id}/settings/schema
 GET /operator/schools/{id}/settings/values/{key}/reveal
 GET /operator/stats
@@ -643,6 +644,7 @@ POST /api/parent-announcements/{announcementId}/remind
 POST /api/parent-announcements/{announcementId}/unpublish
 POST /api/platform/announcements/{id}/dismiss
 POST /api/platform/announcements/{id}/seen
+POST /api/pwa/usage
 POST /api/rooms/
 POST /api/rooms/export
 POST /api/schedules/check-conflict
@@ -834,6 +836,7 @@ POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
 POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
+POST /parent/me/pwa-usage
 POST /school/auth/login
 POST /school/auth/mfa/enroll/confirm
 POST /school/auth/mfa/enroll/start

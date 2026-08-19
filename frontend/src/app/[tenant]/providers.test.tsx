@@ -16,6 +16,10 @@ vi.mock("~/components/notifications/service-worker-registrar", () => ({
   PushSubscriptionSync: () => null,
 }));
 
+vi.mock("~/components/pwa/pwa-usage-reporter", () => ({
+  PwaUsageReporter: () => null,
+}));
+
 vi.mock("~/components/auth/tenant-auth-wrapper", () => ({
   TenantAuthWrapper: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="tenant-auth-wrapper">{children}</div>

@@ -207,6 +207,16 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 
+  // PWA standalone usage (#2189): shown in the header, so it loads with the
+  // page instead of a tab.
+  const { data: pwaUsage } = useSWR(
+    isAuthenticated && school != null
+      ? ["operator-school-pwa-usage", school.id]
+      : null,
+    () => operatorProvisioningService.getSchoolPWAUsage(school?.id ?? ""),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
   const selectedSchoolForTable = useMemo(
     () => (school ? summaryToSchool(school) : null),
     [school],
@@ -311,17 +321,32 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     [setActiveTab],
   );
 
-  const headerStats = useMemo(
-    () =>
-      school
-        ? [
-            { label: "Konten", value: formatCount(school.kontenCount) },
-            { label: "Geräte", value: formatCount(school.geraeteCount) },
-            { label: "Personen", value: formatCount(school.personenCount) },
-          ]
-        : [],
-    [school],
-  );
+  const headerStats = useMemo(() => {
+    if (!school) return [];
+    // Honest wording: this counts standalone-mode usage in the window, never
+    // "installed" — the browser offers no reliable install signal.
+    const pwaTooltip =
+      "Nutzung als installierte App (Standalone-Modus) in den letzten 30 Tagen";
+    const pwaValue = (usage?: {
+      standaloneUsers: number;
+      eligibleUsers: number;
+    }) =>
+      usage ? (
+        <span title={pwaTooltip}>
+          {formatCount(usage.standaloneUsers)} von{" "}
+          {formatCount(usage.eligibleUsers)}
+        </span>
+      ) : (
+        <span title={pwaTooltip}>–</span>
+      );
+    return [
+      { label: "Konten", value: formatCount(school.kontenCount) },
+      { label: "Geräte", value: formatCount(school.geraeteCount) },
+      { label: "Personen", value: formatCount(school.personenCount) },
+      { label: "App-Nutzung Mitarbeitende", value: pwaValue(pwaUsage?.staff) },
+      { label: "App-Nutzung Eltern", value: pwaValue(pwaUsage?.parent) },
+    ];
+  }, [school, pwaUsage]);
 
   const schoolHeaderActions = useMemo(
     () => (

@@ -124,6 +124,10 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.StudentChangeLogCleanup != nil {
 		sched.SetStudentChangeLogCleanup(svc.StudentChangeLogCleanup)
 	}
+	// Issue #2189: PWA standalone-usage GDPR cleanup. Same nil-safe wiring.
+	if svc.PWAUsage != nil {
+		sched.SetPWAUsageCleanup(svc.PWAUsage)
+	}
 	if svc.EnrollmentRejectedCleanup != nil {
 		sched.SetEnrollmentRejectedCleanup(svc.EnrollmentRejectedCleanup)
 	}

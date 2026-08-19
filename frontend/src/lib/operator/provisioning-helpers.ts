@@ -25,6 +25,47 @@ export function mapProvisioningStats(
   };
 }
 
+export interface BackendPWAPortalUsage {
+  standalone_users: number;
+  eligible_users: number;
+}
+
+export interface BackendSchoolPWAUsage {
+  window_days: number;
+  staff: BackendPWAPortalUsage;
+  parent: BackendPWAPortalUsage;
+}
+
+export interface PWAPortalUsage {
+  standaloneUsers: number;
+  eligibleUsers: number;
+}
+
+/**
+ * Per-school PWA standalone usage (#2189): how many staff/parent accounts
+ * used the app in standalone mode within the window. Not an install count.
+ */
+export interface SchoolPWAUsage {
+  windowDays: number;
+  staff: PWAPortalUsage;
+  parent: PWAPortalUsage;
+}
+
+function mapPWAPortalUsage(data: BackendPWAPortalUsage): PWAPortalUsage {
+  return {
+    standaloneUsers: data.standalone_users,
+    eligibleUsers: data.eligible_users,
+  };
+}
+
+export function mapSchoolPWAUsage(data: BackendSchoolPWAUsage): SchoolPWAUsage {
+  return {
+    windowDays: data.window_days,
+    staff: mapPWAPortalUsage(data.staff),
+    parent: mapPWAPortalUsage(data.parent),
+  };
+}
+
 export interface BackendOrganizationSummary extends BackendOrganization {
   schulen_count: number;
   konten_count: number;

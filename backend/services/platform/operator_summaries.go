@@ -3,7 +3,9 @@ package platform
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/services/pwa"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -66,6 +68,56 @@ func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx contex
 			return nil, &OrganizationNotFoundError{OrganizationID: organizationID}
 		}
 		return s.SummariesRepo.SchoolSummariesByOrganization(adminCtx, organizationID)
+	})
+}
+
+// PWAPortalUsage is one portal's slice of a school's PWA standalone-usage
+// counts.
+type PWAPortalUsage struct {
+	StandaloneUsers int `json:"standalone_users"`
+	EligibleUsers   int `json:"eligible_users"`
+}
+
+// SchoolPWAUsage is the per-school PWA standalone-usage aggregate (#2189):
+// how many of the school's staff/parent accounts used the app in standalone
+// display mode within the window. Deliberately NOT an install count — the
+// browser offers no honest install signal.
+type SchoolPWAUsage struct {
+	WindowDays int            `json:"window_days"`
+	Staff      PWAPortalUsage `json:"staff"`
+	Parent     PWAPortalUsage `json:"parent"`
+}
+
+// GetSchoolPWAUsage returns the school's standalone-usage counts over the
+// pwa.UsageWindow. Missing portal buckets stay zero-valued.
+func (s *operatorProvisioningService) GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*SchoolPWAUsage, error) {
+	return adminTxValue(ctx, s, func(adminCtx context.Context) (*SchoolPWAUsage, error) {
+		school, findErr := s.SchoolRepo.FindByID(adminCtx, schoolID)
+		if findErr != nil {
+			if isLookupNotFound(findErr) {
+				return nil, &SchoolNotFoundError{SchoolID: schoolID}
+			}
+			return nil, findErr
+		}
+		if school == nil {
+			return nil, &SchoolNotFoundError{SchoolID: schoolID}
+		}
+
+		rows, err := s.SummariesRepo.PWAUsage(adminCtx, schoolID, pwa.UsageWindow)
+		if err != nil {
+			return nil, err
+		}
+		usage := &SchoolPWAUsage{WindowDays: int(pwa.UsageWindow.Hours() / 24)}
+		for _, row := range rows {
+			portalUsage := PWAPortalUsage{StandaloneUsers: row.StandaloneUsers, EligibleUsers: row.EligibleUsers}
+			switch row.Portal {
+			case iot.PushPortalStaff:
+				usage.Staff = portalUsage
+			case iot.PushPortalParent:
+				usage.Parent = portalUsage
+			}
+		}
+		return usage, nil
 	})
 }
 
