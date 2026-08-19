@@ -740,6 +740,12 @@ describe("useGlobalSSE — companion announcements", () => {
     ]);
   });
 
+  it("refreshes the Aufsicht aggregate on arrival_schedule_changed", () => {
+    expectEventInvalidates(makeEvent("arrival_schedule_changed", {}), [
+      AUFSICHT_DASHBOARD_KEY,
+    ]);
+  });
+
   it("does not revalidate another child whose id merely starts with the event's", () => {
     renderHook(() => useGlobalSSE());
 

@@ -50,6 +50,7 @@ import {
 } from "~/components/students/student-card";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { createLogger } from "~/lib/logger";
@@ -1107,6 +1108,9 @@ function MeinRaumPageContent() {
   // fetcher reads the selection from a ref; room switches re-run it via
   // mutateDashboard() instead of spawning per-room cache keys.
   const requestedGroupIdRef = useRef<string | null>(null);
+  const now = useMinuteClock();
+  const dashboardDay = berlinTodayISO(now);
+  const previousDashboardDayRef = useRef(dashboardDay);
 
   // SWR-based aggregate fetching with caching
   // Cache key "active-supervision-dashboard" will be invalidated by global SSE on relevant events
@@ -1164,6 +1168,16 @@ function MeinRaumPageContent() {
       revalidateOnFocus: false,
     },
   );
+
+  // Pickup and arrival rows are resolved for the backend's current Berlin
+  // calendar day. The SWR key deliberately stays stable for SSE invalidation,
+  // so roll the aggregate forward explicitly when the minute clock crosses
+  // Berlin midnight (or catches up after a backgrounded tab resumes).
+  useEffect(() => {
+    if (previousDashboardDayRef.current === dashboardDay) return;
+    previousDashboardDayRef.current = dashboardDay;
+    void mutateDashboard();
+  }, [dashboardDay, mutateDashboard]);
 
   // Reconcile selection and aggregate: whenever the visible session changes
   // through any path (tab click, Schulhof open, URL/localStorage restore)
@@ -1547,9 +1561,6 @@ function MeinRaumPageContent() {
   // extra tenant transactions. SSE invalidation of the dashboard key keeps
   // them fresh together with the visits they belong to.
   const trackingData = dashboardData?.trackingIndicators;
-
-  // Current time for pickup urgency calculation (updates every minute)
-  const now = useMinuteClock();
 
   const pickupTimesData = useMemo(() => {
     if (!dashboardData?.pickupTimes) return undefined;

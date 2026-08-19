@@ -137,6 +137,7 @@ const ARRIVAL_TIME_CACHE_KEY_PARTS = [
   "arrival-data-",
   "care-plan-day-",
   "care-plan-week-",
+  "active-supervision-dashboard-",
 ] as const;
 
 // What a student_updated write can invalidate. It covers both time families on
@@ -156,6 +157,7 @@ const STUDENT_UPDATE_CACHE_KEY_PARTS = [
   "care-plan-week-",
   "pickup-data-",
   "arrival-data-",
+  "active-supervision-dashboard-",
   // Parent care-exception submits/deletes announce ONLY student_updated, and
   // a pulled-forward pickup time now rewrites timetable attendance and the
   // early_pickup_time marker (#2360) — same narrow key set as the pickup
