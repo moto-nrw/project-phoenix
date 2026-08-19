@@ -691,7 +691,6 @@ interface RenewalBannersProps {
   readonly withdrawingAll: boolean;
   readonly onConfirmRenewal: () => Promise<void>;
   readonly onWithdraw: (childId?: string) => void;
-  readonly parentsHref: string;
 }
 
 function RenewalBanners({
@@ -789,6 +788,7 @@ interface EnrollmentChildRowProps {
   readonly child: StatusChild;
   readonly isWithdrawing: boolean;
   readonly onWithdraw: (childId?: string) => void;
+  readonly parentsHref: string;
 }
 
 function EnrollmentChildRow({
