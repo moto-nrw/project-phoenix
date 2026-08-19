@@ -2317,6 +2317,9 @@ func ensureTakenOverChildrenUnchanged(children []*enrollmentModels.RequestChild,
 		if id := stringFromAny(proposedRow["id"]); id != "" && id != stringFromAny(baseRow["id"]) {
 			return ErrChangeRequestChildLocked
 		}
+		if int16PtrFromAny(proposedRow["target_grade_level"]) == nil {
+			proposedRow["target_grade_level"] = baseRow["target_grade_level"]
+		}
 		if !jsonEqual(comparableChildSnapshot(baseRow), comparableChildSnapshot(proposedRow)) {
 			return ErrChangeRequestChildLocked
 		}
@@ -2328,6 +2331,9 @@ func comparableChildSnapshot(row map[string]any) map[string]any {
 	row = maps.Clone(row)
 	delete(row, "id")
 	delete(row, "status")
+	if len(mapFromAny(row["custom_data"])) == 0 {
+		row["custom_data"] = map[string]any{}
+	}
 	for _, key := range []string{"offering_ids"} {
 		values := sliceFromAny(row[key])
 		sort.Slice(values, func(i, j int) bool { return stringFromAny(values[i]) < stringFromAny(values[j]) })
@@ -2473,6 +2479,9 @@ func int64FromAny(v any) int64 {
 }
 
 func int16PtrFromAny(v any) *int16 {
+	if value, ok := v.(*int16); ok {
+		return value
+	}
 	n := int64FromAny(v)
 	if n == 0 {
 		return nil
