@@ -318,6 +318,21 @@ describe("getLocationColor", () => {
   // colour must beat that default.
   // ===========================================================================
 
+  it("returns the configured Schulhof color for the status-only Schulhof label", () => {
+    // Binary mode emits a bare "Schulhof" status with no room segment; the
+    // backend resolves the yard room once per request and ships its hex.
+    expect(getLocationColor("Schulhof", false, [], "#A3D977")).toBe("#A3D977");
+  });
+
+  it("keeps orange for the status-only Schulhof label without a color", () => {
+    expect(getLocationColor("Schulhof", false, [], null)).toBe(
+      LOCATION_COLORS.SCHOOLYARD,
+    );
+    expect(getLocationColor("Schulhof", false, [], "")).toBe(
+      LOCATION_COLORS.SCHOOLYARD,
+    );
+  });
+
   it("returns SCHOOLYARD orange for the Schulhof room without a configured color", () => {
     expect(getLocationColor("Anwesend - Schulhof", false, [], null)).toBe(
       LOCATION_COLORS.SCHOOLYARD,
@@ -404,11 +419,12 @@ describe("getLocationColor", () => {
   });
 
   it("keeps status colors unchanged regardless of per-room color", () => {
-    // Status badges (Schulhof, Unterwegs, Zuhause) must never be overridden
-    // by a roomColor — the parser hits STATUS_COLOR_MAP first.
-    expect(getLocationColor("Schulhof", false, [], "#A3D977")).toBe(
-      LOCATION_COLORS.SCHOOLYARD,
-    );
+    // Status badges must not be overridden by a roomColor — the parser hits
+    // STATUS_COLOR_MAP first.
+    //
+    // The Schulhof is the one exception since #2405: it is a real, now
+    // colour-configurable room, and in binary mode the backend ships its hex
+    // alongside the bare "Schulhof" label. Covered by the yard cases above.
     expect(getLocationColor("Unterwegs", false, [], "#A3D977")).toBe(
       LOCATION_COLORS.TRANSIT,
     );

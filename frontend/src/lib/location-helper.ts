@@ -694,6 +694,18 @@ export function getLocationColor(
   const parsed = parseLocation(location);
   const status = parsed.status;
 
+  // The yard is a configurable room since #2405, so a status-only "Schulhof"
+  // (binary mode has no room visit behind it — the backend resolves the room
+  // once and ships its hex in `current_room_color`) still follows the school's
+  // colour. Unset falls through to the orange default below.
+  if (
+    status === LOCATION_STATUSES.SCHOOLYARD &&
+    roomColor &&
+    roomColor.length > 0
+  ) {
+    return roomColor;
+  }
+
   // Check status-based colors first (Home, Schoolyard, Transit)
   const statusColor = STATUS_COLOR_MAP[status];
   if (statusColor) {
