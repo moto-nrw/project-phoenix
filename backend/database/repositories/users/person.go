@@ -123,6 +123,37 @@ func (r *PersonRepository) FindByAccountID(ctx context.Context, accountID int64)
 	return person, nil
 }
 
+// FindByAccountIDs retrieves persons for the given account IDs in one query,
+// keyed by account ID. Accounts without a person row are simply absent.
+func (r *PersonRepository) FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*users.Person, error) {
+	if len(accountIDs) == 0 {
+		return make(map[int64]*users.Person), nil
+	}
+
+	var persons []*users.Person
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&persons).
+		ModelTableExpr(`users.persons AS "person"`).
+		Where(`"person".account_id IN (?)`, bun.List(accountIDs))
+
+	query = base.WithTenantFilter(ctx, query, "person")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by account IDs",
+			Err: err,
+		}
+	}
+
+	result := make(map[int64]*users.Person, len(persons))
+	for _, person := range persons {
+		if person.AccountID != nil {
+			result[*person.AccountID] = person
+		}
+	}
+	return result, nil
+}
+
 // FindByIDForUpdate fetches and locks a person row for the current tenant
 // transaction. Staff approval uses this before applying reviewed name/birthday
 // changes so concurrent approvals of different person fields cannot overwrite

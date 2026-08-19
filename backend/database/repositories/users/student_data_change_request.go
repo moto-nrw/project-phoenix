@@ -111,6 +111,37 @@ func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Co
 	return rows, nil
 }
 
+// ListDecidedForTenant returns the tenant's decided Track B rows (auto-applied,
+// approved, rejected) newest-decision-first via keyset pagination on
+// (updated_at, id). updated_at is stamped by every decide/auto-apply path and
+// decided rows are terminal, so it is the decision instant. A zero
+// beforeUpdatedAt returns the first page.
+func (r *StudentDataChangeRequestRepository) ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*users.StudentDataChangeRequest, error) {
+	var rows []*users.StudentDataChangeRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprStudentDataChangeRequestsAsReq).
+		Where(`"student_data_change_request".status IN (?)`, bun.List([]string{
+			users.DataChangeStatusAutoApplied,
+			users.DataChangeStatusApproved,
+			users.DataChangeStatusRejected,
+		}))
+	if !beforeUpdatedAt.IsZero() {
+		query = query.Where(`("student_data_change_request".updated_at, "student_data_change_request".id) < (?, ?)`, beforeUpdatedAt, beforeID)
+	}
+
+	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
+	query = query.
+		OrderExpr(`"student_data_change_request".updated_at DESC`).
+		OrderExpr(`"student_data_change_request".id DESC`).
+		Limit(limit)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list decided student data change requests", Err: err}
+	}
+	return rows, nil
+}
+
 // HasPendingForField reports whether an undecided pending row already exists for
 // the same student/target/field.
 func (r *StudentDataChangeRequestRepository) HasPendingForField(ctx context.Context, studentID int64, target, fieldKey string) (bool, error) {

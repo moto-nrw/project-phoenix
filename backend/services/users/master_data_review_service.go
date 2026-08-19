@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -48,6 +49,25 @@ type MasterDataReviewItem struct {
 	LastName  string
 }
 
+// HistoryCursor points at the last DB row of a change-request history page
+// (shared by all four history services). The next page continues strictly
+// before (UpdatedAt, ID). It must be built from the last row the repository
+// returned — not the last VISIBLE item — because the per-child scope filters
+// after the DB limit; a cursor built from a filtered page would skip rows.
+type HistoryCursor struct {
+	UpdatedAt time.Time
+	ID        int64
+}
+
+// MasterDataHistoryItem is one decided request enriched with the child's name
+// and the reviewer's display name for the staff history.
+type MasterDataHistoryItem struct {
+	Request      *userModels.StudentDataChangeRequest
+	FirstName    string
+	LastName     string
+	ReviewerName string // "" when the row carries no reviewer (auto-applied)
+}
+
 // MasterDataReviewDecideInput carries a staff decision on one change request.
 type MasterDataReviewDecideInput struct {
 	RequestID  int64
@@ -63,6 +83,10 @@ type MasterDataReviewService interface {
 	// ListPending returns every pending change request for the current tenant,
 	// newest-first, enriched with the child's name.
 	ListPending(ctx context.Context) ([]*MasterDataReviewItem, error)
+	// ListHistory returns decided requests newest-decision-first, keyset
+	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
+	// page; next is nil when no older rows exist beyond this page.
+	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*MasterDataHistoryItem, next *HistoryCursor, err error)
 	// Decide approves (and applies) or rejects one pending request and returns
 	// the refreshed row enriched with the child's name.
 	Decide(ctx context.Context, input MasterDataReviewDecideInput) (*MasterDataReviewItem, error)
@@ -140,23 +164,39 @@ func newMasterDataReviewService(
 	}
 }
 
-func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDataReviewItem, error) {
-	rows, err := s.changeRequestRepo.ListPendingForTenant(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("review: list pending: %w", err)
-	}
-	if len(rows) == 0 {
-		return []*MasterDataReviewItem{}, nil
-	}
+// reviewStudentScope bundles the loaded child rows, their persons, and the
+// caller's per-child write gate — shared between ListPending and ListHistory so
+// both surfaces show exactly the children the caller may act on.
+type reviewStudentScope struct {
+	students map[int64]*userModels.Student
+	persons  map[int64]*userModels.Person
+	writable func(*userModels.Student) bool
+}
 
-	studentIDs := make([]int64, 0, len(rows))
-	seen := make(map[int64]struct{}, len(rows))
-	for _, r := range rows {
-		if _, ok := seen[r.StudentID]; !ok {
-			seen[r.StudentID] = struct{}{}
-			studentIDs = append(studentIDs, r.StudentID)
+// includes reports whether the caller may see rows of this child. Besides the
+// write gate it skips alumni: a graduated child is soft-deleted and their
+// request rows survive the graduation, so without this they would sit in the
+// staff queue / sidebar badge and could still be approved onto an alumnus. A
+// revert brings them back (#405 review). Same gate for the history — every
+// other child surface 404s for alumni.
+func (sc *reviewStudentScope) includes(studentID int64) bool {
+	st := sc.students[studentID]
+	return sc.writable(st) && !st.IsAlumnus()
+}
+
+func (sc *reviewStudentScope) name(studentID int64) (string, string) {
+	if st, ok := sc.students[studentID]; ok {
+		if p, ok := sc.persons[st.PersonID]; ok {
+			return p.FirstName, p.LastName
 		}
 	}
+	return "", ""
+}
+
+// loadStudentScope loads the children behind the given request rows and builds
+// the caller's write gate (admin, or the child's group supervisor — the same
+// gate as Decide).
+func (s *masterDataReviewService) loadStudentScope(ctx context.Context, studentIDs []int64) (*reviewStudentScope, error) {
 	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, fmt.Errorf("review: load students: %w", err)
@@ -169,34 +209,116 @@ func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDat
 	if err != nil {
 		return nil, fmt.Errorf("review: load persons: %w", err)
 	}
+	return &reviewStudentScope{
+		students: students,
+		persons:  persons,
+		writable: authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx),
+	}, nil
+}
+
+func uniqueStudentIDs(rows []*userModels.StudentDataChangeRequest) []int64 {
+	ids := make([]int64, 0, len(rows))
+	seen := make(map[int64]struct{}, len(rows))
+	for _, r := range rows {
+		if _, ok := seen[r.StudentID]; !ok {
+			seen[r.StudentID] = struct{}{}
+			ids = append(ids, r.StudentID)
+		}
+	}
+	return ids
+}
+
+func (s *masterDataReviewService) ListPending(ctx context.Context) ([]*MasterDataReviewItem, error) {
+	rows, err := s.changeRequestRepo.ListPendingForTenant(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("review: list pending: %w", err)
+	}
+	if len(rows) == 0 {
+		return []*MasterDataReviewItem{}, nil
+	}
 
 	// Scope the queue to children the caller may WRITE (admin, or the child's
 	// group supervisor) — the same gate as Decide, so a staffer only ever sees
 	// requests they can act on. Also scopes the sidebar badge (sums ListPending).
-	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userCtx)
+	scope, err := s.loadStudentScope(ctx, uniqueStudentIDs(rows))
+	if err != nil {
+		return nil, err
+	}
 
 	items := make([]*MasterDataReviewItem, 0, len(rows))
 	for _, r := range rows {
-		if !writable(students[r.StudentID]) {
-			continue
-		}
-		// A graduated child is soft-deleted: their pending requests survive the
-		// graduation (the hard delete it replaced cascaded them away), so without
-		// this they would sit in the staff queue and the sidebar badge and could
-		// still be approved onto an alumnus. A revert brings them back (#405 review).
-		if students[r.StudentID].IsAlumnus() {
+		if !scope.includes(r.StudentID) {
 			continue
 		}
 		item := &MasterDataReviewItem{Request: r}
-		if st, ok := students[r.StudentID]; ok {
-			if p, ok := persons[st.PersonID]; ok {
-				item.FirstName = p.FirstName
-				item.LastName = p.LastName
-			}
-		}
+		item.FirstName, item.LastName = scope.name(r.StudentID)
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func (s *masterDataReviewService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*MasterDataHistoryItem, *HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.changeRequestRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("review: list decided: %w", err)
+	}
+	var next *HistoryCursor
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		next = &HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
+	}
+	if len(rows) == 0 {
+		return []*MasterDataHistoryItem{}, nil, nil
+	}
+
+	scope, err := s.loadStudentScope(ctx, uniqueStudentIDs(rows))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	reviewerIDs := make([]int64, 0, len(rows))
+	seenReviewers := make(map[int64]struct{}, len(rows))
+	for _, r := range rows {
+		if r.ReviewedBy == nil || *r.ReviewedBy <= 0 {
+			continue
+		}
+		if _, ok := seenReviewers[*r.ReviewedBy]; !ok {
+			seenReviewers[*r.ReviewedBy] = struct{}{}
+			reviewerIDs = append(reviewerIDs, *r.ReviewedBy)
+		}
+	}
+	reviewers, err := s.personRepo.FindByAccountIDs(ctx, reviewerIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("review: load reviewers: %w", err)
+	}
+
+	items := make([]*MasterDataHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		if !scope.includes(r.StudentID) {
+			continue
+		}
+		item := &MasterDataHistoryItem{Request: r}
+		item.FirstName, item.LastName = scope.name(r.StudentID)
+		item.ReviewerName = ReviewerDisplayName(reviewers, r.ReviewedBy)
+		items = append(items, item)
+	}
+	return items, next, nil
+}
+
+// ReviewerDisplayName resolves a nullable reviewer account id to a person's
+// display name (shared by all four change-request history services). A decided
+// row whose reviewer account was deleted (or never had a person) still shows up
+// — as "Unbekannt" — instead of losing the fact that somebody decided it.
+func ReviewerDisplayName(reviewers map[int64]*userModels.Person, reviewedBy *int64) string {
+	if reviewedBy == nil || *reviewedBy <= 0 {
+		return ""
+	}
+	if p, ok := reviewers[*reviewedBy]; ok {
+		return strings.TrimSpace(p.FirstName + " " + p.LastName)
+	}
+	return "Unbekannt"
 }
 
 func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataReviewDecideInput) (*MasterDataReviewItem, error) {

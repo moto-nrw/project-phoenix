@@ -12,6 +12,7 @@ vi.mock("~/lib/logger", () => ({
 
 import {
   decideOfferingChangeRequest,
+  listOfferingChangeRequestHistory,
   listOfferingChangeRequests,
   OfferingRequestApiError,
   previewOfferingChangeRequest,
@@ -206,5 +207,22 @@ describe("previewOfferingChangeRequest", () => {
       message: "Diese Übersteuerung ist nicht mehr möglich",
       code: "offering_change_invalid",
     });
+  });
+
+  it("lädt die Historie mit URL-kodiertem Cursor", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ data: { items: [], next_cursor: "abc" } }),
+      );
+    globalThis.fetch = fetchMock as typeof globalThis.fetch;
+
+    const out = await listOfferingChangeRequestHistory("cur+1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/students/offering-change-requests/history?cursor=cur%2B1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(out.next_cursor).toBe("abc");
   });
 });

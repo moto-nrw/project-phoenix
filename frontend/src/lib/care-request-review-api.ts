@@ -116,3 +116,50 @@ export async function decideCareScheduleChangeRequest(
   }
   return unwrap((await response.json()) as Envelope<StaffCareRequest>);
 }
+
+/** One page of the decided-request history. */
+export interface CareRequestHistoryPage {
+  readonly items: readonly StaffCareRequestHistoryEntry[];
+  /** Absent on the last page. */
+  readonly next_cursor?: string;
+}
+
+/**
+ * One decided care-schedule change request in the staff history. Mirrors
+ * api/students.CareRequestHistoryResponse: instead of a live "current →
+ * requested" diff it carries only the payload-derived requested summary
+ * (each entry's old side is empty).
+ */
+export interface StaffCareRequestHistoryEntry {
+  readonly id: string;
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly status: CareRequestStatus;
+  readonly request_kind: "weekly_schedule" | "pickup_change";
+  readonly requested: readonly RequestDiffEntry[];
+  readonly decision_reason?: string;
+  readonly created_at: string;
+  readonly decided_at: string;
+  /** Absent for withdrawn rows (no reviewer). */
+  readonly decided_by_name?: string;
+}
+
+/** Lists the tenant's decided care-schedule requests, newest decision first. */
+export async function listCareScheduleChangeRequestHistory(
+  cursor?: string,
+): Promise<CareRequestHistoryPage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const response = await fetch(
+    `/api/students/care-schedule-change-requests/history${query}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Historie konnte nicht geladen werden");
+  }
+  return unwrap((await response.json()) as Envelope<CareRequestHistoryPage>);
+}

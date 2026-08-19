@@ -988,6 +988,10 @@ func (noopPersonRepository) FindByAccountID(context.Context, int64) (*userModel.
 	panic("FindByAccountID not implemented")
 }
 
+func (noopPersonRepository) FindByAccountIDs(context.Context, []int64) (map[int64]*userModel.Person, error) {
+	panic("FindByAccountIDs not implemented")
+}
+
 func (noopPersonRepository) FindByIDs(context.Context, []int64) (map[int64]*userModel.Person, error) {
 	panic("FindByIDs not implemented")
 }

@@ -179,3 +179,50 @@ export async function previewOfferingChangeRequest(
   }
   return unwrap((await response.json()) as Envelope<OfferingRequestPreview>);
 }
+
+/** One page of the decided-request history. */
+export interface OfferingRequestHistoryPage {
+  readonly items: readonly StaffOfferingRequestHistoryEntry[];
+  /** Absent on the last page. */
+  readonly next_cursor?: string;
+}
+
+/**
+ * One decided offering change request in the staff history. Mirrors
+ * api/students.OfferingRequestHistoryResponse; the diff is the frozen
+ * decision snapshot, never recomputed against current bookings.
+ */
+export interface StaffOfferingRequestHistoryEntry extends StaffOfferingRequest {
+  readonly decided_at: string;
+  /** Absent for withdrawn rows (no reviewer). */
+  readonly decided_by_name?: string;
+  /** Payload-derived recap when no frozen decision snapshot exists. */
+  readonly requested?: readonly OfferingRequestRequestedLine[];
+}
+
+interface OfferingRequestRequestedLine {
+  readonly offering_id: string;
+  readonly label: string;
+  readonly new: string;
+}
+
+/** Lists the tenant's decided offering change requests, newest decision first. */
+export async function listOfferingChangeRequestHistory(
+  cursor?: string,
+): Promise<OfferingRequestHistoryPage> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const response = await fetch(
+    `/api/students/offering-change-requests/history${query}`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    throw await readError(response, "Historie konnte nicht geladen werden");
+  }
+  return unwrap(
+    (await response.json()) as Envelope<OfferingRequestHistoryPage>,
+  );
+}
