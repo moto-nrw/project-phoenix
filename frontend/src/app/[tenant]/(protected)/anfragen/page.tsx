@@ -1,40 +1,63 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 
 import { useSession } from "next-auth/react";
+import type { DateRange } from "react-day-picker";
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 
-import { CareRequestReviewList } from "~/components/students/care-request-review-list";
-import { ExcusedRequestReviewList } from "~/components/students/excused-request-review-list";
-import { MasterDataReviewList } from "~/components/students/master-data-review-list";
-import { OfferingRequestReviewList } from "~/components/students/offering-request-review-list";
-import {
-  CareRequestHistoryList,
-  ExcusedRequestHistoryList,
-  MasterDataHistoryList,
-  OfferingRequestHistoryList,
-} from "~/components/students/request-history-list";
+import { AggregatedRequestList } from "~/components/students/aggregated-request-list";
+import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
+import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type {
+  ActiveFilter,
+  FilterConfig,
+} from "~/components/ui/page-header/types";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
+import type {
+  AggregatedRequestStatus,
+  AggregatedRequestType,
+} from "~/lib/change-request-list-api";
 import {
   canOpenRequestsPage,
   canReviewChangeRequests,
   canReviewStaffAbsenceRequests,
   canReviewStudentDataRequests,
 } from "~/lib/change-request-access";
+import { toISODate } from "~/lib/date-helpers";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 type AnfragenTabId = "eltern" | "mitarbeitende";
 
+const REQUEST_TYPE_OPTIONS: readonly {
+  value: AggregatedRequestType;
+  label: string;
+}[] = [
+  { value: "master_data", label: "Stammdaten" },
+  { value: "care_schedule", label: "Betreuungszeiten" },
+  { value: "offering", label: "Angebote und AGs" },
+  { value: "excused", label: "Entschuldigungen" },
+];
+
+const STATUS_OPTIONS: readonly {
+  value: AggregatedRequestStatus;
+  label: string;
+}[] = [
+  { value: "approved", label: "Angenommen" },
+  { value: "rejected", label: "Abgelehnt" },
+  { value: "withdrawn", label: "Zurückgezogen" },
+];
+
 /**
  * Anfragen-Modul (#2429): ein Ort für alle eingereichten Wünsche, mit Reitern
- * nach Herkunft. Der Eltern-Reiter ist die unverändert umgezogene
- * Freigabeansicht (vorher /admin/change-requests); der Mitarbeitende-Reiter
- * ist bis zum Aggregator-Umbau ein Platzhalter und erscheint nur mit
- * Freigaberecht für Abwesenheiten (vacation:approve).
+ * nach Herkunft. Der Eltern-Reiter zeigt seit #2432 EINE Liste über alle vier
+ * Anfragearten (statt vier Abschnitte), mit serverseitiger Namenssuche,
+ * Art-Filter und — in der Historie — Status- und Zeitraum-Filter. Der
+ * Mitarbeitende-Reiter ist bis zum Aggregator-Umbau ein Platzhalter und
+ * erscheint nur mit Freigaberecht für Abwesenheiten (vacation:approve).
  */
 export default function AnfragenPage() {
   // Die Seite öffnet, wer mindestens einen Reiter sehen darf. Die Regeln
@@ -45,6 +68,10 @@ export default function AnfragenPage() {
 
   const showElternTab = canReviewChangeRequests(session);
   const showMitarbeitendeTab = canReviewStaffAbsenceRequests(session);
+  // Nur die Entschuldigungs-Warteschlange akzeptiert users:absence. Wer nur
+  // das hält, sieht ohnehin nur diese Art — der Art-Filter wäre eine Liste
+  // aus drei toten Optionen (#2232).
+  const showTypeFilter = canReviewStudentDataRequests(session);
 
   // Reiter erscheinen nur mit passender Berechtigung; wer nur einen sehen
   // darf, bekommt keine Reiterleiste mit einem einzelnen Eintrag.
@@ -63,6 +90,135 @@ export default function AnfragenPage() {
     ? selectedTab
     : (visibleTabs[0]?.id ?? "eltern");
 
+  // Such- und Filterzustand des Eltern-Reiters lebt hier, weil Suche und
+  // Filterleiste in der Kopfzeile (PageHeaderWithSearch) hängen.
+  const [view, setView] = useState<"open" | "history">("open");
+  const [searchTerm, setSearchTerm] = useState("");
+  const deferredSearch = useDeferredValue(searchTerm);
+  const [typeFilter, setTypeFilter] = useState<AggregatedRequestType[]>([]);
+  const [statusFilter, setStatusFilter] = useState<AggregatedRequestStatus[]>(
+    [],
+  );
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+
+  // Stabil memoisiert: die Liste lädt bei jeder Identitätsänderung neu.
+  const filters: AggregatedRequestFilters = useMemo(
+    () => ({
+      search: deferredSearch,
+      types: typeFilter,
+      statuses: view === "history" ? statusFilter : [],
+      from:
+        view === "history" && dateRange?.from
+          ? toISODate(dateRange.from)
+          : undefined,
+      to:
+        view === "history" && dateRange?.to
+          ? toISODate(dateRange.to)
+          : undefined,
+    }),
+    [deferredSearch, typeFilter, statusFilter, dateRange, view],
+  );
+
+  const filterConfigs = useMemo(() => {
+    const typeConfig: FilterConfig[] = showTypeFilter
+      ? [
+          {
+            id: "art",
+            label: "Anfrageart",
+            type: "buttons",
+            multiSelect: true,
+            value: typeFilter,
+            onChange: (value) =>
+              setTypeFilter(
+                (Array.isArray(value)
+                  ? value
+                  : [value]) as AggregatedRequestType[],
+              ),
+            options: REQUEST_TYPE_OPTIONS.map((option) => ({ ...option })),
+          },
+        ]
+      : [];
+    const historyConfigs: FilterConfig[] =
+      view === "history"
+        ? [
+            {
+              id: "status",
+              label: "Status",
+              type: "buttons",
+              multiSelect: true,
+              value: statusFilter,
+              onChange: (value) =>
+                setStatusFilter(
+                  (Array.isArray(value)
+                    ? value
+                    : [value]) as AggregatedRequestStatus[],
+                ),
+              options: STATUS_OPTIONS.map((option) => ({ ...option })),
+            },
+            {
+              id: "zeitraum",
+              label: "Zeitraum",
+              type: "custom",
+              value: "",
+              onChange: () => undefined,
+              options: [],
+              render: (
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={setDateRange}
+                  className="w-fit"
+                />
+              ),
+            },
+          ]
+        : [];
+    return [...typeConfig, ...historyConfigs];
+  }, [showTypeFilter, view, typeFilter, statusFilter, dateRange]);
+
+  const activeFilters = useMemo(() => {
+    const chips: ActiveFilter[] = [];
+    for (const type of typeFilter) {
+      const label = REQUEST_TYPE_OPTIONS.find(
+        (option) => option.value === type,
+      )?.label;
+      if (!label) continue;
+      chips.push({
+        id: `art-${type}`,
+        label,
+        onRemove: () =>
+          setTypeFilter((prev) => prev.filter((value) => value !== type)),
+      });
+    }
+    if (view === "history") {
+      for (const status of statusFilter) {
+        const label = STATUS_OPTIONS.find(
+          (option) => option.value === status,
+        )?.label;
+        if (!label) continue;
+        chips.push({
+          id: `status-${status}`,
+          label,
+          onRemove: () =>
+            setStatusFilter((prev) => prev.filter((value) => value !== status)),
+        });
+      }
+      if (dateRange?.from ?? dateRange?.to) {
+        chips.push({
+          id: "zeitraum",
+          label: "Zeitraum",
+          onRemove: () => setDateRange(undefined),
+        });
+      }
+    }
+    return chips;
+  }, [typeFilter, statusFilter, dateRange, view]);
+
+  const clearAllFilters = () => {
+    setTypeFilter([]);
+    setStatusFilter([]);
+    setDateRange(undefined);
+  };
+
   if (!isReady) {
     return (
       <div className="-mt-1.5 w-full">
@@ -73,6 +229,8 @@ export default function AnfragenPage() {
       </div>
     );
   }
+
+  const elternActive = activeTab === "eltern";
 
   return (
     <div className="-mt-1.5 w-full">
@@ -90,6 +248,22 @@ export default function AnfragenPage() {
               }
             : undefined
         }
+        search={
+          elternActive
+            ? {
+                value: searchTerm,
+                onChange: setSearchTerm,
+                placeholder: "Kind suchen...",
+              }
+            : undefined
+        }
+        filters={
+          elternActive && filterConfigs.length > 0 ? filterConfigs : undefined
+        }
+        activeFilters={elternActive ? activeFilters : undefined}
+        onClearAllFilters={elternActive ? clearAllFilters : undefined}
+        filterVariant="quiet"
+        activeFilterDisplay="count"
       />
       {activeTab === "mitarbeitende" ? (
         <EmptyState
@@ -98,36 +272,26 @@ export default function AnfragenPage() {
           description="Urlaubs-, Krank- und Fortbildungsanträge entscheiden Sie bis dahin wie gewohnt auf der Seite Mitarbeiter."
         />
       ) : (
-        <ElternTab session={session} />
+        <ElternTab view={view} onViewChange={setView} filters={filters} />
       )}
     </div>
   );
 }
 
 /**
- * Die bisherige Freigabeansicht der Elternanfragen — vier Abschnitte plus
- * Umschalter Offen | Historie, funktional unverändert übernommen (#2429).
+ * Der Eltern-Reiter: Umschalter Offen | Historie über EINER aggregierten
+ * Liste aller vier Anfragearten. Entscheiden funktioniert direkt aus der
+ * Liste; die Historie zeigt Datum, Person und Begründung jeder Entscheidung.
  */
 function ElternTab({
-  session,
-}: {
-  readonly session: ReturnType<typeof useSession>["data"];
-}) {
-  // Only the excused-absence queue accepts users:absence. Whoever holds just
-  // that permission gets a 403 on the three Stammdaten-side queues, so they are
-  // not rendered at all instead of showing three error cards (#2232).
-  const showStudentDataQueues = canReviewStudentDataRequests(session);
-  // "open" shows the four pending queues, "history" the decided requests of
-  // the same four sections. Decided requests used to vanish without a trace,
-  // which read as "no requests arrive anymore" whenever a colleague had
-  // already worked the queue.
-  const [view, setView] = useState<"open" | "history">("open");
-
-  // Stacked sections instead of tabs: both queues are short, and tabs
-  // would hide the pending count of the inactive one. Unlike the enrollment
-  // queues, these guardian change requests are not tied to Anmeldung and are
-  // fully reviewable on mobile — so no DesktopOnlyNotice gate here. Each
-  // request renders as a calm card (flex-wrap, mobile-safe), not a bare table.
+  view,
+  onViewChange,
+  filters,
+}: Readonly<{
+  view: "open" | "history";
+  onViewChange: (view: "open" | "history") => void;
+  filters: AggregatedRequestFilters;
+}>) {
   return (
     <div className="w-full">
       <p className="mb-4 max-w-3xl text-sm text-gray-600">
@@ -142,77 +306,13 @@ function ElternTab({
             { value: "history", label: "Historie" },
           ]}
           value={view}
-          onChange={setView}
+          onChange={onViewChange}
           ariaLabel="Ansicht wählen"
         />
       </div>
-
-      {showStudentDataQueues && (
-        <>
-          <section className="mb-8">
-            <h2 className="text-base font-semibold text-gray-900">
-              Stammdaten
-            </h2>
-            <p className="mt-1 mb-3 text-sm text-gray-600">
-              Anfragen zu Name, Geburtsdatum und erlaubten Abholarten des
-              Kindes. Freigeben übernimmt die Änderung direkt in die Stammdaten.
-            </p>
-            {view === "open" ? (
-              <MasterDataReviewList />
-            ) : (
-              <MasterDataHistoryList />
-            )}
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-base font-semibold text-gray-900">
-              Betreuungszeiten
-            </h2>
-            <p className="mt-1 mb-3 text-sm text-gray-600">
-              Anfragen zu dauerhaften Bring- und Abholzeiten sowie zur Abholart.
-              Freigeben übernimmt die Änderungen direkt in den Wochenplan des
-              Kindes.
-            </p>
-            {view === "open" ? (
-              <CareRequestReviewList />
-            ) : (
-              <CareRequestHistoryList />
-            )}
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-base font-semibold text-gray-900">
-              Betreuungsangebote und AGs
-            </h2>
-            <p className="mt-1 mb-3 text-sm text-gray-600">
-              Anfragen zu den gebuchten Betreuungsangeboten. Freigeben stellt
-              das Kind zum gewünschten Datum um: Bisheriges endet an diesem Tag,
-              Neues beginnt dann. Vergangene Zeiträume bleiben unverändert.
-            </p>
-            {view === "open" ? (
-              <OfferingRequestReviewList />
-            ) : (
-              <OfferingRequestHistoryList />
-            )}
-          </section>
-        </>
-      )}
-
-      <section>
-        <h2 className="text-base font-semibold text-gray-900">
-          Entschuldigte Abmeldungen
-        </h2>
-        <p className="mt-1 mb-3 text-sm text-gray-600">
-          Von Eltern gemeldete entschuldigte Abwesenheiten, die eine Bestätigung
-          benötigen. Das Kind bleibt bis zur Freigabe eingeplant. Freigeben
-          meldet das Kind für die gemeldeten Tage ab.
-        </p>
-        {view === "open" ? (
-          <ExcusedRequestReviewList />
-        ) : (
-          <ExcusedRequestHistoryList />
-        )}
-      </section>
+      {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
+          Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
+      <AggregatedRequestList key={view} view={view} filters={filters} />
     </div>
   );
 }

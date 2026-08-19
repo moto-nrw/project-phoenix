@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnfragenPage from "./page";
+import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
@@ -15,27 +16,22 @@ vi.mock("~/lib/hooks/use-require-permission", () => ({
   useRequirePermission: vi.fn(),
 }));
 
-vi.mock("~/components/students/master-data-review-list", () => ({
-  MasterDataReviewList: () => <div>master-data-review-list</div>,
-}));
-
-vi.mock("~/components/students/care-request-review-list", () => ({
-  CareRequestReviewList: () => <div>care-request-review-list</div>,
-}));
-
-vi.mock("~/components/students/offering-request-review-list", () => ({
-  OfferingRequestReviewList: () => <div>offering-request-review-list</div>,
-}));
-
-vi.mock("~/components/students/excused-request-review-list", () => ({
-  ExcusedRequestReviewList: () => <div>excused-request-review-list</div>,
-}));
-
-vi.mock("~/components/students/request-history-list", () => ({
-  MasterDataHistoryList: () => <div>master-data-history-list</div>,
-  CareRequestHistoryList: () => <div>care-request-history-list</div>,
-  OfferingRequestHistoryList: () => <div>offering-request-history-list</div>,
-  ExcusedRequestHistoryList: () => <div>excused-request-history-list</div>,
+// Die aggregierte Liste ist separat getestet; hier zählt nur, mit welcher
+// Ansicht und welchen Filtern die Seite sie rendert.
+vi.mock("~/components/students/aggregated-request-list", () => ({
+  AggregatedRequestList: ({
+    view,
+    filters,
+  }: {
+    view: string;
+    filters: AggregatedRequestFilters;
+  }) => (
+    <div
+      data-testid="aggregated-list"
+      data-view={view}
+      data-filters={JSON.stringify(filters)}
+    />
+  ),
 }));
 
 // NavigationTabs beobachtet seine Scroll-Breite; jsdom kennt ResizeObserver
@@ -54,6 +50,16 @@ function sessionWith(permissions: readonly string[]) {
   return {
     data: { user: { id: "7", roles: ["user"], permissions } },
     status: "authenticated" as const,
+  };
+}
+
+function listProbe() {
+  const probe = screen.getByTestId("aggregated-list");
+  return {
+    view: probe.getAttribute("data-view"),
+    filters: JSON.parse(
+      probe.getAttribute("data-filters") ?? "{}",
+    ) as AggregatedRequestFilters,
   };
 }
 
@@ -91,47 +97,59 @@ describe("AnfragenPage", () => {
     expect(mockUseRequirePermission).toHaveBeenCalledWith(canOpenRequestsPage);
   });
 
-  it("renders both review queues once access is ready", () => {
+  it("rendert die aggregierte Liste in der Offen-Ansicht", () => {
     render(<AnfragenPage />);
 
     expect(
       screen.getByRole("heading", { name: "Anfragen" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("master-data-review-list")).toBeInTheDocument();
-    expect(screen.getByText("care-request-review-list")).toBeInTheDocument();
+    const probe = listProbe();
+    expect(probe.view).toBe("open");
+    expect(probe.filters.search).toBe("");
+    expect(probe.filters.types).toEqual([]);
   });
 
-  it("zeigt einer Person mit users:absence nur die Entschuldigungen", () => {
+  it("wechselt per Historie-Schalter auf die Historien-Ansicht", () => {
+    render(<AnfragenPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
+    expect(listProbe().view).toBe("history");
+
+    fireEvent.click(screen.getByRole("button", { name: "Offen" }));
+    expect(listProbe().view).toBe("open");
+  });
+
+  it("reicht den Suchbegriff serverseitig an die Liste durch", () => {
+    render(<AnfragenPage />);
+
+    // PageHeaderWithSearch rendert das Suchfeld doppelt (mobil + Desktop);
+    // beide tragen denselben Zustand.
+    const [input] = screen.getAllByPlaceholderText("Kind suchen...");
+    fireEvent.change(input!, { target: { value: "Emma" } });
+
+    expect(listProbe().filters.search).toBe("Emma");
+  });
+
+  it("hält Status- und Zeitraum-Filter aus der Offen-Ansicht heraus", () => {
+    render(<AnfragenPage />);
+
+    const probe = listProbe();
+    expect(probe.filters.statuses).toEqual([]);
+    expect(probe.filters.from).toBeUndefined();
+    expect(probe.filters.to).toBeUndefined();
+  });
+
+  it("zeigt einer Person mit users:absence die Liste ohne Art-Filter", () => {
     mockUseSession.mockReturnValue(
       sessionWith(["users:read", "users:absence"]),
     );
 
     render(<AnfragenPage />);
 
-    expect(screen.getByText("excused-request-review-list")).toBeInTheDocument();
-    expect(screen.queryByText("master-data-review-list")).toBeNull();
-    expect(screen.queryByText("care-request-review-list")).toBeNull();
-    expect(screen.queryByText("offering-request-review-list")).toBeNull();
-  });
-
-  it("tauscht per Historie-Schalter alle vier Sektionen gegen die Historie", () => {
-    render(<AnfragenPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Historie" }));
-
-    expect(screen.getByText("master-data-history-list")).toBeInTheDocument();
-    expect(screen.getByText("care-request-history-list")).toBeInTheDocument();
-    expect(
-      screen.getByText("offering-request-history-list"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("excused-request-history-list"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("master-data-review-list")).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Offen" }));
-    expect(screen.getByText("master-data-review-list")).toBeInTheDocument();
-    expect(screen.queryByText("master-data-history-list")).toBeNull();
+    // Die Liste selbst erscheint — das Backend engt sie serverseitig auf die
+    // Entschuldigungen ein (#2232). Der Art-Filter wäre drei tote Optionen.
+    expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
+    expect(screen.queryByText("Anfrageart")).toBeNull();
   });
 
   // Reiter-Sichtbarkeit nach Berechtigung (#2429): der Mitarbeitende-Reiter
@@ -151,12 +169,12 @@ describe("AnfragenPage", () => {
     render(<AnfragenPage />);
 
     // Eltern-Reiter ist voreingestellt aktiv.
-    expect(screen.getByText("master-data-review-list")).toBeInTheDocument();
+    expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Mitarbeitende" }));
 
     expect(screen.getByText(PLACEHOLDER_TITLE)).toBeInTheDocument();
-    expect(screen.queryByText("master-data-review-list")).toBeNull();
+    expect(screen.queryByTestId("aggregated-list")).toBeNull();
   });
 
   it("zeigt mit nur vacation:approve den Platzhalter ohne Reiterleiste", () => {
@@ -167,7 +185,7 @@ describe("AnfragenPage", () => {
     expect(screen.getByText(PLACEHOLDER_TITLE)).toBeInTheDocument();
     // Nur ein sichtbarer Reiter → keine Reiterleiste, kein Eltern-Inhalt.
     expect(screen.queryByRole("button", { name: "Eltern" })).toBeNull();
-    expect(screen.queryByText("excused-request-review-list")).toBeNull();
+    expect(screen.queryByTestId("aggregated-list")).toBeNull();
     expect(screen.queryByRole("button", { name: "Historie" })).toBeNull();
   });
 
@@ -182,6 +200,6 @@ describe("AnfragenPage", () => {
     expect(
       screen.getByRole("button", { name: "Mitarbeitende" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("master-data-review-list")).toBeInTheDocument();
+    expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
   });
 });
