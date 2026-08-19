@@ -555,7 +555,20 @@ export function StaffSessionTable({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        {status && <RowStatusBadge status={status} />}
+                        {/* Die Tageszeile wiederholt keine Block-Details:
+                            gestapelte Status-/Quelle-Badges nebeneinander
+                            suggerieren falsche Paare (OGS neben App, obwohl
+                            der OGS-Block per NFC kam). Der Zähler verweist
+                            auf die Block-Unterzeilen, die die Fakten je
+                            Block korrekt gepaart tragen. */}
+                        {hasMultipleBlocks ? (
+                          <StatusBadge
+                            label={`${daySessions.length} Blöcke`}
+                            tone="blue"
+                          />
+                        ) : (
+                          status && <RowStatusBadge status={status} />
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <SourceBadges sessions={daySessions} />
@@ -837,9 +850,6 @@ function SessionEditHistory({
 type RowStatus =
   | { kind: "present" }
   | { kind: "home-office" }
-  // Multi-block day (#2402) whose blocks carry BOTH work modes — the row
-  // shows both pills, because collapsing to one would hide the other mode.
-  | { kind: "mixed" }
   | { kind: "absence"; absenceType: string; halfDay: boolean }
   | { kind: "holiday"; name: string }
   | { kind: "closing"; reason: string }
@@ -885,13 +895,10 @@ function computeRowStatus(
   target: number,
   isFuture: boolean,
 ): RowStatus | null {
+  // Mehrblock-Tage rendern in der Statuszelle den Block-Zähler statt eines
+  // RowStatus (siehe Tageszeile) — hier zählt nur, OB gearbeitet wurde.
   if (sessions.length > 0) {
-    const hasHomeOffice = sessions.some((s) => s.status === "home_office");
-    const hasPresent = sessions.some((s) => s.status !== "home_office");
-    if (hasHomeOffice && hasPresent) {
-      return { kind: "mixed" };
-    }
-    if (hasHomeOffice) {
+    if (sessions.some((s) => s.status === "home_office")) {
       return { kind: "home-office" };
     }
     return { kind: "present" };
@@ -946,17 +953,6 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "present") {
     return <StatusBadge label="OGS" tone="green" />;
   }
-  if (status.kind === "mixed") {
-    return (
-      <div className="flex flex-wrap gap-1">
-        <StatusBadge label="OGS" tone="green" />
-        <StatusDotBadge
-          label="Homeoffice"
-          color={MOTO_COLOR_PALETTE.timeTracking.base}
-        />
-      </div>
-    );
-  }
   if (status.kind === "holiday") {
     return <StatusBadge label="Feiertag" tone="orange" title={status.name} />;
   }
@@ -979,8 +975,13 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
 // Quelle-Badges sind der reine Origin der Blöcke: über welchen Kanal sie
 // entstanden sind. Korrekturen und Auto-Checkouts sind orthogonal und landen
 // in der Hinweis-Spalte (HintBadges), damit z.B. eine NFC-Session mit
-// nachträglicher Korrektur weiterhin als "NFC" erkennbar bleibt. Ein Tag mit
-// mehreren Blöcken (#2402) zeigt jede vorkommende Quelle genau einmal.
+// nachträglicher Korrektur weiterhin als "NFC" erkennbar bleibt.
+//
+// Ein Mehrblock-Tag (#2402) zeigt hier nur dann ein Badge, wenn ALLE Blöcke
+// über denselben Kanal kamen. Bei gemischten Quellen bleibt die Tageszeile
+// leer: zwei gestapelte Badges neben den Status-Badges lesen sich als Paare
+// ("OGS · App"), die so nie gestempelt wurden — die korrekte Zuordnung steht
+// in den Block-Unterzeilen.
 function SourceBadges({
   sessions,
 }: {
@@ -990,22 +991,18 @@ function SourceBadges({
     return <span className="text-xs text-gray-300">–</span>;
   }
   const sources = [...new Set(sessions.map((s) => s.source ?? "app"))];
-  const badges = sources.map((source) => {
-    if (source === "nfc") {
-      return <StatusBadge key="nfc" label="NFC" tone="blue" />;
-    }
-    if (source === "unknown") {
-      // Pre-Migration Legacy-Row (Tristan PR #1398).
-      return (
-        <span key="unknown" className="text-xs text-gray-400">
-          –
-        </span>
-      );
-    }
-    return <StatusBadge key="app" label="App" tone="gray" />;
-  });
-  if (badges.length === 1) return badges[0];
-  return <div className="flex flex-wrap gap-1">{badges}</div>;
+  if (sources.length > 1) {
+    return <span className="text-xs text-gray-300">–</span>;
+  }
+  const source = sources[0];
+  if (source === "nfc") {
+    return <StatusBadge label="NFC" tone="blue" />;
+  }
+  if (source === "unknown") {
+    // Pre-Migration Legacy-Row (Tristan PR #1398).
+    return <span className="text-xs text-gray-400">–</span>;
+  }
+  return <StatusBadge label="App" tone="gray" />;
 }
 
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
@@ -1027,15 +1024,6 @@ function HintBadges({
     title?: string;
     tone: StatusBadgeTone;
   }[] = [];
-  // Mehrere Blöcke an einem Tag (#2402) — der Zähler macht sichtbar, dass die
-  // Tageszeile eine Summe ist und die Details in den Block-Zeilen stehen.
-  if (sessions.length > 1) {
-    pills.push({
-      key: "blocks",
-      label: `${sessions.length} Blöcke`,
-      tone: "blue",
-    });
-  }
   // Arbeit an einem gesetzlichen Feiertag ist nach §9 ArbZG grundsätzlich
   // untersagt (OGS-Ausnahmen nach §10 möglich) — Warnung, kein Block
   // (#1418 3a/3f).

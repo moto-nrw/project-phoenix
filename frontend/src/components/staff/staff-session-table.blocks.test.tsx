@@ -86,19 +86,38 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     expect(screen.getAllByText("16:00").length).toBeGreaterThan(0);
     // Ist = 240 + 130 = 370min = 6h 10min, Pause = 20min (nur Block 2).
     expect(screen.getAllByText("6h 10min").length).toBeGreaterThan(0);
-    // Hinweis-Pille macht die Aggregation sichtbar.
+    // Statuszelle der Tageszeile trägt den Block-Zähler.
     expect(screen.getByText("2 Blöcke")).toBeInTheDocument();
   });
 
-  it("zeigt beide Arbeitsorte, wenn die Blöcke gemischt sind", () => {
+  it("paart Status und Quelle nur in den Block-Zeilen, nie auf der Tageszeile", () => {
     renderTable();
 
-    // Tageszeile: OGS UND Homeoffice; Block-Zeilen wiederholen je einen.
-    expect(screen.getAllByText("OGS").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText("Homeoffice").length).toBeGreaterThanOrEqual(2);
-    // Quellen beider Blöcke erscheinen auf der Tageszeile.
-    expect(screen.getAllByText("NFC").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("App").length).toBeGreaterThanOrEqual(1);
+    // Die Tageszeile stapelt KEINE Status-/Quelle-Badges nebeneinander —
+    // das las sich als "OGS · App", obwohl der OGS-Block per NFC kam.
+    // Jeder Arbeitsort und jede Quelle erscheint genau einmal, nämlich in
+    // der Block-Zeile, zu der sie gehören.
+    expect(screen.getAllByText("OGS")).toHaveLength(1);
+    expect(screen.getAllByText("Homeoffice")).toHaveLength(1);
+    expect(screen.getAllByText("NFC")).toHaveLength(1);
+    expect(screen.getAllByText("App")).toHaveLength(1);
+
+    // Homeoffice-Block kam per App, OGS-Block per NFC: die Badges sitzen in
+    // derselben Zeile wie ihr Block.
+    const homeOfficeRow = screen.getByText("Homeoffice").closest("tr");
+    const ogsRow = screen.getByText("OGS").closest("tr");
+    expect(homeOfficeRow).toContainElement(screen.getByText("App"));
+    expect(ogsRow).toContainElement(screen.getByText("NFC"));
+  });
+
+  it("zeigt die Quelle auf der Tageszeile nur bei einheitlichem Kanal", () => {
+    renderTable({
+      sessions: [morningHomeOffice, { ...afternoonOgs, source: "app" }],
+    });
+
+    // Beide Blöcke per App → die Tageszeile darf das Badge zeigen
+    // (Tageszeile + zwei Block-Zeilen = 3).
+    expect(screen.getAllByText("App")).toHaveLength(3);
   });
 
   it("listet jeden Block mit eigenen Zeiten als Unterzeile", () => {
