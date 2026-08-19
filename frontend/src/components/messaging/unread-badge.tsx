@@ -1,10 +1,10 @@
 import { NotificationBadge } from "~/components/ui/notification-badge";
 
-export type UnreadBadgeTone = "parents" | "feedback";
+export type UnreadBadgeTone = "parents";
 
 /**
- * The domain-colored unread count shown on parent and feedback surfaces. One
- * component keeps size, weight, the 99+ cap, and the accessible label aligned.
+ * The domain-colored unread count shown on parent surfaces. One component
+ * keeps size, weight, the 99+ cap, and the accessible label aligned.
  */
 export function UnreadBadge({
   count,

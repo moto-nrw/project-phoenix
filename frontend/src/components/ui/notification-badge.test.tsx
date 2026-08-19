@@ -37,21 +37,6 @@ describe("NotificationBadge", () => {
     expect(screen.getByText("99+")).toBeInTheDocument();
   });
 
-  it("uses the feedback tone", () => {
-    render(
-      <NotificationBadge
-        count={3}
-        tone="feedback"
-        ariaLabel="3 neue Feedbackeinträge"
-      />,
-    );
-
-    expect(screen.getByLabelText("3 neue Feedbackeinträge")).toHaveClass(
-      "bg-moto-coral-strong",
-      "text-white",
-    );
-  });
-
   it("renders nothing for an empty count", () => {
     const { container } = render(
       <NotificationBadge count={0} tone="staff" ariaLabel="Keine" />,

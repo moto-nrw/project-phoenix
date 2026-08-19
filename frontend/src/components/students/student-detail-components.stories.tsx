@@ -123,7 +123,6 @@ export const StudentHistorySectionStory: StoryObj<
     <StudentHistorySection
       studentId="1"
       attendanceLogEnabled
-      feedbackEnabled
       onNavigate={() => {
         // no-op for storybook
       }}
@@ -138,7 +137,6 @@ export const StudentHistorySectionReadOnly: StoryObj<
     <StudentHistorySection
       studentId="1"
       attendanceLogEnabled={false}
-      feedbackEnabled={false}
       readOnly
       onNavigate={() => {
         // no-op for storybook

@@ -53,14 +53,6 @@ vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
 
-vi.mock("~/lib/hooks/use-suggestions-unread", () => ({
-  useSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
-}));
-
-vi.mock("~/lib/hooks/use-operator-suggestions-unread", () => ({
-  useOperatorSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
-}));
-
 vi.mock("~/lib/hooks/use-staff-absences-pending", () => ({
   useStaffAbsencesPending: vi.fn(() => ({
     unreadCount: 0,
@@ -938,12 +930,11 @@ describe("Sidebar", () => {
   });
 
   describe("bottom pinned items", () => {
-    it("renders feedback at the bottom and settings for admins", () => {
+    it("renders settings at the bottom for admins", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
       render(<Sidebar />);
 
-      expect(screen.getByText("Feedback")).toBeInTheDocument();
       expect(screen.getByText("Einstellungen")).toBeInTheDocument();
     });
 
@@ -1499,17 +1490,16 @@ describe("Sidebar", () => {
         isSessionExpired: false,
         logout: vi.fn(),
         mode: "operator",
-        homeUrl: "/operator/suggestions",
+        homeUrl: "/operator/organizations",
 
         profileUrl: "/operator/settings",
       });
-      mockUsePathname.mockReturnValue("/operator/suggestions");
+      mockUsePathname.mockReturnValue("/operator/organizations");
     });
 
     it("renders operator navigation items", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Feedback")).toBeInTheDocument();
       expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
       expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });

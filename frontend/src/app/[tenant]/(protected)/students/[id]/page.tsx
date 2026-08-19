@@ -357,7 +357,6 @@ function StudentDetailPageContent() {
     hasWriteAccess,
     hasAbsenceWriteAccess,
     attendanceLogEnabled,
-    feedbackEnabled,
     supervisors,
     myGroups,
     myGroupRooms,
@@ -1173,7 +1172,6 @@ function StudentDetailPageContent() {
             hasWriteAccess={hasWriteAccess}
             hasAbsenceWriteAccess={hasAbsenceWriteAccess}
             attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
             activeTab={activeTab}
@@ -1204,7 +1202,6 @@ function StudentDetailPageContent() {
             student={student}
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
@@ -1410,7 +1407,6 @@ interface LimitedAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   attendanceLogEnabled: boolean;
-  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
@@ -1437,7 +1433,6 @@ function LimitedAccessView({
   student,
   studentId,
   attendanceLogEnabled,
-  feedbackEnabled,
   supervisors,
   showCheckout,
   showCheckin,
@@ -1531,7 +1526,6 @@ function LimitedAccessView({
           <StudentHistorySection
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
             readOnly={true}
             onNavigate={(path) => historyRouter.push(path)}
           />
@@ -1552,7 +1546,6 @@ interface FullAccessViewProps {
   /** See LimitedAccessViewProps.hasAbsenceWriteAccess (#2232). */
   hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
-  feedbackEnabled: boolean;
   showCheckout: boolean;
   showCheckin: boolean;
   activeTab: StudentTabId;
@@ -1585,7 +1578,6 @@ function FullAccessView({
   hasWriteAccess,
   hasAbsenceWriteAccess,
   attendanceLogEnabled,
-  feedbackEnabled,
   showCheckout,
   showCheckin,
   activeTab,
@@ -1771,7 +1763,6 @@ function FullAccessView({
           <StudentHistorySection
             studentId={studentId}
             attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
             canViewChangeHistory={hasWriteAccess}
             onNavigate={(path) => historyRouter.push(path)}
           />

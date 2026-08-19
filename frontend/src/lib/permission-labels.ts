@@ -11,11 +11,9 @@ export const resourceLabels: Record<string, string> = {
   substitutions: "Vertretungen",
   schedules: "Zeitpläne",
   config: "Konfiguration",
-  feedback: "Feedback",
   iot: "Geräte",
   system: "System",
   admin: "Administration",
-  suggestions: "Vorschläge",
   time_tracking: "Zeiterfassung",
   grade_transitions: "Klassenwechsel",
   calendar: "Kalender",
@@ -116,13 +114,6 @@ const permissionDescriptions: Record<string, string> = {
   "visits:list": "Besuche auflisten",
   "visits:manage": "Besuchsverwaltung (Vollzugriff)",
 
-  // Feedback
-  "feedback:create": "Neues Feedback erstellen",
-  "feedback:read": "Feedback ansehen",
-  "feedback:delete": "Feedback löschen",
-  "feedback:list": "Feedback auflisten",
-  "feedback:manage": "Feedbackverwaltung (Vollzugriff)",
-
   // Config
   "config:read": "Konfiguration ansehen",
   "config:update": "Konfiguration bearbeiten",
@@ -135,14 +126,6 @@ const permissionDescriptions: Record<string, string> = {
 
   // Auth
   "auth:manage": "Authentifizierungsverwaltung (Vollzugriff)",
-
-  // Suggestions
-  "suggestions:create": "Neue Vorschläge erstellen",
-  "suggestions:read": "Vorschläge ansehen",
-  "suggestions:update": "Vorschläge bearbeiten",
-  "suggestions:delete": "Vorschläge löschen",
-  "suggestions:list": "Vorschläge auflisten",
-  "suggestions:manage": "Vorschlagsverwaltung (Vollzugriff)",
 
   // Time Tracking
   "time_tracking:own": "Eigene Arbeitszeiten erfassen",

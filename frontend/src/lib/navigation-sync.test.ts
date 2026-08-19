@@ -128,8 +128,7 @@ describe("navigation catalogs stay in sync with the header", () => {
    * Seiten, die ihren Titel selbst per `useSetBreadcrumb({ pageTitle })`
    * setzen, überschreiben getPageTitle — aber erst in einem Effekt, also nach
    * dem ersten Frame. Weichen die beiden Werte ab, blitzt beim Laden kurz das
-   * falsche Wort auf. Genau das war bei /operator/suggestions der Fall
-   * ("Vorschläge" statt "Feedback").
+   * falsche Wort auf.
    *
    * Der Test liest die Seiten direkt aus dem Quelltext, damit eine neue
    * Operator-Seite automatisch mitgeprüft wird.
@@ -171,7 +170,7 @@ describe("navigation catalogs stay in sync with the header", () => {
     it("finds the pages it is supposed to guard", () => {
       // Schutz gegen eine stillschweigend leere Prüfung, falls sich die
       // Schreibweise von useSetBreadcrumb einmal ändert.
-      expect(staticTitles.length).toBeGreaterThanOrEqual(9);
+      expect(staticTitles.length).toBeGreaterThanOrEqual(8);
     });
 
     it.each(staticTitles)(

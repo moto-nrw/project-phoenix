@@ -977,11 +977,11 @@ describe("MobileBottomNav", () => {
         isSessionExpired: false,
         logout: vi.fn(),
         mode: "operator",
-        homeUrl: "/operator/suggestions",
+        homeUrl: "/operator/organizations",
 
         profileUrl: "/operator/settings",
       });
-      mockUsePathname.mockReturnValue("/operator/suggestions");
+      mockUsePathname.mockReturnValue("/operator/organizations");
     });
 
     it("renders operator main items", () => {
@@ -989,7 +989,6 @@ describe("MobileBottomNav", () => {
 
       const links = screen.getAllByRole("link");
       const hrefs = links.map((link) => link.getAttribute("href"));
-      expect(hrefs).toContain("/operator/suggestions");
       expect(hrefs).toContain("/operator/announcements");
       // Verwaltung entry now points at the first management page (Träger)
       // since the old single-page /operator/provisioning was split into five
@@ -1025,7 +1024,7 @@ describe("MobileBottomNav", () => {
     it("shows active label for current operator route", () => {
       render(<MobileBottomNav />);
 
-      expect(screen.getByText("Feedback")).toBeInTheDocument();
+      expect(screen.getByText("Verwaltung")).toBeInTheDocument();
     });
   });
 

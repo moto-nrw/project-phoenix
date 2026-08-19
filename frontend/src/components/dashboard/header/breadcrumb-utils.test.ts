@@ -20,12 +20,6 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/students/123")).toBe("Kinder Details");
       });
 
-      it("should return 'Feedback Historie' for feedback history page", () => {
-        expect(getPageTitle("/students/123/feedback-history")).toBe(
-          "Feedback Historie",
-        );
-      });
-
       it("should return 'Anwesenheitsprotokoll' for room history page", () => {
         expect(getPageTitle("/students/123/room-history")).toBe(
           "Anwesenheitsprotokoll",
@@ -189,7 +183,6 @@ describe("breadcrumb-utils", () => {
           "Mitteilungen und Umfragen",
         );
         expect(getPageTitle("/meal-plan")).toBe("Essensplan");
-        expect(getPageTitle("/suggestions")).toBe("Feedback");
       });
 
       it("should return titles for operator navigation entries", () => {
@@ -302,12 +295,6 @@ describe("breadcrumb-utils", () => {
   });
 
   describe("getHistoryType", () => {
-    it("should return 'Feedback Historie' for feedback history path", () => {
-      expect(getHistoryType("/students/123/feedback-history")).toBe(
-        "Feedback Historie",
-      );
-    });
-
     it("should return 'Anwesenheitsprotokoll' for room history path", () => {
       expect(getHistoryType("/students/123/room-history")).toBe(
         "Anwesenheitsprotokoll",
@@ -503,19 +490,13 @@ describe("breadcrumb-utils", () => {
       });
 
       it("should not identify history pages as detail page", () => {
-        const result = getPageTypeInfo("/students/123/feedback-history");
+        const result = getPageTypeInfo("/students/123/room-history");
         expect(result.isStudentDetailPage).toBe(false);
         expect(result.isStudentHistoryPage).toBe(true);
       });
     });
 
     describe("student history page", () => {
-      it("should identify feedback history page", () => {
-        const result = getPageTypeInfo("/students/123/feedback-history");
-        expect(result.isStudentHistoryPage).toBe(true);
-        expect(result.isStudentDetailPage).toBe(false);
-      });
-
       it("should identify room history page", () => {
         const result = getPageTypeInfo("/students/123/room-history");
         expect(result.isStudentHistoryPage).toBe(true);

@@ -307,8 +307,8 @@ export const MOTO_CONCEPTS = {
     "function",
     "communication",
   ),
-  feedback: concept(
-    "Feedback",
+  notes: concept(
+    "Notizen",
     NotePencilIcon,
     "coral",
     "function",

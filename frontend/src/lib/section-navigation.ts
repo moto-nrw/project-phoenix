@@ -146,7 +146,6 @@ export const STAFF_FLAT_PAGES = {
   klassen: { href: "/klassen", label: "Klassenansicht" },
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
-  suggestions: { href: "/suggestions", label: "Feedback" },
   settings: { href: "/settings", label: "Einstellungen" },
 } as const satisfies Record<string, SectionSubPage>;
 

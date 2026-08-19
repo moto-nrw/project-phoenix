@@ -169,7 +169,6 @@ function secureRewrite(request: NextRequest, url: URL): NextResponse {
 const OPERATOR_PUBLIC_PATHS = [
   "/login",
   "/email-confirm",
-  "/suggestions",
   "/announcements",
   "/settings",
   "/provisioning",
@@ -220,7 +219,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
     return secureNext(request);
   }
 
-  // Root → rewrite to /operator (which server-redirects to /operator/suggestions)
+  // Root → rewrite to /operator (which server-redirects to /operator/organizations)
   if (pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/operator";

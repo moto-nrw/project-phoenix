@@ -311,8 +311,8 @@ function StaffStammdatenTab({
         title="Notizen"
         icon={
           <MotoDuotoneIcon
-            icon={MOTO_CONCEPTS.feedback.icon}
-            tone={MOTO_CONCEPTS.feedback.tone}
+            icon={MOTO_CONCEPTS.notes.icon}
+            tone={MOTO_CONCEPTS.notes.tone}
             size={18}
           />
         }

@@ -61,7 +61,6 @@ interface StudentDataState {
    */
   hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
-  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -179,7 +178,6 @@ interface StudentDetailResponse {
   hasWriteAccess: boolean;
   hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
-  feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
   myGroups: string[];
   myGroupRooms: string[];
@@ -232,7 +230,6 @@ export function useStudentData(studentId: string): UseStudentDataResult {
         has_absence_write_access?: boolean;
         group_supervisors?: SupervisorContact[];
         attendance_log_enabled?: boolean;
-        feedback_enabled?: boolean;
       };
 
       const hasAccess = mappedStudent.has_full_access ?? false;
@@ -243,7 +240,6 @@ export function useStudentData(studentId: string): UseStudentDataResult {
         mappedStudent.has_absence_write_access ?? hasWriteAccess;
       const attendanceLogEnabled =
         mappedStudent.attendance_log_enabled ?? false;
-      const feedbackEnabled = mappedStudent.feedback_enabled ?? false;
       const groupSupervisors = mappedStudent.group_supervisors ?? [];
       const extendedStudent = mapStudentResponse(
         studentResponse,
@@ -261,7 +257,6 @@ export function useStudentData(studentId: string): UseStudentDataResult {
         hasWriteAccess,
         hasAbsenceWriteAccess,
         attendanceLogEnabled,
-        feedbackEnabled,
         supervisors: groupSupervisors,
         myGroups: groupIds,
         myGroupRooms: ogsGroupRoomNames,
@@ -300,7 +295,6 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     hasWriteAccess: studentData?.hasWriteAccess ?? false,
     hasAbsenceWriteAccess: studentData?.hasAbsenceWriteAccess ?? false,
     attendanceLogEnabled: studentData?.attendanceLogEnabled ?? false,
-    feedbackEnabled: studentData?.feedbackEnabled ?? false,
     supervisors: studentData?.supervisors ?? [],
     myGroups: studentData?.myGroups ?? [],
     myGroupRooms: studentData?.myGroupRooms ?? [],

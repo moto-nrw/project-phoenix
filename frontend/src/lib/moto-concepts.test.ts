@@ -32,7 +32,7 @@ describe("MOTO_CONCEPTS", () => {
     expect(MOTO_CONCEPTS.rooms.tone).toBe("navy");
     expect(MOTO_CONCEPTS.parents.tone).toBe("blue");
     expect(MOTO_CONCEPTS.timeTracking.tone).toBe("timeTracking");
-    expect(MOTO_CONCEPTS.feedback.tone).toBe("coral");
+    expect(MOTO_CONCEPTS.notes.tone).toBe("coral");
     expect(MOTO_CONCEPTS.excused.tone).toBe("purple");
     expect(MOTO_CONCEPTS.schoolyard.tone).toBe("orange");
     expect(MOTO_CONCEPTS.utilization.tone).toBe("gold");

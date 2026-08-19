@@ -1033,7 +1033,6 @@ function HistoryButton({
 interface StudentHistorySectionProps {
   studentId: string;
   attendanceLogEnabled: boolean;
-  feedbackEnabled: boolean;
   readOnly?: boolean;
   canViewChangeHistory?: boolean;
   onNavigate: (path: string) => void;
@@ -1041,20 +1040,16 @@ interface StudentHistorySectionProps {
 
 /**
  * History section on the student detail page. The Anwesenheitsprotokoll button
- * is gated by the tenant's `gdpr.attendance_log_enabled` setting. The
- * Feedbackhistorie button is gated by the tenant's `feedback.enabled` setting.
- * Mensa history remains a disabled placeholder (future feature).
+ * is gated by the tenant's `gdpr.attendance_log_enabled` setting.
  */
 export function StudentHistorySection({
   studentId,
   attendanceLogEnabled,
-  feedbackEnabled,
   readOnly = false,
   canViewChangeHistory = true,
   onNavigate,
 }: Readonly<StudentHistorySectionProps>) {
   const attendanceDisabled = readOnly || !attendanceLogEnabled;
-  const feedbackDisabled = readOnly || !feedbackEnabled;
   const changeHistoryDisabled = readOnly || !canViewChangeHistory;
 
   return (
@@ -1085,29 +1080,6 @@ export function StudentHistorySection({
               ? () => onNavigate(`/students/${studentId}/room-history`)
               : undefined
           }
-        />
-        <HistoryButton
-          concept="feedback"
-          title="Feedbackhistorie"
-          description={
-            readOnly
-              ? "Nur für Gruppenbetreuer"
-              : feedbackEnabled
-                ? "Feedback und Bewertungen"
-                : "Für Ihre Schule deaktiviert"
-          }
-          disabled={feedbackDisabled}
-          onClick={
-            !feedbackDisabled
-              ? () => onNavigate(`/students/${studentId}/feedback-history`)
-              : undefined
-          }
-        />
-        <HistoryButton
-          concept="mealPlan"
-          title="Mensaverlauf"
-          description="Mahlzeiten und Bestellungen"
-          disabled
         />
         <HistoryButton
           concept="changeHistory"

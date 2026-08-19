@@ -245,14 +245,14 @@ describe("StudentHistoryBreadcrumb", () => {
       <StudentHistoryBreadcrumb
         referrer="/students/search"
         breadcrumbLabel="Suche"
-        pathname="/students/123/feedback-history"
+        pathname="/students/123/room-history"
         studentName="Emma Müller"
-        historyType="Feedbackhistorie"
+        historyType="Anwesenheitsprotokoll"
       />,
     );
     expect(screen.getByText("Suche")).toBeInTheDocument();
     expect(screen.getByText("Emma Müller")).toBeInTheDocument();
-    expect(screen.getByText("Feedbackhistorie")).toBeInTheDocument();
+    expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
   });
 
   it("renders history breadcrumb with sub-section name", () => {
