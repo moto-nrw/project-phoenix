@@ -100,6 +100,19 @@ func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
 	assert.Len(t, h1, 64)
 }
 
+func TestMigrationSetsMatchRequiresExactSet(t *testing.T) {
+	wanted := []string{"0.0.0", "1.15.301"}
+	assert.True(t, migrationSetsMatch(wanted, map[string]struct{}{
+		"0.0.0":    {},
+		"1.15.301": {},
+	}))
+	assert.False(t, migrationSetsMatch(wanted, map[string]struct{}{
+		"0.0.0":    {},
+		"1.15.301": {},
+		"1.15.302": {},
+	}), "newer migrations must force a template rebuild")
+}
+
 // ---------------------------------------------------------------------------
 // Integration tests (need TEST_DB_DSN; use private template names so the
 // real phoenix_test template is never touched)

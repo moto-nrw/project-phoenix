@@ -321,10 +321,21 @@ func migrationsComplete(ctx context.Context, dsn string) (bool, error) {
 		return false, err
 	}
 
-	for _, w := range wanted {
-		if _, ok := applied[w]; !ok {
-			return false, nil
+	return migrationSetsMatch(wanted, applied), nil
+}
+
+func migrationSetsMatch(wanted []string, applied map[string]struct{}) bool {
+	expected := make(map[string]struct{}, len(wanted))
+	for _, version := range wanted {
+		expected[version] = struct{}{}
+	}
+	if len(expected) != len(applied) {
+		return false
+	}
+	for version := range expected {
+		if _, ok := applied[version]; !ok {
+			return false
 		}
 	}
-	return true, nil
+	return true
 }
