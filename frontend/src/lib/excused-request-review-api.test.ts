@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 import {
+  listExcusedAbsenceRequestHistory,
   listExcusedAbsenceRequests,
   decideExcusedAbsenceRequest,
   ExcusedRequestApiError,
@@ -195,5 +196,22 @@ describe("decideExcusedAbsenceRequest", () => {
     expect((err as ExcusedRequestApiError).message).toBe(
       "Entscheidung konnte nicht gespeichert werden",
     );
+  });
+
+  it("lädt die Historie mit URL-kodiertem Cursor", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: { items: [], next_cursor: "abc" },
+      });
+    });
+
+    const out = await listExcusedAbsenceRequestHistory("cur+1");
+
+    expect(seenURL).toBe(
+      "/api/students/excused-absence-requests/history?cursor=cur%2B1",
+    );
+    expect(out.next_cursor).toBe("abc");
   });
 });
