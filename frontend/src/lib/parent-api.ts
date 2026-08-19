@@ -768,6 +768,11 @@ export interface ParentAnnouncement {
   readonly priority: "info" | "important";
   readonly link_url?: string;
   readonly requires_acknowledgement: boolean;
+  /**
+   * "letter" is a binding Elternbrief (#2384): the full text also went out by
+   * e-mail, and the confirmation here in the portal is the one that counts.
+   */
+  readonly delivery_mode?: "standard" | "letter";
   readonly school_name: string;
   readonly published_at?: string; // ISO timestamp
   readonly expires_at?: string; // ISO timestamp

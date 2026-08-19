@@ -158,7 +158,9 @@
     "newsReadAndConfirm": "Konfirmoni si të lexuar",
     "newsReadAnnouncement": "Lexoni",
     "newsExternalLink": "Hap informacione të tjera",
-    "newsClose": "Mbyll"
+    "newsClose": "Mbyll",
+    "newsLetterBadge": "Kërkohet konfirmim",
+    "newsLetterBindingHint": "E-maili shërben vetëm për informim. Konfirmimi i detyrueshëm bëhet këtu në portalin e prindërve. Mjafton që një person kujdestar të konfirmojë për çdo fëmijë."
   },
   "parentNotificationSetup": {
     "title": "Mos humbisni asnjë mesazh të rëndësishëm",

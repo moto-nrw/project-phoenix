@@ -158,7 +158,9 @@
     "newsReadAndConfirm": "Gelesen bestätigen",
     "newsReadAnnouncement": "Lesen",
     "newsExternalLink": "Weitere Informationen öffnen",
-    "newsClose": "Schließen"
+    "newsClose": "Schließen",
+    "newsLetterBadge": "Bestätigung erforderlich",
+    "newsLetterBindingHint": "Die E-Mail dient nur Ihrer Information. Verbindlich ist die Bestätigung hier im Elternportal. Es genügt, wenn eine sorgeberechtigte Person pro Kind bestätigt."
   },
   "parentNotificationSetup": {
     "title": "Keine wichtige Nachricht verpassen",

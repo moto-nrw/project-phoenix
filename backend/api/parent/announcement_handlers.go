@@ -16,17 +16,21 @@ import (
 // guardian's state. requires_acknowledgement tells the app whether to show the
 // "gelesen und bestätigt" action.
 type AnnouncementResponse struct {
-	ID                      string     `json:"id"`
-	Title                   string     `json:"title"`
-	Body                    string     `json:"body"`
-	Priority                string     `json:"priority"`
-	LinkURL                 *string    `json:"link_url,omitempty"`
-	RequiresAcknowledgement bool       `json:"requires_acknowledgement"`
-	SchoolName              string     `json:"school_name"`
-	PublishedAt             *time.Time `json:"published_at,omitempty"`
-	ExpiresAt               *time.Time `json:"expires_at,omitempty"`
-	Read                    bool       `json:"read"`
-	Acknowledged            bool       `json:"acknowledged"`
+	ID                      string  `json:"id"`
+	Title                   string  `json:"title"`
+	Body                    string  `json:"body"`
+	Priority                string  `json:"priority"`
+	LinkURL                 *string `json:"link_url,omitempty"`
+	RequiresAcknowledgement bool    `json:"requires_acknowledgement"`
+	// DeliveryMode "letter" marks a binding Elternbrief (#2384) so the portal can
+	// say so, instead of leaving the parent to infer it from a confirmation
+	// button appearing.
+	DeliveryMode string     `json:"delivery_mode"`
+	SchoolName   string     `json:"school_name"`
+	PublishedAt  *time.Time `json:"published_at,omitempty"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	Read         bool       `json:"read"`
+	Acknowledged bool       `json:"acknowledged"`
 
 	// Poll fields (#1371). response_type "none" means the other three are absent:
 	// options are the answer choices, children the guardian's own children this
@@ -84,6 +88,7 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 		Priority:                item.Priority,
 		LinkURL:                 item.LinkURL,
 		RequiresAcknowledgement: item.RequiresAcknowledgement,
+		DeliveryMode:            item.DeliveryMode,
 		SchoolName:              item.SchoolName,
 		PublishedAt:             item.PublishedAt,
 		ExpiresAt:               item.ExpiresAt,
