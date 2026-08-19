@@ -79,6 +79,16 @@ func acquireLifecycleLock(ctx context.Context, db *sql.DB) (unlock func(), err e
 	}, nil
 }
 
+// ProjectRoot returns the repository root (the parent of the backend module
+// root), where .env and docker-compose.yml live.
+func ProjectRoot() (string, error) {
+	backend, err := backendRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(backend), nil
+}
+
 // backendRoot walks up from the current working directory to the directory
 // containing go.mod (the backend module root). Test binaries run with their
 // package directory as cwd; the sweep command runs from backend/ or the repo

@@ -45,7 +45,7 @@ func initPackageTestDB() error {
 
 	// Load .env from project root (contains TEST_DB_DSN). Best-effort: CI
 	// provides the variables directly.
-	if projectRoot, err := FindProjectRoot(); err == nil {
+	if projectRoot, err := testdb.ProjectRoot(); err == nil {
 		_ = gotenv.Load(filepath.Join(projectRoot, ".env"))
 	}
 

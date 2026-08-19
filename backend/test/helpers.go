@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,35 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// FindProjectRoot walks up the directory tree from the current working directory
-// until it finds a directory containing go.mod. Returns the parent of that directory
-// (the actual project root where .env lives).
-//
-// This approach is self-healing: it works regardless of how deep the test file is
-// in the directory structure, eliminating fragile "../.." path counting.
-func FindProjectRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	for {
-		// Check if go.mod exists in this directory
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			// Found backend/go.mod, return parent (project-phoenix/)
-			return filepath.Dir(dir), nil
-		}
-
-		// Move up one directory
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached filesystem root without finding go.mod
-			return "", os.ErrNotExist
-		}
-		dir = parent
-	}
-}
 
 // SetupTestDB creates a test database connection using the standard configuration.
 // The first call in a test binary initializes the whole test-database

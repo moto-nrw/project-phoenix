@@ -60,22 +60,10 @@ func main() {
 	fmt.Printf("testdb sweep: dropped %d clone(s)\n", len(result.Dropped))
 }
 
-// loadDotEnv best-effort loads the project root .env (parent of the backend
-// module root) so TEST_DB_DSN is available when the wrapper runs outside CI.
+// loadDotEnv best-effort loads the project root .env so TEST_DB_DSN is
+// available when the wrapper runs outside CI.
 func loadDotEnv() {
-	dir, err := os.Getwd()
-	if err != nil {
-		return
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			_ = gotenv.Load(filepath.Join(filepath.Dir(dir), ".env"))
-			return
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return
-		}
-		dir = parent
+	if root, err := testdb.ProjectRoot(); err == nil {
+		_ = gotenv.Load(filepath.Join(root, ".env"))
 	}
 }

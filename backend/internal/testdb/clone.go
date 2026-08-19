@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
+	"time"
 )
 
 // RunIDEnv carries the run identifier that stamps every clone of one test
@@ -70,25 +72,61 @@ func CloneName(runID, workdir string) string {
 // CloneHandle is a live package clone. The keeper connection pins the clone
 // in pg_stat_activity so the cross-run GC never collects a clone whose test
 // binary is still alive; it is released when the process exits (or Close is
-// called).
+// called). The keeper is the single liveness signal the generation model
+// rests on, so a background loop pings it and reconnects if the session ever
+// dies (idle-session timeout, pg_terminate_backend, server hiccup).
 type CloneHandle struct {
 	Name string
 	DSN  string
 
+	mu         sync.Mutex // guards keeperConn against the keepAlive loop
 	keeperDB   *sql.DB
 	keeperConn *sql.Conn
+	keeperStop chan struct{}
 }
 
 // Close releases the keeper connection. Test binaries never call this — the
 // keeper lives until process exit; it exists for the lifecycle's own tests.
 func (h *CloneHandle) Close() error {
+	if h.keeperStop != nil {
+		close(h.keeperStop)
+		h.keeperStop = nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if h.keeperConn != nil {
 		_ = h.keeperConn.Close()
+		h.keeperConn = nil
 	}
 	if h.keeperDB != nil {
 		return h.keeperDB.Close()
 	}
 	return nil
+}
+
+// keepAlive pings the keeper connection every 30s (keeping the session
+// non-idle) and replaces it when it died. Best-effort: if the clone itself is
+// gone, tests are failing loudly anyway.
+func (h *CloneHandle) keepAlive(stop <-chan struct{}) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			h.mu.Lock()
+			if h.keeperConn == nil || h.keeperConn.PingContext(ctx) != nil {
+				if h.keeperConn != nil {
+					_ = h.keeperConn.Close()
+				}
+				h.keeperConn, _ = h.keeperDB.Conn(ctx)
+			}
+			h.mu.Unlock()
+			cancel()
+		}
+	}
 }
 
 // CreateClone creates this run's clone of the template for the package in
@@ -142,6 +180,8 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 		return nil, fmt.Errorf("pin package test database %q: %w", name, err)
 	}
 	handle.keeperConn = conn
+	handle.keeperStop = make(chan struct{})
+	go handle.keepAlive(handle.keeperStop)
 
 	return handle, nil
 }
@@ -171,7 +211,7 @@ func gcLocked(ctx context.Context, maint *sql.DB, sparePrefix, templateName stri
 		if name == templateName {
 			continue
 		}
-		if sparePrefix != "" && len(name) >= len(sparePrefix) && name[:len(sparePrefix)] == sparePrefix {
+		if sparePrefix != "" && strings.HasPrefix(name, sparePrefix) {
 			continue
 		}
 		orphans = append(orphans, name)

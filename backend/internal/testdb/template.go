@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 // hashCommentPrefix stamps the template database's comment with the hash of
@@ -80,7 +81,9 @@ func MigrationsHash() (string, error) {
 
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if !e.IsDir() && filepath.Ext(e.Name()) == ".go" {
+		// _test.go files never affect the schema; hashing them would force
+		// a pointless ~25s template rebuild after editing a migration test.
+		if !e.IsDir() && filepath.Ext(e.Name()) == ".go" && !strings.HasSuffix(e.Name(), "_test.go") {
 			names = append(names, e.Name())
 		}
 	}
@@ -141,7 +144,7 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) er
 		if comment == want {
 			return nil
 		}
-		if len(comment) < len(hashCommentPrefix) || comment[:len(hashCommentPrefix)] != hashCommentPrefix {
+		if !strings.HasPrefix(comment, hashCommentPrefix) {
 			// Unstamped template (CI snapshot restore or legacy local state):
 			// adopt it if it is migration-complete instead of rebuilding.
 			complete, err := o.verify(ctx, cfg.TemplateDSN())
@@ -236,7 +239,7 @@ func migrationsComplete(ctx context.Context, dsn string) (bool, error) {
 			continue
 		}
 		name := e.Name()
-		if len(name) > 8 && name[len(name)-8:] == "_test.go" {
+		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
 		if m := migrationFilePattern.FindStringSubmatch(name); m != nil {

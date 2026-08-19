@@ -9,7 +9,7 @@
 #
 # Usage: scripts/test-backend.sh [go-test-args...]     (Default: ./...)
 #   PHX_TEST_LEFTOVERS=1 scripts/test-backend.sh       # Restdaten-Diagnose
-set -uo pipefail
+set -euo pipefail
 cd "$(git rev-parse --show-toplevel)/backend"
 
 PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
