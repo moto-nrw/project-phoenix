@@ -17,6 +17,30 @@ import (
 // name + class.
 var classListRequiredColumns = []string{"vorname", "nachname", "klasse"}
 
+// ClassListTemplateExampleRows are the demo rows shipped in the import
+// template (the API's template download renders exactly these). An unchanged
+// template upload must not create these children as real tenant data, so the
+// parsers drop matching rows — a file consisting only of them then hits the
+// "keine Datenzeilen … Vorlage hochgeladen" error.
+var ClassListTemplateExampleRows = []importModels.ClassListEntryImportRow{
+	{FirstName: "Lena", LastName: "Beispiel", SchoolClass: "1a"},
+	{FirstName: "Jonas", LastName: "Muster", SchoolClass: "3b"},
+}
+
+// isClassListTemplateExample reports whether a parsed row is one of the
+// template's example rows (case-insensitive, trimmed — the template ships
+// them verbatim, but hand-copied variants should not slip through either).
+func isClassListTemplateExample(row importModels.ClassListEntryImportRow) bool {
+	for _, example := range ClassListTemplateExampleRows {
+		if strings.EqualFold(strings.TrimSpace(row.FirstName), example.FirstName) &&
+			strings.EqualFold(strings.TrimSpace(row.LastName), example.LastName) &&
+			strings.EqualFold(strings.TrimSpace(row.SchoolClass), example.SchoolClass) {
+			return true
+		}
+	}
+	return false
+}
+
 // MapClassListRow maps column values to a ClassListEntryImportRow.
 func MapClassListRow(mapper *ColumnMapper) importModels.ClassListEntryImportRow {
 	return importModels.ClassListEntryImportRow{
@@ -74,7 +98,10 @@ func ParseClassListCSV(reader io.Reader) ([]importModels.ClassListEntryImportRow
 		}
 
 		mapper := NewColumnMapper(mapping, values)
-		rows = append(rows, MapClassListRow(mapper))
+		row := MapClassListRow(mapper)
+		if !isClassListTemplateExample(row) {
+			rows = append(rows, row)
+		}
 		rowNum++
 	}
 
@@ -129,7 +156,10 @@ func ParseClassListXLSX(reader io.Reader) ([]importModels.ClassListEntryImportRo
 			continue
 		}
 		mapper := NewColumnMapper(mapping, values)
-		rows = append(rows, MapClassListRow(mapper))
+		row := MapClassListRow(mapper)
+		if !isClassListTemplateExample(row) {
+			rows = append(rows, row)
+		}
 	}
 
 	if len(rows) == 0 {

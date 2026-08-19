@@ -130,3 +130,57 @@ func TestParseClassListXLSX_NotAnExcelFile(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "open excel file")
 }
+
+// The template ships example rows (Lena Beispiel, Jonas Muster); a template
+// uploaded with the examples left in must not import them as real tenant
+// data (#2399 review round 9). Only the exact name+class triple counts — a
+// real child who happens to share an example name in a DIFFERENT class stays.
+func TestParseClassListCSV_DropsTemplateExampleRows(t *testing.T) {
+	csvData := "Vorname,Nachname,Klasse\n" +
+		"Lena,Beispiel,1a\n" +
+		"jonas,muster,3b\n" +
+		"Lena,Beispiel,1b\n" +
+		"Zoe,Aalders,1a"
+
+	rows, err := ParseClassListCSV(strings.NewReader(csvData))
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.Equal(t, "1b", rows[0].SchoolClass)
+	assert.Equal(t, "Zoe", rows[1].FirstName)
+}
+
+func TestParseClassListCSV_UnchangedTemplateOnlyExamples(t *testing.T) {
+	csvData := "Vorname,Nachname,Klasse\n" +
+		"Lena,Beispiel,1a\n" +
+		"Jonas,Muster,3b"
+
+	_, err := ParseClassListCSV(strings.NewReader(csvData))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "keine Datenzeilen")
+}
+
+func TestParseClassListXLSX_DropsTemplateExampleRows(t *testing.T) {
+	reader := buildClassListXLSX(t, [][]string{
+		{"Vorname", "Nachname", "Klasse"},
+		{"Lena", "Beispiel", "1a"},
+		{"Jonas", "Muster", "3b"},
+		{"Ben", "Zorn", "3c"},
+	})
+
+	rows, err := ParseClassListXLSX(reader)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "Ben", rows[0].FirstName)
+}
+
+func TestParseClassListXLSX_UnchangedTemplateOnlyExamples(t *testing.T) {
+	reader := buildClassListXLSX(t, [][]string{
+		{"Vorname", "Nachname", "Klasse"},
+		{"Lena", "Beispiel", "1a"},
+		{"Jonas", "Muster", "3b"},
+	})
+
+	_, err := ParseClassListXLSX(reader)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "keine Datenzeilen")
+}

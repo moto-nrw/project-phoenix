@@ -26,6 +26,48 @@ import (
 // students themselves are reactivated. The audit trail records every rewrite
 // either way.
 
+// classListEntryRenameLookup resolves an entry's class against the
+// transition's renames: exact (trimmed) match first — the condition the
+// students and Klassenlehrer rows move under — then a schoolclass.Normalize
+// fallback. Entries need the fallback because their cohort identity is the
+// NORMALIZED class everywhere else (unique index, filters, exports): an entry
+// stored as "1A" belongs to the "1a" cohort, and without the fallback it
+// would stay behind and silently attach to the NEXT incoming 1a. A normalized
+// key two mappings collapse onto with different targets is ambiguous and
+// excluded from the fallback — those classes still remap via their exact
+// forms.
+type classListEntryRenameLookup struct {
+	exact      map[string]string
+	normalized map[string]string
+}
+
+func newClassListEntryRenameLookup(renames map[string]string) classListEntryRenameLookup {
+	normalized := make(map[string]string, len(renames))
+	ambiguous := make(map[string]bool)
+	for from, to := range renames {
+		key := schoolclass.Normalize(from)
+		if existing, seen := normalized[key]; seen && existing != to {
+			ambiguous[key] = true
+			continue
+		}
+		normalized[key] = to
+	}
+	for key := range ambiguous {
+		delete(normalized, key)
+	}
+	return classListEntryRenameLookup{exact: renames, normalized: normalized}
+}
+
+// target returns the rename target for a class ("" = graduates) and whether
+// the class is part of the transition at all.
+func (l classListEntryRenameLookup) target(schoolClass string) (string, bool) {
+	if to, ok := l.exact[strings.TrimSpace(schoolClass)]; ok {
+		return to, true
+	}
+	to, ok := l.normalized[schoolclass.Normalize(schoolClass)]
+	return to, ok
+}
+
 // remapClassListEntries follows the transition's class renames for
 // users.class_list_entries. Affected rows are deleted and re-inserted (mirror
 // of remapClassTeacherAssignments): simultaneous renames ("1a"→"2a" while
@@ -47,6 +89,7 @@ func (s *GradeTransitionService) remapClassListEntries(
 	if len(renames) == 0 {
 		return nil
 	}
+	lookup := newClassListEntryRenameLookup(renames)
 
 	entries, err := s.classListEntryRepo.List(ctx, nil)
 	if err != nil {
@@ -56,7 +99,7 @@ func (s *GradeTransitionService) remapClassListEntries(
 	var affected []*userModels.ClassListEntry
 	kept := make(map[string]bool, len(entries))
 	for _, entry := range entries {
-		if _, hit := renames[strings.TrimSpace(entry.SchoolClass)]; hit {
+		if _, hit := lookup.target(entry.SchoolClass); hit {
 			affected = append(affected, entry)
 			continue
 		}
@@ -82,7 +125,7 @@ func (s *GradeTransitionService) remapClassListEntries(
 	}
 
 	for _, entry := range affected {
-		target := renames[strings.TrimSpace(entry.SchoolClass)]
+		target, _ := lookup.target(entry.SchoolClass)
 		created, err := s.reinsertClassListEntry(ctx, entry, target, kept, accountID)
 		if err != nil {
 			return err
@@ -167,13 +210,13 @@ func (s *GradeTransitionService) revertClassListEntries(
 		}
 	}
 
-	renames := classTeacherRenames(mappings)
+	lookup := newClassListEntryRenameLookup(classTeacherRenames(mappings))
 
 	for _, item := range ledger {
 		if item.Action != education.ClassTeacherActionRemoved {
 			continue
 		}
-		if target := renames[strings.TrimSpace(item.SchoolClass)]; target != "" {
+		if target, hit := lookup.target(item.SchoolClass); hit && target != "" {
 			pairKey := classListEntryKey(item.FirstName, item.LastName, target)
 			if ledgerCreated[pairKey] && !deletedCreated[pairKey] {
 				continue // the admin removed the renamed child after the apply

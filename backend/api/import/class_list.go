@@ -25,12 +25,15 @@ func getClassListImportHeaders() []string {
 	return []string{"Vorname", "Nachname", "Klasse"}
 }
 
-// getClassListImportExamples returns example data rows for the template.
+// getClassListImportExamples returns example data rows for the template —
+// exactly the canonical rows the parsers drop again on upload, so an
+// unchanged template never imports the demo children as real tenant data.
 func getClassListImportExamples() [][]any {
-	return [][]any{
-		{"Lena", "Beispiel", "1a"},
-		{"Jonas", "Muster", "3b"},
+	examples := make([][]any, 0, len(importService.ClassListTemplateExampleRows))
+	for _, row := range importService.ClassListTemplateExampleRows {
+		examples = append(examples, []any{row.FirstName, row.LastName, row.SchoolClass})
 	}
+	return examples
 }
 
 // ClassListFileUploadResult carries the parsed rows plus the original
@@ -149,6 +152,7 @@ func writeClassListHinweiseSheet(f *excelize.File) {
 		{"", "", ""},
 		{"Hinweis", "", "Klassenlisteneinträge sind Kinder OHNE OGS-Betreuung: Sie erscheinen nur auf Klassenlisten und in der Klassenansicht, nie in Anwesenheit oder Betreuungsplanung."},
 		{"Hinweis", "", "Kinder, die bereits in moto angelegt sind, werden übersprungen — sie stehen schon auf der Klassenliste."},
+		{"Hinweis", "", "Die Beispielzeilen der Vorlage (Lena Beispiel, Jonas Muster) werden beim Import ignoriert — bitte durch echte Daten ersetzen."},
 	}
 	for rowIdx, row := range rows {
 		for colIdx, val := range row {

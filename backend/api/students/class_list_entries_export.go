@@ -22,13 +22,17 @@ import (
 // entries at all. Entries only exist as name + class, so any active filter on
 // a property they don't have (group, room, lifecycle status, bus, photo
 // consent, pickup, day status, times, birthday months) excludes every entry
-// semantically — the merged list would claim they matched the filter.
+// semantically — the merged list would claim they matched the filter. The
+// enum filters share the student side's isActiveFilterValue semantics: an
+// explicit "all" filters nothing there, so it must not drop the entries here.
 func classListEntryExportEligible(preset listexport.Preset, f studentExportFilters) bool {
 	if preset != listexport.PresetClassRoster {
 		return false
 	}
-	return f.GroupID == "" && f.RoomID == "" && f.Status == "" && f.Bus == "" &&
-		f.PhotoConsent == "" && f.PickupStatus == "" && f.DayStatus == "" &&
+	return f.GroupID == "" && f.RoomID == "" &&
+		!isActiveFilterValue(f.Status) && !isActiveFilterValue(f.Bus) &&
+		!isActiveFilterValue(f.PhotoConsent) && !isActiveFilterValue(f.PickupStatus) &&
+		!isActiveFilterValue(f.DayStatus) &&
 		f.PickupTime == "" && f.ArrivalTime == "" && len(f.Months) == 0
 }
 

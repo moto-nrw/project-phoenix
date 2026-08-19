@@ -199,8 +199,12 @@ export default function ClassListImportPage() {
         const result = (await response.json()) as Record<string, unknown>;
 
         if (!response.ok) {
+          // Failure responses carry the actionable text in `error`
+          // (api/common ErrResponse); `message` exists only on successes.
           throw new Error(
-            (result.message as string | undefined) ?? "Fehler bei der Vorschau",
+            (result.error as string | undefined) ??
+              (result.message as string | undefined) ??
+              "Fehler bei der Vorschau",
           );
         }
 
@@ -264,7 +268,9 @@ export default function ClassListImportPage() {
 
       if (!response.ok) {
         throw new Error(
-          (result.message as string | undefined) ?? "Fehler beim Import",
+          (result.error as string | undefined) ??
+            (result.message as string | undefined) ??
+            "Fehler beim Import",
         );
       }
 
@@ -366,7 +372,8 @@ export default function ClassListImportPage() {
           <li>Laden Sie die Vorlage herunter (siehe unten)</li>
           <li>
             Tragen Sie pro Kind nur Vorname, Nachname und Klasse ein — mehr
-            braucht ein Klassenlisteneintrag nicht
+            braucht ein Klassenlisteneintrag nicht (die Beispielzeilen der
+            Vorlage werden beim Import ignoriert)
           </li>
           <li>
             Kinder, die bereits in moto angelegt sind, werden übersprungen — sie

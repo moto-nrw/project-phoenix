@@ -3,6 +3,7 @@ package education_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -232,6 +233,51 @@ func TestGradeTransitionService_Revert_SkipsCollidingRestores(t *testing.T) {
 		"the re-created entry survives; the ledger restore must not duplicate it")
 	assert.Empty(t, classListEntryClassesOf(t, db, ctx, "CleBen2", "Kollision"),
 		"a child with a real student record must not get a second class-list row")
+}
+
+// An entry whose stored class differs from the mapping's display form only in
+// case belongs to the same cohort — the entry's class identity is the
+// normalized form everywhere else (unique index, filters, exports). The remap
+// must carry it along via the normalized fallback instead of leaving it
+// attached to the old class name, and the revert must restore its original
+// display form (#2399 review round 9).
+func TestGradeTransitionService_Apply_RemapsCaseDivergentEntryClass(t *testing.T) {
+	service, db, cleanup := setupClassListEntryTransitionTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-cle-case@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class1 := fmt.Sprintf("1f-%s", suffix)
+	class1Upper := strings.ToUpper(class1)
+	class2 := fmt.Sprintf("2f-%s", suffix)
+
+	cohort := testpkg.CreateTestStudent(t, db, "CleCase", "Cohort", class1)
+	defer testpkg.CleanupActivityFixtures(t, db, cohort.ID)
+
+	entry := testpkg.CreateTestClassListEntry(t, db, "CleIda", "Grossklein", class1Upper)
+	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+	defer cleanupClassListEntriesByName(t, db, [][2]string{{"CleIda", "Grossklein"}})
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{class2}, classListEntryClassesOf(t, db, ctx, "CleIda", "Grossklein"),
+		"a case-divergent entry class must follow its cohort's rename")
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{class1Upper}, classListEntryClassesOf(t, db, ctx, "CleIda", "Grossklein"),
+		"the revert must restore the entry with its original display form")
 }
 
 // A transition over classes without any entries writes no ledger — apply and
