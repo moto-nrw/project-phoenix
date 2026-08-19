@@ -2,6 +2,7 @@ package supervisiondashboard
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,7 +11,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -128,6 +131,41 @@ func TestServiceDefaults(t *testing.T) {
 	ctx, err := service.prefetchSettings(context.Background())
 	require.NoError(t, err)
 	assert.NotNil(t, ctx)
+}
+
+func TestSettingsDrivenProjectionBranches(t *testing.T) {
+	settings := &configtest.Mock{
+		ResolveStringFn: func(_ context.Context, key string) (string, error) {
+			switch key {
+			case configModel.KeyGroupMode:
+				return configModel.GroupModeOpenCare, nil
+			case configModel.KeyCareConcept:
+				return configModel.CareConceptOpenRooms, nil
+			default:
+				return "", nil
+			}
+		},
+		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
+			return key == configModel.KeyWebSpontaneousActivities, nil
+		},
+	}
+	service := &service{deps: Dependencies{Settings: settings}}
+
+	overview, err := service.hasOperationalOverview(context.Background())
+	require.NoError(t, err)
+	assert.True(t, overview)
+
+	capabilities, err := service.resolveCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.True(t, capabilities.WebSpontaneousActivitiesEnabled)
+
+	rooms, err := service.loadRooms(context.Background(), []*activeModels.Group{{}})
+	require.NoError(t, err)
+	assert.Empty(t, rooms)
+
+	settings.ResolveStringFn = func(_ context.Context, _ string) (string, error) { return "", errors.New("settings unavailable") }
+	_, err = service.resolveCapabilities(context.Background())
+	require.Error(t, err)
 }
 
 func int64Ptr(value int64) *int64 { return &value }
