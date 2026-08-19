@@ -410,7 +410,6 @@ func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupStudentsUnauth")
 	room := testpkg.CreateTestRoom(t, tc.db, "GroupStudentsUnauthRoom")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", activeGroup.ID), nil)
 
@@ -442,7 +441,6 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupVisitsUnauth")
 	room := testpkg.CreateTestRoom(t, tc.db, "GroupVisitsUnauthRoom")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/visits", activeGroup.ID), nil)
 
@@ -589,12 +587,11 @@ func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupStudents", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupStudents", "Teacher")
 
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "StudentAccessGroup")
 	room := testpkg.CreateTestRoom(t, tc.db, "StudentAccessRoom")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/students", activeGroup.ID), nil,
@@ -613,12 +610,11 @@ func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
 func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupVisits", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupVisits", "Teacher")
 
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "VisitsAccessGroup")
 	room := testpkg.CreateTestRoom(t, tc.db, "VisitsAccessRoom")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activeGroup.ID, activityGroup.CategoryID, room.ID, teacher.ID)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/groups/%d/visits", activeGroup.ID), nil,

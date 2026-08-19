@@ -128,9 +128,7 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
 
 	today := timezone.TodayDate()
-	pickupException := testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:30", "Test")
-	defer testpkg.CleanupScheduleFixturesB11(t, tc.db, nil, nil, nil, []int64{pickupException.ID}, nil, nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, eduGroup.ID, activeGroup.ID, activityGroup.ID, device.ID, room.ID, teacher.ID)
+	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:30", "Test")
 
 	settingsCtx := testpkg.TenantContext(1)
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
@@ -206,7 +204,6 @@ func TestSupervisionDashboard_MinimalProjection(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DashSlim", "Kind", "DS1")
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID)
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
@@ -273,9 +270,6 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 			studentIDs = append(studentIDs, student.ID)
 		}
 	}
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, append(studentIDs, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID)...)
-	}()
 
 	counter := &dashboardQueryCounter{}
 	tc.db.AddQueryHook(counter)
@@ -328,9 +322,6 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
 		studentIDs = append(studentIDs, student.ID)
 	}
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, append(studentIDs, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID)...)
-	}()
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
@@ -363,11 +354,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
 
 	today := timezone.TodayDate()
-	pickupException := testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:45", "Test")
-	defer testpkg.CleanupScheduleFixturesB11(t, tc.db, nil, nil, nil, []int64{pickupException.ID}, nil, nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db,
-		student.ID, activeGroup.ID, activityGroup.ID, room.ID, teacher.ID,
-		foreignActiveGroup.ID, foreignActivityGroup.ID, foreignRoom.ID, otherTeacher.ID)
+	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:45", "Test")
 
 	t.Run("invalid group_id is a 400", func(t *testing.T) {
 		rr := dashboardExecRaw(t, router, "/active/supervision-dashboard?group_id=abc", account.ID, dashboardPerms)
@@ -402,8 +389,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 	})
 
 	t.Run("no supervised groups is an explicit empty 200", func(t *testing.T) {
-		lonely, lonelyAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Gruppenlos")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, lonely.ID)
+		_, lonelyAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Gruppenlos")
 
 		envelope := dashboardExec(t, router, "/active/supervision-dashboard", lonelyAccount.ID, dashboardPerms)
 		assert.Empty(t, envelope.Data.Groups)
@@ -426,10 +412,6 @@ func TestSupervisionDashboard_TenantIsolation(t *testing.T) {
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, tc.db, 2, "DashIsoForeignRoom")
 	foreignActivityGroup := testpkg.CreateTestActivityGroupForTenant(t, tc.db, 2, "DashIsoForeignActivity")
 	foreignActiveGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, tc.db, 2, foreignActivityGroup.ID, foreignRoom.ID)
-
-	defer testpkg.CleanupActivityFixtures(t, tc.db,
-		activeGroup.ID, activityGroup.ID, room.ID, teacher.ID,
-		foreignActiveGroup.ID, foreignActivityGroup.ID, foreignRoom.ID)
 
 	rr := dashboardExecRaw(t, router, fmt.Sprintf("/active/supervision-dashboard?group_id=%d", foreignActiveGroup.ID), account.ID, dashboardPerms)
 	assert.Equal(t, http.StatusForbidden, rr.Code,

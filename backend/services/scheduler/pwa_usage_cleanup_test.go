@@ -24,7 +24,6 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-cleanup-%d@example.com", time.Now().UnixNano()))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 	defer func() {
 		_, _ = db.NewRaw(`DELETE FROM iot.pwa_standalone_usage WHERE account_id = ?`, account.ID).Exec(context.Background())
 	}()

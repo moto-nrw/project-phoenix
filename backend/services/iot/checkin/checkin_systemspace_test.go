@@ -145,7 +145,6 @@ func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 
@@ -166,7 +165,6 @@ func TestWcActivityGroup_FindsExisting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 
@@ -262,7 +260,6 @@ func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 
@@ -283,7 +280,6 @@ func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
 

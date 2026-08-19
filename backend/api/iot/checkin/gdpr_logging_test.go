@@ -36,26 +36,19 @@ func TestDeviceCheckin_LogsOmitStudentNameAndGreeting(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "gdpr-log-checkin")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Gdpr", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, firstName, lastName, "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, fmt.Sprintf("GDPRLOG%d", time.Now().UnixNano()))
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := testpkg.CreateTestRoom(t, ctx.db, "Gdpr Log Room")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, room.ID)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Gdpr Log Activity")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activity.ID)
 
-	activeGroup := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, activeGroup.ID)
+	_ = testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())

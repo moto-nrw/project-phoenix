@@ -226,7 +226,6 @@ func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, guardianTenantID)
 	testpkg.EnsureTestTenant(t, db, staffTenantID)
 	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
 		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
 	})

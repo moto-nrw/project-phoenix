@@ -22,7 +22,6 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "ClassesNonStaff", "User")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -33,11 +32,9 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 
 	t.Run("returns assigned classes in class order", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassesStaff", "Teacher")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		ctB := testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
-		ctA := testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
-		defer testpkg.CleanupTableRecords(t, db, "education.class_teachers", ctA.ID, ctB.ID)
+		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
+		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -48,10 +45,8 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 
 	t.Run("memoizes the result within one request", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "ClassesMemo", "Teacher")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-		ctA := testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
-		defer testpkg.CleanupTableRecords(t, db, "education.class_teachers", ctA.ID)
+		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "1a")
 
 		ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
 
@@ -61,8 +56,7 @@ func TestUserContextService_GetMySchoolClasses(t *testing.T) {
 
 		// A row added mid-request must not appear: the memoized value wins
 		// for the rest of the request span.
-		ctB := testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
-		defer testpkg.CleanupTableRecords(t, db, "education.class_teachers", ctB.ID)
+		_ = testpkg.CreateTestClassTeacher(t, db, staff.ID, "2b")
 
 		second, err := service.GetMySchoolClasses(ctx)
 		require.NoError(t, err)

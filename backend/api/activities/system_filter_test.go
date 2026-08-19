@@ -135,7 +135,6 @@ func TestGetAvailableActivities_ExcludesSystemActivities(t *testing.T) {
 	defer cleanupCategory(t, ctx.db, normal.CategoryID)
 	defer cleanupActivity(t, ctx.db, system.ID)
 	defer cleanupCategory(t, ctx.db, system.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// Both groups open for enrollment; one flagged as system infrastructure
 	// (mirrors Schulhof Freispiel/WC, which are created with is_open = true).

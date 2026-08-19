@@ -59,10 +59,8 @@ func substitutionFixtures(t *testing.T, ctx *testContext, label string) (staffID
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, label, "Substitute")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID) })
 
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SSE"+label)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID) })
 
 	return staff.ID, group.ID
 }

@@ -46,7 +46,6 @@ func cleanupTenantRole(t *testing.T, db *bun.DB, roleID int64) {
 	t.Helper()
 	_, err := db.NewDelete().TableExpr(`auth.account_roles`).Where("role_id = ?", roleID).Exec(context.Background())
 	require.NoError(t, err)
-	testpkg.CleanupRoleRecords(t, db, roleID)
 }
 
 func roleNamesAt(entries []platformSvc.AccountTenantAccessEntry, tenantID int64) []string {
@@ -85,7 +84,6 @@ func setupAccessTestAccount(t *testing.T, db *bun.DB) (*authModels.Account, func
 
 	return account, func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}
 }
 
@@ -230,7 +228,6 @@ func TestIntegration_GrantAccountTenantAccess_RejectsForeignTenantRole(t *testin
 
 	// A custom role that exists only at the ORIGINAL school.
 	foreignRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-fremdrolle", testSchoolID)
-	defer testpkg.CleanupRoleRecords(t, db, foreignRole.ID)
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID,
 		platformSvc.GrantAccountTenantAccessRequest{RoleID: foreignRole.ID}, operator.ID, testClientIP)
@@ -284,7 +281,6 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 	require.NoError(t, db.NewInsert().Model(teacher).ModelTableExpr(`users.teachers`).Scan(ctx))
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 	operator := testpkg.CreateTestOperator(t, db)
 
@@ -410,7 +406,6 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 				defer func() {
 					_, deleteErr := db.NewDelete().TableExpr(`auth.account_roles`).Where("role_id = ?", legacyRole.ID).Exec(ctx)
 					require.NoError(t, deleteErr)
-					testpkg.CleanupRoleRecords(t, db, legacyRole.ID)
 				}()
 			} else {
 				roleID = systemRoleID(t, db, roleName)
@@ -443,7 +438,6 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesAccountWithoutRemainin
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
@@ -515,7 +509,6 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
@@ -543,7 +536,6 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
@@ -645,7 +637,6 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *
 	linkPersonToAccount(t, db, source.ID, account.ID)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
@@ -681,7 +672,6 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *test
 	testpkg.MapAccountToTenant(t, db, account.ID, accessTargetTenantID)
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
@@ -710,7 +700,6 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 		_, err := db.ExecContext(ctx, `DELETE FROM users.students WHERE id = ?`, student.ID)
 		require.NoError(t, err)
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
@@ -747,7 +736,6 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)
@@ -789,7 +777,6 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 
 	defer func() {
 		cleanupAccessFixtures(t, db, account.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	}()
 
 	operator := testpkg.CreateTestOperator(t, db)

@@ -76,7 +76,6 @@ func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 
 	err := service.CreateRoom(ctx, room)
 	require.NoError(t, err)
-	defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 	retrieved, err := service.GetRoom(ctx, room.ID)
 	require.NoError(t, err)
@@ -99,12 +98,10 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 	colorA := "#A3D977"
 	roomA := &facilities.Room{Name: uniqueRoomName("RoomA"), Color: &colorA}
 	require.NoError(t, service.CreateRoom(ctx, roomA))
-	defer testpkg.CleanupActivityFixtures(t, db, roomA.ID)
 
 	// Second room created without color (so the create succeeds)
 	roomB := &facilities.Room{Name: uniqueRoomName("RoomB")}
 	require.NoError(t, service.CreateRoom(ctx, roomB))
-	defer testpkg.CleanupActivityFixtures(t, db, roomB.ID)
 
 	// ACT — try to update Room B to the same color as Room A.
 	colorBAttempt := colorA
@@ -249,7 +246,6 @@ func TestFacilitiesService_UpdateRoom_AllowsClearingColor(t *testing.T) {
 	color := "#1ABC9C"
 	room := &facilities.Room{Name: uniqueRoomName("ClearColor"), Color: &color}
 	require.NoError(t, service.CreateRoom(ctx, room))
-	defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 	// ACT — clear to nil (frontend's "Zurücksetzen" button)
 	room.Color = nil

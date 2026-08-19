@@ -93,9 +93,6 @@ func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) *scheduleModels.
 	ai.SetTenantID(1)
 	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", ai.ID)
-	})
 	return ai
 }
 

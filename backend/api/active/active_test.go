@@ -139,7 +139,6 @@ func TestGetActiveGroup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Test Room %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Test Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 	t.Run("success with valid id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d", activeGroup.ID), nil)
@@ -176,7 +175,6 @@ func TestCreateActiveGroup(t *testing.T) {
 	// Create test fixtures
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Create Room %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Create Activity %d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
 
 	t.Run("success with valid data", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -255,7 +253,6 @@ func TestEndActiveGroup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("End Room %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("End Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 	t.Run("disabled web attendance blocks group teardown", func(t *testing.T) {
 		disabledSettings := &configtest.Mock{
@@ -351,7 +348,6 @@ func TestCreateVisit(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Visit Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID)
 
 	// Note: Full visit creation requires staff context (checked_in_by foreign key)
 	// Success case is covered by IoT checkin tests and service layer tests
@@ -400,7 +396,6 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, tc.db, "Current", "Visit", "2b")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("returns not found when no active visit", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d/current", student.ID), nil)
@@ -471,8 +466,6 @@ func TestCreateSupervisor(t *testing.T) {
 		supervisorTestTenantID, group.ID, room.ID)
 	staff := testpkg.CreateTestStaffForTenant(t, tc.db, supervisorTestTenantID,
 		"Supervisor", "Staff")
-	defer testpkg.CleanupActivityFixturesForTenant(t, tc.db, supervisorTestTenantID,
-		room.ID, group.ID, activeGroup.ID, staff.ID)
 
 	t.Run("success with valid data", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -525,7 +518,6 @@ func TestGetStaffActiveSupervisions(t *testing.T) {
 
 	// Create test staff
 	staff := testpkg.CreateTestStaff(t, tc.db, "Active", "Supervisions")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
 	t.Run("success returns empty array when no supervisions", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d/active", staff.ID), nil)
@@ -592,7 +584,6 @@ func TestDeleteActiveGroup(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Delete Room %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Delete Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/groups/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
@@ -625,7 +616,6 @@ func TestUpdateActiveGroup(t *testing.T) {
 		room2 := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Update Room2 %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Update Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, room2.ID, activeGroup.ID)
 
 		body := map[string]interface{}{
 			"group_id":   group.ID,
@@ -697,7 +687,6 @@ func TestGetStudentVisits(t *testing.T) {
 
 	t.Run("success returns visits for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Student", "Visits", "3c")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d", student.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -784,7 +773,6 @@ func TestGetStaffSupervisions(t *testing.T) {
 
 	t.Run("success returns supervisions for staff", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, tc.db, "Staff", "Supervisions")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d", staff.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -837,7 +825,6 @@ func TestUpdateSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Update", "Supervisor")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "original")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		body := map[string]interface{}{
 			"staff_id":        staff.ID,
@@ -877,7 +864,6 @@ func TestDeleteSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Delete", "Supervisor")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "to-delete")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsAssign})
@@ -911,7 +897,6 @@ func TestEndSupervision(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "End", "Supervision")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "to-end")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/supervisors/%d/end", supervisor.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -975,7 +960,6 @@ func TestCreateCombinedGroup(t *testing.T) {
 
 	t.Run("success with valid data", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Combined Room %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 		body := map[string]interface{}{
 			"name":       fmt.Sprintf("Combined Group %d", time.Now().UnixNano()),
@@ -1026,7 +1010,6 @@ func TestGetActiveGroupsByRoom(t *testing.T) {
 
 	t.Run("success with valid room id", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("ByRoom Test %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/room/%d", room.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1058,7 +1041,6 @@ func TestGetActiveGroupsByGroup(t *testing.T) {
 
 	t.Run("success with valid group id", func(t *testing.T) {
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("ByGroup Test %d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/group/%d", group.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1262,7 +1244,6 @@ func TestUpdateVisit(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Update", "5e")
 		entryTime := time.Now().Add(-1 * time.Hour)
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 		body := map[string]interface{}{
 			"student_id":      student.ID,
@@ -1348,7 +1329,6 @@ func TestGetActiveGroupVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("GroupVisits Room %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("GroupVisits Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1382,7 +1362,6 @@ func TestGetActiveGroupSupervisors(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("GroupSupervisors Room %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("GroupSupervisors Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/supervisors", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1419,7 +1398,6 @@ func TestEndVisitSuccess(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "End", "Visit", "7g")
 		entryTime := time.Now().Add(-1 * time.Hour)
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/visits/%d/end", visit.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -1441,7 +1419,6 @@ func TestDeleteVisitSuccess(t *testing.T) {
 		entryTime := time.Now().Add(-1 * time.Hour)
 		exitTime := time.Now()
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, &exitTime)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/visits/%d", visit.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
@@ -1462,7 +1439,6 @@ func TestGetVisitSuccess(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Get", "Visit", "9i")
 		entryTime := time.Now().Add(-1 * time.Hour)
 		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/%d", visit.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1482,7 +1458,6 @@ func TestGetSupervisorSuccess(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Get", "Supervisor")
 		supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "test-role")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/%d", supervisor.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1502,8 +1477,7 @@ func TestGetStudentCurrentVisitSuccess(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, tc.db, "Current", "Visit", "1a")
 		entryTime := time.Now().Add(-1 * time.Hour)
-		visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, nil)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, student.ID, visit.ID)
+		_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, entryTime, nil)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/visits/student/%d/current", student.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1524,7 +1498,6 @@ func TestGetStaffActiveSupervisionsSuccess(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, tc.db, "Staff", "ActiveSup")
 		_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "active-role")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID, staff.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/supervisors/staff/%d/active", staff.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsRead})
@@ -1542,7 +1515,6 @@ func TestEndActiveGroupSuccess(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("End Active Group Room %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("End Active Group Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/end", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsUpdate})
@@ -1560,7 +1532,6 @@ func TestDeleteActiveGroupSuccess(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Delete Active Group Room %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Delete Active Group Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/active/groups/%d", activeGroup.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{permissions.GroupsDelete})
@@ -1642,7 +1613,6 @@ func TestCreateVisitValidation(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Visit Validation Room %d", time.Now().UnixNano()))
 		group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Visit Validation Activity %d", time.Now().UnixNano()))
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
 
 		body := map[string]interface{}{
 			"student_id":      0, // Invalid
@@ -1717,7 +1687,6 @@ func TestGetVisitsByGroup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("VisitsByGroup Room %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("VisitsByGroup Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
 
 	t.Run("get visits for active group", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits", activeGroup.ID), nil)
@@ -1747,7 +1716,6 @@ func TestGetSupervisorsByGroup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("SupervisorsByGroup Room %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("SupervisorsByGroup Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID)
 
 	t.Run("get supervisors for active group", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/supervisors", activeGroup.ID), nil)
@@ -1796,7 +1764,6 @@ func TestCreateVisitAdditional(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("CreateVisitAdd Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 	student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("CreateVisitAdd %d", time.Now().UnixNano()), "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID, student.ID)
 
 	t.Run("create visit with valid data", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -1877,12 +1844,10 @@ func TestCheckoutStudent_StudentNotCheckedIn(t *testing.T) {
 	tc, router := setupCheckoutRouter(t)
 
 	// Create a teacher account that can make the request
-	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Checkout", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
+	_, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Checkout", "Teacher")
 
 	// Create student who is NOT checked in
 	student := testpkg.CreateTestStudent(t, tc.db, "NotCheckedIn", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	teacherClaims := testutil.TeacherTestClaims(int(teacherAccount.ID))
 
@@ -1938,31 +1903,23 @@ func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("Checkout Room %d", time.Now().UnixNano()))
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("Checkout Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activityGroup.ID, activeGroup.ID)
 
 	// Create supervisor (staff with account)
 	supervisor, supervisorAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Room", "Supervisor")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, supervisor.ID)
-	defer testpkg.CleanupAuthFixtures(t, tc.db, supervisorAccount.ID)
 
 	// Create supervision record
-	groupSupervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, supervisor.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.group_supervisors", groupSupervisor.ID)
+	_ = testpkg.CreateTestGroupSupervisor(t, tc.db, supervisor.ID, activeGroup.ID, "supervisor")
 
 	// Create student and check them in
 	student := testpkg.CreateTestStudent(t, tc.db, "CheckedIn", "Student", "2a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Create attendance (checked in)
 	device := testpkg.CreateTestDevice(t, tc.db, "checkout-device")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID)
 
-	attendance := testpkg.CreateTestAttendance(t, tc.db, student.ID, supervisor.ID, device.ID, time.Now(), nil)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", attendance.ID)
+	_ = testpkg.CreateTestAttendance(t, tc.db, student.ID, supervisor.ID, device.ID, time.Now(), nil)
 
 	// Create visit (student is in the room)
-	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.visits", visit.ID)
+	_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
 
 	supervisorClaims := jwt.AppClaims{
 		ID:          int(supervisorAccount.ID),
@@ -1988,28 +1945,22 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 
 	// Create education group
 	eduGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Checkout Class")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, eduGroup.ID)
 
 	// Create teacher with account
 	teacher, teacherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Class", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, tc.db, teacher.ID)
 
 	// Assign teacher to group
-	groupTeacher := testpkg.CreateTestGroupTeacher(t, tc.db, eduGroup.ID, teacher.ID)
-	defer testpkg.CleanupTableRecords(t, tc.db, "education.group_teacher", groupTeacher.ID)
+	_ = testpkg.CreateTestGroupTeacher(t, tc.db, eduGroup.ID, teacher.ID)
 
 	// Create student and assign to group
 	student := testpkg.CreateTestStudent(t, tc.db, "GroupStudent", "Student", "3a")
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, eduGroup.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Create attendance (checked in)
 	otherStaff := testpkg.CreateTestStaff(t, tc.db, "Other", "Staff")
 	device := testpkg.CreateTestDevice(t, tc.db, "teacher-checkout-device")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, otherStaff.ID, device.ID)
 
-	attendance := testpkg.CreateTestAttendance(t, tc.db, student.ID, otherStaff.ID, device.ID, time.Now(), nil)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", attendance.ID)
+	_ = testpkg.CreateTestAttendance(t, tc.db, student.ID, otherStaff.ID, device.ID, time.Now(), nil)
 
 	teacherClaims := jwt.AppClaims{
 		ID:          int(teacherAccount.ID),
@@ -2034,21 +1985,16 @@ func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
 	tc, router := setupCheckoutRouter(t)
 
 	// Create staff without any supervision or group access
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Unrelated", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Unrelated", "Staff")
 
 	// Create student who IS checked in but staff has no direct access
 	student := testpkg.CreateTestStudent(t, tc.db, "Protected", "Student", "4a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Create attendance (checked in)
 	otherStaff := testpkg.CreateTestStaff(t, tc.db, "CheckIn", "Staff")
 	device := testpkg.CreateTestDevice(t, tc.db, "protected-checkout-device")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, otherStaff.ID, device.ID)
 
-	attendance := testpkg.CreateTestAttendance(t, tc.db, student.ID, otherStaff.ID, device.ID, time.Now(), nil)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", attendance.ID)
+	_ = testpkg.CreateTestAttendance(t, tc.db, student.ID, otherStaff.ID, device.ID, time.Now(), nil)
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
@@ -2090,7 +2036,6 @@ func TestGetGroupMappings(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("MappingsRoom %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("MappingsGroup %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 	t.Run("success with valid group id", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/mappings/group/%d", activeGroup.ID), nil)
@@ -2128,9 +2073,7 @@ func TestClaimGroup(t *testing.T) {
 	tc, router := setupFullCoverageRouter(t)
 
 	// Create staff with account for claims
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Claim", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Claim", "Staff")
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
@@ -2144,7 +2087,6 @@ func TestClaimGroup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("ClaimRoom %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("ClaimGroup %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 	t.Run("success claiming group", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/claim", activeGroup.ID), nil)
@@ -2185,8 +2127,6 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 
 	// Create staff with account for claims
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Display", "Staff")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID)
 
 	staffClaims := jwt.AppClaims{
 		ID:          int(staffAccount.ID),
@@ -2200,11 +2140,9 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, fmt.Sprintf("DisplayRoom %d", time.Now().UnixNano()))
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("DisplayGroup %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
 
 	// Add supervisor to the group
-	supervisor := testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.group_supervisors", supervisor.ID)
+	_ = testpkg.CreateTestGroupSupervisor(t, tc.db, staff.ID, activeGroup.ID, "supervisor")
 
 	t.Run("success with valid group id and supervision", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/active/groups/%d/visits/display", activeGroup.ID), nil)

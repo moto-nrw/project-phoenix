@@ -66,7 +66,6 @@ func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
 
 	email := fmt.Sprintf("link-reuse-%d@example.com", time.Now().UnixNano())
 	account := testpkg.CreateTestAccountWithPassword(t, tc.db, email, "SecurePass123!")
-	defer testpkg.CleanupAccountWithIdentity(t, tc.db, account.ID)
 
 	// The identity the account already has here, exactly as an earlier grant or
 	// a staff record would have left it.

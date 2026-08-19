@@ -24,12 +24,8 @@ func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resourc
 func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 	db, _, resource := setupActivitiesResource(t)
 
-	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
-	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, db, activeTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, legacyTeacher.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, legacyAccount.ID)
+	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
+	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
 
 	ctx := tenant.WithTenantID(context.Background(), 1)
 	supervisors, err := resource.fetchAllSupervisors(ctx)
@@ -47,7 +43,7 @@ func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 	db, _, resource := setupActivitiesResource(t)
 
-	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
+	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
 	_, err := db.NewUpdate().
 		Model(activeTeacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
@@ -56,7 +52,7 @@ func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Included")
+	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Included")
 	_, err = db.NewUpdate().
 		Model(legacyTeacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
@@ -64,11 +60,6 @@ func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 		Where("id = ?", legacyTeacher.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
-
-	defer testpkg.CleanupTeacherFixtures(t, db, activeTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, legacyTeacher.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, legacyAccount.ID)
 
 	ctx := tenant.WithTenantID(context.Background(), 1)
 	supervisors, err := resource.fetchSupervisorsBySpecialization(ctx, "Sport")

@@ -43,7 +43,6 @@ func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 	db, factory := testutil.SetupAPITest(t)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
 
 	return db, factory, tenantID, subdomain
 }
@@ -67,7 +66,6 @@ func registerLehrkraft(t *testing.T, db *bun.DB, factory *services.Factory, tena
 	email = fmt.Sprintf("%s-%d@test.local", prefix, unique)
 	account, err := factory.Auth.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("%s-%d", prefix, unique), testPassword, nil, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
 	return email, account.ID
@@ -82,8 +80,6 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	t.Cleanup(func() {
 		tenantCtx := testpkg.TenantContext(tenantID)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
@@ -144,7 +140,6 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 	email := fmt.Sprintf("school-login-%d@test.local", unique)
 	account, err := factory.Auth.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("school-login-%d", unique), testPassword, nil, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, testPassword)

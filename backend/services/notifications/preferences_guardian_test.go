@@ -35,7 +35,6 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 			Where("account_id = ?", chain.AccountID).
 			Exec(context.Background())
 		require.NoError(t, err)
-		testpkg.CleanupParentGuardianChain(t, db, chain)
 	})
 
 	reminderEnabled := map[int64]bool{1: true, 2: true}
@@ -151,7 +150,6 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 
 	t.Run("an account with no school mapping changes nothing", func(t *testing.T) {
 		orphan := testpkg.CreateTestAccount(t, db, "guardian-without-school@example.com")
-		t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, orphan.ID) })
 
 		require.NoError(t, svc.SetForParent(ctx, orphan.ID, notifications.TypeParentAnnouncement, true))
 

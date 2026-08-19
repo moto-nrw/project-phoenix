@@ -48,16 +48,9 @@ func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
 	closedGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, closedRoom.ID)
 	expiredGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, expiredRoom.ID)
 
-	openSup := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
-	closedSup := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
+	_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
 	expiredSup := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, expiredGroup.ID, "primary")
-
-	defer testpkg.CleanupActivityFixtures(t, db,
-		openSup.ID, closedSup.ID, expiredSup.ID,
-		openGroup.ID, closedGroup.ID, expiredGroup.ID,
-		activity.ID, openRoom.ID, closedRoom.ID, expiredRoom.ID,
-	)
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
 	// The session in closedRoom is over, but the supervision row is still open —
 	// the state the nightly stale-supervisor cleanup exists to resolve.

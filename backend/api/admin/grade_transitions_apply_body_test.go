@@ -28,7 +28,6 @@ func TestGradeTransitionResource_Apply_BodyHandling(t *testing.T) {
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "apply-body-test@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	router := tc.resource.Router()
 	token := mintAdminToken(t, account.ID)
@@ -55,12 +54,10 @@ func TestGradeTransitionResource_Apply_BodyHandling(t *testing.T) {
 		fromClass := fmt.Sprintf("1body-%s", suffix)
 		toClass := fmt.Sprintf("2body-%s", suffix)
 
-		student := testpkg.CreateTestStudent(t, tc.db, "ApplyBody", "Test", fromClass)
-		t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, student.ID) })
+		_ = testpkg.CreateTestStudent(t, tc.db, "ApplyBody", "Test", fromClass)
 
 		transition := testpkg.CreateTestGradeTransition(t, tc.db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, tc.db, transition.ID, fromClass, &toClass)
-		t.Cleanup(func() { testpkg.CleanupGradeTransitionFixtures(t, tc.db, transition.ID) })
 		return transition.ID
 	}
 

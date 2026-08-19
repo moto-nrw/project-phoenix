@@ -140,7 +140,6 @@ type envelope struct {
 func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -173,7 +172,6 @@ func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
 func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 
@@ -193,7 +191,6 @@ func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -239,7 +236,6 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newDisabledWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -252,7 +248,6 @@ func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
 func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -266,7 +261,6 @@ func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
 func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -283,7 +277,6 @@ func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
 func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -313,7 +306,6 @@ func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouterWithSettings(t, db, excusedApprovalOnSettings{})
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -351,7 +343,6 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -366,7 +357,6 @@ func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
 func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -391,7 +381,6 @@ func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)
@@ -419,7 +408,6 @@ func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
 func TestSickNoteEndpoint_RejectsInvalidStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, chain.AccountID)
 	sid := strconv.FormatInt(chain.StudentID, 10)

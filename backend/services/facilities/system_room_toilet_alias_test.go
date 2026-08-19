@@ -95,7 +95,6 @@ func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 		defer cleanupRoom(t, db, tenantID, wcRoom.ID)
 
 		room := testpkg.CreateTestRoomForTenant(t, db, tenantID, "AliasTarget")
-		defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, room.ID)
 
 		room.Name = constants.WCRoomAliasName
 		err := service.UpdateRoom(ctx, room)
@@ -109,7 +108,6 @@ func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 		defer cleanupRoom(t, db, tenantID, aliasRoom.ID)
 
 		room := testpkg.CreateTestRoomForTenant(t, db, tenantID, "CanonicalTarget")
-		defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, room.ID)
 
 		room.Name = constants.WCRoomName
 		err := service.UpdateRoom(ctx, room)

@@ -105,7 +105,6 @@ func TestListPosts_Success(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-list")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIList %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
@@ -120,7 +119,6 @@ func TestListPosts_WithSortParam(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-list-sort")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "GET", "/suggestions?sort=newest", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -132,7 +130,6 @@ func TestListPosts_NoPermission(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-list-noperm")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "GET", "/suggestions", nil, account.ID, []string{}) // no perms
 	rr := exec(router, req)
@@ -148,7 +145,6 @@ func TestGetPost_Success(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-get")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIGet %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
@@ -163,7 +159,6 @@ func TestGetPost_NotFound(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-get-404")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "GET", "/suggestions/999999999", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -175,7 +170,6 @@ func TestGetPost_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-get-invalid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "GET", "/suggestions/abc", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -191,7 +185,6 @@ func TestCreatePost_Success(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{
 		"title":       fmt.Sprintf("API Create %d", time.Now().UnixNano()),
@@ -217,7 +210,6 @@ func TestCreatePost_EmptyTitle(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-empty")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{"title": "", "description": "Missing title"}
 	req := newAuthRequest(t, "POST", "/suggestions", body, account.ID, suggestionsPermissions)
@@ -230,7 +222,6 @@ func TestCreatePost_EmptyDescription(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-nodesc")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{"title": "Has Title", "description": ""}
 	req := newAuthRequest(t, "POST", "/suggestions", body, account.ID, suggestionsPermissions)
@@ -243,7 +234,6 @@ func TestCreatePost_TitleTooLong(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-create-long")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{
 		"title":       strings.Repeat("a", 201),
@@ -263,7 +253,6 @@ func TestUpdatePost_Success(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-update")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIUpdate %d", time.Now().UnixNano()), "Original")
 	defer cleanupPosts(t, db, post.ID)
@@ -280,7 +269,6 @@ func TestUpdatePost_Forbidden(t *testing.T) {
 
 	author := testpkg.CreateTestAccount(t, db, "api-upd-author")
 	other := testpkg.CreateTestAccount(t, db, "api-upd-other")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", author.ID, other.ID)
 
 	post := testpkg.CreateTestPost(t, db, author.ID, fmt.Sprintf("APIForbid %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
@@ -296,7 +284,6 @@ func TestUpdatePost_NotFound(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-404")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{"title": "Title", "description": "Desc"}
 	req := newAuthRequest(t, "PUT", "/suggestions/999999999", body, account.ID, suggestionsPermissions)
@@ -309,7 +296,6 @@ func TestUpdatePost_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-invalid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{"title": "Title", "description": "Desc"}
 	req := newAuthRequest(t, "PUT", "/suggestions/abc", body, account.ID, suggestionsPermissions)
@@ -322,7 +308,6 @@ func TestUpdatePost_DescriptionTooLong(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-upd-longdesc")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("DescLong %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
@@ -345,7 +330,6 @@ func TestDeletePost_Success(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-delete")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIDelete %d", time.Now().UnixNano()), "Desc")
 
@@ -360,7 +344,6 @@ func TestDeletePost_Forbidden(t *testing.T) {
 
 	author := testpkg.CreateTestAccount(t, db, "api-del-author")
 	other := testpkg.CreateTestAccount(t, db, "api-del-other")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", author.ID, other.ID)
 
 	post := testpkg.CreateTestPost(t, db, author.ID, fmt.Sprintf("APIDelForbid %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
@@ -375,7 +358,6 @@ func TestDeletePost_NotFound(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-del-404")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "DELETE", "/suggestions/999999999", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -387,7 +369,6 @@ func TestDeletePost_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-del-invalid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "DELETE", "/suggestions/abc", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -403,7 +384,6 @@ func TestVote_Success(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIVote %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
@@ -419,7 +399,6 @@ func TestVote_InvalidDirection(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-invalid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{"direction": "sideways"}
 	req := newAuthRequest(t, "POST", "/suggestions/1/vote", body, account.ID, suggestionsPermissions)
@@ -432,7 +411,6 @@ func TestVote_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-badid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{"direction": "up"}
 	req := newAuthRequest(t, "POST", "/suggestions/abc/vote", body, account.ID, suggestionsPermissions)
@@ -445,7 +423,6 @@ func TestVote_PostNotFound(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-vote-404")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{"direction": "up"}
 	req := newAuthRequest(t, "POST", "/suggestions/999999999/vote", body, account.ID, suggestionsPermissions)
@@ -462,7 +439,6 @@ func TestRemoveVote_Success(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIRemoveVote %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
@@ -484,7 +460,6 @@ func TestRemoveVote_PostNotFound(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote-404")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "DELETE", "/suggestions/999999999/vote", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -496,7 +471,6 @@ func TestRemoveVote_InvalidID(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote-badid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "DELETE", "/suggestions/abc/vote", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -512,7 +486,6 @@ func TestGetPost_NegativeID(t *testing.T) {
 	db, router := setupRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-negid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newAuthRequest(t, "GET", "/suggestions/-1", nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)

@@ -473,9 +473,8 @@ func TestGuardianDeletePreview_NotFound(t *testing.T) {
 func TestGuardianDeletePreview_SuccessIncludesAffectedLinkIDs(t *testing.T) {
 	ctx := setupTestContext(t)
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-preview")
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-preview")
 	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
 
 	router := ctx.resource.Router()
 
@@ -527,12 +526,10 @@ func linkedGuardianErrorText(t *testing.T, rrBody string) string {
 func TestDeleteGuardian_WithLinks_Conflict(t *testing.T) {
 	ctx := setupTestContext(t)
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-conflict")
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-conflict")
 	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
 
 	sibling := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Sibling", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, sibling.ID)
 	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         sibling.ID,
 		GuardianProfileID: guardianID,
@@ -562,17 +559,14 @@ func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.
 	ctx := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Delete", "Supervisor")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "DeletePrivacy")
 	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, group.ID, teacher.Staff.ID, teacher.ID)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "delete-privacy")
 	defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Private", "Child", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 	_, err := ctx.db.NewUpdate().
 		TableExpr("users.students").
 		Set("group_id = ?", group.ID).
@@ -610,9 +604,8 @@ func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.
 func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-force")
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-force")
 	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
 
 	router := ctx.resource.Router()
 
@@ -636,9 +629,8 @@ func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
 func TestDeleteGuardian_WithLinks_ForceAdminRejectsStalePreview(t *testing.T) {
 	ctx := setupTestContext(t)
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-force-stale")
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-force-stale")
 	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
 
 	router := ctx.resource.Router()
 
@@ -664,17 +656,14 @@ func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Force", "Supervisor")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "ForceForbidden")
 	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, group.ID, teacher.Staff.ID, teacher.ID)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "force-forbidden")
 	defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Force", "Child", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 	_, err := ctx.db.NewUpdate().
 		TableExpr("users.students").
 		Set("group_id = ?", group.ID).
@@ -773,7 +762,6 @@ func TestGetStudentGuardians_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Guardian", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -808,7 +796,6 @@ func TestStudentGuardianEndpoints_AlumnusRejected(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Former", "Student", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr("users.students").
@@ -933,7 +920,6 @@ func TestLinkGuardianToStudent_BadRequest_MissingGuardianID(t *testing.T) {
 
 	// Create a student with a group for the test
 	student := testpkg.CreateTestStudent(t, ctx.db, "Link", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -956,7 +942,6 @@ func TestLinkGuardianToStudent_BadRequest_MissingRelationshipType(t *testing.T) 
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Link2", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -978,7 +963,6 @@ func TestLinkGuardianToStudent_BadRequest_InvalidEmergencyPriority(t *testing.T)
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Link3", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 

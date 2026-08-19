@@ -52,14 +52,10 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Web Checkout Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
 		// Student is checked in AND in a room (open attendance + open visit).
 		checkInTime := time.Now().Add(-1 * time.Hour)
 		testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
-		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
 
 		token := testpkg.CreateTestJWT(t, account.ID, checkoutPermissions)
 		req := makeCheckoutRequest(t, student.ID, token)
@@ -103,13 +99,9 @@ func TestCheckoutStudent_Integration(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Web Double Checkout Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID, device.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
 		checkInTime := time.Now().Add(-1 * time.Hour)
 		testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
-		defer testpkg.CleanupActivityFixtures(t, db, visit.ID)
+		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkInTime, nil)
 
 		token := testpkg.CreateTestJWT(t, account.ID, checkoutPermissions)
 		router := handler.Router()

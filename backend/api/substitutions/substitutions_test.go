@@ -182,11 +182,9 @@ func TestCreateSubstitution_Success(t *testing.T) {
 
 	// Create test fixtures
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Substitute", "Teacher")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create a group fixture
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCreate")
-	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
 	// Use future dates to avoid backdating error
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
@@ -445,11 +443,9 @@ func TestSubstitutionCRUDWorkflow(t *testing.T) {
 
 	// Create test fixtures
 	staff := testpkg.CreateTestStaff(t, ctx.db, "CRUD", "Test")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Create a group fixture
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "SubstitutionCRUD")
-	defer testpkg.CleanupTableRecords(t, ctx.db, "education.groups", group.ID)
 
 	// Step 1: Create
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")

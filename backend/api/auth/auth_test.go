@@ -241,7 +241,6 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", adminAccount.ID).Exec(ctx)
 		_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", adminAccount.ID).Exec(ctx)
-		testpkg.CleanupAccount(t, db, adminAccount.ID)
 	})
 
 	return accessToken, userRole.ID
@@ -299,8 +298,7 @@ func TestRegister(t *testing.T) {
 		// Cleanup: the staff-tier role provisioned a person and staff record
 		// alongside the account (#2222), so the account alone is not the whole
 		// footprint.
-		accountID := int64(data["id"].(float64))
-		testpkg.CleanupAccountWithIdentity(t, db, accountID)
+		_ = int64(data["id"].(float64))
 	})
 
 	t.Run("bad request with duplicate email", func(t *testing.T) {
@@ -324,8 +322,7 @@ func TestRegister(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rr.Code, "First registration should succeed. Body: %s", rr.Body.String())
 
 		// Extract account ID for cleanup
-		accountID := extractAccountID(t, rr)
-		defer testpkg.CleanupAccountWithIdentity(t, db, accountID)
+		_ = extractAccountID(t, rr)
 
 		// Second registration with same email, different username
 		body["username"] = fmt.Sprintf("user2_%d", time.Now().UnixNano())
@@ -525,7 +522,6 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		t.Cleanup(func() {
 			_, _ = db.NewDelete().TableExpr("auth.account_roles").Where("account_id = ?", userAccount.ID).Exec(ctx)
 			_, _ = db.NewDelete().TableExpr("auth.tokens").Where("account_id = ?", userAccount.ID).Exec(ctx)
-			testpkg.CleanupAccount(t, db, userAccount.ID)
 			_, _ = db.NewDelete().TableExpr("auth.roles").Where("id = ?", noPermsRole.ID).Exec(ctx)
 		})
 
@@ -640,8 +636,7 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 		// Cleanup created account and the identity provisioned with it
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data := response["data"].(map[string]interface{})
-		accountID := int64(data["id"].(float64))
-		testpkg.CleanupAccountWithIdentity(t, db, accountID)
+		_ = int64(data["id"].(float64))
 	})
 }
 
@@ -763,7 +758,6 @@ func TestGetAccount(t *testing.T) {
 
 	// Create a test account
 	account := testpkg.CreateTestAccount(t, tc.db, "getaccount@example.com")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 	t.Run("success with valid claims", func(t *testing.T) {
 		claims := jwt.AppClaims{
@@ -818,7 +812,6 @@ func TestChangePassword(t *testing.T) {
 
 	t.Run("bad request with wrong current password", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, "changepass@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
@@ -842,7 +835,6 @@ func TestChangePassword(t *testing.T) {
 
 	t.Run("bad request with password mismatch", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, "passmismatch@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
@@ -866,7 +858,6 @@ func TestChangePassword(t *testing.T) {
 
 	t.Run("bad request with weak new password", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, "weaknewpass@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		claims := jwt.AppClaims{
 			ID:          int(account.ID),
@@ -1023,14 +1014,12 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 		assert.Equal(t, "guardian", data["base_role"])
 
 		// Cleanup
-		roleID := int64(data["id"].(float64))
-		defer testpkg.CleanupRoleRecords(t, tc.db, roleID)
+		_ = int64(data["id"].(float64))
 	})
 
 	t.Run("update preserves base_role when omitted", func(t *testing.T) {
 		// Create a role with base_role via DB fixture, then update without sending base_role
 		role := testpkg.CreateTestRole(t, tc.db, "preserve-base")
-		defer testpkg.CleanupRoleRecords(t, tc.db, role.ID)
 
 		// Set base_role directly in DB
 		_, err := tc.db.NewUpdate().
@@ -1085,7 +1074,6 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 
 	t.Run("update changes base_role value", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, "change-base")
-		defer testpkg.CleanupRoleRecords(t, tc.db, role.ID)
 
 		// Set initial base_role
 		_, err := tc.db.NewUpdate().
@@ -1242,7 +1230,6 @@ func TestRoleUpdate(t *testing.T) {
 	t.Run("update role with permission", func(t *testing.T) {
 		// Create a role to update
 		role := testpkg.CreateTestRole(t, tc.db, "UpdateTestRole")
-		defer testpkg.CleanupRoleRecords(t, tc.db, role.ID)
 
 		body := map[string]string{
 			"name":        fmt.Sprintf("updated-role-%d", time.Now().UnixNano()),
@@ -1287,7 +1274,6 @@ func TestRolePermissionAssignment(t *testing.T) {
 
 	t.Run("get role permissions", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, "GetRolePerms")
-		defer testpkg.CleanupRoleRecords(t, tc.db, role.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/roles/%d/permissions", role.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"roles:manage"})
@@ -1305,8 +1291,6 @@ func TestRolePermissionAssignment(t *testing.T) {
 	t.Run("assign and remove permission from role", func(t *testing.T) {
 		role := testpkg.CreateTestRole(t, tc.db, "AssignPermRole")
 		permission := testpkg.CreateTestPermission(t, tc.db, "AssignToRole", "test", "read")
-		defer testpkg.CleanupRoleRecords(t, tc.db, role.ID)
-		defer testpkg.CleanupPermissionRecords(t, tc.db, permission.ID)
 
 		// Assign permission
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/roles/%d/permissions/%d", role.ID, permission.ID), nil)
@@ -1331,7 +1315,6 @@ func TestPermissionUpdate(t *testing.T) {
 
 	t.Run("update permission with permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, tc.db, "UpdatePerm", "testres", "read")
-		defer testpkg.CleanupPermissionRecords(t, tc.db, permission.ID)
 
 		body := map[string]string{
 			"name":        fmt.Sprintf("updated-perm-%d", time.Now().UnixNano()),
@@ -1394,7 +1377,6 @@ func TestAccountRoleAssignment(t *testing.T) {
 
 	t.Run("get account roles", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("accroles%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/roles", account.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
@@ -1412,8 +1394,6 @@ func TestAccountRoleAssignment(t *testing.T) {
 	t.Run("assign and remove role from account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("assignrole%d", time.Now().UnixNano()))
 		role := testpkg.CreateTestRole(t, tc.db, "AssignAccRole")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, tc.db, role.ID)
 
 		// Assign role
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, role.ID), nil)
@@ -1438,10 +1418,6 @@ func TestAccountRoleAssignment(t *testing.T) {
 			WherePK().
 			Exec(context.Background())
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
-			testpkg.CleanupRoleRecords(t, tc.db, guardianRole.ID)
-		})
 
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/roles/%d", account.ID, guardianRole.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
@@ -1461,7 +1437,6 @@ func TestAccountPermissionManagement(t *testing.T) {
 
 	t.Run("get account permissions", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("accperms%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions", account.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
@@ -1471,7 +1446,6 @@ func TestAccountPermissionManagement(t *testing.T) {
 
 	t.Run("get account direct permissions", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("directperms%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/permissions/direct", account.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
@@ -1482,8 +1456,6 @@ func TestAccountPermissionManagement(t *testing.T) {
 	t.Run("grant and remove permission from account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("grantperm%d", time.Now().UnixNano()))
 		permission := testpkg.CreateTestPermission(t, tc.db, "GrantToAcc", "test", "read")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
-		defer testpkg.CleanupPermissionRecords(t, tc.db, permission.ID)
 
 		// Grant permission
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", account.ID, permission.ID), nil)
@@ -1524,7 +1496,6 @@ func TestAccountActivation(t *testing.T) {
 
 	t.Run("activate account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("activate%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/activate", account.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
@@ -1534,7 +1505,6 @@ func TestAccountActivation(t *testing.T) {
 
 	t.Run("deactivate account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("deactivate%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "PUT", fmt.Sprintf("/auth/accounts/%d/deactivate", account.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:update"})
@@ -1556,7 +1526,6 @@ func TestAccountUpdate(t *testing.T) {
 
 	t.Run("update account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("updateacc%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		// Use Unix timestamp (seconds) + nanosecond remainder for uniqueness within 30 char limit
 		// Format: upd_<10-digit-unix>_<9-digit-nano> = 4 + 10 + 1 + 9 = 24 chars
@@ -1626,7 +1595,6 @@ func TestTokenManagement(t *testing.T) {
 
 	t.Run("get active tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("tokens%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "GET", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
@@ -1636,7 +1604,6 @@ func TestTokenManagement(t *testing.T) {
 
 	t.Run("revoke all tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("revoke%d", time.Now().UnixNano()))
-		defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/accounts/%d/tokens", account.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
@@ -2041,7 +2008,6 @@ func TestInvitationCreateSuccess(t *testing.T) {
 
 	// Create a test account to act as the invitation creator
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inv-creator-%d@test.local", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 	// Get or create a role (system roles like "user" or "teacher" should exist after migration)
 	role := testpkg.GetOrCreateTestRole(t, tc.db, "teacher")
@@ -2138,10 +2104,6 @@ func TestInvitationCreateSuccess(t *testing.T) {
 			assert.NotEmpty(t, subdomain, "tenant_subdomain should be non-empty")
 		}
 
-		// Cleanup
-		if accountID, ok := acceptData["account_id"].(float64); ok {
-			testpkg.CleanupActivityFixtures(t, tc.db, int64(accountID))
-		}
 		if id, ok := data["id"].(float64); ok {
 			_, _ = tc.db.NewDelete().
 				TableExpr("auth.invitation_tokens").
@@ -2167,7 +2129,6 @@ func TestLinkToTenant(t *testing.T) {
 		password := "SecurePass123!"
 		account := testpkg.CreateTestAccountWithPassword(t, db, email, password)
 		// Linking provisions the person and staff record too (#2222).
-		defer testpkg.CleanupAccountWithIdentity(t, db, account.ID)
 
 		// The identity fields are required for a staff-tier role (#2222).
 		body := map[string]interface{}{
@@ -2286,7 +2247,6 @@ func TestCreateInvitationRequiresRoleGrantAuthority(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inviter-%d@example.com", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 	role := testpkg.CreateTestRoleForTenant(t, tc.db, "invite-target", 1)
 
@@ -2317,10 +2277,8 @@ func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("granter-%d@example.com", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 	adminRole := testpkg.CreateTestSystemRole(t, tc.db, "admin")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, tc.db, "auth.roles", adminRole.ID) })
 
 	claims := jwt.AppClaims{
 		ID:       int(account.ID),
@@ -2373,10 +2331,7 @@ func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
 		require.Equal(t, http.StatusCreated, rr.Code, "body: %s", rr.Body.String())
 
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-		data, ok := response["data"].(map[string]interface{})
+		_, ok := response["data"].(map[string]interface{})
 		require.True(t, ok)
-		if id, ok := data["id"].(float64); ok {
-			t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, int64(id)) })
-		}
 	})
 }

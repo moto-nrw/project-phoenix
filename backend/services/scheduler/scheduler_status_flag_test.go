@@ -49,8 +49,7 @@ func TestClearStatusFlag_ClearsSickFlag(t *testing.T) {
 
 	// Create two students: one sick, one not, both in tenant 1.
 	sickStudent := testpkg.CreateTestStudent(t, db, "Clear", "SickFlag", "1a")
-	healthy := testpkg.CreateTestStudent(t, db, "Already", "Healthy", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, sickStudent.ID, healthy.ID)
+	_ = testpkg.CreateTestStudent(t, db, "Already", "Healthy", "1a")
 
 	// Set the sick flag + timestamp on the first student directly.
 	now := time.Now()
@@ -216,7 +215,6 @@ func TestClearStatusFlag_ClearsExcusedFlag(t *testing.T) {
 	s := &Scheduler{db: db, studentStatusDayRepo: activeRepo.NewStudentStatusDayRepository(db)}
 
 	excStudent := testpkg.CreateTestStudent(t, db, "Clear", "ExcusedFlag", "1b")
-	defer testpkg.CleanupActivityFixtures(t, db, excStudent.ID)
 
 	now := time.Now()
 	excTrue := true
@@ -296,7 +294,6 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	// Plant a sick student and an excused student in tenant 1.
 	sickStudent := testpkg.CreateTestStudent(t, db, "E2E", "SickClear", "e1")
 	excusedStudent := testpkg.CreateTestStudent(t, db, "E2E", "ExcusedClear", "e2")
-	defer testpkg.CleanupActivityFixtures(t, db, sickStudent.ID, excusedStudent.ID)
 
 	flagTrue := true
 	ts := now
@@ -357,7 +354,6 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 
 	sickStudent := testpkg.CreateTestStudent(t, db, "E2E", "SickOnly", "m1")
 	excusedStudent := testpkg.CreateTestStudent(t, db, "E2E", "ExcusedOnly", "m2")
-	defer testpkg.CleanupActivityFixtures(t, db, sickStudent.ID, excusedStudent.ID)
 
 	flagTrue := true
 	ts := now
@@ -409,7 +405,6 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 	db := testpkg.SetupTestDB(t)
 
 	sickStudent := testpkg.CreateTestStudent(t, db, "E2E", "NoFire", "n1")
-	defer testpkg.CleanupActivityFixtures(t, db, sickStudent.ID)
 
 	flagTrue := true
 	now := time.Now()

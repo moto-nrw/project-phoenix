@@ -69,7 +69,6 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	_, err := db.NewUpdate().
 		TableExpr("users.guardian_profiles").
 		Set("portal_locale = ?", "en").
@@ -124,7 +123,6 @@ func TestEmitChildEvent_DecisionPushRechecksChildAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: repos.ParentMessageThread}
 	notifier := &capturingNotifier{}
@@ -149,7 +147,6 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 	t.Run("a guardian who did not opt in is not pushed at", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		notifier := &capturingNotifier{}
 		emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -166,7 +163,6 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 	t.Run("a guardian withdrawing their own request is not pushed back at", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		notifier := &capturingNotifier{}
 		emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -183,7 +179,6 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 	t.Run("an emitter without notification wiring stays a no-op", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
@@ -205,7 +200,6 @@ func TestEmitChildEvent_DecisionPushFailuresAreNotFatal(t *testing.T) {
 	emitWith := func(t *testing.T, notifier *capturingNotifier, prefs decisionPreferences, refID int64) string {
 		t.Helper()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))

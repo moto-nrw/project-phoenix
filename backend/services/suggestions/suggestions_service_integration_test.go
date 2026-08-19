@@ -47,8 +47,6 @@ func setupIntegrationService(t *testing.T) (*bun.DB, suggestionsService.Service,
 
 	t.Cleanup(func() {
 		cleanupAllSuggestionData(t, db)
-		testpkg.CleanupTableRecords(t, db, "users.persons", person.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
 	return db, svc, &testAccount{AccountID: account.ID, PersonID: person.ID}
@@ -60,11 +58,6 @@ func createExtraAccount(t *testing.T, db *bun.DB, prefix string) *testAccount {
 
 	account := testpkg.CreateTestAccount(t, db, prefix)
 	person := testpkg.CreateTestPersonWithAccountID(t, db, prefix, "Voter", account.ID)
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.persons", person.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-	})
 
 	return &testAccount{AccountID: account.ID, PersonID: person.ID}
 }

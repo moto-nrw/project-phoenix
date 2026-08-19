@@ -67,17 +67,13 @@ func TestDeviceCheckin_ToiletteRoomUsesWCAutoCreate(t *testing.T) {
 	defer cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-auto")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Toilette", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Toilette", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("TOI%d", time.Now().UnixNano())
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createWCRoomAliasIntegrationRoom(t, ctx.db, constants.WCRoomAliasName)
@@ -124,17 +120,13 @@ func TestDeviceCheckin_ToiletteRoomDoesNotCreateDuplicateAlias(t *testing.T) {
 	defer cleanupWCRoomAliasIntegrationArtifacts(t, ctx.db)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "toilette-no-dup")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Alias", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Alias", "Student", "1b")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	tagID := fmt.Sprintf("TOD%d", time.Now().UnixNano())
 	card := testpkg.CreateTestRFIDCard(t, ctx.db, tagID)
-	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createWCRoomAliasIntegrationRoom(t, ctx.db, constants.WCRoomAliasName)

@@ -206,7 +206,6 @@ func TestSubmitFeedback_Alumnus(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-alumnus")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Graduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.students`).

@@ -114,7 +114,6 @@ func TestGetDevice_Success(t *testing.T) {
 	// Create test device
 	uniqueID := fmt.Sprintf("test-device-%d", time.Now().UnixNano())
 	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -170,7 +169,6 @@ func TestGetDeviceByDeviceID_Success(t *testing.T) {
 
 	// Create test device - the fixture appends its own unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "test-device")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -230,13 +228,6 @@ func TestCreateDevice_Success(t *testing.T) {
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Parse response to get device ID for cleanup
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]interface{}); ok {
-		if deviceID, ok := data["id"].(float64); ok {
-			defer testpkg.CleanupActivityFixtures(t, ctx.db, int64(deviceID))
-		}
-	}
 }
 
 func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
@@ -263,8 +254,6 @@ func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]interface{})
-	deviceID := int64(data["id"].(float64))
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, deviceID)
 
 	// A newly created device has no room — location is auto-derived from sessions
 	assert.Nil(t, data["room_name"], "new device should have no room_name before any session")
@@ -323,7 +312,6 @@ func TestUpdateDevice_Success(t *testing.T) {
 	// Create test device
 	uniqueID := fmt.Sprintf("update-device-%d", time.Now().UnixNano())
 	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -349,7 +337,6 @@ func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "update-room-device")
 	room := testpkg.CreateTestRoom(t, ctx.db, "UpdateDevice-SessionRoom")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID, room.ID)
 
 	// Simulate a session having set the device's room_id (as auto-derive would)
 	_, err := ctx.db.NewUpdate().
@@ -495,7 +482,6 @@ func TestUpdateDeviceStatus_Success(t *testing.T) {
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "status-device")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -519,7 +505,6 @@ func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "status-missing")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -545,7 +530,6 @@ func TestPingDevice_Success(t *testing.T) {
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "ping-device")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -643,7 +627,6 @@ func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
 
 	// Create test person
 	person := testpkg.CreateTestPerson(t, ctx.db, "RegisteredBy", "Test")
-	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())

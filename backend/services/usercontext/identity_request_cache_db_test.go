@@ -111,15 +111,10 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "IdentityMemo", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, db, "IdentityMemoGroup")
-	link := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
+	_ = testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 	subGroup := testpkg.CreateTestEducationGroup(t, db, "IdentityMemoSubGroup")
-	sub := testpkg.CreateTestGroupSubstitution(t, db, subGroup.ID, nil, teacher.StaffID,
+	_ = testpkg.CreateTestGroupSubstitution(t, db, subGroup.ID, nil, teacher.StaffID,
 		today.AddDays(-1), today.AddDays(3))
-
-	defer testpkg.CleanupActivityFixtures(t, db, sub.ID, subGroup.ID, link.ID, group.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, teacher.StaffID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	counter := newIdentityQueryCounter(db)
 
@@ -151,11 +146,7 @@ func TestIdentityWithoutCacheStillQueries(t *testing.T) {
 
 	service := setupUserContextService(t, db)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "IdentityNoCache", "Teacher")
-
-	defer testpkg.CleanupTeacherFixtures(t, db, teacher.ID)
-	defer testpkg.CleanupStaffFixtures(t, db, teacher.StaffID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "IdentityNoCache", "Teacher")
 
 	counter := newIdentityQueryCounter(db)
 
@@ -174,10 +165,7 @@ func TestNonTeacherStaffNotFoundIsMemoized(t *testing.T) {
 
 	service := setupUserContextService(t, db)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "IdentityNonTeacher", "Staff")
-
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "IdentityNonTeacher", "Staff")
 
 	counter := newIdentityQueryCounter(db)
 
@@ -205,7 +193,6 @@ func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 
 	email := fmt.Sprintf("identity-evict-%d@test.moto-nrw.de", time.Now().UnixNano())
 	account := testpkg.CreateTestAccount(t, db, email)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
 
@@ -222,9 +209,8 @@ func TestUpdateCurrentProfileEvictsIdentity(t *testing.T) {
 		"the post-write re-read must see the freshly created person, not the memoized 'not linked' outcome")
 
 	// The created person must be cleaned up too; resolve it for the deferred cleanup.
-	person, err := service.GetCurrentPerson(ctx)
+	_, err = service.GetCurrentPerson(ctx)
 	require.NoError(t, err)
-	defer testpkg.CleanupPerson(t, db, person.ID)
 }
 
 // TestUpdateAvatarEvictsIdentity covers the account stage: UpdateAvatar writes
@@ -235,9 +221,7 @@ func TestUpdateAvatarEvictsIdentity(t *testing.T) {
 
 	service := setupUserContextService(t, db)
 
-	person, account := testpkg.CreateTestPersonWithAccount(t, db, "IdentityAvatar", "Test")
-	defer testpkg.CleanupPerson(t, db, person.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+	_, account := testpkg.CreateTestPersonWithAccount(t, db, "IdentityAvatar", "Test")
 
 	ctx := usercontextSvc.WithIdentityRequestCache(contextWithClaims(int(account.ID)))
 

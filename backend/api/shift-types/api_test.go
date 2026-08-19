@@ -86,7 +86,6 @@ func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-2")
-	defer testpkg.CleanupActivityFixtures(t, s.db, cat1.ID, cat2.ID)
 
 	w := s.do(t, http.MethodPost, "/", ShiftTypeRequest{
 		Name:        fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()),
@@ -108,7 +107,6 @@ func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-1")
 	cat2 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-2")
-	defer testpkg.CleanupActivityFixtures(t, s.db, cat1.ID, cat2.ID)
 
 	name := fmt.Sprintf("Vorbereitung-%d", time.Now().UnixNano())
 	cw := s.do(t, http.MethodPost, "/", ShiftTypeRequest{
@@ -141,7 +139,6 @@ func TestShiftType_UpdateRejectsUnknownCategoryIDs(t *testing.T) {
 	s := buildShiftTypeSetup(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-unknown-1")
-	defer testpkg.CleanupActivityFixtures(t, s.db, cat1.ID)
 
 	name := fmt.Sprintf("Betreuung-%d", time.Now().UnixNano())
 	cw := s.do(t, http.MethodPost, "/", ShiftTypeRequest{

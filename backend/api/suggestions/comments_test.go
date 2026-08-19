@@ -125,7 +125,6 @@ func TestListComments_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-list")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
@@ -150,7 +149,6 @@ func TestListComments_InvalidPostID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-invalid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newCommentAuthRequest(t, "GET", "/suggestions/abc/comments", nil, account.ID, commentPerms)
 	rr := execCommentRequest(router, req)
@@ -162,7 +160,6 @@ func TestListComments_NoPermission(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comments-noperm")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newCommentAuthRequest(t, "GET", "/suggestions/1/comments", nil, account.ID, []string{})
 	rr := execCommentRequest(router, req)
@@ -178,7 +175,6 @@ func TestCreateComment_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-create")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
@@ -196,7 +192,6 @@ func TestCreateComment_EmptyContent(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-empty")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{
 		"content": "",
@@ -212,7 +207,6 @@ func TestCreateComment_ContentTooLong(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-long")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{
 		"content": strings.Repeat("a", 5001),
@@ -228,7 +222,6 @@ func TestCreateComment_InvalidPostID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-invalidpost")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{
 		"content": "Comment",
@@ -243,7 +236,6 @@ func TestCreateComment_PostNotFound(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-postnotfound")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	body := map[string]string{
 		"content": "Comment on non-existent post",
@@ -262,7 +254,6 @@ func TestDeleteComment_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-delete")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
@@ -280,7 +271,6 @@ func TestDeleteComment_Forbidden(t *testing.T) {
 
 	author := testpkg.CreateTestAccount(t, db, "api-comment-author")
 	other := testpkg.CreateTestAccount(t, db, "api-comment-other")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", author.ID, other.ID)
 
 	post := createCommentTestPost(t, db, author.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
@@ -299,7 +289,6 @@ func TestDeleteComment_InvalidID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-delinvalid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newCommentAuthRequest(t, "DELETE", "/suggestions/1/comments/abc", nil, account.ID, commentPerms)
 	rr := execCommentRequest(router, req)
@@ -311,7 +300,6 @@ func TestDeleteComment_NotFound(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-del404")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newCommentAuthRequest(t, "DELETE", "/suggestions/1/comments/999999999", nil, account.ID, commentPerms)
 	rr := execCommentRequest(router, req)
@@ -327,7 +315,6 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-markread")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
@@ -345,7 +332,6 @@ func TestMarkCommentsRead_InvalidPostID(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-readinvalid")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := newCommentAuthRequest(t, "POST", "/suggestions/abc/comments/read", nil, account.ID, commentPerms)
 	rr := execCommentRequest(router, req)
@@ -391,7 +377,6 @@ func TestCreateComment_InvalidJSON(t *testing.T) {
 	db, router := setupCommentTestRouter(t)
 
 	account := testpkg.CreateTestAccount(t, db, "api-comment-badjson")
-	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
 	req := httptest.NewRequest(http.MethodPost, "/suggestions/1/comments", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")

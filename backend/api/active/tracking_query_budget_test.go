@@ -59,7 +59,6 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		ctx := context.Background()
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_audit WHERE tenant_id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, tenantID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	valueRepo := configRepository.NewSettingValueRepository(db)
@@ -71,7 +70,6 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	require.NoError(t, settings.SetValue(seedCtx, configModel.KeyTrackingIndicator1, "Bibliothek", nil, nil))
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Budget", "Test", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 
 	active := &trackingMockActiveService{
 		getTrackingIndicatorsFunc: func(_ context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {

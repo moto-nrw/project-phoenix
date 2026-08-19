@@ -81,7 +81,6 @@ func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, "DeviceGroupMatchRoom")
 	device := testpkg.CreateTestDevice(t, tc.db, "dev-match-001")
 	activeGroup := createTestActiveGroupWithDevice(t, tc.db, activity.ID, room.ID, device.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, device.ID, activeGroup.ID)
 
 	result := tc.svc.GetDeviceActiveGroupInRoom(ctx, room.ID, device.ID)
 
@@ -97,8 +96,7 @@ func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "device-group-nomatch")
 	room := testpkg.CreateTestRoom(t, tc.db, "DeviceGroupNoMatchRoom")
 	device := testpkg.CreateTestDevice(t, tc.db, "dev-nomatch-001")
-	activeGroup := createTestActiveGroupWithDevice(t, tc.db, activity.ID, room.ID, device.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, device.ID, activeGroup.ID)
+	_ = createTestActiveGroupWithDevice(t, tc.db, activity.ID, room.ID, device.ID)
 
 	// Use a different device ID
 	result := tc.svc.GetDeviceActiveGroupInRoom(ctx, room.ID, 999999)
@@ -130,9 +128,8 @@ func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
 	student1 := testpkg.CreateTestStudent(t, tc.db, "Count1", "Student", "1a")
 	student2 := testpkg.CreateTestStudent(t, tc.db, "Count2", "Student", "1a")
-	visit1 := testpkg.CreateTestVisit(t, tc.db, student1.ID, activeGroup.ID, time.Now(), nil)
-	visit2 := testpkg.CreateTestVisit(t, tc.db, student2.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, activeGroup.ID, student1.ID, student2.ID, visit1.ID, visit2.ID)
+	_ = testpkg.CreateTestVisit(t, tc.db, student1.ID, activeGroup.ID, time.Now(), nil)
+	_ = testpkg.CreateTestVisit(t, tc.db, student2.ID, activeGroup.ID, time.Now(), nil)
 
 	result := tc.svc.GetActiveStudentCountForRoom(ctx, room.ID)
 
@@ -146,7 +143,6 @@ func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 	ctx := context.Background()
 
 	room := testpkg.CreateTestRoom(t, tc.db, "EmptyCountRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	result := tc.svc.GetActiveStudentCountForRoom(ctx, room.ID)
 
@@ -166,7 +162,6 @@ func TestUpdateSessionActivity_Success(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "session-activity")
 	room := testpkg.CreateTestRoom(t, tc.db, "SessionActivityRoom")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, activeGroup.ID)
 
 	// Should not panic or error
 	tc.svc.UpdateSessionActivity(ctx, activeGroup.ID)
@@ -194,8 +189,7 @@ func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, tc.db, "OccCountRoom")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
 	student := testpkg.CreateTestStudent(t, tc.db, "Occ", "Student", "1a")
-	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
+	_ = testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
 
 	count, err := tc.svc.CountActiveGroupOccupancyForTest(ctx, activeGroup.ID)
 
@@ -211,7 +205,6 @@ func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "occ-empty")
 	room := testpkg.CreateTestRoom(t, tc.db, "OccEmptyRoom")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, activeGroup.ID)
 
 	count, err := tc.svc.CountActiveGroupOccupancyForTest(ctx, activeGroup.ID)
 
@@ -231,9 +224,8 @@ func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
 	student2 := testpkg.CreateTestStudent(t, tc.db, "Exited", "Student", "1a")
 	entryTime := time.Now().Add(-10 * time.Minute)
 	exitTime := time.Now()
-	visit1 := testpkg.CreateTestVisit(t, tc.db, student1.ID, activeGroup.ID, time.Now(), nil)      // active
-	visit2 := testpkg.CreateTestVisit(t, tc.db, student2.ID, activeGroup.ID, entryTime, &exitTime) // exited
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, activeGroup.ID, student1.ID, student2.ID, visit1.ID, visit2.ID)
+	_ = testpkg.CreateTestVisit(t, tc.db, student1.ID, activeGroup.ID, time.Now(), nil)      // active
+	_ = testpkg.CreateTestVisit(t, tc.db, student2.ID, activeGroup.ID, entryTime, &exitTime) // exited
 
 	count, err := tc.svc.CountActiveGroupOccupancyForTest(ctx, activeGroup.ID)
 
@@ -265,7 +257,6 @@ func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
 	student := testpkg.CreateTestStudent(t, tc.db, "Load", "Visit", "1a")
 	visit := testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now(), nil)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
 
 	result := tc.svc.LoadCurrentVisitWithRoom(ctx, student.ID)
 
@@ -284,7 +275,6 @@ func TestRoomNameByID_FallbackToLookup(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "LookupRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	// Pass nil room to force lookup by ID
 	name := tc.svc.RoomNameByIDForTest(context.Background(), nil, room.ID)
@@ -303,7 +293,6 @@ func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ResponseRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	roomID := room.ID
 	name := tc.svc.RoomNameForResponseForTest(context.Background(), nil, &roomID)
@@ -314,7 +303,6 @@ func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 	tc := setupCheckinServiceTest(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "FallbackRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
 
 	// Visit without ActiveGroup.Room loaded
 	visit := &active.Visit{ActiveGroup: &active.Group{}}
@@ -333,7 +321,6 @@ func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
 
 	activeStudent := testpkg.CreateTestStudent(t, tc.db, "Primary", "Active", "1a")
 	alumStudent := testpkg.CreateTestStudent(t, tc.db, "Primary", "Alumnus", "4a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activeStudent.ID, alumStudent.ID)
 
 	_, err := tc.db.NewUpdate().
 		TableExpr("users.students").
@@ -367,9 +354,8 @@ func TestProcessStudentCheckin_RoomRejectsGraduatedRace(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "grad-race-group")
 	room := testpkg.CreateTestRoom(t, tc.db, "GradRaceRoom")
 	device := testpkg.CreateTestDevice(t, tc.db, "grad-race-dev-001")
-	activeGroup := createTestActiveGroupWithDevice(t, tc.db, activity.ID, room.ID, device.ID)
+	_ = createTestActiveGroupWithDevice(t, tc.db, activity.ID, room.ID, device.ID)
 	student := testpkg.CreateTestStudent(t, tc.db, "Race", "Graduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activity.ID, room.ID, device.ID, activeGroup.ID, student.ID)
 
 	// Simulate the race: student resolved as active, then a concurrent
 	// grade-transition apply graduated them before the visit write.

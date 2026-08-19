@@ -261,8 +261,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "NoAuth", "Student", "1a")
 
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID)
-
 		// Make request without JWT token
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
 		req := makeCheckinRequest(t, student.ID, body, "")
@@ -279,7 +277,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		student := testpkg.CreateTestStudent(t, db, "InvalidToken", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		body := active.CheckinRequest{ActiveGroupID: 1}
 		req := makeCheckinRequest(t, student.ID, body, "invalid-token")
@@ -295,9 +292,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Invalid", "IDTest")
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -320,11 +315,8 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Missing", "GroupID")
 		student := testpkg.CreateTestStudent(t, db, "Missing", "GroupStudent", "2a")
-
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -344,11 +336,8 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create staff with account
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NotFound", "GroupTest")
 		student := testpkg.CreateTestStudent(t, db, "NotFound", "Student", "2b")
-
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -368,14 +357,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Create person with account but NO staff record
-		person, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
+		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NotStaff", "User")
 		student := testpkg.CreateTestStudent(t, db, "NotStaff", "Student", "2c")
 		activity := testpkg.CreateTestActivityGroup(t, db, "not-staff-test")
 		room := testpkg.CreateTestRoom(t, db, "Not Staff Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, person.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -397,14 +383,11 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		// former "you must be their group teacher" refusal is gone.
 		handler := setupCheckinTestHandler(t, db)
 
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "NoAccess", "Student", "3a")
 		activity := testpkg.CreateTestActivityGroup(t, db, "no-access-test")
 		room := testpkg.CreateTestRoom(t, db, "No Access Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID, staff.PersonID, student.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
@@ -445,9 +428,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
 
@@ -476,10 +456,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		_, err := db.NewUpdate().Model(room).Column("capacity").WherePK().Exec(context.Background())
 		require.NoError(t, err)
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		existingVisit := testpkg.CreateTestVisit(t, db, existingStudent.ID, activeGroup.ID, time.Now(), nil)
-
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, existingStudent.ID, activity.ID, room.ID, activeGroup.ID, existingVisit.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		_ = testpkg.CreateTestVisit(t, db, existingStudent.ID, activeGroup.ID, time.Now(), nil)
 
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)
 		body := active.CheckinRequest{ActiveGroupID: activeGroup.ID}
@@ -495,7 +472,7 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		handler := setupCheckinTestHandler(t, db)
 
 		// Ensure web manual device exists (required for manual check-ins)
-		webDevice := testpkg.EnsureWebManualDevice(t, db)
+		_ = testpkg.EnsureWebManualDevice(t, db)
 
 		// Create teacher with account and education group
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Success", "Teacher")
@@ -509,9 +486,6 @@ func TestCheckinStudent_Integration(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "success-checkin-test")
 		room := testpkg.CreateTestRoom(t, db, "Success Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, teacher.Staff.ID, teacher.Staff.PersonID, educationGroup.ID, student.ID, activity.ID, room.ID, activeGroup.ID, webDevice.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create JWT token
 		token := testpkg.CreateTestJWT(t, account.ID, checkinPermissions)

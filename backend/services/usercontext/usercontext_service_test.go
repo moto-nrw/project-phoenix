@@ -76,7 +76,6 @@ func TestUserContextService_GetCurrentUser(t *testing.T) {
 	t.Run("retrieves current user with valid token", func(t *testing.T) {
 		// ARRANGE - Create a test account
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "CurrentUser", "Test")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -117,7 +116,6 @@ func TestUserContextService_GetCurrentPerson(t *testing.T) {
 	t.Run("retrieves current person with valid token", func(t *testing.T) {
 		// ARRANGE - Create a test person with account
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "CurrentPerson", "Test")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -147,7 +145,6 @@ func TestUserContextService_GetCurrentStaff(t *testing.T) {
 	t.Run("retrieves current staff with valid token", func(t *testing.T) {
 		// ARRANGE - Create a test staff with account
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CurrentStaff", "Test")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -163,7 +160,6 @@ func TestUserContextService_GetCurrentStaff(t *testing.T) {
 	t.Run("returns error when person is not staff", func(t *testing.T) {
 		// ARRANGE - Create a person without staff record
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "Person")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -176,7 +172,6 @@ func TestUserContextService_GetCurrentStaff(t *testing.T) {
 
 	t.Run("retrieves current staff for tenant custom role after permission checks", func(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CustomRole", "Staff")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithTenantClaimsAndRoles(int(account.ID), 1, "betreuung-plus")
 
@@ -196,7 +191,6 @@ func TestUserContextService_GetCurrentTeacher(t *testing.T) {
 	t.Run("retrieves current teacher with valid token", func(t *testing.T) {
 		// ARRANGE - Create a test teacher with account
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "CurrentTeacher", "Test")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -211,7 +205,6 @@ func TestUserContextService_GetCurrentTeacher(t *testing.T) {
 
 	t.Run("retrieves current teacher for explicit teacher-only role", func(t *testing.T) {
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "RoleScoped", "Teacher")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithTenantClaimsAndRoles(int(account.ID), 1, "teacher")
 
@@ -225,7 +218,6 @@ func TestUserContextService_GetCurrentTeacher(t *testing.T) {
 	t.Run("returns error when staff is not teacher", func(t *testing.T) {
 		// ARRANGE - Create a staff without teacher record
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NonTeacher", "Staff")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -249,7 +241,6 @@ func TestUserContextService_GetMyGroups(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		// ARRANGE - Create a person without staff record
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "User")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -278,7 +269,6 @@ func TestUserContextService_GetMyActivityGroups(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		// ARRANGE - Create a person without staff record
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "Activity")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -293,7 +283,6 @@ func TestUserContextService_GetMyActivityGroups(t *testing.T) {
 	t.Run("returns groups for staff member", func(t *testing.T) {
 		// ARRANGE - Create a staff member
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Staff", "Activity")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -315,7 +304,6 @@ func TestUserContextService_GetMyActiveGroups(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		// ARRANGE - Create a person without staff record
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "Active")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -336,7 +324,6 @@ func TestUserContextService_GetMySupervisedGroups(t *testing.T) {
 	t.Run("returns empty slice for non-staff user", func(t *testing.T) {
 		// ARRANGE - Create a person without staff record
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "NonStaff", "Supervised")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -351,7 +338,6 @@ func TestUserContextService_GetMySupervisedGroups(t *testing.T) {
 	t.Run("returns supervised groups for staff", func(t *testing.T) {
 		// ARRANGE - Create a staff member
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Staff", "Supervised")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -377,7 +363,6 @@ func TestUserContextService_GetCurrentProfile(t *testing.T) {
 	t.Run("retrieves profile for authenticated user", func(t *testing.T) {
 		// ARRANGE - Create a test person with account
 		person, account := testpkg.CreateTestPersonWithAccount(t, db, "Profile", "Test")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -394,7 +379,6 @@ func TestUserContextService_GetCurrentProfile(t *testing.T) {
 	t.Run("returns profile with fallback data for account without person", func(t *testing.T) {
 		// ARRANGE - Create an account without linked person
 		account := testpkg.CreateTestAccount(t, db, "nolink@example.com")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -409,7 +393,6 @@ func TestUserContextService_GetCurrentProfile(t *testing.T) {
 
 	t.Run("returns global avatar even when current tenant has no tenant profile row", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "globalavatar@example.com")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		avatarPath := "/uploads/avatars/global/account-global.jpg"
 		_, err := db.ExecContext(context.Background(),
@@ -444,7 +427,6 @@ func TestUserContextService_UpdateCurrentProfile(t *testing.T) {
 	t.Run("updates profile fields", func(t *testing.T) {
 		// ARRANGE - Create a test person with account
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Update", "Profile")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 		updates := map[string]interface{}{
@@ -465,7 +447,6 @@ func TestUserContextService_UpdateCurrentProfile(t *testing.T) {
 	t.Run("updates username", func(t *testing.T) {
 		// ARRANGE
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Username", "Update")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 		// Use unique username to avoid duplicate key error
@@ -494,7 +475,6 @@ func TestUserContextService_UpdateCurrentProfile(t *testing.T) {
 	t.Run("updates bio", func(t *testing.T) {
 		// ARRANGE
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Bio", "Update")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 		updates := map[string]interface{}{
@@ -527,7 +507,6 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 	t.Run("updates avatar URL", func(t *testing.T) {
 		// ARRANGE
 		_, account := testpkg.CreateTestPersonWithAccount(t, db, "Avatar", "Update")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 		avatarURL := "/uploads/avatars/global/test.jpg"
@@ -614,7 +593,6 @@ func TestMergeActiveGroups(t *testing.T) {
 	t.Run("handles empty results gracefully", func(t *testing.T) {
 		// ARRANGE
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "Merge", "Test")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -648,7 +626,6 @@ func TestUserContextService_GetGroupStudents(t *testing.T) {
 	t.Run("returns error for unauthorized access to group", func(t *testing.T) {
 		// ARRANGE - Create a staff member
 		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Staff")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -665,12 +642,9 @@ func TestUserContextService_GetGroupStudents(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "Test Activity for Students")
 		room := testpkg.CreateTestRoom(t, db, "Test Room for Students")
 		student := testpkg.CreateTestStudent(t, db, "Test", "StudentInGroup", "1a")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, staff.ID, student.ID)
 
 		// Create active group
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 		// Create supervision
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
@@ -709,10 +683,7 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 
 	t.Run("returns error for unauthorized access to group", func(t *testing.T) {
 		// ARRANGE - Create a staff member
-		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Visits")
-		defer testpkg.CleanupTableRecords(t, db, "users.persons", staff.Person.ID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-		defer testpkg.CleanupTableRecords(t, db, "users.staff", staff.ID)
+		_, account := testpkg.CreateTestStaffWithAccount(t, db, "NoAccess", "Visits")
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -731,24 +702,15 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "StudentVisit", "1b")
 		// Cleanup in reverse-FK order (LIFO means last-registered runs first).
 		// Register parent cleanups first so they run LAST:
-		defer testpkg.CleanupTableRecords(t, db, "users.persons", staff.Person.ID, student.PersonID)
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", activity.ID)
-		defer testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
-		defer testpkg.CleanupTableRecords(t, db, "users.staff", staff.ID)
 
 		// Create active group
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
 
 		// Create supervision
-		supervisor := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisor.ID)
+		_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create an active visit (no exit time)
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		ctx := contextWithClaims(int(account.ID))
 
@@ -793,11 +755,9 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 	t.Run("returns groups for teacher", func(t *testing.T) {
 		// ARRANGE - Create a teacher with account
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Teacher", "Groups")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create an education group and assign teacher
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Teacher Class")
-		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, teacher.Staff.ID, teacher.ID)
 
 		// Assign teacher to group
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
@@ -815,11 +775,9 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 	t.Run("returns substitution groups for staff", func(t *testing.T) {
 		// ARRANGE - Create a staff with account (as substitute)
 		staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Substitute", "Staff")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		// Create an education group
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Substitution Class")
-		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, staff.ID)
 
 		// Create a substitution for today
 		today := timezone.TodayDate()
@@ -838,10 +796,8 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 
 	t.Run("returns groups for explicit teacher-only role", func(t *testing.T) {
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, db, "Explicit", "TeacherRole")
-		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 		educationGroup := testpkg.CreateTestEducationGroup(t, db, "Teacher Role Class")
-		defer testpkg.CleanupActivityFixtures(t, db, educationGroup.ID, teacher.Staff.ID, teacher.ID)
 
 		testpkg.CreateTestGroupTeacher(t, db, educationGroup.ID, teacher.ID)
 

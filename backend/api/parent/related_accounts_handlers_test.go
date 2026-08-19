@@ -94,7 +94,6 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 func TestRelatedAccountsEndpoint_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
 	token := parentToken(t, chain.AccountID)
@@ -113,7 +112,6 @@ func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
 	t.Run("disabled → 403", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDisabled, false)
 		token := parentToken(t, chain.AccountID)
 
@@ -125,7 +123,6 @@ func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
 	t.Run("direct → 201", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
 		token := parentToken(t, chain.AccountID)
 
@@ -139,7 +136,6 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 	t.Run("removal disabled → 403", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, false)
 		token := parentToken(t, chain.AccountID)
 		sid := strconv.FormatInt(chain.StudentID, 10)
@@ -152,7 +148,6 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 	t.Run("removal enabled → 200", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		router := newRelAcctRouter(t, db, configModels.ParentInviteModeDirect, true)
 		token := parentToken(t, chain.AccountID)
 		sid := strconv.FormatInt(chain.StudentID, 10)
@@ -199,7 +194,6 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.G
 func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	invites := &relAcctCaptureInvites{result: &authService.InviteToStudentResult{
 		Outcome:           authService.InviteOutcomeExistingContactRestricted,
@@ -223,7 +217,6 @@ func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
 func TestRelatedAccountsEndpoint_SocialWorkerRefusedWithCode(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	router := newRelAcctRouterWithInvites(t, db, relAcctSocialWorkerInvites{})
 	token := parentToken(t, chain.AccountID)

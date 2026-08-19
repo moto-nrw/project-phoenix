@@ -25,7 +25,6 @@ func TestClassListEntriesAPI(t *testing.T) {
 	db, factory := testutil.SetupAPITest(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-api-%d@test.local", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 
 	resource := classlistentries.NewResource(factory.ClassListEntries, db, nil)
 	router := resource.Router()
@@ -55,7 +54,6 @@ func TestClassListEntriesAPI(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
 	entryID := created.Data.ID
 	require.NotZero(t, entryID)
-	t.Cleanup(func() { testpkg.CleanupClassListEntryFixtures(t, db, entryID) })
 
 	// Duplicate create → 400 with the German message.
 	req = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
@@ -80,7 +78,6 @@ func TestClassListEntriesAPI(t *testing.T) {
 
 	// Assign to a real student (users:delete) deletes the entry.
 	student := testpkg.CreateTestStudent(t, db, "Zoe", "Aalders", className+"-b")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 
 	assignBody := fmt.Sprintf(`{"student_id":"%d"}`, student.ID)
 	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/%d/assign", entryID), strings.NewReader(assignBody))
@@ -101,14 +98,11 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CleDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	className := fmt.Sprintf("cled%d", time.Now().UnixNano()%100000)
 	assignment := testpkg.CreateTestClassTeacher(t, db, staff.ID, className)
-	student := testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
+	_ = testpkg.CreateTestStudent(t, db, "Klara", "Klassentag", className)
 	entry := testpkg.CreateTestClassListEntry(t, db, "Nico", "NurListe", className)
 	t.Cleanup(func() {
 		tenantCtx := testpkg.TenantContext(1)
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
-		testpkg.CleanupActivityFixtures(t, db, student.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
 	})
 
 	classDayRouter := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil).Router()
@@ -133,7 +127,6 @@ func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
 	db, factory := testutil.SetupAPITest(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-ws-%d@test.local", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 
 	resource := classlistentries.NewResource(factory.ClassListEntries, db, nil)
 	router := resource.Router()

@@ -34,7 +34,6 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Child", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -75,7 +74,6 @@ func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Empty", "Batch", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -97,7 +95,6 @@ func TestCreateStudentGuardians_Forbidden_NonStaff(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Forbidden", "Batch", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 

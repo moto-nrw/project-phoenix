@@ -61,7 +61,6 @@ func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantA, tenantB) })
 
 	valueRepository := configRepository.NewSettingValueRepository(db)
 	settings := configService.NewSettingsService(valueRepository, nil, nil, db, slog.Default())

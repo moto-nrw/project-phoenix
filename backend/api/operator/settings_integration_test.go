@@ -498,7 +498,6 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_BlockedByOpenAttendance(t *t
 	student := testpkg.CreateTestStudentForTenant(t, ctx.db, tenantID, "Guard", "Block", "9a")
 	staff := testpkg.CreateTestStaffForTenant(t, ctx.db, tenantID, "Guard", "Staff")
 	device := testpkg.CreateTestDeviceForTenant(t, ctx.db, tenantID, "guard-device-001")
-	defer testpkg.CleanupActivityFixturesForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	createPresenceModeAttendanceForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID, checkInTime, nil)
@@ -525,7 +524,6 @@ func TestOperatorSetSchoolSettingValue_PresenceMode_ForceBypassesOpenAttendance(
 	student := testpkg.CreateTestStudentForTenant(t, ctx.db, tenantID, "Guard", "Force", "9b")
 	staff := testpkg.CreateTestStaffForTenant(t, ctx.db, tenantID, "Guard", "Staff2")
 	device := testpkg.CreateTestDeviceForTenant(t, ctx.db, tenantID, "guard-device-002")
-	defer testpkg.CleanupActivityFixturesForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID)
 
 	checkInTime := time.Now().Add(-1 * time.Hour)
 	createPresenceModeAttendanceForTenant(t, ctx.db, tenantID, student.ID, staff.ID, device.ID, checkInTime, nil)

@@ -77,7 +77,6 @@ func TestTenantTxMiddleware_MarkRollback(t *testing.T) {
 			require.NoError(t, repo.Create(r.Context(), profile))
 			w.WriteHeader(http.StatusOK)
 		})
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
 		found, err := repo.FindByID(testpkg.TenantContext(1), profile.ID)
 		require.NoError(t, err)

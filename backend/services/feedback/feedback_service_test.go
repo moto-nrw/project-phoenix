@@ -81,7 +81,6 @@ func TestFeedbackService_CreateEntry(t *testing.T) {
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	t.Run("creates valid feedback entry", func(t *testing.T) {
 		// ARRANGE
@@ -152,7 +151,6 @@ func TestFeedbackService_GetEntryByID(t *testing.T) {
 
 	// Create a test student and entry
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "GetStudent", "2a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, timezone.TodayDate())
 	defer cleanupFeedbackFixtures(t, db, []int64{entry.ID})
@@ -193,7 +191,6 @@ func TestFeedbackService_DeleteEntry(t *testing.T) {
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "DeleteStudent", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	t.Run("deletes entry successfully", func(t *testing.T) {
 		// ARRANGE
@@ -235,7 +232,6 @@ func TestFeedbackService_ListEntries(t *testing.T) {
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "ListStudent", "5a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry1 := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, timezone.TodayDate())
 	entry2 := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, timezone.TodayDate())
@@ -277,7 +273,6 @@ func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentQuery", "6a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	entry1 := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, timezone.TodayDate())
 	entry2 := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNegative, timezone.TodayDate())
@@ -309,7 +304,6 @@ func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "DayQuery", "7a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	today := timezone.TodayDate()
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
@@ -341,7 +335,6 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "RangeQuery", "8a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	today := timezone.TodayDate()
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValueNeutral, today)
@@ -419,7 +412,6 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 
 	// Create a test student and entries
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "StudentRange", "9a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	today := timezone.TodayDate()
 	entry := createTestFeedbackEntry(t, db, student.ID, feedback.ValuePositive, today)
@@ -479,7 +471,6 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "BatchStudent", "12a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	t.Run("creates multiple entries", func(t *testing.T) {
 		// ARRANGE
@@ -543,7 +534,6 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 
 	// Create a test student
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "CleanupStudent", "13a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID, 0, 0, 0, 0)
 
 	t.Run("deletes entries older than specified days", func(t *testing.T) {
 		// ARRANGE: Create an old entry (100 days ago) and a recent entry (today)

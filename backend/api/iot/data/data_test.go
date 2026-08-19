@@ -89,17 +89,9 @@ func TestGetAvailableTeachers_ReturnsTeacherRosterIndependentOfCaregiverState(t 
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "data-test-device-caregiver")
 	linkedTeacher, linkedAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Ada", "Caregiver")
-	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Teacher")
-	unmappedTeacher, unmappedAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Unmapped", "Teacher")
-	inactiveTeacher, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Inactive", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, linkedTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, legacyTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, unmappedTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, ctx.db, inactiveTeacher.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, linkedAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, legacyAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, unmappedAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, inactiveAccount.ID)
+	_, _ = testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "Teacher")
+	_, _ = testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Unmapped", "Teacher")
+	_, inactiveAccount := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Inactive", "Teacher")
 
 	tenantID := linkedTeacher.GetTenantID()
 	testpkg.EnsureAccountTenant(t, ctx.db, linkedAccount.ID, tenantID)
@@ -297,7 +289,6 @@ func TestGetTeacherActivities_WithOccupancy(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, tc.db, "data-test-device-occ")
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "occ-test-activity")
 	room := testpkg.CreateTestRoom(t, tc.db, "occ-test-room")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, activityGroup.CategoryID, room.ID)
 
 	// Create an active session for this activity group
 	bgCtx := context.Background()

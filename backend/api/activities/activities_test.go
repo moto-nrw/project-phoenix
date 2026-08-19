@@ -197,7 +197,6 @@ func TestCreateActivity_Success(t *testing.T) {
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Create", "Staff")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("CreateTest-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -265,7 +264,6 @@ func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unlimited", "Activity")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("Unlimited-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -329,7 +327,6 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "UpdateNF", "Staff")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("NotFound-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -526,7 +523,6 @@ func TestAssignSupervisor_Success(t *testing.T) {
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Supervisor", "Test")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	body := map[string]interface{}{
 		"staff_id":   staff.ID,
@@ -561,8 +557,7 @@ func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 func TestGetAvailableSupervisors_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
-	staff := testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
+	_ = testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available", nil)
 
@@ -601,7 +596,6 @@ func TestEnrollStudent_Success(t *testing.T) {
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Enroll", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
 
@@ -618,7 +612,6 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Dup", "Enroll", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// First enrollment
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
@@ -636,7 +629,6 @@ func TestGetStudentEnrollments_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "GetEnroll", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d", student.ID), nil)
 
@@ -649,7 +641,6 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil)
 
@@ -662,7 +653,6 @@ func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Graduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.students`).
@@ -685,7 +675,6 @@ func TestUnenrollStudent_Success(t *testing.T) {
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Unenroll", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// First enroll the student
 	enrollReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
@@ -708,7 +697,6 @@ func TestUnenrollStudent_NotFound(t *testing.T) {
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "NotEnrolled", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/activities/%d/students/%d", activity.ID, student.ID), nil)
 
@@ -726,7 +714,6 @@ func TestBatchEnrollment_Success(t *testing.T) {
 
 	student1 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Student1", "1a")
 	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Student2", "1b")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID, student2.ID)
 
 	body := map[string]interface{}{
 		"student_ids": []int64{student1.ID, student2.ID},
@@ -764,7 +751,6 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 
 	// Create a staff member with account for authentication
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Quick", "Staff")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickCreate-%d", time.Now().UnixNano()))
 	defer cleanupCategory(t, ctx.db, category.ID)
@@ -968,7 +954,6 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("SupRole-%d", time.Now().UnixNano()), "Test")
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
@@ -1014,7 +999,6 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()), "Test")
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
 	// Assign supervisor first - get the supervisor record
 	actSvc := ctx.services.Activities
@@ -1055,7 +1039,6 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 	replacementStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Replacement-%d", time.Now().UnixNano()), "Caregiver")
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, outgoingStaff.ID, replacementStaff.ID)
 
 	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, outgoingStaff.ID, false)
 	require.NoError(t, err)
@@ -1097,7 +1080,6 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 	otherStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Other-%d", time.Now().UnixNano()), "Caregiver")
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, primaryStaff.ID, outgoingStaff.ID, otherStaff.ID)
 
 	primarySupervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, primaryStaff.ID, true)
 	require.NoError(t, err)
@@ -1148,7 +1130,6 @@ func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
 	onlyStaff := testpkg.CreateTestStaff(t, ctx.db, fmt.Sprintf("Only-%d", time.Now().UnixNano()), "Caregiver")
 	defer cleanupActivity(t, ctx.db, activity.ID)
 	defer cleanupCategory(t, ctx.db, activity.CategoryID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, onlyStaff.ID)
 
 	supervisor, err := ctx.services.Activities.AddSupervisor(testutil.TenantContext(1), activity.ID, onlyStaff.ID, true)
 	require.NoError(t, err)

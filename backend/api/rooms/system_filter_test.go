@@ -25,7 +25,6 @@ func newRoomFilterTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 	tenantID := atomic.AddInt64(&roomFilterTenantCounter, 1)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantID) })
 	return tenantID
 }
 

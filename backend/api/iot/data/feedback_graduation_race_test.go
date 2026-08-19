@@ -27,7 +27,6 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-race")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "RaceGraduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	// What an unlocked read returned before the transition committed.
 	snapshot := *student
@@ -84,7 +83,6 @@ func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-fallback")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "FallbackGraduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	graduated := *student
 	graduated.Status = usersModel.StudentStatusAlumnus

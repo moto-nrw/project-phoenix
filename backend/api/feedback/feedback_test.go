@@ -164,7 +164,6 @@ func TestGetStudentFeedback_Success(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -265,7 +264,6 @@ func TestGetDateRangeFeedback_WithStudentID(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Range", "Student", "2b")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -323,7 +321,6 @@ func TestCreateFeedback_Success(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Create", "Feedback", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -348,7 +345,6 @@ func TestCreateFeedback_MissingValue(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Missing", "Value", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -390,7 +386,6 @@ func TestCreateFeedback_InvalidDateFormat(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Date", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -414,7 +409,6 @@ func TestCreateFeedback_InvalidTimeFormat(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Invalid", "Time", "3c")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 
@@ -442,10 +436,8 @@ func TestCreateBatchFeedback_Success(t *testing.T) {
 
 	// Create test students
 	student1 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "One", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student1.ID)
 
 	student2 := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Two", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student2.ID)
 
 	router := newRouter(ctx)
 
@@ -497,7 +489,6 @@ func TestCreateBatchFeedback_InvalidEntry(t *testing.T) {
 
 	// Create test student
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Invalid", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := newRouter(ctx)
 

@@ -47,7 +47,6 @@ func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermiss
 	factory := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
 	student := testpkg.CreateTestStudent(t, db, "Import", "Guardian", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID) })
 
 	config := NewStudentImportConfig(StudentImportDeps{
 		GuardianRepo:      factory.GuardianProfile,

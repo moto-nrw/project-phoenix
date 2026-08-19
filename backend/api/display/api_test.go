@@ -255,7 +255,6 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, db, tenantID, activityGroup.ID, room.ID)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Emma", "Testkind", "1a")
 	testpkg.CreateTestVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, timezone.Now().Add(-30*time.Minute), nil)
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, room.ID, activityGroup.ID, activeGroup.ID, student.ID)
 
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Eingang")
 
@@ -371,8 +370,7 @@ func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
 	jwtA := displayTestJWT(t, accountA.ID, tenantA, []string{"display:read", "display:manage"})
 	jwtB := displayTestJWT(t, accountB.ID, tenantB, []string{"display:read", "display:manage"})
 
-	roomB := testpkg.CreateTestRoomForTenant(t, db, tenantB, "Geheimraum B")
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantB, roomB.ID)
+	_ = testpkg.CreateTestRoomForTenant(t, db, tenantB, "Geheimraum B")
 
 	_, tokenA := createDisplayViaAPI(t, router, jwtA, "Display A")
 	createDisplayViaAPI(t, router, jwtB, "Display B")
@@ -421,7 +419,6 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	present1 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Anna", "Anwesend", "2b")
 	present2 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Ben", "Anwesend", "2b")
 	checkedOut := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Carla", "Weg", "2b")
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, staff.ID, device.ID, present1.ID, present2.ID, checkedOut.ID)
 
 	now := timezone.Now()
 	checkoutTime := now.Add(-10 * time.Minute)
