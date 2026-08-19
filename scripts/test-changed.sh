@@ -39,12 +39,25 @@ fi
 if [ -n "${dirs:-}" ]; then
   cd backend
   mod=$(go list -m)
-  changed=$(echo "$dirs" | sed "s|^|$mod/|; s|/\$||")
+  changed=$(printf '%s\n' "$dirs" | awk -v mod="$mod" '
+    $0 == "." { print mod; next }
+    { print mod "/" $0 }
+  ')
   # `-test` ergänzt die transitive Abhängigkeitskette der Test-Binaries.
   # Substring-Match auf Import-Pfade kann minimal über-selektieren (foo trifft
   # auch foo/bar) — zu viel testen ist ok, zu wenig nicht.
-  affected=$(go list -e -test -f '{{if .ForTest}}{{.ForTest}} {{join .Deps " "}}{{end}}' ./... \
-    | grep -F -f <(echo "$changed") | cut -d' ' -f1 | sort -u)
+  affected=$(
+    {
+      printf '%s\n' "$changed"
+      go list -test -f '{{if .ForTest}}{{.ForTest}} {{join .Deps " "}}{{end}}' ./... \
+        | { grep -F -f <(printf '%s\n' "$changed") || true; } \
+        | cut -d' ' -f1
+    } | sort -u
+  )
+  if [ -z "$affected" ]; then
+    echo "==> backend: keine betroffenen Packages ermittelt" >&2
+    exit 1
+  fi
   echo "==> go test ($(echo "$affected" | wc -l | tr -d ' ') affected packages, $(echo "$dirs" | wc -l | tr -d ' ') changed)"
   # shellcheck disable=SC2086
   go test $affected
@@ -53,7 +66,11 @@ elif [ "$backend_tested" = false ]; then
   echo "==> backend: keine Go-Änderungen"
 fi
 
-if ! git diff --quiet "$MB" -- frontend; then
+frontend_untracked=$(git ls-files --others --exclude-standard -- frontend)
+if [ -n "$frontend_untracked" ]; then
+  echo "==> vitest (unversionierte Frontend-Dateien)"
+  (cd frontend && pnpm vitest run)
+elif ! git diff --quiet "$MB" -- frontend; then
   echo "==> vitest --changed $BASE"
   (cd frontend && pnpm vitest run --changed "$BASE")
 else
