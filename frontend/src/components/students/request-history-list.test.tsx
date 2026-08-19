@@ -4,16 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CareRequestHistoryList,
   MasterDataHistoryList,
+  OfferingRequestHistoryList,
 } from "./request-history-list";
 import { RequestReviewCard } from "./request-review-card";
 import type { StaffCareRequestHistoryEntry } from "~/lib/care-request-review-api";
 import type { StaffMasterDataHistoryEntry } from "~/lib/master-data-review-api";
+import type { StaffOfferingRequestHistoryEntry } from "~/lib/offering-request-review-api";
 
 const { mockListHistory } = vi.hoisted(() => ({
   mockListHistory: vi.fn(),
 }));
 const { mockListCareHistory } = vi.hoisted(() => ({
   mockListCareHistory: vi.fn(),
+}));
+const { mockListOfferingHistory } = vi.hoisted(() => ({
+  mockListOfferingHistory: vi.fn(),
 }));
 
 vi.mock("~/lib/master-data-review-api", () => ({
@@ -26,6 +31,13 @@ vi.mock("~/lib/care-request-review-api", () => ({
   listCareScheduleChangeRequestHistory: (
     cursor?: string,
   ): ReturnType<typeof mockListCareHistory> => mockListCareHistory(cursor),
+}));
+
+vi.mock("~/lib/offering-request-review-api", () => ({
+  listOfferingChangeRequestHistory: (
+    cursor?: string,
+  ): ReturnType<typeof mockListOfferingHistory> =>
+    mockListOfferingHistory(cursor),
 }));
 
 function entry(
@@ -163,5 +175,26 @@ describe("CareRequestHistoryList", () => {
     expect(
       await screen.findByText("20.08.2026 · Abholzeit: 15:30"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("OfferingRequestHistoryList", () => {
+  it("zeigt bei einer zurückgezogenen Anfrage die gespeicherten Angebote", async () => {
+    const withdrawnRequest: StaffOfferingRequestHistoryEntry = {
+      id: "offering-1",
+      student_id: "42",
+      student_name: "Lara Lehmann",
+      status: "withdrawn",
+      effective_from: "2026-08-20",
+      diff: [],
+      requested: [{ offering_id: "17", label: "Kreativ-AG", new: "Di" }],
+      created_at: "2026-08-17T09:00:00Z",
+      decided_at: "2026-08-18T10:00:00Z",
+    };
+    mockListOfferingHistory.mockResolvedValue({ items: [withdrawnRequest] });
+
+    render(<OfferingRequestHistoryList />);
+
+    expect(await screen.findByText("Kreativ-AG: Di")).toBeInTheDocument();
   });
 });

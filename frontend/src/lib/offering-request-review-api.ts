@@ -196,6 +196,14 @@ export interface StaffOfferingRequestHistoryEntry extends StaffOfferingRequest {
   readonly decided_at: string;
   /** Absent for withdrawn rows (no reviewer). */
   readonly decided_by_name?: string;
+  /** Payload-derived recap when no frozen decision snapshot exists. */
+  readonly requested?: readonly OfferingRequestRequestedLine[];
+}
+
+interface OfferingRequestRequestedLine {
+  readonly offering_id: string;
+  readonly label: string;
+  readonly new: string;
 }
 
 /** Lists the tenant's decided offering change requests, newest decision first. */

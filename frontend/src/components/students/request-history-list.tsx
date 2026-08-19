@@ -244,6 +244,20 @@ export function OfferingRequestHistoryList() {
               ))}
             </div>
           )}
+          {row.diff.length === 0 &&
+            row.requested &&
+            row.requested.length > 0 && (
+              <div className="space-y-1 rounded-lg bg-gray-50 p-3">
+                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  Beantragt
+                </p>
+                {row.requested.map((line) => (
+                  <p key={line.offering_id} className="text-sm text-gray-700">
+                    {line.label}: {line.new}
+                  </p>
+                ))}
+              </div>
+            )}
         </RequestReviewCard>
       )}
     />

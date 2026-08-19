@@ -151,11 +151,14 @@ type OfferingChangeDiffEntry struct {
 // OfferingChangeHistoryItem is one decided request for the staff history. The
 // diff comes exclusively from the frozen decision snapshot (ADR 0002) — never
 // recomputed against current bookings, which have moved on since the decision.
+// Requested supplies a payload-derived recap for withdrawn and legacy rows
+// that have no decision snapshot.
 type OfferingChangeHistoryItem struct {
 	Request      *enrollmentModels.OfferingChangeRequest
 	StudentName  string
 	ReviewerName string // "" when the row carries no reviewer (withdrawn)
 	Diff         []OfferingChangeDiffEntry
+	Requested    []OfferingChangeRequestedItem
 }
 
 // OfferingChangeView is a request as both sides see it.
@@ -1038,6 +1041,16 @@ func (s *offeringChangeRequestService) ListHistory(ctx context.Context, beforeUp
 		}
 		if row.DecisionSnapshot != nil {
 			item.Diff = diffEntriesFromSnapshot(row.DecisionSnapshot.Diff)
+		} else {
+			requested, requestedErr := s.requestedItems(ctx, row)
+			if requestedErr != nil {
+				s.Logger.Warn("offering change: resolve requested offerings for history failed",
+					slog.Int64("request_id", row.ID),
+					slog.String("error", requestedErr.Error()),
+				)
+			} else {
+				item.Requested = requested
+			}
 		}
 		if person := persons[student.PersonID]; person != nil {
 			item.StudentName = strings.TrimSpace(person.GetFullName())

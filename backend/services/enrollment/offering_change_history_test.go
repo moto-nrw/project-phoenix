@@ -67,4 +67,31 @@ func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
 		labels = append(labels, entry.Label)
 	}
 	assert.Contains(t, labels, fx.newOffering.Name)
+
+	withdrawn, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID, SelectedDays: []string{"tue"}},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", withdrawn.ID) })
+	require.NoError(t, svc.Withdraw(ctx, withdrawn.ID, env.creatorID, fx.studentID))
+
+	items, _, err = svc.ListHistory(ctx, time.Time{}, 0, 25)
+	require.NoError(t, err)
+	var withdrawnHistory *enrollmentService.OfferingChangeHistoryItem
+	for _, item := range items {
+		if item.Request.ID == withdrawn.ID {
+			withdrawnHistory = item
+			break
+		}
+	}
+	require.NotNil(t, withdrawnHistory)
+	assert.Empty(t, withdrawnHistory.Diff, "withdrawn rows have no decision snapshot")
+	require.Equal(t, []enrollmentService.OfferingChangeRequestedItem{{
+		OfferingID: fx.newOffering.ID, Name: fx.newOffering.Name, Days: []string{"tue"},
+	}}, withdrawnHistory.Requested)
 }

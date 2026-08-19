@@ -203,8 +203,17 @@ func (rs *Resource) listCareScheduleChangeRequestHistory(w http.ResponseWriter, 
 // decision facts. Its diff comes from the frozen decision snapshot.
 type OfferingRequestHistoryResponse struct {
 	OfferingRequestResponse
-	DecidedAt     time.Time `json:"decided_at"`
-	DecidedByName string    `json:"decided_by_name,omitempty"`
+	DecidedAt     time.Time                          `json:"decided_at"`
+	DecidedByName string                             `json:"decided_by_name,omitempty"`
+	Requested     []OfferingRequestRequestedResponse `json:"requested,omitempty"`
+}
+
+// OfferingRequestRequestedResponse is a payload-derived recap for history
+// rows without a frozen decision snapshot, such as withdrawn requests.
+type OfferingRequestRequestedResponse struct {
+	OfferingID string `json:"offering_id"`
+	Label      string `json:"label"`
+	New        string `json:"new"`
 }
 
 // listOfferingChangeRequestHistory returns the tenant's decided offering
@@ -229,6 +238,14 @@ func (rs *Resource) listOfferingChangeRequestHistory(w http.ResponseWriter, r *h
 		NextCursor: encodeHistoryCursor(next),
 	}
 	for _, item := range items {
+		requested := make([]OfferingRequestRequestedResponse, 0, len(item.Requested))
+		for _, entry := range item.Requested {
+			requested = append(requested, OfferingRequestRequestedResponse{
+				OfferingID: strconv.FormatInt(entry.OfferingID, 10),
+				Label:      entry.Name,
+				New:        germanOfferingDiffLabel("booked", entry.Days),
+			})
+		}
 		out.Items = append(out.Items, OfferingRequestHistoryResponse{
 			OfferingRequestResponse: toOfferingRequestResponse(&enrollmentService.OfferingChangeView{
 				Request:     item.Request,
@@ -237,6 +254,7 @@ func (rs *Resource) listOfferingChangeRequestHistory(w http.ResponseWriter, r *h
 			}),
 			DecidedAt:     historyDecidedAt(item.Request.ReviewedAt, item.Request.UpdatedAt),
 			DecidedByName: item.ReviewerName,
+			Requested:     requested,
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Offering change request history retrieved")
