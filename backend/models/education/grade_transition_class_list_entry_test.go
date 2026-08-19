@@ -44,4 +44,15 @@ func TestGradeTransitionClassListEntryValidate(t *testing.T) {
 	badAction := validClassListEntryLedgerRow()
 	badAction.Action = "renamed"
 	assert.ErrorContains(t, badAction.Validate(), "removed or created")
+
+	withEntry := validClassListEntryLedgerRow()
+	withEntry.Action = ClassTeacherActionCreated
+	entryID := int64(42)
+	withEntry.EntryID = &entryID
+	require.NoError(t, withEntry.Validate())
+
+	badEntry := validClassListEntryLedgerRow()
+	zero := int64(0)
+	badEntry.EntryID = &zero
+	assert.ErrorContains(t, badEntry.Validate(), "entry ID")
 }

@@ -280,6 +280,56 @@ func TestGradeTransitionService_Apply_RemapsCaseDivergentEntryClass(t *testing.T
 		"the revert must restore the entry with its original display form")
 }
 
+// An entry the admin edited between apply and revert keeps the edit, even when
+// the edit leaves the normalized identity untouched ("2g-xy" → "2G-XY"). The
+// revert resolves the row it created by the recorded ID, so a display-form
+// change is not mistaken for the untouched transition row and replayed over
+// (#2399 review round 11).
+func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T) {
+	service, db, cleanup := setupClassListEntryTransitionTest(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	defer cancel()
+
+	account := testpkg.CreateTestAccount(t, db, "transition-cle-edit@test.local")
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	suffix := uuid.Must(uuid.NewV4()).String()[:8]
+	class1 := fmt.Sprintf("1g-%s", suffix)
+	class2 := fmt.Sprintf("2g-%s", suffix)
+	class2Upper := strings.ToUpper(class2)
+
+	cohort := testpkg.CreateTestStudent(t, db, "CleEdit", "Cohort", class1)
+	defer testpkg.CleanupActivityFixtures(t, db, cohort.ID)
+
+	entry := testpkg.CreateTestClassListEntry(t, db, "CleNina", "Bearbeitet", class1)
+	defer testpkg.CleanupClassListEntryFixtures(t, db, entry.ID)
+	defer cleanupClassListEntriesByName(t, db, [][2]string{{"CleNina", "Bearbeitet"}})
+
+	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+
+	_, err := service.Apply(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, []string{class2}, classListEntryClassesOf(t, db, ctx, "CleNina", "Bearbeitet"))
+
+	// The admin corrects the class spelling after the apply — same child, same
+	// normalized class, different display form.
+	_, err = db.NewUpdate().TableExpr("users.class_list_entries").
+		Set("school_class = ?", class2Upper).
+		Where("first_name = ? AND last_name = ?", "CleNina", "Bearbeitet").
+		Exec(testpkg.TenantContext(1))
+	require.NoError(t, err)
+
+	_, err = service.Revert(ctx, transition.ID, account.ID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{class2Upper}, classListEntryClassesOf(t, db, ctx, "CleNina", "Bearbeitet"),
+		"an entry edited after the apply must survive the revert unchanged, in exactly one row")
+}
+
 // A transition over classes without any entries writes no ledger — apply and
 // revert both no-op cleanly.
 func TestGradeTransitionService_ClassListEntries_NoEntriesNoLedger(t *testing.T) {

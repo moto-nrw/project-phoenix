@@ -131,8 +131,10 @@ func (s *GradeTransitionService) remapClassListEntries(
 			return err
 		}
 		if created != nil {
+			createdID := created.ID
 			ledger = append(ledger, &education.GradeTransitionClassListEntry{
 				TransitionID: transitionID,
+				EntryID:      &createdID,
 				FirstName:    created.FirstName,
 				LastName:     created.LastName,
 				SchoolClass:  created.SchoolClass,
@@ -153,10 +155,11 @@ func (s *GradeTransitionService) remapClassListEntries(
 // Entries the apply never touched — a pre-existing entry of a rename target,
 // or one created between apply and revert — have no ledger entry and stay
 // untouched. Entries the admin changed since the apply win: a created row the
-// admin already deleted is not deleted again AND its paired removed entry is
-// not restored (the admin deliberately took the child off the list), and a
-// restore colliding with a surviving entry or a student of that name and
-// class is skipped — the child already has exactly one row on the list.
+// admin already deleted or edited is left alone AND its paired removed entry
+// is not restored (the admin deliberately took the child off the list or
+// re-filed them), and a restore colliding with a surviving entry or a student
+// of that name and class is skipped — the child already has exactly one row on
+// the list.
 func (s *GradeTransitionService) revertClassListEntries(
 	ctx context.Context,
 	transitionID int64,
@@ -180,14 +183,16 @@ func (s *GradeTransitionService) revertClassListEntries(
 		return fmt.Errorf("failed to list class list entries: %w", err)
 	}
 	current := make(map[string]*userModels.ClassListEntry, len(entries))
+	byID := make(map[int64]*userModels.ClassListEntry, len(entries))
 	for _, entry := range entries {
 		current[classListEntryKey(entry.FirstName, entry.LastName, entry.SchoolClass)] = entry
+		byID[entry.ID] = entry
 	}
 
 	// ledgerCreated: identities the apply inserted at all. deletedCreated:
 	// the subset this revert actually found and deleted — an identity in the
-	// first set but not the second was removed by the admin after the apply,
-	// and its paired restore must not resurrect the child.
+	// first set but not the second was removed or edited by the admin after
+	// the apply, and its paired restore must not resurrect the child.
 	ledgerCreated := make(map[string]bool)
 	deletedCreated := make(map[string]bool)
 	for _, item := range ledger {
@@ -196,14 +201,14 @@ func (s *GradeTransitionService) revertClassListEntries(
 		}
 		key := classListEntryKey(item.FirstName, item.LastName, item.SchoolClass)
 		ledgerCreated[key] = true
-		row, ok := current[key]
-		if !ok {
+		row := resolveLedgerCreatedRow(item, current, byID)
+		if row == nil {
 			continue
 		}
 		if err := s.classListEntryRepo.Delete(ctx, row.ID); err != nil {
 			return fmt.Errorf("failed to delete class list entry: %w", err)
 		}
-		delete(current, key)
+		delete(current, classListEntryKey(row.FirstName, row.LastName, row.SchoolClass))
 		deletedCreated[key] = true
 		if err := s.auditClassListEntryChange(ctx, row.ID, auditModels.ClassListEntryActionDeleted, row.DisplayValue(), "", accountID); err != nil {
 			return err
@@ -251,6 +256,31 @@ func (s *GradeTransitionService) revertClassListEntries(
 		}
 	}
 	return nil
+}
+
+// resolveLedgerCreatedRow returns the row a 'created' ledger item inserted, or
+// nil when the revert must leave it alone: the admin deleted it, or edited it
+// since the apply. The lookup goes through the recorded row ID, because an
+// edit that keeps the normalized identity ("2a" → "2A", a corrected spelling
+// of a name) is invisible to an identity lookup — it would delete the row and
+// replay the pre-transition value over the admin's change. Ledger rows written
+// before the ID was recorded fall back to the identity lookup.
+func resolveLedgerCreatedRow(
+	item *education.GradeTransitionClassListEntry,
+	byKey map[string]*userModels.ClassListEntry,
+	byID map[int64]*userModels.ClassListEntry,
+) *userModels.ClassListEntry {
+	if item.EntryID == nil {
+		return byKey[classListEntryKey(item.FirstName, item.LastName, item.SchoolClass)]
+	}
+	row, ok := byID[*item.EntryID]
+	if !ok {
+		return nil // the admin deleted the row the apply created
+	}
+	if row.FirstName != item.FirstName || row.LastName != item.LastName || row.SchoolClass != item.SchoolClass {
+		return nil // the admin edited it since the apply — their change wins
+	}
+	return row
 }
 
 // reinsertClassListEntry re-creates one remapped entry under its target class

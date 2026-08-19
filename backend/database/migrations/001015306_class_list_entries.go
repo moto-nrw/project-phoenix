@@ -40,7 +40,10 @@ func init() {
 // The revert replays this ledger instead of guessing a reverse rename from
 // the mappings, which cannot distinguish an entry the apply renamed into
 // "2a" from a pre-existing "2a" entry it never touched (mirror of
-// education.grade_transition_class_teachers).
+// education.grade_transition_class_teachers). 'created' rows additionally
+// carry entry_id, the id of the row the apply inserted: without it a revert
+// can only match by normalized identity and would silently overwrite an
+// admin's display-form edit ("2a" → "2A") made between apply and revert.
 func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.306: Class-list-only entries...")
 
@@ -119,10 +122,14 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 		GRANT SELECT, INSERT ON audit.class_list_entry_changes TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE audit.class_list_entry_changes_id_seq TO phoenix_tenant;
 
+		-- entry_id deliberately carries NO foreign key: the revert deletes the
+		-- very row it points at, and ON DELETE SET NULL / CASCADE would erase
+		-- the ledger evidence the revert reasons about.
 		CREATE TABLE IF NOT EXISTS education.grade_transition_class_list_entries (
 			id            BIGSERIAL PRIMARY KEY,
 			tenant_id     BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
 			transition_id BIGINT NOT NULL REFERENCES education.grade_transitions(id) ON DELETE CASCADE,
+			entry_id      BIGINT,
 			first_name    TEXT NOT NULL,
 			last_name     TEXT NOT NULL,
 			school_class  TEXT NOT NULL,
