@@ -128,6 +128,7 @@ jobs:
           PARENTS_URL: http://parents.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
+        # CI-Kosten-Experiment (#2419): Lauf A = unveränderte Flags (Baseline).
         # Single pass produces junit.xml AND coverage.out. No --rerun-fails:
         # gotestsum reruns overwrite the coverage profile (upstream issue;
         # fix PR unmerged), and flaky tests should fail loudly, not retry.
