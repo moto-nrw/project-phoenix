@@ -120,6 +120,34 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     expect(screen.getAllByText("App")).toHaveLength(3);
   });
 
+  it("kennzeichnet die Zeiten der Tageszeile als Tagesgrenzen", () => {
+    renderTable();
+
+    // 08:00–16:00 auf der Tageszeile ist KEIN durchgehender Zeitraum: die
+    // 90 Minuten zwischen den Blöcken sind keine Arbeitszeit. "ab"/"bis"
+    // plus Tooltip sagen das an der Zelle, damit die Grenzen nicht als
+    // gearbeitete Spanne gelesen werden.
+    const from = screen.getByText("ab");
+    const until = screen.getByText("bis");
+    expect(from.closest("span[title]")).toHaveAttribute(
+      "title",
+      expect.stringContaining("nicht als Arbeitszeit"),
+    );
+    expect(until.closest("span[title]")).toHaveAttribute(
+      "title",
+      expect.stringContaining("nicht als Arbeitszeit"),
+    );
+  });
+
+  it("belässt Ein-Block-Tage bei der schlichten Zeitangabe", () => {
+    renderTable({ sessions: [morningHomeOffice] });
+
+    expect(screen.queryByText("ab")).not.toBeInTheDocument();
+    expect(screen.queryByText("bis")).not.toBeInTheDocument();
+    expect(screen.getByText("08:00")).toBeInTheDocument();
+    expect(screen.getByText("12:00")).toBeInTheDocument();
+  });
+
   it("listet jeden Block mit eigenen Zeiten als Unterzeile", () => {
     renderTable();
 

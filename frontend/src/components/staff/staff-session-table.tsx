@@ -45,6 +45,10 @@ const COLUMN_COUNT = 11;
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
+// Tooltip der beiden Zeit-Zellen auf einem Mehrblock-Tag (#2402).
+const multiBlockBoundsHint =
+  "Tagesgrenzen über alle Blöcke — die Zeit zwischen zwei Blöcken zählt nicht als Arbeitszeit. Die gearbeiteten Zeiten stehen je Block darunter.";
+
 // Day-row table for the Zeiterfassung tab. Industry-standard layout: one
 // row per calendar day, comparing Check-in, Check-out, Pause, Soll, Ist
 // and Saldo. Status/Quelle/Hinweis pills carry the rest of the per-day
@@ -502,10 +506,30 @@ export function StaffSessionTable({
                           <PlannedShiftCell shifts={shiftsByDate.get(key)} />
                         </td>
                       )}
+                      {/* Auf einem Mehrblock-Tag sind diese beiden Zellen
+                          Tagesgrenzen, kein durchgehender Zeitraum: zwischen
+                          erstem Check-in und letztem Check-out liegen Lücken,
+                          die nicht als Arbeitszeit zählen. "ab"/"bis" sagt
+                          das an der Zelle selbst — die tatsächlich
+                          gearbeiteten Intervalle stehen in den
+                          Block-Unterzeilen. */}
                       <td className="px-3 py-3 text-gray-700 tabular-nums">
-                        {session?.check_in_time
-                          ? formatTimeOnly(session.check_in_time)
-                          : "–"}
+                        {session?.check_in_time ? (
+                          hasMultipleBlocks ? (
+                            <span title={multiBlockBoundsHint}>
+                              <span className="mr-1 text-xs text-gray-400">
+                                ab
+                              </span>
+                              <span>
+                                {formatTimeOnly(session.check_in_time)}
+                              </span>
+                            </span>
+                          ) : (
+                            formatTimeOnly(session.check_in_time)
+                          )
+                        ) : (
+                          "–"
+                        )}
                       </td>
                       <td className="px-3 py-3 text-gray-700 tabular-nums">
                         {openSession ? (
@@ -514,7 +538,18 @@ export function StaffSessionTable({
                             eingestempelt
                           </span>
                         ) : lastSession?.check_out_time ? (
-                          formatTimeOnly(lastSession.check_out_time)
+                          hasMultipleBlocks ? (
+                            <span title={multiBlockBoundsHint}>
+                              <span className="mr-1 text-xs text-gray-400">
+                                bis
+                              </span>
+                              <span>
+                                {formatTimeOnly(lastSession.check_out_time)}
+                              </span>
+                            </span>
+                          ) : (
+                            formatTimeOnly(lastSession.check_out_time)
+                          )
                         ) : (
                           "–"
                         )}
