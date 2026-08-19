@@ -300,6 +300,9 @@ describe("EnrollmentStatusView", () => {
     expect(
       screen.queryByRole("link", { name: "Änderung anfragen" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anmeldung zurückziehen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the change form for a sibling and marks only the locked child", async () => {

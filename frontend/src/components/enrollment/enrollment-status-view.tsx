@@ -563,13 +563,15 @@ function EnrollmentStatusContent({
         setEditPhone={setEditPhone}
         setEditing={setEditing}
       />
-      <WithdrawAllSection
-        allWithdrawn={allWithdrawn}
-        hasMultipleChildren={hasMultipleChildren}
-        justSubmitted={justSubmitted}
-        withdrawingAll={withdrawingChild === "__all__"}
-        onWithdraw={onWithdraw}
-      />
+      {!allLocked ? (
+        <WithdrawAllSection
+          allWithdrawn={allWithdrawn}
+          hasMultipleChildren={hasMultipleChildren}
+          justSubmitted={justSubmitted}
+          withdrawingAll={withdrawingChild === "__all__"}
+          onWithdraw={onWithdraw}
+        />
+      ) : null}
     </div>
   );
 }

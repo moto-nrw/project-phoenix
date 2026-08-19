@@ -667,12 +667,12 @@ func toEditDraftGuardianResponses(guardians []*enrollmentModels.RequestGuardian)
 func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftChildResponse {
 	responses := make([]EditDraftChildResponse, 0, len(draft.Children))
 	for _, child := range draft.Children {
-		responses = append(responses, toEditDraftChildResponse(child, draft.OfferingsByChild[child.ID], draft.CareOfferingsEnabled))
+		responses = append(responses, toEditDraftChildResponse(child, draft.OfferingsByChild[child.ID]))
 	}
 	return responses
 }
 
-func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLinks []*enrollmentModels.RequestChildOffering, careOfferingsEnabled bool) EditDraftChildResponse {
+func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLinks []*enrollmentModels.RequestChildOffering) EditDraftChildResponse {
 	response := EditDraftChildResponse{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -683,9 +683,6 @@ func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLink
 		CustomData:        child.CustomData,
 		OfferingIDs:       []string{},
 		Locked:            enrollmentService.ChildTakenOver(child),
-	}
-	if !careOfferingsEnabled {
-		return response
 	}
 	for _, link := range offeringLinks {
 		response.OfferingIDs = append(response.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
