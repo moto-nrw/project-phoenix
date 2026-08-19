@@ -67,15 +67,21 @@ func openSQL(dsn string) *sql.DB {
 	return db
 }
 
-// acquireLifecycleLock takes the cross-process lifecycle lock on conn. The
-// lock is session-scoped; it releases when conn closes (or via the returned
-// unlock func).
-func acquireLifecycleLock(ctx context.Context, db *sql.DB) (unlock func(), err error) {
-	if _, err := db.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, lifecycleAdvisoryLockKey); err != nil {
-		return nil, err
+// acquireLifecycleLock pins the cross-process lifecycle lock to one
+// maintenance connection. PostgreSQL advisory locks are session-scoped, so
+// every protected DDL/query must use this returned connection until unlock.
+func acquireLifecycleLock(ctx context.Context, db *sql.DB) (conn *sql.Conn, unlock func(), err error) {
+	conn, err = db.Conn(ctx)
+	if err != nil {
+		return nil, nil, err
 	}
-	return func() {
-		_, _ = db.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lifecycleAdvisoryLockKey)
+	if _, err := conn.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, lifecycleAdvisoryLockKey); err != nil {
+		_ = conn.Close()
+		return nil, nil, err
+	}
+	return conn, func() {
+		_, _ = conn.ExecContext(context.Background(), `SELECT pg_advisory_unlock($1)`, lifecycleAdvisoryLockKey)
+		_ = conn.Close()
 	}, nil
 }
 

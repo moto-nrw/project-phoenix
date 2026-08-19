@@ -2,7 +2,6 @@ package testdb
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sort"
 )
@@ -46,7 +45,7 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
-	unlock, err := acquireLifecycleLock(ctx, maint)
+	conn, unlock, err := acquireLifecycleLock(ctx, maint)
 	if err != nil {
 		return nil, fmt.Errorf("acquire test DB lifecycle lock: %w", err)
 	}
@@ -56,7 +55,7 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 
 	if opts.RunID != "" {
 		runPrefix := ClonePrefix + SanitizeRunID(opts.RunID) + "_"
-		own, err := listDatabasesByPrefix(ctx, maint, runPrefix)
+		own, err := listDatabasesByPrefix(ctx, conn, runPrefix)
 		if err != nil {
 			return nil, err
 		}
@@ -76,14 +75,14 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 			}
 		}
 		for _, name := range own {
-			if err := dropDatabase(ctx, maint, name); err != nil {
+			if err := dropDatabase(ctx, conn, name); err != nil {
 				return result, fmt.Errorf("drop run clone %q: %w", name, err)
 			}
 			result.Dropped = append(result.Dropped, name)
 		}
 	}
 
-	gcDropped, err := gcLocked(ctx, maint, "", cfg.TemplateName())
+	gcDropped, err := gcLocked(ctx, conn, "", cfg.TemplateName())
 	if err != nil {
 		return result, err
 	}
@@ -92,7 +91,7 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 	return result, nil
 }
 
-func listDatabasesByPrefix(ctx context.Context, maint *sql.DB, prefix string) ([]string, error) {
+func listDatabasesByPrefix(ctx context.Context, maint sqlExecutor, prefix string) ([]string, error) {
 	rows, err := maint.QueryContext(ctx,
 		`SELECT datname FROM pg_database WHERE datname LIKE $1 ORDER BY datname`,
 		prefix+"%")

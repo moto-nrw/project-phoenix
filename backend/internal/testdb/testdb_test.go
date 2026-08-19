@@ -87,6 +87,8 @@ func TestMigrationFilePatternMatchesOnlyRealMigrations(t *testing.T) {
 	assert.Equal(t, "001015302", migrationFilePattern.FindStringSubmatch("001015302_pickup_change_requests.go")[1])
 	assert.Equal(t, "1.15.301", normalizeMigrationVersion("001015301"))
 	assert.Equal(t, "1.15.301", normalizeMigrationVersion("1.15.301"))
+	assert.Equal(t, "0.0.0", normalizeMigrationVersion("000000"))
+	assert.Equal(t, "0.1.0", normalizeMigrationVersion("000001"))
 }
 
 func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
@@ -269,7 +271,7 @@ func TestMigrationsCompleteAgainstRealTemplate(t *testing.T) {
 
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
-	unlock, err := acquireLifecycleLock(ctx, maint)
+	_, unlock, err := acquireLifecycleLock(ctx, maint)
 	require.NoError(t, err)
 	defer unlock()
 
@@ -298,9 +300,9 @@ func TestCreateCloneAndSweepLifecycle(t *testing.T) {
 	// (empty spare prefix) must not collect it.
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
-	unlock, err := acquireLifecycleLock(ctx, maint)
+	conn, unlock, err := acquireLifecycleLock(ctx, maint)
 	require.NoError(t, err)
-	_, err = gcLocked(ctx, maint, "", cfg.TemplateName())
+	_, err = gcLocked(ctx, conn, "", cfg.TemplateName())
 	unlock()
 	require.NoError(t, err)
 	assert.True(t, databaseExists(t, ctx, cfg, handle.Name), "GC must spare a clone with a live keeper connection")

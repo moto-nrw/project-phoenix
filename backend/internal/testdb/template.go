@@ -133,13 +133,13 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) er
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
-	unlock, err := acquireLifecycleLock(ctx, maint)
+	conn, unlock, err := acquireLifecycleLock(ctx, maint)
 	if err != nil {
 		return fmt.Errorf("acquire test DB lifecycle lock: %w", err)
 	}
 	defer unlock()
 
-	exists, comment, err := templateState(ctx, maint, cfg.TemplateName())
+	exists, comment, err := templateState(ctx, conn, cfg.TemplateName())
 	if err != nil {
 		return err
 	}
@@ -156,24 +156,30 @@ func EnsureTemplate(ctx context.Context, cfg *Config, opts ...TemplateOption) er
 				return fmt.Errorf("verify unstamped template %q: %w", cfg.TemplateName(), err)
 			}
 			if complete {
-				return stampTemplate(ctx, maint, cfg.TemplateName(), want)
+				return stampTemplate(ctx, conn, cfg.TemplateName(), want)
 			}
 		}
-		if err := dropDatabase(ctx, maint, cfg.TemplateName()); err != nil {
+		if err := dropDatabase(ctx, conn, cfg.TemplateName()); err != nil {
 			return fmt.Errorf("drop outdated template %q: %w", cfg.TemplateName(), err)
 		}
 	}
 
-	if _, err := maint.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(cfg.TemplateName())); err != nil {
+	if _, err := conn.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(cfg.TemplateName())); err != nil {
 		return fmt.Errorf("create template database %q: %w", cfg.TemplateName(), err)
 	}
 	if err := o.build(ctx, cfg.TemplateDSN()); err != nil {
 		return fmt.Errorf("build template database %q: %w", cfg.TemplateName(), err)
 	}
-	return stampTemplate(ctx, maint, cfg.TemplateName(), want)
+	return stampTemplate(ctx, conn, cfg.TemplateName(), want)
 }
 
-func templateState(ctx context.Context, maint *sql.DB, name string) (exists bool, comment string, err error) {
+type sqlExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func templateState(ctx context.Context, maint sqlExecutor, name string) (exists bool, comment string, err error) {
 	var nullComment sql.NullString
 	err = maint.QueryRowContext(ctx, `
 		SELECT sd.description
@@ -189,7 +195,7 @@ func templateState(ctx context.Context, maint *sql.DB, name string) (exists bool
 	return true, nullComment.String, nil
 }
 
-func stampTemplate(ctx context.Context, maint *sql.DB, name, comment string) error {
+func stampTemplate(ctx context.Context, maint sqlExecutor, name, comment string) error {
 	stmt := fmt.Sprintf(`COMMENT ON DATABASE %s IS '%s'`, quoteIdentifier(name), comment)
 	if _, err := maint.ExecContext(ctx, stmt); err != nil {
 		return fmt.Errorf("stamp template %q: %w", name, err)
@@ -197,7 +203,7 @@ func stampTemplate(ctx context.Context, maint *sql.DB, name, comment string) err
 	return nil
 }
 
-func dropDatabase(ctx context.Context, maint *sql.DB, name string) error {
+func dropDatabase(ctx context.Context, maint sqlExecutor, name string) error {
 	_, err := maint.ExecContext(ctx, `DROP DATABASE IF EXISTS `+quoteIdentifier(name)+` WITH (FORCE)`)
 	return err
 }
@@ -240,6 +246,9 @@ func normalizeMigrationVersion(version string) string {
 	}
 	if len(version)%3 != 0 {
 		return version
+	}
+	if len(version) == 6 {
+		return normalizeMigrationVersion(version[:3] + "." + version[3:] + ".0")
 	}
 	parts := make([]string, 0, len(version)/3)
 	for i := 0; i < len(version); i += 3 {

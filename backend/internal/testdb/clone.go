@@ -143,7 +143,7 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 
-	unlock, err := acquireLifecycleLock(ctx, maint)
+	conn, unlock, err := acquireLifecycleLock(ctx, maint)
 	if err != nil {
 		return nil, fmt.Errorf("acquire test DB lifecycle lock: %w", err)
 	}
@@ -152,14 +152,14 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	// Generation GC: clones of this run are spared even when their binary
 	// already finished (the wrapper's sweep still wants to inspect and drop
 	// them); everything else without a live connection belongs to a dead run.
-	if _, err := gcLocked(ctx, maint, ClonePrefix+SanitizeRunID(runID)+"_", cfg.TemplateName()); err != nil {
+	if _, err := gcLocked(ctx, conn, ClonePrefix+SanitizeRunID(runID)+"_", cfg.TemplateName()); err != nil {
 		return nil, err
 	}
 
-	if err := dropDatabase(ctx, maint, name); err != nil {
+	if err := dropDatabase(ctx, conn, name); err != nil {
 		return nil, fmt.Errorf("drop stale package test database %q: %w", name, err)
 	}
-	if _, err := maint.ExecContext(ctx,
+	if _, err := conn.ExecContext(ctx,
 		`CREATE DATABASE `+quoteIdentifier(name)+` TEMPLATE `+quoteIdentifier(cfg.TemplateName())); err != nil {
 		return nil, fmt.Errorf("clone test database %q from %q: %w", name, cfg.TemplateName(), err)
 	}
@@ -169,17 +169,17 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	handle.keeperDB.SetMaxOpenConns(1)
 	handle.keeperDB.SetConnMaxLifetime(0)
 	handle.keeperDB.SetConnMaxIdleTime(0)
-	conn, err := handle.keeperDB.Conn(ctx)
+	keeperConn, err := handle.keeperDB.Conn(ctx)
 	if err != nil {
 		_ = handle.keeperDB.Close()
 		return nil, fmt.Errorf("pin package test database %q: %w", name, err)
 	}
-	if err := conn.PingContext(ctx); err != nil {
-		_ = conn.Close()
+	if err := keeperConn.PingContext(ctx); err != nil {
+		_ = keeperConn.Close()
 		_ = handle.keeperDB.Close()
 		return nil, fmt.Errorf("pin package test database %q: %w", name, err)
 	}
-	handle.keeperConn = conn
+	handle.keeperConn = keeperConn
 	handle.keeperStop = make(chan struct{})
 	go handle.keepAlive(handle.keeperStop)
 
@@ -190,7 +190,7 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 // and does not start with sparePrefix. templateName is never dropped, even
 // if the configured template happens to carry the clone prefix. Callers must
 // hold the lifecycle lock.
-func gcLocked(ctx context.Context, maint *sql.DB, sparePrefix, templateName string) ([]string, error) {
+func gcLocked(ctx context.Context, maint sqlExecutor, sparePrefix, templateName string) ([]string, error) {
 	rows, err := maint.QueryContext(ctx, `
 		SELECT d.datname
 		FROM pg_database d

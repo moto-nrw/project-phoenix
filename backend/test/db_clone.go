@@ -120,7 +120,7 @@ func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
 
 	// Ensure the default tenant (school ID 1) exists in platform.schools.
 	// Legacy fixtures use tenant_id=1, which requires a FK target row.
-	if err := ensureTestTenant(ctx, db, 1); err != nil {
+	if err := ensureBootstrapTenant(ctx, db); err != nil {
 		return fmt.Errorf("ensure default test tenant: %w", err)
 	}
 
@@ -130,26 +130,28 @@ func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO facilities.rooms (id, tenant_id, name, building)
 		VALUES (1, 1, 'Default Room', 'Default')
-		ON CONFLICT (id) DO NOTHING`); err != nil {
+		ON CONFLICT (id) DO UPDATE
+		SET tenant_id = EXCLUDED.tenant_id, name = EXCLUDED.name, building = EXCLUDED.building`); err != nil {
 		return fmt.Errorf("ensure default room fixture (id=1): %w", err)
 	}
 
 	// Ensure default system staff exists (person ID 1, staff ID 1) for legacy
 	// tests that hardcode CreatedBy: 1 to satisfy created_by FK constraints.
-	// Unconstrained ON CONFLICT DO NOTHING because users.persons also carries
-	// idx_persons_tenant_pk UNIQUE(tenant_id, id) and Postgres reports that
-	// index first under load.
+	// Each ID is reconciled so an adopted legacy template cannot retain a
+	// bootstrap row from another tenant.
 	if err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, e := tx.ExecContext(ctx, `
 			INSERT INTO users.persons (id, tenant_id, first_name, last_name)
 			VALUES (1, 1, 'System', 'Test')
-			ON CONFLICT DO NOTHING`); e != nil {
+			ON CONFLICT (id) DO UPDATE
+			SET tenant_id = EXCLUDED.tenant_id, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name`); e != nil {
 			return fmt.Errorf("ensure system person fixture (id=1): %w", e)
 		}
 		if _, e := tx.ExecContext(ctx, `
 			INSERT INTO users.staff (id, tenant_id, person_id)
 			VALUES (1, 1, 1)
-			ON CONFLICT DO NOTHING`); e != nil {
+			ON CONFLICT (id) DO UPDATE
+			SET tenant_id = EXCLUDED.tenant_id, person_id = EXCLUDED.person_id`); e != nil {
 			return fmt.Errorf("ensure system staff fixture (id=1): %w", e)
 		}
 		return nil
@@ -165,5 +167,35 @@ func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("advance bootstrap sequences: %w", err)
 	}
 
+	return nil
+}
+
+// ensureBootstrapTenant reconciles ID 1 from a legacy template before its
+// dependent bootstrap fixtures are created. Unlike ordinary test tenants,
+// this fixed ID is an invariant of legacy fixtures and cannot retain data
+// owned by another tenant.
+func ensureBootstrapTenant(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (1, 'Test Org 1', 'test-org-1', true)
+		ON CONFLICT (id) DO UPDATE
+		SET name = EXCLUDED.name, slug = EXCLUDED.slug, active = EXCLUDED.active`); err != nil {
+		return fmt.Errorf("ensure bootstrap organization: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (1, 1, 'Test School 1', 'test-school-1', 't1', true)
+		ON CONFLICT (id) DO UPDATE
+		SET organization_id = EXCLUDED.organization_id, name = EXCLUDED.name,
+			slug = EXCLUDED.slug, subdomain = EXCLUDED.subdomain, active = EXCLUDED.active`); err != nil {
+		return fmt.Errorf("ensure bootstrap school: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
+			GREATEST((SELECT last_value FROM platform.organizations_id_seq), 1)),
+		       setval(pg_get_serial_sequence('platform.schools', 'id'),
+			GREATEST((SELECT last_value FROM platform.schools_id_seq), 1))`); err != nil {
+		return fmt.Errorf("advance bootstrap tenant sequences: %w", err)
+	}
 	return nil
 }
