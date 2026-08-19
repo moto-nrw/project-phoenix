@@ -2,6 +2,9 @@ package active
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/constants"
@@ -49,7 +52,10 @@ func ResolveYardRoomColor(ctx context.Context, svc Service) *string {
 //
 // Returns nil (not an error) when the room is missing: the Schulhof room is
 // bootstrapped lazily on first use, so "not there yet" is a normal state for
-// a tenant that has never opened the yard.
+// a tenant that has never opened the yard. Every other repository failure is
+// returned, so a broken connection or a rejected query reaches the log
+// instead of reading as "no colour configured" — the two are indistinguishable
+// on the badge, and only one of them is worth waking up for.
 //
 // The canonical-name check mirrors facilities.FindCanonicalSchulhofRoom —
 // FindByName matches case-insensitively, and a stray "schulhof" room created
@@ -59,10 +65,15 @@ func (s *service) GetSchulhofRoomColor(ctx context.Context) (*string, error) {
 		return nil, nil
 	}
 	room, err := s.RoomRepo.FindByName(ctx, constants.SchulhofRoomName)
-	if err != nil || room == nil {
-		// A missing room surfaces as a scan error from the repository; there
-		// is no sentinel to distinguish it from a real failure, and either
-		// way the answer for the badge is the same.
+	if err != nil {
+		// The repository wraps the driver error, so the no-rows sentinel is
+		// only reachable through the error chain.
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("find Schulhof room: %w", err)
+	}
+	if room == nil {
 		return nil, nil
 	}
 	if room.Name != constants.SchulhofRoomName || !room.IsSystem {

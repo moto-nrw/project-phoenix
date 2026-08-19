@@ -92,26 +92,3 @@ export function RoomColorField(props: {
     </div>
   );
 }
-
-/**
- * Schulhof variant of {@link RoomColorField}.
- *
- * Same picker, two differences that matter for the schoolyard (#2405): the
- * unset preview shows the orange Schulhof default instead of the generic room
- * blue, and the hint says so — otherwise "Standard" would preview a colour the
- * yard badge never renders.
- */
-export function SchulhofRoomColorField(props: {
-  value: unknown;
-  onChange: (value: unknown) => void;
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <RoomColorField
-      {...props}
-      defaultHex={LOCATION_COLORS.SCHOOLYARD}
-      hint="Ohne eigene Farbe erscheint der Schulhof in Orange. Wähle eine Farbe, die du noch nicht für einen anderen Raum benutzt."
-    />
-  );
-}

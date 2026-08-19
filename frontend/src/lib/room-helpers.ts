@@ -78,7 +78,7 @@ export interface Room {
 // (SchulhofRoomName, WCRoomName, WCRoomAliasName) and PyrePortal
 // src/services/api.ts (WC_ROOM_ALIASES). Matching is exact-case to mirror
 // the backend's `name == SchulhofRoomName || IsWCRoomName(name)` check.
-export const SCHULHOF_ROOM_NAME = "Schulhof";
+const SCHULHOF_ROOM_NAME = "Schulhof";
 const SYSTEM_ROOM_NAMES = [SCHULHOF_ROOM_NAME, "WC", "Toilette"] as const;
 
 /** Returns true if the room is a system room (Schulhof, WC, Toilette). */

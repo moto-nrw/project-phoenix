@@ -1,9 +1,16 @@
 package active
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/constants"
+	"github.com/moto-nrw/project-phoenix/models/base"
+	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestWithYardRoomColor pins the binary-mode yard tinting introduced by
@@ -48,6 +55,135 @@ func TestWithYardRoomColor(t *testing.T) {
 // degrade to "no colour", never panic.
 func TestResolveYardRoomColorWithoutCapability(t *testing.T) {
 	assert.Nil(t, ResolveYardRoomColor(t.Context(), nil))
+}
+
+// yardColorRoomRepository is a stub for the single lookup GetSchulhofRoomColor
+// performs; everything else on the interface stays unimplemented on purpose.
+type yardColorRoomRepository struct {
+	facilityModels.RoomRepository
+	room    *facilityModels.Room
+	err     error
+	gotName string
+}
+
+func (r *yardColorRoomRepository) FindByName(_ context.Context, name string) (*facilityModels.Room, error) {
+	r.gotName = name
+	return r.room, r.err
+}
+
+func yardColorService(repo facilityModels.RoomRepository) *service {
+	return &service{ServiceDependencies: ServiceDependencies{RoomRepo: repo}}
+}
+
+func schulhofRoom(color *string) *facilityModels.Room {
+	return &facilityModels.Room{
+		Model:    base.Model{ID: 7},
+		Name:     constants.SchulhofRoomName,
+		IsSystem: true,
+		Color:    color,
+	}
+}
+
+// TestGetSchulhofRoomColor covers the resolver's own decision table: which
+// lookup results count as "no colour" and which ones have to stay errors.
+func TestGetSchulhofRoomColor(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns the configured color", func(t *testing.T) {
+		color := "#A3D977"
+		repo := &yardColorRoomRepository{room: schulhofRoom(&color)}
+
+		got, err := yardColorService(repo).GetSchulhofRoomColor(ctx)
+
+		require.NoError(t, err)
+		if assert.NotNil(t, got) {
+			assert.Equal(t, color, *got)
+		}
+		assert.Equal(t, constants.SchulhofRoomName, repo.gotName)
+	})
+
+	t.Run("treats a missing room as no color", func(t *testing.T) {
+		// The Schulhof room is bootstrapped lazily, so a tenant that never
+		// opened the yard is a normal state, not a failure.
+		repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "find by name", Err: sql.ErrNoRows}}
+
+		got, err := yardColorService(repo).GetSchulhofRoomColor(ctx)
+
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("propagates a real repository failure", func(t *testing.T) {
+		// The review case: a dead connection must not read as "orange".
+		boom := errors.New("connection refused")
+		repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "find by name", Err: boom}}
+
+		got, err := yardColorService(repo).GetSchulhofRoomColor(ctx)
+
+		require.Error(t, err)
+		assert.ErrorIs(t, err, boom)
+		assert.Nil(t, got)
+	})
+
+	t.Run("ignores a non-canonical or non-system room", func(t *testing.T) {
+		// FindByName matches case-insensitively; a stray "schulhof" room from
+		// before the reservation guards must not tint the yard badge.
+		color := "#A3D977"
+
+		stray := schulhofRoom(&color)
+		stray.Name = "schulhof"
+		got, err := yardColorService(&yardColorRoomRepository{room: stray}).GetSchulhofRoomColor(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+
+		notSystem := schulhofRoom(&color)
+		notSystem.IsSystem = false
+		got, err = yardColorService(&yardColorRoomRepository{room: notSystem}).GetSchulhofRoomColor(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("treats an unset or empty color as no color", func(t *testing.T) {
+		empty := ""
+		for _, room := range []*facilityModels.Room{schulhofRoom(nil), schulhofRoom(&empty)} {
+			got, err := yardColorService(&yardColorRoomRepository{room: room}).GetSchulhofRoomColor(ctx)
+			require.NoError(t, err)
+			assert.Nil(t, got)
+		}
+	})
+
+	t.Run("degrades without a room repository", func(t *testing.T) {
+		got, err := yardColorService(nil).GetSchulhofRoomColor(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("treats a nil room without an error as no color", func(t *testing.T) {
+		got, err := yardColorService(&yardColorRoomRepository{}).GetSchulhofRoomColor(ctx)
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}
+
+// TestResolveYardRoomColorSuccess pins the happy path through the optional
+// interface: a Service that resolves a colour hands it straight to the caller.
+func TestResolveYardRoomColorSuccess(t *testing.T) {
+	color := "#A3D977"
+	svc := yardColorService(&yardColorRoomRepository{room: schulhofRoom(&color)})
+
+	got := ResolveYardRoomColor(context.Background(), svc)
+
+	if assert.NotNil(t, got) {
+		assert.Equal(t, color, *got)
+	}
+}
+
+// TestResolveYardRoomColorSwallowsErrors pins the fail-soft contract at the
+// call site: the error is logged, the student list still renders.
+func TestResolveYardRoomColorSwallowsErrors(t *testing.T) {
+	repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "find by name", Err: errors.New("connection refused")}}
+
+	assert.Nil(t, ResolveYardRoomColor(context.Background(), yardColorService(repo)))
 }
 
 // TestSnapshotBinaryYardColor covers the snapshot resolver end of the wiring

@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { SchulhofRoomColorField } from "@/components/ui/database/room-color-field";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { RoomColorField } from "@/components/ui/database/room-color-field";
+import { LOCATION_COLORS } from "@/lib/location-helper";
 import { buildRoomFormSections } from "./room-form-sections";
 import type { Room } from "@/lib/room-helpers";
 
@@ -69,7 +71,7 @@ describe("buildRoomFormSections", () => {
   // IS admin-configurable now (schools color-code rooms and tablets), so its
   // picker must be present while name/delete protection stays.
   // ===========================================================================
-  it("keeps the color field for the Schulhof and swaps in its picker variant", () => {
+  it("keeps the color field for the Schulhof and binds its orange default", () => {
     const sections = buildRoomFormSections({
       ...baseRoom,
       name: "Schulhof",
@@ -79,9 +81,20 @@ describe("buildRoomFormSections", () => {
       .find((field) => field.name === "color");
 
     expect(colorField).toBeDefined();
-    // The Schulhof variant previews orange (its actual default) instead of
-    // the generic room blue, so it must not be the plain RoomColorField.
-    expect(colorField?.component).toBe(SchulhofRoomColorField);
+    const Picker = colorField?.component;
+    if (!Picker) throw new Error("Schulhof color field lost its picker");
+
+    // Same shared picker, Schulhof preview: with no colour set the swatch
+    // must show the orange the yard badge actually renders, not the generic
+    // room blue, and the hint has to say so.
+    render(<Picker value={null} onChange={vi.fn()} label="Farbe" />);
+
+    expect(screen.getByLabelText("Farbe")).toHaveValue(
+      LOCATION_COLORS.SCHOOLYARD.toLowerCase(),
+    );
+    expect(
+      screen.getByText(/Ohne eigene Farbe erscheint der Schulhof in Orange/),
+    ).toBeInTheDocument();
   });
 
   it("strips the color field for system rooms (WC)", () => {
@@ -107,14 +120,14 @@ describe("buildRoomFormSections", () => {
   });
 
   it("uses the plain color picker for regular rooms", () => {
-    // Only the Schulhof gets the orange-default variant; every other room
-    // keeps the generic picker with its blue fallback preview.
+    // Only the Schulhof gets the orange-default binding; every other room
+    // keeps the unbound picker with its blue fallback preview.
     const sections = buildRoomFormSections({ ...baseRoom, name: "Werkraum" });
     const colorField = sections
       .flatMap((section) => section.fields)
       .find((field) => field.name === "color");
 
-    expect(colorField?.component).not.toBe(SchulhofRoomColorField);
+    expect(colorField?.component).toBe(RoomColorField);
   });
 
   it("keeps the color field for regular rooms", () => {
