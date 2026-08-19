@@ -498,6 +498,10 @@ type ParentAnnouncementRepository interface {
 	// non-empty e-mail) an announcement currently reaches, for the publish-time
 	// e-mail notification.
 	ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipient, error)
+	// UnacknowledgedReminderRecipients returns the guardians of reached children
+	// that nobody has confirmed the Elternbrief for yet — one row per person, not
+	// per child.
+	UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementPollReminderRecipient, error)
 	// LetterChildStatuses returns every child the announcement reaches with the
 	// derived fulfilment state: who confirmed the letter for that child and when,
 	// or nil while it is still open. The audience is the same portal-visible one

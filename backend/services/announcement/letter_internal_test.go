@@ -23,6 +23,7 @@ type letterRepo struct {
 	announcement *usersModels.ParentAnnouncement
 	recipients   []*usersModels.AnnouncementDeliveryRecipient
 	children     []*usersModels.AnnouncementLetterChildStatus
+	reminders    []*usersModels.AnnouncementPollReminderRecipient
 }
 
 func (r *letterRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
@@ -457,5 +458,110 @@ func TestLetterStatusNotFound(t *testing.T) {
 	svc := newLetterService(repo, &letterOutbox{}, &letterDeliveries{})
 	if _, err := svc.LetterStatus(context.Background(), 42); err != ErrNotFound {
 		t.Fatalf("error = %v, want ErrNotFound", err)
+	}
+}
+
+// --- PR 4: Erinnern und Nachversenden ----------------------------------------
+
+func (r *letterRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+	return r.reminders, nil
+}
+
+// A reminder for a letter must go out, addressed to the people who still owe a
+// confirmation — and it must say what is missing, not repeat the letter.
+func TestRemindOutstandingLetterMailsUnconfirmedFamilies(t *testing.T) {
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	repo := &letterRepo{
+		announcement: a,
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 11, Email: "mama@example.test", FirstName: "Mama", LastName: "Nach"},
+		},
+	}
+	outbox := &letterOutbox{}
+	svc := newLetterService(repo, outbox, &letterDeliveries{})
+
+	count, err := svc.RemindOutstanding(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("RemindOutstanding: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("reminded %d, want 1", count)
+	}
+	if len(outbox.requests) != 1 {
+		t.Fatalf("queued %d reminder mails, want 1", len(outbox.requests))
+	}
+	payload := outbox.requests[0].Payload
+	if got, _ := payload[emailPayloadKicker].(string); got != letterReminderKicker {
+		t.Errorf("kicker = %q, want the reminder kicker", got)
+	}
+	// A reminder is a nudge, not a re-send of the letter.
+	if body, _ := payload[emailPayloadBody].(string); body != "" {
+		t.Error("a reminder must not repeat the letter body")
+	}
+	if intro, _ := payload[emailPayloadIntro].(string); !strings.Contains(intro, "Bestätigung") {
+		t.Errorf("intro = %q, want it to name the missing confirmation", intro)
+	}
+}
+
+// Reminding about a notice that never asked for anything would be pure noise.
+func TestRemindOutstandingRefusesAnnouncementWithoutAcknowledgement(t *testing.T) {
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly)
+	a.RequiresAcknowledgement = false
+	a.PublishedAt = &published
+	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
+
+	if _, err := svc.RemindOutstanding(context.Background(), 42); err != ErrNothingOutstanding {
+		t.Fatalf("error = %v, want ErrNothingOutstanding", err)
+	}
+}
+
+func TestRemindOutstandingRefusesUnpublished(t *testing.T) {
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
+
+	if _, err := svc.RemindOutstanding(context.Background(), 42); err != ErrNotPublished {
+		t.Fatalf("error = %v, want ErrNotPublished", err)
+	}
+}
+
+// Resending must touch ONLY the failed mails. Re-sending to everyone would spam
+// families whose letter arrived perfectly well.
+func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	bad := "kaputt@example.test"
+	good := "gut@example.test"
+	deliveries := &letterDeliveries{list: []*platformModels.EmailDeliveryStatus{
+		{DeliveryID: 1, FirstName: "Gut", RecipientEmail: &good, EmailStatus: "sent", Reachability: platformModels.ReachabilityOK},
+		{DeliveryID: 2, FirstName: "Kaputt", RecipientEmail: &bad, EmailStatus: "failed", Reachability: platformModels.ReachabilityOK},
+		{DeliveryID: 3, FirstName: "Ohne", RecipientEmail: nil, EmailStatus: platformModels.ReachabilityNoEmail, Reachability: platformModels.ReachabilityNoEmail},
+	}}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	count, err := svc.ResendFailedEmails(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ResendFailedEmails: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("resent %d, want 1 (only the failed one)", count)
+	}
+	if got, _ := outbox.requests[0].Payload[emailPayloadRecipient].(string); got != bad {
+		t.Errorf("resent to %q, want the failed address %q", got, bad)
+	}
+	// Without a distinct key the original publication's key would swallow the
+	// retry as a duplicate and nothing would actually be sent.
+	if key := outbox.requests[0].IdempotencyKey; !strings.Contains(key, "retry") {
+		t.Errorf("idempotency key = %q, want a retry-scoped key", key)
+	}
+	// A recipient with no address must not be retried — nothing changed for them.
+	for _, req := range outbox.requests {
+		if addr, _ := req.Payload[emailPayloadRecipient].(string); addr == "" {
+			t.Error("queued a mail with an empty address")
+		}
 	}
 }

@@ -68,6 +68,7 @@ func (rs *Resource) Router() chi.Router {
 		// Elternbrief (#2384): the recipient matrix — e-mail and moto status per
 		// person, plus which children the letter is already fulfilled for.
 		r.With(announce, withTx).Get("/{announcementId}/letter-status", rs.letterStatus)
+		r.With(announce, withTx).Post("/{announcementId}/resend-failed", rs.resendFailed)
 	})
 
 	return r
@@ -553,12 +554,29 @@ func (rs *Resource) remindUnanswered(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	count, err := rs.Service.RemindUnanswered(r.Context(), id)
+	count, err := rs.Service.RemindOutstanding(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]int{"reminded_count": count}, "Reminder sent")
+}
+
+// resendFailed re-queues only the failed mails. Deliberately a separate endpoint
+// from /remind: "hat nicht bestätigt" and "die Mail kam nie an" are different
+// problems, and one button for both would nag people whose only issue is a wrong
+// address.
+func (rs *Resource) resendFailed(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	count, err := rs.Service.ResendFailedEmails(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]int{"resent_count": count}, "Failed e-mails re-queued")
 }
 
 func decodeInput(w http.ResponseWriter, r *http.Request) (announcementService.Input, bool) {
@@ -592,6 +610,10 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrPollNotOpen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "poll_not_open"))
+	case errors.Is(err, announcementService.ErrNotPublished):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_not_published"))
+	case errors.Is(err, announcementService.ErrNothingOutstanding):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrValidation):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

@@ -34,6 +34,19 @@ interface AnnouncementOption {
   label: string;
 }
 
+/**
+ * How the announcement is delivered. "letter" is the Elternbrief (#2384):
+ * e-mail and confirmation are mandatory and the mail carries the full text.
+ */
+export type AnnouncementDeliveryMode = "standard" | "letter";
+
+/**
+ * Who receives the e-mail — a separate axis from who sees the announcement in
+ * the portal. "portal_only" is the default and the safe one; "all_contacts"
+ * additionally reaches guardians that have an address but no portal access.
+ */
+export type AnnouncementEmailAudience = "portal_only" | "all_contacts";
+
 export interface Announcement {
   id: string;
   title: string;
@@ -52,6 +65,13 @@ export interface Announcement {
   response_type: AnnouncementResponseType;
   response_deadline?: string;
   options: AnnouncementOption[];
+  delivery_mode: AnnouncementDeliveryMode;
+  email_audience: AnnouncementEmailAudience;
+}
+
+/** True when the announcement is a binding Elternbrief. */
+export function isLetter(announcement: Announcement): boolean {
+  return announcement.delivery_mode === "letter";
 }
 
 /** True when the announcement asks the parents a question. */
@@ -116,6 +136,59 @@ export interface AnnouncementInput {
   response_deadline?: string | null;
   /** Answer labels in display order — the backend assigns the option ids. */
   options?: string[];
+  /**
+   * "letter" makes this an Elternbrief. The backend then forces send_email and
+   * requires_acknowledgement on, so the client need not repeat them.
+   */
+  delivery_mode?: AnnouncementDeliveryMode;
+  email_audience?: AnnouncementEmailAudience;
+}
+
+/**
+ * One addressed person in the recipient matrix. The two channels are reported
+ * separately on purpose (#2384): "die E-Mail ist raus" and "jemand hat in moto
+ * bestätigt" are different facts.
+ *
+ * email_status "sent" means handed to the mail server — label it "Versendet",
+ * never "Zugestellt", until provider delivery events exist (#1937).
+ */
+export interface LetterRecipient {
+  first_name: string;
+  last_name: string;
+  email?: string;
+  email_status: "pending" | "sent" | "failed" | "no_email" | "excluded";
+  reachability: "ok" | "no_email" | "no_portal" | "excluded";
+  last_error?: string;
+  sent_at?: string;
+}
+
+/** One reached child with the derived fulfilment of the letter. */
+export interface LetterChild {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  fulfilled: boolean;
+  acknowledged_at?: string;
+  acknowledged_by?: string;
+}
+
+export interface LetterSummary {
+  children_total: number;
+  children_fulfilled: number;
+  children_open: number;
+  recipients_total: number;
+  emails_sent: number;
+  emails_pending: number;
+  emails_failed: number;
+  without_email: number;
+  without_portal: number;
+}
+
+export interface LetterStatus {
+  recipients: LetterRecipient[];
+  children: LetterChild[];
+  summary: LetterSummary;
 }
 
 interface ApiResponse<T> {
@@ -286,6 +359,46 @@ export async function remindUnanswered(id: string): Promise<number> {
     "Erinnerung konnte nicht gesendet werden",
   );
   return data?.reminded_count ?? 0;
+}
+
+/** The Elternbrief recipient matrix: per person, per child, plus the counts. */
+export async function fetchLetterStatus(id: string): Promise<LetterStatus> {
+  const data = await request<LetterStatus>(
+    `${BASE}/${encodeURIComponent(id)}/letter-status`,
+    undefined,
+    "Status konnte nicht geladen werden",
+  );
+  return (
+    data ?? {
+      recipients: [],
+      children: [],
+      summary: {
+        children_total: 0,
+        children_fulfilled: 0,
+        children_open: 0,
+        recipients_total: 0,
+        emails_sent: 0,
+        emails_pending: 0,
+        emails_failed: 0,
+        without_email: 0,
+        without_portal: 0,
+      },
+    }
+  );
+}
+
+/** Re-queue only the mails that failed. Separate from remindUnanswered. */
+export async function resendFailedEmails(id: string): Promise<number> {
+  const data = await request<{ resent_count: number }>(
+    `${BASE}/${encodeURIComponent(id)}/resend-failed`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    },
+    "Erneuter Versand fehlgeschlagen",
+  );
+  return data?.resent_count ?? 0;
 }
 
 export async function fetchAnnouncementRecipients(

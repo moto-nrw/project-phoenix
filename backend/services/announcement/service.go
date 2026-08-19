@@ -75,6 +75,12 @@ var (
 	// are forbidden. Correcting means unpublish (retract) → edit → republish,
 	// which is visible to parents and re-triggers the opted-in e-mail.
 	ErrPublishedImmutable = errors.New("announcement: published announcements cannot be edited")
+	// ErrNotPublished: reminders and resends only make sense for an announcement
+	// that is actually live.
+	ErrNotPublished = errors.New("announcement: announcement is not published")
+	// ErrNothingOutstanding: the announcement never asked for anything, so there
+	// is nobody to remind.
+	ErrNothingOutstanding = errors.New("announcement: nothing is outstanding for this announcement")
 )
 
 // TargetInput is one audience selector supplied by the staff author.
@@ -140,6 +146,11 @@ type Service interface {
 	// LetterStatus returns the recipient matrix (e-mail and moto status per
 	// person) plus the per-child fulfilment behind it.
 	LetterStatus(ctx context.Context, id int64) (*LetterStatus, error)
+	// RemindOutstanding nudges whoever still owes a response — an unanswered
+	// poll or an unconfirmed Elternbrief — and reports how many were reached.
+	RemindOutstanding(ctx context.Context, id int64) (int, error)
+	// ResendFailedEmails re-queues only the mails that ended up failed.
+	ResendFailedEmails(ctx context.Context, id int64) (int, error)
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are

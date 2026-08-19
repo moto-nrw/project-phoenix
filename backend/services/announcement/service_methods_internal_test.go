@@ -118,6 +118,11 @@ func (m *mockRepo) ResolveAudienceEmails(ctx context.Context, tenantID, announce
 	return m.resolveEmailsFn(ctx, tenantID, announcementID)
 }
 
+// UnacknowledgedReminderRecipients satisfies the same interface extension.
+func (m *mockRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementPollReminderRecipient, error) {
+	return nil, nil
+}
+
 // LetterChildStatuses satisfies the same interface extension. These tests never
 // drive an Elternbrief, so an empty result is correct rather than a stub that
 // could mask a wrong call path.

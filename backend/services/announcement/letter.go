@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -338,4 +339,167 @@ func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, er
 		}
 	}
 	return out, nil
+}
+
+// --- Erinnern und Nachversenden (#2384) --------------------------------------
+
+const letterReminderKicker = "Elternbrief — Bestätigung fehlt"
+
+// RemindOutstanding nudges whoever still owes a response, whatever kind of
+// announcement this is: an unanswered poll or an unconfirmed Elternbrief.
+//
+// Like the poll reminder this is a MANUAL action. An unattended reminder loop
+// would be the single most effective way to teach parents to mute the app, and
+// schools want to decide when to nudge.
+func (s *service) RemindOutstanding(ctx context.Context, id int64) (int, error) {
+	a, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return 0, fmt.Errorf("announcement: load for reminder: %w", err)
+	}
+	if a == nil {
+		return 0, ErrNotFound
+	}
+	if a.IsPoll() {
+		return s.RemindUnanswered(ctx, id)
+	}
+	if !a.RequiresAcknowledgement {
+		// Nothing is owed, so there is nobody to remind. Refusing beats sending a
+		// nag about a notice that never asked for anything.
+		return 0, ErrNothingOutstanding
+	}
+	return s.remindUnacknowledged(ctx, a)
+}
+
+// remindUnacknowledged reaches only the guardians of children NOBODY has
+// confirmed yet — the acceptance criterion "eine Erinnerung erreicht nur
+// Familien, für die noch niemand bestätigt hat".
+func (s *service) remindUnacknowledged(ctx context.Context, a *usersModels.ParentAnnouncement) (int, error) {
+	if !a.IsPublished() || !a.Active {
+		return 0, ErrNotPublished
+	}
+	now := time.Now()
+	if a.ExpiresAt != nil && !a.ExpiresAt.After(now) {
+		return 0, ErrNotPublished
+	}
+	enabled, err := s.newsEnabled(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("announcement: resolve news flag: %w", err)
+	}
+	if !enabled {
+		return 0, ErrNewsDisabled
+	}
+
+	tenantID := a.GetTenantID()
+	recipients, err := s.repo.UnacknowledgedReminderRecipients(ctx, tenantID, a.ID)
+	if err != nil {
+		return 0, fmt.Errorf("announcement: letter reminder recipients: %w", err)
+	}
+	if len(recipients) == 0 {
+		return 0, nil
+	}
+
+	intro := "für Ihr Kind fehlt noch die Bestätigung dieses Elternbriefs. Sie können ihn im Eltern-Portal öffnen und dort bestätigen. Es genügt, wenn eine sorgeberechtigte Person pro Kind bestätigt."
+	emailed, err := s.enqueueReminderEmails(ctx, a, recipients, letterReminderKicker, intro, s.letterPortalURL(a.ID))
+	if err != nil {
+		return 0, err
+	}
+	pushed, err := s.pushPollReminder(ctx, a, recipients)
+	if err != nil {
+		return 0, err
+	}
+	delivered := make(map[int64]struct{}, len(pushed)+len(emailed))
+	for _, accountID := range pushed {
+		delivered[accountID] = struct{}{}
+	}
+	for _, accountID := range emailed {
+		delivered[accountID] = struct{}{}
+	}
+	s.logger.Info("parent letter reminder sent",
+		slog.Int64("announcement_id", a.ID),
+		slog.Int("recipient_count", len(delivered)),
+		slog.Int("emails_queued", len(emailed)),
+	)
+	return len(delivered), nil
+}
+
+// ResendFailedEmails re-queues the mails that ended up FAILED, and only those.
+//
+// It is deliberately a separate action from the reminder: "hat nicht bestätigt"
+// and "die Mail kam nie an" are different problems with different fixes, and
+// merging them into one button would send a nag to people whose only issue is a
+// wrong address. Recipients with no address are skipped — retrying changes
+// nothing until the school fixes the data.
+func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error) {
+	a, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return 0, fmt.Errorf("announcement: load for resend: %w", err)
+	}
+	if a == nil {
+		return 0, ErrNotFound
+	}
+	if !a.IsPublished() || !a.Active {
+		return 0, ErrNotPublished
+	}
+	if s.deliveries == nil || s.outbox == nil {
+		return 0, nil
+	}
+	tenantID := a.GetTenantID()
+	rows, err := s.deliveries.ListForEntity(ctx, tenantID, relatedEntityTypeAnnouncement, id)
+	if err != nil {
+		return 0, fmt.Errorf("announcement: load deliveries for resend: %w", err)
+	}
+
+	schoolName, err := s.repo.SchoolName(ctx, tenantID)
+	if err != nil {
+		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
+	}
+	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
+	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	portalURL := s.letterPortalURL(a.ID)
+	kicker := defaultEmailKicker
+	intro := ""
+	body := ""
+	if a.IsLetter() {
+		kicker = letterEmailKicker
+		intro = letterIntro
+		body = a.Body
+	}
+
+	resent := 0
+	for _, row := range rows {
+		if row.EmailStatus != "failed" || row.RecipientEmail == nil || *row.RecipientEmail == "" {
+			continue
+		}
+		address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
+		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
+			Kind: platformModels.EmailKindParentAnnouncement,
+			Payload: map[string]any{
+				emailPayloadRecipient:   address,
+				emailPayloadFirstName:   row.FirstName,
+				emailPayloadLastName:    row.LastName,
+				emailPayloadTitle:       a.Title,
+				emailPayloadSchoolName:  schoolName,
+				emailPayloadPortalURL:   portalURL,
+				emailPayloadLogoURL:     logoURL,
+				emailPayloadMotoLogoURL: motoLogoURL,
+				emailPayloadKicker:      kicker,
+				emailPayloadIntro:       intro,
+				emailPayloadBody:        body,
+				emailPayloadAckRequired: a.RequiresAcknowledgement,
+			},
+			RelatedEntityType: relatedEntityTypeAnnouncement,
+			RelatedEntityID:   a.ID,
+			// A retry needs a key of its own, otherwise the original publication's
+			// key would swallow it as a duplicate and nothing would be sent.
+			IdempotencyKey: fmt.Sprintf("%s:retry:%d", letterIdempotencyKey(a, address), row.DeliveryID),
+		}); err != nil {
+			return 0, fmt.Errorf("announcement: resend failed e-mail: %w", err)
+		}
+		resent++
+	}
+	s.logger.Info("parent announcement failed e-mails re-queued",
+		slog.Int64("announcement_id", id),
+		slog.Int("resent", resent),
+	)
+	return resent, nil
 }

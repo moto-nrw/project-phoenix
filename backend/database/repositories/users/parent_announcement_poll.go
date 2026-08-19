@@ -527,3 +527,58 @@ func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.
 	}
 	return rows, nil
 }
+
+// UnacknowledgedReminderRecipients returns the guardians of reached children for
+// which NOBODY has confirmed the Elternbrief yet — the audience of "nur Familien
+// ohne Bestätigung erinnern" (#2384).
+//
+// Two properties make the reminder trustworthy. It is keyed on the CHILD, not
+// the person: once any guardian confirms, every guardian of that child drops
+// out, because the letter is settled. And it groups by account, so a guardian
+// with two outstanding children is reminded once — a reminder per child would
+// teach parents to mute the app.
+func (r *ParentAnnouncementRepository) UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementPollReminderRecipient, error) {
+	sqlStr := fmt.Sprintf(`
+		SELECT gp.account_id, COALESCE(min(lower(gp.email)), '') AS email,
+			COALESCE(min(gp.first_name), '') AS first_name,
+			COALESCE(min(gp.last_name), '') AS last_name,
+			COALESCE(min(gp.portal_locale), 'de') AS portal_locale
+		FROM users.parent_announcement_targets pt
+		JOIN users.students s ON s.tenant_id = ? AND (
+			pt.target_type = 'school_all'
+			OR (pt.target_type = 'class' AND LOWER(TRIM(s.school_class)) = LOWER(TRIM(pt.target_ref_text)))
+			OR (pt.target_type = 'group' AND s.group_id = pt.target_ref_id)
+			OR (pt.target_type = 'student' AND s.id = pt.target_ref_id)
+			OR %s
+		)
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		AND s.status <> 'alumnus'
+		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+			AND gp.account_id IS NOT NULL
+		JOIN auth.account_tenants act ON act.account_id = gp.account_id
+			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+		WHERE pt.announcement_id = ? AND pt.tenant_id = ?
+			AND NOT EXISTS (
+				-- Anyone with portal access on THIS child having acknowledged
+				-- settles the letter for the whole family.
+				SELECT 1
+				FROM users.students_guardians osg
+				JOIN users.guardian_profiles ogp ON ogp.id = osg.guardian_profile_id
+					AND ogp.tenant_id = pt.tenant_id AND ogp.account_id IS NOT NULL
+				JOIN users.parent_announcement_reads par ON par.announcement_id = pt.announcement_id
+					AND par.tenant_id = pt.tenant_id AND par.account_id = ogp.account_id
+				WHERE osg.student_id = s.id AND osg.tenant_id = pt.tenant_id
+					AND osg.permissions @> '{"parent_portal.access": true}'::jsonb
+					AND par.acknowledged_at IS NOT NULL
+			)
+		GROUP BY gp.account_id`, activeActivityGroupExists("?"))
+	var rows []*users.AnnouncementPollReminderRecipient
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,
+	).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "parent announcement letter reminder recipients", Err: err}
+	}
+	return rows, nil
+}
