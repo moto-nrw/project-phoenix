@@ -14,11 +14,38 @@ const (
 	schulhofRoomColorClearDefaultDescription = "Back up + clear the auto-provisioned #7ED321 color on Schulhof rooms so the orange Schulhof default applies and admins start from an unset color (#2405)"
 )
 
-// schulhofAutoProvisionedHex is the color the Schulhof bootstrap stamped on
-// the room before #2405 (constants.SchulhofColor). Frozen here as a literal
-// rather than a reference: a migration must keep doing what it did on the day
-// it shipped, even after the constant moves on.
-const schulhofAutoProvisionedHex = "#7ED321"
+// The bootstrap fingerprint: the three values both auto-provisioning paths
+// (services/facilities/schulhof_service.go and services/iot/checkin's
+// ensureSystemRoom) stamp on the Schulhof room they create, plus the color
+// they stamped before #2405. Frozen here as literals rather than references
+// to constants.Schulhof*: a migration must keep doing what it did on the day
+// it shipped, even after the constants move on.
+const (
+	schulhofAutoProvisionedHex      = "#7ED321"  // constants.SchulhofColor
+	schulhofAutoProvisionedCapacity = 300        // constants.SchulhofRoomCapacity
+	schulhofAutoProvisionedCategory = "Schulhof" // constants.SchulhofCategoryName
+)
+
+// schulhofAutoProvisionedRooms selects the rooms this migration owns. Shared
+// between the backup INSERT and the clearing UPDATE so the snapshot and the
+// clear can never drift apart. Placeholder order: name, capacity, category,
+// lower-cased hex — see schulhofAutoProvisionedArgs.
+const schulhofAutoProvisionedRooms = `
+		WHERE name = ?
+		  AND is_system = TRUE
+		  AND capacity = ?
+		  AND category = ?
+		  AND color IS NOT NULL
+		  AND LOWER(color) = ?`
+
+func schulhofAutoProvisionedArgs() []any {
+	return []any{
+		constants.SchulhofRoomName,
+		schulhofAutoProvisionedCapacity,
+		schulhofAutoProvisionedCategory,
+		strings.ToLower(schulhofAutoProvisionedHex),
+	}
+}
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -40,14 +67,14 @@ func init() {
 	)
 }
 
-// schulhofRoomColorClearDefaultUp clears #7ED321 from Schulhof rooms.
+// schulhofRoomColorClearDefaultUp clears #7ED321 from auto-provisioned
+// Schulhof rooms.
 //
 // Until #2405 the Schulhof room's color was not editable: the form hid the
-// picker and UpdateRoom rejected changes. Every Schulhof row carrying
-// #7ED321 therefore got it from the bootstrap (services/facilities and
-// services/iot/checkin both stamped constants.SchulhofColor on create), never
-// from a deliberate admin choice — the same provenance argument migration
-// 1.15.45 made for the #4F46E5 form-bug default.
+// picker and UpdateRoom rejected changes. A Schulhof row that the bootstrap
+// created therefore got its #7ED321 from that bootstrap, never from a
+// deliberate admin choice — the same provenance argument migration 1.15.45
+// made for the #4F46E5 form-bug default.
 //
 // Clearing it matters for two reasons:
 //
@@ -58,14 +85,23 @@ func init() {
 //  2. The per-tenant unique color index means the Schulhof was silently
 //     squatting on #7ED321 for every other room in the school.
 //
-// Scoped to the canonical Schulhof room name AND is_system, so a normal room
-// that happens to carry the same hex — legitimately picked while the Schulhof
-// was invisible to the uniqueness check on other tenants — is left alone, and
-// so is a room an admin named "Schulhof" without the bootstrap ever touching
-// it. Every auto-provisioned yard carries the flag: the provisioning path
-// sets it on create (services/facilities/schulhof_service.go) and 1.15.168
-// backfilled the pre-existing rows, which is the same pair of conditions the
-// runtime code guards on (facility_service.UpdateRoom, the yard color lookup).
+// Why the predicate is not just name + is_system: is_system is NOT proof of
+// provenance. Migration 1.15.168 backfilled the flag by name alone
+// (`WHERE name IN ('Schulhof', 'WC', 'Toilette')`), so a room an admin
+// created and named "Schulhof" back when that was still possible — and gave
+// #7ED321 to by hand — carries the flag today just like a bootstrapped one.
+// Clearing that row would throw away a deliberate choice.
+//
+// So the predicate matches the full shape the bootstrap writes: the canonical
+// name, is_system, capacity 300 and category "Schulhof", all four set by the
+// same CreateRoom call in both provisioning paths. A hand-made room is very
+// unlikely to carry that exact combination.
+//
+// The remaining error is deliberately one-sided. A false negative (a
+// bootstrapped room whose capacity or category an admin has since edited
+// keeps its green) costs a school nothing it cannot undo — since #2405 the
+// picker is right there, and green is a legal color. A false positive
+// silently deletes an admin's pick. On doubt the row stays.
 //
 // The original values go into audit.room_color_migration_backup, same table
 // and same shape as 1.15.45 / 1.15.272.
@@ -94,18 +130,13 @@ func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
 	// clear see the same set even under a concurrent writer. LOWER() on the
 	// color because rooms written before the model started upper-casing on
 	// write may still hold lower-case hexes; the name comparison stays
-	// exact-case, mirroring constants.IsSchulhofRoomName. is_system keeps a
-	// hand-created room called "Schulhof" out of the set.
+	// exact-case, mirroring constants.IsSchulhofRoomName.
 	backupRes, err := db.NewRaw(`
 		INSERT INTO audit.room_color_migration_backup
 			(room_id, tenant_id, name, color)
 		SELECT id, tenant_id, name, color
-		FROM facilities.rooms
-		WHERE name = ?
-		  AND is_system = TRUE
-		  AND color IS NOT NULL
-		  AND LOWER(color) = ?;
-	`, constants.SchulhofRoomName, strings.ToLower(schulhofAutoProvisionedHex)).Exec(ctx)
+		FROM facilities.rooms`+schulhofAutoProvisionedRooms+`;`,
+		schulhofAutoProvisionedArgs()...).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
 	}
@@ -115,12 +146,8 @@ func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
 
 	res, err := db.NewRaw(`
 		UPDATE facilities.rooms
-		SET color = NULL
-		WHERE name = ?
-		  AND is_system = TRUE
-		  AND color IS NOT NULL
-		  AND LOWER(color) = ?;
-	`, constants.SchulhofRoomName, strings.ToLower(schulhofAutoProvisionedHex)).Exec(ctx)
+		SET color = NULL`+schulhofAutoProvisionedRooms+`;`,
+		schulhofAutoProvisionedArgs()...).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed clearing the auto-provisioned Schulhof room color: %w", err)
 	}

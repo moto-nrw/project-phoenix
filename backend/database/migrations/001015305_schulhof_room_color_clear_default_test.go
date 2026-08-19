@@ -16,27 +16,36 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// insertRoomWithExactColor inserts a room directly via SQL: the fixture
-// helpers uniquify names, which would defeat the migration's name-based
-// predicate, and Room.Validate would reject some of the staged hexes.
-func insertRoomWithExactColor(t *testing.T, db *bun.DB, tenantID int64, name string, color *string) int64 {
-	t.Helper()
-	return insertRoomWithExactColorAndFlag(t, db, tenantID, name, color, true)
+// roomShape is what the migration's predicate looks at beyond the color.
+// The zero value is meaningless on purpose — every insert states the shape it
+// stages, because "which of these four columns differs" IS the test.
+type roomShape struct {
+	name     string
+	isSystem bool
+	capacity int
+	category string
 }
 
-// insertRoomWithExactColorAndFlag additionally controls is_system, which the
-// migration's predicate depends on.
-func insertRoomWithExactColorAndFlag(t *testing.T, db *bun.DB, tenantID int64, name string, color *string, isSystem bool) int64 {
+// autoProvisionedShape mirrors what both bootstrap paths write when they
+// create the Schulhof room (schulhof_service.go / checkin_system_space.go).
+func autoProvisionedShape() roomShape {
+	return roomShape{name: "Schulhof", isSystem: true, capacity: 300, category: "Schulhof"}
+}
+
+// insertRoom inserts a room directly via SQL: the fixture helpers uniquify
+// names, which would defeat the migration's name-based predicate, and
+// Room.Validate would reject some of the staged hexes.
+func insertRoom(t *testing.T, db *bun.DB, tenantID int64, shape roomShape, color *string) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var id int64
 	err := db.NewRaw(`
-		INSERT INTO facilities.rooms (tenant_id, name, color, is_system)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO facilities.rooms (tenant_id, name, color, is_system, capacity, category)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id;
-	`, tenantID, name, color, isSystem).Scan(ctx, &id)
-	require.NoError(t, err, "insert room %q", name)
+	`, tenantID, shape.name, color, shape.isSystem, shape.capacity, shape.category).Scan(ctx, &id)
+	require.NoError(t, err, "insert room %q", shape.name)
 	return id
 }
 
@@ -54,41 +63,52 @@ func TestSchulhofRoomColorClearDefault(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
-
 	autoProvisioned := "#7ED321"
 	lowercaseVariant := "#7ed321"
 	adminPicked := "#A3D977"
 
-	// The row the migration exists for: a Schulhof carrying the bootstrap hex.
-	yard := insertRoomWithExactColor(t, db, tenantID, "Schulhof", &autoProvisioned)
+	// Every staged room lives in its own tenant: name and LOWER(color) are
+	// both unique per tenant, and most of these cases stage the same hex.
+	newTenant := func() int64 {
+		t.Helper()
+		id, _ := testpkg.CreateTestTenant(t, db)
+		t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, id) })
+		return id
+	}
+
+	// The row the migration exists for: a Schulhof in bootstrap shape,
+	// carrying the bootstrap hex.
+	yard := insertRoom(t, db, newTenant(), autoProvisionedShape(), &autoProvisioned)
+
 	// Rooms written before the model upper-cased on write may hold the same
-	// hex in lower case; LOWER() on both sides has to catch those too. Lives
-	// in its own tenant because the per-tenant color index would reject a
-	// second Schulhof-coloured row here.
-	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, otherTenantID)
-	legacyCase := insertRoomWithExactColor(t, db, otherTenantID, "Schulhof", &lowercaseVariant)
+	// hex in lower case; LOWER() on both sides has to catch those too.
+	legacyCase := insertRoom(t, db, newTenant(), autoProvisionedShape(), &lowercaseVariant)
+
 	// A normal room that legitimately picked the hex must be left alone —
-	// the predicate is scoped to the canonical Schulhof name. Own tenant
-	// again: the uniqueness index is per tenant on LOWER(color).
-	adminTenantID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, adminTenantID)
-	normalRoom := insertRoomWithExactColor(t, db, adminTenantID, "Bastelraum", &autoProvisioned)
+	// the predicate is scoped to the canonical Schulhof name.
+	normalTenant := newTenant()
+	normalRoom := insertRoom(t, db, normalTenant,
+		roomShape{name: "Bastelraum", isSystem: false, capacity: 25, category: "Gruppenraum"},
+		&autoProvisioned)
 	// A Schulhof whose color an admin already changed must survive untouched.
-	adminChosen := insertRoomWithExactColor(t, db, adminTenantID, "Schulhof", &adminPicked)
+	adminChosen := insertRoom(t, db, normalTenant, autoProvisionedShape(), &adminPicked)
 	// A colorless room is already in the target state.
-	colorless := insertRoomWithExactColor(t, db, adminTenantID, "Werkraum", nil)
-	// A room an admin named "Schulhof" by hand is not the auto-provisioned
-	// yard — no bootstrap ever stamped a color on it, so its hex is a
-	// deliberate choice and the migration must not touch it. Own tenant
-	// again: name and color are both unique per tenant.
-	handNamedTenantID, _ := testpkg.CreateTestTenant(t, db)
-	defer testpkg.CleanupTenantTestData(t, db, handNamedTenantID)
-	handNamedYard := insertRoomWithExactColorAndFlag(
-		t, db, handNamedTenantID, "Schulhof", &autoProvisioned, false,
-	)
+	colorless := insertRoom(t, db, normalTenant,
+		roomShape{name: "Werkraum", isSystem: false, capacity: 20, category: "Gruppenraum"}, nil)
+
+	// A room an admin named "Schulhof" by hand, before the name was reserved,
+	// and gave #7ED321 to deliberately. Migration 1.15.168 backfilled
+	// is_system on it by name alone, so the flag says nothing about where the
+	// color came from — only the bootstrap's capacity/category shape does,
+	// and this row does not carry it. Its color must survive.
+	handNamedYard := insertRoom(t, db, newTenant(),
+		roomShape{name: "Schulhof", isSystem: true, capacity: 40, category: "Außenbereich"},
+		&autoProvisioned)
+
+	// Same story for a Schulhof that was never flagged as a system room.
+	unflaggedYard := insertRoom(t, db, newTenant(),
+		roomShape{name: "Schulhof", isSystem: false, capacity: 300, category: "Schulhof"},
+		&autoProvisioned)
 
 	require.NoError(t, schulhofRoomColorClearDefaultUp(ctx, db))
 
@@ -107,16 +127,27 @@ func TestSchulhofRoomColorClearDefault(t *testing.T) {
 	assert.Nil(t, roomColor(t, db, colorless))
 	if color := roomColor(t, db, handNamedYard); assert.NotNil(t, color) {
 		assert.Equal(t, autoProvisioned, *color,
+			"a hand-made Schulhof that 1.15.168 flagged as system keeps its administrator-picked color")
+	}
+	if color := roomColor(t, db, unflaggedYard); assert.NotNil(t, color) {
+		assert.Equal(t, autoProvisioned, *color,
 			"a non-system room named Schulhof keeps its administrator-picked color")
 	}
 
-	// The originals are recoverable.
+	// The originals are recoverable, and nothing else was backed up.
 	var backedUp int
 	require.NoError(t, db.NewRaw(`
 		SELECT COUNT(*) FROM audit.room_color_migration_backup
 		WHERE room_id IN (?, ?);
 	`, yard, legacyCase).Scan(ctx, &backedUp))
 	assert.Equal(t, 2, backedUp, "cleared rows must be recoverable from the backup table")
+
+	var preservedBackups int
+	require.NoError(t, db.NewRaw(`
+		SELECT COUNT(*) FROM audit.room_color_migration_backup
+		WHERE room_id IN (?, ?, ?, ?);
+	`, normalRoom, adminChosen, handNamedYard, unflaggedYard).Scan(ctx, &preservedBackups))
+	assert.Equal(t, 0, preservedBackups, "preserved rows must not be written to the backup table")
 
 	// Idempotency: a second run must be a no-op on the data.
 	require.NoError(t, schulhofRoomColorClearDefaultUp(ctx, db))

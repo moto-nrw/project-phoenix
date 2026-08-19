@@ -152,7 +152,7 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 		// over first, the configured colour must survive.
 		color := "#A3D977"
 		legacy := schulhofRoom(nil)
-		legacy.Model.ID = 3
+		legacy.ID = 3
 		legacy.Name = "schulhof"
 		legacy.IsSystem = false
 		canonical := schulhofRoom(&color)
