@@ -75,6 +75,18 @@ func TestCloneNameIsValidPostgresIdentifier(t *testing.T) {
 	assert.NotEqual(t, name, CloneName("run2", "/some/pkg/dir"), "different runs get different clones")
 }
 
+func TestMigrationFilePatternMatchesOnlyRealMigrations(t *testing.T) {
+	// Regression guard: 00_migrations.go (registry infrastructure) must NOT
+	// count as a wanted migration — its "00" is never a bun_migrations name,
+	// so matching it would make migrationsComplete permanently false and turn
+	// every CI adopt into a full template rebuild.
+	assert.Nil(t, migrationFilePattern.FindStringSubmatch("00_migrations.go"))
+	assert.Nil(t, migrationFilePattern.FindStringSubmatch("main.go"))
+
+	assert.Equal(t, "000001", migrationFilePattern.FindStringSubmatch("000001_core_functions.go")[1])
+	assert.Equal(t, "001015302", migrationFilePattern.FindStringSubmatch("001015302_pickup_change_requests.go")[1])
+}
+
 func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
 	h1, err := MigrationsHash()
 	require.NoError(t, err)
@@ -91,27 +103,25 @@ func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
 
 var selfTestSeq atomic.Int64
 
+// loadEnvForIntegration best-effort loads the project root .env when
+// TEST_DB_DSN is not already set (CI sets it directly).
+func loadEnvForIntegration(t *testing.T) {
+	t.Helper()
+	if os.Getenv("TEST_DB_DSN") != "" {
+		return
+	}
+	if root, err := ProjectRoot(); err == nil {
+		_ = gotenv.Load(filepath.Join(root, ".env"))
+	}
+}
+
 func integrationConfig(t *testing.T) *Config {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping DB integration test in -short mode")
 	}
 
-	if os.Getenv("TEST_DB_DSN") == "" {
-		if dir, err := os.Getwd(); err == nil {
-			for {
-				if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-					_ = gotenv.Load(filepath.Join(filepath.Dir(dir), ".env"))
-					break
-				}
-				parent := filepath.Dir(dir)
-				if parent == dir {
-					break
-				}
-				dir = parent
-			}
-		}
-	}
+	loadEnvForIntegration(t)
 	dsn := os.Getenv("TEST_DB_DSN")
 	if dsn == "" {
 		t.Skip("TEST_DB_DSN not set")
@@ -222,6 +232,43 @@ func TestEnsureTemplateRebuildsUnstampedIncompleteDatabase(t *testing.T) {
 		WithVerify(func(ctx context.Context, dsn string) (bool, error) { return false, nil }),
 		WithMigrationsHash("hash1")))
 	assert.Equal(t, 1, builds, "incomplete unstamped template must be rebuilt")
+}
+
+// TestMigrationsCompleteAgainstRealTemplate pins the CI-adopt contract: the
+// actual migrated template must satisfy the default completeness check. If a
+// migration naming scheme ever drifts away from the filename-prefix
+// convention, this fails loudly instead of CI silently rebuilding the
+// template on every run.
+func TestMigrationsCompleteAgainstRealTemplate(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping DB integration test in -short mode")
+	}
+	loadEnvForIntegration(t)
+	dsn := os.Getenv("TEST_DB_DSN")
+	if dsn == "" {
+		t.Skip("TEST_DB_DSN not set")
+	}
+	cfg, err := NewConfig(dsn)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// Ensure the template exists before checking it (a pristine server has
+	// none yet), and hold the lifecycle lock during the check: it opens
+	// connections to the template, which would otherwise fail concurrent
+	// CREATE DATABASE ... TEMPLATE calls from parallel package binaries.
+	require.NoError(t, EnsureTemplate(ctx, cfg))
+
+	maint := openSQL(cfg.MaintenanceDSN())
+	defer func() { _ = maint.Close() }()
+	unlock, err := acquireLifecycleLock(ctx, maint)
+	require.NoError(t, err)
+	defer unlock()
+
+	complete, err := migrationsComplete(ctx, cfg.TemplateDSN())
+	require.NoError(t, err)
+	assert.True(t, complete, "the migrated template must pass the default completeness check — otherwise CI rebuilds instead of adopting")
 }
 
 func TestCreateCloneAndSweepLifecycle(t *testing.T) {

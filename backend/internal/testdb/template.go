@@ -26,8 +26,11 @@ const hashCommentPrefix = "phx-migrations-hash:"
 // import cycle. The template is therefore built via `go run . migrate`
 // (exactly what CI and developers run) and verified against the migration
 // filenames, whose digit prefixes are the names bun records in
-// bun_migrations.
-var migrationFilePattern = regexp.MustCompile(`^(\d+)_.+\.go$`)
+// bun_migrations. At least 6 digits: real migrations are 000001_… /
+// 001015302_…; the 2-digit 00_migrations.go is registry infrastructure and
+// registers no migration — matching it would make the completeness check
+// permanently false and turn every CI adopt into a full rebuild.
+var migrationFilePattern = regexp.MustCompile(`^(\d{6,})_.+\.go$`)
 
 // TemplateOption customizes EnsureTemplate. The build and verify hooks exist
 // for the lifecycle's own tests; production callers use the defaults (run
