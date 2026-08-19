@@ -29,6 +29,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -147,6 +148,16 @@ type OfferingChangeDiffEntry struct {
 	AutoTriggerNames []string
 }
 
+// OfferingChangeHistoryItem is one decided request for the staff history. The
+// diff comes exclusively from the frozen decision snapshot (ADR 0002) — never
+// recomputed against current bookings, which have moved on since the decision.
+type OfferingChangeHistoryItem struct {
+	Request      *enrollmentModels.OfferingChangeRequest
+	StudentName  string
+	ReviewerName string // "" when the row carries no reviewer (withdrawn)
+	Diff         []OfferingChangeDiffEntry
+}
+
 // OfferingChangeView is a request as both sides see it.
 type OfferingChangeView struct {
 	Request *enrollmentModels.OfferingChangeRequest
@@ -256,6 +267,10 @@ type OfferingChangeRequestService interface {
 
 	// ListPending backs the staff review queue.
 	ListPending(ctx context.Context) ([]*OfferingChangeView, error)
+	// ListHistory returns decided requests newest-decision-first, keyset
+	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
+	// page; next is nil when no older rows exist beyond this page.
+	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*OfferingChangeHistoryItem, next *usersService.HistoryCursor, err error)
 	// PendingCount backs the staff sidebar badge without constructing queue diffs.
 	PendingCount(ctx context.Context) (int, error)
 	// PreviewDecision materializes a pending approval with the supplied
@@ -958,6 +973,78 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context) ([]*Offe
 		views = append(views, view)
 	}
 	return views, nil
+}
+
+func (s *offeringChangeRequestService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*OfferingChangeHistoryItem, *usersService.HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.ChangeRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("offering change: list decided: %w", err)
+	}
+	// The cursor points at the last DB row (not the last visible item): the
+	// per-child scope filters after the DB limit, so a cursor built from the
+	// filtered page would skip rows.
+	var next *usersService.HistoryCursor
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		next = &usersService.HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
+	}
+	if len(rows) == 0 {
+		return []*OfferingChangeHistoryItem{}, nil, nil
+	}
+
+	studentIDs := make([]int64, 0, len(rows))
+	reviewerIDs := make([]int64, 0, len(rows))
+	seenReviewers := make(map[int64]struct{}, len(rows))
+	for _, row := range rows {
+		studentIDs = append(studentIDs, row.StudentID)
+		if row.ReviewedBy != nil && *row.ReviewedBy > 0 {
+			if _, ok := seenReviewers[*row.ReviewedBy]; !ok {
+				seenReviewers[*row.ReviewedBy] = struct{}{}
+				reviewerIDs = append(reviewerIDs, *row.ReviewedBy)
+			}
+		}
+	}
+	students, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("offering change: load students for history: %w", err)
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, st := range students {
+		personIDs = append(personIDs, st.PersonID)
+	}
+	persons, err := s.PersonRepo.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("offering change: load student persons for history: %w", err)
+	}
+	reviewers, err := s.PersonRepo.FindByAccountIDs(ctx, reviewerIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("offering change: load reviewers for history: %w", err)
+	}
+
+	// Same per-child scope as ListPending: write gate + alumnus skip.
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.UserContext)
+
+	items := make([]*OfferingChangeHistoryItem, 0, len(rows))
+	for _, row := range rows {
+		student := students[row.StudentID]
+		if student == nil || !writable(student) || student.IsAlumnus() {
+			continue
+		}
+		item := &OfferingChangeHistoryItem{
+			Request:      row,
+			ReviewerName: usersService.ReviewerDisplayName(reviewers, row.ReviewedBy),
+		}
+		if row.DecisionSnapshot != nil {
+			item.Diff = diffEntriesFromSnapshot(row.DecisionSnapshot.Diff)
+		}
+		if person := persons[student.PersonID]; person != nil {
+			item.StudentName = strings.TrimSpace(person.GetFullName())
+		}
+		items = append(items, item)
+	}
+	return items, next, nil
 }
 
 func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, error) {

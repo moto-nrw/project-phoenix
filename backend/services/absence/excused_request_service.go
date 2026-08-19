@@ -30,6 +30,7 @@ import (
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -90,6 +91,15 @@ type ExcusedRequestReviewItem struct {
 	LastName  string
 }
 
+// ExcusedRequestHistoryItem is one decided request enriched with the child's
+// name and the reviewer's display name for the staff history.
+type ExcusedRequestHistoryItem struct {
+	Request      *activeModels.ExcusedAbsenceRequest
+	FirstName    string
+	LastName     string
+	ReviewerName string // "" when the row carries no reviewer (withdrawn)
+}
+
 // ExcusedRequestDecideInput carries a staff decision on one pending request.
 type ExcusedRequestDecideInput struct {
 	RequestID int64
@@ -117,6 +127,10 @@ type ExcusedAbsenceRequestService interface {
 	// ListPending returns every pending request for the current tenant,
 	// newest-first, enriched with child names — the staff review queue.
 	ListPending(ctx context.Context) ([]*ExcusedRequestReviewItem, error)
+	// ListHistory returns decided requests newest-decision-first, keyset
+	// paginated on (updated_at, id). A zero beforeUpdatedAt returns the first
+	// page; next is nil when no older rows exist beyond this page.
+	ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) (items []*ExcusedRequestHistoryItem, next *usersService.HistoryCursor, err error)
 	// PendingByStudentForDate returns, per student, the newest pending request
 	// whose dates cover the given calendar day — for the inline planning badge.
 	// A student with no pending request for the day is absent from the map.
@@ -371,6 +385,80 @@ func (s *excusedAbsenceRequestService) ListForStudent(ctx context.Context, stude
 		out = append(out, r)
 	}
 	return out, nil
+}
+
+func (s *excusedAbsenceRequestService) ListHistory(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*ExcusedRequestHistoryItem, *usersService.HistoryCursor, error) {
+	// limit+1 probes for an older page without a second count query.
+	rows, err := s.requestRepo.ListDecidedForTenant(ctx, beforeUpdatedAt, beforeID, limit+1)
+	if err != nil {
+		return nil, nil, fmt.Errorf("active: list decided excused requests: %w", err)
+	}
+	// The cursor points at the last DB row (not the last visible item): the
+	// per-child scope filters after the DB limit, so a cursor built from the
+	// filtered page would skip rows.
+	var next *usersService.HistoryCursor
+	if len(rows) > limit {
+		rows = rows[:limit]
+		last := rows[len(rows)-1]
+		next = &usersService.HistoryCursor{UpdatedAt: last.UpdatedAt, ID: last.ID}
+	}
+	if len(rows) == 0 {
+		return []*ExcusedRequestHistoryItem{}, nil, nil
+	}
+
+	studentIDs := make([]int64, 0, len(rows))
+	seen := make(map[int64]struct{}, len(rows))
+	reviewerIDs := make([]int64, 0, len(rows))
+	seenReviewers := make(map[int64]struct{}, len(rows))
+	for _, r := range rows {
+		if _, ok := seen[r.StudentID]; !ok {
+			seen[r.StudentID] = struct{}{}
+			studentIDs = append(studentIDs, r.StudentID)
+		}
+		if r.ReviewedBy != nil && *r.ReviewedBy > 0 {
+			if _, ok := seenReviewers[*r.ReviewedBy]; !ok {
+				seenReviewers[*r.ReviewedBy] = struct{}{}
+				reviewerIDs = append(reviewerIDs, *r.ReviewedBy)
+			}
+		}
+	}
+	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("active: load students for excused request history: %w", err)
+	}
+	personIDs := make([]int64, 0, len(students))
+	for _, st := range students {
+		personIDs = append(personIDs, st.PersonID)
+	}
+	persons, err := s.personRepo.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("active: load persons for excused request history: %w", err)
+	}
+	reviewers, err := s.personRepo.FindByAccountIDs(ctx, reviewerIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("active: load reviewers for excused request history: %w", err)
+	}
+
+	// Same per-child scope as ListPending: absence write gate + alumnus skip.
+	writable := s.absenceWritable(ctx)
+
+	items := make([]*ExcusedRequestHistoryItem, 0, len(rows))
+	for _, r := range rows {
+		st := students[r.StudentID]
+		if st == nil || !writable(st) || st.IsAlumnus() {
+			continue
+		}
+		item := &ExcusedRequestHistoryItem{
+			Request:      r,
+			ReviewerName: usersService.ReviewerDisplayName(reviewers, r.ReviewedBy),
+		}
+		if p, ok := persons[st.PersonID]; ok {
+			item.FirstName = p.FirstName
+			item.LastName = p.LastName
+		}
+		items = append(items, item)
+	}
+	return items, next, nil
 }
 
 func (s *excusedAbsenceRequestService) ListPending(ctx context.Context) ([]*ExcusedRequestReviewItem, error) {

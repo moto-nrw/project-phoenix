@@ -46,6 +46,10 @@ type PersonRepository interface {
 	// FindByAccountID retrieves a person by their account ID
 	FindByAccountID(ctx context.Context, accountID int64) (*Person, error)
 
+	// FindByAccountIDs retrieves persons for the given account IDs in one
+	// query, keyed by account ID.
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*Person, error)
+
 	// ListWithOptions retrieves persons with type-safe query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Person, error)
 

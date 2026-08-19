@@ -140,6 +140,39 @@ func (r *ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Conte
 	return rows, nil
 }
 
+// ListDecidedForTenant returns the tenant's decided requests (approved,
+// rejected, withdrawn) newest-decision-first via keyset pagination on
+// (updated_at, id). Every Decide stamps updated_at and decided rows are
+// terminal, so it is the decision instant (withdrawn rows carry no
+// reviewed_at). A zero beforeUpdatedAt returns the first page.
+func (r *ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*activeModels.ExcusedAbsenceRequest, error) {
+	var rows []*activeModels.ExcusedAbsenceRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprExcusedAbsenceRequestsAsReq).
+		Where(`"excused_absence_request".status IN (?)`, bun.List([]string{
+			activeModels.ExcusedRequestStatusApproved,
+			activeModels.ExcusedRequestStatusRejected,
+			activeModels.ExcusedRequestStatusWithdrawn,
+		}))
+	if !beforeUpdatedAt.IsZero() {
+		query = query.Where(`("excused_absence_request".updated_at, "excused_absence_request".id) < (?, ?)`, beforeUpdatedAt, beforeID)
+	}
+
+	if where, val, ok := base.TenantWhere(ctx, "excused_absence_request"); ok {
+		query = query.Where(where, val)
+	}
+	query = query.
+		OrderExpr(`"excused_absence_request".updated_at DESC`).
+		OrderExpr(`"excused_absence_request".id DESC`).
+		Limit(limit)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list decided excused absence requests", Err: err}
+	}
+	return rows, nil
+}
+
 // FindPendingByIDForUpdate locks a request row for the current tenant and
 // verifies it is still pending. The lock closes the decision race where two
 // reviewers (or a decide racing the guardian's withdrawal) could both act.

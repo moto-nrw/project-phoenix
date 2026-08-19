@@ -84,6 +84,12 @@ type CareScheduleChangeRequestRepository interface {
 	ListPendingForTenantAndKind(ctx context.Context, requestKind string) ([]*CareScheduleChangeRequest, error)
 	ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*CareScheduleChangeRequest, error)
 
+	// ListDecidedForTenant returns the tenant's decided weekly-schedule rows
+	// (approved, rejected, withdrawn) newest-decision-first via keyset
+	// pagination on (updated_at, id); a zero beforeUpdatedAt returns the first
+	// page.
+	ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*CareScheduleChangeRequest, error)
+
 	// FindPendingByIDForUpdate locks a request row for decision processing.
 	// It returns ErrCareRequestNotFound when the row is missing in the
 	// current tenant and ErrCareRequestNotPending when it exists but is

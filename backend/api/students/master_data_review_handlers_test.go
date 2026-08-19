@@ -23,11 +23,24 @@ import (
 )
 
 type fakeMasterDataReviewService struct {
-	items     []*userService.MasterDataReviewItem
-	listErr   error
-	decided   *userService.MasterDataReviewItem
-	decideErr error
-	gotInput  userService.MasterDataReviewDecideInput
+	items       []*userService.MasterDataReviewItem
+	listErr     error
+	decided     *userService.MasterDataReviewItem
+	decideErr   error
+	gotInput    userService.MasterDataReviewDecideInput
+	history     []*userService.MasterDataHistoryItem
+	historyNext *userService.HistoryCursor
+	historyErr  error
+	gotBefore   time.Time
+	gotBeforeID int64
+	gotLimit    int
+}
+
+func (f *fakeMasterDataReviewService) ListHistory(_ context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*userService.MasterDataHistoryItem, *userService.HistoryCursor, error) {
+	f.gotBefore = beforeUpdatedAt
+	f.gotBeforeID = beforeID
+	f.gotLimit = limit
+	return f.history, f.historyNext, f.historyErr
 }
 
 func (f *fakeMasterDataReviewService) ListPending(context.Context) ([]*userService.MasterDataReviewItem, error) {

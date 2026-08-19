@@ -91,6 +91,11 @@ type ExcusedAbsenceRequestRepository interface {
 	// newest-first — the staff review queue and the inline planning surface.
 	ListPendingForTenant(ctx context.Context) ([]*ExcusedAbsenceRequest, error)
 
+	// ListDecidedForTenant returns the tenant's decided rows (approved,
+	// rejected, withdrawn) newest-decision-first via keyset pagination on
+	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
+	ListDecidedForTenant(ctx context.Context, beforeUpdatedAt time.Time, beforeID int64, limit int) ([]*ExcusedAbsenceRequest, error)
+
 	// FindPendingByIDForUpdate locks a request row for decision processing. It
 	// returns ErrExcusedRequestNotFound when the row is missing in the current
 	// tenant and ErrExcusedRequestNotPending when it exists but is already
