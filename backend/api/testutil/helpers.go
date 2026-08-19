@@ -285,12 +285,6 @@ func NewTenantRouter(db *bun.DB) chi.Router {
 	return router
 }
 
-// TenantContext returns a context with tenant_id set.
-// Use this when calling service methods directly in test setup (not through HTTP handlers).
-func TenantContext(tenantID int64) context.Context {
-	return tenant.WithTenantID(context.Background(), tenantID)
-}
-
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
