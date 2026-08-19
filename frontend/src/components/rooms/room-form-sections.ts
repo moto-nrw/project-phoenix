@@ -1,8 +1,9 @@
 "use client";
 
 import { roomsConfig } from "@/components/database/configs/rooms.config";
+import { SchulhofRoomColorField } from "@/components/ui/database/room-color-field";
 import { configToFormSection } from "@/lib/database/types";
-import { isSystemRoom, type Room } from "@/lib/room-helpers";
+import { isColorLockedRoom, isSystemRoom, type Room } from "@/lib/room-helpers";
 import type { FormSection } from "~/components/ui/database/database-form";
 
 const STANDARD_CATEGORIES = new Set([
@@ -45,24 +46,32 @@ export function buildRoomFormSections(
   }
 
   if (isSystemRoom(room)) {
+    // Colour stays editable for the Schulhof (#2405) — schools colour-code
+    // rooms and tablets and need the yard in that scheme; without a chosen
+    // colour it keeps rendering in the orange Schulhof default. Only the
+    // toilet rooms drop the picker: they have no badge of their own, so a
+    // colour there would configure nothing, and the backend rejects the
+    // change anyway. Name stays locked for every system room.
+    const dropColor = isColorLockedRoom(room);
     sections = sections.map((section) => ({
       ...section,
       fields: section.fields
-        // Drop the color picker for system rooms — Schulhof and WC have
-        // semantically fixed badges (Schulhof = orange via the parser,
-        // WC has no badge), so letting an admin pick a color would just
-        // mislead. Backend rejects color changes here too, so this is
-        // strictly a UX guard.
-        .filter((field) => field.name !== "color")
-        .map((field) =>
-          field.name === "name"
-            ? {
-                ...field,
-                disabled: true,
-                helperText: "Systemraum: Name kann nicht geändert werden",
-              }
-            : field,
-        ),
+        .filter((field) => !(dropColor && field.name === "color"))
+        .map((field) => {
+          if (field.name === "name") {
+            return {
+              ...field,
+              disabled: true,
+              helperText: "Systemraum: Name kann nicht geändert werden",
+            };
+          }
+          if (field.name === "color") {
+            // Swap in the Schulhof preview/hint variant. Custom fields do not
+            // render `helperText`, so the copy has to live in the component.
+            return { ...field, component: SchulhofRoomColorField };
+          }
+          return field;
+        }),
     }));
   }
 

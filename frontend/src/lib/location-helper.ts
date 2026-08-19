@@ -622,7 +622,10 @@ function isStudentInGroupRoom(
  *      hard constraint that all non-blue colors keep their meaning.
  *   2. Per-room hex from the backend (`roomColor`) — the new differentiator
  *      that replaces the painful "every other room is the same blue" symptom.
- *   3. OTHER_ROOM blue fallback — bestehende Räume ohne gesetzte Farbe sehen
+ *   3. Schulhof-Orange — the yard is a real room in detailed mode, so without
+ *      this it would fall through to the generic room blue and read
+ *      differently from the same child in binary mode (#2405).
+ *   4. OTHER_ROOM blue fallback — bestehende Räume ohne gesetzte Farbe sehen
  *      genauso aus wie heute, kein visueller Sprung.
  */
 function getColorForPresentWithRoom(
@@ -652,8 +655,26 @@ function getColorForPresentWithRoom(
     return roomColor;
   }
 
+  // The Schulhof arrives here as an ordinary room ("Anwesend - Schulhof"),
+  // so its documented default has to be applied explicitly — otherwise the
+  // yard is indistinguishable from any other uncoloured room.
+  if (isSchulhofRoomName(room)) {
+    return LOCATION_COLORS.SCHOOLYARD;
+  }
+
   // Student in any other room
   return LOCATION_COLORS.OTHER_ROOM; // Blue - in external/supervised room
+}
+
+/**
+ * Matches the canonical Schulhof room name.
+ *
+ * Case-insensitive on purpose: this is a display decision, not the backend's
+ * exact-case reservation check, and the location string is assembled from a
+ * room name that older data may hold in a different casing.
+ */
+function isSchulhofRoomName(room: string): boolean {
+  return room.trim().toLowerCase() === "schulhof";
 }
 
 /**

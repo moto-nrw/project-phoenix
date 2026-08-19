@@ -120,36 +120,24 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 		"expected ErrColorAlreadyInUse, got %v", err)
 }
 
-// TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms catches a
-// specific regression: someone removes the system-room color check and
-// "Schulhof" silently gets a yellow badge — confusing the whole UI because
-// Schulhof has a semantically fixed status badge color, not a per-room one.
+// TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms catches a
+// specific regression: someone removes the toilet-room color check and "WC"
+// silently gets a yellow badge — configuring a colour for a room that has no
+// badge of its own.
 //
-// We use createRoomWithExactName to produce an actual "Schulhof" record
-// (constants.IsSystemRoomName matches Schulhof by exact name and the WC
-// aliases case-insensitively); CreateTestRoom would suffix a timestamp
-// and dodge the check.
-func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
+// The Schulhof deliberately left this set with #2405 — see
+// TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof below.
+//
+// We use createRoomWithExactName to produce actual system-room records
+// (constants.IsWCRoomName matches the WC aliases by exact name);
+// CreateTestRoom would suffix a timestamp and dodge the check.
+func TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
 	tenantID := createFacilityTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
-
-	t.Run("rejects color change on Schulhof", func(t *testing.T) {
-		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
-
-		// Try to add a color to a system room — should be blocked.
-		newColor := "#A3D977"
-		room.Color = &newColor
-		err := service.UpdateRoom(ctx, room)
-
-		require.Error(t, err)
-		require.True(t, errors.Is(err, facilitiesSvc.ErrSystemRoomProtected),
-			"expected ErrSystemRoomProtected, got %v", err)
-	})
 
 	t.Run("rejects color change on WC", func(t *testing.T) {
 		room := createRoomWithExactName(t, db, tenantID, "WC")
@@ -160,15 +148,15 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		err := service.UpdateRoom(ctx, room)
 
 		require.Error(t, err)
-		require.True(t, errors.Is(err, facilitiesSvc.ErrSystemRoomProtected))
+		require.True(t, errors.Is(err, facilitiesSvc.ErrSystemRoomProtected),
+			"expected ErrSystemRoomProtected, got %v", err)
 	})
 
 	t.Run("allows benign updates that do not touch color", func(t *testing.T) {
-		// Regression guard: the system-room block must trigger on the *color
-		// field*, not on every system-room update. Editing Capacity must
-		// still succeed, otherwise admins lose the ability to change any
-		// non-name field on Schulhof.
-		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		// Regression guard: the toilet-room block must trigger on the *color
+		// field*, not on every update. Editing Capacity must still succeed,
+		// otherwise admins lose the ability to change any non-name field.
+		room := createRoomWithExactName(t, db, tenantID, "WC")
 		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 200
@@ -178,10 +166,10 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 	})
 
 	t.Run("allows clearing a non-existent color (no-op)", func(t *testing.T) {
-		// If a system room somehow had Color=nil already, sending nil again
+		// If a toilet room somehow had Color=nil already, sending nil again
 		// should not be flagged as a change. equalStringPtr handles this —
-		// without it, every update on a colorless system room would 403.
-		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		// without it, every update on a colorless toilet room would 403.
+		room := createRoomWithExactName(t, db, tenantID, "WC")
 		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Color = nil // unchanged
@@ -189,15 +177,15 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		require.NoError(t, service.UpdateRoom(ctx, room))
 	})
 
-	t.Run("benign update on a system room with leftover legacy color succeeds", func(t *testing.T) {
-		// Reproduces the review-flagged #2 regression: production Schulhof
+	t.Run("benign update on a toilet room with leftover legacy color succeeds", func(t *testing.T) {
+		// Reproduces the review-flagged #2 regression: production system-room
 		// rows almost certainly carried "#4F46E5" from the rooms.config bug.
-		// The frontend strips the color picker for system rooms, so a
+		// The frontend strips the color picker for toilet rooms, so a
 		// capacity-only update sends room.Color = nil. Earlier code treated
-		// nil ≠ &"#4F46E5" as a forbidden colour change and 403'd every such
-		// edit. Now the service preserves the existing colour for system
-		// rooms when the request omits it.
-		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		// nil != &"#4F46E5" as a forbidden colour change and 403'd every such
+		// edit. Now the service preserves the existing colour when the
+		// request omits it.
+		room := createRoomWithExactName(t, db, tenantID, "WC")
 		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// Bypass Validate() (would reject the reserved colour) by writing
@@ -217,7 +205,7 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		require.NotNil(t, fresh.Color)
 		require.Equal(t, "#4F46E5", *fresh.Color)
 
-		// Frontend strips the color field → request body has no colour →
+		// Frontend strips the color field -> request body has no colour ->
 		// handler sets room.Color = nil. Capacity bumps must still go
 		// through.
 		fresh.Color = nil
@@ -225,7 +213,7 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		fresh.Capacity = &newCap
 
 		require.NoError(t, service.UpdateRoom(ctx, fresh),
-			"benign capacity update on Schulhof must succeed even when the "+
+			"benign capacity update on WC must succeed even when the "+
 				"row carries a legacy color and the request omits the field")
 
 		// Existing colour should be preserved (defensive: confirms we
@@ -235,6 +223,125 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 		require.NotNil(t, retrieved.Color)
 		assert.Equal(t, "#4F46E5", *retrieved.Color)
 		assert.Equal(t, 250, *retrieved.Capacity)
+	})
+}
+
+// TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof pins the #2405
+// business-rule change: the Schulhof is still a protected system room (no
+// rename, no delete) but its colour follows the ordinary room rules, because
+// schools colour-code their rooms and tablets and need the yard in that
+// scheme.
+//
+// The old behaviour — a blanket ErrSystemRoomProtected on any Schulhof colour
+// change — is what this test replaces; see
+// TestFacilitiesService_UpdateRoom_BlocksColorOnToiletRooms for the part of
+// the rule that survived.
+func TestFacilitiesService_UpdateRoom_AllowsColorOnSchulhof(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupFacilitiesService(t, db)
+	tenantID := createFacilityTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+
+	t.Run("accepts a valid color", func(t *testing.T) {
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
+
+		newColor := "#A3D977"
+		room.Color = &newColor
+		require.NoError(t, service.UpdateRoom(ctx, room))
+
+		retrieved, err := service.GetRoom(ctx, room.ID)
+		require.NoError(t, err)
+		require.NotNil(t, retrieved.Color)
+		assert.Equal(t, "#A3D977", *retrieved.Color)
+	})
+
+	t.Run("allows clearing the color back to the orange default", func(t *testing.T) {
+		// "No colour" is the state the orange Schulhof default renders for,
+		// so the picker's reset button has to be able to reach it.
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
+
+		newColor := "#B3D977"
+		room.Color = &newColor
+		require.NoError(t, service.UpdateRoom(ctx, room))
+
+		fresh, err := service.GetRoom(ctx, room.ID)
+		require.NoError(t, err)
+		fresh.Color = nil
+		require.NoError(t, service.UpdateRoom(ctx, fresh))
+
+		retrieved, err := service.GetRoom(ctx, room.ID)
+		require.NoError(t, err)
+		assert.Nil(t, retrieved.Color)
+	})
+
+	t.Run("still rejects a reserved status color", func(t *testing.T) {
+		// The Schulhof is not exempt from the palette rules — including the
+		// SCHOOLYARD orange itself, which stays reserved as a status hex.
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
+
+		reserved := "#F78C10"
+		room.Color = &reserved
+		err := service.UpdateRoom(ctx, room)
+
+		require.Error(t, err)
+		require.True(t, errors.Is(err, facilitiesSvc.ErrColorReserved),
+			"expected ErrColorReserved, got %v", err)
+	})
+
+	t.Run("still rejects a malformed color", func(t *testing.T) {
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
+
+		bad := "not-a-hex"
+		room.Color = &bad
+		require.Error(t, service.UpdateRoom(ctx, room))
+	})
+
+	t.Run("still rejects a color another room already uses", func(t *testing.T) {
+		// The per-tenant uniqueness index applies to the yard like any
+		// other room.
+		taken := "#C3D977"
+		other := createRoomWithExactName(t, db, tenantID, uniqueRoomName("Farbbelegt"))
+		defer cleanupRoom(t, db, tenantID, other.ID)
+		other.Color = &taken
+		require.NoError(t, service.UpdateRoom(ctx, other))
+
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
+		room.Color = &taken
+		err := service.UpdateRoom(ctx, room)
+
+		require.Error(t, err)
+		require.True(t, errors.Is(err, facilitiesSvc.ErrColorAlreadyInUse),
+			"expected ErrColorAlreadyInUse, got %v", err)
+	})
+
+	t.Run("still refuses to rename the Schulhof", func(t *testing.T) {
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
+
+		room.Name = "Hinterhof"
+		err := service.UpdateRoom(ctx, room)
+
+		require.Error(t, err)
+		require.True(t, errors.Is(err, facilitiesSvc.ErrSystemRoomProtected),
+			"expected ErrSystemRoomProtected, got %v", err)
+	})
+
+	t.Run("still refuses to delete the Schulhof", func(t *testing.T) {
+		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
+		defer cleanupRoom(t, db, tenantID, room.ID)
+
+		err := service.DeleteRoom(ctx, room.ID)
+
+		require.Error(t, err)
+		require.True(t, errors.Is(err, facilitiesSvc.ErrSystemRoomProtected),
+			"expected ErrSystemRoomProtected, got %v", err)
 	})
 }
 

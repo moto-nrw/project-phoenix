@@ -153,7 +153,14 @@ function resolveBadgeStyle(
     case "schulhof":
       return {
         label: LOCATION_STATUSES.SCHOOLYARD,
-        color: LOCATION_COLORS.SCHOOLYARD,
+        // Schools colour-code rooms and tablets, so the yard follows the
+        // Schulhof room's own colour when one is set (#2405). Binary mode has
+        // no room visit behind the state, so the backend resolves the room
+        // once per request and ships it in `current_room_color`. Unset (or
+        // blank) falls back to the orange default.
+        color: student.current_room_color?.trim()
+          ? student.current_room_color
+          : LOCATION_COLORS.SCHOOLYARD,
       };
     default:
       return { label: LOCATION_STATUSES.HOME, color: LOCATION_COLORS.HOME };

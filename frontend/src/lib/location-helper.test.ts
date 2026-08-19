@@ -310,6 +310,48 @@ describe("getLocationColor", () => {
   });
 
   // ===========================================================================
+  // Schulhof room colour (Issue #2405 — the yard joins the room colour scheme)
+  //
+  // In detailed mode the Schulhof is an ordinary room visit, so the location
+  // string is "Anwesend - Schulhof" and the yard used to fall through to the
+  // generic room blue. Its documented default is orange, and an admin-picked
+  // colour must beat that default.
+  // ===========================================================================
+
+  it("returns SCHOOLYARD orange for the Schulhof room without a configured color", () => {
+    expect(getLocationColor("Anwesend - Schulhof", false, [], null)).toBe(
+      LOCATION_COLORS.SCHOOLYARD,
+    );
+  });
+
+  it("treats an empty Schulhof room color like unset (orange default)", () => {
+    expect(getLocationColor("Anwesend - Schulhof", false, [], "")).toBe(
+      LOCATION_COLORS.SCHOOLYARD,
+    );
+  });
+
+  it("returns the configured Schulhof room color when the admin picked one", () => {
+    expect(getLocationColor("Anwesend - Schulhof", false, [], "#A3D977")).toBe(
+      "#A3D977",
+    );
+  });
+
+  it("matches the Schulhof room name case-insensitively", () => {
+    // Older rows may hold a differently-cased room name; the display default
+    // must not depend on that.
+    expect(getLocationColor("Anwesend - schulhof", false, [], null)).toBe(
+      LOCATION_COLORS.SCHOOLYARD,
+    );
+  });
+
+  it("keeps the blue fallback for every other uncoloured room", () => {
+    // Regression guard: the orange default must be scoped to the yard.
+    expect(getLocationColor("Anwesend - Schulhofstraße", false, [], null)).toBe(
+      LOCATION_COLORS.OTHER_ROOM,
+    );
+  });
+
+  // ===========================================================================
   // Per-room color (Issue #1324 — eliminate the all-blue room badges)
   // ===========================================================================
 

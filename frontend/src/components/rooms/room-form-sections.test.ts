@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SchulhofRoomColorField } from "@/components/ui/database/room-color-field";
 import { buildRoomFormSections } from "./room-form-sections";
 import type { Room } from "@/lib/room-helpers";
 
@@ -59,20 +60,28 @@ describe("buildRoomFormSections", () => {
 
   // ===========================================================================
   // Issue #1324 — system rooms must NOT show the color picker. Backend
-  // rejects color changes on Schulhof/WC with a 403, so leaving the picker
-  // visible would let admins pick a color, hit save, and see a confusing
-  // German error toast for what looks like a normal field. This filter is
-  // a UX guard, not a security one — the backend stays the source of truth.
+  // rejects color changes with a 403, so leaving the picker visible would let
+  // admins pick a color, hit save, and see a confusing German error toast for
+  // what looks like a normal field. This filter is a UX guard, not a security
+  // one — the backend stays the source of truth.
+  //
+  // Issue #2405 narrowed that rule to the toilet rooms: the Schulhof's color
+  // IS admin-configurable now (schools color-code rooms and tablets), so its
+  // picker must be present while name/delete protection stays.
   // ===========================================================================
-  it("strips the color field for system rooms (Schulhof)", () => {
+  it("keeps the color field for the Schulhof and swaps in its picker variant", () => {
     const sections = buildRoomFormSections({
       ...baseRoom,
       name: "Schulhof",
     });
-    const fieldNames = sections.flatMap((section) =>
-      section.fields.map((f) => f.name),
-    );
-    expect(fieldNames).not.toContain("color");
+    const colorField = sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.name === "color");
+
+    expect(colorField).toBeDefined();
+    // The Schulhof variant previews orange (its actual default) instead of
+    // the generic room blue, so it must not be the plain RoomColorField.
+    expect(colorField?.component).toBe(SchulhofRoomColorField);
   });
 
   it("strips the color field for system rooms (WC)", () => {
@@ -84,6 +93,28 @@ describe("buildRoomFormSections", () => {
       section.fields.map((f) => f.name),
     );
     expect(fieldNames).not.toContain("color");
+  });
+
+  it("strips the color field for system rooms (Toilette)", () => {
+    const sections = buildRoomFormSections({
+      ...baseRoom,
+      name: "Toilette",
+    });
+    const fieldNames = sections.flatMap((section) =>
+      section.fields.map((f) => f.name),
+    );
+    expect(fieldNames).not.toContain("color");
+  });
+
+  it("uses the plain color picker for regular rooms", () => {
+    // Only the Schulhof gets the orange-default variant; every other room
+    // keeps the generic picker with its blue fallback preview.
+    const sections = buildRoomFormSections({ ...baseRoom, name: "Werkraum" });
+    const colorField = sections
+      .flatMap((section) => section.fields)
+      .find((field) => field.name === "color");
+
+    expect(colorField?.component).not.toBe(SchulhofRoomColorField);
   });
 
   it("keeps the color field for regular rooms", () => {
