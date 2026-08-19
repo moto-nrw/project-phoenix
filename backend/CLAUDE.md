@@ -9,6 +9,7 @@ Day-to-day run/build/migrate commands are Docker-Compose-first — see the root 
 ```bash
 # Testing
 go test ./...                       # All tests (APP_ENV=test auto-set by SetupTestDB)
+go test -short ./...                # Fast inner loop: skips every DB integration test (SetupTestDB t.Skip). NEVER in CI — guts coverage.
 go test ./services/active/... -v    # Specific package
 go test -race ./...                 # Race detection
 go test ./api/auth -run TestLogin   # Specific test
