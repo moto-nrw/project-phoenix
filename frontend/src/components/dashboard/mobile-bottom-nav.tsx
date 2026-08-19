@@ -504,7 +504,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     routingMode,
   );
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator/parent mode). Used for the Eltern hub link below.
+  // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
@@ -819,10 +819,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   // The Eltern hub is a tenant-scoped [tenant]/eltern route. In
                   // path-routing mode a bare "/eltern" href is captured as the
                   // tenant slug, so prefix it the same way the /eltern page
-                  // prefixes its card links. Other entries stay bare — /help is
-                  // host-agnostic and must not carry the slug.
+                  // prefixes its card links. Anfragen is also tenant-scoped.
+                  // Other entries stay bare — /help is host-agnostic and must
+                  // not carry the slug.
                   const href =
-                    item.href === "/eltern" || isPlanningPageHref(item.href)
+                    item.href === "/eltern" ||
+                    item.href === "/anfragen" ||
+                    isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;
 

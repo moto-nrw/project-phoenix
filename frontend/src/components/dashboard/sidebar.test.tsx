@@ -61,6 +61,22 @@ vi.mock("~/lib/hooks/use-operator-suggestions-unread", () => ({
   useOperatorSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
 }));
 
+vi.mock("~/lib/hooks/use-staff-absences-pending", () => ({
+  useStaffAbsencesPending: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
+vi.mock("~/lib/hooks/use-change-requests-pending", () => ({
+  useChangeRequestsPending: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
 // Import after mocks
 import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -68,6 +84,8 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
+import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -89,6 +107,8 @@ const mockHasPermission = vi.mocked(hasPermission);
 const restoreDefaultHasPermission = () =>
   mockHasPermission.mockImplementation((session) => mockIsAdmin(session));
 const mockUseShellAuth = vi.mocked(useShellAuth);
+const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
+const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
@@ -164,6 +184,16 @@ describe("Sidebar", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
+    mockUseStaffAbsencesPending.mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
+    mockUseChangeRequestsPending.mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
   });
 
   describe("rendering", () => {
@@ -271,6 +301,31 @@ describe("Sidebar", () => {
       // Staff items with alwaysShow: true
       expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+    });
+
+    it("prefixes Anfragen and aggregates the visible request counts", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "users:update" || permission === "vacation:approve",
+      );
+      mockUseChangeRequestsPending.mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+      mockUseStaffAbsencesPending.mockReturnValue({
+        unreadCount: 3,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Anfragen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/anfragen",
+      );
+      expect(screen.getByLabelText("5 offene Anfragen")).toBeInTheDocument();
     });
 
     it("hides admin-only items for staff", () => {

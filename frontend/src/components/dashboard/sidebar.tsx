@@ -392,7 +392,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator mode). Used for the Eltern hub sub-item link below.
+  // subdomain/operator mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
@@ -429,6 +429,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
+  const requestsPendingCount =
+    changeRequestsPendingCount + staffAbsencesPendingCount;
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -777,7 +779,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={item.href}
+          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -795,9 +797,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
             )}
             {item.href === "/anfragen" && (
               <NotificationBadge
-                count={changeRequestsPendingCount}
+                count={requestsPendingCount}
                 tone="staff"
-                ariaLabel={`${changeRequestsPendingCount} ${changeRequestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
+                ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
                 className="ml-2"
               />
             )}
