@@ -147,7 +147,7 @@ func (r failAdminAuditChangeRequestRepo) Create(ctx context.Context, row *enroll
 // then the stamp goes back on before the decision runs.
 func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func() {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.TenantContext(env.sourcePhase.GetTenantID())
 	children, err := env.repos.RequestChild.ListByRequestID(ctx, requestID)
 	require.NoError(t, err)
 	stamps := make(map[int64]int64, len(children))
