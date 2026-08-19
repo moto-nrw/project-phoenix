@@ -387,6 +387,11 @@ type StaffAbsenceRepository interface {
 	// sick > training > vacation > comp_time > other.
 	GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error)
 
+	// GetAbsenceTypeIDMapForDate returns staff ID -> school-defined
+	// Abwesenheitsart ID for the same winning absence GetAbsenceMapForDate
+	// picks (#2403). Only staff whose winner carries one appear.
+	GetAbsenceTypeIDMapForDate(ctx context.Context, date timezone.Date) (map[int64]int64, error)
+
 	// ListByStatuses returns all absences whose status is in the given set,
 	// ordered by requested_at (used for the /staff inbox: requested + question)
 	ListByStatuses(ctx context.Context, statuses []string) ([]*StaffAbsence, error)
@@ -409,6 +414,20 @@ type StaffAbsenceRepository interface {
 
 type StaffAbsenceAuditRepository interface {
 	Create(ctx context.Context, audit *StaffAbsenceAudit) error
+}
+
+// StaffAbsenceTypeRepository is the data-access boundary for school-defined
+// absence names (#2403). CRUD comes from the generic repository; ListAll
+// returns every entry of the current tenant (active and inactive) so a
+// retired art still resolves to its name on historical absences.
+//
+// There is deliberately no Delete: a name that was used must stay readable,
+// so retirement is is_active = false.
+type StaffAbsenceTypeRepository interface {
+	base.Repository[*StaffAbsenceType]
+
+	// ListAll returns all absence types for the current tenant, ordered by name.
+	ListAll(ctx context.Context) ([]*StaffAbsenceType, error)
 }
 
 // StaffBalanceAdjustmentRepository defines operations for Stundenkonto

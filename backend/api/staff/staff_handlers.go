@@ -97,6 +97,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Batch-load work session and absence status (non-critical)
 	workStatusMap := rs.loadWorkStatusMap(ctx)
 	absenceMap := rs.loadAbsenceMap(ctx)
+	absenceLabelMap := rs.loadAbsenceLabelMap(ctx)
 
 	// Batch-load account roles, emails, and avatars for all staff members (non-critical)
 	accountRoleMap := rs.loadAccountMap(ctx, staffMembers, "role", func(ctx context.Context, ids []int64) (map[int64]string, error) {
@@ -112,7 +113,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, accountAvatarMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, absenceLabelMap, accountRoleMap, accountEmailMap, accountAvatarMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -173,16 +174,19 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	rs.ensureStaffPerson(r.Context(), staff)
 	accountRole, accountEmail, accountAvatar := rs.loadStaffAccountInfo(r.Context(), staff)
 	wasPresentToday, workStatus, absenceType := rs.resolveStaffPresence(r.Context(), staff)
+	absenceTypeLabel := rs.loadAbsenceLabelMap(r.Context())[staff.ID]
 
 	// Check if this staff member is also a teacher
 	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
 		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+		response.AbsenceTypeLabel = absenceTypeLabel
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
 	response := newStaffResponse(staff, false, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+	response.AbsenceTypeLabel = absenceTypeLabel
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 

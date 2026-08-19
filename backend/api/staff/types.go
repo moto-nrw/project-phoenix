@@ -42,10 +42,14 @@ type StaffResponse struct {
 	WasPresentToday bool            `json:"was_present_today"`
 	WorkStatus      string          `json:"work_status,omitempty"`
 	AbsenceType     string          `json:"absence_type,omitempty"`
-	AccountRole     string          `json:"account_role,omitempty"`
-	EmploymentType  *string         `json:"employment_type,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	// AbsenceTypeLabel carries the school's own Abwesenheitsart wording for
+	// today's absence (#2403). Empty for the five standard types — the client
+	// keeps deriving those labels from AbsenceType itself.
+	AbsenceTypeLabel string    `json:"absence_type_label,omitempty"`
+	AccountRole      string    `json:"account_role,omitempty"`
+	EmploymentType   *string   `json:"employment_type,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher response (extends staff)

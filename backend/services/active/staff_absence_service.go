@@ -33,19 +33,27 @@ var ErrCompTimeExceedsBalance = errors.New("comp_time absence exceeds accrued ba
 // CreateAbsenceRequest defines the request for creating an absence
 type CreateAbsenceRequest struct {
 	AbsenceType string `json:"absence_type"`
-	DateStart   string `json:"date_start"`
-	DateEnd     string `json:"date_end"`
-	HalfDay     bool   `json:"half_day"`
-	Note        string `json:"note"`
+	// AbsenceTypeID picks a school-defined Abwesenheitsart (#2403). It names
+	// the absence; the arithmetic still comes from AbsenceType, which the
+	// service overwrites with the art's base type so a client cannot pair a
+	// custom name with a calculation it was not created for.
+	AbsenceTypeID *int64 `json:"absence_type_id"`
+	DateStart     string `json:"date_start"`
+	DateEnd       string `json:"date_end"`
+	HalfDay       bool   `json:"half_day"`
+	Note          string `json:"note"`
 }
 
 // UpdateAbsenceRequest defines the request for updating an absence
 type UpdateAbsenceRequest struct {
 	AbsenceType *string `json:"absence_type"`
-	DateStart   *string `json:"date_start"`
-	DateEnd     *string `json:"date_end"`
-	HalfDay     *bool   `json:"half_day"`
-	Note        *string `json:"note"`
+	// AbsenceTypeID re-points the named art. A present pointer to 0 clears it
+	// back to the plain standard type; omitted (nil) leaves it untouched.
+	AbsenceTypeID *int64  `json:"absence_type_id"`
+	DateStart     *string `json:"date_start"`
+	DateEnd       *string `json:"date_end"`
+	HalfDay       *bool   `json:"half_day"`
+	Note          *string `json:"note"`
 }
 
 // maxSickAbsenceRangeDays bounds the synchronous plan cascade. Sick reports
@@ -129,6 +137,12 @@ type StaffAbsenceService interface {
 	// #584 lookup; repository result returned verbatim).
 	GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error)
 
+	// GetTodayAbsenceLabelMap returns staff ID -> the school's own wording for
+	// today's winning absence (#2403). Only staff whose absence carries a
+	// school-defined Abwesenheitsart appear; everyone else keeps the standard
+	// label the client derives from GetTodayAbsenceMap.
+	GetTodayAbsenceLabelMap(ctx context.Context) (map[int64]string, error)
+
 	// Vacation workflow (Tranche 4)
 	RequestVacation(ctx context.Context, staffID int64, req RequestVacationRequest) (*StaffAbsenceResponse, error)
 	ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error)
@@ -160,6 +174,32 @@ func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64
 	return s.absenceRepo.GetAbsenceMapForDate(ctx, timezone.TodayDate())
 }
 
+// GetTodayAbsenceLabelMap returns staff ID -> school-defined absence name for
+// today.
+func (s *staffAbsenceService) GetTodayAbsenceLabelMap(ctx context.Context) (map[int64]string, error) {
+	if s.absenceTypes == nil {
+		return map[int64]string{}, nil
+	}
+	typeIDs, err := s.absenceRepo.GetAbsenceTypeIDMapForDate(ctx, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	if len(typeIDs) == 0 {
+		return map[int64]string{}, nil
+	}
+	names, err := s.absenceTypes.LabelsByID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	labels := make(map[int64]string, len(typeIDs))
+	for staffID, typeID := range typeIDs {
+		if name, ok := names[typeID]; ok {
+			labels[staffID] = name
+		}
+	}
+	return labels, nil
+}
+
 // staffAbsenceService implements StaffAbsenceService
 type staffAbsenceService struct {
 	absenceRepo     activeModels.StaffAbsenceRepository
@@ -184,6 +224,57 @@ type staffAbsenceService struct {
 	// injection (SetDeletionAudit) like SetBroadcaster; nil makes deletes
 	// fail.
 	deletionRepo auditModels.TimeTrackingDeletionRepository
+	// absenceTypes resolves school-defined Abwesenheitsarten (#2403). Setter
+	// injection (SetAbsenceTypeService) like the others; nil in bare-constructed
+	// unit fixtures, where every absence is a plain standard type.
+	absenceTypes StaffAbsenceTypeService
+}
+
+// SetAbsenceTypeService wires the school-defined absence names (#2403).
+func (s *staffAbsenceService) SetAbsenceTypeService(svc StaffAbsenceTypeService) {
+	s.absenceTypes = svc
+}
+
+// resolveAbsenceTypeSelection validates a requested Abwesenheitsart and returns
+// the canonical absence type the row must carry. A nil/zero ID leaves the
+// caller's own type in place.
+//
+// The base type is taken from the art, never from the client: that is the whole
+// point of the split — a school can name a day "Regenerationstag", but it stays
+// arithmetically the type the art was created as (v1: always "Sonstige").
+func (s *staffAbsenceService) resolveAbsenceTypeSelection(ctx context.Context, typeID *int64, fallbackType string) (*int64, string, error) {
+	if typeID == nil || *typeID <= 0 {
+		return nil, fallbackType, nil
+	}
+	if s.absenceTypes == nil {
+		return nil, "", ErrAbsenceTypeNotFound
+	}
+	resolved, err := s.absenceTypes.ResolveForAbsence(ctx, *typeID)
+	if err != nil {
+		return nil, "", err
+	}
+	id := resolved.ID
+	return &id, resolved.BaseType, nil
+}
+
+// withLabels stamps the school's own wording onto the given responses and
+// returns them unchanged otherwise, so read paths can wrap their return value
+// in one call.
+func (s *staffAbsenceService) withLabels(ctx context.Context, responses ...*StaffAbsenceResponse) []*StaffAbsenceResponse {
+	absences := make([]*activeModels.StaffAbsence, 0, len(responses))
+	for _, r := range responses {
+		if r != nil && r.StaffAbsence != nil {
+			absences = append(absences, r.StaffAbsence)
+		}
+	}
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, absences)
+	return responses
+}
+
+// withLabel is the single-response form of withLabels.
+func (s *staffAbsenceService) withLabel(ctx context.Context, response *StaffAbsenceResponse) *StaffAbsenceResponse {
+	s.withLabels(ctx, response)
+	return response
 }
 
 // SetDeletionAudit wires the deletion tombstone writer (#1417).
@@ -260,6 +351,14 @@ func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int6
 // over the MERGED range of the primary row, which the idempotency guards in
 // the syncer make safe to re-run.
 func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	// Resolve the school-defined art first (#2403): it, not the client, decides
+	// the canonical type every guard below and every later calculation reads.
+	typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, req.AbsenceType)
+	if err != nil {
+		return nil, err
+	}
+	req.AbsenceTypeID, req.AbsenceType = typeID, baseType
+
 	if req.AbsenceType == activeModels.AbsenceTypeVacation {
 		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
 	}
@@ -268,7 +367,7 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if err != nil {
 		return nil, err
 	}
-	if err := validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
+	if err = validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
 		return nil, err
 	}
 	if err := s.rejectPreAccountCompTime(ctx, req.AbsenceType, dateStart, dateEnd); err != nil {
@@ -363,6 +462,9 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSameAbsenceType(existing, req.AbsenceType); err != nil {
 		return nil, err
 	}
+	if err := validateSameAbsenceTypeName(existing, req.AbsenceTypeID); err != nil {
+		return nil, err
+	}
 	if err := validateSameMergeDuration(existing, req); err != nil {
 		return nil, err
 	}
@@ -411,7 +513,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 		return nil, err
 	}
 
-	return toAbsenceResponse(primary), nil
+	return s.withLabel(ctx, toAbsenceResponse(primary)), nil
 }
 
 // validateSameMergeDuration rejects merging half-day with full-day rows for
@@ -589,6 +691,29 @@ func (s *staffAbsenceService) lockStaffAbsenceWrites(ctx context.Context, staffI
 	return nil
 }
 
+// validateSameAbsenceTypeName keeps the merge honest for school-defined
+// Abwesenheitsarten (#2403). Two overlapping rows can share the canonical type
+// "Sonstige" and still be a "Regenerationstag" and a "Ferienzeit" — merging
+// them would silently relabel one of them, so an unequal art is an overlap
+// conflict, exactly like an unequal type.
+func validateSameAbsenceTypeName(existing []*activeModels.StaffAbsence, absenceTypeID *int64) error {
+	for _, e := range existing {
+		if !sameAbsenceTypeID(e.AbsenceTypeID, absenceTypeID) {
+			return fmt.Errorf("absence overlaps with an existing absence of a different Abwesenheitsart from %s to %s",
+				e.DateStart,
+				e.DateEnd)
+		}
+	}
+	return nil
+}
+
+func sameAbsenceTypeID(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+
 // validateSameAbsenceType checks that all existing absences match the requested type.
 func validateSameAbsenceType(existing []*activeModels.StaffAbsence, absenceType string) error {
 	for _, e := range existing {
@@ -653,14 +778,15 @@ func (s *staffAbsenceService) createNewAbsence(
 ) (*StaffAbsenceResponse, error) {
 	now := time.Now()
 	absence := &activeModels.StaffAbsence{
-		StaffID:     staffID,
-		AbsenceType: req.AbsenceType,
-		DateStart:   dateStart,
-		DateEnd:     dateEnd,
-		HalfDay:     req.HalfDay,
-		Note:        req.Note,
-		Status:      activeModels.AbsenceStatusReported,
-		CreatedBy:   createdBy,
+		StaffID:       staffID,
+		AbsenceType:   req.AbsenceType,
+		AbsenceTypeID: req.AbsenceTypeID,
+		DateStart:     dateStart,
+		DateEnd:       dateEnd,
+		HalfDay:       req.HalfDay,
+		Note:          req.Note,
+		Status:        activeModels.AbsenceStatusReported,
+		CreatedBy:     createdBy,
 	}
 	absence.CreatedAt = now
 	absence.UpdatedAt = now
@@ -670,7 +796,7 @@ func (s *staffAbsenceService) createNewAbsence(
 		return nil, fmt.Errorf("failed to create absence: %w", err)
 	}
 
-	return toAbsenceResponse(absence), nil
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 // UpdateAbsence updates an existing absence record
@@ -699,6 +825,15 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	// Apply updates from request
 	if err := applyAbsenceUpdates(absence, req); err != nil {
 		return nil, err
+	}
+	// A re-pointed Abwesenheitsart (#2403) also re-pins the canonical type, so
+	// the name and the arithmetic can never drift apart on an edit either.
+	if req.AbsenceTypeID != nil {
+		typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
+		if err != nil {
+			return nil, err
+		}
+		absence.AbsenceTypeID, absence.AbsenceType = typeID, baseType
 	}
 	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
@@ -730,7 +865,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	}
 
 	s.broadcastTimeTrackingChanged(ctx)
-	return toAbsenceResponse(absence), nil
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 func validateAbsenceUpdate(absence *activeModels.StaffAbsence, req UpdateAbsenceRequest) error {
@@ -965,7 +1100,7 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 		responses[i] = toAbsenceResponse(a)
 	}
 
-	return responses, nil
+	return s.withLabels(ctx, responses...), nil
 }
 
 // GetAbsencesForRange preserves the range-only service contract used by staff
@@ -981,7 +1116,7 @@ func (s *staffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID i
 		responses[i] = toAbsenceResponse(a)
 	}
 
-	return responses, nil
+	return s.withLabels(ctx, responses...), nil
 }
 
 // HasAbsenceOnDate checks if a staff member has an absence on a specific date
@@ -1141,7 +1276,7 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	}
 	s.notifyAbsenceRequested(ctx, absence)
 	s.broadcastTimeTrackingChanged(ctx)
-	return toAbsenceResponse(absence), nil
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, note string) (*StaffAbsenceResponse, error) {
@@ -1179,7 +1314,7 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	}
 	s.notifyAbsenceDecision(ctx, absence)
 	s.broadcastTimeTrackingChanged(ctx)
-	return toAbsenceResponse(absence), nil
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, actorAccountID int64, decidedByStaffID int64, reason string) (*StaffAbsenceResponse, error) {
@@ -1217,7 +1352,7 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	}
 	s.notifyAbsenceDecision(ctx, absence)
 	s.broadcastTimeTrackingChanged(ctx)
-	return toAbsenceResponse(absence), nil
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int64, actorAccountID int64, note string) (*StaffAbsenceResponse, error) {
@@ -1254,7 +1389,7 @@ func (s *staffAbsenceService) QuestionAbsence(ctx context.Context, absenceID int
 	}
 	s.notifyAbsenceDecision(ctx, absence)
 	s.broadcastTimeTrackingChanged(ctx)
-	return toAbsenceResponse(absence), nil
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64, note string) (*StaffAbsenceResponse, error) {
@@ -1292,7 +1427,7 @@ func (s *staffAbsenceService) ResubmitAbsence(ctx context.Context, staffID int64
 	// A resubmit re-enters the inbox, so approvers get the "received" mail again.
 	s.notifyAbsenceRequested(ctx, absence)
 	s.broadcastTimeTrackingChanged(ctx)
-	return toAbsenceResponse(absence), nil
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error {
@@ -1516,5 +1651,5 @@ func (s *staffAbsenceService) ListPendingRequests(ctx context.Context) ([]*Staff
 	for i, r := range rows {
 		responses[i] = toAbsenceResponse(r)
 	}
-	return responses, nil
+	return s.withLabels(ctx, responses...), nil
 }

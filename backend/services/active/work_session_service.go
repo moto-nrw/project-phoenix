@@ -339,10 +339,13 @@ type ScheduleUpdateInput struct {
 
 // workSessionService implements WorkSessionService
 type workSessionService struct {
-	repo           activeModels.WorkSessionRepository
-	breakRepo      activeModels.WorkSessionBreakRepository
-	auditRepo      auditModels.WorkSessionEditRepository
-	absenceRepo    activeModels.StaffAbsenceRepository
+	repo        activeModels.WorkSessionRepository
+	breakRepo   activeModels.WorkSessionBreakRepository
+	auditRepo   auditModels.WorkSessionEditRepository
+	absenceRepo activeModels.StaffAbsenceRepository
+	// absenceTypes resolves school-defined Abwesenheitsarten for exports
+	// (#2403). Setter injection; nil in bare-constructed unit fixtures.
+	absenceTypes   StaffAbsenceTypeService
 	supervisorRepo activeModels.GroupSupervisorRepository
 	staffRepo      userModels.StaffRepository
 	scheduleRepo   configModels.StaffWorkScheduleRepository
@@ -409,6 +412,11 @@ func (s *workSessionService) lockStaffBalanceWritesOrdered(ctx context.Context, 
 }
 
 // NewWorkSessionService creates a new work session service
+// SetAbsenceTypeService wires the school-defined absence names (#2403).
+func (s *workSessionService) SetAbsenceTypeService(svc StaffAbsenceTypeService) {
+	s.absenceTypes = svc
+}
+
 func NewWorkSessionService(repo activeModels.WorkSessionRepository, breakRepo activeModels.WorkSessionBreakRepository, auditRepo auditModels.WorkSessionEditRepository, absenceRepo activeModels.StaffAbsenceRepository, supervisorRepo activeModels.GroupSupervisorRepository, staffRepo userModels.StaffRepository, scheduleRepo configModels.StaffWorkScheduleRepository, workModelRepo configModels.WorkTimeModelRepository, settings settingsResolver, logger *slog.Logger) WorkSessionService {
 	return &workSessionService{repo: repo, breakRepo: breakRepo, auditRepo: auditRepo, absenceRepo: absenceRepo, supervisorRepo: supervisorRepo, staffRepo: staffRepo, scheduleRepo: scheduleRepo, workModelRepo: workModelRepo, settings: settings, logger: logger}
 }
@@ -2197,6 +2205,9 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
+		// Resolve the school's own Abwesenheitsarten so the export prints the
+		// wording the school entered, not the generic "Sonstige" (#2403).
+		StampAbsenceTypeLabels(ctx, s.absenceTypes, absences)
 	}
 
 	// Build merged rows sorted by date
@@ -2328,7 +2339,13 @@ func (s *workSessionService) buildExportRows(sessions []*SessionResponse, absenc
 			absence.Status != activeModels.AbsenceStatusApproved {
 			continue
 		}
-		label := germanAbsenceTypeLabels[absence.AbsenceType]
+		// The school's own wording wins when the absence carries one (#2403);
+		// the standard German label is the fallback, the raw type the last
+		// resort for a value this map has not caught up with.
+		label := absence.AbsenceTypeLabel
+		if label == "" {
+			label = germanAbsenceTypeLabels[absence.AbsenceType]
+		}
 		if label == "" {
 			label = absence.AbsenceType
 		}

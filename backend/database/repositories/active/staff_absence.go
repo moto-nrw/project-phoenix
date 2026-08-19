@@ -161,6 +161,58 @@ func (r *StaffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date 
 	return result, nil
 }
 
+// GetAbsenceTypeIDMapForDate returns staff ID -> the school-defined
+// Abwesenheitsart of the absence that wins GetAbsenceMapForDate's priority on
+// that date (#2403). Only staff whose winning absence carries one appear.
+//
+// Kept additive rather than folded into GetAbsenceMapForDate: that map's value
+// is compared against the canonical type constants all over the codebase, and
+// widening it would have every one of those call sites decide again what to do
+// with a name. The priority order is duplicated here on purpose — the two maps
+// must agree on the same winner, so they are read together.
+func (r *StaffAbsenceRepository) GetAbsenceTypeIDMapForDate(ctx context.Context, date timezone.Date) (map[int64]int64, error) {
+	var absences []*active.StaffAbsence
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&absences).
+		ModelTableExpr(tableExprActiveStaffAbsencesAsStaffAbsence).
+		Where(`"staff_absence".date_start <= ?`, date).
+		Where(`"staff_absence".date_end >= ?`, date).
+		Where(`"staff_absence".status IN (?)`, bun.List(effectiveStaffAbsenceStatuses))
+
+	query = base.WithTenantFilter(ctx, query, "staff_absence")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "get absence type id map for date",
+			Err: err,
+		}
+	}
+
+	priority := map[string]int{
+		active.AbsenceTypeSick:     5,
+		active.AbsenceTypeTraining: 4,
+		active.AbsenceTypeVacation: 3,
+		active.AbsenceTypeCompTime: 2,
+		active.AbsenceTypeOther:    1,
+	}
+
+	winner := make(map[int64]*active.StaffAbsence, len(absences))
+	for _, a := range absences {
+		existing, exists := winner[a.StaffID]
+		if !exists || priority[a.AbsenceType] > priority[existing.AbsenceType] {
+			winner[a.StaffID] = a
+		}
+	}
+
+	result := make(map[int64]int64, len(winner))
+	for staffID, a := range winner {
+		if a.AbsenceTypeID != nil {
+			result[staffID] = *a.AbsenceTypeID
+		}
+	}
+	return result, nil
+}
+
 // ListByStatuses returns all absences whose status is in the given set,
 // ordered by requested_at ASC (oldest request first).
 func (r *StaffAbsenceRepository) ListByStatuses(ctx context.Context, statuses []string) ([]*active.StaffAbsence, error) {
