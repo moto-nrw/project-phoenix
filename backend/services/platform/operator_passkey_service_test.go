@@ -21,6 +21,7 @@ import (
 )
 
 func TestOperatorPasskeyOriginValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		origin  string
@@ -67,6 +68,7 @@ func TestOperatorPasskeyOriginValidation(t *testing.T) {
 }
 
 func TestOperatorPasskeySummaryAndUser(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 	lastUsedAt := now.Add(time.Minute)
 	row := &platformModel.OperatorPasskeyCredential{
@@ -94,6 +96,7 @@ func TestOperatorPasskeySummaryAndUser(t *testing.T) {
 }
 
 func TestNewOperatorPasskeyServiceValidation(t *testing.T) {
+	t.Parallel()
 	baseCfg := OperatorPasskeyServiceConfig{
 		Repos:               &repositories.Factory{},
 		MFAService:          &operatorPasskeyMFAServiceStub{},
@@ -139,6 +142,7 @@ func TestNewOperatorPasskeyServiceValidation(t *testing.T) {
 }
 
 func TestOperatorPasskeyEnrollmentChallenge(t *testing.T) {
+	t.Parallel()
 	operator := &platformModel.Operator{Model: base.Model{ID: 101}, Email: "operator@example.test", Active: true}
 	mfa := &operatorPasskeyMFAServiceStub{challengeToken: "operator-challenge"}
 	svc := &operatorPasskeyService{
@@ -154,6 +158,7 @@ func TestOperatorPasskeyEnrollmentChallenge(t *testing.T) {
 }
 
 func TestOperatorPasskeyEnrollmentChallengeErrors(t *testing.T) {
+	t.Parallel()
 	operator := &platformModel.Operator{Model: base.Model{ID: 102}, Email: "operator@example.test", Active: true}
 	wantErr := errors.New("mfa down")
 
@@ -184,6 +189,7 @@ func TestOperatorPasskeyEnrollmentChallengeErrors(t *testing.T) {
 }
 
 func TestOperatorPasskeyBeginRegistrationStoresSession(t *testing.T) {
+	t.Parallel()
 	operator := &platformModel.Operator{Model: base.Model{ID: 111}, Email: "operator@example.test", DisplayName: "Operator", Active: true}
 	sessions := &operatorPasskeySessionRepoStub{}
 	mfa := &operatorPasskeyMFAServiceStub{}
@@ -221,6 +227,7 @@ func TestOperatorPasskeyBeginRegistrationStoresSession(t *testing.T) {
 }
 
 func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
+	t.Parallel()
 	operator := &platformModel.Operator{Model: base.Model{ID: 112}, Email: "operator@example.test", DisplayName: "Operator", Active: true}
 	inactive := &platformModel.Operator{Model: base.Model{ID: 113}, Email: "inactive@example.test", DisplayName: "Inactive", Active: false}
 	wantErr := errors.New("boom")
@@ -317,6 +324,7 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 }
 
 func TestOperatorPasskeyBeginLoginStoresSession(t *testing.T) {
+	t.Parallel()
 	sessions := &operatorPasskeySessionRepoStub{}
 	svc := &operatorPasskeyService{
 		repos:              &repositories.Factory{OperatorPasskeySession: sessions},
@@ -337,6 +345,7 @@ func TestOperatorPasskeyBeginLoginStoresSession(t *testing.T) {
 }
 
 func TestOperatorPasskeyBeginLoginErrors(t *testing.T) {
+	t.Parallel()
 	wantErr := errors.New("session down")
 
 	tests := []struct {
@@ -377,6 +386,7 @@ func TestOperatorPasskeyBeginLoginErrors(t *testing.T) {
 }
 
 func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
+	t.Parallel()
 	operator := &platformModel.Operator{Model: base.Model{ID: 121}, Email: "operator@example.test", DisplayName: "Operator", Active: true}
 	otherOperatorID := operator.ID + 1
 
@@ -474,6 +484,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 }
 
 func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		session *platformModel.OperatorPasskeySession
@@ -526,6 +537,7 @@ func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 }
 
 func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
+	t.Parallel()
 	now := time.Now().UTC()
 	operator := &platformModel.Operator{Model: base.Model{ID: 81}, Email: "operator@example.test", DisplayName: "Operator"}
 	row := &platformModel.OperatorPasskeyCredential{
@@ -569,6 +581,7 @@ func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
 }
 
 func TestOperatorPasskeyCredentialServiceErrors(t *testing.T) {
+	t.Parallel()
 	wantErr := errors.New("repo down")
 	repo := &operatorPasskeyCredentialRepoStub{err: wantErr}
 	svc := &operatorPasskeyService{repos: &repositories.Factory{OperatorPasskeyCredential: repo}}
@@ -756,6 +769,7 @@ func (s *operatorPasskeyMFAServiceStub) RevokeTrustedDevice(context.Context, int
 }
 
 func TestOperatorPasskeyRepositories(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	requireOperatorPasskeyTables(t, db, "platform.operator_passkey_credentials", "platform.operator_passkey_sessions")
 

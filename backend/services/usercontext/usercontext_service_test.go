@@ -69,6 +69,7 @@ func contextWithTenantClaimsAndRoles(userID int, tenantID int64, roles ...string
 // ============================================================================
 
 func TestUserContextService_GetCurrentUser(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -109,6 +110,7 @@ func TestUserContextService_GetCurrentUser(t *testing.T) {
 }
 
 func TestUserContextService_GetCurrentPerson(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -138,6 +140,7 @@ func TestUserContextService_GetCurrentPerson(t *testing.T) {
 }
 
 func TestUserContextService_GetCurrentStaff(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -184,6 +187,7 @@ func TestUserContextService_GetCurrentStaff(t *testing.T) {
 }
 
 func TestUserContextService_GetCurrentTeacher(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -234,6 +238,7 @@ func TestUserContextService_GetCurrentTeacher(t *testing.T) {
 // ============================================================================
 
 func TestUserContextService_GetMyGroups(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -262,6 +267,7 @@ func TestUserContextService_GetMyGroups(t *testing.T) {
 }
 
 func TestUserContextService_GetMyActivityGroups(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -297,6 +303,7 @@ func TestUserContextService_GetMyActivityGroups(t *testing.T) {
 }
 
 func TestUserContextService_GetMyActiveGroups(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -317,6 +324,7 @@ func TestUserContextService_GetMyActiveGroups(t *testing.T) {
 }
 
 func TestUserContextService_GetMySupervisedGroups(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -356,6 +364,7 @@ func TestUserContextService_GetMySupervisedGroups(t *testing.T) {
 // ============================================================================
 
 func TestUserContextService_GetCurrentProfile(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -420,6 +429,7 @@ func TestUserContextService_GetCurrentProfile(t *testing.T) {
 }
 
 func TestUserContextService_UpdateCurrentProfile(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -500,6 +510,7 @@ func TestUserContextService_UpdateCurrentProfile(t *testing.T) {
 }
 
 func TestUserContextService_UpdateAvatar(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -538,6 +549,7 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 // ============================================================================
 
 func TestUserContextErrors(t *testing.T) {
+	t.Parallel()
 	t.Run("UserContextError contains operation details", func(t *testing.T) {
 		err := &usercontextSvc.UserContextError{
 			Op:  "test operation",
@@ -584,6 +596,7 @@ func TestUserContextErrors(t *testing.T) {
 // ============================================================================
 
 func TestMergeActiveGroups(t *testing.T) {
+	t.Parallel()
 	// This tests the internal mergeActiveGroups function indirectly
 	// through the GetMyActiveGroups method behavior
 	db := testpkg.SetupTestDB(t)
@@ -611,6 +624,7 @@ func TestMergeActiveGroups(t *testing.T) {
 // ============================================================================
 
 func TestUserContextService_GetGroupStudents(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -669,6 +683,7 @@ func TestUserContextService_GetGroupStudents(t *testing.T) {
 // ============================================================================
 
 func TestUserContextService_GetGroupVisits(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -748,6 +763,7 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 // ============================================================================
 
 func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -815,6 +831,7 @@ func TestUserContextService_GetMyGroups_TeacherGroups(t *testing.T) {
 // ============================================================================
 
 func TestPartialError_Unwrap(t *testing.T) {
+	t.Parallel()
 	// ARRANGE
 	innerErr := usercontextSvc.ErrGroupNotFound
 	err := &usercontextSvc.PartialError{
@@ -837,6 +854,7 @@ func TestPartialError_Unwrap(t *testing.T) {
 // ============================================================================
 
 func TestUserContextService_GetGroupStudents_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -853,6 +871,7 @@ func TestUserContextService_GetGroupStudents_DatabaseError(t *testing.T) {
 }
 
 func TestUserContextService_GetGroupVisits_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -869,6 +888,7 @@ func TestUserContextService_GetGroupVisits_DatabaseError(t *testing.T) {
 }
 
 func TestUserContextService_GetMyActivityGroups_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -885,6 +905,7 @@ func TestUserContextService_GetMyActivityGroups_DatabaseError(t *testing.T) {
 }
 
 func TestUserContextService_GetMyActiveGroups_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -901,6 +922,7 @@ func TestUserContextService_GetMyActiveGroups_DatabaseError(t *testing.T) {
 }
 
 func TestUserContextService_GetCurrentUser_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -917,6 +939,7 @@ func TestUserContextService_GetCurrentUser_DatabaseError(t *testing.T) {
 }
 
 func TestUserContextService_GetCurrentPerson_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -933,6 +956,7 @@ func TestUserContextService_GetCurrentPerson_DatabaseError(t *testing.T) {
 }
 
 func TestUserContextService_GetCurrentStaff_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)
@@ -949,6 +973,7 @@ func TestUserContextService_GetCurrentStaff_DatabaseError(t *testing.T) {
 }
 
 func TestUserContextService_GetCurrentTeacher_DatabaseError(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)

@@ -84,6 +84,7 @@ func setupFacilitiesService(t *testing.T, db *bun.DB) facilitiesSvc.Service {
 // ============================================================================
 
 func TestFacilitiesService_GetRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -128,6 +129,7 @@ func TestFacilitiesService_GetRoom(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -211,6 +213,7 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_CreateRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -306,6 +309,7 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_UpdateRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -444,6 +448,7 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_DeleteRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -546,6 +551,7 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 }
 
 func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
@@ -601,6 +607,7 @@ func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_ListRooms(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -681,6 +688,7 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_FindRoomByName(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -716,6 +724,7 @@ func TestFacilitiesService_FindRoomByName(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -758,6 +767,7 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -821,6 +831,7 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -888,6 +899,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetBuildingList(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -955,6 +967,7 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetCategoryList(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -1024,6 +1037,7 @@ func TestFacilitiesService_GetCategoryList(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetRoomHistory(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)

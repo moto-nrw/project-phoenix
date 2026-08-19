@@ -24,6 +24,7 @@ import (
 // concerned, which is the state #2222 is about. The handler marks the
 // transaction for rollback so the refusal is real.
 func TestRegisterRollsBackRefusedProvisioning(t *testing.T) {
+	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 	adminToken, validRoleID := loginAsAdmin(t, db, router)
 
@@ -60,6 +61,7 @@ func TestRegisterRollsBackRefusedProvisioning(t *testing.T) {
 // for it refused the request the endpoint exists for; the name is needed only
 // where a person has to be created.
 func TestLinkToTenantReusesExistingPersonWithoutNames(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())

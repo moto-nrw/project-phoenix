@@ -116,6 +116,7 @@ func setStatus(t *testing.T, s *overdueSetup, id int64, status string) {
 // and is what the iteration delegates to in production.
 
 func TestOverdueTick_BroadcastsOncePerInstance(t *testing.T) {
+	t.Parallel()
 	s := buildOverdue(t)
 
 	// 30 minutes past — well beyond the 5-minute default threshold.
@@ -139,6 +140,7 @@ func TestOverdueTick_BroadcastsOncePerInstance(t *testing.T) {
 }
 
 func TestOverdueTick_ReFireGuard(t *testing.T) {
+	t.Parallel()
 	s := buildOverdue(t)
 
 	ai := seedPlanned(t, s, 30)
@@ -151,6 +153,7 @@ func TestOverdueTick_ReFireGuard(t *testing.T) {
 }
 
 func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
+	t.Parallel()
 	s := buildOverdue(t)
 
 	ai := seedPlanned(t, s, 30)
@@ -194,6 +197,7 @@ func spyFindByInstance(b *testpkg.RecordingBroadcaster, instanceID int64, eventT
 
 // Day-rollover is a pure-memory behaviour — test it without the DB.
 func TestRotateOverdueCacheIfNewDay(t *testing.T) {
+	t.Parallel()
 	sched := &Scheduler{
 		tasks:  make(map[string]*ScheduledTask),
 		done:   make(chan struct{}),

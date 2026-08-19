@@ -54,6 +54,7 @@ func seedSearchGuardian(t *testing.T, tc *testContext, firstName, lastName, emai
 // TestListGuardians_SearchFiltersResults verifies ?search= actually filters by
 // name (case-insensitive substring) instead of returning every guardian.
 func TestListGuardians_SearchFiltersResults(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	token := fmt.Sprintf("Zzmatch%d", time.Now().UnixNano())
@@ -93,6 +94,7 @@ func TestListGuardians_SearchFiltersResults(t *testing.T) {
 // the words, so both "Andrea Bauer" and the reversed "Bauer Andrea" hit the
 // same person.
 func TestListGuardians_SearchMatchesFullNameWithSpace(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	first := fmt.Sprintf("Zzfirst%d", time.Now().UnixNano())
@@ -128,6 +130,7 @@ func TestListGuardians_SearchMatchesFullNameWithSpace(t *testing.T) {
 // return the whole pool — otherwise a non-admin could defeat the enumeration
 // guard with raw wildcards (#1513).
 func TestListGuardians_SearchWildcardsAreLiteral(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	token := fmt.Sprintf("Zzwild%d", time.Now().UnixNano())
@@ -158,6 +161,7 @@ func TestListGuardians_SearchWildcardsAreLiteral(t *testing.T) {
 // staff member can't profile a family they don't supervise — address, notes,
 // language, and contact method are withheld too (#1513).
 func TestListGuardians_SearchProjectionIsGDPRSafe(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	ctx := context.Background()
@@ -217,6 +221,7 @@ func TestListGuardians_SearchProjectionIsGDPRSafe(t *testing.T) {
 // can create a duplicate guardian but can't find the existing one — the exact
 // gap this feature closes. The gate matches the other guardian reads (users:read).
 func TestGuardianPickerSearch_AllowedForStaffWithUsersRead(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	token := fmt.Sprintf("Zzperm%d", time.Now().UnixNano())
@@ -247,6 +252,7 @@ func TestGuardianPickerSearch_AllowedForStaffWithUsersRead(t *testing.T) {
 // bites: a caller holding neither users:read nor admin:* is rejected with 403
 // before the handler runs.
 func TestGuardianPickerSearch_ForbiddenWithoutUsersRead(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	router := tc.resource.Router()
@@ -279,6 +285,7 @@ type guardianSearchEnvelope struct {
 // client's "type at least N characters" hint as the single source of truth (it
 // returns OK so the field doesn't flash an error while the user is still typing).
 func TestGuardianPickerSearch_ShortQueryReturnsEmpty(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	// Seed a guardian whose name would match the 2-char prefix IF the guard were
@@ -308,6 +315,7 @@ func TestGuardianPickerSearch_ShortQueryReturnsEmpty(t *testing.T) {
 // envelope must report the clamped page size (maxGuardianPickerResults = 50), not
 // the requested one.
 func TestGuardianPickerSearch_ClampsPageSize(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	token := fmt.Sprintf("Zzclamp%d", time.Now().UnixNano())

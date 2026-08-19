@@ -72,6 +72,7 @@ func roomResponseIDs(t *testing.T, body []byte) map[int64]bool {
 }
 
 func TestListRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 	tenantID := newRoomFilterTestTenant(t, tc.db)
 	claims := testutil.AdminTestClaimsForTenant(1, tenantID)
@@ -132,6 +133,7 @@ func TestListRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testing.T) {
 }
 
 func TestGetAvailableRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 	tenantID := newRoomFilterTestTenant(t, tc.db)
 	claims := testutil.AdminTestClaimsForTenant(1, tenantID)

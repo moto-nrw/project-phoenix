@@ -55,6 +55,7 @@ func categoryDataFromResponse(t *testing.T, body []byte) map[string]any {
 }
 
 func TestCreateCategory_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	name := fmt.Sprintf("Essen-%d", time.Now().UnixNano())
@@ -73,6 +74,7 @@ func TestCreateCategory_Success(t *testing.T) {
 }
 
 func TestCreateCategory_RequiresManageCategoriesPermission(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	body := map[string]string{"name": fmt.Sprintf("Verboten-%d", time.Now().UnixNano())}
@@ -84,6 +86,7 @@ func TestCreateCategory_RequiresManageCategoriesPermission(t *testing.T) {
 }
 
 func TestCreateCategory_RejectsEmptyName(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": "   "})
@@ -93,6 +96,7 @@ func TestCreateCategory_RejectsEmptyName(t *testing.T) {
 }
 
 func TestCreateCategory_RejectsInvalidColor(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{
@@ -105,6 +109,7 @@ func TestCreateCategory_RejectsInvalidColor(t *testing.T) {
 }
 
 func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	existing := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiDuplicate")
@@ -117,6 +122,7 @@ func TestCreateCategory_ConflictOnDuplicateName(t *testing.T) {
 }
 
 func TestCreateCategory_RejectsReservedSystemName(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/activities/categories", map[string]string{"name": " wc "})
@@ -126,6 +132,7 @@ func TestCreateCategory_RejectsReservedSystemName(t *testing.T) {
 }
 
 func TestUpdateCategory_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiRename")
@@ -144,6 +151,7 @@ func TestUpdateCategory_Success(t *testing.T) {
 }
 
 func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiInvalidColor")
@@ -159,6 +167,7 @@ func TestUpdateCategory_RejectsInvalidColor(t *testing.T) {
 }
 
 func TestArchiveAndRestoreCategory(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchive")
@@ -188,6 +197,7 @@ func TestArchiveAndRestoreCategory(t *testing.T) {
 }
 
 func TestArchiveCategory_RequiresManageCategoriesPermission(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, "ApiArchiveDenied")
@@ -200,6 +210,7 @@ func TestArchiveCategory_RequiresManageCategoriesPermission(t *testing.T) {
 }
 
 func TestListCategories_ReportsUsageCount(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UsageApi-%d", time.Now().UnixNano()))

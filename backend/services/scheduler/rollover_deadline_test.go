@@ -42,6 +42,7 @@ func (p *failingRolloverDeadlineProbe) RunDeadlineWorker(ctx context.Context, _ 
 }
 
 func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	testpkg.EnsureTestTenant(t, db, 1)
 	repos := repositories.NewFactory(db)

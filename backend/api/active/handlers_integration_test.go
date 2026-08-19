@@ -26,6 +26,7 @@ import (
 // ============================================================================
 
 func TestCombinedGroups_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupCombinedGroupRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -151,6 +152,7 @@ func TestCombinedGroups_Integration(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappings_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupMappingsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -222,6 +224,7 @@ func TestGroupMappings_Integration(t *testing.T) {
 // ============================================================================
 
 func TestUnclaimedGroups_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupUnclaimedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -270,6 +273,7 @@ func TestUnclaimedGroups_Integration(t *testing.T) {
 // ============================================================================
 
 func TestSupervisorsByGroup_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupSupervisorRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -316,6 +320,7 @@ func TestSupervisorsByGroup_Integration(t *testing.T) {
 // ============================================================================
 
 func TestVisitsByGroup_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupVisitsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -361,6 +366,7 @@ func TestVisitsByGroup_Integration(t *testing.T) {
 // ============================================================================
 
 func TestAnalytics_Integration(t *testing.T) {
+	t.Parallel()
 	_, router := setupAnalyticsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -377,6 +383,7 @@ func TestAnalytics_Integration(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroups_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupActiveGroupsRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -644,6 +651,7 @@ func TestActiveGroups_Integration(t *testing.T) {
 // ============================================================================
 
 func TestVisits_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupVisitsCRUDRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -837,6 +845,7 @@ func TestVisits_Integration(t *testing.T) {
 // ============================================================================
 
 func TestSupervisors_Integration(t *testing.T) {
+	t.Parallel()
 	tc, router := setupSupervisorsCRUDRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 

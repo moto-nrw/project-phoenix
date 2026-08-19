@@ -82,6 +82,7 @@ func decodeShiftTypeID(t *testing.T, w *httptest.ResponseRecorder) int64 {
 }
 
 func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
+	t.Parallel()
 	s := buildShiftTypeSetup(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-create-1")
@@ -103,6 +104,7 @@ func TestShiftType_CreateWithCategoryLinks(t *testing.T) {
 }
 
 func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
+	t.Parallel()
 	s := buildShiftTypeSetup(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-upd-1")
@@ -136,6 +138,7 @@ func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 }
 
 func TestShiftType_UpdateRejectsUnknownCategoryIDs(t *testing.T) {
+	t.Parallel()
 	s := buildShiftTypeSetup(t)
 
 	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-unknown-1")

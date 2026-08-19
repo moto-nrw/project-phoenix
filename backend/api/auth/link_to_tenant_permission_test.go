@@ -21,6 +21,7 @@ import (
 // users:manage — the same permission /auth/register uses for exactly this
 // reason (issue #1021).
 func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())

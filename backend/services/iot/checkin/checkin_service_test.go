@@ -73,6 +73,7 @@ func createTestActiveGroupWithDevice(t *testing.T, db *bun.DB, activityGroupID, 
 // =============================================================================
 
 func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := testpkg.TenantContext(1)
@@ -89,6 +90,7 @@ func TestGetDeviceActiveGroupInRoom_ReturnsMatchingGroup(t *testing.T) {
 }
 
 func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := testpkg.TenantContext(1)
@@ -105,6 +107,7 @@ func TestGetDeviceActiveGroupInRoom_NoMatchingDevice(t *testing.T) {
 }
 
 func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -119,6 +122,7 @@ func TestGetDeviceActiveGroupInRoom_NoGroupsInRoom(t *testing.T) {
 // =============================================================================
 
 func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -138,6 +142,7 @@ func TestGetActiveStudentCountForRoom_ReturnsCount(t *testing.T) {
 }
 
 func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -155,6 +160,7 @@ func TestGetActiveStudentCountForRoom_EmptyRoom(t *testing.T) {
 // =============================================================================
 
 func TestUpdateSessionActivity_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -168,6 +174,7 @@ func TestUpdateSessionActivity_Success(t *testing.T) {
 }
 
 func TestUpdateSessionActivity_NonExistentGroup(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -181,6 +188,7 @@ func TestUpdateSessionActivity_NonExistentGroup(t *testing.T) {
 // =============================================================================
 
 func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -198,6 +206,7 @@ func TestCountActiveGroupOccupancy_WithActiveVisits(t *testing.T) {
 }
 
 func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -213,6 +222,7 @@ func TestCountActiveGroupOccupancy_EmptyGroup(t *testing.T) {
 }
 
 func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -238,6 +248,7 @@ func TestCountActiveGroupOccupancy_ExcludesExitedVisits(t *testing.T) {
 // =============================================================================
 
 func TestLoadCurrentVisitWithRoom_NoVisit(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -248,6 +259,7 @@ func TestLoadCurrentVisitWithRoom_NoVisit(t *testing.T) {
 }
 
 func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	ctx := context.Background()
@@ -272,6 +284,7 @@ func TestLoadCurrentVisitWithRoom_WithVisit(t *testing.T) {
 // =============================================================================
 
 func TestRoomNameByID_FallbackToLookup(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "LookupRoom")
@@ -282,6 +295,7 @@ func TestRoomNameByID_FallbackToLookup(t *testing.T) {
 }
 
 func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	// Use a non-existent room ID
@@ -290,6 +304,7 @@ func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
 }
 
 func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "ResponseRoom")
@@ -300,6 +315,7 @@ func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
 }
 
 func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "FallbackRoom")
@@ -316,6 +332,7 @@ func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
 // treats the scan like an unknown tag instead of opening a room visit or an
 // attendance row.
 func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 	ctx := testpkg.TenantContext(1)
 
@@ -348,6 +365,7 @@ func TestResolveStudentFromPerson_RejectsAlumnus(t *testing.T) {
 // "person is not a student" an unknown/absent student gets — not the generic
 // 500 "failed to create visit record" that tells PyrePortal to retry.
 func TestProcessStudentCheckin_RoomRejectsGraduatedRace(t *testing.T) {
+	t.Parallel()
 	tc := setupCheckinServiceTest(t)
 	ctx := testpkg.TenantContext(1)
 

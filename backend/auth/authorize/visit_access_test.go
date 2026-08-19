@@ -77,6 +77,7 @@ func setupVisitAccessServices(t *testing.T, db *bun.DB) (education.Service, user
 }
 
 func TestCanViewVisit_AdminCanAlwaysAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
@@ -89,6 +90,7 @@ func TestCanViewVisit_AdminCanAlwaysAccess(t *testing.T) {
 }
 
 func TestCanViewVisit_UserWithPermissionCanAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
@@ -101,6 +103,7 @@ func TestCanViewVisit_UserWithPermissionCanAccess(t *testing.T) {
 }
 
 func TestCanViewVisit_StudentCanAccessOwnVisit(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
@@ -127,6 +130,7 @@ func TestCanViewVisit_StudentCanAccessOwnVisit(t *testing.T) {
 }
 
 func TestCanViewVisit_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
@@ -154,6 +158,7 @@ func TestCanViewVisit_StudentCannotAccessOtherStudentsVisit(t *testing.T) {
 }
 
 func TestCanViewVisit_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
@@ -188,6 +193,7 @@ func TestCanViewVisit_TeacherCanAccessVisitOfStudentInTheirGroup(t *testing.T) {
 }
 
 func TestCanViewVisit_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
@@ -225,6 +231,7 @@ func TestCanViewVisit_TeacherCannotAccessVisitOfStudentNotInTheirGroup(t *testin
 }
 
 func TestCanViewVisit_RegularUserWithoutPermissionsCannotAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	eduService, usersService, activeService := setupVisitAccessServices(t, db)
@@ -312,6 +319,7 @@ func (f *fakeVisitEducation) GetTeacherGroups(_ context.Context, _ int64) ([]*ed
 }
 
 func TestCanViewVisit_PropagatesVisitLookupError(t *testing.T) {
+	t.Parallel()
 	lookupErr := errors.New("visit lookup failed")
 
 	result, err := authorize.CanViewVisit(
@@ -330,6 +338,7 @@ func TestCanViewVisit_PropagatesVisitLookupError(t *testing.T) {
 }
 
 func TestRequireVisitView(t *testing.T) {
+	t.Parallel()
 	// Fixture graph shared by the deny and error cases: a non-admin caller
 	// who resolves to a teacher, so the education lookup decides the outcome.
 	teacherPersons := func() *fakeVisitPersons {

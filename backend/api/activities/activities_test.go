@@ -120,6 +120,7 @@ func cleanupCategory(t *testing.T, db *bun.DB, categoryID int64) {
 // =============================================================================
 
 func TestListActivities_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test activity
@@ -140,6 +141,7 @@ func TestListActivities_Success(t *testing.T) {
 }
 
 func TestListActivities_WithCategoryFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestFilter-%d", time.Now().UnixNano()))
@@ -154,6 +156,7 @@ func TestListActivities_WithCategoryFilter(t *testing.T) {
 }
 
 func TestGetActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("TestGet-%d", time.Now().UnixNano()))
@@ -173,6 +176,7 @@ func TestGetActivity_Success(t *testing.T) {
 }
 
 func TestGetActivity_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/99999", nil)
@@ -183,6 +187,7 @@ func TestGetActivity_NotFound(t *testing.T) {
 }
 
 func TestGetActivity_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/invalid", nil)
@@ -193,6 +198,7 @@ func TestGetActivity_InvalidID(t *testing.T) {
 }
 
 func TestCreateActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create a staff member with account for authentication
@@ -226,6 +232,7 @@ func TestCreateActivity_Success(t *testing.T) {
 }
 
 func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("BadReq-%d", time.Now().UnixNano()))
@@ -245,6 +252,7 @@ func TestCreateActivity_BadRequest_MissingName(t *testing.T) {
 }
 
 func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -261,6 +269,7 @@ func TestCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 }
 
 func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Unlimited", "Activity")
@@ -299,6 +308,7 @@ func TestCreateActivity_AllowsNoParticipantLimit(t *testing.T) {
 }
 
 func TestUpdateActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Note: CreateTestActivityGroup creates its own staff member as the creator.
@@ -323,6 +333,7 @@ func TestUpdateActivity_Success(t *testing.T) {
 }
 
 func TestUpdateActivity_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create a staff member with account for authentication
@@ -346,6 +357,7 @@ func TestUpdateActivity_NotFound(t *testing.T) {
 }
 
 func TestDeleteActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Note: CreateTestActivityGroup creates its own staff member as the creator.
@@ -363,6 +375,7 @@ func TestDeleteActivity_Success(t *testing.T) {
 }
 
 func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
+	t.Parallel()
 	// Note: With admin permissions, the API allows idempotent deletes - returns success
 	// even if the activity doesn't exist. This prevents information disclosure about
 	// which activity IDs exist.
@@ -378,6 +391,7 @@ func TestDeleteActivity_NonExistent_ReturnsSuccess(t *testing.T) {
 }
 
 func TestDeleteActivity_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/activities/invalid", nil)
@@ -392,6 +406,7 @@ func TestDeleteActivity_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestListCategories_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("TestCat-%d", time.Now().UnixNano()))
@@ -410,6 +425,7 @@ func TestListCategories_Success(t *testing.T) {
 }
 
 func TestGetTimespans_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/timespans", nil)
@@ -428,6 +444,7 @@ func TestGetTimespans_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetActivitySchedules_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("ScheduleTest-%d", time.Now().UnixNano()))
@@ -442,6 +459,7 @@ func TestGetActivitySchedules_Success(t *testing.T) {
 }
 
 func TestCreateActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("CreateSched-%d", time.Now().UnixNano()))
@@ -460,6 +478,7 @@ func TestCreateActivitySchedule_Success(t *testing.T) {
 }
 
 func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("InvalidSched-%d", time.Now().UnixNano()))
@@ -478,6 +497,7 @@ func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
 }
 
 func TestGetAvailableTimeSlots_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available", nil)
@@ -488,6 +508,7 @@ func TestGetAvailableTimeSlots_Success(t *testing.T) {
 }
 
 func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available?weekday=invalid", nil)
@@ -502,6 +523,7 @@ func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
 // =============================================================================
 
 func TestGetActivitySupervisors_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("SupervisorTest-%d", time.Now().UnixNano()))
@@ -516,6 +538,7 @@ func TestGetActivitySupervisors_Success(t *testing.T) {
 }
 
 func TestAssignSupervisor_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("AssignSup-%d", time.Now().UnixNano()))
@@ -537,6 +560,7 @@ func TestAssignSupervisor_Success(t *testing.T) {
 }
 
 func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("NoStaff-%d", time.Now().UnixNano()))
@@ -555,6 +579,7 @@ func TestAssignSupervisor_BadRequest_MissingStaffID(t *testing.T) {
 }
 
 func TestGetAvailableSupervisors_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	_ = testpkg.CreateTestStaff(t, ctx.db, "Available", "Supervisor")
@@ -575,6 +600,7 @@ func TestGetAvailableSupervisors_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetActivityStudents_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("EnrollTest-%d", time.Now().UnixNano()))
@@ -589,6 +615,7 @@ func TestGetActivityStudents_Success(t *testing.T) {
 }
 
 func TestEnrollStudent_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("EnrollS-%d", time.Now().UnixNano()))
@@ -605,6 +632,7 @@ func TestEnrollStudent_Success(t *testing.T) {
 }
 
 func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DupEnroll-%d", time.Now().UnixNano()))
@@ -626,6 +654,7 @@ func TestEnrollStudent_Conflict_AlreadyEnrolled(t *testing.T) {
 }
 
 func TestGetStudentEnrollments_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "GetEnroll", "Student", "1a")
@@ -638,6 +667,7 @@ func TestGetStudentEnrollments_Success(t *testing.T) {
 }
 
 func TestGetAvailableActivities_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Student", "1a")
@@ -650,6 +680,7 @@ func TestGetAvailableActivities_Success(t *testing.T) {
 }
 
 func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Available", "Graduate", "4a")
@@ -668,6 +699,7 @@ func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
 }
 
 func TestUnenrollStudent_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("Unenroll-%d", time.Now().UnixNano()))
@@ -690,6 +722,7 @@ func TestUnenrollStudent_Success(t *testing.T) {
 }
 
 func TestUnenrollStudent_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UnenrollNF-%d", time.Now().UnixNano()))
@@ -706,6 +739,7 @@ func TestUnenrollStudent_NotFound(t *testing.T) {
 }
 
 func TestBatchEnrollment_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("BatchTest-%d", time.Now().UnixNano()))
@@ -727,6 +761,7 @@ func TestBatchEnrollment_Success(t *testing.T) {
 }
 
 func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("BatchBad-%d", time.Now().UnixNano()))
@@ -747,6 +782,7 @@ func TestBatchEnrollment_BadRequest_MissingStudentIDs(t *testing.T) {
 // =============================================================================
 
 func TestQuickCreateActivity_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create a staff member with account for authentication
@@ -779,6 +815,7 @@ func TestQuickCreateActivity_Success(t *testing.T) {
 }
 
 func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	category := testpkg.CreateTestActivityCategory(t, ctx.db, fmt.Sprintf("QuickBad-%d", time.Now().UnixNano()))
@@ -797,6 +834,7 @@ func TestQuickCreateActivity_BadRequest_MissingName(t *testing.T) {
 }
 
 func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -816,6 +854,7 @@ func TestQuickCreateActivity_BadRequest_MissingCategoryID(t *testing.T) {
 // =============================================================================
 
 func TestGetActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSched-%d", time.Now().UnixNano()))
@@ -841,6 +880,7 @@ func TestGetActivitySchedule_Success(t *testing.T) {
 }
 
 func TestGetActivitySchedule_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSchedNF-%d", time.Now().UnixNano()))
@@ -856,6 +896,7 @@ func TestGetActivitySchedule_NotFound(t *testing.T) {
 }
 
 func TestUpdateActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSched-%d", time.Now().UnixNano()))
@@ -884,6 +925,7 @@ func TestUpdateActivitySchedule_Success(t *testing.T) {
 }
 
 func TestUpdateActivitySchedule_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSchedNF-%d", time.Now().UnixNano()))
@@ -903,6 +945,7 @@ func TestUpdateActivitySchedule_NotFound(t *testing.T) {
 }
 
 func TestDeleteActivitySchedule_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSched-%d", time.Now().UnixNano()))
@@ -929,6 +972,7 @@ func TestDeleteActivitySchedule_Success(t *testing.T) {
 }
 
 func TestDeleteActivitySchedule_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSchedNF-%d", time.Now().UnixNano()))
@@ -948,6 +992,7 @@ func TestDeleteActivitySchedule_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestUpdateSupervisorRole_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRole-%d", time.Now().UnixNano()))
@@ -974,6 +1019,7 @@ func TestUpdateSupervisorRole_Success(t *testing.T) {
 }
 
 func TestUpdateSupervisorRole_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSupRoleNF-%d", time.Now().UnixNano()))
@@ -993,6 +1039,7 @@ func TestUpdateSupervisorRole_NotFound(t *testing.T) {
 }
 
 func TestRemoveSupervisor_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSup-%d", time.Now().UnixNano()))
@@ -1017,6 +1064,7 @@ func TestRemoveSupervisor_Success(t *testing.T) {
 }
 
 func TestRemoveSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupNF-%d", time.Now().UnixNano()))
@@ -1032,6 +1080,7 @@ func TestRemoveSupervisor_NotFound(t *testing.T) {
 }
 
 func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupReplace-%d", time.Now().UnixNano()))
@@ -1072,6 +1121,7 @@ func TestRemoveSupervisor_WithReplacement_ReplacesSupervisorAtomically(t *testin
 }
 
 func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupExistingPrimary-%d", time.Now().UnixNano()))
@@ -1124,6 +1174,7 @@ func TestRemoveSupervisor_WithExistingPrimaryReplacement_PreservesPrimaryLead(t 
 }
 
 func TestRemoveSupervisor_OnlySupervisorRequiresReplacement(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("RemSupOnly-%d", time.Now().UnixNano()))

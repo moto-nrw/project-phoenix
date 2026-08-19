@@ -21,6 +21,7 @@ import (
 // This backs the guardian full-delete 409 path (#819), where the handler must
 // reject with a 409 without committing any partial link deletions.
 func TestTenantTxMiddleware_MarkRollback(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile

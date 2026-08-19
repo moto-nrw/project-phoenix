@@ -119,6 +119,7 @@ func cleanupAccessFixtures(t *testing.T, db *bun.DB, accountID int64) {
 }
 
 func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -153,6 +154,7 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 // with empty groups and empty supervisions — the same bug one level down from
 // the missing staff record. The tier decides now, not the origin of the role.
 func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProfile(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -181,6 +183,7 @@ func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProf
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -201,6 +204,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsGuardianRole(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -218,6 +222,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsGuardianRole(t *testing.T) 
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsForeignTenantRole(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -237,6 +242,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsForeignTenantRole(t *testin
 }
 
 func TestIntegration_UpdateAccountTenantRole_ReplacesAdminKeepsCaregiver(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -264,6 +270,7 @@ func TestIntegration_UpdateAccountTenantRole_ReplacesAdminKeepsCaregiver(t *test
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -295,6 +302,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 }
 
 func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -319,6 +327,7 @@ func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile
 }
 
 func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -335,6 +344,7 @@ func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T
 }
 
 func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -362,6 +372,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 }
 
 func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -382,6 +393,7 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 }
 
 func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(t *testing.T) {
+	t.Parallel()
 	for _, roleName := range []string{authModels.BaseRoleGuardian, authModels.BaseRoleUser, "teacher"} {
 		t.Run(roleName, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
@@ -428,6 +440,7 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 }
 
 func TestIntegration_RevokeAccountTenantAccess_DeactivatesAccountWithoutRemainingSchools(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -449,6 +462,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesAccountWithoutRemainin
 }
 
 func TestIntegration_ListAccountTenantAccess_UnknownAccount(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -460,6 +474,7 @@ func TestIntegration_ListAccountTenantAccess_UnknownAccount(t *testing.T) {
 }
 
 func TestIntegration_ListAccountTenantAccess_ReturnsSchoolsWithRoles(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -486,6 +501,7 @@ func TestIntegration_ListAccountTenantAccess_ReturnsSchoolsWithRoles(t *testing.
 }
 
 func TestIntegration_ListAccountTenantAccess_UnknownAccountID(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -497,6 +513,7 @@ func TestIntegration_ListAccountTenantAccess_UnknownAccountID(t *testing.T) {
 }
 
 func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -526,6 +543,7 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 }
 
 func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLastRevokedSchool(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -574,6 +592,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 }
 
 func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateManuallyDeactivatedAccount(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -597,6 +616,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateManuallyDeactivat
 }
 
 func TestIntegration_RevokeAccountTenantAccess_UnknownSchool(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -611,6 +631,7 @@ func TestIntegration_RevokeAccountTenantAccess_UnknownSchool(t *testing.T) {
 }
 
 func TestIntegration_RevokeAccountTenantAccess_WithoutExistingAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -625,6 +646,7 @@ func TestIntegration_RevokeAccountTenantAccess_WithoutExistingAccess(t *testing.
 }
 
 func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -663,6 +685,7 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *
 }
 
 func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -687,6 +710,7 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *test
 // identity: copying it would file a child as personnel at another school, and
 // afterwards nothing tells that staff row apart from a legitimate one.
 func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -718,6 +742,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 // entitled to resolve — picking the lower-numbered school's version is a coin
 // toss with someone's name. The change is refused instead.
 func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -760,6 +785,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 // by retyping a name that was already on the record and was never going to be
 // written.
 func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteAmbiguityElsewhere(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)

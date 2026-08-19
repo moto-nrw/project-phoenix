@@ -34,6 +34,7 @@ func futureBirthdayGermanShortForTests() string {
 }
 
 func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
+	t.Parallel()
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
 
@@ -43,6 +44,7 @@ func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
 }
 
 func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermissions(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	factory := repositories.NewFactory(db)
 	ctx := testpkg.TenantContext(1)
@@ -70,6 +72,7 @@ func TestStudentImportConfig_CreateSingleGuardianRelationship_AssignsRolePermiss
 }
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -151,6 +154,7 @@ func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -252,6 +256,7 @@ func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -311,6 +316,7 @@ func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -367,6 +373,7 @@ func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
 // a row error in the preview pass, before createStudentFromRow builds a student
 // the model rejects mid-import.
 func TestStudentImportConfig_Validate_AccompaniedCompanionNote(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -420,6 +427,7 @@ func TestStudentImportConfig_Validate_AccompaniedCompanionNote(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -487,6 +495,7 @@ func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -557,6 +566,7 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_ErrorSeverity(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -593,6 +603,7 @@ func TestStudentImportConfig_Validate_ErrorSeverity(t *testing.T) {
 }
 
 func TestStudentImportConfig_ValidateGuardian_EmailFormats(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{}
 
 	tests := []struct {
@@ -639,6 +650,7 @@ func TestStudentImportConfig_ValidateGuardian_EmailFormats(t *testing.T) {
 }
 
 func TestStudentImportConfig_ValidateGuardian_PhoneFormats(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{}
 
 	tests := []struct {
@@ -688,6 +700,7 @@ func TestStudentImportConfig_ValidateGuardian_PhoneFormats(t *testing.T) {
 // ============================================================================
 
 func TestValidateGuardianLanguage(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		lang     string
@@ -719,6 +732,7 @@ func TestValidateGuardianLanguage(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_GuardianLanguageWarning(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -756,6 +770,7 @@ func TestStudentImportConfig_Validate_GuardianLanguageWarning(t *testing.T) {
 // ============================================================================
 
 func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -848,6 +863,7 @@ func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
 }
 
 func TestStudentImportConfig_Validate_ArrivalSchedule(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -921,6 +937,7 @@ func TestStudentImportConfig_Validate_ArrivalSchedule(t *testing.T) {
 // ============================================================================
 
 func TestIsValidTimeFormat(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected bool
@@ -951,6 +968,7 @@ func TestIsValidTimeFormat(t *testing.T) {
 // ============================================================================
 
 func TestGuardianLanguagePreference(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "de", guardianLanguagePreference(""))
 	assert.Equal(t, "de", guardianLanguagePreference("de"))
 	assert.Equal(t, "en", guardianLanguagePreference("EN"))
@@ -962,6 +980,7 @@ func TestGuardianLanguagePreference(t *testing.T) {
 // ============================================================================
 
 func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -997,6 +1016,7 @@ func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing
 }
 
 func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -1034,6 +1054,7 @@ func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.
 }
 
 func TestStudentImportConfig_Validate_PickupScheduleEmptyListIsValid(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -1058,6 +1079,7 @@ func TestStudentImportConfig_Validate_PickupScheduleEmptyListIsValid(t *testing.
 }
 
 func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -1112,6 +1134,7 @@ func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) 
 // ============================================================================
 
 func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{ArrivalScheduleRepo: nil}}
 
 	schedules := []importModels.ArrivalScheduleImportData{
@@ -1123,6 +1146,7 @@ func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
 }
 
 func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{ArrivalScheduleRepo: nil}}
 
 	err := config.createArrivalSchedules(context.Background(), 123, nil)
@@ -1133,6 +1157,7 @@ func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T)
 }
 
 func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
 		// No repo
 		PickupScheduleRepo: nil},
@@ -1148,6 +1173,7 @@ func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
 }
 
 func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
 		// Would panic if called, but shouldn't be
 		PickupScheduleRepo: nil},
@@ -1166,6 +1192,7 @@ func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) 
 // ============================================================================
 
 func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesContact(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -1207,6 +1234,7 @@ func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesCon
 // ============================================================================
 
 func TestStudentImportConfig_Validate_PickupScheduleBoundaryWeekdays(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -1259,6 +1287,7 @@ func TestStudentImportConfig_Validate_PickupScheduleBoundaryWeekdays(t *testing.
 }
 
 func TestStudentImportConfig_Validate_PickupTimeBoundaryValues(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
 		groupCache: make(map[string]*education.Group),
 	}},
@@ -1321,6 +1350,7 @@ func TestStudentImportConfig_Validate_PickupTimeBoundaryValues(t *testing.T) {
 // ============================================================================
 
 func TestMapRelationshipType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    string
 		expected string
@@ -1363,6 +1393,7 @@ func TestMapRelationshipType(t *testing.T) {
 // ============================================================================
 
 func TestStudentImportConfig_EntityName(t *testing.T) {
+	t.Parallel()
 	config := &StudentImportConfig{}
 
 	name := config.EntityName()
@@ -1375,6 +1406,7 @@ func TestStudentImportConfig_EntityName(t *testing.T) {
 // ============================================================================
 
 func TestStringPtr(t *testing.T) {
+	t.Parallel()
 	t.Run("returns pointer to string", func(t *testing.T) {
 		result := strutil.TrimToNil("test")
 		assert.NotNil(t, result)
@@ -1403,6 +1435,7 @@ func TestStringPtr(t *testing.T) {
 // ============================================================================
 
 func TestParseOptionalDate(t *testing.T) {
+	t.Parallel()
 	futureISO := futureBirthdayISOForTests()
 	futureGermanLong := futureBirthdayGermanLongForTests()
 	futureGermanShort := futureBirthdayGermanShortForTests()
@@ -1451,6 +1484,7 @@ func TestParseOptionalDate(t *testing.T) {
 // ============================================================================
 
 func TestValidateRetentionDays(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		days     int

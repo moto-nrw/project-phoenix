@@ -161,13 +161,12 @@ All backend tests use real database fixtures, never hardcoded IDs. The CI gate `
 import testpkg "github.com/moto-nrw/project-phoenix/test"
 
 func TestExample(t *testing.T) {
-    db := testpkg.SetupTestDB(t)   // finds project root, loads .env, connects to test DB, fails with setup instructions if absent
-    defer db.Close()
+    db := testpkg.SetupTestDB(t)   // shared package pool against the package clone — NEVER close it
 
-    // ARRANGE: real fixtures — reference returned IDs, never literals
+    // ARRANGE: real fixtures — reference returned IDs, never literals.
+    // No cleanup calls: the package clone is dropped after the run (#2419).
     student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
     staff := testpkg.CreateTestStaff(t, db, "Supervisor", "Name")
-    defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, ...)
 
     // ACT + ASSERT
     result, err := service.DoSomething(ctx, student.ID)
@@ -175,7 +174,10 @@ func TestExample(t *testing.T) {
 }
 ```
 
-- The fixture catalog lives in `test/fixtures.go` (`CreateTest*` + `Cleanup*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
+- **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
+- **No `Cleanup*` calls in new tests**: the clone-per-package lifecycle owns cleanup. Per-package counts are ratcheted shrink-only (`cleanupCallBaseline`); the leftover-tolerant packages are already at zero.
+- **New tests create their own tenant** via `testpkg.NewTenantScope(t, db)` instead of `TenantContext(1)` — the bootstrap tenant is being phased out (ratchet: `tenantContext1Baseline`). Per-test tenants are what make `t.Parallel()` safe.
+- The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
 - Run the gate locally before pushing: `cd backend && go test ./test/ -run TestHermeticTestPatterns -v`
 - Never modify existing tests to make new code pass — see `.claude/rules/no-test-modifications.md`.

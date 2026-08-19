@@ -20,6 +20,7 @@ import (
 )
 
 func TestInviteGuardianToStudent_RestrictedContactRoundTrip(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Staff", "Invite", "8a")
@@ -76,6 +77,7 @@ func TestInviteGuardianToStudent_RestrictedContactRoundTrip(t *testing.T) {
 }
 
 func TestInviteGuardianToStudent_SocialWorkerLinkRefused(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Staff", "SocialWorker", "8b")

@@ -99,6 +99,7 @@ func setupExtendedProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 // ============================================================================
 
 func TestListActiveGroups(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -131,6 +132,7 @@ func TestListActiveGroups(t *testing.T) {
 }
 
 func TestGetActiveGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -168,6 +170,7 @@ func TestGetActiveGroup(t *testing.T) {
 }
 
 func TestCreateActiveGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -245,6 +248,7 @@ func TestCreateActiveGroup(t *testing.T) {
 }
 
 func TestEndActiveGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -307,6 +311,7 @@ func TestEndActiveGroup(t *testing.T) {
 // ============================================================================
 
 func TestListVisits(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -339,6 +344,7 @@ func TestListVisits(t *testing.T) {
 }
 
 func TestCreateVisit(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -390,6 +396,7 @@ func TestCreateVisit(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -418,6 +425,7 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 // ============================================================================
 
 func TestListSupervisors(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -450,6 +458,7 @@ func TestListSupervisors(t *testing.T) {
 const supervisorTestTenantID int64 = 99001
 
 func TestCreateSupervisor(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	testpkg.EnsureTestTenant(t, tc.db, supervisorTestTenantID)
@@ -512,6 +521,7 @@ func TestCreateSupervisor(t *testing.T) {
 }
 
 func TestGetStaffActiveSupervisions(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -544,6 +554,7 @@ func TestGetStaffActiveSupervisions(t *testing.T) {
 // ============================================================================
 
 func TestGetDashboardAnalytics(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -575,6 +586,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 // ============================================================================
 
 func TestDeleteActiveGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -607,6 +619,7 @@ func TestDeleteActiveGroup(t *testing.T) {
 }
 
 func TestUpdateActiveGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -661,6 +674,7 @@ func TestUpdateActiveGroup(t *testing.T) {
 // ============================================================================
 
 func TestGetVisit(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -681,6 +695,7 @@ func TestGetVisit(t *testing.T) {
 }
 
 func TestGetStudentVisits(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -703,6 +718,7 @@ func TestGetStudentVisits(t *testing.T) {
 }
 
 func TestEndVisit(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -723,6 +739,7 @@ func TestEndVisit(t *testing.T) {
 }
 
 func TestDeleteVisit(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -747,6 +764,7 @@ func TestDeleteVisit(t *testing.T) {
 // ============================================================================
 
 func TestGetSupervisor(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -767,6 +785,7 @@ func TestGetSupervisor(t *testing.T) {
 }
 
 func TestGetStaffSupervisions(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -789,6 +808,7 @@ func TestGetStaffSupervisions(t *testing.T) {
 }
 
 func TestUpdateSupervisor(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -840,6 +860,7 @@ func TestUpdateSupervisor(t *testing.T) {
 }
 
 func TestDeleteSupervisor(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -873,6 +894,7 @@ func TestDeleteSupervisor(t *testing.T) {
 }
 
 func TestEndSupervision(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -910,6 +932,7 @@ func TestEndSupervision(t *testing.T) {
 // ============================================================================
 
 func TestListCombinedGroups(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -934,6 +957,7 @@ func TestListCombinedGroups(t *testing.T) {
 }
 
 func TestGetCombinedGroup(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -954,6 +978,7 @@ func TestGetCombinedGroup(t *testing.T) {
 }
 
 func TestCreateCombinedGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1004,6 +1029,7 @@ func TestCreateCombinedGroup(t *testing.T) {
 // ============================================================================
 
 func TestGetActiveGroupsByRoom(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1035,6 +1061,7 @@ func TestGetActiveGroupsByRoom(t *testing.T) {
 }
 
 func TestGetActiveGroupsByGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1066,6 +1093,7 @@ func TestGetActiveGroupsByGroup(t *testing.T) {
 }
 
 func TestUpdateCombinedGroup(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1098,6 +1126,7 @@ func TestUpdateCombinedGroup(t *testing.T) {
 }
 
 func TestDeleteCombinedGroup(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1118,6 +1147,7 @@ func TestDeleteCombinedGroup(t *testing.T) {
 }
 
 func TestEndCombinedGroup(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1138,6 +1168,7 @@ func TestEndCombinedGroup(t *testing.T) {
 }
 
 func TestGetActiveCombinedGroups(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1162,6 +1193,7 @@ func TestGetActiveCombinedGroups(t *testing.T) {
 }
 
 func TestListUnclaimedGroups(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1182,6 +1214,7 @@ func TestListUnclaimedGroups(t *testing.T) {
 }
 
 func TestGetCombinedGroupMappings(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1207,6 +1240,7 @@ func TestGetCombinedGroupMappings(t *testing.T) {
 }
 
 func TestUpdateVisit(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1260,6 +1294,7 @@ func TestUpdateVisit(t *testing.T) {
 }
 
 func TestAddGroupToCombination(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1292,6 +1327,7 @@ func TestAddGroupToCombination(t *testing.T) {
 }
 
 func TestRemoveGroupFromCombination(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1321,6 +1357,7 @@ func TestRemoveGroupFromCombination(t *testing.T) {
 }
 
 func TestGetActiveGroupVisits(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1354,6 +1391,7 @@ func TestGetActiveGroupVisits(t *testing.T) {
 }
 
 func TestGetActiveGroupSupervisors(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1387,6 +1425,7 @@ func TestGetActiveGroupSupervisors(t *testing.T) {
 }
 
 func TestEndVisitSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1407,6 +1446,7 @@ func TestEndVisitSuccess(t *testing.T) {
 }
 
 func TestDeleteVisitSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1428,6 +1468,7 @@ func TestDeleteVisitSuccess(t *testing.T) {
 }
 
 func TestGetVisitSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1448,6 +1489,7 @@ func TestGetVisitSuccess(t *testing.T) {
 }
 
 func TestGetSupervisorSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1467,6 +1509,7 @@ func TestGetSupervisorSuccess(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisitSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1488,6 +1531,7 @@ func TestGetStudentCurrentVisitSuccess(t *testing.T) {
 }
 
 func TestGetStaffActiveSupervisionsSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1507,6 +1551,7 @@ func TestGetStaffActiveSupervisionsSuccess(t *testing.T) {
 }
 
 func TestEndActiveGroupSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1524,6 +1569,7 @@ func TestEndActiveGroupSuccess(t *testing.T) {
 }
 
 func TestDeleteActiveGroupSuccess(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1541,6 +1587,7 @@ func TestDeleteActiveGroupSuccess(t *testing.T) {
 }
 
 func TestListSupervisorsWithFilters(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1560,6 +1607,7 @@ func TestListSupervisorsWithFilters(t *testing.T) {
 // =============================================================================
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 	router := tc.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
@@ -1570,6 +1618,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // =============================================================================
 
 func TestListCombinedGroupsFilters(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1597,6 +1646,7 @@ func TestListCombinedGroupsFilters(t *testing.T) {
 // =============================================================================
 
 func TestCreateVisitValidation(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1631,6 +1681,7 @@ func TestCreateVisitValidation(t *testing.T) {
 // =============================================================================
 
 func TestUpdateCombinedGroupValidation(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1680,6 +1731,7 @@ func TestUpdateCombinedGroupValidation(t *testing.T) {
 // =============================================================================
 
 func TestGetVisitsByGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1709,6 +1761,7 @@ func TestGetVisitsByGroup(t *testing.T) {
 }
 
 func TestGetSupervisorsByGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1737,6 +1790,7 @@ func TestGetSupervisorsByGroup(t *testing.T) {
 }
 
 func TestGetCombinedGroupGroups(t *testing.T) {
+	t.Parallel()
 	_, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1756,6 +1810,7 @@ func TestGetCombinedGroupGroups(t *testing.T) {
 // =============================================================================
 
 func TestCreateVisitAdditional(t *testing.T) {
+	t.Parallel()
 	tc, router := setupExtendedProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1819,6 +1874,7 @@ func setupCheckoutRouter(t *testing.T) (*testContext, chi.Router) {
 }
 
 func TestCheckoutStudent_InvalidStudentID(t *testing.T) {
+	t.Parallel()
 	_, router := setupCheckoutRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1841,6 +1897,7 @@ func TestCheckoutStudent_InvalidStudentID(t *testing.T) {
 }
 
 func TestCheckoutStudent_StudentNotCheckedIn(t *testing.T) {
+	t.Parallel()
 	tc, router := setupCheckoutRouter(t)
 
 	// Create a teacher account that can make the request
@@ -1863,6 +1920,7 @@ func TestCheckoutStudent_StudentNotCheckedIn(t *testing.T) {
 }
 
 func TestCheckoutStudent_Unauthorized(t *testing.T) {
+	t.Parallel()
 	_, router := setupCheckoutRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1897,6 +1955,7 @@ func TestCheckoutStudent_Unauthorized(t *testing.T) {
 }
 
 func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
+	t.Parallel()
 	tc, router := setupCheckoutRouter(t)
 
 	// Create room, activity group, and active group
@@ -1941,6 +2000,7 @@ func TestCheckoutStudent_AuthorizedAsRoomSupervisor(t *testing.T) {
 }
 
 func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
+	t.Parallel()
 	tc, router := setupCheckoutRouter(t)
 
 	// Create education group
@@ -1982,6 +2042,7 @@ func TestCheckoutStudent_AuthorizedAsGroupTeacher(t *testing.T) {
 }
 
 func TestCheckoutStudent_AnyStaffCanCheckout(t *testing.T) {
+	t.Parallel()
 	tc, router := setupCheckoutRouter(t)
 
 	// Create staff without any supervision or group access
@@ -2028,6 +2089,7 @@ func setupFullCoverageRouter(t *testing.T) (*testContext, chi.Router) {
 }
 
 func TestGetGroupMappings(t *testing.T) {
+	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -2070,6 +2132,7 @@ func TestGetGroupMappings(t *testing.T) {
 }
 
 func TestClaimGroup(t *testing.T) {
+	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
 
 	// Create staff with account for claims
@@ -2123,6 +2186,7 @@ func TestClaimGroup(t *testing.T) {
 }
 
 func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
+	t.Parallel()
 	tc, router := setupFullCoverageRouter(t)
 
 	// Create staff with account for claims
@@ -2183,6 +2247,7 @@ func TestGetActiveGroupVisitsWithDisplay(t *testing.T) {
 // ============================================================================
 
 func TestGetAllActiveSupervisions(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)

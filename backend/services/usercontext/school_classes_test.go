@@ -11,6 +11,7 @@ import (
 )
 
 func TestUserContextService_GetMySchoolClasses(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupUserContextService(t, db)

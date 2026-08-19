@@ -37,6 +37,7 @@ func buildProvisioningService(t *testing.T, db *bun.DB) platformSvc.OperatorProv
 // =============================================================================
 
 func TestIntegration_ListSchoolPersons_Success(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -69,6 +70,7 @@ func TestIntegration_ListSchoolPersons_Success(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -91,6 +93,7 @@ func TestIntegration_ListSchoolPersons_ExcludesSoftDeleted(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -115,6 +118,7 @@ func TestIntegration_ListSchoolPersons_WithStaffAndStudent(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -134,6 +138,7 @@ func TestIntegration_ListSchoolPersons_WithAccount(t *testing.T) {
 }
 
 func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -152,6 +157,7 @@ func TestIntegration_ListSchoolPersons_EmptySchool(t *testing.T) {
 // =============================================================================
 
 func TestIntegration_SoftDeletePerson_Success(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -181,6 +187,7 @@ func TestIntegration_SoftDeletePerson_Success(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -218,6 +225,7 @@ func TestIntegration_SoftDeletePerson_WithAccount(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -256,6 +264,7 @@ func TestIntegration_SoftDeletePerson_WithRFID(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_NotFound(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -269,6 +278,7 @@ func TestIntegration_SoftDeletePerson_NotFound(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -289,6 +299,7 @@ func TestIntegration_SoftDeletePerson_AlreadyDeleted(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -310,6 +321,7 @@ func TestIntegration_SoftDeletePerson_WithActiveSupervisionsBlocked(t *testing.T
 }
 
 func TestIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -334,6 +346,7 @@ func TestIntegration_SoftDeletePerson_StaffWithoutSupervision(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -358,6 +371,7 @@ func TestIntegration_SoftDeletePerson_AuditLogCreated(t *testing.T) {
 }
 
 func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -395,6 +409,7 @@ func TestIntegration_SoftDeletePerson_StudentSuccess(t *testing.T) {
 // guard the user-visible contract "everything tied to a deleted school must
 // disappear from the UI; the school itself stays restorable via Papierkorb."
 func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -462,6 +477,7 @@ func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
 // in a corrupt-state scenario) also disappear. Defensive — under normal
 // flow an org can only be deleted after all its schools are in the Papierkorb.
 func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)
@@ -503,6 +519,7 @@ func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
 // soft-deleted org must return OrganizationDeletedError, mirroring the
 // behavior of ListSchoolDevices for soft-deleted schools.
 func TestIntegration_ListOrganizationDevices_RejectsDeletedOrg(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := buildProvisioningService(t, db)

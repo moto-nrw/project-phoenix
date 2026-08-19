@@ -66,6 +66,7 @@ func substitutionFixtures(t *testing.T, ctx *testContext, label string) (staffID
 }
 
 func TestCreateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "Create")
 
@@ -95,6 +96,7 @@ func TestCreateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 }
 
 func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "Update")
 
@@ -127,6 +129,7 @@ func TestUpdateSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 }
 
 func TestUpdateSubstitution_AccessUnchanged_BroadcastsNothing(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "UpdateReason")
 
@@ -151,6 +154,7 @@ func TestUpdateSubstitution_AccessUnchanged_BroadcastsNothing(t *testing.T) {
 }
 
 func TestDeleteSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 	staffID, groupID := substitutionFixtures(t, ctx, "Delete")
 
@@ -171,6 +175,7 @@ func TestDeleteSubstitution_BroadcastsGroupAccessChanged(t *testing.T) {
 // A rejected write must stay silent: a client that refetches on a phantom
 // event pays a full round trip for a change that never happened.
 func TestCreateSubstitution_Rejected_BroadcastsNothing(t *testing.T) {
+	t.Parallel()
 	ctx, broadcaster := setupRecordingContext(t)
 
 	// Missing group_id — rejected before any write.

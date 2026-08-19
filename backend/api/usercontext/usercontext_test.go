@@ -68,6 +68,7 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestGetCurrentUser_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "usercontext-test@example.com")
@@ -83,6 +84,7 @@ func TestGetCurrentUser_Success(t *testing.T) {
 }
 
 func TestGetCurrentUser_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/", nil)
@@ -97,6 +99,7 @@ func TestGetCurrentUser_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetCurrentProfile_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Profile", "Test")
@@ -112,6 +115,7 @@ func TestGetCurrentProfile_Success(t *testing.T) {
 }
 
 func TestGetCurrentProfile_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile", nil)
@@ -126,6 +130,7 @@ func TestGetCurrentProfile_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestUpdateCurrentProfile_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Update", "ProfileTest")
@@ -146,6 +151,7 @@ func TestUpdateCurrentProfile_Success(t *testing.T) {
 }
 
 func TestUpdateCurrentProfile_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	body := map[string]interface{}{"first_name": "Updated"}
@@ -157,6 +163,7 @@ func TestUpdateCurrentProfile_Unauthenticated(t *testing.T) {
 }
 
 func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Empty", "Update")
@@ -178,6 +185,7 @@ func TestUpdateCurrentProfile_EmptyBody(t *testing.T) {
 // =============================================================================
 
 func TestGetCurrentStaff_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Staff", "Test")
@@ -203,6 +211,7 @@ func TestGetCurrentStaff_Success(t *testing.T) {
 }
 
 func TestGetCurrentStaff_NotStaff(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "not-staff@example.com")
@@ -218,6 +227,7 @@ func TestGetCurrentStaff_NotStaff(t *testing.T) {
 }
 
 func TestGetCurrentStaff_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil)
@@ -232,6 +242,7 @@ func TestGetCurrentStaff_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetCurrentTeacher_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Teacher", "Test")
@@ -247,6 +258,7 @@ func TestGetCurrentTeacher_Success(t *testing.T) {
 }
 
 func TestGetCurrentTeacher_NotTeacher(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "not-teacher@example.com")
@@ -262,6 +274,7 @@ func TestGetCurrentTeacher_NotTeacher(t *testing.T) {
 }
 
 func TestGetCurrentTeacher_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/teacher", nil)
@@ -276,6 +289,7 @@ func TestGetCurrentTeacher_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMyGroups_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Groups", "Test")
@@ -291,6 +305,7 @@ func TestGetMyGroups_Success(t *testing.T) {
 }
 
 func TestGetMyGroups_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups", nil)
@@ -305,6 +320,7 @@ func TestGetMyGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMyActivityGroups_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Activity", "Groups")
@@ -320,6 +336,7 @@ func TestGetMyActivityGroups_Success(t *testing.T) {
 }
 
 func TestGetMyActivityGroups_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/activity", nil)
@@ -334,6 +351,7 @@ func TestGetMyActivityGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMyActiveGroups_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Active", "Groups")
@@ -349,6 +367,7 @@ func TestGetMyActiveGroups_Success(t *testing.T) {
 }
 
 func TestGetMyActiveGroups_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/active", nil)
@@ -363,6 +382,7 @@ func TestGetMyActiveGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetMySupervisedGroups_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Supervised", "Groups")
@@ -378,6 +398,7 @@ func TestGetMySupervisedGroups_Success(t *testing.T) {
 }
 
 func TestGetMySupervisedGroups_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/groups/supervised", nil)
@@ -392,6 +413,7 @@ func TestGetMySupervisedGroups_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudents_InvalidGroupID(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	claims := testutil.DefaultTestClaims()
@@ -405,6 +427,7 @@ func TestGetGroupStudents_InvalidGroupID(t *testing.T) {
 }
 
 func TestGetGroupStudents_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupStudentsUnauth")
@@ -423,6 +446,7 @@ func TestGetGroupStudents_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupVisits_InvalidGroupID(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	claims := testutil.DefaultTestClaims()
@@ -436,6 +460,7 @@ func TestGetGroupVisits_InvalidGroupID(t *testing.T) {
 }
 
 func TestGetGroupVisits_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "GroupVisitsUnauth")
@@ -454,6 +479,7 @@ func TestGetGroupVisits_Unauthenticated(t *testing.T) {
 // =============================================================================
 
 func TestDeleteAvatar_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/profile/avatar", nil)
@@ -464,6 +490,7 @@ func TestDeleteAvatar_Unauthenticated(t *testing.T) {
 }
 
 func TestDeleteAvatar_NoAvatar(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NoAvatar", "Test")
@@ -479,6 +506,7 @@ func TestDeleteAvatar_NoAvatar(t *testing.T) {
 }
 
 func TestServeAvatar_MissingFilename(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Avatar", "Serve")
@@ -494,6 +522,7 @@ func TestServeAvatar_MissingFilename(t *testing.T) {
 }
 
 func TestServeAvatar_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/profile/avatar/test.jpg", nil)
@@ -504,6 +533,7 @@ func TestServeAvatar_Unauthenticated(t *testing.T) {
 }
 
 func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Avatar", "GlobalFile")
@@ -547,6 +577,7 @@ func TestServeAvatar_GlobalAvatarFile(t *testing.T) {
 // =============================================================================
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	router := tc.resource.Router()
@@ -558,6 +589,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // =============================================================================
 
 func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "FullUpdate", "ProfileTest")
@@ -585,6 +617,7 @@ func TestUpdateCurrentProfile_WithUsernameAndBio(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupStudents", "Teacher")
@@ -608,6 +641,7 @@ func TestGetGroupStudents_WithTeacherAccess(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GroupVisits", "Teacher")
@@ -631,6 +665,7 @@ func TestGetGroupVisits_WithTeacherAccess(t *testing.T) {
 // =============================================================================
 
 func TestServeAvatar_InvalidFilename(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "InvalidPath", "Avatar")
@@ -646,6 +681,7 @@ func TestServeAvatar_InvalidFilename(t *testing.T) {
 }
 
 func TestServeAvatar_NonExistentFile(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NonExistent", "Avatar")
@@ -665,6 +701,7 @@ func TestServeAvatar_NonExistentFile(t *testing.T) {
 // =============================================================================
 
 func TestUploadAvatar_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/profile/avatar", nil)
@@ -676,6 +713,7 @@ func TestUploadAvatar_Unauthenticated(t *testing.T) {
 }
 
 func TestUploadAvatar_NoFile(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "NoFile", "Upload")
@@ -691,6 +729,7 @@ func TestUploadAvatar_NoFile(t *testing.T) {
 }
 
 func TestUploadAvatar_Success(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "Upload", "Success")
@@ -740,6 +779,7 @@ func TestUploadAvatar_Success(t *testing.T) {
 // =============================================================================
 
 func TestDeleteAvatar_WithAvatar(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestPersonWithAccount(t, tc.db, "HasAvatar", "Delete")
@@ -778,6 +818,7 @@ func TestDeleteAvatar_WithAvatar(t *testing.T) {
 // =============================================================================
 
 func TestGetMyGroups_WithSubstitution(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "SubstGroups", "Teacher")

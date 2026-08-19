@@ -66,6 +66,7 @@ func staffDecision(accountID int64, refID int64) parentmessaging.ChildEvent {
 }
 
 func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -120,6 +121,7 @@ func (r *revokedBeforePush) ListGuardiansForStudent(ctx context.Context, student
 // The push runs in its own transaction, so it asks the access question again
 // instead of trusting the answer the pill's (already committed) transaction got.
 func TestEmitChildEvent_DecisionPushRechecksChildAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -142,6 +144,7 @@ func TestEmitChildEvent_DecisionPushRechecksChildAccess(t *testing.T) {
 }
 
 func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 
@@ -194,6 +197,7 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 // A push is an extra, never a precondition: whatever the notification stack
 // answers, the pill is already committed and the parent sees it in the app.
 func TestEmitChildEvent_DecisionPushFailuresAreNotFatal(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 
@@ -241,6 +245,7 @@ func TestEmitChildEvent_DecisionPushFailuresAreNotFatal(t *testing.T) {
 }
 
 func TestWithDecisionNotificationsOnNilEmitter(t *testing.T) {
+	t.Parallel()
 	var emitter *parentmessaging.Emitter
 	assert.Nil(t, emitter.WithDecisionNotifications(&capturingNotifier{}, decisionPreferences{}),
 		"a partially-wired factory must not panic while adding optional dependencies")

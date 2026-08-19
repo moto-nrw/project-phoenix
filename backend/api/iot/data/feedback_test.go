@@ -77,6 +77,7 @@ func setupFeedbackTestContext(t *testing.T) *feedbackTestContext {
 // =============================================================================
 
 func TestSubmitFeedback_NoDevice(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	router := ctx.resource.Router()
@@ -95,6 +96,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 }
 
 func TestSubmitFeedback_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
@@ -114,6 +116,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 }
 
 func TestSubmitFeedback_MissingStudentID(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
@@ -134,6 +137,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 }
 
 func TestSubmitFeedback_MissingValue(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
@@ -154,6 +158,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 }
 
 func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
@@ -175,6 +180,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 }
 
 func TestSubmitFeedback_StudentNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
@@ -202,6 +208,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 // no new row is written against a graduate and PyrePortal needs no new error
 // mapping (#405).
 func TestSubmitFeedback_Alumnus(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-alumnus")
@@ -238,6 +245,7 @@ func TestSubmitFeedback_Alumnus(t *testing.T) {
 }
 
 func TestSubmitFeedback_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
@@ -260,6 +268,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 }
 
 func TestSubmitFeedback_NeutralValue(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
@@ -282,6 +291,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 }
 
 func TestSubmitFeedback_NegativeValue(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
@@ -304,6 +314,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 }
 
 func TestSubmitFeedback_InvalidValue(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
@@ -331,6 +342,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 // =============================================================================
 
 func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-disabled")
@@ -377,6 +389,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 }
 
 func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
+	t.Parallel()
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-enabled")

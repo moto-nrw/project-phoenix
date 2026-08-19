@@ -36,6 +36,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -61,16 +62,23 @@ const (
 	contentTypeJSON   = "application/json"
 )
 
+// jwtDefaultsOnce guards the process-once viper JWT defaults in SetupAPITest.
+var jwtDefaultsOnce sync.Once
+
 // SetupAPITest initializes test database and service factory for API tests.
 // Returns the shared package database pool and a service factory. Tests must
 // not close the pool — it is shared by every test in the binary.
 func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
 	t.Helper()
 
-	// Set JWT config defaults (normally set in cmd/serve.go)
-	viper.SetDefault("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
-	viper.SetDefault("auth_jwt_expiry", "15m")
-	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
+	// Set JWT config defaults once per binary (normally set in cmd/serve.go).
+	// viper is not thread-safe, so the write must not run per test — parallel
+	// tests would race on viper's internal maps.
+	jwtDefaultsOnce.Do(func() {
+		viper.SetDefault("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
+		viper.SetDefault("auth_jwt_expiry", "15m")
+		viper.SetDefault("auth_jwt_refresh_expiry", "1h")
+	})
 
 	db := testpkg.SetupTestDB(t)
 

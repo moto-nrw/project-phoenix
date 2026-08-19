@@ -36,6 +36,7 @@ func makeCheckoutRequest(t *testing.T, studentID int64, token string) *http.Requ
 }
 
 func TestCheckoutStudent_Integration(t *testing.T) {
+	t.Parallel()
 	setupViperForTest()
 
 	db := testpkg.SetupTestDB(t)

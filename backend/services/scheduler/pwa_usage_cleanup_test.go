@@ -21,6 +21,7 @@ import (
 // a stale standalone-usage row falls to the retention sweep while a fresh
 // one survives (#2189).
 func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-cleanup-%d@example.com", time.Now().UnixNano()))

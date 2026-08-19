@@ -108,6 +108,7 @@ func dashboardExecRaw(t *testing.T, router chi.Router, path string, accountID in
 }
 
 func TestSupervisionDashboard_Aggregates(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashAgg", "Leader")
@@ -194,6 +195,7 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 // the aggregate must never carry the wide personal fields the supervision
 // page does not render.
 func TestSupervisionDashboard_MinimalProjection(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashSlim", "Leader")
@@ -307,6 +309,7 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 // production-sized session so the aggregate stays a fraction of the ~11
 // responses it replaces.
 func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashPayload", "Leader")
@@ -315,12 +318,10 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	testpkg.CreateTestGroupSupervisor(t, tc.db, teacher.Staff.ID, activeGroup.ID, "supervisor")
 
-	var studentIDs []int64
 	const groupSize = 30
 	for i := range groupSize {
 		student := testpkg.CreateTestStudent(t, tc.db, "DashPayload", fmt.Sprintf("Produktionskind%02d", i), "DP1")
 		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-30*time.Minute), nil)
-		studentIDs = append(studentIDs, student.ID)
 	}
 
 	rr := dashboardExecRaw(t, router, "/active/supervision-dashboard", account.ID, dashboardPerms)
@@ -336,6 +337,7 @@ func TestSupervisionDashboard_PayloadBudget(t *testing.T) {
 }
 
 func TestSupervisionDashboard_ErrorContract(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashErr", "Leader")
@@ -400,6 +402,7 @@ func TestSupervisionDashboard_ErrorContract(t *testing.T) {
 }
 
 func TestSupervisionDashboard_TenantIsolation(t *testing.T) {
+	t.Parallel()
 	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashIso", "Leader")

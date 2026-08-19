@@ -23,6 +23,7 @@ import (
 )
 
 func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
+	t.Parallel()
 	setupViperForTest()
 
 	db := testpkg.SetupTestDB(t)

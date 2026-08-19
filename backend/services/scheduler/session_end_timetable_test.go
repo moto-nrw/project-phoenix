@@ -18,6 +18,7 @@ import (
 )
 
 func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Daily Sync Room %d", time.Now().UnixNano()))

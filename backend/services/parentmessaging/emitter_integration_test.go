@@ -68,6 +68,7 @@ func countEventType(msgs []*usersModels.ParentMessage, eventType string) int {
 //     CLOSING pill onto the existing thread (so the staff timeline stops showing
 //     the request as actionable), without ever creating a new thread.
 func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -139,6 +140,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 // invariant: with messaging disabled and no pre-existing thread, a staff
 // terminal decision drops entirely rather than creating a thread via GetOrCreate.
 func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -165,6 +167,7 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 // messaging off a NON-terminal pill (here a self-service mirror) is dropped
 // before any thread work, so no thread is created.
 func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -190,6 +193,7 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 // guardian SSE fan-out is suppressed (broadcast guardian id 0) — a parent who
 // can no longer read the child is never woken for it.
 func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

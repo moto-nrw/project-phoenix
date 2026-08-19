@@ -22,6 +22,7 @@ import (
 )
 
 func TestGuardianPreferencesAcrossSchools(t *testing.T) {
+	t.Parallel()
 	const secondTenantID int64 = 2
 
 	db := testpkg.SetupTestDB(t)

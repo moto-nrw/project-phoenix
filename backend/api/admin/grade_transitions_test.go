@@ -1196,17 +1196,3 @@ func TestToTransitionResponse(t *testing.T) {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-// responseID reads the transition id out of a success envelope. The API
-// serializes int64 ids as JSON strings (see adminAPI.TransitionResponse), so a
-// numeric assertion here would silently skip cleanup instead of failing.
-func responseID(t *testing.T, response map[string]interface{}) int64 {
-	t.Helper()
-	data, ok := response["data"].(map[string]interface{})
-	require.True(t, ok, "response has no data object")
-	raw, ok := data["id"].(string)
-	require.True(t, ok, "id must be serialized as a string, got %T", data["id"])
-	id, err := strconv.ParseInt(raw, 10, 64)
-	require.NoError(t, err)
-	return id
-}

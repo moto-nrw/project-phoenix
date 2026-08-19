@@ -31,6 +31,7 @@ func init() {
 // phone number) for an existing student in one atomic request and verifies it is
 // persisted and linked.
 func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Child", "1a")
@@ -71,6 +72,7 @@ func TestCreateStudentGuardians_Admin_Success(t *testing.T) {
 
 // TestCreateStudentGuardians_EmptyGuardians_BadRequest rejects an empty batch.
 func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Empty", "Batch", "1a")
@@ -92,6 +94,7 @@ func TestCreateStudentGuardians_EmptyGuardians_BadRequest(t *testing.T) {
 // no staff record cannot attach guardians (same supervisor gate as the
 // single-link endpoint).
 func TestCreateStudentGuardians_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Forbidden", "Batch", "1a")

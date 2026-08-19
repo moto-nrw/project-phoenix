@@ -22,6 +22,7 @@ import (
 )
 
 func TestClassListEntriesAPI(t *testing.T) {
+	t.Parallel()
 	db, factory := testutil.SetupAPITest(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-api-%d@test.local", time.Now().UnixNano()))
@@ -93,6 +94,7 @@ func TestClassListEntriesAPI(t *testing.T) {
 }
 
 func TestClassListEntriesAppearInClassDay(t *testing.T) {
+	t.Parallel()
 	db, factory := testutil.SetupAPITest(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "CleDay", fmt.Sprintf("API-%d", time.Now().UnixNano()))
@@ -124,6 +126,7 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 // Whitespace-only fields are an invalid request, not a server error: Bind
 // trims and rejects them before the service runs (#2399 review).
 func TestClassListEntriesWhitespaceOnlyIs400(t *testing.T) {
+	t.Parallel()
 	db, factory := testutil.SetupAPITest(t)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("cle-ws-%d@test.local", time.Now().UnixNano()))

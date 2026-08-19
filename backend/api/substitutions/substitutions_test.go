@@ -74,6 +74,7 @@ func cleanupSubstitution(t *testing.T, db *bun.DB, id int64) {
 // =============================================================================
 
 func TestListSubstitutions_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions", nil,
@@ -90,6 +91,7 @@ func TestListSubstitutions_Success(t *testing.T) {
 }
 
 func TestListSubstitutions_WithPagination(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions?page=1&page_size=10", nil,
@@ -106,6 +108,7 @@ func TestListSubstitutions_WithPagination(t *testing.T) {
 // =============================================================================
 
 func TestListActiveSubstitutions_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active", nil,
@@ -122,6 +125,7 @@ func TestListActiveSubstitutions_Success(t *testing.T) {
 }
 
 func TestListActiveSubstitutions_WithDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=2026-01-15", nil,
@@ -134,6 +138,7 @@ func TestListActiveSubstitutions_WithDate(t *testing.T) {
 }
 
 func TestListActiveSubstitutions_BadRequest_InvalidDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/active?date=invalid", nil,
@@ -150,6 +155,7 @@ func TestListActiveSubstitutions_BadRequest_InvalidDate(t *testing.T) {
 // =============================================================================
 
 func TestGetSubstitution_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/99999", nil,
@@ -162,6 +168,7 @@ func TestGetSubstitution_NotFound(t *testing.T) {
 }
 
 func TestGetSubstitution_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/substitutions/invalid", nil,
@@ -178,6 +185,7 @@ func TestGetSubstitution_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestCreateSubstitution_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test fixtures
@@ -218,6 +226,7 @@ func TestCreateSubstitution_Success(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -236,6 +245,7 @@ func TestCreateSubstitution_BadRequest_MissingGroupID(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -254,6 +264,7 @@ func TestCreateSubstitution_BadRequest_MissingSubstituteStaffID(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -273,6 +284,7 @@ func TestCreateSubstitution_BadRequest_InvalidStartDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	startDate := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
@@ -294,6 +306,7 @@ func TestCreateSubstitution_BadRequest_InvalidEndDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Start date is after end date
@@ -317,6 +330,7 @@ func TestCreateSubstitution_BadRequest_StartDateAfterEndDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Start date is in the past
@@ -340,6 +354,7 @@ func TestCreateSubstitution_BadRequest_BackdatedStartDate(t *testing.T) {
 }
 
 func TestCreateSubstitution_BadRequest_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create request with invalid JSON (nil body gets JSON encoded to "null")
@@ -359,6 +374,7 @@ func TestCreateSubstitution_BadRequest_InvalidJSON(t *testing.T) {
 // =============================================================================
 
 func TestUpdateSubstitution_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Update handler decodes directly into GroupSubstitution model
@@ -383,6 +399,7 @@ func TestUpdateSubstitution_NotFound(t *testing.T) {
 }
 
 func TestUpdateSubstitution_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Update handler decodes directly into GroupSubstitution model
@@ -411,6 +428,7 @@ func TestUpdateSubstitution_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestDeleteSubstitution_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/99999", nil,
@@ -423,6 +441,7 @@ func TestDeleteSubstitution_NotFound(t *testing.T) {
 }
 
 func TestDeleteSubstitution_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/substitutions/invalid", nil,
@@ -439,6 +458,7 @@ func TestDeleteSubstitution_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestSubstitutionCRUDWorkflow(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test fixtures

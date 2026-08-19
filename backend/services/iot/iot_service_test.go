@@ -31,6 +31,7 @@ func setupIoTService(t *testing.T, db *bun.DB) iot.Service {
 // =============================================================================
 
 func TestIoTService_CreateDevice(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -137,6 +138,7 @@ func TestIoTService_CreateDevice(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDeviceByID(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -190,6 +192,7 @@ func TestIoTService_GetDeviceByID(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -233,6 +236,7 @@ func TestIoTService_GetDeviceByDeviceID(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_UpdateDevice(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -337,6 +341,7 @@ func TestIoTService_UpdateDevice(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_DeleteDevice(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -389,6 +394,7 @@ func TestIoTService_DeleteDevice(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_ListDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -446,6 +452,7 @@ func TestIoTService_ListDevices(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_UpdateDeviceStatus(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -500,6 +507,7 @@ func TestIoTService_UpdateDeviceStatus(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_PingDevice(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -551,6 +559,7 @@ func TestIoTService_PingDevice(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDevicesByType(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -595,6 +604,7 @@ func TestIoTService_GetDevicesByType(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDevicesByStatus(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -630,6 +640,7 @@ func TestIoTService_GetDevicesByStatus(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -700,6 +711,7 @@ func TestIoTService_GetDevicesByRegisteredBy(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetActiveDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -726,6 +738,7 @@ func TestIoTService_GetActiveDevices(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -762,6 +775,7 @@ func TestIoTService_GetDevicesRequiringMaintenance(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetOfflineDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -822,6 +836,7 @@ func TestIoTService_GetOfflineDevices(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -850,6 +865,7 @@ func TestIoTService_GetDeviceTypeStatistics(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_DetectNewDevices(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -867,6 +883,7 @@ func TestIoTService_DetectNewDevices(t *testing.T) {
 }
 
 func TestIoTService_ScanNetwork(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -888,6 +905,7 @@ func TestIoTService_ScanNetwork(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_UpdateDeviceLastSeenAt(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -936,6 +954,7 @@ func TestIoTService_UpdateDeviceLastSeenAt(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)
@@ -979,6 +998,7 @@ func TestIoTService_GetDeviceByAPIKey(t *testing.T) {
 // =============================================================================
 
 func TestIoTService_WebManualDeviceProtection(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupIoTService(t, db)

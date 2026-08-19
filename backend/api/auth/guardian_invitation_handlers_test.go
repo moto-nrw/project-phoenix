@@ -25,6 +25,7 @@ func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 }
 
 func TestValidateGuardianInvitation_NotFound(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	req := testutil.NewJSONRequest(t, "GET", "/auth/guardian-invitations/invalid-token-12345", nil)
@@ -35,6 +36,7 @@ func TestValidateGuardianInvitation_NotFound(t *testing.T) {
 }
 
 func TestAcceptGuardianInvitation_NotFound(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	body := map[string]any{
@@ -50,6 +52,7 @@ func TestAcceptGuardianInvitation_NotFound(t *testing.T) {
 }
 
 func TestAcceptGuardianInvitation_BadRequest_MissingPassword(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	body := map[string]any{
@@ -64,6 +67,7 @@ func TestAcceptGuardianInvitation_BadRequest_MissingPassword(t *testing.T) {
 }
 
 func TestAcceptGuardianInvitation_BadRequest_PasswordMismatch(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	body := map[string]any{

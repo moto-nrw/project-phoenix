@@ -238,14 +238,8 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 
 	// Create infrastructure
-	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
+	_, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
-
-	// Build cleanup IDs — PlannedRoomID may be nil if EnsureInfrastructure found an existing activity
-	cleanupIDs := []int64{activityGroup.ID, activityGroup.CategoryID}
-	if activityGroup.PlannedRoomID != nil {
-		cleanupIDs = append(cleanupIDs, *activityGroup.PlannedRoomID)
-	}
 
 	// ACT
 	status, err := service.GetSchulhofStatus(ctx, staff.ID)
@@ -305,12 +299,6 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 	// First ensure infrastructure to get the room ID
 	activityGroup, err := service.EnsureInfrastructure(ctx, staff.ID)
 	require.NoError(t, err)
-
-	// Build cleanup IDs — PlannedRoomID may be nil if EnsureInfrastructure found an existing activity
-	cleanupIDs := []int64{activityGroup.ID, activityGroup.CategoryID}
-	if activityGroup.PlannedRoomID != nil {
-		cleanupIDs = append(cleanupIDs, *activityGroup.PlannedRoomID)
-	}
 
 	// End all existing active groups for this room to get a fresh one
 	require.NotNil(t, activityGroup.PlannedRoomID, "EnsureInfrastructure should set PlannedRoomID")

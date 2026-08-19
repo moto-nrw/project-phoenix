@@ -101,6 +101,7 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 
 // TestLogin tests the login endpoint
 func TestLogin(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(tc.db)
@@ -248,6 +249,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, router chi.Router) (token string, va
 
 // TestRegister tests the registration endpoint (requires admin auth + valid role_id)
 func TestRegister(t *testing.T) {
+	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 
 	// Get admin token and a valid role ID for all subtests
@@ -445,6 +447,7 @@ func TestRegister(t *testing.T) {
 // and /auth/register shares authorizeRoleAssignment with /auth/link-to-tenant,
 // so a gap here is a gap in both.
 func TestRegisterRejectsGuardianRole(t *testing.T) {
+	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 
 	guardianRole := testpkg.CreateTestSystemRole(t, db, authModel.BaseRoleGuardian)
@@ -471,6 +474,7 @@ func TestRegisterRejectsGuardianRole(t *testing.T) {
 
 // TestRegisterRequiresAdminAuth tests that the register endpoint enforces admin authentication
 func TestRegisterRequiresAdminAuth(t *testing.T) {
+	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 
 	// Valid registration payload (would succeed if auth were present)
@@ -642,6 +646,7 @@ func TestRegisterRequiresAdminAuth(t *testing.T) {
 
 // TestPasswordReset tests the password reset endpoints
 func TestPasswordReset(t *testing.T) {
+	t.Parallel()
 	router := setupPublicRouter(t)
 
 	t.Run("initiate always returns success", func(t *testing.T) {
@@ -706,6 +711,7 @@ func TestPasswordReset(t *testing.T) {
 
 // TestInvitationValidation tests invitation validation endpoint (public)
 func TestInvitationValidation(t *testing.T) {
+	t.Parallel()
 	router := setupPublicRouter(t)
 
 	t.Run("not found with invalid token", func(t *testing.T) {
@@ -718,6 +724,7 @@ func TestInvitationValidation(t *testing.T) {
 
 // TestInvitationAcceptance tests invitation acceptance endpoint (public)
 func TestInvitationAcceptance(t *testing.T) {
+	t.Parallel()
 	router := setupPublicRouter(t)
 
 	t.Run("not found with invalid token", func(t *testing.T) {
@@ -754,6 +761,7 @@ func TestInvitationAcceptance(t *testing.T) {
 
 // TestGetAccount tests the get account endpoint (protected)
 func TestGetAccount(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	// Create a test account
@@ -808,6 +816,7 @@ func TestGetAccount(t *testing.T) {
 
 // TestChangePassword tests the change password endpoint (protected)
 func TestChangePassword(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	t.Run("bad request with wrong current password", func(t *testing.T) {
@@ -882,6 +891,7 @@ func TestChangePassword(t *testing.T) {
 
 // TestRoleManagement tests role CRUD endpoints (protected)
 func TestRoleManagement(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -970,6 +980,7 @@ func TestRoleManagement(t *testing.T) {
 
 // TestRoleManagement_BaseRole tests base_role validation on role endpoints.
 func TestRoleManagement_BaseRole(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1106,6 +1117,7 @@ func TestRoleManagement_BaseRole(t *testing.T) {
 
 // TestPermissionManagement tests permission CRUD endpoints (protected)
 func TestPermissionManagement(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1180,6 +1192,7 @@ func TestPermissionManagement(t *testing.T) {
 
 // TestAccountManagement tests account management endpoints (protected)
 func TestAccountManagement(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
@@ -1224,6 +1237,7 @@ func TestAccountManagement(t *testing.T) {
 
 // TestRoleUpdate tests role update endpoint
 func TestRoleUpdate(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1269,6 +1283,7 @@ func TestRoleUpdate(t *testing.T) {
 
 // TestRolePermissionAssignment tests role permission assignment endpoints
 func TestRolePermissionAssignment(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1310,6 +1325,7 @@ func TestRolePermissionAssignment(t *testing.T) {
 
 // TestPermissionUpdate tests permission update endpoint
 func TestPermissionUpdate(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1346,6 +1362,7 @@ func TestPermissionUpdate(t *testing.T) {
 
 // TestPermissionDelete tests permission delete endpoint
 func TestPermissionDelete(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1372,6 +1389,7 @@ func TestPermissionDelete(t *testing.T) {
 
 // TestAccountRoleAssignment tests account role assignment endpoints
 func TestAccountRoleAssignment(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1432,6 +1450,7 @@ func TestAccountRoleAssignment(t *testing.T) {
 
 // TestAccountPermissionManagement tests account permission management endpoints
 func TestAccountPermissionManagement(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1491,6 +1510,7 @@ func TestAccountPermissionManagement(t *testing.T) {
 
 // TestAccountActivation tests account activation/deactivation endpoints
 func TestAccountActivation(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1521,6 +1541,7 @@ func TestAccountActivation(t *testing.T) {
 
 // TestAccountUpdate tests account update endpoint
 func TestAccountUpdate(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1566,6 +1587,7 @@ func TestAccountUpdate(t *testing.T) {
 
 // TestGetAccountsByRole tests get accounts by role endpoint
 func TestGetAccountsByRole(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1590,6 +1612,7 @@ func TestGetAccountsByRole(t *testing.T) {
 
 // TestTokenManagement tests token management endpoints
 func TestTokenManagement(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1631,6 +1654,7 @@ func TestTokenManagement(t *testing.T) {
 
 // TestInvitationManagement tests invitation management endpoints
 func TestInvitationManagement(t *testing.T) {
+	t.Parallel()
 	_, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1686,6 +1710,7 @@ func TestInvitationManagement(t *testing.T) {
 
 // TestParentAccountManagement tests parent account management endpoints
 func TestParentAccountManagement(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1807,6 +1832,7 @@ func TestParentAccountManagement(t *testing.T) {
 
 // TestDeleteRole tests role deletion endpoint
 func TestDeleteRole(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
 
@@ -1861,6 +1887,7 @@ func setupRefreshTokenRouter(t *testing.T) (*testContext, chi.Router) {
 
 // TestRefreshToken tests token refresh endpoint using real login flow
 func TestRefreshToken(t *testing.T) {
+	t.Parallel()
 	_, router := setupRefreshTokenRouter(t)
 
 	t.Run("refresh with invalid token returns unauthorized", func(t *testing.T) {
@@ -1888,6 +1915,7 @@ func TestRefreshToken(t *testing.T) {
 
 // TestLogout tests logout endpoint
 func TestLogout(t *testing.T) {
+	t.Parallel()
 	_, router := setupRefreshTokenRouter(t)
 
 	t.Run("logout without token returns unauthorized", func(t *testing.T) {
@@ -1914,6 +1942,7 @@ func TestLogout(t *testing.T) {
 
 // TestListTenants tests the public GET /auth/tenants endpoint
 func TestListTenants(t *testing.T) {
+	t.Parallel()
 	db, svc := testutil.SetupAPITest(t)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -2001,6 +2030,7 @@ func setupTestContextWithSchoolRepo(t *testing.T) *testContext {
 // TestInvitationCreateSuccess verifies the full invitation creation success path,
 // covering WithTenantTx wrapper, school name resolution, and slog output.
 func TestInvitationCreateSuccess(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContextWithSchoolRepo(t)
 
 	router := testutil.NewTenantRouter(tc.db)
@@ -2118,6 +2148,7 @@ func TestInvitationCreateSuccess(t *testing.T) {
 // =============================================================================
 
 func TestLinkToTenant(t *testing.T) {
+	t.Parallel()
 	db, router := setupPublicRouterWithDB(t)
 
 	// Get admin token and a valid role ID
@@ -2197,6 +2228,7 @@ func TestLinkToTenant(t *testing.T) {
 // returns 404 when the matching school has been soft-deleted (deleted_at IS NOT NULL).
 // This ensures the frontend cannot resolve a decommissioned tenant via subdomain lookup.
 func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
+	t.Parallel()
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create a dedicated tenant for this test using a high ID to avoid collisions.
@@ -2244,6 +2276,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 // against privilege escalation: the "user" (Betreuer) role carries users:create
 // globally, so users:create alone must not open an endpoint that hands out roles.
 func TestCreateInvitationRequiresRoleGrantAuthority(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("inviter-%d@example.com", time.Now().UnixNano()))
@@ -2274,6 +2307,7 @@ func TestCreateInvitationRequiresRoleGrantAuthority(t *testing.T) {
 // that hand out a role when they attach an account to a school. Neither may be
 // driven by users:create, which every Betreuer holds.
 func TestRoleAssignmentEndpointsRejectEscalation(t *testing.T) {
+	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("granter-%d@example.com", time.Now().UnixNano()))

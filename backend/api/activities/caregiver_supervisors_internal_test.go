@@ -22,6 +22,7 @@ func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resourc
 }
 
 func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
+	t.Parallel()
 	db, _, resource := setupActivitiesResource(t)
 
 	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
@@ -41,6 +42,7 @@ func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 }
 
 func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
+	t.Parallel()
 	db, _, resource := setupActivitiesResource(t)
 
 	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")

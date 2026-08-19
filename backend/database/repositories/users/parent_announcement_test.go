@@ -40,7 +40,9 @@ func publishedAnnouncement(
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
-	now := time.Now()
+	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
+	// VM, and published_at <= NOW() guards must not see a future timestamp.
+	now := time.Now().Add(-2 * time.Second)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	a.PublishedAt = &now // reflect the persisted version so callers can pass it to MarkRead/MarkAcknowledged
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
@@ -237,7 +239,9 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish, then the guardian reads + acknowledges.
-	now := time.Now()
+	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
+	// VM, and published_at <= NOW() guards must not see a future timestamp.
+	now := time.Now().Add(-2 * time.Second)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now)
 	require.NoError(t, err)
@@ -298,7 +302,9 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
 	// Publish it, then attempt to swap the audience to a single student.
-	now := time.Now()
+	// Publish 2s in the past: the DB clock can lag the Go clock in the Docker
+	// VM, and published_at <= NOW() guards must not see a future timestamp.
+	now := time.Now().Add(-2 * time.Second)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	studentID := chain.StudentID
 	err := repo.ReplaceTargets(ctx, chain.TenantID, a.ID,

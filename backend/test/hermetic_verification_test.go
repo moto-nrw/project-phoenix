@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -38,7 +39,6 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"  result, err := repo.FindByID(ctx, int64(1))\n\n"+
 				"  // After (hermetic):\n"+
 				"  student := testpkg.CreateTestStudent(t, db, \"First\", \"Last\", \"1a\")\n"+
-				"  defer testpkg.CleanupTableRecords(t, db, \"users.students\", student.ID)\n"+
 				"  result, err := repo.FindByID(ctx, student.ID)",
 				len(violations), strings.Join(violations, "\n"))
 		}
@@ -52,10 +52,46 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"Example:\n"+
 				"  func TestExample(t *testing.T) {\n"+
 				"      db := testpkg.SetupTestDB(t)\n"+
-				"      defer func() { _ = db.Close() }()\n"+
 				"      // ... test code\n"+
 				"  }",
 				len(violations), strings.Join(violations, "\n"))
+		}
+	})
+
+	t.Run("no_new_cleanup_calls", func(t *testing.T) {
+		violations := checkCleanupCallRatchet(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Cleanup-call ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
+				"Since #2419 the package clone owns cleanup: every test binary gets a\n"+
+				"fresh database clone, so per-row Cleanup* calls are redundant. New\n"+
+				"tests must not add them. When you remove cleanup calls from a package,\n"+
+				"lower its baseline in cleanupCallBaseline — never raise one.",
+				strings.Join(violations, "\n"))
+		}
+	})
+
+	t.Run("no_shared_pool_close", func(t *testing.T) {
+		violations := checkSharedPoolClose(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Found %d close(s) of the shared package test pool:\n\n%s\n\n"+
+				"SetupTestDB returns ONE pool shared by every test in the binary —\n"+
+				"closing it kills all later tests. Do not close it. Tests that close\n"+
+				"their database on purpose (error-path injection) use the private pool:\n"+
+				"  db := testpkg.SetupClosableTestDB(t)\n"+
+				"  require.NoError(t, db.Close())",
+				len(violations), strings.Join(violations, "\n"))
+		}
+	})
+
+	t.Run("bootstrap_tenant_ratchet", func(t *testing.T) {
+		violations := checkBootstrapTenantRatchet(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Bootstrap-tenant ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
+				"The fixed bootstrap tenant (TenantContext(1)) is being phased out\n"+
+				"(#2419): new tests create their own tenant via testpkg.NewTenantScope\n"+
+				"so they cannot collide with parallel tests. When you migrate a package,\n"+
+				"lower its baseline in tenantContext1Baseline — never raise one.",
+				strings.Join(violations, "\n"))
 		}
 	})
 
@@ -421,6 +457,228 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		t.Logf("Warning: error walking directory: %v", err)
 	}
 
+	return violations
+}
+
+// cleanupCallBaseline is the shrink-only per-package baseline of Cleanup*
+// fixture calls in _test.go files (#2419). The clone-per-package lifecycle
+// makes them redundant; packages are migrated tranche by tranche (leftover-
+// tolerant packages are already at zero). Counts may only go DOWN. A package
+// not listed here must stay at zero.
+var cleanupCallBaseline = map[string]int{
+	"api/groups":                        93,
+	"api/staff":                         84,
+	"api/students":                      435,
+	"api/timetable":                     295,
+	"database/migrations":               106,
+	"database/repositories/active":      289,
+	"database/repositories/activities":  196,
+	"database/repositories/audit":       95,
+	"database/repositories/auth":        157,
+	"database/repositories/config":      7,
+	"database/repositories/education":   90,
+	"database/repositories/enrollment":  1,
+	"database/repositories/facilities":  19,
+	"database/repositories/feedback":    33,
+	"database/repositories/iot":         45,
+	"database/repositories/parent":      17,
+	"database/repositories/schedule":    336,
+	"database/repositories/suggestions": 33,
+	"database/repositories/users":       315,
+	"models/base":                       3,
+	"services/absence":                  21,
+	"services/active":                   383,
+	"services/activities":               98,
+	"services/auth":                     273,
+	"services/calendar":                 175,
+	"services/config":                   2,
+	"services/education":                262,
+	"services/enrollment":               101,
+	"services/messaging":                11,
+	"services/parent":                   252,
+	"services/schedule":                 380,
+	"services/slotlists":                146,
+	"services/users":                    304,
+	"test":                              22,
+	"test/e2e/calendar":                 13,
+	"test/e2e/timetable":                28,
+}
+
+// tenantContext1Baseline is the shrink-only per-package baseline of
+// TenantContext(1) call sites (#2419). Per-test tenants (NewTenantScope)
+// replace the fixed bootstrap tenant so parallel tests cannot collide.
+// Counts may only go DOWN. A package not listed here must stay at zero.
+var tenantContext1Baseline = map[string]int{
+	"api/active":                        5,
+	"api/activities":                    16,
+	"api/admin":                         2,
+	"api/auth":                          4,
+	"api/birthdays":                     2,
+	"api/classday":                      1,
+	"api/classlistentries":              1,
+	"api/feedback":                      1,
+	"api/groups":                        1,
+	"api/guardians":                     15,
+	"api/import":                        3,
+	"api/iot":                           1,
+	"api/iot/checkin":                   11,
+	"api/shift-types":                   1,
+	"api/sse":                           4,
+	"api/staff":                         20,
+	"api/students":                      47,
+	"api/suggestions":                   4,
+	"api/timetable":                     28,
+	"database/repositories/active":      140,
+	"database/repositories/activities":  74,
+	"database/repositories/audit":       37,
+	"database/repositories/auth":        155,
+	"database/repositories/base":        11,
+	"database/repositories/config":      17,
+	"database/repositories/education":   87,
+	"database/repositories/facilities":  10,
+	"database/repositories/feedback":    13,
+	"database/repositories/iot":         20,
+	"database/repositories/mealplan":    4,
+	"database/repositories/parent":      2,
+	"database/repositories/platform":    49,
+	"database/repositories/schedule":    191,
+	"database/repositories/suggestions": 27,
+	"database/repositories/users":       179,
+	"models/base":                       28,
+	"services/active":                   216,
+	"services/activities":               99,
+	"services/auth":                     162,
+	"services/calendar":                 48,
+	"services/config":                   3,
+	"services/database":                 2,
+	"services/education":                97,
+	"services/enrollment":               502,
+	"services/facilities":               41,
+	"services/feedback":                 13,
+	"services/import":                   1,
+	"services/iot":                      20,
+	"services/iot/checkin":              5,
+	"services/parent":                   13,
+	"services/reminders":                1,
+	"services/schedule":                 102,
+	"services/scheduler":                4,
+	"services/slotlists":                41,
+	"services/suggestions":              7,
+	"services/users":                    146,
+	"tenant":                            2,
+	"test":                              7,
+}
+
+// countMatchesPerPackage walks root and counts regex matches per package
+// directory (relative, forward slashes). testOnly restricts the scan to
+// _test.go files. internal/testdb owns its own lifecycle and is excluded.
+func countMatchesPerPackage(root string, re *regexp.Regexp, testOnly bool) (map[string]int, error) {
+	counts := make(map[string]int)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if !strings.HasSuffix(rel, ".go") || strings.HasPrefix(rel, "internal/testdb/") {
+			return nil
+		}
+		if strings.Contains(rel, "hermetic_verification_test.go") {
+			return nil
+		}
+		if testOnly && !strings.HasSuffix(rel, "_test.go") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if n := len(re.FindAll(content, -1)); n > 0 {
+			counts[filepath.ToSlash(filepath.Dir(rel))] += n
+		}
+		return nil
+	})
+	return counts, err
+}
+
+// ratchetViolations compares current per-package counts against a shrink-only
+// baseline and reports every package above its allowance.
+func shrinkOnlyViolations(current, baseline map[string]int) []string {
+	var violations []string
+	for dir, n := range current {
+		if allowed := baseline[dir]; n > allowed {
+			violations = append(violations,
+				"  "+dir+": "+itoa(n)+" (baseline "+itoa(allowed)+")")
+		}
+	}
+	sort.Strings(violations)
+	return violations
+}
+
+// checkCleanupCallRatchet enforces the shrink-only Cleanup*-call baseline.
+func checkCleanupCallRatchet(t *testing.T, root string) []string {
+	t.Helper()
+	re := regexp.MustCompile(`testpkg\.Cleanup\w+\(|(?:^|\s)defer Cleanup\w+\(`)
+	current, err := countMatchesPerPackage(root, re, true)
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+	return shrinkOnlyViolations(current, cleanupCallBaseline)
+}
+
+// checkBootstrapTenantRatchet enforces the shrink-only TenantContext(1) baseline.
+func checkBootstrapTenantRatchet(t *testing.T, root string) []string {
+	t.Helper()
+	re := regexp.MustCompile(`TenantContext\(1\)`)
+	current, err := countMatchesPerPackage(root, re, false)
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+	return shrinkOnlyViolations(current, tenantContext1Baseline)
+}
+
+// checkSharedPoolClose flags one-liner closes of the shared SetupTestDB pool.
+func checkSharedPoolClose(t *testing.T, root string) []string {
+	t.Helper()
+
+	var violations []string
+	closeLine := regexp.MustCompile(
+		`^\s*(defer func\(\) \{ _ = db\.Close\(\) \}\(\)|defer db\.Close\(\)|t\.Cleanup\(func\(\) \{ _ = db\.Close\(\) \}\))\s*$`)
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		normalized := filepath.ToSlash(path)
+		if strings.Contains(normalized, "internal/testdb/") ||
+			strings.Contains(normalized, "hermetic_verification_test.go") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		text := string(content)
+		// Only files on the shared pool are affected; SetupClosableTestDB
+		// pools are private and may be closed.
+		if !strings.Contains(text, "SetupTestDB(") && !strings.Contains(text, "SetupAPITest(") {
+			return nil
+		}
+		relPath, _ := filepath.Rel(root, path)
+		for i, line := range strings.Split(text, "\n") {
+			if closeLine.MatchString(line) {
+				violations = append(violations,
+					formatViolation(filepath.ToSlash(relPath), i+1, strings.TrimSpace(line)))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
 	return violations
 }
 

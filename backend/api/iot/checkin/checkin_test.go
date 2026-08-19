@@ -148,6 +148,7 @@ func createTestDeviceContext(device *iot.Device) *iot.Device {
 // =============================================================================
 
 func TestDevicePing_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -175,6 +176,7 @@ func TestDevicePing_Success(t *testing.T) {
 }
 
 func TestDevicePing_Unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -193,6 +195,7 @@ func TestDevicePing_Unauthorized(t *testing.T) {
 // =============================================================================
 
 func TestDeviceStatus_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -218,6 +221,7 @@ func TestDeviceStatus_Success(t *testing.T) {
 }
 
 func TestDeviceStatus_Unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -236,6 +240,7 @@ func TestDeviceStatus_Unauthorized(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_Unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -254,6 +259,7 @@ func TestDeviceCheckin_Unauthorized(t *testing.T) {
 }
 
 func TestDeviceCheckin_MissingRFID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -277,6 +283,7 @@ func TestDeviceCheckin_MissingRFID(t *testing.T) {
 }
 
 func TestDeviceCheckin_StudentNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -301,6 +308,7 @@ func TestDeviceCheckin_StudentNotFound(t *testing.T) {
 }
 
 func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -344,6 +352,7 @@ func TestDeviceCheckin_NoActiveGroups(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -397,6 +406,7 @@ func TestDeviceCheckin_CheckoutWithActiveVisit(t *testing.T) {
 }
 
 func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
+	t.Parallel()
 	// This test verifies that checkin to a room without an active group fails appropriately
 	ctx := setupTestContext(t)
 
@@ -438,6 +448,7 @@ func TestDeviceCheckin_CheckinWithNewVisitNoActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
+	t.Parallel()
 	t.Run("authenticates supervisor with active session", func(t *testing.T) {
 		ctx := setupTestContext(t)
 
@@ -636,6 +647,7 @@ func TestDeviceCheckin_SupervisorRFIDAuthentication(t *testing.T) {
 // a 404 response. This covers the "neither student nor staff" branch in
 // handleStaffScan (workflow.go lines 118-121).
 func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "bare-person")
@@ -670,6 +682,7 @@ func TestDeviceCheckin_PersonNeitherStudentNorStaff(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
+	t.Parallel()
 	// This test verifies that attempting to transfer to a room without an active group fails
 	ctx := setupTestContext(t)
 
@@ -728,6 +741,7 @@ func TestDeviceCheckin_RoomTransferInvalidRoom(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-json")
@@ -755,6 +769,7 @@ func TestDeviceCheckin_InvalidJSON(t *testing.T) {
 }
 
 func TestDeviceCheckin_EmptyRFID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "empty-rfid")
@@ -780,6 +795,7 @@ func TestDeviceCheckin_EmptyRFID(t *testing.T) {
 // =============================================================================
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -787,6 +803,7 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 }
 
 func TestRouter_CheckinEndpointExists(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -801,6 +818,7 @@ func TestRouter_CheckinEndpointExists(t *testing.T) {
 }
 
 func TestRouter_PingEndpointExists(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -814,6 +832,7 @@ func TestRouter_PingEndpointExists(t *testing.T) {
 }
 
 func TestRouter_StatusEndpointExists(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -831,6 +850,7 @@ func TestRouter_StatusEndpointExists(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
+	t.Parallel()
 	// Full checkin requires staff context for attendance tracking (checked_in_by FK constraint).
 	ctx := setupTestContext(t)
 
@@ -880,6 +900,7 @@ func TestDeviceCheckin_SuccessfulCheckin(t *testing.T) {
 }
 
 func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
+	t.Parallel()
 	// Room transfer: checkout from room 1, checkin to room 2.
 	// Requires staff context for attendance tracking (checked_in_by FK constraint).
 	ctx := setupTestContext(t)
@@ -945,6 +966,7 @@ func TestDeviceCheckin_RoomTransferSucceeds(t *testing.T) {
 // =============================================================================
 
 func TestDevicePing_SessionActiveStatus(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create device
@@ -974,6 +996,7 @@ func TestDevicePing_SessionActiveStatus(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_InvalidAction(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "invalid-action")
@@ -1001,6 +1024,7 @@ func TestDeviceCheckin_InvalidAction(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create device
@@ -1186,6 +1210,7 @@ func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
+	t.Parallel()
 	// Verifies that a successful checkin response includes the active_students count
 	// when the device is linked to an active session.
 	ctx := setupTestContext(t)
@@ -1245,6 +1270,7 @@ func TestDeviceCheckin_ResponseContainsActiveStudents(t *testing.T) {
 }
 
 func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
+	t.Parallel()
 	// Check in two students and verify the count increments correctly
 	ctx := setupTestContext(t)
 
@@ -1317,6 +1343,7 @@ func TestDeviceCheckin_ActiveStudentsCountWithMultipleStudents(t *testing.T) {
 }
 
 func TestDeviceCheckin_ActiveStudentsStayScopedToDeviceSessionInSharedRoom(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "shared-room-count")
@@ -1382,6 +1409,7 @@ func TestDeviceCheckin_ActiveStudentsStayScopedToDeviceSessionInSharedRoom(t *te
 // =============================================================================
 
 func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
+	t.Parallel()
 	// When a student scans out from a room and the same room_id is provided,
 	// the checkin should be skipped (student stays checked out from that room).
 	ctx := setupTestContext(t)
@@ -1437,6 +1465,7 @@ func TestDeviceCheckin_SameRoomScanSkipsCheckin(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
+	t.Parallel()
 	// Verifies that checkin fails when room is at capacity
 	ctx := setupTestContext(t)
 
@@ -1495,6 +1524,7 @@ func TestDeviceCheckin_RoomCapacityExceeded(t *testing.T) {
 }
 
 func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "capacity-transfer-rollback")
@@ -1538,6 +1568,7 @@ func TestDeviceCheckin_RoomCapacityExceededRollsBackSourceCheckout(t *testing.T)
 // =============================================================================
 
 func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
+	t.Parallel()
 	// Verifies that checkout response includes the room name from the active visit
 	ctx := setupTestContext(t)
 
@@ -1587,6 +1618,7 @@ func TestDeviceCheckin_CheckoutResponseIncludesRoomName(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
+	t.Parallel()
 	// Student with no active visit and no room_id should get an error
 	ctx := setupTestContext(t)
 
@@ -1622,6 +1654,7 @@ func TestDeviceCheckin_CheckoutWithNoRoomIDAndNoVisit(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
+	t.Parallel()
 	// Verifies that checkin fails when activity MaxParticipants is reached
 	ctx := setupTestContext(t)
 
@@ -1690,6 +1723,7 @@ func TestDeviceCheckin_ActivityCapacityExceeded(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
+	t.Parallel()
 	// When the device is NOT linked to an active group, getActiveStudentCountForRoom
 	// falls back to counting across all groups in the room
 	ctx := setupTestContext(t)
@@ -1746,6 +1780,7 @@ func TestDeviceCheckin_ActiveStudentsFallbackWithoutDeviceLink(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
+	t.Parallel()
 	// Verifies that a checkin with room_id updates the session's last activity
 	ctx := setupTestContext(t)
 
@@ -2404,6 +2439,7 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 // =============================================================================
 
 func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
+	t.Parallel()
 	// Checkin for a student with a weekly pickup schedule should return pickup_time in response.
 	ctx := setupTestContext(t)
 
@@ -2473,6 +2509,7 @@ func TestDeviceCheckin_ResponseIncludesPickupTime(t *testing.T) {
 }
 
 func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
+	t.Parallel()
 	// Checkin for a student without any pickup schedule should NOT include pickup_time.
 	ctx := setupTestContext(t)
 
@@ -2519,6 +2556,7 @@ func TestDeviceCheckin_ResponseOmitsPickupTimeWhenNoSchedule(t *testing.T) {
 }
 
 func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-success")
@@ -2592,6 +2630,7 @@ func TestDevicePickupQuery_ReturnsPickupInfoWithoutCreatingVisit(t *testing.T) {
 }
 
 func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-empty")
@@ -2628,6 +2667,7 @@ func TestDevicePickupQuery_OmitsPickupInfoWhenNoScheduleOrNote(t *testing.T) {
 }
 
 func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff")
@@ -2657,6 +2697,7 @@ func TestDevicePickupQuery_RejectsStaffRFID(t *testing.T) {
 }
 
 func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-error")
@@ -2689,6 +2730,7 @@ func TestDevicePickupQuery_ReturnsErrorWhenPickupLookupFails(t *testing.T) {
 }
 
 func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-rfid-failure")
@@ -2716,6 +2758,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 }
 
 func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-student-failure")
@@ -2751,6 +2794,7 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 }
 
 func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-note-precedence")
@@ -2821,6 +2865,7 @@ func TestDevicePickupQuery_PrefersDayNotesOverRecurringNotes(t *testing.T) {
 }
 
 func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-exception-fallback")
@@ -2887,6 +2932,7 @@ func TestDevicePickupQuery_PreservesRecurringNotesWhenExceptionReasonIsBlank(t *
 }
 
 func TestDevicePickupQuery_Unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -2901,6 +2947,7 @@ func TestDevicePickupQuery_Unauthorized(t *testing.T) {
 }
 
 func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-bad-body")
@@ -2919,6 +2966,7 @@ func TestDevicePickupQuery_InvalidRequestBody(t *testing.T) {
 }
 
 func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-unknown-rfid")
@@ -2938,6 +2986,7 @@ func TestDevicePickupQuery_UnknownRFIDReturnsNotFound(t *testing.T) {
 }
 
 func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-staff-fail")
@@ -2973,6 +3022,7 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 }
 
 func TestDevicePickupQuery_PersonNeitherStudentNorStaffReturnsNotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "pickup-query-orphan")
@@ -3027,6 +3077,7 @@ func (d *duplicateVisitActiveService) EndVisit(ctx context.Context, id int64) er
 }
 
 func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetails(t *testing.T) {
+	t.Parallel()
 	// Verifies that when CreateVisit reports ErrStudentAlreadyActive via the
 	// application-level read-then-write check, the IoT handler returns 409
 	// Conflict with the structured STUDENT_ALREADY_ACTIVE body (Issue #844).

@@ -41,6 +41,7 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestListDevices_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -57,6 +58,7 @@ func TestListDevices_Success(t *testing.T) {
 }
 
 func TestListDevices_WithTypeFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -73,6 +75,7 @@ func TestListDevices_WithTypeFilter(t *testing.T) {
 }
 
 func TestListDevices_WithStatusFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -89,6 +92,7 @@ func TestListDevices_WithStatusFilter(t *testing.T) {
 }
 
 func TestListDevices_WithSearchFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -109,6 +113,7 @@ func TestListDevices_WithSearchFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -129,6 +134,7 @@ func TestGetDevice_Success(t *testing.T) {
 }
 
 func TestGetDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -145,6 +151,7 @@ func TestGetDevice_NotFound(t *testing.T) {
 }
 
 func TestGetDevice_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -165,6 +172,7 @@ func TestGetDevice_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetDeviceByDeviceID_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device - the fixture appends its own unique suffix
@@ -185,6 +193,7 @@ func TestGetDeviceByDeviceID_Success(t *testing.T) {
 }
 
 func TestGetDeviceByDeviceID_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -207,6 +216,7 @@ func TestGetDeviceByDeviceID_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestCreateDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -231,6 +241,7 @@ func TestCreateDevice_Success(t *testing.T) {
 }
 
 func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -260,6 +271,7 @@ func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
 }
 
 func TestCreateDevice_MissingDeviceID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -281,6 +293,7 @@ func TestCreateDevice_MissingDeviceID(t *testing.T) {
 }
 
 func TestCreateDevice_MissingDeviceType(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -307,6 +320,7 @@ func TestCreateDevice_MissingDeviceType(t *testing.T) {
 // =============================================================================
 
 func TestUpdateDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -333,6 +347,7 @@ func TestUpdateDevice_Success(t *testing.T) {
 }
 
 func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "update-room-device")
@@ -374,6 +389,7 @@ func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
 }
 
 func TestUpdateDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -396,6 +412,7 @@ func TestUpdateDevice_NotFound(t *testing.T) {
 }
 
 func TestUpdateDevice_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -421,6 +438,7 @@ func TestUpdateDevice_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestDeleteDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device
@@ -442,6 +460,7 @@ func TestDeleteDevice_Success(t *testing.T) {
 }
 
 func TestDeleteDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -458,6 +477,7 @@ func TestDeleteDevice_NotFound(t *testing.T) {
 }
 
 func TestDeleteDevice_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -478,6 +498,7 @@ func TestDeleteDevice_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestUpdateDeviceStatus_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
@@ -501,6 +522,7 @@ func TestUpdateDeviceStatus_Success(t *testing.T) {
 }
 
 func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
@@ -526,6 +548,7 @@ func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
 // =============================================================================
 
 func TestPingDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
@@ -545,6 +568,7 @@ func TestPingDevice_Success(t *testing.T) {
 }
 
 func TestPingDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -567,6 +591,7 @@ func TestPingDevice_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesByType_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -587,6 +612,7 @@ func TestGetDevicesByType_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesByStatus_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -603,6 +629,7 @@ func TestGetDevicesByStatus_Success(t *testing.T) {
 }
 
 func TestGetDevicesByStatus_InvalidStatus(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -623,6 +650,7 @@ func TestGetDevicesByStatus_InvalidStatus(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	// Create test person
@@ -642,6 +670,7 @@ func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
 }
 
 func TestGetDevicesByRegisteredBy_InvalidPersonID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -662,6 +691,7 @@ func TestGetDevicesByRegisteredBy_InvalidPersonID(t *testing.T) {
 // =============================================================================
 
 func TestGetActiveDevices_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -682,6 +712,7 @@ func TestGetActiveDevices_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesRequiringMaintenance_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -702,6 +733,7 @@ func TestGetDevicesRequiringMaintenance_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetOfflineDevices_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -718,6 +750,7 @@ func TestGetOfflineDevices_Success(t *testing.T) {
 }
 
 func TestGetOfflineDevices_WithDurationFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -738,6 +771,7 @@ func TestGetOfflineDevices_WithDurationFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetDeviceStatistics_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -766,6 +800,7 @@ func TestGetDeviceStatistics_Success(t *testing.T) {
 // =============================================================================
 
 func TestDetectNewDevices_NotImplemented(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -789,6 +824,7 @@ func TestDetectNewDevices_NotImplemented(t *testing.T) {
 // =============================================================================
 
 func TestScanNetwork_NotImplemented(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
 
 	router := testutil.NewTenantRouter(ctx.db)

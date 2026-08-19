@@ -32,6 +32,7 @@ import (
 // both paths from one field, so SQL predicate drift is invisible there. That is
 // exactly why this test talks to a real database.
 func TestSupervisedRoomScopeAgreesWithBulkReader(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor

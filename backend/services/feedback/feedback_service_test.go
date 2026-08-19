@@ -74,6 +74,7 @@ func cleanupFeedbackFixtures(t *testing.T, db *bun.DB, entryIDs []int64) {
 // ============================================================================
 
 func TestFeedbackService_CreateEntry(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -144,6 +145,7 @@ func TestFeedbackService_CreateEntry(t *testing.T) {
 }
 
 func TestFeedbackService_GetEntryByID(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -184,6 +186,7 @@ func TestFeedbackService_GetEntryByID(t *testing.T) {
 }
 
 func TestFeedbackService_DeleteEntry(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -225,6 +228,7 @@ func TestFeedbackService_DeleteEntry(t *testing.T) {
 }
 
 func TestFeedbackService_ListEntries(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -266,6 +270,7 @@ func TestFeedbackService_ListEntries(t *testing.T) {
 // ============================================================================
 
 func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -297,6 +302,7 @@ func TestFeedbackService_GetEntriesByStudent(t *testing.T) {
 }
 
 func TestFeedbackService_GetEntriesByDay(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -328,6 +334,7 @@ func TestFeedbackService_GetEntriesByDay(t *testing.T) {
 }
 
 func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -379,6 +386,7 @@ func TestFeedbackService_GetEntriesByDateRange(t *testing.T) {
 }
 
 func TestFeedbackService_GetMensaFeedback(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -405,6 +413,7 @@ func TestFeedbackService_GetMensaFeedback(t *testing.T) {
 }
 
 func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -464,6 +473,7 @@ func TestFeedbackService_GetEntriesByStudentAndDateRange(t *testing.T) {
 // ============================================================================
 
 func TestFeedbackService_CreateEntries(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -527,6 +537,7 @@ func TestFeedbackService_CreateEntries(t *testing.T) {
 // ============================================================================
 
 func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFeedbackService(t, db)
@@ -602,6 +613,7 @@ func TestFeedbackService_DeleteEntriesOlderThan(t *testing.T) {
 // ============================================================================
 
 func TestFeedbackErrors(t *testing.T) {
+	t.Parallel()
 	t.Run("InvalidEntryDataError contains error details", func(t *testing.T) {
 		err := &feedbackSvc.InvalidEntryDataError{Err: feedbackSvc.ErrInvalidParameters}
 

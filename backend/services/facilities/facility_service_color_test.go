@@ -26,6 +26,7 @@ func uniqueRoomName(prefix string) string {
 // the SCHOOLYARD orange should fail with the German message even if a sneaky
 // caller bypasses the picker and posts the hex directly.
 func TestFacilitiesService_CreateRoom_RejectsReservedColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -62,6 +63,7 @@ func TestFacilitiesService_CreateRoom_RejectsReservedColor(t *testing.T) {
 // TestFacilitiesService_CreateRoom_AcceptsCustomColor sanity-checks the happy
 // path: a color that is neither reserved nor in use gets persisted as-is.
 func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -88,6 +90,7 @@ func TestFacilitiesService_CreateRoom_AcceptsCustomColor(t *testing.T) {
 // share a color; the service translates the 23505 to ErrColorAlreadyInUse so
 // the frontend toast can surface the German message instead of a 500.
 func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -124,6 +127,7 @@ func TestFacilitiesService_UpdateRoom_RejectsDuplicateColor(t *testing.T) {
 // aliases case-insensitively); CreateTestRoom would suffix a timestamp
 // and dodge the check.
 func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -236,6 +240,7 @@ func TestFacilitiesService_UpdateRoom_BlocksColorOnSystemRooms(t *testing.T) {
 // unique index ignores NULLs, so multiple rooms can hold "no color" — the
 // blue fallback in the badge renderer covers them.
 func TestFacilitiesService_UpdateRoom_AllowsClearingColor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
