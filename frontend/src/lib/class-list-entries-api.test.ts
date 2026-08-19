@@ -20,13 +20,14 @@ function jsonResponse(body: unknown, ok = true, status = 200) {
   } as unknown as Response;
 }
 
+// IDs kommen als JSON-Strings vom Backend (verlustfrei jenseits von 2^53).
 const wireEntry = {
-  id: 12,
+  id: "12",
   first_name: "Zoe",
   last_name: "Aalders",
   school_class: "1a",
   created_at: "2026-08-18T10:00:00Z",
-  matching_student_ids: [7, 8],
+  matching_student_ids: ["7", "8"],
 };
 
 beforeEach(() => {
@@ -35,7 +36,7 @@ beforeEach(() => {
 });
 
 describe("fetchClassListEntries", () => {
-  it("maps the wire entries to string IDs", async () => {
+  it("maps the wire entries", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ data: [wireEntry] }));
 
     const entries = await fetchClassListEntries();
@@ -152,7 +153,7 @@ describe("deleteClassListEntry", () => {
 });
 
 describe("assignClassListEntry", () => {
-  it("POSTs the numeric student ID to the assign URL", async () => {
+  it("POSTs the student ID as a JSON string to the assign URL", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ data: null }));
 
     await assignClassListEntry("12", "77");
@@ -161,7 +162,7 @@ describe("assignClassListEntry", () => {
       "/api/class-list-entries/12/assign",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ student_id: 77 }),
+        body: JSON.stringify({ student_id: "77" }),
       }),
     );
   });

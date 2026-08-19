@@ -446,7 +446,7 @@ export function StudentCreateModal({
                       htmlFor="list-entry-first-name"
                       className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
                     >
-                      Vorname <span className="text-[#DC2626]">*</span>
+                      Vorname <span className="text-moto-red">*</span>
                     </label>
                     <Input
                       id="list-entry-first-name"
@@ -457,7 +457,7 @@ export function StudentCreateModal({
                       placeholder="Max"
                     />
                     {errors.first_name ? (
-                      <p className="mt-1 text-xs text-[#DC2626]">
+                      <p className="text-moto-red mt-1 text-xs">
                         {errors.first_name}
                       </p>
                     ) : null}
@@ -467,7 +467,7 @@ export function StudentCreateModal({
                       htmlFor="list-entry-last-name"
                       className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
                     >
-                      Nachname <span className="text-[#DC2626]">*</span>
+                      Nachname <span className="text-moto-red">*</span>
                     </label>
                     <Input
                       id="list-entry-last-name"
@@ -478,7 +478,7 @@ export function StudentCreateModal({
                       placeholder="Mustermann"
                     />
                     {errors.second_name ? (
-                      <p className="mt-1 text-xs text-[#DC2626]">
+                      <p className="text-moto-red mt-1 text-xs">
                         {errors.second_name}
                       </p>
                     ) : null}
@@ -488,7 +488,7 @@ export function StudentCreateModal({
                       htmlFor="list-entry-school-class"
                       className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
                     >
-                      Klasse <span className="text-[#DC2626]">*</span>
+                      Klasse <span className="text-moto-red">*</span>
                     </label>
                     <Input
                       id="list-entry-school-class"
@@ -499,7 +499,7 @@ export function StudentCreateModal({
                       placeholder="5A"
                     />
                     {errors.school_class ? (
-                      <p className="mt-1 text-xs text-[#DC2626]">
+                      <p className="text-moto-red mt-1 text-xs">
                         {errors.school_class}
                       </p>
                     ) : (

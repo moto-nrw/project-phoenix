@@ -45,9 +45,11 @@ func TestClassListEntriesAPI(t *testing.T) {
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:create"})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
+	// IDs travel as JSON strings (lossless beyond 2^53) — `,string` decodes the
+	// quoted wire value.
 	var created struct {
 		Data struct {
-			ID int64 `json:"id"`
+			ID int64 `json:"id,string"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
@@ -90,7 +92,7 @@ func TestClassListEntriesAPI(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.NotContains(t, rec.Body.String(), fmt.Sprintf(`"id":%d`, entryID))
+	assert.NotContains(t, rec.Body.String(), fmt.Sprintf(`"id":"%d"`, entryID))
 }
 
 func TestClassListEntriesAppearInClassDay(t *testing.T) {

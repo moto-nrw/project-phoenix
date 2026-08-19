@@ -11,6 +11,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -95,19 +96,22 @@ func (req *AssignRequest) Bind(_ *http.Request) error {
 
 // EntryResponse is one entry on the wire. MatchingStudentIDs carries the IDs
 // of regular students sharing name and class — the hint for a deliberate
-// "Zuordnen" resolution, never an automatic merge.
+// "Zuordnen" resolution, never an automatic merge. All IDs are serialized as
+// JSON strings for the same reason AssignRequest binds with `,string`:
+// JavaScript clients and the Next.js proxy round JSON numbers beyond 2^53.
 type EntryResponse struct {
-	ID                 int64     `json:"id"`
+	ID                 int64     `json:"id,string"`
 	FirstName          string    `json:"first_name"`
 	LastName           string    `json:"last_name"`
 	SchoolClass        string    `json:"school_class"`
 	CreatedAt          time.Time `json:"created_at"`
-	MatchingStudentIDs []int64   `json:"matching_student_ids"`
+	MatchingStudentIDs []string  `json:"matching_student_ids"`
 }
 
 func entryResponse(entry *userModels.ClassListEntry, matches []int64) EntryResponse {
-	if matches == nil {
-		matches = []int64{}
+	matchIDs := make([]string, 0, len(matches))
+	for _, id := range matches {
+		matchIDs = append(matchIDs, strconv.FormatInt(id, 10))
 	}
 	return EntryResponse{
 		ID:                 entry.ID,
@@ -115,7 +119,7 @@ func entryResponse(entry *userModels.ClassListEntry, matches []int64) EntryRespo
 		LastName:           entry.LastName,
 		SchoolClass:        entry.SchoolClass,
 		CreatedAt:          entry.CreatedAt,
-		MatchingStudentIDs: matches,
+		MatchingStudentIDs: matchIDs,
 	}
 }
 

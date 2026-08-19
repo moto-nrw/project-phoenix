@@ -21,13 +21,15 @@ export interface ClassListEntryInput {
   schoolClass: string;
 }
 
+// Alle IDs reisen als JSON-Strings: als JSON-Zahl würden int64-IDs oberhalb
+// von 2^53 beim Parsen (Browser wie Next.js-Proxy) gerundet.
 interface WireEntry {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;
   school_class: string;
   created_at: string;
-  matching_student_ids?: number[];
+  matching_student_ids?: string[];
 }
 
 interface Envelope<T> {
@@ -38,14 +40,12 @@ interface Envelope<T> {
 
 function mapEntry(wire: WireEntry): ClassListEntry {
   return {
-    id: wire.id.toString(),
+    id: wire.id,
     firstName: wire.first_name,
     lastName: wire.last_name,
     schoolClass: wire.school_class,
     createdAt: wire.created_at,
-    matchingStudentIds: (wire.matching_student_ids ?? []).map((id) =>
-      id.toString(),
-    ),
+    matchingStudentIds: wire.matching_student_ids ?? [],
   };
 }
 
