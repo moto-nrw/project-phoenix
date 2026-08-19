@@ -112,6 +112,20 @@ func TestHermeticTestPatterns(t *testing.T) {
 		}
 	})
 
+	t.Run("no_parallel_test_touching_global_state", func(t *testing.T) {
+		violations := checkParallelGlobalState(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Found %d parallel test(s) that reach process-global state:\n\n%s\n\n"+
+				"viper keys, environment variables and the default logger are shared by\n"+
+				"the whole test binary. A helper that sets one and restores it in\n"+
+				"t.Cleanup will yank it out from under any test running beside it —\n"+
+				"the failure surfaces as an unrelated assertion, and only under load.\n\n"+
+				"Fix: drop t.Parallel() from this test, or make the helper stop mutating\n"+
+				"global state (inject the value instead).",
+				len(violations), strings.Join(violations, "\n"))
+		}
+	})
+
 	t.Run("no_broken_cleanup_model_pattern", func(t *testing.T) {
 		violations := checkBrokenCleanupPattern(t, backendRoot)
 		if len(violations) > 0 {
@@ -705,6 +719,135 @@ var parallelBootstrapTenantBaseline = map[string]int{
 	"services/reminders":   1,
 	"services/scheduler":   3,
 	"tenant":               1,
+}
+
+// globalStateMutation matches the process-global writes that make a test
+// unsafe to run beside another: viper keys, environment variables, the
+// default logger, the working directory.
+var globalStateMutation = regexp.MustCompile(
+	`viper\.(Set|Reset)\b|t\.Setenv|os\.Setenv|log\.SetOutput|slog\.SetDefault|os\.Chdir`)
+
+// goFuncDef matches any top-level func declaration, capturing its name.
+var goFuncDef = regexp.MustCompile(`(?m)^func\s+(?:\([^)]*\)\s*)?(\w+)\s*\(`)
+
+// goFunc is one top-level function of a test file.
+type goFunc struct {
+	name string
+	body string
+}
+
+// splitGoFuncs slices a file into its top-level functions.
+func splitGoFuncs(text string) []goFunc {
+	locs := goFuncDef.FindAllStringSubmatchIndex(text, -1)
+	funcs := make([]goFunc, 0, len(locs))
+	for i, loc := range locs {
+		end := len(text)
+		if i+1 < len(locs) {
+			end = locs[i+1][0]
+		}
+		funcs = append(funcs, goFunc{name: text[loc[2]:loc[3]], body: text[loc[0]:end]})
+	}
+	return funcs
+}
+
+// callsAny reports whether body calls any of the named functions.
+func callsAny(body string, names map[string]bool) bool {
+	for name := range names {
+		if regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\s*\(`).MatchString(body) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkParallelGlobalState finds tests that call t.Parallel() while reaching
+// process-global state — directly, or through a helper anywhere in the same
+// package. Resolving helpers per package (not per file) is the point: the
+// #2419 sweep parallelised a whole file whose JWT-secret helper lived in a
+// sibling file, and the restore in that helper's t.Cleanup broke unrelated
+// tests running beside it.
+func checkParallelGlobalState(t *testing.T, root string) []string {
+	t.Helper()
+
+	type fileEntry struct {
+		rel  string
+		text string
+	}
+	pkgFuncs := make(map[string]map[string]string)
+	pkgFiles := make(map[string][]fileEntry)
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if strings.HasPrefix(rel, "internal/testdb/") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		text := string(content)
+		pkg := filepath.ToSlash(filepath.Dir(rel))
+		if pkgFuncs[pkg] == nil {
+			pkgFuncs[pkg] = make(map[string]string)
+		}
+		for _, f := range splitGoFuncs(text) {
+			pkgFuncs[pkg][f.name] = f.body
+		}
+		pkgFiles[pkg] = append(pkgFiles[pkg], fileEntry{rel: rel, text: text})
+		return nil
+	})
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+
+	var violations []string
+	for pkg, funcs := range pkgFuncs {
+		// Seed with helpers that mutate global state directly, then close over
+		// helpers that call them.
+		tainted := make(map[string]bool)
+		for name, body := range funcs {
+			if !strings.HasPrefix(name, "Test") && globalStateMutation.MatchString(body) {
+				tainted[name] = true
+			}
+		}
+		for range 5 {
+			grew := false
+			for name, body := range funcs {
+				if tainted[name] || strings.HasPrefix(name, "Test") {
+					continue
+				}
+				if callsAny(body, tainted) {
+					tainted[name] = true
+					grew = true
+				}
+			}
+			if !grew {
+				break
+			}
+		}
+		if len(tainted) == 0 {
+			continue
+		}
+		for _, fe := range pkgFiles[pkg] {
+			for _, f := range splitGoFuncs(fe.text) {
+				if !strings.HasPrefix(f.name, "Test") || !strings.Contains(f.body, "t.Parallel()") {
+					continue
+				}
+				if globalStateMutation.MatchString(f.body) || callsAny(f.body, tainted) {
+					violations = append(violations, "  "+fe.rel+": "+f.name)
+				}
+			}
+		}
+	}
+	sort.Strings(violations)
+	return violations
 }
 
 // checkParallelBootstrapTenantRatchet counts, per package, the test FILES that
