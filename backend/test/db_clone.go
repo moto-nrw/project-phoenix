@@ -181,9 +181,9 @@ func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("ensure default test tenant: %w", err)
 	}
 
-	// Ensure default fallback room exists (ID 1).
-	// session_service.go:determineRoomIDWithStrategy uses hardcoded fallback
-	// to room 1 when no room is specified and no planned room exists.
+	// Ensure the legacy bootstrap room (ID 1) exists: older fixtures hardcode
+	// room_id=1 and need a FK target row. It disappears with the PR-2
+	// per-test-tenant sweep, like the other fixed bootstrap entities.
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO facilities.rooms (id, tenant_id, name, building)
 		VALUES (1, 1, 'Default Room', 'Default')

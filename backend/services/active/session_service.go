@@ -628,8 +628,8 @@ func (s *service) determineRoomIDWithStrategy(ctx context.Context, activityID in
 		return plannedRoomID, nil
 	}
 
-	// Default fallback room
-	return 1, nil
+	// No room selected and none planned: there is no tenant-safe default.
+	return 0, ErrNoRoomAvailable
 }
 
 // validateManualRoomSelection validates manually selected room based on conflict strategy

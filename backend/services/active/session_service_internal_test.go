@@ -11,6 +11,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
@@ -934,6 +935,51 @@ func TestManualRoomSelectionStrategies(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(10), roomID)
+	})
+}
+
+// activityGroupRepoForRoomUnitTest overrides only FindByID; every other method
+// panics through the embedded nil interface, which is what an unexpected call
+// should do in a unit test.
+type activityGroupRepoForRoomUnitTest struct {
+	activitiesModels.GroupRepository
+	group *activitiesModels.Group
+}
+
+func (a *activityGroupRepoForRoomUnitTest) FindByID(context.Context, any) (*activitiesModels.Group, error) {
+	return a.group, nil
+}
+
+func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("planned room is used when configured", func(t *testing.T) {
+		plannedRoom := int64(7)
+		svc := &service{ServiceDependencies: ServiceDependencies{
+			ActivityGroupRepo: &activityGroupRepoForRoomUnitTest{
+				group: &activitiesModels.Group{PlannedRoomID: &plannedRoom},
+			},
+		}}
+
+		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail)
+
+		require.NoError(t, err)
+		assert.Equal(t, plannedRoom, roomID)
+	})
+
+	// No hardcoded fallback: room id 1 belongs to a single school, so a default
+	// would trip fk_active_groups_room_tenant for every other tenant.
+	t.Run("no room and no planned room fails", func(t *testing.T) {
+		svc := &service{ServiceDependencies: ServiceDependencies{
+			ActivityGroupRepo: &activityGroupRepoForRoomUnitTest{
+				group: &activitiesModels.Group{},
+			},
+		}}
+
+		roomID, err := svc.determineRoomIDWithStrategy(ctx, 1, nil, RoomConflictFail)
+
+		require.ErrorIs(t, err, ErrNoRoomAvailable)
+		assert.Zero(t, roomID)
 	})
 }
 

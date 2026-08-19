@@ -224,9 +224,8 @@ func TestGetCurrentSession_WithActiveSession(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-current-1")
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Current Session Activity")
 	staff := testpkg.CreateTestStaff(t, ctx.db, "CurrentSession", "Supervisor")
-	// The room is named explicitly: with neither a manual nor a planned room,
-	// determineRoomIDWithStrategy falls back to the hardcoded room id 1, which
-	// belongs to another tenant and trips fk_active_groups_room_tenant.
+	// The room is passed explicitly: with neither a manual nor a planned room,
+	// determineRoomIDWithStrategy now fails with ErrNoRoomAvailable.
 	room := testpkg.CreateTestRoom(t, ctx.db, "Current Session Room")
 
 	// Start a real session with supervisors
