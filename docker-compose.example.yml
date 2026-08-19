@@ -208,7 +208,7 @@ services:
       - -c
       - shared_buffers=256MB
       - -c
-      - max_connections=200
+      - max_connections=300
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d phoenix_test"]
       interval: 1s

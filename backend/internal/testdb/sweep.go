@@ -16,8 +16,11 @@ type SweepOptions struct {
 	// GC-only.
 	RunID string
 	// ReportLeftovers compares each of this run's clones against the template
-	// before dropping it and reports tables with extra or missing rows.
-	// Opt-in diagnosis (PHX_TEST_LEFTOVERS=1), never a gate (ADR 0004).
+	// before dropping it and reports the tables that differ OUTSIDE the test
+	// tenants (see TenantIDBase). Rows a test wrote into its own tenant are
+	// not leftovers — they die with the clone. Rows it wrote into shared,
+	// tenant-less state are, because the next test in the same binary sees
+	// them.
 	ReportLeftovers bool
 }
 
@@ -25,14 +28,17 @@ type SweepOptions struct {
 // template's.
 type TableDelta struct {
 	Table        string
-	TemplateRows int64
+	BaselineRows int64
 	CloneRows    int64
 }
 
 // CloneLeftovers lists the row-count deltas of one clone vs. the template.
 type CloneLeftovers struct {
-	Clone  string
-	Tables []TableDelta
+	Clone string
+	// Package is the backend-relative package path CreateClone stamped on the
+	// clone; empty for a clone created before the stamp existed.
+	Package string
+	Tables  []TableDelta
 }
 
 // SweepResult summarizes one Sweep run.
@@ -63,17 +69,18 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 			return nil, err
 		}
 		if opts.ReportLeftovers && len(own) > 0 {
-			templateCounts, err := countAllTables(ctx, cfg.TemplateDSN())
+			labels, err := packageLabels(ctx, conn, own)
 			if err != nil {
-				return nil, fmt.Errorf("count template rows for leftover report: %w", err)
+				return nil, err
 			}
 			for _, name := range own {
-				deltas, err := leftoverDeltas(ctx, cfg.DatabaseDSN(name), templateCounts)
+				deltas, err := leftoverDeltas(ctx, cfg.DatabaseDSN(name))
 				if err != nil {
 					return nil, fmt.Errorf("diagnose leftovers in %q: %w", name, err)
 				}
 				if len(deltas) > 0 {
-					result.Leftovers = append(result.Leftovers, CloneLeftovers{Clone: name, Tables: deltas})
+					result.Leftovers = append(result.Leftovers,
+						CloneLeftovers{Clone: name, Package: labels[name], Tables: deltas})
 				}
 			}
 		}
@@ -85,7 +92,13 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 		}
 	}
 
-	gcDropped, err := gcLocked(ctx, conn, "", cfg.TemplateName())
+	// The generation GC spares THIS PROCESS's run even when opts.RunID names a
+	// different one. Without that, a Sweep called from inside a running suite
+	// — which is what internal/testdb's own tests do — collects the clones of
+	// every package that already finished, because "no live connection" is how
+	// a dead run is recognised. The wrapper is unaffected: it dropped its own
+	// clones explicitly a few lines above.
+	gcDropped, err := gcLocked(ctx, conn, cfg.TemplateName(), ClonePrefix+RunID()+"_")
 	if err != nil {
 		return result, err
 	}
@@ -186,48 +199,140 @@ func listDatabasesByPrefix(ctx context.Context, maint sqlExecutor, prefix string
 	return names, rows.Err()
 }
 
-// countAllTables returns exact row counts for every base table in dsn's
-// non-system schemas. Exact counts are deliberate: this only runs behind the
-// opt-in leftover diagnosis, and pg_stat estimates are unreliable right after
-// a clone.
-func countAllTables(ctx context.Context, dsn string) (map[string]int64, error) {
+// tenantIdentityTables are the two tables whose own primary key IS the tenant
+// (a school's ID is the tenant ID, and its organization is created under the
+// same ID by the test fixtures). They carry no tenant_id column, so the band
+// check reads their id instead.
+var tenantIdentityTables = map[string]string{
+	"platform.schools":       "id",
+	"platform.organizations": "id",
+}
+
+// tableOwnerColumns maps every base table in dsn's non-system schemas to the
+// column that decides tenant ownership: "tenant_id" where the column exists,
+// "id" for the two tenant-identity tables, "" for genuinely shared tables
+// (platform operators, migration bookkeeping, …) where every row is shared
+// state.
+func tableOwnerColumns(ctx context.Context, dsn string) (map[string]string, error) {
 	db := openSQL(dsn)
 	defer func() { _ = db.Close() }()
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT n.nspname || '.' || c.relname
+		SELECT n.nspname || '.' || c.relname,
+		       EXISTS (
+		           SELECT 1 FROM pg_attribute a
+		           WHERE a.attrelid = c.oid AND a.attname = 'tenant_id' AND a.attnum > 0 AND NOT a.attisdropped
+		       )
 		FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE c.relkind = 'r'
-		  AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+		  AND n.nspname NOT IN ('pg_catalog', 'information_schema', '`+baselineSchema+`')
 		ORDER BY 1`)
 	if err != nil {
 		return nil, fmt.Errorf("list tables: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var tables []string
+	owners := make(map[string]string)
 	for rows.Next() {
-		var t string
-		if err := rows.Scan(&t); err != nil {
+		var table string
+		var hasTenantID bool
+		if err := rows.Scan(&table, &hasTenantID); err != nil {
 			return nil, err
 		}
-		tables = append(tables, t)
+		switch {
+		case hasTenantID:
+			owners[table] = "tenant_id"
+		default:
+			owners[table] = tenantIdentityTables[table]
+		}
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	return owners, rows.Err()
+}
+
+// countSharedRows returns exact row counts per table. With excludeTestTenants
+// it counts only the rows that do NOT belong to a test's own tenant — the
+// shared state a test must leave as it found it. Exact counts are deliberate:
+// pg_stat estimates are unreliable right after a clone.
+func countSharedRows(ctx context.Context, dsn string, owners map[string]string, excludeTestTenants bool) (map[string]int64, error) {
+	db := openSQL(dsn)
+	defer func() { _ = db.Close() }()
+
+	// One round trip for ~300 tables instead of ~300: the per-table counts are
+	// pushed into the server as query_to_xml sub-selects. The sweep runs this
+	// once per clone (~160 per suite run), so the difference is minutes.
+	tables := make([]string, 0, len(owners))
+	for table := range owners {
+		tables = append(tables, table)
+	}
+	sort.Strings(tables)
+
+	var values strings.Builder
+	args := make([]any, 0, 2*len(tables))
+	for i, table := range tables {
+		// table and owner come from pg_catalog of the trusted test server.
+		count := `SELECT count(*) AS c FROM ` + quoteQualified(table)
+		if excludeTestTenants && owners[table] != "" {
+			col := quoteIdentifier(owners[table])
+			count += fmt.Sprintf(` WHERE %s IS NULL OR %s < %d`, col, col, TenantIDBase)
+		}
+		if i > 0 {
+			values.WriteString(",")
+		}
+		fmt.Fprintf(&values, "($%d,$%d)", 2*i+1, 2*i+2)
+		args = append(args, table, count)
+	}
+	if len(tables) == 0 {
+		return map[string]int64{}, nil
 	}
 
-	counts := make(map[string]int64, len(tables))
-	for _, t := range tables {
-		var n int64
-		// t comes from pg_class of the trusted test server; quote both parts.
-		if err := db.QueryRowContext(ctx, `SELECT count(*) FROM `+quoteQualified(t)).Scan(&n); err != nil {
-			return nil, fmt.Errorf("count %s: %w", t, err)
-		}
-		counts[t] = n
+	rows, err := db.QueryContext(ctx, `
+		SELECT v.tbl, (xpath('/row/c/text()', query_to_xml(v.q, false, true, '')))[1]::text::bigint
+		FROM (VALUES `+values.String()+`) AS v(tbl, q)`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("count table rows: %w", err)
 	}
-	return counts, nil
+	defer func() { _ = rows.Close() }()
+
+	counts := make(map[string]int64, len(owners))
+	for rows.Next() {
+		var table string
+		var n int64
+		if err := rows.Scan(&table, &n); err != nil {
+			return nil, err
+		}
+		counts[table] = n
+	}
+	return counts, rows.Err()
+}
+
+// packageLabels reads the package stamp off each clone.
+func packageLabels(ctx context.Context, maint sqlExecutor, clones []string) (map[string]string, error) {
+	labels := make(map[string]string, len(clones))
+	rows, err := maint.QueryContext(ctx, `
+		SELECT d.datname, COALESCE(sd.description, '')
+		FROM pg_database d
+		LEFT JOIN pg_shdescription sd ON sd.objoid = d.oid AND sd.classoid = 'pg_database'::regclass
+		WHERE d.datname = ANY($1)`, pgArray(clones))
+	if err != nil {
+		return nil, fmt.Errorf("read clone package labels: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var name, comment string
+		if err := rows.Scan(&name, &comment); err != nil {
+			return nil, err
+		}
+		labels[name] = PackageLabelOf(comment)
+	}
+	return labels, rows.Err()
+}
+
+// pgArray renders a string slice as a postgres array literal for `= ANY(...)`.
+// Clone names are generated identifiers ([a-z0-9_]), so no escaping is needed
+// beyond the braces.
+func pgArray(values []string) string {
+	return "{" + strings.Join(values, ",") + "}"
 }
 
 func quoteQualified(schemaDotTable string) string {
@@ -239,8 +344,17 @@ func quoteQualified(schemaDotTable string) string {
 	return quoteIdentifier(schemaDotTable)
 }
 
-func leftoverDeltas(ctx context.Context, cloneDSN string, templateCounts map[string]int64) ([]TableDelta, error) {
-	cloneCounts, err := countAllTables(ctx, cloneDSN)
+// leftoverDeltas compares a clone's shared-row counts against the start state
+// it recorded for itself (SnapshotSharedBaseline). A clone without a snapshot
+// yields no deltas: there is nothing to compare against, and a missing
+// snapshot must not read as "this package left rows behind".
+func leftoverDeltas(ctx context.Context, cloneDSN string) ([]TableDelta, error) {
+	baseline, owners, ok, err := readSharedBaseline(ctx, cloneDSN)
+	if err != nil || !ok {
+		return nil, err
+	}
+
+	cloneCounts, err := countSharedRows(ctx, cloneDSN, owners, true)
 	if err != nil {
 		return nil, err
 	}
@@ -253,8 +367,8 @@ func leftoverDeltas(ctx context.Context, cloneDSN string, templateCounts map[str
 
 	var deltas []TableDelta
 	for _, t := range tables {
-		if cloneCounts[t] != templateCounts[t] {
-			deltas = append(deltas, TableDelta{Table: t, TemplateRows: templateCounts[t], CloneRows: cloneCounts[t]})
+		if cloneCounts[t] != baseline[t] {
+			deltas = append(deltas, TableDelta{Table: t, BaselineRows: baseline[t], CloneRows: cloneCounts[t]})
 		}
 	}
 	return deltas, nil

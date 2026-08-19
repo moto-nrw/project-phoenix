@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,6 +42,15 @@ var (
 	viperHealMu sync.Mutex
 )
 
+// viper.AutomaticEnv is switched on here, at package init, and not inside the
+// lazy lifecycle setup. Turning it on mid-run changes what viper answers:
+// before it, viper.GetString("auth_jwt_secret") returns the seeded test
+// default; after it, the AUTH_JWT_SECRET of the developer's shell. A test that
+// builds its router before the first SetupTestDB call and mints its token
+// after it then signs with one secret and validates with the other — a 401
+// that depends on which test happened to touch the database first.
+func init() { viper.AutomaticEnv() }
+
 // initPackageTestDB is the process-once part of SetupTestDB: environment,
 // lifecycle (server/template/clone), viper config, and the one-time clone
 // bootstrap. Everything after it is per-test and parallel-safe.
@@ -53,10 +63,24 @@ func initPackageTestDB() error {
 		return err
 	}
 
-	// Load .env from project root (contains TEST_DB_DSN). Best-effort: CI
-	// provides the variables directly.
-	if projectRoot, err := testdb.ProjectRoot(); err == nil {
-		_ = gotenv.Load(filepath.Join(projectRoot, ".env"))
+	// Take TEST_DB_DSN out of the project-root .env — and nothing else.
+	// gotenv.Load would push every key in that file into the process
+	// environment, which viper.AutomaticEnv then serves to any test that asks:
+	// a package whose first test builds a JWT auth from the seeded test secret
+	// and mints its token AFTER this function ran would sign with the .env
+	// secret and get a 401 from its own router. Which test triggers the
+	// lifecycle first decides that — exactly the kind of order dependency the
+	// suite is supposed to be free of. CI provides TEST_DB_DSN directly.
+	if os.Getenv("TEST_DB_DSN") == "" {
+		if projectRoot, err := testdb.ProjectRoot(); err == nil {
+			if env, err := gotenv.Read(filepath.Join(projectRoot, ".env")); err == nil {
+				if dsn := env["TEST_DB_DSN"]; dsn != "" {
+					if err := os.Setenv("TEST_DB_DSN", dsn); err != nil {
+						return err
+					}
+				}
+			}
+		}
 	}
 
 	// The phoenix_auth role is cluster-global on the shared test server, so
@@ -136,6 +160,13 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	if err != nil {
 		return fmt.Errorf("open shared package test pool: %w", err)
 	}
+
+	// Record the clone's start state — the shared rows every test in this
+	// binary must leave exactly as it found them. The sweep compares the end
+	// state against this snapshot (#2419 goal 2: "Start = Ende").
+	if err := testdb.SnapshotSharedBaseline(ctx, packageClone.DSN); err != nil {
+		return fmt.Errorf("snapshot clone baseline: %w", err)
+	}
 	return nil
 }
 
@@ -143,28 +174,47 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 // deliberately resolves only test_db_dsn; setting db_dsn would be ignored and
 // would silently send integration tests to the shared template database.
 //
-// Pool budget: one pool per test binary, capped at min(GOMAXPROCS, 8) open
-// connections, with idle == open so the pool holds what it opens instead of
-// re-dialing per test. `go test` runs up to GOMAXPROCS package binaries at
-// once, so the steady-state cost is GOMAXPROCS × (pool cap + 1 keeper):
-// 8 × 9 = 72 on the 8-vCPU CI runner, against postgres:17's default
-// max_connections=100. The cap also matches `-parallel` (default
-// GOMAXPROCS), so parallel tests rarely queue.
-//
-// Two caveats worth knowing before raising anything here:
-//   - The per-binary cap stops growing at 8, but the number of concurrent
-//     binaries does not. Past ~21 cores the local budget (cores × 9) exceeds
-//     the compose file's max_connections=200; cap `go test -p` on such a
-//     machine rather than raising the server limit.
-//   - SetupClosableTestDB opens additional private pools (same cap) for the
-//     handful of tests that close their database on purpose. They are
-//     short-lived, but they are on top of this budget.
+// Pool budget: one pool per test binary, sized from the binary's OWN
+// parallelism (poolSize), with idle == open so the pool holds what it opens
+// instead of re-dialing per test.
 func applyViperTestConfig() {
 	viper.AutomaticEnv()
 	viper.Set("test_db_dsn", packageClone.DSN)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
-	viper.Set("db_max_open_conns", min(runtime.GOMAXPROCS(0), 8))
-	viper.Set("db_max_idle_conns", min(runtime.GOMAXPROCS(0), 8))
+	viper.Set("db_max_open_conns", poolSize())
+	viper.Set("db_max_idle_conns", poolSize())
+}
+
+// nestedConnHeadroom is the slack above -parallel. A test that holds a tenant
+// transaction and then opens a second one needs two connections at the same
+// time; without headroom, `-parallel` such tests take every connection and
+// then wait forever for the next one. The failure looks nothing like a pool
+// problem — every affected test just fails on its own 5s context deadline —
+// which is why the size is derived rather than guessed.
+const nestedConnHeadroom = 4
+
+// poolSizeCap bounds the derived size. `go test` runs up to `-p` (default
+// GOMAXPROCS) package binaries at once, so the server-side cost is
+// p × (pool + 1 keeper). The cap keeps a 16-core machine under the compose
+// file's max_connections; CI and the wrapper additionally pin -p/-parallel
+// (see scripts/test-backend.sh).
+const poolSizeCap = 16
+
+// poolSize returns the per-binary connection budget: this binary's own
+// -parallel plus headroom for tests that hold more than one connection.
+// Reading the flag rather than GOMAXPROCS is the point — the pool must cover
+// the tests that actually run at the same time, and `go test -parallel N`
+// changes exactly that number.
+func poolSize() int {
+	parallel := runtime.GOMAXPROCS(0) // what -parallel defaults to
+	if f := flag.Lookup("test.parallel"); f != nil {
+		if g, ok := f.Value.(flag.Getter); ok {
+			if n, ok := g.Get().(int); ok && n > 0 {
+				parallel = n
+			}
+		}
+	}
+	return min(parallel+nestedConnHeadroom, poolSizeCap)
 }
 
 // initCloneBootstrap seeds the per-package clone once: sequence offsets, the
@@ -247,11 +297,18 @@ func ensureBootstrapTenant(ctx context.Context, db *bun.DB) error {
 			slug = EXCLUDED.slug, subdomain = EXCLUDED.subdomain, active = EXCLUDED.active`); err != nil {
 		return fmt.Errorf("ensure bootstrap school: %w", err)
 	}
+	// Lift both tenant sequences clear of the test-tenant band before the
+	// first test runs. Two things depend on it: a service-path school
+	// (platform.CreateSchool) can never collide with an ID CreateTestTenant
+	// hands out explicitly, and — because every tenant a test creates is then
+	// at or above testdb.TenantIDBase — the leftover gate can tell a test's
+	// own tenant from shared state by looking at the ID alone.
 	if _, err := db.ExecContext(ctx, `
 		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
-			GREATEST((SELECT last_value FROM platform.organizations_id_seq), 1)),
+			GREATEST((SELECT last_value FROM platform.organizations_id_seq), ?)),
 		       setval(pg_get_serial_sequence('platform.schools', 'id'),
-			GREATEST((SELECT last_value FROM platform.schools_id_seq), 1))`); err != nil {
+			GREATEST((SELECT last_value FROM platform.schools_id_seq), ?))`,
+		testdb.TenantIDCeiling, testdb.TenantIDCeiling); err != nil {
 		return fmt.Errorf("advance bootstrap tenant sequences: %w", err)
 	}
 	return nil

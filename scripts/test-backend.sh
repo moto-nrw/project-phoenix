@@ -7,8 +7,13 @@
 # `go test ./...` funktioniert weiterhin ohne dieses Skript (selbst-
 # initialisierend); dann räumt erst die Generation-GC des nächsten Laufs auf.
 #
+# Der Sweep ist zugleich das Leftover-Gate: er vergleicht jeden Clone mit dem
+# Startzustand, den er sich selbst gemerkt hat, und lässt den Lauf scheitern,
+# wenn ein Package Zeilen in geteiltem (tenant-losem) Zustand hinterlassen hat.
+#
 # Usage: scripts/test-backend.sh [go-test-args...]     (Default: ./...)
-#   PHX_TEST_LEFTOVERS=1 scripts/test-backend.sh       # Restdaten-Diagnose
+#   PHX_TEST_LEFTOVERS=1 scripts/test-backend.sh       # zeigt auch die
+#                                                      # geduldeten Restdaten
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)/backend"
 
@@ -17,7 +22,12 @@ export PHX_TEST_RUN_ID
 
 sweep() {
   status=$?
-  go run ./internal/testdb/cmd/sweep || true
+  # The sweep is also the leftover gate (#2419): it fails the run when a
+  # package left rows in shared state. A test failure still wins — a red
+  # suite must not be relabelled as a leftover problem.
+  if ! go run ./internal/testdb/cmd/sweep && [ "$status" -eq 0 ]; then
+    status=1
+  fi
   return "$status"
 }
 trap sweep EXIT
@@ -26,8 +36,17 @@ if [ "$#" -eq 0 ]; then
   set -- ./...
 fi
 
+# Concurrency is pinned rather than left at GOMAXPROCS, because the budget
+# that matters is a server-side one: `go test` runs -p package binaries at
+# once and each opens a pool of (-parallel + headroom) connections plus one
+# keeper. With these values that is 4 x 13 = 52 connections, which fits the
+# 100 a stock postgres:17 allows — the CI service container runs on that
+# default. Raising either number without raising max_connections trades test
+# failures for "too many clients" errors.
+CONCURRENCY=(-p 4 -parallel 8)
+
 if go tool gotestsum --help >/dev/null 2>&1; then
-  go tool gotestsum --format pkgname-and-test-fails -- "$@"
+  go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"
 else
-  go test "$@"
+  go test "${CONCURRENCY[@]}" "$@"
 fi

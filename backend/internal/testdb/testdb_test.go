@@ -323,13 +323,16 @@ func TestCreateCloneAndSweepLifecycle(t *testing.T) {
 	require.True(t, strings.HasPrefix(handle.Name, ClonePrefix+runID+"_"))
 	require.True(t, databaseExists(t, ctx, cfg, handle.Name))
 
-	// The keeper connection pins the clone: a GC pass from a foreign run
-	// (empty spare prefix) must not collect it.
+	// The keeper connection pins the clone: a GC pass from a foreign run must
+	// not collect it. The ambient run IS spared — this test runs inside the
+	// suite, and a GC pass that spared nothing would collect the clone of
+	// every package that already finished, taking the leftover gate's
+	// evidence with it.
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
 	conn, unlock, err := acquireLifecycleLock(ctx, maint)
 	require.NoError(t, err)
-	_, err = gcLocked(ctx, conn, "", templateCfg.TemplateName())
+	_, err = gcLocked(ctx, conn, templateCfg.TemplateName(), ClonePrefix+RunID()+"_")
 	unlock()
 	require.NoError(t, err)
 	assert.True(t, databaseExists(t, ctx, cfg, handle.Name), "GC must spare a clone with a live keeper connection")
@@ -357,6 +360,11 @@ func TestSweepReportsLeftovers(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = handle.Close() })
 
+	// The gate compares against the clone's own start state, so the clone
+	// has to have recorded one — that is what a test binary does right after
+	// bootstrapping its clone.
+	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
+
 	clone := openSQL(handle.DSN)
 	_, err = clone.ExecContext(ctx, `INSERT INTO marker (id) VALUES (42)`)
 	require.NoError(t, clone.Close())
@@ -368,8 +376,45 @@ func TestSweepReportsLeftovers(t *testing.T) {
 	assert.Equal(t, handle.Name, result.Leftovers[0].Clone)
 	require.Len(t, result.Leftovers[0].Tables, 1)
 	assert.Equal(t, "public.marker", result.Leftovers[0].Tables[0].Table)
-	assert.EqualValues(t, 0, result.Leftovers[0].Tables[0].TemplateRows)
+	assert.EqualValues(t, 0, result.Leftovers[0].Tables[0].BaselineRows)
 	assert.EqualValues(t, 1, result.Leftovers[0].Tables[0].CloneRows)
+	assert.Contains(t, result.Dropped, handle.Name)
+}
+
+// A row a test wrote into its OWN tenant is not a leftover: it is invisible
+// to every other test and dies with the clone. Only rows outside the
+// test-tenant band count (#2419 goal 2).
+func TestSweepIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	build := func(ctx context.Context, dsn string) error {
+		db := openSQL(dsn)
+		defer func() { _ = db.Close() }()
+		_, err := db.ExecContext(ctx,
+			`CREATE TABLE scoped (id bigint primary key, tenant_id bigint)`)
+		return err
+	}
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(build), WithMigrationsHash("bandhash"))
+	require.NoError(t, err)
+
+	runID := SanitizeRunID("")
+	handle, err := CreateClone(ctx, templateCfg, runID)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = handle.Close() })
+
+	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
+
+	clone := openSQL(handle.DSN)
+	_, err = clone.ExecContext(ctx,
+		`INSERT INTO scoped (id, tenant_id) VALUES (1, $1)`, TenantIDBase+7)
+	require.NoError(t, err)
+	require.NoError(t, clone.Close())
+
+	result, err := Sweep(ctx, templateCfg, SweepOptions{RunID: runID, ReportLeftovers: true})
+	require.NoError(t, err)
+	assert.Empty(t, result.Leftovers, "a row in the test's own tenant is not a leftover")
 	assert.Contains(t, result.Dropped, handle.Name)
 }
 

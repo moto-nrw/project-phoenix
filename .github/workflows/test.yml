@@ -136,10 +136,15 @@ jobs:
         # gotestsum is a go.mod tool directive, so its whole dependency
         # graph is locked by go.sum (sonar githubactions:S8545).
         run: |
+          # -p/-parallel are pinned, not left at GOMAXPROCS: `go test` runs
+          # -p package binaries at once and each opens (-parallel + headroom)
+          # connections plus a keeper. 4 x 13 = 52 fits the 100 connections a
+          # stock postgres:17 service container allows. Same values as
+          # scripts/test-backend.sh.
           go tool gotestsum \
             --format pkgname-and-test-fails \
             --junitfile junit.xml \
-            -- -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+            -- -p 4 -parallel 8 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Fix Go coverage paths for SonarCloud
         if: ${{ always() && hashFiles('backend/coverage.out') != '' }}

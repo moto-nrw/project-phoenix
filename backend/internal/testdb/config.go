@@ -21,6 +21,25 @@ const (
 	// ClonePrefix names every package clone. The generation GC drops any
 	// database with this prefix that belongs to no living run.
 	ClonePrefix = "phx_test_pkg_"
+
+	// TenantIDBase is the floor of the tenant IDs the suite hands out to
+	// tests (test.UniqueTestTenantID), and the leftover gate's ownership
+	// test: a row whose tenant is at or above it belongs to a tenant some
+	// test created and dies with the clone; a row below it — or with no
+	// tenant at all — is shared state a test wrote into and did not take
+	// back.
+	//
+	// "At or above", not "inside a band": tenant fixtures also push the
+	// platform.schools sequence clear of the band, so a school created
+	// through the ordinary service path lands ABOVE the ceiling and is just
+	// as test-owned as one the fixture placed inside it.
+	//
+	// The floor sits above the literal IDs older fixtures hardcode (1, 42, …)
+	// and the band below TenantIDCeiling stays under 2^53, so an ID survives
+	// a JWT round trip — JSON decodes numbers as float64, exact only below
+	// that.
+	TenantIDBase    int64 = 1_000_000_000
+	TenantIDCeiling int64 = 2_000_000_000
 )
 
 // Config derives every DSN the lifecycle needs from TEST_DB_DSN, whose

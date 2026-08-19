@@ -61,6 +61,31 @@ func randomRunID() string {
 	return hex.EncodeToString(b[:])
 }
 
+// pkgCommentPrefix marks a clone's package label ("phx-pkg:services/active").
+const pkgCommentPrefix = "phx-pkg:"
+
+// packageLabel turns a package's working directory into the backend-relative
+// path the leftover report names. Outside a recognizable checkout it falls
+// back to the directory's base name: this is a label, and failing to name a
+// clone must never fail the run that creates it.
+func packageLabel(workdir string) string {
+	if root, err := ProjectRoot(); err == nil {
+		if rel, relErr := filepath.Rel(filepath.Join(root, "backend"), workdir); relErr == nil &&
+			!strings.HasPrefix(rel, "..") {
+			return filepath.ToSlash(rel)
+		}
+	}
+	return filepath.Base(workdir)
+}
+
+// PackageLabelOf extracts the package label from a clone's database comment.
+func PackageLabelOf(comment string) string {
+	if !strings.HasPrefix(comment, pkgCommentPrefix) {
+		return ""
+	}
+	return strings.TrimPrefix(comment, pkgCommentPrefix)
+}
+
 // CloneName derives the database name for this run's clone of the package
 // rooted at workdir: phx_test_pkg_<runID>_<sha1(workdir)[:12]>.
 func CloneName(runID, workdir string) string {
@@ -162,7 +187,16 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	// Generation GC: clones of this run are spared even when their binary
 	// already finished (the wrapper's sweep still wants to inspect and drop
 	// them); everything else without a live connection belongs to a dead run.
-	if _, err := gcLocked(ctx, conn, ClonePrefix+SanitizeRunID(runID)+"_", cfg.TemplateName()); err != nil {
+	//
+	// Two prefixes, not one: runID is the run this clone belongs to, and
+	// RunID() is the run of the PROCESS asking. They differ exactly once — in
+	// internal/testdb's own tests, which create clones under their own
+	// throwaway run while the suite around them is still going. Sparing only
+	// the first would let those tests collect every already-finished package
+	// clone of the suite, and the leftover gate would then inspect a third of
+	// the packages and call the rest clean.
+	if _, err := gcLocked(ctx, conn, cfg.TemplateName(),
+		ClonePrefix+SanitizeRunID(runID)+"_", ClonePrefix+RunID()+"_"); err != nil {
 		return nil, err
 	}
 
@@ -172,6 +206,13 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 	if _, err := conn.ExecContext(ctx,
 		`CREATE DATABASE `+quoteIdentifier(name)+` TEMPLATE `+quoteIdentifier(cfg.TemplateName())); err != nil {
 		return nil, fmt.Errorf("clone test database %q from %q: %w", name, cfg.TemplateName(), err)
+	}
+	// Stamp which package this clone belongs to. The clone name is a hash of
+	// the working directory, so without the stamp the sweep can report a
+	// leftover but not say who left it behind.
+	if _, err := conn.ExecContext(ctx, `COMMENT ON DATABASE `+quoteIdentifier(name)+` IS `+
+		quoteLiteral(pkgCommentPrefix+packageLabel(wd))); err != nil {
+		return nil, fmt.Errorf("stamp package label on clone %q: %w", name, err)
 	}
 
 	handle := &CloneHandle{Name: name, DSN: cfg.DatabaseDSN(name)}
@@ -197,10 +238,10 @@ func CreateClone(ctx context.Context, cfg *Config, runID string) (*CloneHandle, 
 }
 
 // gcLocked drops every clone-prefixed database that has no live connection
-// and does not start with sparePrefix. templateName is never dropped, even
+// and starts with none of sparePrefixes. templateName is never dropped, even
 // if the configured template happens to carry the clone prefix. Callers must
 // hold the lifecycle lock.
-func gcLocked(ctx context.Context, maint sqlExecutor, sparePrefix, templateName string) ([]string, error) {
+func gcLocked(ctx context.Context, maint sqlExecutor, templateName string, sparePrefixes ...string) ([]string, error) {
 	rows, err := maint.QueryContext(ctx, `
 		SELECT d.datname
 		FROM pg_database d
@@ -221,7 +262,14 @@ func gcLocked(ctx context.Context, maint sqlExecutor, sparePrefix, templateName 
 		if name == templateName {
 			continue
 		}
-		if sparePrefix != "" && strings.HasPrefix(name, sparePrefix) {
+		spared := false
+		for _, prefix := range sparePrefixes {
+			if prefix != "" && strings.HasPrefix(name, prefix) {
+				spared = true
+				break
+			}
+		}
+		if spared {
 			continue
 		}
 		orphans = append(orphans, name)

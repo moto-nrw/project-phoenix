@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/testdb"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -191,13 +192,12 @@ func (s TenantScope) Context() context.Context {
 var uniqueTestTenantCounter int64
 
 const (
-	// Tenant IDs handed out by CreateTestTenant live in
-	// [testTenantIDBase, testTenantIDCeiling). The band is high enough not to
-	// collide with the literal IDs older fixtures hardcode (1, 42, …) and low
-	// enough that the ID survives a JWT round-trip — JSON numbers decode as
-	// float64, which is exact only below 2^53.
-	testTenantIDBase    int64 = 1_000_000_000
-	testTenantIDCeiling int64 = 2_000_000_000
+	// Tenant IDs handed out here live in [testTenantIDBase,
+	// testTenantIDCeiling). The values come from internal/testdb because the
+	// leftover gate reads the same floor to tell a test's own tenant from
+	// shared state — two copies of the number would drift apart silently.
+	testTenantIDBase    = testdb.TenantIDBase
+	testTenantIDCeiling = testdb.TenantIDCeiling
 )
 
 // uniqueJWTSafeTenantID hands out a distinct tenant ID inside the band above.

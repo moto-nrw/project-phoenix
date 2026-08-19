@@ -30,15 +30,43 @@ mechanischer Sweep über alle Testdateien):
   Jeder Test erzeugt seinen eigenen Tenant statt des fixen Bootstrap-Tenants 1;
   der geteilte Package-Clone bleibt. Rollback-pro-Test scheitert an Code, der
   selbst Transaktionen und RLS-Rollen öffnet (`TenantTxMiddleware`).
-- **Alle Packages werden parallel-sicher — ohne Fluchtluke.** Keine
-  Serial-Allowlist; sture Tests werden repariert. Per-Row-DELETE-Cleanups
-  (`defer Cleanup*`) werden ersatzlos entfernt, die Clone-Isolation macht sie
-  redundant. Ein Pool pro Package (≈ GOMAXPROCS, gedeckelt) ersetzt die
-  per-Test-Pools.
-- **Leftover-Detection ist Diagnose, kein Gate**: Opt-in per Env-Flag,
-  Standard aus. Die Hermetik kommt aus dem Lebenszyklus, nicht aus der
-  Detection. Sequence-Offsets bleiben zunächst als Flake-Detektor und werden
-  gestrichen, sobald die Suite auf frischen Clones grün ist.
+- **Tests laufen parallel, sofern sie es können.** `t.Parallel()` ist der
+  Normalfall, nicht die Ausnahme: der Sweep hat es allen Top-Level-Tests
+  gegeben und dort wieder entfernt, wo der Test es nachweislich nicht
+  verträgt. Vier Gründe bleiben übrig, jeder direkt über dem Test benannt:
+  prozess-globaler Zustand (Env, viper, Settings-Registry, `os.Stdout`),
+  Schema-Änderungen (Migrationstests), tenant-übergreifende Sweeps, die im
+  Servicetest ohne Tenant-Transaktion laufen und deshalb an RLS vorbeisehen,
+  und Query-Budget-Messungen am geteilten Pool. Statt einer Fluchtluke gibt es
+  einen schrumpfenden Zähler: `serialTestBaseline` in
+  `test/hermetic_verification_test.go` friert die Restmenge pro Package ein,
+  neue Tests müssen parallel sein. Per-Row-DELETE-Cleanups (`defer Cleanup*`)
+  werden ersatzlos entfernt, die Clone-Isolation macht sie redundant.
+- **Ein Pool pro Package, bemessen an der eigenen Parallelität.** Die
+  Poolgröße kommt aus `-test.parallel` plus Reserve, nicht aus GOMAXPROCS:
+  ein Test, der eine Tenant-Transaktion hält und darin eine zweite öffnet,
+  braucht zwei Verbindungen gleichzeitig, und ohne Reserve blockieren sich
+  `-parallel` solcher Tests gegenseitig bis zum Timeout. Wrapper und CI
+  pinnen zusätzlich `-p 4 -parallel 8`, damit das serverseitige Budget
+  (p × (Pool + 1)) unter den 100 Verbindungen eines Standard-postgres:17
+  bleibt.
+- **Leftover-Detection ist ein Gate — gemessen gegen den eigenen Start.**
+  Jeder Clone hält seinen Startzustand selbst fest
+  (`testdb.SnapshotSharedBaseline`, direkt nach dem Bootstrap), der Sweep
+  vergleicht am Ende dagegen und lässt den Lauf scheitern, wenn Zeilen übrig
+  sind. Der Maßstab ist ausdrücklich nicht „keine Zeilen": gezählt wird nur,
+  was **außerhalb der Tenants dieses Laufs** liegt (Tenant-ID unter
+  `testdb.TenantIDBase` oder gar kein Tenant). Was ein Test in seinen eigenen
+  Tenant schreibt, sieht kein anderer Test und stirbt mit dem Clone — 210
+  Tenants pro Clone sind das gewollte Ergebnis, kein Befund. Weil der
+  Startzustand im Clone gemessen wird statt gegen das Template, sind die
+  Bootstrap-Fixtures per Konstruktion Teil von „Start" und das Gate ändert
+  sich nicht, wenn sie später verschwinden. `testdb.LeftoverAllowlist` duldet
+  die Paare, die es bei Einführung schon gab (tenant-lose Tabellen: Accounts,
+  Operator-Portal, RBAC-Katalog); sie darf nur schrumpfen.
+  `PHX_TEST_LEFTOVERS=1` zeigt zusätzlich die geduldeten. Sequence-Offsets
+  bleiben zunächst als Flake-Detektor und werden gestrichen, sobald die Suite
+  auf frischen Clones grün ist.
 
 Abgewogen: Ein ephemerer Postgres pro Lauf hätte „Start = Ende" trivial wahr
 gemacht, kostet aber pro Lauf den Template-Neubau (~25s) oder einen eigenen

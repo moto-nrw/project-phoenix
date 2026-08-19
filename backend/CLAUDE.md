@@ -178,6 +178,25 @@ func TestExample(t *testing.T) {
 - **One pool per package (#2419)**: `SetupTestDB` returns the same `*bun.DB` for every test in the binary. Never `db.Close()` it (gate: `no_shared_pool_close`). Tests that close their DB on purpose to force error paths use `testpkg.SetupClosableTestDB(t)`.
 - **No `Cleanup*` calls in new tests**: the clone-per-package lifecycle owns cleanup. Per-package counts are ratcheted shrink-only (`cleanupCallBaseline`); the leftover-tolerant packages are already at zero.
 - **Every test owns its tenant (#2419)**: a package opts in once, from `TestMain`, with `testpkg.PerTestTenants()`. From then on each top-level test gets its own tenant, every `CreateTest*` fixture it creates lands there, and JWT claims minted through `api/testutil` follow it — so no fixture call and no claims helper needs a tenant argument. Inside a test, `testpkg.Ctx(t)` is the context (the replacement for `TenantContext(1)`) and `testpkg.Tenant(t)` the ID. Subtests share their parent's tenant. One edge to know: the rebase happens when claims are *used* (`MintTestJWT`, `WithClaims`), so reading `claims.TenantID` straight off the struct still yields the bootstrap value — inside a test, take the tenant from `testpkg.Tenant(t)`, never from the claims you just built. Two gates hold the line: `db_packages_opt_into_per_test_tenants` fails any package that opens the test database without opting in, and `bootstrap_tenant_ratchet` counts every remaining spelling (`TenantContext(1)`, `WithTenantID(ctx, 1)`, `TenantID: 1`, `SetTenantID(1)`, `…ForTenant(…, 1, …)`, and literal `tenant_id` filters in raw SQL) per package, shrink-only.
+- **Tests are parallel by default (#2419)**: a new top-level test starts with
+  `t.Parallel()`. The `tests_run_in_parallel` gate counts the ones that do not,
+  per package, shrink-only (`serialTestBaseline`). A test may stay serial for
+  exactly four reasons, and it says which one in a comment right above itself:
+  it writes process-global state (env, viper, the settings registry,
+  `os.Stdout`), it changes the schema, it exercises a sweep that queries across
+  tenants without a tenant transaction (RLS never narrows it), or it measures a
+  query budget on the shared pool. Anything else gets fixed, not exempted.
+- **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and CI run
+  `-p 4 -parallel 8`. The pool per binary is derived from `-test.parallel` plus
+  headroom, because a test holding a tenant transaction that opens a second one
+  needs two connections at once — without headroom those tests deadlock and
+  every one of them fails on its own 5s deadline, which looks nothing like a
+  pool problem.
+- **Leftovers are a gate, not a report (#2419)**: the sweep compares each clone
+  against the start state it recorded for itself and fails the run on rows left
+  in SHARED state — rows outside the tenants this run's tests created. Rows in a
+  test's own tenant are not leftovers. `PHX_TEST_LEFTOVERS=1` also prints the
+  pairs `testdb.LeftoverAllowlist` still tolerates.
 - **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
 - The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.
