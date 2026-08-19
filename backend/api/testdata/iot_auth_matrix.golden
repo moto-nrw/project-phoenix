@@ -28,7 +28,6 @@ POST /api/iot/*/scan-network -> 401 {"status":"error","error":"token unauthorize
 POST /api/iot/*/{deviceId}/ping -> 401 {"status":"error","error":"token unauthorized"}
 POST /api/iot/attendance/toggle -> 401 {"status":"error","error":"device API key is required"}
 POST /api/iot/checkin -> 401 {"status":"error","error":"device API key is required"}
-POST /api/iot/feedback -> 401 {"status":"error","error":"device API key is required"}
 POST /api/iot/pickup-query -> 401 {"status":"error","error":"device API key is required"}
 POST /api/iot/ping -> 401 {"status":"error","error":"device API key is required"}
 POST /api/iot/session/activity -> 401 {"status":"error","error":"device API key is required"}

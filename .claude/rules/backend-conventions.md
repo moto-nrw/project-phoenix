@@ -178,7 +178,7 @@ import "github.com/moto-nrw/project-phoenix/api/common"
 common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 ```
 
-Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted — those packages keep thin `newErrResponse` wrappers only because their wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). `api/operator` stays deliberately divergent (`json:"message"`). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
+Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted (the latter two packages have since been removed entirely by #2326) — `active` keeps a thin `newErrResponse` wrapper only because its wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). `api/operator` stays deliberately divergent (`json:"message"`). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
 
 ---
 
@@ -291,7 +291,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | Pointer helpers (`StrPtr`, `IntPtr`, `Int64Ptr`, `TimePtr`) | `test/helpers.go` |
 | `email.Mailer` capture | `test.CapturingMailer` (`test/mailers.go`) |
 | `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
-| Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
+| Repo mocks for `models/*` interfaces (School, Staff) | `test/repo_mocks.go` |
 | `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
 | `auth.MFAService` / `auth.InvitationService` | `services/auth/authtest` |
 | `users.PersonService` | `services/users/userstest` |
