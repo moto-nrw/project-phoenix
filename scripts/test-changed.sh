@@ -6,13 +6,14 @@
 #
 # Usage: scripts/test-changed.sh [base-ref]   (Default: origin/development)
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
 
 # Backend-Läufe stempeln ihre DB-Clones mit einer Run-ID; der Sweep am Ende
 # droppt sie wieder und sammelt Clones toter Läufe ein (ADR 0004).
 PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
 export PHX_TEST_RUN_ID
-backend_sweep() { (cd backend && go run ./internal/testdb/cmd/sweep) || true; }
+backend_sweep() { (cd "$repo_root/backend" && go run ./internal/testdb/cmd/sweep) || true; }
 trap backend_sweep EXIT
 
 BASE=${1:-origin/development}

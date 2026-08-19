@@ -91,6 +91,14 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	}
 	defer func() { _ = db.Close() }()
 
+	// PostgreSQL roles live at cluster scope, while package clones are rebuilt
+	// independently. Keep the least-privilege role used by api.New in sync
+	// with the current test environment so a clone created before a password
+	// change cannot make router tests fail authentication.
+	if _, err := db.ExecContext(ctx, "ALTER ROLE phoenix_auth PASSWORD ?", os.Getenv("PHOENIX_AUTH_PASSWORD")); err != nil {
+		return fmt.Errorf("sync phoenix_auth password for package test database: %w", err)
+	}
+
 	return initCloneBootstrap(ctx, db)
 }
 
