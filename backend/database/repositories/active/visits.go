@@ -767,9 +767,15 @@ func (r *VisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeG
 		return 0, nil
 	}
 
+	// GREATEST clamp: entry_time is written from the app host's clock (IoT/web
+	// check-in), now() is the DB server's clock. When the app clock runs ahead
+	// (Docker VM skew locally, NTP drift between hosts in production), a bulk
+	// end shortly after a check-in would set exit_time < entry_time and trip
+	// chk_entry_before_exit for the WHOLE batch. Clamping to entry_time keeps
+	// the invariant and gives the just-checked-in visit a zero duration.
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table(tableActiveVisits).
-		Set("exit_time = now()").
+		Set("exit_time = GREATEST(now(), entry_time)").
 		Where("active_group_id IN (?)", bun.List(activeGroupIDs)).
 		Where("exit_time IS NULL")
 
