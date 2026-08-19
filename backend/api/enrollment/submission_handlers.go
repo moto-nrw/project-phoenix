@@ -667,7 +667,11 @@ func toEditDraftGuardianResponses(guardians []*enrollmentModels.RequestGuardian)
 func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftChildResponse {
 	responses := make([]EditDraftChildResponse, 0, len(draft.Children))
 	for _, child := range draft.Children {
-		responses = append(responses, toEditDraftChildResponse(child, draft.OfferingsByChild[child.ID]))
+		offeringLinks := draft.OfferingsByChild[child.ID]
+		if !draft.CareOfferingsEnabled && !enrollmentService.ChildTakenOver(child) {
+			offeringLinks = nil
+		}
+		responses = append(responses, toEditDraftChildResponse(child, offeringLinks))
 	}
 	return responses
 }

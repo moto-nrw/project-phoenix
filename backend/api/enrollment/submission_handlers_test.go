@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -91,15 +92,23 @@ func TestEditBootstrapResponse_ExposesGradeLevelMax(t *testing.T) {
 	assert.Equal(t, float64(13), decoded["grade_level_max"])
 }
 
-func TestToEditDraftChildResponse_PreservesLockedOfferingsWhenDisabled(t *testing.T) {
+func TestToEditDraftChildResponses_PreserveOnlyLockedOfferingsWhenDisabled(t *testing.T) {
 	studentID := int64(42)
-	response := toEditDraftChildResponse(
-		&enrollmentModels.RequestChild{CreatedStudentID: &studentID},
-		[]*enrollmentModels.RequestChildOffering{{CareOfferingID: 7}},
-	)
+	responses := toEditDraftChildResponses(&enrollmentService.EditDraft{
+		Children: []*enrollmentModels.RequestChild{
+			{Model: base.Model{ID: 1}},
+			{Model: base.Model{ID: 2}, CreatedStudentID: &studentID},
+		},
+		OfferingsByChild: map[int64][]*enrollmentModels.RequestChildOffering{
+			1: {{CareOfferingID: 6}},
+			2: {{CareOfferingID: 7}},
+		},
+	})
 
-	assert.True(t, response.Locked)
-	assert.Equal(t, []string{"7"}, response.OfferingIDs)
+	require.Len(t, responses, 2)
+	assert.Empty(t, responses[0].OfferingIDs)
+	assert.True(t, responses[1].Locked)
+	assert.Equal(t, []string{"7"}, responses[1].OfferingIDs)
 }
 
 func TestBuildServiceRequest_RejectsBadDateOfBirth(t *testing.T) {
