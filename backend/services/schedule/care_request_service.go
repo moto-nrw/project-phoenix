@@ -148,15 +148,19 @@ type CareRequestReviewItem struct {
 
 // CareRequestHistoryItem is one decided request enriched with the child's
 // name, the reviewer's display name, and the payload-derived "requested"
-// summary. Unlike the pending queue there is NO live "current → requested"
-// diff: current data has moved on since the decision, so re-computing it would
-// show a comparison that never existed. The payload alone is stable.
+// summary. There is NO live "current → requested" diff: current data has
+// moved on since the decision, so re-computing it would show a comparison
+// that never existed. Diff instead replays the frozen decision snapshot
+// (ADR 0002, #2430) when the row carries one; rows decided before the
+// snapshot existed (and withdrawals) leave it nil and readers fall back to
+// the stable payload-derived Requested summary.
 type CareRequestHistoryItem struct {
 	Request      *scheduleModels.CareScheduleChangeRequest
 	FirstName    string
 	LastName     string
 	ReviewerName string // "" when the row carries no reviewer (withdrawn)
 	Requested    []RequestDiffEntry
+	Diff         []RequestDiffEntry // frozen alt → neu, nil without a snapshot
 }
 
 // CareRequestDecideInput carries a staff decision on one pending request.
@@ -520,6 +524,7 @@ func (s *careScheduleRequestService) ListHistory(ctx context.Context, beforeUpda
 			Request:      r,
 			ReviewerName: usersService.ReviewerDisplayName(reviewers, r.ReviewedBy),
 			Requested:    careRequestedSummaryFrom(r.Payload),
+			Diff:         careDiffEntriesFromSnapshot(r.DecisionSnapshot),
 		}
 		if p, ok := persons[st.PersonID]; ok {
 			item.FirstName = p.FirstName
@@ -590,6 +595,62 @@ func careRequestedSummaryFrom(payload map[string]any) []RequestDiffEntry {
 		}
 	}
 	return entries
+}
+
+// buildDecisionSnapshot materializes the alt → neu diff of a still-pending
+// request into its frozen snapshot form (ADR 0002, #2430). Returns nil when
+// the diff cannot be built — the decision must never hang on presentation.
+func (s *careScheduleRequestService) buildDecisionSnapshot(ctx context.Context, req *scheduleModels.CareScheduleChangeRequest) *scheduleModels.CareRequestDecisionSnapshot {
+	var diff []RequestDiffEntry
+	var err error
+	if req.RequestKind == scheduleModels.CareRequestKindPickupChange {
+		diff, err = s.pickupChangeDiff(ctx, req)
+	} else {
+		diff, err = s.careScheduleDiffFrom(ctx, &careDiffSource{s: s, studentID: req.StudentID}, req.Payload)
+	}
+	if err != nil {
+		s.logger.Warn("schedule: build care request decision snapshot failed",
+			slog.Int64("request_id", req.ID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	snapshot := &scheduleModels.CareRequestDecisionSnapshot{
+		Diff: make([]scheduleModels.CareRequestSnapshotEntry, 0, len(diff)),
+	}
+	for _, e := range diff {
+		snapshot.Diff = append(snapshot.Diff, scheduleModels.CareRequestSnapshotEntry{
+			Label:    e.Label,
+			Old:      e.Old,
+			New:      e.New,
+			Weekday:  e.Weekday,
+			CareKind: e.CareKind,
+			OldModes: e.OldModes,
+			NewMode:  e.NewMode,
+		})
+	}
+	return snapshot
+}
+
+// careDiffEntriesFromSnapshot maps a frozen decision snapshot back into the
+// service diff shape shared with the pending queue. Nil in, nil out.
+func careDiffEntriesFromSnapshot(snapshot *scheduleModels.CareRequestDecisionSnapshot) []RequestDiffEntry {
+	if snapshot == nil {
+		return nil
+	}
+	out := make([]RequestDiffEntry, 0, len(snapshot.Diff))
+	for _, e := range snapshot.Diff {
+		out = append(out, RequestDiffEntry{
+			Label:    e.Label,
+			Old:      e.Old,
+			New:      e.New,
+			Weekday:  e.Weekday,
+			CareKind: e.CareKind,
+			OldModes: e.OldModes,
+			NewMode:  e.NewMode,
+		})
+	}
+	return out
 }
 
 func (s *careScheduleRequestService) ListPendingPickupChanges(ctx context.Context) ([]*CareRequestReviewItem, error) {
@@ -673,12 +734,14 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 			diff, err = s.careScheduleDiffFrom(ctx, src, r.Payload)
 		}
 		if err != nil {
-			// A diff that can't be built is logged and skipped rather than
-			// failing the whole queue load.
+			// A live diff that can't be built must not hide what was requested
+			// from the reviewer. Keep the queue available and fall back to the
+			// payload-derived requested side instead.
 			s.logger.Warn("schedule: build care request diff failed",
 				slog.Int64("request_id", r.ID),
 				slog.String("error", err.Error()),
 			)
+			item.Diff = careRequestedSummaryFrom(r.Payload)
 		} else {
 			item.Diff = diff
 		}
@@ -785,6 +848,13 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		return nil, ErrCareRequestForbidden
 	}
 
+	// Freeze the alt → neu diff the reviewer is deciding on (ADR 0002, #2430).
+	// It MUST be built here, before an approval's apply rewrites the live plan
+	// underneath the comparison. The diff is presentation: when it cannot be
+	// built the decision still proceeds and the history falls back to the
+	// payload-derived requested summary.
+	snapshot := s.buildDecisionSnapshot(ctx, req)
+
 	// Whether the apply actually changed the child's "läuft mit" links — the
 	// only thing that may announce a companion change.
 	companionsChanged := false
@@ -840,6 +910,15 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 	reviewedBy := input.ReviewedBy
 	if err := s.requestRepo.Decide(ctx, req.ID, newStatus, reasonPtr, &reviewedBy, input.Approve); err != nil {
 		return nil, err
+	}
+	if snapshot != nil {
+		// Unlike a failed diff BUILD (tolerated above), a failed WRITE must
+		// propagate: a failed statement poisons the ambient Postgres
+		// transaction, so there is no "log and continue" here — the whole
+		// decision rolls back.
+		if err := s.requestRepo.UpdateDecisionSnapshot(ctx, req.ID, snapshot); err != nil {
+			return nil, fmt.Errorf("schedule: store care request decision snapshot: %w", err)
+		}
 	}
 
 	// Post-commit side effects: audit line, cache invalidation, decision pill.
@@ -1556,9 +1635,11 @@ type careDiffSource struct {
 	studentDone bool
 
 	arrivalMap  map[int]string
+	arrivalErr  error
 	arrivalDone bool
 
 	pickupMap  map[int]string
+	pickupErr  error
 	pickupDone bool
 }
 
@@ -1575,33 +1656,36 @@ func (d *careDiffSource) getStudent(ctx context.Context) (*usersModels.Student, 
 	return d.student, d.studentErr
 }
 
-// getArrival / getPickup are best-effort: a load failure yields an empty map
-// so the diff shows "—" as the current value rather than failing the whole
-// diff.
-func (d *careDiffSource) getArrival(ctx context.Context) map[int]string {
+func (d *careDiffSource) getArrival(ctx context.Context) (map[int]string, error) {
 	if !d.arrivalDone {
 		d.arrivalDone = true
 		d.arrivalMap = map[int]string{}
-		if cur, err := d.s.arrival.GetStudentArrivalSchedules(ctx, d.studentID); err == nil {
-			for _, a := range cur {
-				d.arrivalMap[a.Weekday] = a.ExpectedArrival.Format("15:04")
-			}
+		cur, err := d.s.arrival.GetStudentArrivalSchedules(ctx, d.studentID)
+		if err != nil {
+			d.arrivalErr = fmt.Errorf("schedule: load arrival schedules for diff: %w", err)
+			return nil, d.arrivalErr
+		}
+		for _, a := range cur {
+			d.arrivalMap[a.Weekday] = a.ExpectedArrival.Format("15:04")
 		}
 	}
-	return d.arrivalMap
+	return d.arrivalMap, d.arrivalErr
 }
 
-func (d *careDiffSource) getPickup(ctx context.Context) map[int]string {
+func (d *careDiffSource) getPickup(ctx context.Context) (map[int]string, error) {
 	if !d.pickupDone {
 		d.pickupDone = true
 		d.pickupMap = map[int]string{}
-		if cur, err := d.s.pickup.GetStudentPickupSchedules(ctx, d.studentID); err == nil {
-			for _, pc := range cur {
-				d.pickupMap[pc.Weekday] = pc.PickupTime.Format("15:04")
-			}
+		cur, err := d.s.pickup.GetStudentPickupSchedules(ctx, d.studentID)
+		if err != nil {
+			d.pickupErr = fmt.Errorf("schedule: load pickup schedules for diff: %w", err)
+			return nil, d.pickupErr
+		}
+		for _, pc := range cur {
+			d.pickupMap[pc.Weekday] = pc.PickupTime.Format("15:04")
 		}
 	}
-	return d.pickupMap
+	return d.pickupMap, d.pickupErr
 }
 
 func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, src *careDiffSource, payload map[string]any) ([]RequestDiffEntry, error) {
@@ -1614,8 +1698,14 @@ func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, s
 		return nil, err
 	}
 
-	arrivalMap := src.getArrival(ctx)
-	pickupMap := src.getPickup(ctx)
+	arrivalMap, err := src.getArrival(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pickupMap, err := src.getPickup(ctx)
+	if err != nil {
+		return nil, err
+	}
 	hasCarePlan := len(arrivalMap) > 0 || len(pickupMap) > 0
 
 	weekdays := append([]careWeekdayPayload(nil), p.Weekdays...)
