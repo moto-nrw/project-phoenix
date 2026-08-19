@@ -123,6 +123,7 @@ GET /api/active/groups/{id}/visits/display
 GET /api/active/mappings/combined/{combinedId}
 GET /api/active/mappings/group/{groupId}
 GET /api/active/schulhof/status
+GET /api/active/supervision-dashboard
 GET /api/active/supervisors/
 GET /api/active/supervisors/all
 GET /api/active/supervisors/group/{groupId}

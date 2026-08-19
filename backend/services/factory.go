@@ -61,6 +61,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	"github.com/moto-nrw/project-phoenix/services/suggestions"
+	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -171,6 +172,7 @@ type Factory struct {
 	AbsenceOverview         *active.StudentStatusDayOverviewService
 	StudentHistory          active.StudentHistoryService
 	OGSGroupLive            ogsgrouplive.Getter
+	SupervisionDashboard    supervisiondashboard.Getter
 	TimetableData           *schedule.TimetableDataService
 	InstanceSeriesConverter schedule.InstanceSeriesConverter
 	OperatorSuggestions     platform.OperatorSuggestionsService
@@ -2185,6 +2187,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          logger.With("service", "ogs-group-live"),
 	})
 
+	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
+		Active:      activeService,
+		UserContext: userContextService,
+		Education:   educationService,
+		Schulhof:    schulhofService,
+		Operations:  timetableOperationsService,
+		Settings:    settingsService,
+		Pickups:     pickupScheduleService,
+		Arrivals:    arrivalScheduleService,
+		Logger:      logger.With("service", "supervision-dashboard"),
+	})
+
 	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
 		InstanceStudentRepo:        repos.InstanceStudent,
 		ActivityInstanceRepo:       repos.ActivityInstance,
@@ -2333,6 +2347,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AbsenceOverview:         studentStatusDayOverviewService,
 		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		OGSGroupLive:            ogsGroupLiveService,
+		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
 		InstanceSeriesConverter: instanceSeriesConverter,
 		OperatorSuggestions:     operatorSuggestionsService,

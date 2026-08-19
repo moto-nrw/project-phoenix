@@ -564,6 +564,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
 	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
+	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		StaffPINAuthenticator: api.Services.StaffPINAuth,
