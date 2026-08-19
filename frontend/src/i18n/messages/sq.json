@@ -930,7 +930,7 @@
       "care": "Ofertat e rezervuara",
       "noCare": "Asnjë ofertë e rezervuar.",
       "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
-      "noAccess": "Nuk keni ende akses në aplikacionin për prindër? Njoftoni shkurt OGS-në."
+      "noAccess": "Nuk keni ende akses në aplikacionin për prindër? OGS-ja mund t’ju ftojë."
     }
   },
   "enrollmentStatus": {
@@ -1117,8 +1117,8 @@
     "adjustSubmit": "Dërgo përshtatjen",
     "lockedChildHint": "Ndryshimet për këtë fëmijë bëhen përmes aplikacionit për prindër.",
     "lockedAllTitle": "Ndryshimet bëhen përmes aplikacionit për prindër",
-    "lockedAllBodyOne": "Fëmija juaj është tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? Njoftoni shkurt OGS-në.",
-    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? Njoftoni shkurt OGS-në."
+    "lockedAllBodyOne": "Fëmija juaj është tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
+    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë."
   },
   "parentMasterData": {
     "title": "Të dhënat dhe përkujdesja",

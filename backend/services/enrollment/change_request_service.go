@@ -2223,15 +2223,23 @@ func ensureTakenOverChildrenUnchanged(children []*enrollmentModels.RequestChild,
 		if i >= len(baseRows) || i >= len(proposedRows) {
 			return ErrChangeRequestChildLocked
 		}
-		if !jsonEqual(comparableChildSnapshot(baseRows[i]), comparableChildSnapshot(proposedRows[i])) {
+		baseRow := mapFromAny(baseRows[i])
+		proposedRow := mapFromAny(proposedRows[i])
+		// Refuse rather than compare when the proposal names a different child
+		// at this position: a mismatched pair would clear the lock by comparing
+		// the wrong two rows.
+		if id := stringFromAny(proposedRow["id"]); id != "" && id != stringFromAny(baseRow["id"]) {
+			return ErrChangeRequestChildLocked
+		}
+		if !jsonEqual(comparableChildSnapshot(baseRow), comparableChildSnapshot(proposedRow)) {
 			return ErrChangeRequestChildLocked
 		}
 	}
 	return nil
 }
 
-func comparableChildSnapshot(raw any) map[string]any {
-	row := maps.Clone(mapFromAny(raw))
+func comparableChildSnapshot(row map[string]any) map[string]any {
+	row = maps.Clone(row)
 	delete(row, "id")
 	delete(row, "status")
 	return row

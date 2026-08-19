@@ -930,7 +930,7 @@
       "care": "Booked offerings",
       "noCare": "No offerings booked.",
       "hint": "Changes for {name} now go through the parents app.",
-      "noAccess": "No access to the parents app yet? Just let the OGS know."
+      "noAccess": "No access to the parents app yet? The OGS can invite you."
     }
   },
   "enrollmentStatus": {
@@ -1117,8 +1117,8 @@
     "adjustSubmit": "Send adjustment",
     "lockedChildHint": "Changes for this child go through the parents app.",
     "lockedAllTitle": "Changes go through the parents app",
-    "lockedAllBodyOne": "Your child is already in care. Please make changes in the parents app. No access yet? Just let the OGS know.",
-    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? Just let the OGS know."
+    "lockedAllBodyOne": "Your child is already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
+    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? The OGS can invite you."
   },
   "parentMasterData": {
     "title": "Details and care",

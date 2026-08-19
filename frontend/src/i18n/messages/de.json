@@ -930,7 +930,7 @@
       "care": "Gebuchte Angebote",
       "noCare": "Keine Angebote gebucht.",
       "hint": "Änderungen für {name} laufen jetzt über die Eltern-App.",
-      "noAccess": "Sie haben noch keinen Zugang zur Eltern-App? Sagen Sie kurz der OGS Bescheid."
+      "noAccess": "Sie haben noch keinen Zugang zur Eltern-App? Die OGS kann Sie einladen."
     }
   },
   "enrollmentStatus": {
@@ -1117,8 +1117,8 @@
     "adjustSubmit": "Anpassung senden",
     "lockedChildHint": "Änderungen für dieses Kind laufen über die Eltern-App.",
     "lockedAllTitle": "Änderungen laufen über die Eltern-App",
-    "lockedAllBodyOne": "Ihr Kind ist schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Sagen Sie kurz der OGS Bescheid.",
-    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Sagen Sie kurz der OGS Bescheid."
+    "lockedAllBodyOne": "Ihr Kind ist schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
+    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen."
   },
   "parentMasterData": {
     "title": "Daten und Betreuung",

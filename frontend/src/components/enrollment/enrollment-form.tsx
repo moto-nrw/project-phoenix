@@ -46,6 +46,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import {
   copyStableObjectKey,
@@ -2365,10 +2366,7 @@ function LockedChildCard({
         <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
           {name || tr("structured.child")}
         </h3>
-        <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-gray-600">
-          <Lock className="h-3 w-3" aria-hidden="true" />
-          {tr("locked.badge")}
-        </span>
+        <StatusBadge label={tr("locked.badge")} tone="green" />
       </div>
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div>
@@ -2399,7 +2397,8 @@ function LockedChildCard({
         </div>
       </dl>
       <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
-        {tr("locked.hint", { name: name || tr("structured.child") })}{" "}
+        {tr("locked.hint", { name: name || tr("structured.child") })}
+        <br />
         {tr("locked.noAccess")}
       </p>
     </div>
