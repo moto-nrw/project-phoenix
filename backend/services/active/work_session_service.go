@@ -499,10 +499,11 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	}
 
 	// A closed block can still reach past "now" (an admin Nachtrag for the
-	// afternoon, an edited checkout in the future). A new block starting
-	// inside that interval would double-count the overlap in every sum built
-	// from the day's rows, so it is rejected like any other overlap.
-	if err := assertNoBlockOverlapIn(existingBlocks, 0, now, nil); err != nil {
+	// afternoon, an edited checkout in the future, a night block from
+	// yesterday that ran into this morning). A new block starting inside that
+	// interval would double-count the overlap in every sum built from the
+	// day's rows, so it is rejected like any other overlap.
+	if err := s.assertNoBlockOverlap(ctx, staffID, stampDay, 0, now, nil); err != nil {
 		return nil, err
 	}
 
@@ -612,14 +613,35 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 // that crossed Berlin midnight: check-in refuses while it is open, so a
 // today-only checkout would leave no way to close it.
 func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
+	day, err := s.openBlockDay(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	return s.CheckOutOn(ctx, staffID, day, reason)
+}
+
+// openBlockDay resolves the calendar day the currently running block is filed
+// on, for the web endpoints that stamp without carrying a day themselves. It
+// is the service-side twin of the kiosk's clockDay: the running block's own
+// day, or today when nobody is clocked in.
+//
+// Asking the clock unconditionally would strand every block that crossed
+// Berlin midnight: it stays open and is still dated yesterday, so a today-only
+// lookup reports "no active session found" for somebody who is demonstrably
+// clocked in — leaving no way to check out or end the running break at all.
+//
+// Finding nothing open is not decided here: the day-scoped lookup each caller
+// performs next says "no active session found" on its own, and keeping that
+// one authority avoids two lookups disagreeing about whether a stamp exists.
+func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (timezone.Date, error) {
 	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, fmt.Errorf(errGetCurrentSession, err)
+		return timezone.Date{}, fmt.Errorf(errGetCurrentSession, err)
 	}
-	if open == nil {
-		return nil, errors.New(errNoActiveSession)
+	if open != nil {
+		return open.Date, nil
 	}
-	return s.CheckOutOn(ctx, staffID, open.Date, reason)
+	return timezone.DateFromTime(s.now()), nil
 }
 
 // CheckOutOn ends the open session of an explicit calendar day.
@@ -855,10 +877,15 @@ func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context
 	}
 }
 
-// StartBreak starts a new break for the current session
+// StartBreak starts a new break on the running block, whichever day it was
+// opened on (see openBlockDay).
 // If plannedDurationMinutes is provided (1-240), sets planned_end_time for auto-end
 func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error) {
-	return s.StartBreakOn(ctx, staffID, timezone.TodayDate(), plannedDurationMinutes)
+	day, err := s.openBlockDay(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	return s.StartBreakOn(ctx, staffID, day, plannedDurationMinutes)
 }
 
 // StartBreakOn starts a break on the open session of an explicit calendar day.
@@ -919,9 +946,14 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 	return brk, nil
 }
 
-// EndBreak ends the current active break for the staff member's session
+// EndBreak ends the active break on the running block, whichever day it was
+// opened on (see openBlockDay).
 func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
-	return s.EndBreakOn(ctx, staffID, timezone.TodayDate())
+	day, err := s.openBlockDay(ctx, staffID)
+	if err != nil {
+		return nil, err
+	}
+	return s.EndBreakOn(ctx, staffID, day)
 }
 
 // EndBreakOn ends the active break on the open session of an explicit calendar day.
@@ -1286,20 +1318,35 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 }
 
 // assertNoBlockOverlap rejects a block whose [check-in, check-out) interval
-// overlaps another block of the same staff member on the same day (#2402).
-// Overlapping blocks would double-count work time in every sum built from the
-// day's rows. Touching boundaries (one block ends exactly when the next
-// starts) are allowed; an open sibling block occupies [check-in, ∞).
+// overlaps another block of the same staff member (#2402). Overlapping blocks
+// would double-count work time in every sum built from the day's rows.
+// Touching boundaries (one block ends exactly when the next starts) are
+// allowed; an open sibling block occupies [check-in, ∞).
+//
+// The comparison deliberately reaches beyond the candidate's own date: a
+// block is filed on the day of its check-in, so a night block dated yesterday
+// runs into today, and a block starting late today can end tomorrow. Loading
+// only same-date rows would let two blocks share the small hours undetected.
+// The window is therefore the day before the candidate through the day its
+// own end falls on — a sibling that starts after the candidate ends cannot
+// overlap it, and an open candidate is bounded by its own date because
+// nothing later than "now" exists for it yet.
 func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID int64, date timezone.Date, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
-	siblings, err := s.repo.ListByStaffAndDate(ctx, staffID, date)
+	to := date
+	if checkOut != nil {
+		if endDay := timezone.DateFromTime(*checkOut); endDay.After(to) {
+			to = endDay
+		}
+	}
+	siblings, err := s.repo.GetHistoryByStaffID(ctx, staffID, date.AddDays(-1), to)
 	if err != nil {
 		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
 	}
 	return assertNoBlockOverlapIn(siblings, excludeID, checkIn, checkOut)
 }
 
-// assertNoBlockOverlapIn is the list-based body of assertNoBlockOverlap, for
-// callers that already hold the day's blocks.
+// assertNoBlockOverlapIn is the list-based body of assertNoBlockOverlap, kept
+// separate so the interval arithmetic can be exercised without a database.
 func assertNoBlockOverlapIn(siblings []*activeModels.WorkSession, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
 	for _, sibling := range siblings {
 		if sibling.ID == excludeID {
