@@ -48,6 +48,45 @@ func ValidAnnouncementResponseType(t string) bool {
 	}
 }
 
+// Delivery modes (mirrors the chk_parent_announcements_delivery_mode
+// constraint). "standard" is the Mitteilung every pre-#2384 row is: e-mail and
+// acknowledgement are independent opt-ins and the mail carries only a title and
+// a portal link. "letter" is the Elternbrief: both channels are mandatory (the
+// chk_parent_announcements_letter_channels CHECK enforces it in the database, not
+// just in the service) and the mail carries the full body.
+const (
+	ParentAnnouncementDeliveryStandard = "standard"
+	ParentAnnouncementDeliveryLetter   = "letter"
+)
+
+// E-mail audiences (mirrors the chk_parent_announcements_email_audience
+// constraint). This is deliberately a SEPARATE axis from the portal audience:
+// a letter may be a general notice everyone should receive, or it may carry
+// details only guardians with portal access are meant to see (#2384).
+//
+//	EmailAudiencePortalOnly  — only guardians with parent_portal.access, i.e. the
+//	                           same people who see the announcement in the portal
+//	EmailAudienceAllContacts — additionally every guardian of a reached child that
+//	                           has an address but no portal access; they receive
+//	                           the mail and can never acknowledge
+//
+// PortalOnly is the DEFAULT on purpose: an omission must fall towards not
+// disclosing the body to someone deliberately excluded from the portal.
+const (
+	EmailAudiencePortalOnly  = "portal_only"
+	EmailAudienceAllContacts = "all_contacts"
+)
+
+// ValidAnnouncementDeliveryMode reports whether m is a known delivery mode.
+func ValidAnnouncementDeliveryMode(m string) bool {
+	return m == ParentAnnouncementDeliveryStandard || m == ParentAnnouncementDeliveryLetter
+}
+
+// ValidAnnouncementEmailAudience reports whether a is a known e-mail audience.
+func ValidAnnouncementEmailAudience(a string) bool {
+	return a == EmailAudiencePortalOnly || a == EmailAudienceAllContacts
+}
+
 // Audience target types (mirrors the chk_parent_announcement_targets_type
 // constraint). An announcement's reach is the OR-union of its target rows.
 const (
@@ -106,6 +145,14 @@ type ParentAnnouncement struct {
 	ResponseType     string     `bun:"response_type,notnull,nullzero,default:'none'" json:"response_type"`
 	ResponseDeadline *time.Time `bun:"response_deadline" json:"response_deadline,omitempty"`
 
+	// DeliveryMode turns the announcement into an Elternbrief (#2384) and
+	// EmailAudience widens who receives the mail. Both use nullzero+default for
+	// the same reason ResponseType does: a caller that leaves the field alone
+	// must fall through to the column default rather than insert an empty string
+	// that trips the CHECK constraint.
+	DeliveryMode  string `bun:"delivery_mode,notnull,nullzero,default:'standard'" json:"delivery_mode"`
+	EmailAudience string `bun:"email_audience,notnull,nullzero,default:'portal_only'" json:"email_audience"`
+
 	// Targets is attached by the repository (ListTargets), never a bun relation:
 	// the parent feed resolves audience in a cross-tenant admin tx where explicit
 	// joins are clearer than relation magic. bun:"-" so it is never persisted.
@@ -118,6 +165,18 @@ type ParentAnnouncement struct {
 // IsPublished reports whether the announcement has been published (vs draft).
 func (a *ParentAnnouncement) IsPublished() bool {
 	return a.PublishedAt != nil
+}
+
+// IsLetter reports whether the announcement is an Elternbrief — the mode in
+// which both channels are mandatory and the mail carries the full body.
+func (a *ParentAnnouncement) IsLetter() bool {
+	return a.DeliveryMode == ParentAnnouncementDeliveryLetter
+}
+
+// ReachesContactsWithoutPortal reports whether the e-mail goes beyond the portal
+// audience to guardians that have an address but no portal access.
+func (a *ParentAnnouncement) ReachesContactsWithoutPortal() bool {
+	return a.EmailAudience == EmailAudienceAllContacts
 }
 
 // IsPoll reports whether the announcement asks guardians a question.
@@ -269,10 +328,14 @@ type AnnouncementFeedItem struct {
 	PublishedAt             *time.Time `bun:"published_at" json:"published_at,omitempty"`
 	ExpiresAt               *time.Time `bun:"expires_at" json:"expires_at,omitempty"`
 	ResponseType            string     `bun:"response_type" json:"response_type"`
-	ResponseDeadline        *time.Time `bun:"response_deadline" json:"response_deadline,omitempty"`
-	SchoolName              string     `bun:"school_name" json:"school_name"`
-	ReadAt                  *time.Time `bun:"read_at" json:"read_at,omitempty"`
-	AcknowledgedAt          *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	// DeliveryMode lets the portal mark an Elternbrief as binding ("Bestätigung
+	// erforderlich") instead of making the parent infer it from
+	// RequiresAcknowledgement alone.
+	DeliveryMode     string     `bun:"delivery_mode" json:"delivery_mode"`
+	ResponseDeadline *time.Time `bun:"response_deadline" json:"response_deadline,omitempty"`
+	SchoolName       string     `bun:"school_name" json:"school_name"`
+	ReadAt           *time.Time `bun:"read_at" json:"read_at,omitempty"`
+	AcknowledgedAt   *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 
 	// Options and Children are attached by the service for poll items (bun:"-":
 	// they come from separate batched queries, not this row's columns).

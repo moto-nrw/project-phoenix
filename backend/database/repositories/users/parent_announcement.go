@@ -242,6 +242,8 @@ func (r *ParentAnnouncementRepository) Update(ctx context.Context, a *users.Pare
 		Set("expires_at = ?", a.ExpiresAt).
 		Set("response_type = ?", a.ResponseType).
 		Set("response_deadline = ?", a.ResponseDeadline).
+		Set("delivery_mode = ?", a.DeliveryMode).
+		Set("email_audience = ?", a.EmailAudience).
 		Set("updated_at = ?", now).
 		Where("id = ?", a.ID).
 		Where("published_at IS NULL").
@@ -672,7 +674,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	sqlStr := `
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
-			a.response_type, a.response_deadline,
+			a.response_type, a.response_deadline, a.delivery_mode,
 			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at

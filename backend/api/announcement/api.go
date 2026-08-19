@@ -91,6 +91,11 @@ type announcementRequest struct {
 	ResponseType     string     `json:"response_type,omitempty"`
 	ResponseDeadline *time.Time `json:"response_deadline,omitempty"`
 	Options          []string   `json:"options,omitempty"`
+	// delivery_mode "letter" is the Elternbrief (#2384); email_audience widens
+	// the mail beyond the portal audience. Both default server-side when empty,
+	// so pre-#2384 clients keep working unchanged.
+	DeliveryMode  string `json:"delivery_mode,omitempty"`
+	EmailAudience string `json:"email_audience,omitempty"`
 }
 
 // optionResponse is one answer option of a poll.
@@ -123,6 +128,8 @@ type announcementResponse struct {
 	ResponseType            string           `json:"response_type"`
 	ResponseDeadline        *time.Time       `json:"response_deadline,omitempty"`
 	Options                 []optionResponse `json:"options"`
+	DeliveryMode            string           `json:"delivery_mode"`
+	EmailAudience           string           `json:"email_audience"`
 }
 
 type statsResponse struct {
@@ -184,6 +191,8 @@ func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementRespo
 		ResponseType:            a.ResponseType,
 		ResponseDeadline:        a.ResponseDeadline,
 		Options:                 toOptionResponses(a.Options),
+		DeliveryMode:            a.DeliveryMode,
+		EmailAudience:           a.EmailAudience,
 	}
 }
 
@@ -201,6 +210,8 @@ func toInput(req announcementRequest) (announcementService.Input, error) {
 		ResponseType:            req.ResponseType,
 		ResponseDeadline:        req.ResponseDeadline,
 		Options:                 req.Options,
+		DeliveryMode:            req.DeliveryMode,
+		EmailAudience:           req.EmailAudience,
 		Targets:                 make([]announcementService.TargetInput, 0, len(req.Targets)),
 	}
 	for _, t := range req.Targets {

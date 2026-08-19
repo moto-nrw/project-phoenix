@@ -94,6 +94,14 @@ type Input struct {
 	ResponseType     string     `json:"response_type"`
 	ResponseDeadline *time.Time `json:"response_deadline,omitempty"`
 	Options          []string   `json:"options,omitempty"`
+
+	// DeliveryMode "letter" makes this an Elternbrief (#2384): e-mail and
+	// acknowledgement become mandatory and the mail carries the full body.
+	// EmailAudience decides who receives that mail — "portal_only" (default) is
+	// the portal audience, "all_contacts" additionally reaches guardians with an
+	// address but no portal access. Both default when empty.
+	DeliveryMode  string `json:"delivery_mode,omitempty"`
+	EmailAudience string `json:"email_audience,omitempty"`
 }
 
 // Service is the staff-facing parent-announcement contract.
@@ -250,6 +258,8 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		ExpiresAt:               in.ExpiresAt,
 		ResponseType:            in.ResponseType,
 		ResponseDeadline:        in.ResponseDeadline,
+		DeliveryMode:            in.DeliveryMode,
+		EmailAudience:           in.EmailAudience,
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
@@ -269,6 +279,8 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*users
 		slog.Int64("created_by", createdBy),
 		slog.Int("target_count", len(targets)),
 		slog.String("response_type", a.ResponseType),
+		slog.String("delivery_mode", a.DeliveryMode),
+		slog.String("email_audience", a.EmailAudience),
 		slog.Int("option_count", len(options)),
 	)
 	return a, nil
@@ -306,6 +318,8 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*usersModels.
 	a.ExpiresAt = in.ExpiresAt
 	a.ResponseType = in.ResponseType
 	a.ResponseDeadline = in.ResponseDeadline
+	a.DeliveryMode = in.DeliveryMode
+	a.EmailAudience = in.EmailAudience
 	if err := s.repo.Update(ctx, a); err != nil {
 		// The write is guarded by published_at IS NULL: if the draft was
 		// published between the load above and here, no row matched. Surface the
@@ -789,6 +803,62 @@ func (s *service) Recipients(ctx context.Context, id int64) ([]*usersModels.Anno
 // optional absolute http(s) link, at least one target, and per-type ref
 // consistency (class -> text, group/AG/student -> id, school_all/
 // pending_enrollment -> neither). Duplicate targets are collapsed.
+// normalizeDelivery validates and completes the two delivery axes of #2384:
+// delivery_mode (Mitteilung vs Elternbrief) and email_audience (who receives the
+// mail, independently of who sees the announcement in the portal).
+//
+// The letter's mandatory channels are FORCED here rather than rejected. The
+// database CHECK is the guarantee; this is the API being forgiving about how a
+// client expresses the same intent — a caller that selects "Elternbrief" has
+// already said it wants both channels, and failing that request with a 400 would
+// only teach clients to send redundant flags. Silently WIDENING an audience or
+// turning a poll into a letter, by contrast, would change what the author
+// intended and is refused.
+func normalizeDelivery(in *Input) error {
+	if in.DeliveryMode == "" {
+		in.DeliveryMode = usersModels.ParentAnnouncementDeliveryStandard
+	}
+	if !usersModels.ValidAnnouncementDeliveryMode(in.DeliveryMode) {
+		return fmt.Errorf("%w: delivery_mode %q", ErrValidation, in.DeliveryMode)
+	}
+	if in.EmailAudience == "" {
+		in.EmailAudience = usersModels.EmailAudiencePortalOnly
+	}
+	if !usersModels.ValidAnnouncementEmailAudience(in.EmailAudience) {
+		return fmt.Errorf("%w: email_audience %q", ErrValidation, in.EmailAudience)
+	}
+
+	if in.DeliveryMode == usersModels.ParentAnnouncementDeliveryLetter {
+		// A poll asks a question per child; a letter demands one acknowledgement
+		// per child. Combining them would need a single row to carry two different
+		// per-child completion semantics, so v1 keeps the axes separate (the
+		// chk_parent_announcements_letter_not_poll constraint mirrors this).
+		if in.ResponseType != "" && in.ResponseType != usersModels.ParentAnnouncementResponseNone {
+			return fmt.Errorf("%w: an Elternbrief cannot also be a poll", ErrValidation)
+		}
+		// Targeting people with an open enrollment reaches guardians that have no
+		// student link yet — "the letter is fulfilled for this child" has no
+		// meaning for them, and they would sit in the recipient matrix as
+		// permanently outstanding. Refused rather than silently dropped so the
+		// author notices while composing.
+		for _, t := range in.Targets {
+			if t.TargetType == usersModels.AnnouncementTargetPendingEnrollment {
+				return fmt.Errorf("%w: an Elternbrief cannot target pending enrollments", ErrValidation)
+			}
+		}
+		in.SendEmail = true
+		in.RequiresAcknowledgement = true
+	}
+
+	// Widening the e-mail audience without sending e-mail at all is a
+	// contradiction that almost certainly means the client lost a flag. Refuse it
+	// instead of persisting a setting that does nothing.
+	if in.EmailAudience == usersModels.EmailAudienceAllContacts && !in.SendEmail {
+		return fmt.Errorf("%w: email_audience %q requires send_email", ErrValidation, in.EmailAudience)
+	}
+	return nil
+}
+
 func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Body = strings.TrimSpace(in.Body)
@@ -820,6 +890,9 @@ func normalizeInput(in *Input) ([]*usersModels.ParentAnnouncementTarget, error) 
 	}
 	if len(in.Targets) == 0 {
 		return nil, fmt.Errorf("%w: at least one target required", ErrValidation)
+	}
+	if err := normalizeDelivery(in); err != nil {
+		return nil, err
 	}
 
 	seen := make(map[string]bool, len(in.Targets))
