@@ -60,20 +60,36 @@ function CareHistoryCard({
         reason: row.decision_reason,
       }}
     >
-      {row.requested.length > 0 && (
+      {row.diff && row.diff.length > 0 ? (
         <div className="space-y-1 rounded-lg bg-gray-50 p-3">
           <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Beantragt
+            Änderungen
           </p>
-          {row.requested.map((entry) => (
+          {row.diff.map((entry) => (
             <p
               key={`${entry.label}-${entry.new}`}
               className="text-sm text-gray-700"
             >
-              {entry.label}: {entry.new}
+              {entry.label}: {entry.old || "—"} → {entry.new}
             </p>
           ))}
         </div>
+      ) : (
+        row.requested.length > 0 && (
+          <div className="space-y-1 rounded-lg bg-gray-50 p-3">
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              Beantragt
+            </p>
+            {row.requested.map((entry) => (
+              <p
+                key={`${entry.label}-${entry.new}`}
+                className="text-sm text-gray-700"
+              >
+                {entry.label}: {entry.new}
+              </p>
+            ))}
+          </div>
+        )
       )}
     </RequestReviewCard>
   );

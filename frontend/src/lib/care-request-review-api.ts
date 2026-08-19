@@ -126,9 +126,10 @@ export interface CareRequestHistoryPage {
 
 /**
  * One decided care-schedule change request in the staff history. Mirrors
- * api/students.CareRequestHistoryResponse: instead of a live "current →
- * requested" diff it carries only the payload-derived requested summary
- * (each entry's old side is empty).
+ * api/students.CareRequestHistoryResponse: `diff` replays the alt → neu
+ * comparison frozen at decision time (#2430); rows decided before the
+ * snapshot existed (and withdrawals) omit it, and the payload-derived
+ * requested summary (each entry's old side empty) is the fallback.
  */
 export interface StaffCareRequestHistoryEntry {
   readonly id: string;
@@ -138,6 +139,8 @@ export interface StaffCareRequestHistoryEntry {
   readonly status: CareRequestStatus;
   readonly request_kind: "weekly_schedule" | "pickup_change";
   readonly requested: readonly RequestDiffEntry[];
+  /** Frozen decision-time diff; absent without a snapshot. */
+  readonly diff?: readonly RequestDiffEntry[];
   readonly decision_reason?: string;
   readonly created_at: string;
   readonly decided_at: string;

@@ -222,3 +222,20 @@ func (r *CareScheduleChangeRequestRepository) Decide(ctx context.Context, id int
 	}
 	return nil
 }
+
+// UpdateDecisionSnapshot stores the frozen review diff on a decided row (ADR
+// 0002, #2430). Separate from Decide so the race-guarded transition keeps its
+// signature; callers write the snapshot in the same transaction.
+func (r *CareScheduleChangeRequestRepository) UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *schedule.CareRequestDecisionSnapshot) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*schedule.CareScheduleChangeRequest)(nil)).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Set("decision_snapshot = ?", snapshot).
+		Set("updated_at = ?", time.Now()).
+		Where(`"care_schedule_change_request".id = ?`, id)
+	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "update care request decision snapshot", Err: err}
+	}
+	return nil
+}
