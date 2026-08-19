@@ -210,10 +210,13 @@ func uniqueJWTSafeTenantID() int64 {
 }
 
 // UniqueTestTenantID returns a high, process-local tenant ID for tests that
-// assert aggregate counts and therefore must not share tenant_id=1.
+// assert aggregate counts and therefore must not share tenant_id=1. It hands
+// out IDs from the JWT-safe band: a nanosecond-timestamp ID exceeds 2^53 and
+// comes back corrupted once it travels through a minted test token, because
+// JSON decodes numbers as float64.
 func UniqueTestTenantID(tb testing.TB) int64 {
 	tb.Helper()
-	return time.Now().UnixNano() + int64(os.Getpid()) + atomic.AddInt64(&uniqueTestTenantCounter, 1)
+	return uniqueJWTSafeTenantID()
 }
 
 // ============================================================================
