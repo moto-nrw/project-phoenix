@@ -145,6 +145,36 @@ func TestDecide_SkipsSnapshotWhenPickupPlanReadFails(t *testing.T) {
 	assert.NotEmpty(t, item.Requested, "history must fall back to the payload summary")
 }
 
+func TestListPending_FallsBackToRequestedWhenPickupPlanReadFails(t *testing.T) {
+	f := newCareFixture(t)
+	readErr := errors.New("pickup plan unavailable")
+	service := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		failingPickupReadService{PickupScheduleService: f.sf.PickupSchedule, err: readErr},
+		f.sf.UserContext,
+		nil,
+		nil,
+		slog.Default(),
+		f.sf.StudentAudit,
+	)
+	f.createPending(t, careWeekdays(
+		map[string]any{"weekday": 1, "pickup": "16:00"},
+	))
+
+	items, err := service.ListPending(f.staffCtx(f.staffAccount))
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, []schedule.RequestDiffEntry{{
+		Label:    "Montag · Abholzeit",
+		New:      "16:00",
+		Weekday:  1,
+		CareKind: schedule.DiffCareKindPickup,
+	}}, items[0].Diff)
+}
+
 // TestWithdraw_LeavesNoSnapshot: a guardian withdrawal is not a staff
 // decision — the row keeps no frozen diff and the history falls back to the
 // payload-derived requested summary.

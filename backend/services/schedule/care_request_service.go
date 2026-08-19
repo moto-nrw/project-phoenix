@@ -734,12 +734,14 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 			diff, err = s.careScheduleDiffFrom(ctx, src, r.Payload)
 		}
 		if err != nil {
-			// A diff that can't be built is logged and skipped rather than
-			// failing the whole queue load.
+			// A live diff that can't be built must not hide what was requested
+			// from the reviewer. Keep the queue available and fall back to the
+			// payload-derived requested side instead.
 			s.logger.Warn("schedule: build care request diff failed",
 				slog.Int64("request_id", r.ID),
 				slog.String("error", err.Error()),
 			)
+			item.Diff = careRequestedSummaryFrom(r.Payload)
 		} else {
 			item.Diff = diff
 		}
