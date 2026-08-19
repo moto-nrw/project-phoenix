@@ -98,7 +98,7 @@ interface HistoryPageResult<T> {
  * Generic fetch/cursor/empty/error shell shared by the four queues. The
  * queue-specific card comes from renderItem.
  */
-export function RequestHistorySection<T>({
+function RequestHistorySection<T>({
   fetchPage,
   renderItem,
   getKey,
