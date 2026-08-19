@@ -656,33 +656,41 @@ func (s *service) loadPlanningTimes(ctx context.Context, projection *Projection,
 
 	for _, id := range studentIDs {
 		if effective := pickups[id]; effective != nil {
-			item := PickupTime{
-				StudentID: id, Date: effective.Date.String(), WeekdayName: effective.WeekdayName,
-				IsException: effective.IsException, Notes: effective.Notes,
-			}
-			if effective.PickupTime != nil {
-				formatted := effective.PickupTime.Format("15:04")
-				item.PickupTime = &formatted
-			}
-			for _, note := range effective.DayNotes {
-				item.DayNotes = append(item.DayNotes, DayNote{ID: note.ID, Content: note.Content})
-			}
-			projection.PickupTimes = append(projection.PickupTimes, item)
+			projection.PickupTimes = append(projection.PickupTimes, pickupTimeFromEffective(id, effective))
 		}
 		if effective := arrivals[id]; effective != nil {
-			item := ArrivalTime{
-				StudentID: id, Date: effective.Date.String(), WeekdayName: effective.WeekdayName,
-				IsException: effective.IsException, Notes: effective.Notes,
-			}
-			if effective.ArrivalTime != nil {
-				formatted := effective.ArrivalTime.Format("15:04")
-				item.ExpectedArrival = &formatted
-			}
-			for _, note := range effective.DayNotes {
-				item.DayNotes = append(item.DayNotes, DayNote{ID: note.ID, Content: note.Content})
-			}
-			projection.ArrivalTimes = append(projection.ArrivalTimes, item)
+			projection.ArrivalTimes = append(projection.ArrivalTimes, arrivalTimeFromEffective(id, effective))
 		}
 	}
 	return nil
+}
+
+func pickupTimeFromEffective(studentID int64, effective *scheduleService.EffectivePickupTime) PickupTime {
+	item := PickupTime{
+		StudentID: studentID, Date: effective.Date.String(), WeekdayName: effective.WeekdayName,
+		IsException: effective.IsException, Notes: effective.Notes,
+	}
+	if effective.PickupTime != nil {
+		formatted := effective.PickupTime.Format("15:04")
+		item.PickupTime = &formatted
+	}
+	for _, note := range effective.DayNotes {
+		item.DayNotes = append(item.DayNotes, DayNote{ID: note.ID, Content: note.Content})
+	}
+	return item
+}
+
+func arrivalTimeFromEffective(studentID int64, effective *scheduleService.EffectiveArrivalTime) ArrivalTime {
+	item := ArrivalTime{
+		StudentID: studentID, Date: effective.Date.String(), WeekdayName: effective.WeekdayName,
+		IsException: effective.IsException, Notes: effective.Notes,
+	}
+	if effective.ArrivalTime != nil {
+		formatted := effective.ArrivalTime.Format("15:04")
+		item.ExpectedArrival = &formatted
+	}
+	for _, note := range effective.DayNotes {
+		item.DayNotes = append(item.DayNotes, DayNote{ID: note.ID, Content: note.Content})
+	}
+	return item
 }
