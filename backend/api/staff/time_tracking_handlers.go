@@ -189,6 +189,12 @@ func (rs *Resource) denyAbsence(w http.ResponseWriter, r *http.Request) {
 
 // questionAbsenceErrorRules classifies QuestionAbsence service errors (#1419).
 var questionAbsenceErrorRules = []common.ErrorRule{
+	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
+	// bad selection, not a server fault.
+	{Target: activeSvc.ErrAbsenceTypeInactive, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+	}},
+	{Target: activeSvc.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("question note is required"), Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgIs("only requested absences can be questioned"), Render: common.ErrorInvalidRequest},
@@ -489,6 +495,12 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrCompTimeExceedsBalance, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
 	}},
+	// School-defined Abwesenheitsarten (#2403): a retired or unknown art is a
+	// bad selection, not a server fault.
+	{Target: activeSvc.ErrAbsenceTypeInactive, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+	}},
+	{Target: activeSvc.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
