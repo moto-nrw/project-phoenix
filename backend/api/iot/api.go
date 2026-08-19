@@ -178,7 +178,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := checkinAPI.NewAttendanceResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService, rs.UnregisteredTagScans)
+		attendanceResource := checkinAPI.NewAttendanceResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.UnregisteredTagScans)
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)

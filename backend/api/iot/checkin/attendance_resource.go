@@ -5,7 +5,6 @@ import (
 	"github.com/go-chi/render"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -15,12 +14,11 @@ type AttendanceResource struct {
 	UsersService         usersSvc.PersonService
 	ActiveService        activeSvc.Service
 	EducationService     educationSvc.Service
-	SettingsService      configSvc.SettingsService
 	UnregisteredTagScans auditSvc.UnregisteredTagScanService
 }
 
 // NewAttendanceResource creates a new Attendance resource
-func NewAttendanceResource(usersService usersSvc.PersonService, activeService activeSvc.Service, educationService educationSvc.Service, settingsService configSvc.SettingsService, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *AttendanceResource {
+func NewAttendanceResource(usersService usersSvc.PersonService, activeService activeSvc.Service, educationService educationSvc.Service, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *AttendanceResource {
 	var scanService auditSvc.UnregisteredTagScanService
 	if len(unregisteredTagScans) > 0 {
 		scanService = unregisteredTagScans[0]
@@ -29,7 +27,6 @@ func NewAttendanceResource(usersService usersSvc.PersonService, activeService ac
 		UsersService:         usersService,
 		ActiveService:        activeService,
 		EducationService:     educationService,
-		SettingsService:      settingsService,
 		UnregisteredTagScans: scanService,
 	}
 }

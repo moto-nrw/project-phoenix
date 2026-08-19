@@ -44,7 +44,6 @@ func setupAttendanceTestContext(t *testing.T) *attendanceTestContext {
 		svc.Users,
 		svc.Active,
 		svc.Education,
-		nil,
 	)
 
 	return &attendanceTestContext{
