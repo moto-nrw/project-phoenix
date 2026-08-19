@@ -92,7 +92,11 @@ export default function AnfragenPage() {
         }
       />
       {activeTab === "mitarbeitende" ? (
-        <MitarbeitendeTab />
+        <EmptyState
+          icon={<TrayIcon size={48} aria-hidden="true" />}
+          title="Anträge von Mitarbeitenden ziehen bald hierhin um"
+          description="Urlaubs-, Krank- und Fortbildungsanträge entscheiden Sie bis dahin wie gewohnt auf der Seite Mitarbeiter."
+        />
       ) : (
         <ElternTab session={session} />
       )}
@@ -210,20 +214,5 @@ function ElternTab({
         )}
       </section>
     </div>
-  );
-}
-
-/**
- * Platzhalter, bis die Abwesenheitsanträge der Mitarbeitenden hierher
- * umziehen (Folge-Ticket zum Anfragen-Umbau). Sichtbar nur mit
- * vacation:approve.
- */
-function MitarbeitendeTab() {
-  return (
-    <EmptyState
-      icon={<TrayIcon size={48} aria-hidden="true" />}
-      title="Anträge von Mitarbeitenden ziehen bald hierhin um"
-      description="Urlaubs-, Krank- und Fortbildungsanträge entscheiden Sie bis dahin wie gewohnt auf der Seite Mitarbeiter."
-    />
   );
 }
