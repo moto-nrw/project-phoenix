@@ -15,13 +15,14 @@ type SweepOptions struct {
 	// generation GC's no-connection criterion — the run is over). Empty means
 	// GC-only.
 	RunID string
-	// ReportLeftovers compares each of this run's clones against the template
-	// before dropping it and reports the tables that differ OUTSIDE the test
-	// tenants (see TenantIDBase). Rows a test wrote into its own tenant are
-	// not leftovers — they die with the clone. Rows it wrote into shared,
-	// tenant-less state are, because the next test in the same binary sees
-	// them.
-	ReportLeftovers bool
+	// CheckLeftovers compares each of this run's clones against the start
+	// state it recorded for itself and collects the tables that differ
+	// OUTSIDE the test tenants (see TenantIDBase). Rows a test wrote into its
+	// own tenant are not leftovers — they die with the clone. Rows it wrote
+	// into shared, tenant-less state are, because the next test in the same
+	// binary sees them. The caller decides what to do with the result; the
+	// sweep command fails the run on it.
+	CheckLeftovers bool
 }
 
 // TableDelta describes one table whose clone row count differs from the
@@ -68,7 +69,7 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 		if err != nil {
 			return nil, err
 		}
-		if opts.ReportLeftovers && len(own) > 0 {
+		if opts.CheckLeftovers && len(own) > 0 {
 			labels, err := packageLabels(ctx, conn, own)
 			if err != nil {
 				return nil, err
@@ -250,11 +251,11 @@ func tableOwnerColumns(ctx context.Context, dsn string) (map[string]string, erro
 	return owners, rows.Err()
 }
 
-// countSharedRows returns exact row counts per table. With excludeTestTenants
-// it counts only the rows that do NOT belong to a test's own tenant — the
-// shared state a test must leave as it found it. Exact counts are deliberate:
-// pg_stat estimates are unreliable right after a clone.
-func countSharedRows(ctx context.Context, dsn string, owners map[string]string, excludeTestTenants bool) (map[string]int64, error) {
+// countSharedRows returns exact row counts per table, counting only the rows
+// that do NOT belong to a test's own tenant — the shared state a test must
+// leave as it found it. Exact counts are deliberate: pg_stat estimates are
+// unreliable right after a clone.
+func countSharedRows(ctx context.Context, dsn string, owners map[string]string) (map[string]int64, error) {
 	db := openSQL(dsn)
 	defer func() { _ = db.Close() }()
 
@@ -272,7 +273,7 @@ func countSharedRows(ctx context.Context, dsn string, owners map[string]string, 
 	for i, table := range tables {
 		// table and owner come from pg_catalog of the trusted test server.
 		count := `SELECT count(*) AS c FROM ` + quoteQualified(table)
-		if excludeTestTenants && owners[table] != "" {
+		if owners[table] != "" {
 			col := quoteIdentifier(owners[table])
 			count += fmt.Sprintf(` WHERE %s IS NULL OR %s < %d`, col, col, TenantIDBase)
 		}
@@ -354,7 +355,7 @@ func leftoverDeltas(ctx context.Context, cloneDSN string) ([]TableDelta, error) 
 		return nil, err
 	}
 
-	cloneCounts, err := countSharedRows(ctx, cloneDSN, owners, true)
+	cloneCounts, err := countSharedRows(ctx, cloneDSN, owners)
 	if err != nil {
 		return nil, err
 	}

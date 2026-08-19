@@ -55,8 +55,10 @@ var fixtureSeq int64
 // The clock alone is not enough: two parallel tests can read the same
 // nanosecond, and the collision surfaces as a duplicate-key error on an
 // unrelated unique index (idx_accounts_email was the one that found this).
-// The counter makes the value unique within the process; the timestamp keeps
-// it unique across processes sharing a database.
+// The counter guarantees uniqueness within the process; the timestamp only
+// makes a collision between two processes on one database unlikely, it does
+// not rule it out. Each package binary has its own clone, so that second case
+// barely arises.
 func uniqueFixtureSuffix() int64 {
 	return time.Now().UnixNano() + atomic.AddInt64(&fixtureSeq, 1)
 }

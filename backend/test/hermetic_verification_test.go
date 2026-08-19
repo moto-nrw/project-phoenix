@@ -1229,6 +1229,13 @@ var serialTestBaseline = map[string]int{
 // topLevelTestDecl matches a top-level test function declaration.
 var topLevelTestDecl = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T\) \{`)
 
+// topLevelParallelCall matches the Parallel() call of the TEST ITSELF: one
+// tab of indentation, nothing else on the line. Searching for ".Parallel()"
+// anywhere in the body would also count a test whose SUBTESTS are parallel
+// while the test itself is not — precisely the case this ratchet exists to
+// count.
+var topLevelParallelCall = regexp.MustCompile(`(?m)^\t\w+\.Parallel\(\)$`)
+
 // checkSerialTestRatchet counts, per package, the top-level tests that do not
 // call t.Parallel().
 func checkSerialTestRatchet(t *testing.T, root string) []string {
@@ -1257,7 +1264,7 @@ func checkSerialTestRatchet(t *testing.T, root string) []string {
 			if !topLevelTestDecl.MatchString(f.body) {
 				continue
 			}
-			if !strings.Contains(f.body, ".Parallel()") {
+			if !topLevelParallelCall.MatchString(f.body) {
 				counts[pkg]++
 			}
 		}

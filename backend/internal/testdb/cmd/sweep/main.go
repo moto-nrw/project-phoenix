@@ -61,8 +61,8 @@ func main() {
 	verbose := os.Getenv("PHX_TEST_LEFTOVERS") == "1"
 
 	result, err := testdb.Sweep(ctx, cfg, testdb.SweepOptions{
-		RunID:           os.Getenv(testdb.RunIDEnv),
-		ReportLeftovers: true,
+		RunID:          os.Getenv(testdb.RunIDEnv),
+		CheckLeftovers: true,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "testdb sweep: %v\n", err)

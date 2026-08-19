@@ -35,6 +35,8 @@ func TestSetupTestDBUsesPackageClone(t *testing.T) {
 }
 
 func TestSetupTestDBAllowsParallelTests(t *testing.T) {
+	t.Parallel()
+
 	// The per-test path must be free of t.Setenv (which panics under
 	// t.Parallel) — this test IS the regression guard: it runs two parallel
 	// subtests through the full SetupTestDB path.

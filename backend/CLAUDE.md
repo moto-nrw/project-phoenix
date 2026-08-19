@@ -181,11 +181,12 @@ func TestExample(t *testing.T) {
 - **Tests are parallel by default (#2419)**: a new top-level test starts with
   `t.Parallel()`. The `tests_run_in_parallel` gate counts the ones that do not,
   per package, shrink-only (`serialTestBaseline`). A test may stay serial for
-  exactly four reasons, and it says which one in a comment right above itself:
+  exactly five reasons, and it says which one in a comment right above itself:
   it writes process-global state (env, viper, the settings registry,
   `os.Stdout`), it changes the schema, it exercises a sweep that queries across
-  tenants without a tenant transaction (RLS never narrows it), or it measures a
-  query budget on the shared pool. Anything else gets fixed, not exempted.
+  tenants without a tenant transaction (RLS never narrows it), it measures a
+  query budget on the shared pool, or it takes a row lock and expects a second
+  transaction to block on it. Anything else gets fixed, not exempted.
 - **Concurrency is pinned, not inherited**: `scripts/test-backend.sh` and CI run
   `-p 4 -parallel 8`. The pool per binary is derived from `-test.parallel` plus
   headroom, because a test holding a tenant transaction that opens a second one
@@ -196,7 +197,11 @@ func TestExample(t *testing.T) {
   against the start state it recorded for itself and fails the run on rows left
   in SHARED state — rows outside the tenants this run's tests created. Rows in a
   test's own tenant are not leftovers. `PHX_TEST_LEFTOVERS=1` also prints the
-  pairs `testdb.LeftoverAllowlist` still tolerates.
+  pairs `testdb.LeftoverAllowlist` still tolerates. The gate lives in the sweep,
+  so it runs under `scripts/test-backend.sh`, not under a bare `go test ./...`
+  — and it reports per PACKAGE after the run, not per test. Run the suite alone
+  when you want the number: two overlapping runs collect each other's finished
+  clones and the report silently becomes a lower bound.
 - **Parallel + bootstrap tenant is the combination to avoid.** Tests sharing tenant 1 may run in parallel only while every assertion is scoped to IDs the test created; the moment one asserts something tenant-wide (a count, a "list all"), it becomes order-dependent. The remaining files where both meet are frozen by the `parallel_on_bootstrap_tenant_ratchet` gate — do not add a new one, opt the package into per-test tenants instead.
 - The fixture catalog lives in `test/fixtures.go` (`CreateTest*` helpers, including `*ForTenant` variants for multi-tenant tests and auth chains like `CreateTestTeacherWithAccount`). Search it before writing a new fixture.
 - Tests hitting the DB go in external test packages (`package active_test`); pure model tests stay internal.

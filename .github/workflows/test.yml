@@ -139,8 +139,10 @@ jobs:
           # -p/-parallel are pinned, not left at GOMAXPROCS: `go test` runs
           # -p package binaries at once and each opens (-parallel + headroom)
           # connections plus a keeper. 4 x 13 = 52 fits the 100 connections a
-          # stock postgres:17 service container allows. Same values as
-          # scripts/test-backend.sh.
+          # stock postgres:17 service container allows.
+          # scripts/test-backend.sh owns these numbers — change them there
+          # first, then mirror. CI cannot call the wrapper: it needs the
+          # coverage flags and does its own DB snapshot restore.
           go tool gotestsum \
             --format pkgname-and-test-fails \
             --junitfile junit.xml \

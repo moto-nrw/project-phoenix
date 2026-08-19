@@ -33,11 +33,13 @@ mechanischer Sweep über alle Testdateien):
 - **Tests laufen parallel, sofern sie es können.** `t.Parallel()` ist der
   Normalfall, nicht die Ausnahme: der Sweep hat es allen Top-Level-Tests
   gegeben und dort wieder entfernt, wo der Test es nachweislich nicht
-  verträgt. Vier Gründe bleiben übrig, jeder direkt über dem Test benannt:
+  verträgt. Fünf Gründe bleiben übrig, jeder direkt über dem Test benannt:
   prozess-globaler Zustand (Env, viper, Settings-Registry, `os.Stdout`),
   Schema-Änderungen (Migrationstests), tenant-übergreifende Sweeps, die im
   Servicetest ohne Tenant-Transaktion laufen und deshalb an RLS vorbeisehen,
-  und Query-Budget-Messungen am geteilten Pool. Statt einer Fluchtluke gibt es
+  Query-Budget-Messungen am geteilten Pool und absichtliche Lock-Contention
+  (ein Test hält eine Zeilensperre und erwartet, dass die zweite Transaktion
+  darauf blockiert). Statt einer Fluchtluke gibt es
   einen schrumpfenden Zähler: `serialTestBaseline` in
   `test/hermetic_verification_test.go` friert die Restmenge pro Package ein,
   neue Tests müssen parallel sein. Per-Row-DELETE-Cleanups (`defer Cleanup*`)
@@ -50,6 +52,13 @@ mechanischer Sweep über alle Testdateien):
   pinnen zusätzlich `-p 4 -parallel 8`, damit das serverseitige Budget
   (p × (Pool + 1)) unter den 100 Verbindungen eines Standard-postgres:17
   bleibt.
+
+  Das rührt an die Abgrenzung des Issues ("kein CI-Umbau nötig"): die
+  CI-Workflow-Zeile und `max_connections` im Compose-Beispiel ändern sich mit.
+  Bewusst so — die Verbindungsobergrenze ist die eine Größe, die lokaler Lauf
+  und CI sich teilen, und ein Pool, der zur Parallelität passt, wäre ohne sie
+  in CI ein "too many clients" statt eines Timeouts. Am CI-Aufbau
+  (Service-Container, Snapshot-Cache) ändert sich nichts.
 - **Leftover-Detection ist ein Gate — gemessen gegen den eigenen Start.**
   Jeder Clone hält seinen Startzustand selbst fest
   (`testdb.SnapshotSharedBaseline`, direkt nach dem Bootstrap), der Sweep
@@ -67,6 +76,14 @@ mechanischer Sweep über alle Testdateien):
   `PHX_TEST_LEFTOVERS=1` zeigt zusätzlich die geduldeten. Sequence-Offsets
   bleiben zunächst als Flake-Detektor und werden gestrichen, sobald die Suite
   auf frischen Clones grün ist.
+
+  Zwei Grenzen des Gates, damit niemand mehr hineinliest, als es hergibt: es
+  sitzt im Sweep, läuft also unter `scripts/test-backend.sh` und nicht unter
+  einem nackten `go test ./...`, und es benennt das PACKAGE nach dem Lauf,
+  nicht den einzelnen Test. Und es sieht nur die Clones, die es noch
+  vorfindet: laufen zwei Suiten gleichzeitig, sammelt die eine die fertigen
+  Clones der anderen als totes Generat ein, und der Bericht wird
+  stillschweigend zur Untergrenze. Für eine Messung läuft die Suite allein.
 
 Abgewogen: Ein ephemerer Postgres pro Lauf hätte „Start = Ende" trivial wahr
 gemacht, kostet aber pro Lauf den Template-Neubau (~25s) oder einen eigenen

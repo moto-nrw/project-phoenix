@@ -38,7 +38,7 @@ func SnapshotSharedBaseline(ctx context.Context, dsn string) error {
 	if err != nil {
 		return fmt.Errorf("resolve owner columns for baseline snapshot: %w", err)
 	}
-	counts, err := countSharedRows(ctx, dsn, owners, true)
+	counts, err := countSharedRows(ctx, dsn, owners)
 	if err != nil {
 		return fmt.Errorf("count baseline rows: %w", err)
 	}

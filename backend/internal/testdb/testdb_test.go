@@ -370,7 +370,7 @@ func TestSweepReportsLeftovers(t *testing.T) {
 	require.NoError(t, clone.Close())
 	require.NoError(t, err)
 
-	result, err := Sweep(ctx, templateCfg, SweepOptions{RunID: runID, ReportLeftovers: true})
+	result, err := Sweep(ctx, templateCfg, SweepOptions{RunID: runID, CheckLeftovers: true})
 	require.NoError(t, err)
 	require.Len(t, result.Leftovers, 1)
 	assert.Equal(t, handle.Name, result.Leftovers[0].Clone)
@@ -412,7 +412,7 @@ func TestSweepIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, clone.Close())
 
-	result, err := Sweep(ctx, templateCfg, SweepOptions{RunID: runID, ReportLeftovers: true})
+	result, err := Sweep(ctx, templateCfg, SweepOptions{RunID: runID, CheckLeftovers: true})
 	require.NoError(t, err)
 	assert.Empty(t, result.Leftovers, "a row in the test's own tenant is not a leftover")
 	assert.Contains(t, result.Dropped, handle.Name)
