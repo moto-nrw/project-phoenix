@@ -128,7 +128,8 @@ jobs:
           PARENTS_URL: http://parents.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
-        # CI-Kosten-Experiment (#2419): Lauf A = unveränderte Flags (Baseline).
+        # CI-Kosten-Experiment (#2419): Lauf B = ohne -coverpkg=./...
+        # (Standard-Coverage: jedes Package misst nur sich selbst).
         # Single pass produces junit.xml AND coverage.out. No --rerun-fails:
         # gotestsum reruns overwrite the coverage profile (upstream issue;
         # fix PR unmerged), and flaky tests should fail loudly, not retry.
@@ -138,7 +139,7 @@ jobs:
           go tool gotestsum \
             --format pkgname-and-test-fails \
             --junitfile junit.xml \
-            -- -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+            -- -covermode=atomic -coverprofile=coverage.out ./...
 
       - name: Fix Go coverage paths for SonarCloud
         if: ${{ always() && hashFiles('backend/coverage.out') != '' }}
