@@ -124,6 +124,7 @@ type OperatorProvisioningService interface {
 	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
 	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
 	GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error)
+	GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*SchoolPWAUsage, error)
 	ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error)
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)

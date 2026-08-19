@@ -177,4 +177,24 @@ func init() {
 		},
 	})
 
+	minPWAUsageRetentionDays := float64(30)
+	maxPWAUsageRetentionDays := float64(365)
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRPWAUsageRetentionDays,
+		Label:           "Aufbewahrungsdauer App-Nutzungsdaten (Tage)",
+		Description:     "Wie lange gespeichert wird, wer die App zuletzt vom Startbildschirm aus (Standalone-Modus) benutzt hat. Ältere Einträge werden automatisch gelöscht.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "bewegungsdaten",
+		SortOrder:       15,
+		Validation:      &config.ValidationRules{Min: &minPWAUsageRetentionDays, Max: &maxPWAUsageRetentionDays},
+		DependsOn: &config.Dependency{
+			Key:       config.KeyDataCleanupEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
 }

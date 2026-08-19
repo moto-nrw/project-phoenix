@@ -40,6 +40,7 @@ import (
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/api/mealplan"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
+	pwaAPI "github.com/moto-nrw/project-phoenix/api/pwa"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	roomsAPI "github.com/moto-nrw/project-phoenix/api/rooms"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/api/schedules"
@@ -136,6 +137,7 @@ type API struct {
 	Announcements    *announcementAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
+	PWA              *pwaAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -178,6 +180,22 @@ func New(enableCORS bool, logger *slog.Logger) (*API, error) {
 	}
 	observability.RegisterDBStatsProvider(db.DB)
 	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
+	observability.RegisterPWAUsageStatsProvider(observability.PWAUsageStatsProviderFunc(func() ([]observability.PWAUsageStat, error) {
+		rows, err := serviceFactory.PWAUsage.SnapshotUsage()
+		if err != nil {
+			return nil, err
+		}
+		stats := make([]observability.PWAUsageStat, 0, len(rows))
+		for _, row := range rows {
+			stats = append(stats, observability.PWAUsageStat{
+				TenantID:        row.TenantID,
+				Portal:          row.Portal,
+				StandaloneUsers: row.StandaloneUsers,
+				EligibleUsers:   row.EligibleUsers,
+			})
+		}
+		return stats, nil
+	}))
 
 	// Create API instance
 	httpMetrics := observability.NewHTTPMetrics()
@@ -624,6 +642,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
+	api.PWA = pwaAPI.NewResource(api.Services.PWAUsage, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -658,6 +677,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Parent.SetCalendarService(api.Services.Calendar)
 	api.Parent.SetPushService(api.Services.PushSubscriptions)
+	api.Parent.SetPWAUsageService(api.Services.PWAUsage)
 	api.Parent.SetPreferenceService(api.Services.NotificationPreferences)
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
@@ -906,6 +926,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount notification abstraction resources (issue #1624)
 		r.Mount("/notifications", a.Notifications.Router())
+
+		// Mount PWA standalone-usage reporting (issue #2189)
+		r.Mount("/pwa", a.PWA.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

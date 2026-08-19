@@ -60,6 +60,7 @@ type mockProvisioningService struct {
 	listSchoolPersonsFn       func(context.Context, int64) ([]platformSvc.OperatorPersonInfo, error)
 	softDeletePersonFn        func(context.Context, int64, int64, net.IP) error
 	getProvisioningStatsFn    func(context.Context) (*platformSvc.ProvisioningStats, error)
+	getSchoolPWAUsageFn       func(context.Context, int64) (*platformSvc.SchoolPWAUsage, error)
 	listOrgSummariesFn        func(context.Context) ([]*platformSvc.OrganizationSummary, error)
 	listSchoolSummariesFn     func(context.Context) ([]*platformSvc.SchoolSummary, error)
 	listOrgSchoolSummariesFn  func(context.Context, int64) ([]*platformSvc.SchoolSummary, error)
@@ -250,6 +251,12 @@ func (m *mockProvisioningService) SoftDeletePerson(ctx context.Context, personID
 func (m *mockProvisioningService) GetProvisioningStats(ctx context.Context) (*platformSvc.ProvisioningStats, error) {
 	if m.getProvisioningStatsFn != nil {
 		return m.getProvisioningStatsFn(ctx)
+	}
+	return nil, nil
+}
+func (m *mockProvisioningService) GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*platformSvc.SchoolPWAUsage, error) {
+	if m.getSchoolPWAUsageFn != nil {
+		return m.getSchoolPWAUsageFn(ctx, schoolID)
 	}
 	return nil, nil
 }
