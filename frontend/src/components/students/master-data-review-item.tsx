@@ -65,7 +65,9 @@ const LANGUAGE_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 function departureModeLabel(mode: unknown): string {
-  return DEPARTURE_MODE_LABELS[mode as DepartureMode] ?? String(mode);
+  if (typeof mode === "string")
+    return DEPARTURE_MODE_LABELS[mode as DepartureMode] ?? mode;
+  return JSON.stringify(mode) ?? EMPTY_VALUE;
 }
 
 // Exported as formatMasterDataValue for the Historie view (same rendering

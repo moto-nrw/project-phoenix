@@ -120,53 +120,59 @@ export default function AnfragenPage() {
   );
 
   const filterConfigs = useMemo(() => {
-    const configs: FilterConfig[] = [];
-    if (showTypeFilter) {
-      configs.push({
-        id: "art",
-        label: "Anfrageart",
-        type: "buttons",
-        multiSelect: true,
-        value: typeFilter,
-        onChange: (value) =>
-          setTypeFilter(
-            (Array.isArray(value) ? value : [value]) as AggregatedRequestType[],
-          ),
-        options: REQUEST_TYPE_OPTIONS.map((option) => ({ ...option })),
-      });
-    }
-    if (view === "history") {
-      configs.push({
-        id: "status",
-        label: "Status",
-        type: "buttons",
-        multiSelect: true,
-        value: statusFilter,
-        onChange: (value) =>
-          setStatusFilter(
-            (Array.isArray(value)
-              ? value
-              : [value]) as AggregatedRequestStatus[],
-          ),
-        options: STATUS_OPTIONS.map((option) => ({ ...option })),
-      });
-      configs.push({
-        id: "zeitraum",
-        label: "Zeitraum",
-        type: "custom",
-        value: "",
-        onChange: () => undefined,
-        options: [],
-        render: (
-          <DateRangePicker
-            value={dateRange}
-            onChange={setDateRange}
-            className="w-fit"
-          />
-        ),
-      });
-    }
-    return configs;
+    const typeConfig: FilterConfig[] = showTypeFilter
+      ? [
+          {
+            id: "art",
+            label: "Anfrageart",
+            type: "buttons",
+            multiSelect: true,
+            value: typeFilter,
+            onChange: (value) =>
+              setTypeFilter(
+                (Array.isArray(value)
+                  ? value
+                  : [value]) as AggregatedRequestType[],
+              ),
+            options: REQUEST_TYPE_OPTIONS.map((option) => ({ ...option })),
+          },
+        ]
+      : [];
+    const historyConfigs: FilterConfig[] =
+      view === "history"
+        ? [
+            {
+              id: "status",
+              label: "Status",
+              type: "buttons",
+              multiSelect: true,
+              value: statusFilter,
+              onChange: (value) =>
+                setStatusFilter(
+                  (Array.isArray(value)
+                    ? value
+                    : [value]) as AggregatedRequestStatus[],
+                ),
+              options: STATUS_OPTIONS.map((option) => ({ ...option })),
+            },
+            {
+              id: "zeitraum",
+              label: "Zeitraum",
+              type: "custom",
+              value: "",
+              onChange: () => undefined,
+              options: [],
+              render: (
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={setDateRange}
+                  className="w-fit"
+                />
+              ),
+            },
+          ]
+        : [];
+    return [...typeConfig, ...historyConfigs];
   }, [showTypeFilter, view, typeFilter, statusFilter, dateRange]);
 
   const activeFilters = useMemo(() => {

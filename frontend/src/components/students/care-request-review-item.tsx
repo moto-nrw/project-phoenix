@@ -55,6 +55,14 @@ function careSummary(diff: StaffCareRequest["diff"]): string {
   return kinds.join(" + ") || "Änderung";
 }
 
+function decisionNotice(row: StaffCareRequest, approve: boolean): string {
+  if (row.request_kind === "pickup_change")
+    return approve ? "Abholzeit übernommen" : "Abholzeit-Anfrage abgelehnt";
+  return approve
+    ? "Betreuungszeiten übernommen"
+    : "Betreuungszeit-Anfrage abgelehnt";
+}
+
 /**
  * Eine offene Betreuungszeiten-/Abholzeit-Anfrage als entscheidbare Karte.
  * Ablehnen verlangt eine Begründung; nach der Entscheidung meldet onDecided
@@ -88,15 +96,7 @@ export function CareRequestReviewItem({
         approve,
         trimmed || undefined,
       );
-      onDecided(
-        approve
-          ? row.request_kind === "pickup_change"
-            ? "Abholzeit übernommen"
-            : "Betreuungszeiten übernommen"
-          : row.request_kind === "pickup_change"
-            ? "Abholzeit-Anfrage abgelehnt"
-            : "Betreuungszeit-Anfrage abgelehnt",
-      );
+      onDecided(decisionNotice(row, approve));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const code = err instanceof CareRequestApiError ? err.code : undefined;
