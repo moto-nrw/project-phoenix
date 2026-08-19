@@ -1,4 +1,4 @@
-package enrollment
+package enrollment_test
 
 import (
 	"context"
@@ -14,12 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -29,11 +31,13 @@ import (
 // the HTTP responses of the assembled router.
 
 type takeoverLockEnv struct {
-	db      *bun.DB
-	router  http.Handler
-	phaseID int64
-	token   string
-	request *enrollmentService.SubmitResult
+	db       *bun.DB
+	router   http.Handler
+	tenantID int64
+	phaseID  int64
+	token    string
+	request  *enrollmentService.SubmitResult
+	students []*usersModels.Student
 }
 
 // stubTakeoverSettings answers the enrollment settings the public status and
@@ -87,12 +91,20 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	t.Helper()
 	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
-	ctx := testpkg.TenantContext(1)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
 	repos := repositories.NewFactory(db)
 	settings := stubTakeoverSettings{}
 
-	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Takeover", "Tester")
+	account := testpkg.CreateTestAccount(t, db, "takeover-lock")
+	person := &usersModels.Person{
+		FirstName: "Takeover",
+		LastName:  "Tester",
+		AccountID: &account.ID,
+	}
+	person.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().Model(person).ModelTableExpr("users.persons").Scan(ctx))
 	schemaSvc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:   repos.FormSchema,
 		Logger: slog.Default(),
@@ -111,7 +123,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		FormSchemaID:     &schema.ID,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	phase.SetTenantID(1)
+	phase.SetTenantID(tenantID)
 	require.NoError(t, repos.Phase.Create(ctx, phase))
 
 	requestSvc := enrollmentService.NewRequestService(enrollmentService.RequestServiceConfig{
@@ -155,14 +167,13 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 		Logger:                   slog.Default(),
 	})
 
-	resource := &Resource{
-		RequestService:       requestSvc,
-		ChangeRequestService: changeRequestSvc,
-		db:                   db,
-	}
+	resource := enrollmentAPI.NewResource(
+		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
+		nil, nil, nil, nil, db,
+	)
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          tenantID,
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
@@ -192,22 +203,28 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 	require.Len(t, submitted.Children, 2)
 
 	env := &takeoverLockEnv{
-		db:      db,
-		router:  resource.Router(),
-		phaseID: phase.ID,
-		token:   submitted.Request.StatusToken,
-		request: submitted,
+		db:       db,
+		router:   resource.Router(),
+		tenantID: tenantID,
+		phaseID:  phase.ID,
+		token:    submitted.Request.StatusToken,
+		request:  submitted,
 	}
 	cleanup := func() {
 		bg := context.Background()
 		for _, table := range []string{
 			"enrollment.submission_rate_limits",
 		} {
-			_, _ = db.NewDelete().TableExpr(table).Where("tenant_id = ?", 1).Exec(bg)
+			_, _ = db.NewDelete().TableExpr(table).Where("tenant_id = ?", tenantID).Exec(bg)
 		}
 		_, _ = db.NewDelete().TableExpr("enrollment.requests").Where("phase_id = ?", phase.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("id = ?", phase.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", account.ID).Exec(bg)
+		for _, student := range env.students {
+			_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
+			_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", student.PersonID).Exec(bg)
+		}
+		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", person.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
 		_ = db.Close()
 	}
@@ -218,13 +235,14 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 // and linked to a real student row.
 func (env *takeoverLockEnv) takeOver(t *testing.T, childID int64, firstName string) {
 	t.Helper()
-	student := testpkg.CreateTestStudent(t, env.db, firstName, "Beispiel", "1a")
+	student := testpkg.CreateTestStudentForTenant(t, env.db, env.tenantID, firstName, "Beispiel", "1a")
+	env.students = append(env.students, student)
 	_, err := env.db.NewUpdate().
 		TableExpr("enrollment.request_children").
 		Set("status = ?", enrollmentModels.ChildStatusApproved).
 		Set("created_student_id = ?", student.ID).
 		Where("id = ?", childID).
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.TenantContext(env.tenantID))
 	require.NoError(t, err)
 }
 

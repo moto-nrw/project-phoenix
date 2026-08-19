@@ -2306,7 +2306,16 @@ describe("EnrollmentForm", () => {
     const draft = editDraft([
       { id: "c-1", first_name: "Anton", last_name: "Alster" },
     ]);
-    draft.children[0]!.locked = true;
+    const lockedChild = draft.children[0]!;
+    lockedChild.locked = true;
+    // This offering and answer are deliberately absent from the current
+    // catalog/schema. A read-only child must still travel back exactly as
+    // bootstrapped while its sibling is edited.
+    lockedChild.offering_ids = ["12", "99"];
+    lockedChild.offering_days = [
+      { offering_id: "99", selected_days: ["fri", "mon"] },
+    ];
+    lockedChild.custom_data = { retired_field: "keep me" };
 
     renderForm({
       submitter,
@@ -2325,6 +2334,9 @@ describe("EnrollmentForm", () => {
       last_name: "Alster",
       date_of_birth: "2018-04-15",
       target_grade_level: 2,
+      custom_data: { retired_field: "keep me" },
+      offering_ids: [12, 99],
+      offering_days: [{ offering_id: 99, selected_days: ["fri", "mon"] }],
     });
   });
 

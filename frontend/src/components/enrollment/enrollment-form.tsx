@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { useTenant } from "~/lib/tenant-context";
 import deMessages from "~/i18n/messages/de.json";
@@ -121,6 +122,12 @@ interface ChildDraft {
    * request that touches this child.
    */
   locked?: boolean;
+  /**
+   * The bootstrap wire representation of a taken-over child. It bypasses
+   * normal form serialization so catalog changes cannot turn an unchanged,
+   * read-only child into a rejected change request.
+   */
+  lockedPayload?: SubmitChildPayload;
 }
 
 // GuardianDraft is one ADDITIONAL guardian (co-guardian) the parent can
@@ -1157,6 +1164,7 @@ export function EnrollmentForm({
     // selections for parent_choice offerings are guaranteed present by the
     // validation above, so this only builds data (no further checks).
     const payloadChildren: SubmitChildPayload[] = children.map((c) => {
+      if (c.lockedPayload) return c.lockedPayload;
       const childOfferings = availableCareOfferings(
         offerings,
         c.target_grade_level,
@@ -1739,6 +1747,7 @@ export function EnrollmentForm({
                 child={child}
                 offerings={offerings}
                 collectGradeLevel={collectGradeLevel}
+                activeLocale={activeLocale}
                 tr={tr}
               />
             );
@@ -2349,11 +2358,13 @@ function LockedChildCard({
   child,
   offerings,
   collectGradeLevel,
+  activeLocale,
   tr,
 }: {
   readonly child: ChildDraft;
   readonly offerings: readonly PublicCareOffering[];
   readonly collectGradeLevel: boolean;
+  readonly activeLocale: string;
   readonly tr: EnrollmentFormTranslator;
 }) {
   const name = `${child.first_name} ${child.last_name}`.trim();
@@ -2361,47 +2372,35 @@ function LockedChildCard({
     .filter((offering) => child.offering_ids.has(offering.id))
     .map((offering) => offering.name);
   return (
-    <div className="space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-3 sm:p-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-          {name || tr("structured.child")}
-        </h3>
-        <StatusBadge label={tr("locked.badge")} tone="green" />
-      </div>
-      <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-semibold text-gray-500">
-            {tr("locked.birthday")}
-          </dt>
-          <dd className="text-gray-900">
-            {child.date_of_birth ? formatDate(child.date_of_birth) : "-"}
-          </dd>
-        </div>
-        {collectGradeLevel && child.target_grade_level ? (
-          <div>
-            <dt className="text-xs font-semibold text-gray-500">
-              {tr("locked.grade")}
-            </dt>
-            <dd className="text-gray-900">
-              {tr("fields.grade", { grade: child.target_grade_level })}
-            </dd>
-          </div>
-        ) : null}
-        <div className="sm:col-span-2">
-          <dt className="text-xs font-semibold text-gray-500">
-            {tr("locked.care")}
-          </dt>
-          <dd className="text-gray-900">
-            {booked.length > 0 ? booked.join(", ") : tr("locked.noCare")}
-          </dd>
-        </div>
-      </dl>
+    <InfoCard
+      title={name || tr("structured.child")}
+      icon={<Lock className="h-5 w-5 text-gray-600" aria-hidden="true" />}
+    >
+      <StatusBadge label={tr("locked.badge")} tone="green" />
+      <InfoItem
+        label={tr("locked.birthday")}
+        value={
+          child.date_of_birth
+            ? formatDate(child.date_of_birth, false, activeLocale)
+            : "-"
+        }
+      />
+      {collectGradeLevel && child.target_grade_level ? (
+        <InfoItem
+          label={tr("locked.grade")}
+          value={tr("fields.grade", { grade: child.target_grade_level })}
+        />
+      ) : null}
+      <InfoItem
+        label={tr("locked.care")}
+        value={booked.length > 0 ? booked.join(", ") : tr("locked.noCare")}
+      />
       <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
         {tr("locked.hint", { name: name || tr("structured.child") })}
         <br />
         {tr("locked.noAccess")}
       </p>
-    </div>
+    </InfoCard>
   );
 }
 
@@ -2448,6 +2447,22 @@ function draftChildren(
       offering_days: offeringDays,
       custom: child.custom_data ?? {},
       locked: child.locked ?? false,
+      lockedPayload: child.locked
+        ? {
+            id: child.id,
+            first_name: child.first_name,
+            last_name: child.last_name,
+            date_of_birth: child.date_of_birth,
+            target_grade_level: child.target_grade_level,
+            target_school_class: child.target_school_class,
+            custom_data: child.custom_data,
+            offering_ids: child.offering_ids.map(Number),
+            offering_days: child.offering_days?.map((row) => ({
+              offering_id: Number(row.offering_id),
+              selected_days: row.selected_days,
+            })),
+          }
+        : undefined,
     };
   });
 }
