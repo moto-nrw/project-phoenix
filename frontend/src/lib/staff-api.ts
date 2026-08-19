@@ -727,7 +727,10 @@ interface StaffSessionBreak {
 }
 
 export interface StaffHistorySession {
-  id?: number;
+  // Backend int64, kept as its canonical decimal string (project-wide
+  // int64→string convention) so id matching never goes through a lossy
+  // Number() round trip.
+  id?: string;
   date: string;
   status?: "present" | "home_office";
   // Channel the row was created on. `app` = self-service Web/App,
@@ -747,6 +750,12 @@ export interface StaffHistorySession {
   audit_count?: number;
 }
 
+// Wire row of /time-tracking/history: identical to StaffHistorySession
+// except that the backend serializes the int64 id as a JSON number.
+type BackendStaffHistorySession = Omit<StaffHistorySession, "id"> & {
+  id?: number;
+};
+
 class StaffHistoryService {
   async getHistory(
     staffId: string,
@@ -761,9 +770,12 @@ class StaffHistoryService {
       throw new Error(`Failed to fetch staff history: ${response.statusText}`);
     }
     const json = (await response.json()) as {
-      data: { sessions: StaffHistorySession[] };
+      data: { sessions: BackendStaffHistorySession[] };
     };
-    return json.data.sessions ?? [];
+    return (json.data.sessions ?? []).map((session) => ({
+      ...session,
+      id: session.id != null ? session.id.toString() : undefined,
+    }));
   }
 }
 

@@ -39,9 +39,14 @@ func classifyServiceError(err error) render.Renderer {
 	switch {
 	case msg == "already checked in",
 		msg == "already checked out today",
-		msg == "break already active",
-		strings.HasPrefix(msg, "work session overlaps an existing block"):
+		msg == "break already active":
 		return common.ErrorConflict(err)
+
+	// The overlap message carries the dynamic conflicting interval, so the
+	// frontend cannot use it as a mapping key — the stable code drives the
+	// specific German toast instead of the generic stamp error.
+	case strings.HasPrefix(msg, "work session overlaps an existing block"):
+		return common.ErrorConflictWithCode(err, "work_session_overlap")
 
 	case msg == "no active session found",
 		msg == "no session found for today",

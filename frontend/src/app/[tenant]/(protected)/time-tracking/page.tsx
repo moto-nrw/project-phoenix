@@ -147,6 +147,13 @@ function getErrorMessage(err: unknown): string {
 function friendlyError(err: unknown, fallback: string): string {
   const msg = getErrorMessage(err);
 
+  // Stable machine codes win over the human-readable message: their text can
+  // carry dynamic content (e.g. the conflicting interval of an overlap).
+  const stableCode = /"code":"([^"]+)"/.exec(msg)?.[1];
+  if (stableCode === "work_session_overlap") {
+    return "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.";
+  }
+
   // Extract backend error from nested API error format
   const match = /"error":"([^"]+)"/.exec(msg);
   const code = match?.[1] ?? msg;
@@ -1709,19 +1716,17 @@ function OwnZeiterfassungSection({
   // (#2402), so re-deriving "the session of the day" from the date alone
   // would open an arbitrary block. `tableSession` is the table's snake_case
   // row; the edit modal needs the camelCase history entry, matched by id.
-  // Both ids are the SAME backend int64: `tableHistory[].id` is
-  // `data.id.toString()` (mapWorkSessionResponse) and `tableSession.id` is
-  // `Number(...)` of exactly that string (adaptHistorySessionForMetrics), so
-  // String() here reproduces the original canonical decimal and the find()
-  // always hits.
+  // Both ids are the SAME backend int64 kept as a string end to end
+  // (mapWorkSessionResponse / adaptHistorySessionForMetrics), so the find()
+  // compares canonical decimals with no lossy Number() round trip.
   const handleEdit = (
     date: Date,
-    tableSession: { id?: number } | null = null,
+    tableSession: { id?: string } | null = null,
   ) => {
     const dateKey = toISODate(date);
     const session =
       tableSession?.id != null
-        ? (tableHistory.find((h) => h.id === String(tableSession.id)) ?? null)
+        ? (tableHistory.find((h) => h.id === tableSession.id) ?? null)
         : null;
     const absence =
       tableAbsences.find(

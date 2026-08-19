@@ -565,7 +565,7 @@ export function adaptHistorySessionForMetrics(
   session: WorkSessionHistory,
 ): StaffHistorySession {
   return {
-    id: session.id ? Number(session.id) : undefined,
+    id: session.id || undefined,
     date: session.date,
     status: session.status,
     source: session.source,

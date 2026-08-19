@@ -797,7 +797,7 @@ function SessionEditHistory({
   fetchEdits,
 }: {
   readonly staffId: string;
-  readonly sessionId: number | undefined;
+  readonly sessionId: string | undefined;
   readonly onEdit?: () => void;
   readonly fetchEdits?: (
     staffId: string,
@@ -816,7 +816,7 @@ function SessionEditHistory({
       fetchEdits ??
       ((sid: string, sess: string) =>
         staffSessionEditsService.getEdits(sid, sess));
-    load(staffId, String(sessionId))
+    load(staffId, sessionId)
       .then((result) => {
         if (!cancelled) setEdits(result);
       })

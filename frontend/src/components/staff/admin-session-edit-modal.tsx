@@ -120,7 +120,7 @@ export function AdminSessionEditModal({
       const checkInISO = combineDateAndTime(date, checkIn);
       const checkOutISO = combineDateAndTime(date, checkOut);
       if (mode === "edit" && session?.id != null) {
-        await staffSessionService.updateSession(staffId, String(session.id), {
+        await staffSessionService.updateSession(staffId, session.id, {
           date: dateISO,
           check_in_time: checkInISO,
           check_out_time: checkOutISO,
@@ -148,7 +148,15 @@ export function AdminSessionEditModal({
         session_id: session?.id ?? null,
         error: msg,
       });
-      setError(msg || "Speichern fehlgeschlagen.");
+      // The overlap 409 carries a stable code (#2402); its message holds the
+      // dynamic conflicting interval and is not user-presentable as-is.
+      if (msg.includes('"code":"work_session_overlap"')) {
+        setError(
+          "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+        );
+      } else {
+        setError(msg || "Speichern fehlgeschlagen.");
+      }
     } finally {
       setIsSaving(false);
     }

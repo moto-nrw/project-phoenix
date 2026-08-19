@@ -602,6 +602,13 @@ func TestCheckIn_OverlapConflict(t *testing.T) {
 
 	rs.checkIn(w, r)
 	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "work_session_overlap", resp.Code,
+		"overlap conflicts carry a stable code — the message holds the dynamic interval")
 }
 
 func TestCheckIn_PlannedStartNotReached(t *testing.T) {

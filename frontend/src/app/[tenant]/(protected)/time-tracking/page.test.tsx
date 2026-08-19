@@ -4108,6 +4108,38 @@ describe("TimeTrackingPage", () => {
   // ── Additional error mapping coverage ─────────────────────────────────
 
   describe("additional friendlyError mappings", () => {
+    it("maps the stable work_session_overlap code over the dynamic message", async () => {
+      const mockToast = {
+        success: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warning: vi.fn(),
+        remove: vi.fn(),
+      };
+      vi.mocked(useToast).mockReturnValue(mockToast);
+      setupDefaultMocks();
+      // The message carries the conflicting interval — only the code is a
+      // usable mapping key.
+      vi.mocked(timeTrackingService.checkIn).mockRejectedValue(
+        new Error(
+          '{"status":"error","error":"work session overlaps an existing block (08:00–12:00)","code":"work_session_overlap"}',
+        ),
+      );
+      render(<TimeTrackingPage />);
+
+      selectPresentMode();
+
+      await act(async () => {
+        fireEvent.click(screen.getByLabelText("Einstempeln"));
+      });
+
+      await waitFor(() => {
+        expect(mockToast.error).toHaveBeenCalledWith(
+          "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+        );
+      });
+    });
+
     it("maps 'no session found for today' error", async () => {
       const mockToast = {
         success: vi.fn(),

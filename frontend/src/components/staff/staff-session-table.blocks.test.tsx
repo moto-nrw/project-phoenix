@@ -28,7 +28,7 @@ const to = new Date(2026, 0, 5);
 const today = new Date(2026, 5, 15);
 
 const morningHomeOffice: StaffHistorySession = {
-  id: 41,
+  id: "41",
   date: "2026-01-05",
   status: "home_office",
   source: "app",
@@ -39,7 +39,7 @@ const morningHomeOffice: StaffHistorySession = {
 };
 
 const afternoonOgs: StaffHistorySession = {
-  id: 42,
+  id: "42",
   date: "2026-01-05",
   status: "present",
   source: "nfc",
@@ -142,7 +142,7 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
       StaffHistorySession | null,
       unknown,
     ];
-    expect(session?.id).toBe(42);
+    expect(session?.id).toBe("42");
   });
 
   it("bietet auf einem Mehrblock-Tag das Nachtragen eines weiteren Blocks an", () => {

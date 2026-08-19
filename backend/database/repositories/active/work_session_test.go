@@ -146,9 +146,10 @@ func TestWorkSessionRepository_SecondOpenBlockPerDayIsRejected(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).WorkSession
-	ctx := testpkg.TenantContext(1)
+	scope := testpkg.NewTenantScope(t, db)
+	ctx := scope.Context()
 
-	staff := testpkg.CreateTestStaff(t, db, "Open", "Blocks")
+	staff := testpkg.CreateTestStaffForTenant(t, db, scope.TenantID, "Open", "Blocks")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	today := timezone.TodayDate()

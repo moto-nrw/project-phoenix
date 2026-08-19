@@ -34,7 +34,7 @@ const to = new Date(2026, 0, 11);
 const today = new Date(2026, 5, 15);
 
 const mondaySession: StaffHistorySession = {
-  id: 41,
+  id: "41",
   date: "2026-01-05",
   net_minutes: 180,
   check_in_time: "2026-01-05T09:00:00Z",
@@ -277,7 +277,7 @@ describe("StaffSessionTable Wochenendtage", () => {
   ]);
 
   const weekendSession: StaffHistorySession = {
-    id: 42,
+    id: "42",
     date: saturday,
     net_minutes: 180,
     check_in_time: `${saturday}T09:00:00Z`,

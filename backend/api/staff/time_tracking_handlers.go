@@ -390,7 +390,9 @@ func classifyAdminEditError(err error) render.Renderer {
 		strings.Contains(msg, "does not belong"):
 		return common.ErrorNotFound(err)
 	case strings.Contains(msg, "work session overlaps an existing block"):
-		return common.ErrorConflict(err)
+		// Same stable code as the self-service route: the message carries the
+		// dynamic conflicting interval and is unusable as a mapping key.
+		return common.ErrorConflictWithCode(err, "work_session_overlap")
 	default:
 		return common.ErrorInternalServer(err)
 	}
