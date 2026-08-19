@@ -58,9 +58,14 @@ func init() {
 //  2. The per-tenant unique color index means the Schulhof was silently
 //     squatting on #7ED321 for every other room in the school.
 //
-// Scoped to the canonical Schulhof room name so a normal room that happens
-// to carry the same hex — legitimately picked while the Schulhof was
-// invisible to the uniqueness check on other tenants — is left alone.
+// Scoped to the canonical Schulhof room name AND is_system, so a normal room
+// that happens to carry the same hex — legitimately picked while the Schulhof
+// was invisible to the uniqueness check on other tenants — is left alone, and
+// so is a room an admin named "Schulhof" without the bootstrap ever touching
+// it. Every auto-provisioned yard carries the flag: the provisioning path
+// sets it on create (services/facilities/schulhof_service.go) and 1.15.168
+// backfilled the pre-existing rows, which is the same pair of conditions the
+// runtime code guards on (facility_service.UpdateRoom, the yard color lookup).
 //
 // The original values go into audit.room_color_migration_backup, same table
 // and same shape as 1.15.45 / 1.15.272.
@@ -89,13 +94,15 @@ func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
 	// clear see the same set even under a concurrent writer. LOWER() on the
 	// color because rooms written before the model started upper-casing on
 	// write may still hold lower-case hexes; the name comparison stays
-	// exact-case, mirroring constants.IsSchulhofRoomName.
+	// exact-case, mirroring constants.IsSchulhofRoomName. is_system keeps a
+	// hand-created room called "Schulhof" out of the set.
 	backupRes, err := db.NewRaw(`
 		INSERT INTO audit.room_color_migration_backup
 			(room_id, tenant_id, name, color)
 		SELECT id, tenant_id, name, color
 		FROM facilities.rooms
 		WHERE name = ?
+		  AND is_system = TRUE
 		  AND color IS NOT NULL
 		  AND LOWER(color) = ?;
 	`, constants.SchulhofRoomName, strings.ToLower(schulhofAutoProvisionedHex)).Exec(ctx)
@@ -110,6 +117,7 @@ func schulhofRoomColorClearDefaultUp(ctx context.Context, db *bun.DB) error {
 		UPDATE facilities.rooms
 		SET color = NULL
 		WHERE name = ?
+		  AND is_system = TRUE
 		  AND color IS NOT NULL
 		  AND LOWER(color) = ?;
 	`, constants.SchulhofRoomName, strings.ToLower(schulhofAutoProvisionedHex)).Exec(ctx)

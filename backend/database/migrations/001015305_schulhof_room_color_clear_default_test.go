@@ -21,14 +21,21 @@ import (
 // predicate, and Room.Validate would reject some of the staged hexes.
 func insertRoomWithExactColor(t *testing.T, db *bun.DB, tenantID int64, name string, color *string) int64 {
 	t.Helper()
+	return insertRoomWithExactColorAndFlag(t, db, tenantID, name, color, true)
+}
+
+// insertRoomWithExactColorAndFlag additionally controls is_system, which the
+// migration's predicate depends on.
+func insertRoomWithExactColorAndFlag(t *testing.T, db *bun.DB, tenantID int64, name string, color *string, isSystem bool) int64 {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	var id int64
 	err := db.NewRaw(`
 		INSERT INTO facilities.rooms (tenant_id, name, color, is_system)
-		VALUES (?, ?, ?, TRUE)
+		VALUES (?, ?, ?, ?)
 		RETURNING id;
-	`, tenantID, name, color).Scan(ctx, &id)
+	`, tenantID, name, color, isSystem).Scan(ctx, &id)
 	require.NoError(t, err, "insert room %q", name)
 	return id
 }
@@ -73,6 +80,15 @@ func TestSchulhofRoomColorClearDefault(t *testing.T) {
 	adminChosen := insertRoomWithExactColor(t, db, adminTenantID, "Schulhof", &adminPicked)
 	// A colorless room is already in the target state.
 	colorless := insertRoomWithExactColor(t, db, adminTenantID, "Werkraum", nil)
+	// A room an admin named "Schulhof" by hand is not the auto-provisioned
+	// yard — no bootstrap ever stamped a color on it, so its hex is a
+	// deliberate choice and the migration must not touch it. Own tenant
+	// again: name and color are both unique per tenant.
+	handNamedTenantID, _ := testpkg.CreateTestTenant(t, db)
+	defer testpkg.CleanupTenantTestData(t, db, handNamedTenantID)
+	handNamedYard := insertRoomWithExactColorAndFlag(
+		t, db, handNamedTenantID, "Schulhof", &autoProvisioned, false,
+	)
 
 	require.NoError(t, schulhofRoomColorClearDefaultUp(ctx, db))
 
@@ -89,6 +105,10 @@ func TestSchulhofRoomColorClearDefault(t *testing.T) {
 			"an admin-chosen Schulhof color must survive the migration")
 	}
 	assert.Nil(t, roomColor(t, db, colorless))
+	if color := roomColor(t, db, handNamedYard); assert.NotNil(t, color) {
+		assert.Equal(t, autoProvisioned, *color,
+			"a non-system room named Schulhof keeps its administrator-picked color")
+	}
 
 	// The originals are recoverable.
 	var backedUp int
