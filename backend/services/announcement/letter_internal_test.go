@@ -22,6 +22,7 @@ type letterRepo struct {
 	usersModels.ParentAnnouncementRepository
 	announcement *usersModels.ParentAnnouncement
 	recipients   []*usersModels.AnnouncementDeliveryRecipient
+	children     []*usersModels.AnnouncementLetterChildStatus
 }
 
 func (r *letterRepo) FindByID(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) {
@@ -81,6 +82,7 @@ func (o *letterOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string,
 
 type letterDeliveries struct {
 	rows     []*platformModels.EmailDelivery
+	list     []*platformModels.EmailDeliveryStatus
 	replaced int
 	deleted  int
 }
@@ -99,7 +101,7 @@ func (d *letterDeliveries) DeleteForEntity(_ context.Context, _ int64, _ string,
 }
 
 func (d *letterDeliveries) ListForEntity(_ context.Context, _ int64, _ string, _ int64) ([]*platformModels.EmailDeliveryStatus, error) {
-	return nil, nil
+	return d.list, nil
 }
 
 func contact(profileID int64, accountID *int64, email string, portal bool) *usersModels.AnnouncementDeliveryRecipient {
@@ -357,5 +359,103 @@ func TestLetterIdempotencyKeyChangesWithPublication(t *testing.T) {
 	a.PublishedAt = &second
 	if keyA == letterIdempotencyKey(a, "mama@example.test") {
 		t.Error("a republication must produce a new key so the correction is delivered")
+	}
+}
+
+// --- PR 3: Statusmatrix -------------------------------------------------------
+
+func (r *letterRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementLetterChildStatus, error) {
+	return r.children, nil
+}
+
+func ackedChild(id int64, name string, at *time.Time, by string) *usersModels.AnnouncementLetterChildStatus {
+	c := &usersModels.AnnouncementLetterChildStatus{
+		StudentID: id, FirstName: name, LastName: "Kind", SchoolClass: "2a",
+		AcknowledgedAt: at,
+	}
+	if at != nil {
+		c.AckFirstName = by
+		c.AckLastName = "Nach"
+	}
+	return c
+}
+
+// The summary is what a school reads first, so ChildrenOpen has to be the number
+// they can act on — not "recipients who did not click".
+func TestLetterStatusSummaryCountsChildrenNotRecipients(t *testing.T) {
+	now := time.Date(2026, 8, 19, 9, 0, 0, 0, time.UTC)
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
+		children: []*usersModels.AnnouncementLetterChildStatus{
+			ackedChild(1, "Anna", &now, "Mama"),
+			ackedChild(2, "Ben", nil, ""),
+			ackedChild(3, "Cem", nil, ""),
+		},
+	}
+	deliveries := &letterDeliveries{}
+	svc := newLetterService(repo, &letterOutbox{}, deliveries)
+
+	status, err := svc.LetterStatus(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("LetterStatus: %v", err)
+	}
+	if status.Summary.ChildrenTotal != 3 {
+		t.Errorf("ChildrenTotal = %d, want 3", status.Summary.ChildrenTotal)
+	}
+	if status.Summary.ChildrenFulfilled != 1 {
+		t.Errorf("ChildrenFulfilled = %d, want 1", status.Summary.ChildrenFulfilled)
+	}
+	if status.Summary.ChildrenOpen != 2 {
+		t.Errorf("ChildrenOpen = %d, want 2 — that is who the school follows up with",
+			status.Summary.ChildrenOpen)
+	}
+	if !status.Children[0].Fulfilled() || status.Children[0].AckFirstName != "Mama" {
+		t.Error("a fulfilled child must name who confirmed it")
+	}
+}
+
+// E-mail state and moto state are different facts. A person can be counted as
+// "no portal access" and still have a delivered mail — collapsing the two is the
+// failure this separation exists to prevent.
+func TestLetterStatusReportsBothChannelsSeparately(t *testing.T) {
+	sent := "sent"
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
+	}
+	deliveries := &letterDeliveries{list: []*platformModels.EmailDeliveryStatus{
+		{FirstName: "Mama", EmailStatus: sent, Reachability: platformModels.ReachabilityOK},
+		{FirstName: "Opa", EmailStatus: sent, Reachability: platformModels.ReachabilityNoPortal},
+		{FirstName: "Oma", EmailStatus: platformModels.ReachabilityNoEmail, Reachability: platformModels.ReachabilityNoEmail},
+		{FirstName: "Papa", EmailStatus: "failed", Reachability: platformModels.ReachabilityOK},
+	}}
+	svc := newLetterService(repo, &letterOutbox{}, deliveries)
+
+	status, err := svc.LetterStatus(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("LetterStatus: %v", err)
+	}
+	if status.Summary.EmailsSent != 2 {
+		t.Errorf("EmailsSent = %d, want 2", status.Summary.EmailsSent)
+	}
+	if status.Summary.EmailsFailed != 1 {
+		t.Errorf("EmailsFailed = %d, want 1", status.Summary.EmailsFailed)
+	}
+	if status.Summary.WithoutPortal != 1 {
+		t.Errorf("WithoutPortal = %d, want 1", status.Summary.WithoutPortal)
+	}
+	if status.Summary.WithoutEmail != 1 {
+		t.Errorf("WithoutEmail = %d, want 1", status.Summary.WithoutEmail)
+	}
+	// The person without portal access still got their mail.
+	if status.Recipients[1].EmailStatus != sent {
+		t.Error("a guardian without portal access must still report their real e-mail status")
+	}
+}
+
+func TestLetterStatusNotFound(t *testing.T) {
+	repo := &letterRepo{announcement: nil}
+	svc := newLetterService(repo, &letterOutbox{}, &letterDeliveries{})
+	if _, err := svc.LetterStatus(context.Background(), 42); err != ErrNotFound {
+		t.Fatalf("error = %v, want ErrNotFound", err)
 	}
 }

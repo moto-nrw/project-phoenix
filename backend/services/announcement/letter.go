@@ -261,3 +261,81 @@ func letterIdempotencyKey(a *usersModels.ParentAnnouncement, address string) str
 	}
 	return fmt.Sprintf("parent_announcement:%d:%d:%s", a.ID, stamp, address)
 }
+
+// LetterStatus is the staff-facing answer to "ist der Brief angekommen": one row
+// per addressed person with the two channels reported separately, one row per
+// child with the derived fulfilment, and the counts that drive the summary.
+type LetterStatus struct {
+	Recipients []*platformModels.EmailDeliveryStatus        `json:"recipients"`
+	Children   []*usersModels.AnnouncementLetterChildStatus `json:"children"`
+	Summary    LetterSummary                                `json:"summary"`
+}
+
+// LetterSummary counts what a school actually acts on. ChildrenOpen is the
+// number that matters: those are the families to follow up with.
+type LetterSummary struct {
+	ChildrenTotal     int `json:"children_total"`
+	ChildrenFulfilled int `json:"children_fulfilled"`
+	ChildrenOpen      int `json:"children_open"`
+	RecipientsTotal   int `json:"recipients_total"`
+	EmailsSent        int `json:"emails_sent"`
+	EmailsPending     int `json:"emails_pending"`
+	EmailsFailed      int `json:"emails_failed"`
+	WithoutEmail      int `json:"without_email"`
+	WithoutPortal     int `json:"without_portal"`
+}
+
+// LetterStatus assembles the recipient matrix and the per-child fulfilment.
+//
+// Both halves are resolved live rather than snapshotted at publish time, which
+// is deliberate: a guardian who gains portal access after the letter went out
+// should be able to confirm it, and the school should see that.
+func (s *service) LetterStatus(ctx context.Context, id int64) (*LetterStatus, error) {
+	a, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: load for letter status: %w", err)
+	}
+	if a == nil {
+		return nil, ErrNotFound
+	}
+	tenantID := a.GetTenantID()
+
+	children, err := s.repo.LetterChildStatuses(ctx, tenantID, id)
+	if err != nil {
+		return nil, fmt.Errorf("announcement: letter child statuses: %w", err)
+	}
+	var recipients []*platformModels.EmailDeliveryStatus
+	if s.deliveries != nil {
+		recipients, err = s.deliveries.ListForEntity(ctx, tenantID, relatedEntityTypeAnnouncement, id)
+		if err != nil {
+			return nil, fmt.Errorf("announcement: letter recipients: %w", err)
+		}
+	}
+
+	out := &LetterStatus{Recipients: recipients, Children: children}
+	out.Summary.ChildrenTotal = len(children)
+	out.Summary.RecipientsTotal = len(recipients)
+	for _, c := range children {
+		if c.Fulfilled() {
+			out.Summary.ChildrenFulfilled++
+		}
+	}
+	out.Summary.ChildrenOpen = out.Summary.ChildrenTotal - out.Summary.ChildrenFulfilled
+	for _, r := range recipients {
+		switch r.EmailStatus {
+		case "sent":
+			out.Summary.EmailsSent++
+		case "pending":
+			out.Summary.EmailsPending++
+		case "failed":
+			out.Summary.EmailsFailed++
+		}
+		switch r.Reachability {
+		case platformModels.ReachabilityNoEmail:
+			out.Summary.WithoutEmail++
+		case platformModels.ReachabilityNoPortal:
+			out.Summary.WithoutPortal++
+		}
+	}
+	return out, nil
+}

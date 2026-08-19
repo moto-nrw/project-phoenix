@@ -378,6 +378,31 @@ type AnnouncementDeliveryRecipient struct {
 	PortalLocale      string `bun:"portal_locale"`
 }
 
+// AnnouncementLetterChildStatus is one reached child in the Elternbrief view:
+// is the letter fulfilled for this child, and if so, who confirmed it and when.
+//
+// Fulfilment is DERIVED, never stored (#2384). A child counts as fulfilled when
+// any guardian with parent_portal.access on that child has acknowledged the
+// announcement. Because acknowledgement is recorded per ACCOUNT, one
+// confirmation automatically covers every addressed sibling of that guardian —
+// the rule falls out of the existing model instead of needing a second table.
+//
+// AcknowledgedAt nil means still open. The named person is the FIRST to confirm:
+// once the letter is fulfilled, who got there first is the answer to "wer hat
+// für dieses Kind bestätigt".
+type AnnouncementLetterChildStatus struct {
+	StudentID      int64      `bun:"student_id" json:"student_id"`
+	FirstName      string     `bun:"first_name" json:"first_name"`
+	LastName       string     `bun:"last_name" json:"last_name"`
+	SchoolClass    string     `bun:"school_class" json:"school_class"`
+	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
+	AckFirstName   string     `bun:"ack_first_name" json:"ack_first_name,omitempty"`
+	AckLastName    string     `bun:"ack_last_name" json:"ack_last_name,omitempty"`
+}
+
+// Fulfilled reports whether someone has confirmed the letter for this child.
+func (c *AnnouncementLetterChildStatus) Fulfilled() bool { return c.AcknowledgedAt != nil }
+
 // AnnouncementRecipientStatus is one guardian account in an announcement's
 // live audience together with that account's read/ack state — the staff-facing
 // "wer hat gelesen/bestätigt" list behind the reach counts. Resolved live, so
@@ -473,6 +498,12 @@ type ParentAnnouncementRepository interface {
 	// non-empty e-mail) an announcement currently reaches, for the publish-time
 	// e-mail notification.
 	ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementRecipient, error)
+	// LetterChildStatuses returns every child the announcement reaches with the
+	// derived fulfilment state: who confirmed the letter for that child and when,
+	// or nil while it is still open. The audience is the same portal-visible one
+	// the poll view uses, so a child nobody can reach in moto is visible rather
+	// than silently missing.
+	LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*AnnouncementLetterChildStatus, error)
 	// ResolveDeliveryRecipients returns EVERY guardian linked to a child the
 	// announcement's student-based targets reach — including those without an
 	// address and those without portal access — so the recipient matrix can show

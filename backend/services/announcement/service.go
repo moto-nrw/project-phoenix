@@ -135,6 +135,11 @@ type Service interface {
 	// RemindUnanswered notifies the guardians of children that have not answered
 	// yet and reports how many were reached.
 	RemindUnanswered(ctx context.Context, id int64) (int, error)
+
+	// --- Elternbrief (#2384) ---
+	// LetterStatus returns the recipient matrix (e-mail and moto status per
+	// person) plus the per-child fulfilment behind it.
+	LetterStatus(ctx context.Context, id int64) (*LetterStatus, error)
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are

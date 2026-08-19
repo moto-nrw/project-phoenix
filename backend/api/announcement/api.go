@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -64,6 +65,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(announce, withTx).Get("/{announcementId}/poll-results", rs.pollResults)
 		r.With(announce, withTx).Get("/{announcementId}/poll-children", rs.pollChildren)
 		r.With(announce, withTx).Post("/{announcementId}/remind", rs.remindUnanswered)
+		// Elternbrief (#2384): the recipient matrix — e-mail and moto status per
+		// person, plus which children the letter is already fulfilled for.
+		r.With(announce, withTx).Get("/{announcementId}/letter-status", rs.letterStatus)
 	})
 
 	return r
@@ -410,6 +414,83 @@ type pollChildResponse struct {
 	AnswerLabels []string   `json:"answer_labels"`
 	RespondedAt  *time.Time `json:"responded_at,omitempty"`
 	CanAnswer    bool       `json:"can_answer"`
+}
+
+// letterRecipientResponse is one addressed person. The two channels are reported
+// SEPARATELY on purpose: "die E-Mail ist raus" and "jemand hat in moto
+// bestätigt" are different facts, and collapsing them into one status is exactly
+// what would let a school believe a letter arrived when it did not.
+//
+// email_status "sent" means handed to the mail server — the UI must label it
+// "Versendet", never "Zugestellt", until provider delivery events exist (#1937).
+type letterRecipientResponse struct {
+	FirstName    string     `json:"first_name"`
+	LastName     string     `json:"last_name"`
+	Email        *string    `json:"email,omitempty"`
+	EmailStatus  string     `json:"email_status"`
+	Reachability string     `json:"reachability"`
+	LastError    *string    `json:"last_error,omitempty"`
+	SentAt       *time.Time `json:"sent_at,omitempty"`
+}
+
+// letterChildResponse is one reached child with the derived fulfilment.
+type letterChildResponse struct {
+	StudentID      string     `json:"student_id"`
+	FirstName      string     `json:"first_name"`
+	LastName       string     `json:"last_name"`
+	SchoolClass    string     `json:"school_class"`
+	Fulfilled      bool       `json:"fulfilled"`
+	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
+	AcknowledgedBy string     `json:"acknowledged_by,omitempty"`
+}
+
+type letterStatusResponse struct {
+	Recipients []letterRecipientResponse         `json:"recipients"`
+	Children   []letterChildResponse             `json:"children"`
+	Summary    announcementService.LetterSummary `json:"summary"`
+}
+
+func (rs *Resource) letterStatus(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseAnnouncementID(w, r)
+	if !ok {
+		return
+	}
+	status, err := rs.Service.LetterStatus(r.Context(), id)
+	if err != nil {
+		renderAnnouncementError(w, r, err)
+		return
+	}
+	out := letterStatusResponse{
+		Recipients: make([]letterRecipientResponse, 0, len(status.Recipients)),
+		Children:   make([]letterChildResponse, 0, len(status.Children)),
+		Summary:    status.Summary,
+	}
+	for _, rcpt := range status.Recipients {
+		out.Recipients = append(out.Recipients, letterRecipientResponse{
+			FirstName:    rcpt.FirstName,
+			LastName:     rcpt.LastName,
+			Email:        rcpt.RecipientEmail,
+			EmailStatus:  rcpt.EmailStatus,
+			Reachability: rcpt.Reachability,
+			LastError:    rcpt.LastError,
+			SentAt:       rcpt.SentAt,
+		})
+	}
+	for _, child := range status.Children {
+		item := letterChildResponse{
+			StudentID:      strconv.FormatInt(child.StudentID, 10),
+			FirstName:      child.FirstName,
+			LastName:       child.LastName,
+			SchoolClass:    child.SchoolClass,
+			Fulfilled:      child.Fulfilled(),
+			AcknowledgedAt: child.AcknowledgedAt,
+		}
+		if item.Fulfilled {
+			item.AcknowledgedBy = strings.TrimSpace(child.AckFirstName + " " + child.AckLastName)
+		}
+		out.Children = append(out.Children, item)
+	}
+	common.Respond(w, r, http.StatusOK, out, "Letter status retrieved")
 }
 
 func (rs *Resource) pollResults(w http.ResponseWriter, r *http.Request) {

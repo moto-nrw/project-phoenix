@@ -578,6 +578,57 @@ func (r *ParentAnnouncementRepository) ResolveAudienceEmails(ctx context.Context
 	return rows, nil
 }
 
+// LetterChildStatuses returns every reached child with the DERIVED fulfilment
+// state of an Elternbrief (#2384): who confirmed it for that child and when.
+//
+// The audience is the same portal-visible student set the poll view uses, so a
+// child nobody can currently reach in moto stays visible instead of silently
+// disappearing from the count.
+//
+// The LATERAL picks the FIRST acknowledgement, ordered by time: once the letter
+// is fulfilled, "wer hat für dieses Kind bestätigt" means whoever got there
+// first. It joins through students_guardians with parent_portal.access, so a
+// guardian who acknowledged the announcement for a DIFFERENT child cannot
+// accidentally fulfil this one.
+//
+// Nothing here is stored: because acknowledgement lives on the account, one
+// confirmation covers every addressed sibling of that guardian automatically.
+func (r *ParentAnnouncementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementLetterChildStatus, error) {
+	audience := pollAudienceStudentsSQL("?", "?", "")
+	args := audienceStudentArgs(announcementID, tenantID, nil)
+	sqlStr := `WITH audience AS (` + audience + `)
+		SELECT s.id AS student_id,
+			COALESCE(p.first_name, '') AS first_name,
+			COALESCE(p.last_name, '')  AS last_name,
+			COALESCE(s.school_class, '') AS school_class,
+			ack.acknowledged_at AS acknowledged_at,
+			COALESCE(ack.first_name, '') AS ack_first_name,
+			COALESCE(ack.last_name, '')  AS ack_last_name
+		FROM audience
+		JOIN users.students s ON s.id = audience.student_id
+		JOIN users.persons p ON p.id = s.person_id
+		LEFT JOIN LATERAL (
+			SELECT par.acknowledged_at, gp.first_name, gp.last_name
+			FROM users.students_guardians sg
+			JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id
+				AND gp.tenant_id = ? AND gp.account_id IS NOT NULL
+			JOIN users.parent_announcement_reads par ON par.announcement_id = ?
+				AND par.tenant_id = ? AND par.account_id = gp.account_id
+			WHERE sg.student_id = s.id AND sg.tenant_id = ?
+				AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+				AND par.acknowledged_at IS NOT NULL
+			ORDER BY par.acknowledged_at ASC
+			LIMIT 1
+		) ack ON TRUE
+		ORDER BY last_name ASC, first_name ASC, student_id ASC`
+	sqlArgs := append(append([]any{}, args...), tenantID, announcementID, tenantID, tenantID)
+	var rows []*users.AnnouncementLetterChildStatus
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr, sqlArgs...).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "parent announcement letter child statuses", Err: err}
+	}
+	return rows, nil
+}
+
 // ResolveDeliveryRecipients returns every guardian linked to a child the
 // announcement's student-based targets reach, with no portal-access filter —
 // the input for the per-recipient delivery rows behind the staff matrix (#2384).

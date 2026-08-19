@@ -118,6 +118,13 @@ func (m *mockRepo) ResolveAudienceEmails(ctx context.Context, tenantID, announce
 	return m.resolveEmailsFn(ctx, tenantID, announcementID)
 }
 
+// LetterChildStatuses satisfies the same interface extension. These tests never
+// drive an Elternbrief, so an empty result is correct rather than a stub that
+// could mask a wrong call path.
+func (m *mockRepo) LetterChildStatuses(_ context.Context, _, _ int64) ([]*usersModels.AnnouncementLetterChildStatus, error) {
+	return nil, nil
+}
+
 // ResolveDeliveryRecipients satisfies the interface extension from #2384. These
 // tests drive plain Mitteilungen, which never take the tracked delivery path, so
 // an empty result is the correct answer rather than a stub that could mask a
