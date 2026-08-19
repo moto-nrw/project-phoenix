@@ -138,10 +138,11 @@ func (rs *Resource) listMasterDataChangeRequestHistory(w http.ResponseWriter, r 
 	common.Respond(w, r, http.StatusOK, out, "Change request history retrieved")
 }
 
-// CareRequestHistoryResponse is one decided care-schedule request. Unlike the
-// queue projection it carries no "current → requested" diff — current data has
-// moved on since the decision — only the payload-derived requested summary
-// (each entry's old side is empty).
+// CareRequestHistoryResponse is one decided care-schedule request. It never
+// carries a recomputed live diff — current data has moved on since the
+// decision. Diff replays the frozen decision snapshot (ADR 0002, #2430);
+// rows without one (withdrawn, pre-snapshot) fall back to the payload-derived
+// requested summary (each entry's old side is empty).
 type CareRequestHistoryResponse struct {
 	ID             string                    `json:"id"`
 	StudentID      string                    `json:"student_id"`
@@ -150,6 +151,7 @@ type CareRequestHistoryResponse struct {
 	Status         string                    `json:"status"`
 	RequestKind    string                    `json:"request_kind"`
 	Requested      []CareRequestDiffResponse `json:"requested"`
+	Diff           []CareRequestDiffResponse `json:"diff,omitempty"`
 	DecisionReason *string                   `json:"decision_reason,omitempty"`
 	CreatedAt      time.Time                 `json:"created_at"`
 	DecidedAt      time.Time                 `json:"decided_at"`
@@ -160,15 +162,10 @@ type CareRequestHistoryResponse struct {
 // by the per-type history route and the aggregated list, #2432).
 func toCareRequestHistoryResponse(item *scheduleService.CareRequestHistoryItem) CareRequestHistoryResponse {
 	req := item.Request
-	requested := make([]CareRequestDiffResponse, 0, len(item.Requested))
-	for _, e := range item.Requested {
-		requested = append(requested, CareRequestDiffResponse{
-			Label:    e.Label,
-			New:      e.New,
-			Weekday:  e.Weekday,
-			CareKind: e.CareKind,
-			NewMode:  e.NewMode,
-		})
+	requested := toCareRequestDiffResponses(item.Requested)
+	var diff []CareRequestDiffResponse
+	if len(item.Diff) > 0 {
+		diff = toCareRequestDiffResponses(item.Diff)
 	}
 	return CareRequestHistoryResponse{
 		ID:             strconv.FormatInt(req.ID, 10),
@@ -178,6 +175,7 @@ func toCareRequestHistoryResponse(item *scheduleService.CareRequestHistoryItem) 
 		Status:         req.Status,
 		RequestKind:    req.RequestKind,
 		Requested:      requested,
+		Diff:           diff,
 		DecisionReason: req.DecisionReason,
 		CreatedAt:      req.CreatedAt,
 		DecidedAt:      historyDecidedAt(req.ReviewedAt, req.UpdatedAt),

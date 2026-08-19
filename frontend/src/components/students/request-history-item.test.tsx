@@ -92,6 +92,47 @@ describe("RequestHistoryItem", () => {
     ).toBeInTheDocument();
   });
 
+  it("zeigt bei Betreuungszeiten den eingefrorenen alt → neu Diff statt der Beantragt-Liste", () => {
+    const item: AggregatedHistoryRequest = {
+      request_type: "care_schedule",
+      data: {
+        id: "care-1",
+        student_id: "42",
+        first_name: "Lara",
+        last_name: "Lehmann",
+        status: "approved",
+        request_kind: "weekly_schedule",
+        requested: [
+          {
+            label: "Montag · Abholzeit",
+            old: "",
+            new: "16:00",
+            care_kind: "pickup",
+          },
+        ],
+        diff: [
+          {
+            label: "Montag · Abholzeit",
+            old: "15:00",
+            new: "16:00",
+            care_kind: "pickup",
+          },
+        ],
+        created_at: "2026-08-17T09:00:00Z",
+        decided_at: "2026-08-18T10:00:00Z",
+        decided_by_name: "Rieke Reviewer",
+      },
+    };
+
+    render(<RequestHistoryItem item={item} />);
+
+    expect(screen.getByText("Änderungen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Montag · Abholzeit: 15:00 → 16:00"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Beantragt")).not.toBeInTheDocument();
+  });
+
   it("zeigt bei einer zurückgezogenen Angebots-Anfrage die gespeicherten Angebote", () => {
     const item: AggregatedHistoryRequest = {
       request_type: "offering",
