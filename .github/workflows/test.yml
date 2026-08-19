@@ -69,7 +69,7 @@ jobs:
         if: steps.db-snapshot.outputs.cache-hit == 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
           # them exactly as migration 001014001_create_tenant_roles.go does,
@@ -96,7 +96,7 @@ jobs:
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
@@ -117,8 +117,10 @@ jobs:
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
           # The route-table golden builds the production API, whose serve
-          # connection uses the role created above with this password.
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          # connection uses the role created above with this password. The
+          # value must stay identical to testdb.AuthRolePassword — the test
+          # lifecycle pins the cluster-global phoenix_auth role to it.
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
           # Dummy 32+ char secret so services.NewFactory can init the MFA
           # service in tests. NewFactory hard-fails without it (the secret
           # is the HMAC key for trusted-device cookies). Production and

@@ -195,8 +195,9 @@ Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bou
 
 ### Test Database (port 5433) — self-initializing (ADR 0004)
 `go test ./...` owns the whole test-DB lifecycle: it starts `postgres-test` if
-needed, rebuilds the `phoenix_test` template when migrations changed
-(migrations-hash stamp), and clones one run-stamped database per package.
+needed, builds the template for the current migrations hash
+(`phoenix_test_<hash>` — parallel worktrees on different branches get one
+template each), and clones one run-stamped database per package.
 `scripts/test-backend.sh` is the comfort wrapper (gotestsum + sweep at the
 end); naked `go test` runs leave their clones to the next run's generation GC.
 Manual container control, if ever needed:

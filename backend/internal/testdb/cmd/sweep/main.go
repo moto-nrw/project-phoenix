@@ -38,6 +38,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "testdb sweep: %v\n", err)
 		os.Exit(1)
 	}
+	// Resolve the migration-scoped template of THIS worktree so the leftover
+	// report compares against the right template and the template GC spares it.
+	if hash, err := testdb.MigrationsHash(); err == nil {
+		cfg = cfg.ForMigrations(hash)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()

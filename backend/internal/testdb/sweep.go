@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // SweepOptions controls Sweep.
@@ -88,7 +91,79 @@ func Sweep(ctx context.Context, cfg *Config, opts SweepOptions) (*SweepResult, e
 	}
 	result.Dropped = append(result.Dropped, gcDropped...)
 
+	templatesDropped, err := gcTemplatesLocked(ctx, conn, cfg, time.Now())
+	if err != nil {
+		return result, err
+	}
+	result.Dropped = append(result.Dropped, templatesDropped...)
+
 	return result, nil
+}
+
+// gcTemplatesLocked drops migration-scoped templates (<base>_<hash>) that
+// were not used for templateMaxIdleAge. The current run's template is spared
+// because EnsureTemplate stamped it with "now" minutes ago, and a template
+// being cloned from right now cannot be dropped at all: every CREATE
+// DATABASE ... TEMPLATE runs under the same lifecycle lock this function
+// holds. Unstamped databases are left alone — they carry no last-used
+// timestamp, and EnsureTemplate rebuilds them when their hash comes back.
+// Callers must hold the lifecycle lock.
+func gcTemplatesLocked(ctx context.Context, maint sqlExecutor, cfg *Config, now time.Time) ([]string, error) {
+	prefix := cfg.BaseTemplateName() + "_"
+	rows, err := maint.QueryContext(ctx, `
+		SELECT d.datname, COALESCE(sd.description, '')
+		FROM pg_database d
+		LEFT JOIN pg_shdescription sd ON sd.objoid = d.oid AND sd.classoid = 'pg_database'::regclass
+		WHERE LEFT(d.datname, char_length($1)) = $1`, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("list test database templates: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var stale []string
+	for rows.Next() {
+		var name, comment string
+		if err := rows.Scan(&name, &comment); err != nil {
+			return nil, fmt.Errorf("scan template name: %w", err)
+		}
+		if name == cfg.TemplateName() {
+			continue
+		}
+		touched, ok := touchedAt(comment)
+		if !ok || now.Sub(touched) < templateMaxIdleAge {
+			continue
+		}
+		stale = append(stale, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list test database templates: %w", err)
+	}
+
+	var dropped []string
+	for _, name := range stale {
+		if err := dropDatabase(ctx, maint, name); err != nil {
+			return dropped, fmt.Errorf("drop stale template %q: %w", name, err)
+		}
+		dropped = append(dropped, name)
+	}
+	return dropped, nil
+}
+
+// touchedAt reads the last-used timestamp out of a template comment
+// ("phx-migrations-hash:<hash> touched:<unix>").
+func touchedAt(comment string) (time.Time, bool) {
+	if !strings.HasPrefix(comment, hashCommentPrefix) {
+		return time.Time{}, false
+	}
+	idx := strings.Index(comment, touchedCommentKey)
+	if idx < 0 {
+		return time.Time{}, false
+	}
+	unix, err := strconv.ParseInt(comment[idx+len(touchedCommentKey):], 10, 64)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return time.Unix(unix, 0), true
 }
 
 func listDatabasesByPrefix(ctx context.Context, maint sqlExecutor, prefix string) ([]string, error) {

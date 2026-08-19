@@ -23,10 +23,14 @@ const (
 	ClonePrefix = "phx_test_pkg_"
 )
 
-// Config derives every DSN the lifecycle needs from TEST_DB_DSN, which points
-// at the template database (conventionally phoenix_test).
+// Config derives every DSN the lifecycle needs from TEST_DB_DSN, whose
+// database name (conventionally phoenix_test) is the BASE of the template
+// name. The effective template is migration-scoped — see ForMigrations.
 type Config struct {
 	templateURL *url.URL
+	// templateName is the effective template database name. Empty means the
+	// base name from TEST_DB_DSN (an unresolved config).
+	templateName string
 }
 
 // NewConfig parses the TEST_DB_DSN pointing at the template database.
@@ -38,14 +42,36 @@ func NewConfig(dsn string) (*Config, error) {
 	return &Config{templateURL: parsed}, nil
 }
 
-// TemplateName returns the template database name (e.g. phoenix_test).
-func (c *Config) TemplateName() string {
+// BaseTemplateName returns the database name from TEST_DB_DSN (e.g.
+// phoenix_test). It is the prefix every migration-scoped template shares.
+func (c *Config) BaseTemplateName() string {
 	return databaseNameFromURL(c.templateURL)
 }
 
-// TemplateDSN returns the DSN of the template database.
+// TemplateName returns the effective template database name: the
+// migration-scoped one once the config was resolved via ForMigrations,
+// otherwise the base name from TEST_DB_DSN.
+func (c *Config) TemplateName() string {
+	if c.templateName != "" {
+		return c.templateName
+	}
+	return c.BaseTemplateName()
+}
+
+// TemplateDSN returns the DSN of the effective template database.
 func (c *Config) TemplateDSN() string {
-	return c.templateURL.String()
+	return c.DatabaseDSN(c.TemplateName())
+}
+
+// ForMigrations returns a copy of c whose template database is scoped to the
+// given migrations hash (<base>_<12 hex>). Two worktrees on different
+// migration states therefore build two templates side by side instead of
+// tearing each other's down.
+func (c *Config) ForMigrations(hash string) *Config {
+	return &Config{
+		templateURL:  c.templateURL,
+		templateName: templateNameForHash(c.BaseTemplateName(), hash),
+	}
 }
 
 // MaintenanceDSN returns the DSN of the `postgres` maintenance database on

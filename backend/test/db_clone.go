@@ -59,6 +59,14 @@ func initPackageTestDB() error {
 		_ = gotenv.Load(filepath.Join(projectRoot, ".env"))
 	}
 
+	// The phoenix_auth role is cluster-global on the shared test server, so
+	// the lifecycle pins its password to one branch-independent test value
+	// (#2419). Tests that connect as that role (route-table golden) must use
+	// the same value, not whatever this worktree's .env carries.
+	if err := os.Setenv("PHOENIX_AUTH_PASSWORD", testdb.AuthRolePassword); err != nil {
+		return err
+	}
+
 	viper.AutomaticEnv()
 
 	dsn := os.Getenv("TEST_DB_DSN")
@@ -84,10 +92,11 @@ automatically. For CI, set TEST_DB_DSN as an environment variable`)
 	if err := testdb.EnsureServer(ctx, cfg); err != nil {
 		return err
 	}
-	if err := testdb.EnsureTemplate(ctx, cfg); err != nil {
+	templateCfg, err := testdb.EnsureTemplate(ctx, cfg)
+	if err != nil {
 		return err
 	}
-	clone, err := testdb.CreateClone(ctx, cfg, testdb.RunID())
+	clone, err := testdb.CreateClone(ctx, templateCfg, testdb.RunID())
 	if err != nil {
 		return err
 	}
