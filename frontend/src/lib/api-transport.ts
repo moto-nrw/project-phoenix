@@ -43,13 +43,13 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${session.user.token}`;
         logger.debug("token injected in request", {
           method: config.method?.toUpperCase(),
-          url: config.url,
+          url: sanitizeEndpoint(config.url ?? ""),
           has_token: true,
         });
       } else {
         logger.debug("no token available for request", {
           method: config.method?.toUpperCase(),
-          url: config.url,
+          url: sanitizeEndpoint(config.url ?? ""),
         });
       }
     }
@@ -194,7 +194,7 @@ api.interceptors.response.use(
     if (isRefreshing) {
       logger.debug("token refresh in progress, queueing request", {
         caller_id: callerId,
-        url: originalRequest.url,
+        url: sanitizeEndpoint(originalRequest.url ?? ""),
       });
       return queueRequestForRefresh(originalRequest, callerId);
     }
