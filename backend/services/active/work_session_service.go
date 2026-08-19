@@ -197,9 +197,11 @@ type WorkSessionService interface {
 	//
 	// Since #2402 a day can carry several blocks: checking in again after a
 	// checkout creates a NEW session with its own check-in, checkout and
-	// status instead of reopening the closed one. At most one block per day
-	// may be open at a time ("already checked in" otherwise), enforced both
-	// here and by the partial unique index uq_work_sessions_staff_date_open.
+	// status instead of reopening the closed one. At most one block may be
+	// open at a time ("already checked in" otherwise) — the guard spans every
+	// day, so a block that crossed Berlin midnight blocks a new one until it
+	// is closed. Per day the partial unique index
+	// uq_work_sessions_staff_date_open enforces the same.
 	//
 	// `reason` is the F9 deviation reason. It is only consulted when the
 	// tenant setting operations.time_tracking_require_deviation_reason is
@@ -216,8 +218,9 @@ type WorkSessionService interface {
 	// instead of re-deriving "today" from the server clock. A caller whose
 	// request straddles Berlin midnight (a kiosk stamp at 23:59:59) would
 	// otherwise look up a day the session was never written on and fail with
-	// "no active session found". The day-less forms above delegate here with
-	// the current day and keep their behaviour.
+	// "no active session found". The break variants above delegate here with
+	// the current day and keep their behaviour; CheckIn and CheckOut resolve
+	// the running block across days and ignore the pin.
 	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error)
 	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*activeModels.WorkSession, error)
 	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
@@ -235,6 +238,10 @@ type WorkSessionService interface {
 	// staff member, typically because that staff member forgot to stamp.
 	// Notes are required to preserve the audit trail's "Verlässlichkeit".
 	CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, req AdminCreateSessionRequest) (*activeModels.WorkSession, error)
+	// GetCurrentSession only sees a session that is open AND dated today. Use
+	// it only where "today" is the actual question — asking it whether the
+	// person is clocked in gives the wrong answer for a block that crossed
+	// Berlin midnight; GetLatestOpenSession answers that one.
 	GetCurrentSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	// GetLatestOpenSession is GetCurrentSession without the "today" filter: it
 	// finds a session that is still running even when it was opened on an
@@ -432,18 +439,16 @@ func (s *workSessionService) now() time.Time {
 // Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
 func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
-	return s.checkIn(ctx, staffID, timezone.DateFromTime(s.now()), status, source, reason, true)
+	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
-// CheckInOn resolves the open session of an explicit calendar day instead of
-// deriving that day from the server clock: a kiosk that pinned its day before
-// stamping must see the running block it resolved, and its day-pinned reads
-// have to keep seeing it.
-//
-// The pin covers the lookup only. A session that is newly created is filed on
-// the day its own stamp falls on — see checkIn.
-func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
-	return s.checkIn(ctx, staffID, day, status, source, reason, true)
+// CheckInOn is the day-pinned entry point of the kiosk, kept symmetric with
+// CheckOutOn. The pinned day no longer selects anything: the open-block guard
+// in checkIn scans every day (a block opened before Berlin midnight is still
+// open after it), and a session that is created fresh is filed on the day its
+// own stamp falls on — see checkIn.
+func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ timezone.Date, status, source, reason string) (*activeModels.WorkSession, error) {
+	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
 // checkIn is the shared body behind CheckIn and EnsureCheckedIn.
@@ -453,13 +458,11 @@ func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, day t
 // way to collect a reason, and refusing the stamp would leave a supervisor
 // row without a matching work session.
 //
-// `lookupDay` selects the session this call acts on; it may have been resolved
-// by the caller before the request reached here. A session that is created
-// fresh is filed on the day of its own check_in_time instead: storing a
+// A session is always filed on the day of its own check_in_time: storing a
 // pre-midnight day next to a post-midnight stamp would misfile the session in
 // the daily history, in shift and deviation lookups, and in every total built
 // from the date column.
-func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupDay timezone.Date, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
+func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
@@ -473,31 +476,26 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 	now := s.now()
 	stampDay := timezone.DateFromTime(now)
 
-	// A still-open block on the pinned day means the person is already
-	// clocked in (night shift the caller is right to act on). A CLOSED block
-	// on a stale pinned day is finished business — the new block belongs to
-	// the stamp's own day, which is checked below.
-	if lookupDay != stampDay {
-		openSession, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, lookupDay)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("failed to check existing session: %w", err)
-		}
-		if openSession != nil {
-			return nil, fmt.Errorf("already checked in")
-		}
+	// An open block anywhere means the person is clocked in — the lookup is
+	// deliberately NOT limited to the stamp's day. A block opened before
+	// Berlin midnight is still running after it; starting a second one there
+	// would leave two open blocks, and the checkout (which closes exactly
+	// one) would then report a different day's work than the totals do.
+	// The still-open block has to be closed first.
+	openSession, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("failed to check existing session: %w", err)
+	}
+	if openSession != nil {
+		return nil, fmt.Errorf("already checked in")
 	}
 
 	// Since #2402 a day carries a LIST of blocks. Closed blocks never block a
 	// new check-in — checking in again after a checkout starts a new block
-	// with its own status. Only an open block does.
+	// with its own status.
 	existingBlocks, err := s.repo.ListByStaffAndDate(ctx, staffID, stampDay)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing sessions: %w", err)
-	}
-	for _, block := range existingBlocks {
-		if block.IsActive() {
-			return nil, fmt.Errorf("already checked in")
-		}
 	}
 
 	// A closed block can still reach past "now" (an admin Nachtrag for the
@@ -609,9 +607,19 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	return nil
 }
 
-// CheckOut ends the current work session for the staff member
+// CheckOut ends the running work session of the staff member, whichever day it
+// was opened on. Resolving the day from the clock instead would strand a block
+// that crossed Berlin midnight: check-in refuses while it is open, so a
+// today-only checkout would leave no way to close it.
 func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
-	return s.CheckOutOn(ctx, staffID, timezone.TodayDate(), reason)
+	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf(errGetCurrentSession, err)
+	}
+	if open == nil {
+		return nil, errors.New(errNoActiveSession)
+	}
+	return s.CheckOutOn(ctx, staffID, open.Date, reason)
 }
 
 // CheckOutOn ends the open session of an explicit calendar day.
@@ -2125,8 +2133,10 @@ func (s *workSessionService) endActiveBreak(ctx context.Context, sessionID int64
 // EnsureCheckedIn ensures a staff member is checked in, creating a session if needed.
 // `source` is forwarded to CheckIn so the channel is recorded faithfully.
 func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
-	// Check if already checked in
-	currentSession, err := s.repo.GetCurrentByStaffID(ctx, staffID)
+	// Check if already checked in. Across all days, like the check-in guard:
+	// a block that crossed Berlin midnight is still running, and starting a
+	// supervision must return it instead of running into "already checked in".
+	currentSession, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("failed to check current session: %w", err)
 	}
@@ -2154,7 +2164,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// The F9 deviation gate is bypassed: this auto-stamp fires because the
 	// staff member started a supervision, and that flow cannot collect a
 	// reason (see checkIn).
-	return s.checkIn(ctx, staffID, today, activeModels.WorkSessionStatusPresent, source, "", false)
+	return s.checkIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source, "", false)
 }
 
 // German weekday names for export

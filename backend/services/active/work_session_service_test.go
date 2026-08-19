@@ -27,22 +27,27 @@ import (
 // ============================================================================
 
 type wsMockWorkSessionRepository struct {
-	lockBalanceWritesFunc    func(ctx context.Context, staffID int64) error
-	createFunc               func(ctx context.Context, entity *activeModels.WorkSession) error
-	findByIDFunc             func(ctx context.Context, id any) (*activeModels.WorkSession, error)
-	updateFunc               func(ctx context.Context, entity *activeModels.WorkSession) error
-	deleteFunc               func(ctx context.Context, id any) error
-	listFunc                 func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
-	listByStaffAndDateFunc   func(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error)
-	getCurrentByStaffIDFunc  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getCurrentForUpdateFunc  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	lockOpenByIDFunc         func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
-	getHistoryByStaffIDFunc  func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
-	getHistoryByStaffIDsFunc func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error)
-	getOpenSessionsFunc      func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
-	getTodayPresenceMapFunc  func(ctx context.Context) (map[int64]string, error)
-	closeSessionFunc         func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
-	updateBreakMinutesFunc   func(ctx context.Context, id int64, breakMinutes int) error
+	lockBalanceWritesFunc   func(ctx context.Context, staffID int64) error
+	createFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
+	findByIDFunc            func(ctx context.Context, id any) (*activeModels.WorkSession, error)
+	updateFunc              func(ctx context.Context, entity *activeModels.WorkSession) error
+	deleteFunc              func(ctx context.Context, id any) error
+	listFunc                func(ctx context.Context, options *base.QueryOptions) ([]*activeModels.WorkSession, error)
+	listByStaffAndDateFunc  func(ctx context.Context, staffID int64, date timezone.Date) ([]*activeModels.WorkSession, error)
+	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// Only set by tests that need the two lookups to differ, i.e. an open
+	// block that lives on a day other than the one being read. Unset, the
+	// day-independent lookup answers like the today-scoped one.
+	getLatestOpenByStaffIDFunc func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getOpenByStaffAndDateFunc  func(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error)
+	getCurrentForUpdateFunc    func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	lockOpenByIDFunc           func(ctx context.Context, id int64) (*activeModels.WorkSession, error)
+	getHistoryByStaffIDFunc    func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	getHistoryByStaffIDsFunc   func(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*activeModels.WorkSession, error)
+	getOpenSessionsFunc        func(ctx context.Context, beforeDate timezone.Date) ([]*activeModels.WorkSession, error)
+	getTodayPresenceMapFunc    func(ctx context.Context) (map[int64]string, error)
+	closeSessionFunc           func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
+	updateBreakMinutesFunc     func(ctx context.Context, id int64, breakMinutes int) error
 }
 
 func (m *wsMockWorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
@@ -101,11 +106,17 @@ func (m *wsMockWorkSessionRepository) GetCurrentByStaffID(ctx context.Context, s
 	return nil, sql.ErrNoRows
 }
 
-func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, _ timezone.Date) (*activeModels.WorkSession, error) {
+func (m *wsMockWorkSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*activeModels.WorkSession, error) {
+	if m.getOpenByStaffAndDateFunc != nil {
+		return m.getOpenByStaffAndDateFunc(ctx, staffID, date)
+	}
 	return m.GetCurrentByStaffID(ctx, staffID)
 }
 
 func (m *wsMockWorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	if m.getLatestOpenByStaffIDFunc != nil {
+		return m.getLatestOpenByStaffIDFunc(ctx, staffID)
+	}
 	return m.GetCurrentByStaffID(ctx, staffID)
 }
 
@@ -913,18 +924,112 @@ func TestWSCheckIn_RejectsEmptyStatus(t *testing.T) {
 func TestWSCheckIn_AlreadyCheckedIn(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 
+	open := &activeModels.WorkSession{
+		Model:       base.Model{ID: 1},
+		StaffID:     100,
+		CheckInTime: time.Now().Add(-2 * time.Hour),
+	}
+	// The open block is visible in both reads the service does — the day list
+	// and the "is anything running" lookup — like it would be in the database.
+	sessionRepo.getCurrentByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return open, nil
+	}
 	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
-		return []*activeModels.WorkSession{{
-			Model:       base.Model{ID: 1},
-			StaffID:     100,
-			CheckInTime: time.Now().Add(-2 * time.Hour),
-		}}, nil
+		return []*activeModels.WorkSession{open}, nil
 	}
 
 	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "already checked in")
+}
+
+// A block that was opened before Berlin midnight is still running after it.
+// Opening a second one there would leave two open blocks: the checkout closes
+// exactly one, so the running block and the day totals would drift apart. The
+// guard therefore looks for an open block on ANY day, not just the stamp's.
+func TestWSCheckIn_OpenBlockOfAnEarlierDayBlocksNewOne(t *testing.T) {
+	yesterday := timezone.NewDate(2026, 7, 21)
+	stampedAt := time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return stampedAt }
+
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 77},
+			StaffID:     100,
+			Date:        yesterday,
+			Status:      activeModels.WorkSessionStatusPresent,
+			Source:      activeModels.WorkSessionSourceNFC,
+			CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+		}, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a second block must not be created while another one is still open")
+		return nil
+	}
+
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Contains(t, err.Error(), "already checked in")
+}
+
+// The counterpart of the guard above: the check-out has to reach the block
+// that is actually running, otherwise a block that crossed midnight could
+// neither be closed nor followed by a new one.
+func TestWSCheckOut_ClosesBlockOpenedOnAnEarlierDay(t *testing.T) {
+	yesterday := timezone.NewDate(2026, 7, 21)
+	svc, sessionRepo, breakRepo, _, supervisorRepo := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin) }
+
+	open := &activeModels.WorkSession{
+		Model:       base.Model{ID: 77},
+		StaffID:     100,
+		Date:        yesterday,
+		Status:      activeModels.WorkSessionStatusPresent,
+		Source:      activeModels.WorkSessionSourceNFC,
+		CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+	}
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return open, nil
+	}
+	var lookedUpDays []timezone.Date
+	sessionRepo.getOpenByStaffAndDateFunc = func(_ context.Context, _ int64, day timezone.Date) (*activeModels.WorkSession, error) {
+		lookedUpDays = append(lookedUpDays, day)
+		if day == yesterday {
+			return open, nil
+		}
+		return nil, sql.ErrNoRows
+	}
+	breakRepo.getActiveBySessionIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSessionBreak, error) {
+		return nil, nil
+	}
+	var closedID int64
+	sessionRepo.closeSessionFunc = func(_ context.Context, id int64, _ time.Time, _ bool) (bool, error) {
+		closedID = id
+		return true, nil
+	}
+	supervisorRepo.endAllActiveByStaffIDFunc = func(_ context.Context, _ int64) (int, error) {
+		return 0, nil
+	}
+	checkOut := time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin)
+	sessionRepo.findByIDFunc = func(_ context.Context, id any) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:        base.Model{ID: id.(int64)},
+			StaffID:      100,
+			Date:         yesterday,
+			CheckInTime:  open.CheckInTime,
+			CheckOutTime: &checkOut,
+		}, nil
+	}
+
+	session, err := svc.CheckOut(context.Background(), 100, "")
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, open.ID, closedID, "the running block is the one that gets closed")
+	assert.Equal(t, []timezone.Date{yesterday}, lookedUpDays, "resolved on the block's own day, not on today")
 }
 
 // TestWSCheckIn_SecondBlockAfterCheckout locks in the #2402 semantics: a
@@ -2155,6 +2260,34 @@ func TestWSEnsureCheckedIn_AlreadyActive(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session)
 	assert.Equal(t, staffID, session.StaffID)
+}
+
+// Starting a supervision while a block from an earlier day is still running
+// must return that block. Looking only at today would let the auto-stamp run
+// into the check-in guard and fail the supervision start.
+func TestWSEnsureCheckedIn_ReturnsBlockOpenedOnAnEarlierDay(t *testing.T) {
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	staffID := int64(100)
+	yesterday := timezone.NewDate(2026, 7, 21)
+	svc.nowFunc = func() time.Time { return time.Date(2026, time.July, 22, 6, 0, 0, 0, timezone.Berlin) }
+
+	sessionRepo.getLatestOpenByStaffIDFunc = func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		return &activeModels.WorkSession{
+			Model:       base.Model{ID: 77},
+			StaffID:     staffID,
+			Date:        yesterday,
+			CheckInTime: time.Date(2026, time.July, 21, 22, 0, 0, 0, timezone.Berlin),
+		}, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("the running block must be reused, not doubled")
+		return nil
+	}
+
+	session, err := svc.EnsureCheckedIn(context.Background(), staffID, activeModels.WorkSessionSourceNFC)
+	require.NoError(t, err)
+	require.NotNil(t, session)
+	assert.Equal(t, int64(77), session.ID)
 }
 
 func TestWSEnsureCheckedIn_AlreadyCheckedOutToday(t *testing.T) {

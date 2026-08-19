@@ -271,8 +271,11 @@ func (rs *Resource) getCurrent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current session
-	session, err := rs.WorkSessionService.GetCurrentSession(r.Context(), staffID)
+	// The running block, whichever day it was opened on. Filtering on today
+	// would hide a block that crossed Berlin midnight: the page would offer
+	// "Einstempeln", the check-in would refuse it as already checked in, and
+	// no button would close the block that is actually running.
+	session, err := rs.WorkSessionService.GetLatestOpenSession(r.Context(), staffID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

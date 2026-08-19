@@ -35,18 +35,21 @@ import (
 // --- Mock WorkSessionService ---
 
 type mockWorkSessionService struct {
-	checkInFn            func(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
-	checkOutFn           func(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
-	startBreakFn         func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
-	endBreakFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
-	updateSessionFn      func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
-	getCurrentSessionFn  func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
-	getHistoryFn         func(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
-	getSessionEditsFn    func(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error)
-	getTodayPresenceFn   func(ctx context.Context) (map[int64]string, error)
-	exportSessionsFn     func(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*activeSvc.ExportFile, error)
-	autoEndExpiredBreaks func(ctx context.Context) (int, error)
+	checkInFn           func(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	checkOutFn          func(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
+	startBreakFn        func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
+	endBreakFn          func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getSessionBreaksFn  func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	updateSessionFn     func(ctx context.Context, staffID int64, sessionID int64, updates activeSvc.SessionUpdateRequest) (*activeModels.WorkSession, error)
+	getCurrentSessionFn func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	// Set only where the two lookups must differ: an open block that lives on
+	// a day other than today.
+	getLatestOpenSessionFn func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	getHistoryFn           func(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error)
+	getSessionEditsFn      func(ctx context.Context, staffID, sessionID int64) ([]*activeSvc.WorkSessionEditView, error)
+	getTodayPresenceFn     func(ctx context.Context) (map[int64]string, error)
+	exportSessionsFn       func(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*activeSvc.ExportFile, error)
+	autoEndExpiredBreaks   func(ctx context.Context) (int, error)
 }
 
 func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
@@ -107,6 +110,9 @@ func (m *mockWorkSessionService) GetCurrentSession(ctx context.Context, staffID 
 	return nil, nil
 }
 func (m *mockWorkSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+	if m.getLatestOpenSessionFn != nil {
+		return m.getLatestOpenSessionFn(ctx, staffID)
+	}
 	return m.GetCurrentSession(ctx, staffID)
 }
 func (m *mockWorkSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*activeSvc.HistoryResponse, error) {
@@ -726,6 +732,34 @@ func TestGetCurrent_Success(t *testing.T) {
 
 	rs.getCurrent(w, r)
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// A block that was opened before Berlin midnight is still the running one.
+// The endpoint has to report it: the page decides from this response whether
+// it offers "Einstempeln" or "Ausstempeln", and check-in refuses while a block
+// is open.
+func TestGetCurrent_ReturnsBlockOpenedOnAnEarlierDay(t *testing.T) {
+	wsSvc := &mockWorkSessionService{
+		getCurrentSessionFn: func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+			t.Fatal("the today-scoped lookup would hide a block that crossed midnight")
+			return nil, nil
+		},
+		getLatestOpenSessionFn: func(_ context.Context, staffID int64) (*activeModels.WorkSession, error) {
+			assert.Equal(t, int64(100), staffID)
+			ws := &activeModels.WorkSession{Status: "present", Date: timezone.NewDate(2026, 7, 21)}
+			ws.ID = 9
+			return ws, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/current", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.getCurrent(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"2026-07-21"`)
 }
 
 func TestGetCurrent_NoSession(t *testing.T) {
