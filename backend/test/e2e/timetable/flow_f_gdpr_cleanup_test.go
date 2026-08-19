@@ -26,6 +26,8 @@ import (
 //     rows untouched, audit.data_deletions row per affected student.
 //   - Re-run (idempotency): zero deletions.
 func TestFlowF_GDPRCleanup(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 

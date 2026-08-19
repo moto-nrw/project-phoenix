@@ -16,6 +16,8 @@ import (
 )
 
 func TestSetupTestDBUsesPackageClone(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
 
 	var currentDB string
@@ -49,6 +51,8 @@ func TestSetupTestDBAllowsParallelTests(t *testing.T) {
 }
 
 func TestNewTenantScopeCreatesTenantAndContext(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
 
 	scope := NewTenantScope(t, db)

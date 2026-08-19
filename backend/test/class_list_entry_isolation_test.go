@@ -26,6 +26,8 @@ import (
 // sees only its own school's entries, on every query shape the repository
 // offers, including a point lookup by a foreign primary key.
 func TestClassListEntryTenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
 
 	tenantA := UniqueTestTenantID(t)
@@ -76,6 +78,8 @@ func TestClassListEntryTenantIsolation(t *testing.T) {
 // direction: a row stamped with another school's tenant_id must be refused by
 // the policy's WITH CHECK instead of silently landing in the foreign school.
 func TestClassListEntryForeignTenantWriteRejected(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
 
 	tenantA := UniqueTestTenantID(t)

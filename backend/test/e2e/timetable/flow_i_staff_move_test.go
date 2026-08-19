@@ -20,6 +20,8 @@ import (
 )
 
 func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 	s.extraCleanup = append(s.extraCleanup, func() {

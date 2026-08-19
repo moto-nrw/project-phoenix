@@ -90,6 +90,9 @@ type calendarListE2EResponse struct {
 	} `json:"data"`
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, router := setupCalendarE2ERouter(t, db)
@@ -150,6 +153,9 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 
 // TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS drives the full lifecycle
 // (create → edit → .ics export → cancel → delete) through the real router.
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, router := setupCalendarE2ERouter(t, db)
@@ -229,6 +235,9 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 
 // TestPersonalCalendarHTTPFlow_ForbiddenEdit confirms a non-organizer cannot
 // edit or delete someone else's appointment through the HTTP layer.
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	_, router := setupCalendarE2ERouter(t, db)

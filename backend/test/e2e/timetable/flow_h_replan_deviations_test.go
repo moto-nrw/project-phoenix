@@ -25,6 +25,8 @@ import (
 // template values — exactly ONE instance, no stale duplicate — and the absence
 // and acknowledgement must be reapplied onto it.
 func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 
@@ -117,6 +119,8 @@ func TestFlowH_ReplanReappliesAbsenceAndAckAcrossTemplateEdit(t *testing.T) {
 // re-plan: the absent's row is reapplied absent and the substitute row (a staff
 // not on the template) is recreated on the regenerated occurrence.
 func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 
@@ -181,6 +185,8 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 // cleared through /deviations (present again), correcting a wrongly-marked
 // employee — the row is set back to present.
 func TestFlowH_ClearPersistedAbsence(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 

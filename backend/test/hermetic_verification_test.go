@@ -142,6 +142,24 @@ func TestHermeticTestPatterns(t *testing.T) {
 		}
 	})
 
+	t.Run("tests_run_in_parallel", func(t *testing.T) {
+		violations := checkSerialTestRatchet(t, backendRoot)
+		if len(violations) > 0 {
+			t.Errorf("Serial-test ratchet violated (per-package counts may only shrink):\n\n%s\n\n"+
+				"Since #2419 every test runs in its own tenant inside a per-package\n"+
+				"database clone, so tests are parallel by default:\n\n"+
+				"  func TestSomething(t *testing.T) {\n"+
+				"      t.Parallel()\n"+
+				"      db := testpkg.SetupTestDB(t)\n\n"+
+				"A test that genuinely cannot (it writes process-global state, changes\n"+
+				"the schema, measures a query budget, or exercises a sweep that runs\n"+
+				"across tenants) stays serial WITH a comment above it saying which of\n"+
+				"those it is — and raises nothing: lower another entry in\n"+
+				"serialTestBaseline first, or fix the reason instead.",
+				strings.Join(violations, "\n"))
+		}
+	})
+
 	t.Run("no_broken_cleanup_model_pattern", func(t *testing.T) {
 		violations := checkBrokenCleanupPattern(t, backendRoot)
 		if len(violations) > 0 {
@@ -609,7 +627,11 @@ func countMatchesPerPackage(root string, re *regexp.Regexp, testOnly bool) (map[
 		if err != nil {
 			return nil
 		}
-		if n := len(re.FindAll(content, -1)); n > 0 {
+		// Comments do not count: a line explaining a pattern is not the
+		// pattern. Without this the ratchets grow every time someone writes
+		// down why something is the way it is.
+		code := []byte(stripLineComments(string(content)))
+		if n := len(re.FindAll(code, -1)); n > 0 {
 			counts[filepath.ToSlash(filepath.Dir(rel))] += n
 		}
 		return nil
@@ -692,16 +714,48 @@ func checkBootstrapTenantRatchet(t *testing.T, root string) []string {
 }
 
 // parallelBootstrapTenantBaseline is the shrink-only per-package count of test
-// FILES that run parallel tests against the fixed bootstrap tenant. The
-// per-test-tenant migration emptied it: no file combines the two any more, and
-// the empty map means any new one fails the gate.
-var parallelBootstrapTenantBaseline = map[string]int{}
+// FILES that run parallel tests against the fixed bootstrap tenant.
+//
+// The per-test-tenant migration emptied it of real cases; the five files left
+// are the same residue tenantContext1Baseline explains, and none of them
+// WRITES into the shared tenant: api/testutil feeds the bootstrap ID in as the
+// input whose rebase it pins, auth/jwt cannot reach a per-test tenant at all
+// (test imports auth/jwt), and services/auth, services/calendar and tenant
+// match on in-memory structs that never reach the database. Anything new here
+// is a real one.
+var parallelBootstrapTenantBaseline = map[string]int{
+	"api/testutil":      1,
+	"auth/jwt":          1,
+	"services/auth":     1,
+	"services/calendar": 1,
+	"tenant":            1,
+}
 
 // globalStateMutation matches the process-global writes that make a test
 // unsafe to run beside another: viper keys, environment variables, the
 // default logger, the working directory.
+// Each entry was found by a test that failed once the suite went parallel:
+// the settings registry (a package-level map every settings test reads),
+// os.Stdout/os.Stderr reassignment (how the cmd tests capture output), and
+// os.Unsetenv (the other half of os.Setenv).
 var globalStateMutation = regexp.MustCompile(
-	`viper\.(Set|Reset)\b|t\.Setenv|os\.Setenv|log\.SetOutput|slog\.SetDefault|os\.Chdir`)
+	`viper\.(Set|SetDefault|Reset)\b|t\.Setenv|os\.(Set|Unset)env|log\.SetOutput|slog\.SetDefault` +
+		`|os\.Chdir|config\.(Register|ResetRegistry)\(|SeedTestJWTConfig\(|os\.(Stdout|Stderr)\s*=`)
+
+// stripLineComments blanks out // comments so a pattern match means code, not
+// prose about the code.
+func stripLineComments(text string) string {
+	var b strings.Builder
+	b.Grow(len(text))
+	for line := range strings.SplitSeq(text, "\n") {
+		if i := strings.Index(line, "//"); i >= 0 {
+			line = line[:i]
+		}
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
 
 // goFuncDef matches any top-level func declaration, capturing its name.
 var goFuncDef = regexp.MustCompile(`(?m)^func\s+(?:\([^)]*\)\s*)?(\w+)\s*\(`)
@@ -761,14 +815,18 @@ func checkParallelGlobalState(t *testing.T, root string) []string {
 			return nil
 		}
 		rel = filepath.ToSlash(rel)
-		if strings.HasPrefix(rel, "internal/testdb/") {
+		if strings.HasPrefix(rel, "internal/testdb/") ||
+			strings.Contains(rel, "hermetic_verification_test.go") {
 			return nil
 		}
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return nil
 		}
-		text := string(content)
+		// Comments are stripped before matching: a test that only NAMES
+		// t.Setenv (the parallel-safety guard in db_clone_test.go says why the
+		// per-test path must not call it) is not a test that calls it.
+		text := stripLineComments(string(content))
 		pkg := filepath.ToSlash(filepath.Dir(rel))
 		if pkgFuncs[pkg] == nil {
 			pkgFuncs[pkg] = make(map[string]string)
@@ -852,7 +910,8 @@ func checkParallelBootstrapTenantRatchet(t *testing.T, root string) []string {
 		if err != nil {
 			return nil
 		}
-		if bytes.Contains(content, []byte("t.Parallel()")) && bootstrapTenantPattern.Match(content) {
+		code := []byte(stripLineComments(string(content)))
+		if bytes.Contains(code, []byte("t.Parallel()")) && bootstrapTenantPattern.Match(code) {
 			counts[filepath.ToSlash(filepath.Dir(rel))]++
 		}
 		return nil
@@ -1088,4 +1147,123 @@ func checkPerTestTenantsOptIn(t *testing.T, root string) []string {
 	}
 	sort.Strings(violations)
 	return violations
+}
+
+// serialTestBaseline is the shrink-only per-package count of top-level tests
+// that do NOT call t.Parallel() (#2419 goal 4, "voll parallel"). Everything
+// else in the suite runs in parallel; what is counted here is the residue
+// that cannot, and every one of those carries a comment above the test
+// saying why.
+//
+// The reasons that survive fall into four families:
+//
+//	process-global state   viper keys, environment variables, the default
+//	                       logger, the settings registry — a test that
+//	                       writes one cannot run beside a test that reads it
+//	                       (the no_parallel_test_touching_global_state gate
+//	                       is the forward-looking half of this).
+//	schema mutation        migration tests, and the handful of tests that
+//	                       drop and restore a column: they change the clone
+//	                       every test in the binary shares.
+//	unscoped sweeps        code that queries across tenants (a deadline
+//	                       worker, a global cleanup) called from a service
+//	                       test with a plain tenant context, so RLS never
+//	                       narrows it.
+//	measurement            query-budget tests, which install a hook on the
+//	                       shared pool and count what flows through it.
+//	lock contention        the handful of tests that take a row lock in one
+//	                       transaction and expect a second one to block on
+//	                       it; beside another test that touches those rows,
+//	                       the contention becomes a deadlock.
+//
+// Counts may only go DOWN. A package not listed here must have every test
+// parallel. Lower a number when you fix the underlying reason; never raise
+// one to make a new test fit.
+var serialTestBaseline = map[string]int{
+	"api":                               20,
+	"api/active":                        2,
+	"api/auth":                          1,
+	"api/enrollment":                    1,
+	"api/guardians":                     1,
+	"api/iot":                           7,
+	"api/iot/checkin":                   14,
+	"api/operator":                      30,
+	"api/staff":                         15,
+	"api/staff-shifts":                  1,
+	"api/students":                      13,
+	"api/suggestions":                   42,
+	"api/timetable":                     2,
+	"api/work-time-models":              1,
+	"applog":                            1,
+	"auth/device":                       34,
+	"auth/jwt":                          38,
+	"cmd":                               190,
+	"database":                          8,
+	"database/migrations":               88,
+	"database/repositories/enrollment":  3,
+	"database/repositories/platform":    51,
+	"database/repositories/suggestions": 2,
+	"database/repositories/users":       1,
+	"email":                             12,
+	"integration/phoenixapi":            25,
+	"models/config":                     12,
+	"observability":                     2,
+	"seed/api":                          1,
+	"services":                          15,
+	"services/active":                   1,
+	"services/auth":                     15,
+	"services/config":                   147,
+	"services/education":                1,
+	"services/enrollment":               32,
+	"services/facilities":               1,
+	"services/iot/checkin":              38,
+	"services/platform":                 41,
+	"services/scheduler":                59,
+	"services/usercontext":              3,
+	"services/users":                    10,
+	"test/e2e/calendar":                 4,
+	"test/e2e/timetable":                3,
+}
+
+// topLevelTestDecl matches a top-level test function declaration.
+var topLevelTestDecl = regexp.MustCompile(`(?m)^func (Test\w+)\(\w+ \*testing\.T\) \{`)
+
+// checkSerialTestRatchet counts, per package, the top-level tests that do not
+// call t.Parallel().
+func checkSerialTestRatchet(t *testing.T, root string) []string {
+	t.Helper()
+
+	counts := make(map[string]int)
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if strings.HasPrefix(rel, "internal/testdb/") ||
+			strings.Contains(rel, "hermetic_verification_test.go") {
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		pkg := filepath.ToSlash(filepath.Dir(rel))
+		for _, f := range splitGoFuncs(string(content)) {
+			if !topLevelTestDecl.MatchString(f.body) {
+				continue
+			}
+			if !strings.Contains(f.body, ".Parallel()") {
+				counts[pkg]++
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Logf("Warning: error walking directory: %v", err)
+	}
+	return shrinkOnlyViolations(counts, serialTestBaseline)
 }

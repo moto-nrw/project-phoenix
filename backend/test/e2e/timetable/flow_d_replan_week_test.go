@@ -23,6 +23,8 @@ import (
 //     rows and re-materializes from templates. Active/completed/cancelled/
 //     spontaneous instances survive untouched.
 func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 

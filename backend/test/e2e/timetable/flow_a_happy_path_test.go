@@ -24,6 +24,8 @@ import (
 // check in → one student never shows → admin completes → /student/{id}/day
 // reports the right state. Tenant-isolation is verified at the end.
 func TestFlowA_PlanToReport(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 

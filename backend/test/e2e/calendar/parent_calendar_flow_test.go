@@ -71,6 +71,9 @@ type feedE2EResponse struct {
 // a staff member creates an appointment for a guardian, then the guardian views
 // it, downloads its .ics, and fetches their subscription feed URL — all through
 // the real routers with a parent-scope JWT.
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	router := setupParentE2ERouter(t, db)

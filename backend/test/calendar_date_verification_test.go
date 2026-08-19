@@ -69,6 +69,8 @@ var droppedDateColumns = map[string]string{
 var truncate24hAllowlist = map[string]string{}
 
 func TestDateColumnTypes(t *testing.T) {
+	t.Parallel()
+
 	backendRoot, err := findBackendRoot()
 	if err != nil {
 		t.Skipf("Could not find backend root: %v", err)

@@ -14,6 +14,8 @@ import (
 )
 
 func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 

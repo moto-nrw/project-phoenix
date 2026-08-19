@@ -48,6 +48,8 @@ func createBoardPost(tb testing.TB, db *bun.DB, tenantID, accountID int64, autho
 // TestParentFeedbackHiddenFromStaffBoard is the core guarantee of #1678: what a
 // guardian writes to the product team must never be readable by the school.
 func TestParentFeedbackHiddenFromStaffBoard(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
 
 	tenantID := UniqueTestTenantID(t)
@@ -117,6 +119,8 @@ func TestParentFeedbackHiddenFromStaffBoard(t *testing.T) {
 // parent-typed row written through the wrong transaction is refused by the
 // policy's WITH CHECK instead of silently landing on the school's board.
 func TestParentPostRejectedInStaffTransaction(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
 
 	tenantID := UniqueTestTenantID(t)
@@ -146,6 +150,8 @@ func TestParentPostRejectedInStaffTransaction(t *testing.T) {
 // a staff transaction for parent work would run against the wrong board, so the
 // mismatch has to fail loudly rather than degrade silently.
 func TestNestedActorMismatchRejected(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
 
 	tenantID := UniqueTestTenantID(t)

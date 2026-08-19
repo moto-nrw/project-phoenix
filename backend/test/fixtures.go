@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,6 +47,19 @@ const (
 	tableEducationGradeTransition = "education.grade_transitions"
 	testEmailFormat               = "%s-%d@test.local"
 )
+
+// fixtureSeq counts every unique-suffix request in this binary.
+var fixtureSeq int64
+
+// uniqueFixtureSuffix returns a number no two fixtures in this process share.
+// The clock alone is not enough: two parallel tests can read the same
+// nanosecond, and the collision surfaces as a duplicate-key error on an
+// unrelated unique index (idx_accounts_email was the one that found this).
+// The counter makes the value unique within the process; the timestamp keeps
+// it unique across processes sharing a database.
+func uniqueFixtureSuffix() int64 {
+	return time.Now().UnixNano() + atomic.AddInt64(&fixtureSeq, 1)
+}
 
 // cleanupDelete executes a delete query and logs any errors.
 // This provides visibility into cleanup failures without causing test failures.
@@ -118,7 +132,7 @@ func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *activit
 	tb.Helper()
 
 	// Make name unique to avoid conflicts with seeded data
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 	category := &activities.Category{
 		Name:  uniqueName,
 		Color: "#CCCCCC",
@@ -146,7 +160,7 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *activities
 	defer cancel()
 
 	// First create a category (activities.groups.category_id is required)
-	category := CreateTestActivityCategory(tb, db, fmt.Sprintf("Category-%s-%d", name, time.Now().UnixNano()))
+	category := CreateTestActivityCategory(tb, db, fmt.Sprintf("Category-%s-%d", name, uniqueFixtureSuffix()))
 
 	// Create a staff member as the creator (activities.groups.created_by is required)
 	staff := CreateTestStaff(tb, db, "Creator", name)
@@ -178,7 +192,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 	defer cancel()
 
 	// Make room name unique by appending timestamp
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
 	room := &facilities.Room{
 		Name:     uniqueName,
@@ -204,7 +218,7 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	defer cancel()
 
 	// Make device ID unique by appending timestamp if needed
-	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, time.Now().UnixNano())
+	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, uniqueFixtureSuffix())
 
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
@@ -795,7 +809,7 @@ func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *education
 	defer cancel()
 
 	// Make name unique by appending timestamp
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
 	group := &education.Group{
 		Name: uniqueName,
@@ -1278,7 +1292,7 @@ func CreateTestAccount(tb testing.TB, db *bun.DB, email string) *auth.Account {
 	defer cancel()
 
 	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 
 	account := &auth.Account{
 		Email:  uniqueEmail,
@@ -1545,7 +1559,7 @@ func CreateTestRoleForTenant(tb testing.TB, db *bun.DB, name string, tenantID in
 	defer cancel()
 
 	// Make name unique
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
 	// base_role is required by the role-create API, so every real custom role
 	// carries one; without it the role has no privilege tier and role-grant
@@ -1576,7 +1590,7 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
 	role := &auth.Role{
 		Name:        uniqueName,
@@ -1643,7 +1657,7 @@ func CreateTestPermission(tb testing.TB, db *bun.DB, name, resource, action stri
 
 	// Make name and resource unique to avoid constraint violations
 	// The database has idx_permissions_resource_action unique constraint
-	uniqueSuffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	uniqueSuffix := fmt.Sprintf("%d", uniqueFixtureSuffix())
 	uniqueName := fmt.Sprintf("%s-%s", name, uniqueSuffix)
 	uniqueResource := fmt.Sprintf("%s-%s", resource, uniqueSuffix)
 
@@ -1672,7 +1686,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 	defer cancel()
 
 	// Generate unique token value
-	tokenValue := fmt.Sprintf("test-token-%s-%d", tokenType, time.Now().UnixNano())
+	tokenValue := fmt.Sprintf("test-token-%s-%d", tokenType, uniqueFixtureSuffix())
 
 	// Set expiry based on token type
 	var expiry time.Time
@@ -1687,7 +1701,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		Token:      tokenValue,
 		Expiry:     expiry,
 		Mobile:     false,
-		FamilyID:   fmt.Sprintf("family-%d", time.Now().UnixNano()),
+		FamilyID:   fmt.Sprintf("family-%d", uniqueFixtureSuffix()),
 		Generation: 0,
 	}
 	token.SetTenantID(fixtureTenantID(tb))
@@ -1714,7 +1728,7 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *users.RFIDCard
 	defer cancel()
 
 	// Make tag ID unique - use only alphanumeric chars (no hyphens) to match normalization
-	uniqueTagID := fmt.Sprintf("%s%d", tagID, time.Now().UnixNano())
+	uniqueTagID := fmt.Sprintf("%s%d", tagID, uniqueFixtureSuffix())
 
 	card := &users.RFIDCard{
 		Active: true,
@@ -1755,7 +1769,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *users.G
 	defer cancel()
 
 	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 
 	profile := &users.GuardianProfile{
 		FirstName:              "Guardian",
@@ -1914,8 +1928,8 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 	defer cancel()
 
 	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
-	username := fmt.Sprintf("parent-%d", time.Now().UnixNano())
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
+	username := fmt.Sprintf("parent-%d", uniqueFixtureSuffix())
 
 	account := &auth.AccountParent{
 		Email:    uniqueEmail,
@@ -1972,8 +1986,8 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 	defer cancel()
 
 	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
-	token := fmt.Sprintf("test-token-%d", time.Now().UnixNano())
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
+	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
 
 	invitation := &auth.InvitationToken{
 		Email:     uniqueEmail,
@@ -2003,8 +2017,8 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 	defer cancel()
 
 	// Make email unique
-	uniqueEmail := fmt.Sprintf(testEmailFormat, email, time.Now().UnixNano())
-	token := fmt.Sprintf("test-token-%d", time.Now().UnixNano())
+	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
+	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
 
 	invitation := &auth.InvitationToken{
 		Email:     uniqueEmail,
@@ -2074,7 +2088,7 @@ func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 	// checks fail it closed.
 	baseRole := auth.BaseRoleUser
 	role = auth.Role{
-		Name:        fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+		Name:        fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix()),
 		Description: "Test role for " + name,
 		IsSystem:    false,
 		TenantID:    &tenantID,
@@ -2297,7 +2311,7 @@ func CreateTestTenant(tb testing.TB, db *bun.DB) (tenantID int64, subdomain stri
 	defer cancel()
 
 	tenantID = uniqueJWTSafeTenantID()
-	token := fmt.Sprintf("%d-%d", tenantID, time.Now().UnixNano())
+	token := fmt.Sprintf("%d-%d", tenantID, uniqueFixtureSuffix())
 	subdomain = fmt.Sprintf("t%d", tenantID)
 
 	_, err := db.ExecContext(ctx, `
@@ -2466,7 +2480,7 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
 	room := &facilities.Room{
 		Name:     uniqueName,
@@ -2491,7 +2505,7 @@ func CreateTestEducationGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
 	group := &education.Group{
 		Name: uniqueName,
@@ -2514,7 +2528,7 @@ func CreateTestTimeframeForTenant(tb testing.TB, db *bun.DB, tenantID int64, des
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
+	uniqueDesc := fmt.Sprintf("%s-%d", description, uniqueFixtureSuffix())
 
 	now := time.Now()
 	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
@@ -2544,7 +2558,7 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, time.Now().UnixNano())
+	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, uniqueFixtureSuffix())
 
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
@@ -2572,14 +2586,14 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tokenValue := fmt.Sprintf("test-token-t%d-%d", tenantID, time.Now().UnixNano())
+	tokenValue := fmt.Sprintf("test-token-t%d-%d", tenantID, uniqueFixtureSuffix())
 
 	token := &auth.Token{
 		AccountID:  accountID,
 		Token:      tokenValue,
 		Expiry:     time.Now().Add(24 * time.Hour),
 		Mobile:     false,
-		FamilyID:   fmt.Sprintf("family-t%d-%d", tenantID, time.Now().UnixNano()),
+		FamilyID:   fmt.Sprintf("family-t%d-%d", tenantID, uniqueFixtureSuffix()),
 		Generation: 0,
 	}
 	token.SetTenantID(tenantID)
@@ -2712,7 +2726,7 @@ func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	uniqueName := fmt.Sprintf("%s-%d", name, time.Now().UnixNano())
+	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 	category := &activities.Category{
 		Name:  uniqueName,
 		Color: "#CCCCCC",
@@ -2850,7 +2864,7 @@ func CreateTestSuggestionPostForTenant(tb testing.TB, db *bun.DB, tenantID int64
 	defer cancel()
 
 	post := &suggestions.Post{
-		Title:       fmt.Sprintf("Isolation Post T%d-%d", tenantID, time.Now().UnixNano()),
+		Title:       fmt.Sprintf("Isolation Post T%d-%d", tenantID, uniqueFixtureSuffix()),
 		Description: "Test suggestion post for tenant isolation",
 		AuthorID:    accountID,
 		Status:      suggestions.StatusOpen,
@@ -3108,7 +3122,7 @@ func CreateTestActivityInstance(tb testing.TB, db *bun.DB, date timezone.Date, r
 	}
 	title := opts.Title
 	if title == "" {
-		title = fmt.Sprintf("Test Instance %d", time.Now().UnixNano())
+		title = fmt.Sprintf("Test Instance %d", uniqueFixtureSuffix())
 	}
 
 	row := &schedule.ActivityInstance{
@@ -3552,7 +3566,7 @@ func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollment.Phase {
 	tb.Helper()
 	ctx := TenantContext(fixtureTenantID(tb))
 	phase := &enrollment.Phase{
-		Name:                      fmt.Sprintf("Testphase-%d", time.Now().UnixNano()),
+		Name:                      fmt.Sprintf("Testphase-%d", uniqueFixtureSuffix()),
 		Kind:                      "school_year",
 		ServiceStartDate:          timezone.TodayDate().AddDays(-30),
 		ServiceEndDate:            timezone.TodayDate().AddDays(300),
@@ -3578,7 +3592,7 @@ func CreateTestCareOffering(tb testing.TB, db *bun.DB, phaseID int64, name strin
 	ctx := TenantContext(fixtureTenantID(tb))
 	offering := &enrollment.CareOffering{
 		PhaseID:            phaseID,
-		Name:               fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+		Name:               fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix()),
 		DaysOfWeekMode:     enrollment.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon", "tue", "wed", "thu", "fri"},
 		AutoAddGradeLevels: []int{},
