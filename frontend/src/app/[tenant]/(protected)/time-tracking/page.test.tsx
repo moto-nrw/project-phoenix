@@ -1560,6 +1560,39 @@ describe("TimeTrackingPage", () => {
         });
       }
     });
+
+    it("matches the clicked block by id and prefills its times (#2402)", async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yISO = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+
+      const pastSession: WorkSessionHistory = {
+        ...mockHistorySession,
+        id: "4711",
+        date: yISO,
+        checkInTime: testTimestamp(yISO, "07:15"),
+        checkOutTime: testTimestamp(yISO, "13:45"),
+      };
+
+      setupDefaultMocks({ history: [pastSession] });
+      render(<TimeTrackingPage />);
+
+      fireEvent.click(screen.getAllByLabelText("Eintrag bearbeiten")[0]!);
+
+      // The table hands the page the block's NUMERIC id
+      // (adaptHistorySessionForMetrics), the page matches it back against the
+      // string-mapped history entry. A failed match would open the modal
+      // without a session ("Kein Eintrag vorhanden") — no Start/Ende inputs.
+      await waitFor(() => {
+        expect(screen.getByTestId("modal")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("modal")).not.toHaveAttribute(
+        "data-title",
+        "Kein Eintrag vorhanden",
+      );
+      expect(screen.getByLabelText("Start")).toHaveValue("07:15");
+      expect(screen.getByLabelText("Ende")).toHaveValue("13:45");
+    });
   });
 
   // ── Create Absence Modal ────────────────────────────────────────────────

@@ -40,6 +40,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
+import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -70,7 +71,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useToast } from "~/contexts/ToastContext";
 import {
   usePeriodMetrics,
@@ -210,28 +211,6 @@ function extractTimeFromISO(isoString: string): string {
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
 
-// Schichtart chip: a color dot + label driven by the tenant-defined Schichtart
-// color the backend embeds (#1844). The color is data, not a brand hue, so the
-// inline style is intentional; falls back to neutral gray when absent.
-function ShiftTypeChip({
-  name,
-  color,
-}: {
-  readonly name: string;
-  readonly color: string | null;
-}) {
-  const dot = color ?? "#6B7280";
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: dot }}
-      />
-      {name}
-    </span>
-  );
-}
-
 // Renders today's planned Dienstplan shifts under the Stempeluhr title: each
 // active shift with its Schichtart chip, a "Vertretung" tag for replacement
 // shifts, plus a muted line for shifts that do not take place ("entfällt"),
@@ -252,9 +231,12 @@ function PlannedShiftsInfo({
         <div key={shift.id} className="flex flex-wrap items-center gap-1.5">
           <span className="text-gray-400">Geplant:</span>
           {shift.shiftTypeName && (
-            <ShiftTypeChip
-              name={shift.shiftTypeName}
-              color={shift.shiftTypeColor}
+            // Schichtart pill: the color is tenant-defined data the backend
+            // embeds (#1844), not a brand hue; without one the pill falls
+            // back to the neutral HOME gray.
+            <StatusDotBadge
+              label={shift.shiftTypeName}
+              color={shift.shiftTypeColor ?? LOCATION_COLORS.HOME}
             />
           )}
           <span className="tabular-nums">
@@ -1727,6 +1709,11 @@ function OwnZeiterfassungSection({
   // (#2402), so re-deriving "the session of the day" from the date alone
   // would open an arbitrary block. `tableSession` is the table's snake_case
   // row; the edit modal needs the camelCase history entry, matched by id.
+  // Both ids are the SAME backend int64: `tableHistory[].id` is
+  // `data.id.toString()` (mapWorkSessionResponse) and `tableSession.id` is
+  // `Number(...)` of exactly that string (adaptHistorySessionForMetrics), so
+  // String() here reproduces the original canonical decimal and the find()
+  // always hits.
   const handleEdit = (
     date: Date,
     tableSession: { id?: number } | null = null,
