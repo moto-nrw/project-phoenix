@@ -1,6 +1,7 @@
 package supervisiondashboard
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -90,6 +91,43 @@ func TestBuildVisitsAndEffectiveTimes(t *testing.T) {
 func TestBuildPhotoURL(t *testing.T) {
 	assert.Empty(t, buildPhotoURL(1, ""))
 	assert.Equal(t, "https://example.test/photo.jpg", buildPhotoURL(1, "https://example.test/photo.jpg"))
+}
+
+func TestEmptyAndPermissionRedactedProjection(t *testing.T) {
+	projection := emptyProjection()
+	assert.Empty(t, projection.Groups)
+	assert.Empty(t, projection.UnclaimedGroups)
+	assert.Empty(t, projection.EducationalGroups)
+	assert.Empty(t, projection.ActiveSessions)
+	assert.Empty(t, projection.PlannedNow)
+	assert.Empty(t, projection.Visits)
+	assert.Empty(t, projection.TrackingIndicators.Labels)
+	assert.Empty(t, projection.TrackingIndicators.Results)
+	assert.Empty(t, projection.PickupTimes)
+	assert.Empty(t, projection.ArrivalTimes)
+
+	service := &service{}
+	ctx := context.Background()
+	require.NoError(t, service.loadScheduleSections(ctx, projection))
+	require.NoError(t, service.loadPlanningTimes(ctx, projection, nil, false))
+	tracking, err := service.loadTracking(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, tracking.Labels)
+	assert.Empty(t, tracking.Results)
+
+	rooms, err := service.loadEducationRooms(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, rooms)
+}
+
+func TestServiceDefaults(t *testing.T) {
+	service := NewService(Dependencies{}).(*service)
+	assert.NotNil(t, service.deps.Now)
+	assert.Error(t, service.validateDependencies())
+
+	ctx, err := service.prefetchSettings(context.Background())
+	require.NoError(t, err)
+	assert.NotNil(t, ctx)
 }
 
 func int64Ptr(value int64) *int64 { return &value }
