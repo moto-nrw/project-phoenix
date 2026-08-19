@@ -634,6 +634,7 @@ describe("Schulhof tab onTabChange callback", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: "room-1",
+      selectedGroupId: "room-1",
       capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
@@ -656,21 +657,25 @@ describe("Schulhof tab onTabChange callback", () => {
       },
     };
 
-    vi.mocked(useSWRAuth)
-      .mockReturnValueOnce({
-        data: dashboardData,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never)
-      .mockReturnValue({
-        data: null,
-        isLoading: false,
-        error: null,
-        mutate: mockMutate,
-        isValidating: false,
-      } as never);
+    // Key-aware mock: the dashboard data must stay available across
+    // re-renders so the selection-reconciliation effect (#2096) can compare
+    // the cached selectedGroupId against the Schulhof session.
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? ({
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)
+        : ({
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          } as never)) as never);
 
     render(<MeinRaumPage />);
 
@@ -690,27 +695,22 @@ describe("Schulhof tab onTabChange callback", () => {
       );
     });
 
-    // The tab callback itself must not start a duplicate request.
+    // The tab callback itself must not start a separate visits request —
+    // the Schulhof session's visits arrive via the aggregate re-run (#2096).
     expect(
       activeService.getActiveGroupVisitsWithDisplay,
     ).not.toHaveBeenCalled();
-
-    // The keyed SWR subscription owns exactly one Schulhof request and must
-    // not carry another room's previous data across the key change.
-    const visitCall = vi
-      .mocked(useSWRAuth)
-      .mock.calls.find(([key]) => key === "supervision-visits-active-schulhof");
-    expect(visitCall).toBeDefined();
-    expect(visitCall?.[2]).toMatchObject({ keepPreviousData: false });
-    const visitFetcher = visitCall?.[1] as (() => Promise<unknown>) | undefined;
-    expect(visitFetcher).toBeTypeOf("function");
-    await visitFetcher?.();
-    expect(activeService.getActiveGroupVisitsWithDisplay).toHaveBeenCalledTimes(
-      1,
-    );
-    expect(activeService.getActiveGroupVisitsWithDisplay).toHaveBeenCalledWith(
-      "active-schulhof",
-    );
+    await waitFor(() => {
+      expect(mockMutate).toHaveBeenCalled();
+    });
+    expect(
+      vi
+        .mocked(useSWRAuth)
+        .mock.calls.some(
+          ([key]) =>
+            typeof key === "string" && key.startsWith("supervision-visits-"),
+        ),
+    ).toBe(false);
   });
 
   it("clicking Schulhof tab when not supervising sets empty students", async () => {
@@ -730,6 +730,7 @@ describe("Schulhof tab onTabChange callback", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: "room-1",
+      selectedGroupId: "room-1",
       capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
@@ -803,6 +804,7 @@ describe("Schulhof tab onTabChange callback", () => {
       educationalGroups: [],
       firstRoomVisits: [],
       firstRoomId: "room-1",
+      selectedGroupId: "room-1",
       capabilities: { webSpontaneousActivitiesEnabled: true },
       schulhofStatus: {
         exists: true,
@@ -850,12 +852,11 @@ describe("Schulhof tab onTabChange callback", () => {
       );
     });
 
-    // Should have called loadRoomVisits for the room
-    await waitFor(() => {
-      expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("room-1");
-    });
+    // The room's visits ride in the aggregate (#2096) — no separate
+    // per-room request is issued by the switch.
+    expect(
+      activeService.getActiveGroupVisitsWithDisplay,
+    ).not.toHaveBeenCalled();
   });
 });
 
@@ -1222,7 +1223,7 @@ describe("Tracking indicators rendering", () => {
 
   afterEach(() => cleanup());
 
-  it("subscribes to the tracking hook once a room has students", async () => {
+  it("renders tracking indicators from the aggregate without a separate fetch", async () => {
     const dashboardData = {
       supervisedGroups: [
         { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
@@ -1242,19 +1243,16 @@ describe("Tracking indicators rendering", () => {
         },
       ],
       firstRoomId: "1",
+      selectedGroupId: "1",
+      // Tracking indicators ride in the aggregate since #2096.
+      trackingIndicators: {
+        labels: ["Hausaufgaben"],
+        results: { "100": [true] },
+      },
       schulhofStatus: null,
     };
 
-    vi.mocked(useSWRAuth).mockImplementation((key) => {
-      if (typeof key === "string" && key.startsWith("tracking-supervisions")) {
-        return {
-          data: { labels: ["Hausaufgaben"], results: { "100": [true] } },
-          isLoading: false,
-          error: null,
-          mutate: mockMutate,
-          isValidating: false,
-        } as never;
-      }
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) => {
       if (
         typeof key === "string" &&
         key.startsWith("active-supervision-dashboard")
@@ -1274,7 +1272,7 @@ describe("Tracking indicators rendering", () => {
         mutate: mockMutate,
         isValidating: false,
       } as never;
-    });
+    }) as never);
 
     render(<MeinRaumPage />);
 
@@ -1282,15 +1280,15 @@ describe("Tracking indicators rendering", () => {
       expect(screen.getByTestId("student-card")).toBeInTheDocument();
     });
 
-    const trackingCall = vi
-      .mocked(useSWRAuth)
-      .mock.calls.find(
-        (args) =>
-          typeof args[0] === "string" &&
-          args[0].startsWith("tracking-supervisions"),
-      );
-    expect(trackingCall).toBeDefined();
-    expect(trackingCall?.[0]).toContain("tracking-supervisions-");
-    expect(trackingCall?.[0]).toContain("100");
+    // The former separate tracking subscription must be gone (#2096).
+    expect(
+      vi
+        .mocked(useSWRAuth)
+        .mock.calls.some(
+          (args) =>
+            typeof args[0] === "string" &&
+            args[0].startsWith("tracking-supervisions"),
+        ),
+    ).toBe(false);
   });
 });

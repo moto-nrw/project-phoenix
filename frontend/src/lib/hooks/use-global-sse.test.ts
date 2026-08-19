@@ -687,15 +687,12 @@ describe("useGlobalSSE — companion announcements", () => {
     }
   });
 
-  // The two tests below pin the Aktuelle-Aufsicht bulk time caches. Unlike the
-  // OGS group view — whose aggregated ogs-students-{gid} response carries the
-  // pickup times, so any trigger refreshes them together (#2056) — this page
-  // still fetches pickup and arrival under their own keys. Those keys embed
-  // the room's student-id list and disable focus revalidation, so an SSE
-  // invalidation is their ONLY live update path: nothing but a roster change
-  // or Berlin midnight rotates the key on its own.
-  const AUFSICHT_PICKUP_KEY = "t1:pickup-supervisions-2026-07-22-7,8,9";
-  const AUFSICHT_ARRIVAL_KEY = "t1:arrival-supervisions-2026-07-22-7,8,9";
+  // The two tests below pin the Aktuelle-Aufsicht live times. Since #2096
+  // the aggregated active-supervision-dashboard response carries the pickup
+  // and arrival times (like the OGS view's ogs-students-{gid}, #2056), and
+  // the key disables focus revalidation, so an SSE invalidation is its ONLY
+  // pickup-driven live update path.
+  const AUFSICHT_DASHBOARD_KEY = "t1:active-supervision-dashboard-0";
 
   // Fires one event, flushes the burst debounce, and asserts that some matcher
   // handed to mutate() claims each key.
@@ -723,25 +720,23 @@ describe("useGlobalSSE — companion announcements", () => {
     }
   }
 
-  it("refreshes the Aufsicht pickup cache on pickup_schedule_changed", () => {
+  it("refreshes the Aufsicht aggregate on pickup_schedule_changed", () => {
     // A staff Gehzeit write (weekly plan or date exception) emits only this
     // event — see api/students/pickup_schedule_handlers.go. The supervising
     // staff member watching the room is exactly who must see the new time.
     expectEventInvalidates(makeEvent("pickup_schedule_changed", {}), [
-      AUFSICHT_PICKUP_KEY,
+      AUFSICHT_DASHBOARD_KEY,
     ]);
   });
 
-  it("refreshes both Aufsicht time caches on student_updated", () => {
+  it("refreshes the Aufsicht aggregate on student_updated", () => {
     // A parent care exception (submit AND delete) rewrites that day's pickup
     // and arrival override under student_updated alone, and an approved care
     // request rewrites the weekly pickup plan while announcing only
     // student_updated + arrival_schedule_changed. Both writes can target a
-    // child already standing in the room, so neither rotates the roster-keyed
-    // cache key.
+    // child already standing in the room; the aggregate carries the times.
     expectEventInvalidates(makeEvent("student_updated", { student_id: "7" }), [
-      AUFSICHT_PICKUP_KEY,
-      AUFSICHT_ARRIVAL_KEY,
+      AUFSICHT_DASHBOARD_KEY,
     ]);
   });
 

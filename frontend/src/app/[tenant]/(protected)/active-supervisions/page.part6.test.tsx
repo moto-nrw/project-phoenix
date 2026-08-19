@@ -580,10 +580,10 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
 
   it("does not flash first-room students while a direct room URL is syncing", async () => {
     navigationMockState.roomParam = "11";
-    const { activeService } = await import("~/lib/active-api");
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockReturnValue(
-      new Promise(() => undefined) as never,
-    );
+    // The aggregate re-run for the URL-targeted session never resolves in
+    // this test — the point is that the first room's visits from the stale
+    // payload must not be shown meanwhile (#2096).
+    mockMutate.mockReturnValue(new Promise(() => undefined) as never);
     const dashboardData = {
       supervisedGroups: [
         {
@@ -639,9 +639,9 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("2");
+      // The URL target resolves to session "2" and triggers the aggregate
+      // re-run; the first room's students never appear meanwhile.
+      expect(mockMutate).toHaveBeenCalled();
       expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
       expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
     });

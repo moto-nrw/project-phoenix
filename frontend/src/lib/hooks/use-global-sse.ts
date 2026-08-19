@@ -107,16 +107,16 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
 const OGS_STUDENTS_KEY_PREFIX = "ogs-students-";
 
 // Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
-// "pickup-supervisions-" is the Aktuelle-Aufsicht card row, whose key embeds
-// the room's student-id list — nothing but a roster change or Berlin midnight
-// rotates it, and it disables focus revalidation, so this list is its only
-// live update path.
+// "active-supervision-dashboard-" carries the Aktuelle-Aufsicht pickup rows
+// since #2096 folded them into the aggregate; the key disables focus
+// revalidation, so this list is its only pickup-driven live update path.
+// ("pickup-supervisions-" was the former per-room bulk fetch's key.)
 const PICKUP_TIME_CACHE_KEY_PARTS = [
   "care-plan-day-",
   "care-plan-week-",
   "pickup-data-",
   "student-partial-absences-",
-  "pickup-supervisions-",
+  "active-supervision-dashboard-",
   "student-detail-",
   // A pulled-forward day pickup time auto-excuses the child from later
   // blocks (#2360): the planner list renders the changed attendance plus the
@@ -134,7 +134,6 @@ const PICKUP_TIME_CACHE_KEY_PARTS = [
 // their own, they read it inline from their list responses, which the
 // student-list and ogs-students blocks invalidate on the same event.
 const ARRIVAL_TIME_CACHE_KEY_PARTS = [
-  "arrival-supervisions-",
   "arrival-data-",
   "care-plan-day-",
   "care-plan-week-",
@@ -157,8 +156,6 @@ const STUDENT_UPDATE_CACHE_KEY_PARTS = [
   "care-plan-week-",
   "pickup-data-",
   "arrival-data-",
-  "pickup-supervisions-",
-  "arrival-supervisions-",
   // Parent care-exception submits/deletes announce ONLY student_updated, and
   // a pulled-forward pickup time now rewrites timetable attendance and the
   // early_pickup_time marker (#2360) — same narrow key set as the pickup
@@ -350,21 +347,10 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Invalidate ALL supervision-visits caches for student/dashboard events.
-    // A student checked out of Room A may appear on the Schulhof (catch-all),
-    // so we can't limit to just the source group's cache key.
-    // Zero-topic clients only receive dashboard_counts_changed, so include
-    // that flag to keep their detail views in sync.
-    if (pendingGroupIds.current.size > 0 || hasPendingDashboardEvent.current) {
-      mutate(
-        (key) => typeof key === "string" && key.includes("supervision-visits-"),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "supervision_visits",
-        });
-      });
-    }
+    // Per-room supervision visits ride in the aggregated
+    // active-supervision-dashboard key since #2096 — the count-dashboard
+    // block below covers the same pendingGroupIds/dashboard triggers, so no
+    // separate supervision-visits invalidation exists anymore.
 
     // Invalidate the per-group OGS student lists ("Meine Gruppe"). Scoped
     // (#2057): when every pending count event carried its educational group
@@ -490,7 +476,6 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("database-students-list") ||
-            key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-") ||
             // Live "Kinder im Raum" view on /rooms/{id}. Cache key shape is
             // "room-students-{roomId}" — see
@@ -698,10 +683,8 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("active-supervision-dashboard-") ||
-            key.includes("supervision-visits-") ||
             key.includes("timetable-roster-") ||
             key.includes("room-detail-") ||
-            key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
