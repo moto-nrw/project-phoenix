@@ -77,15 +77,6 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 
-		ALTER TABLE users.class_list_entries ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE users.class_list_entries FORCE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_users_class_list_entries ON users.class_list_entries;
-		CREATE POLICY tenant_isolation_users_class_list_entries ON users.class_list_entries
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.class_list_entries TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.class_list_entries_id_seq TO phoenix_tenant;
 
@@ -105,15 +96,6 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 
 		CREATE INDEX IF NOT EXISTS idx_class_list_entry_changes_entry
 			ON audit.class_list_entry_changes (tenant_id, entry_id, occurred_at DESC);
-
-		ALTER TABLE audit.class_list_entry_changes ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE audit.class_list_entry_changes FORCE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_class_list_entry_changes ON audit.class_list_entry_changes;
-		CREATE POLICY tenant_isolation_class_list_entry_changes ON audit.class_list_entry_changes
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
 
 		-- Append-only from the application's point of view: the app role gets
 		-- no DELETE. No retention cleanup consumes this table yet (same as
@@ -151,15 +133,6 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 		FOR EACH ROW
 		EXECUTE FUNCTION update_modified_column();
 
-		ALTER TABLE education.grade_transition_class_list_entries ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE education.grade_transition_class_list_entries FORCE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_education_grade_transition_class_list_entries ON education.grade_transition_class_list_entries;
-		CREATE POLICY tenant_isolation_education_grade_transition_class_list_entries ON education.grade_transition_class_list_entries
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON education.grade_transition_class_list_entries TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE education.grade_transition_class_list_entries_id_seq TO phoenix_tenant;
 	`)
@@ -167,7 +140,13 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating users.class_list_entries: %w", err)
 	}
 
-	return nil
+	// Tenant isolation for all three tables through the shared provisioning
+	// path (see rls_provisioning.go) instead of hand-copied DDL per table.
+	return provisionTenantRLS(ctx, db,
+		"users.class_list_entries",
+		"audit.class_list_entry_changes",
+		"education.grade_transition_class_list_entries",
+	)
 }
 
 func classListEntriesDown(ctx context.Context, db *bun.DB) error {
