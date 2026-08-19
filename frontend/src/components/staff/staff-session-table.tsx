@@ -338,20 +338,20 @@ export function StaffSessionTable({
           <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="bg-gray-50 text-xs font-semibold tracking-wider text-gray-500 uppercase">
               <tr>
-                <th className="px-4 py-3">Datum</th>
-                <th className="px-4 py-3">Tag</th>
+                <th className="px-3 py-3">Datum</th>
+                <th className="px-3 py-3">Tag</th>
                 {showPlan && (
-                  <th className="px-4 py-3 tabular-nums">Plan (Schicht)</th>
+                  <th className="px-3 py-3 tabular-nums">Plan (Schicht)</th>
                 )}
-                <th className="px-4 py-3 tabular-nums">Check-in</th>
-                <th className="px-4 py-3 tabular-nums">Check-out</th>
-                <th className="px-4 py-3 text-right tabular-nums">Pause</th>
-                <th className="px-4 py-3 text-right tabular-nums">Soll</th>
-                <th className="px-4 py-3 text-right tabular-nums">Ist</th>
-                <th className="px-4 py-3 text-right tabular-nums">Saldo</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Quelle</th>
-                <th className="px-4 py-3">Hinweis</th>
+                <th className="px-3 py-3 tabular-nums">Check-in</th>
+                <th className="px-3 py-3 tabular-nums">Check-out</th>
+                <th className="px-3 py-3 text-right tabular-nums">Pause</th>
+                <th className="px-3 py-3 text-right tabular-nums">Soll</th>
+                <th className="px-3 py-3 text-right tabular-nums">Ist</th>
+                <th className="px-3 py-3 text-right tabular-nums">Saldo</th>
+                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Quelle</th>
+                <th className="px-3 py-3">Hinweis</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -480,7 +480,7 @@ export function StaffSessionTable({
                               : ""
                       } ${isFuture ? "opacity-40" : ""}`}
                     >
-                      <td className="px-4 py-3 text-gray-700 tabular-nums">
+                      <td className="px-3 py-3 text-gray-700 tabular-nums">
                         <div className="flex items-center gap-1.5">
                           {canExpand ? (
                             <ChevronRight
@@ -494,20 +494,20 @@ export function StaffSessionTable({
                           {formatShortDate(day)}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-3 py-3 text-gray-500">
                         {dayLabels[dow]}
                       </td>
                       {showPlan && (
-                        <td className="px-4 py-3 text-gray-500 tabular-nums">
+                        <td className="px-3 py-3 text-gray-500 tabular-nums">
                           <PlannedShiftCell shifts={shiftsByDate.get(key)} />
                         </td>
                       )}
-                      <td className="px-4 py-3 text-gray-700 tabular-nums">
+                      <td className="px-3 py-3 text-gray-700 tabular-nums">
                         {session?.check_in_time
                           ? formatTimeOnly(session.check_in_time)
                           : "–"}
                       </td>
-                      <td className="px-4 py-3 text-gray-700 tabular-nums">
+                      <td className="px-3 py-3 text-gray-700 tabular-nums">
                         {openSession ? (
                           <span className="bg-moto-green/10 text-moto-green-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
                             <span className="bg-moto-green mr-1.5 h-1.5 w-1.5 animate-pulse rounded-full" />
@@ -519,10 +519,10 @@ export function StaffSessionTable({
                           "–"
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                      <td className="px-3 py-3 text-right text-gray-500 tabular-nums">
                         {session ? formatDuration(pause) : "–"}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
+                      <td className="px-3 py-3 text-right text-gray-500 tabular-nums">
                         {targetUnresolved ? (
                           <span
                             title={
@@ -539,10 +539,10 @@ export function StaffSessionTable({
                           "–"
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-700 tabular-nums">
+                      <td className="px-3 py-3 text-right font-medium text-gray-700 tabular-nums">
                         {session ? formatDuration(ist) : "–"}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
+                      <td className="px-3 py-3 text-right tabular-nums">
                         {session &&
                         !isFuture &&
                         !balanceUnresolved &&
@@ -554,7 +554,7 @@ export function StaffSessionTable({
                           "–"
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         {/* Die Tageszeile wiederholt keine Block-Details:
                             gestapelte Status-/Quelle-Badges nebeneinander
                             suggerieren falsche Paare (OGS neben App, obwohl
@@ -570,10 +570,10 @@ export function StaffSessionTable({
                           status && <RowStatusBadge status={status} />
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <SourceBadges sessions={daySessions} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <div className="flex items-center justify-between gap-3">
                           <HintBadges
                             sessions={daySessions}
@@ -637,17 +637,17 @@ export function StaffSessionTable({
                           key={`${key}-block-${block.id ?? blockIndex}`}
                           className="bg-gray-50/40 text-xs"
                         >
-                          <td className="py-2 pr-4 pl-9 text-gray-400">
+                          <td className="py-2 pr-3 pl-8 text-gray-400">
                             Block {blockIndex + 1}
                           </td>
-                          <td className="px-4 py-2" />
-                          {showPlan && <td className="px-4 py-2" />}
-                          <td className="px-4 py-2 text-gray-600 tabular-nums">
+                          <td className="px-3 py-2" />
+                          {showPlan && <td className="px-3 py-2" />}
+                          <td className="px-3 py-2 text-gray-600 tabular-nums">
                             {block.check_in_time
                               ? formatTimeOnly(block.check_in_time)
                               : "–"}
                           </td>
-                          <td className="px-4 py-2 text-gray-600 tabular-nums">
+                          <td className="px-3 py-2 text-gray-600 tabular-nums">
                             {block.check_out_time ? (
                               formatTimeOnly(block.check_out_time)
                             ) : (
@@ -656,15 +656,15 @@ export function StaffSessionTable({
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-2 text-right text-gray-500 tabular-nums">
+                          <td className="px-3 py-2 text-right text-gray-500 tabular-nums">
                             {formatDuration(block.break_minutes ?? 0)}
                           </td>
-                          <td className="px-4 py-2" />
-                          <td className="px-4 py-2 text-right text-gray-600 tabular-nums">
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2 text-right text-gray-600 tabular-nums">
                             {formatDuration(block.net_minutes ?? 0)}
                           </td>
-                          <td className="px-4 py-2" />
-                          <td className="px-4 py-2">
+                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2">
                             <RowStatusBadge
                               status={
                                 block.status === "home_office"
@@ -673,10 +673,10 @@ export function StaffSessionTable({
                               }
                             />
                           </td>
-                          <td className="px-4 py-2">
+                          <td className="px-3 py-2">
                             <SourceBadges sessions={[block]} />
                           </td>
-                          <td className="px-4 py-2">
+                          <td className="px-3 py-2">
                             <div className="flex items-center justify-between gap-3">
                               <HintBadges
                                 sessions={[block]}
@@ -718,7 +718,7 @@ export function StaffSessionTable({
                             key={`${key}-audit-${block.id ?? blockIndex}`}
                             className="border-b border-gray-100 bg-gray-50/50"
                           >
-                            <td colSpan={columnCount} className="px-4 py-3">
+                            <td colSpan={columnCount} className="px-3 py-3">
                               {hasMultipleBlocks && (
                                 <p className="mb-1 text-xs font-medium text-gray-500">
                                   {`Block ${daySessions.indexOf(block) + 1}${
