@@ -72,7 +72,57 @@ func TestSecurityLoggerRedactsFeedToken(t *testing.T) {
 	}
 }
 
-var _ slog.Handler = (*feedTokenRedactor)(nil)
+func TestRedactQueryValues(t *testing.T) {
+	cases := map[string]string{
+		"search=Mustermann":               "search",
+		"search=Mustermann&page=2":        "search&page",
+		"first_name=Max&last_name=Muster": "first_name&last_name",
+		"email=max%40example.com":         "email",
+		"flag":                            "flag", // valueless parameter stays
+		"":                                "",
+		"a=1&b&c=x=y":                     "a&b&c", // value containing '=' is dropped entirely
+	}
+	for in, want := range cases {
+		if got := RedactQueryValues(in); got != want {
+			t.Errorf("RedactQueryValues(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// Issue #2105: the access-log "query" attribute (nested in slog-chi's
+// "request" group) and the "referer" attribute must lose their query values
+// while other attributes stay intact.
+func TestQueryValueRedactorHandler(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(NewQueryValueRedactor(slog.NewTextHandler(&buf, nil)))
+
+	logger.Info("request",
+		slog.Group("request",
+			slog.String("method", "GET"),
+			slog.String("path", "/api/students"),
+			slog.String("query", "search=Mustermann&page=2"),
+			slog.String("referer", "https://schule.example.com/students/search?search=Mustermann"),
+		),
+	)
+
+	out := buf.String()
+	if strings.Contains(out, "Mustermann") {
+		t.Errorf("query value leaked into logs:\n%s", out)
+	}
+	for _, want := range []string{"query=search&page", "/api/students", "method=GET", "referer=https://schule.example.com/students/search?search"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in logs:\n%s", want, out)
+		}
+	}
+	// Non-query attributes containing '=' or '&' are untouched.
+	buf.Reset()
+	logger.Info("other", slog.String("detail", "a=1&b=2"))
+	if !strings.Contains(buf.String(), "a=1&b=2") {
+		t.Errorf("non-query attribute should be preserved:\n%s", buf.String())
+	}
+}
+
+var _ slog.Handler = (*attrRedactor)(nil)
 
 func TestFeedTokenRedactorEnabled(t *testing.T) {
 	h := NewFeedTokenRedactor(slog.NewTextHandler(&bytes.Buffer{}, nil))
