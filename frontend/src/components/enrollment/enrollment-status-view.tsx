@@ -817,9 +817,12 @@ function EnrollmentChildRow({
               </p>
             ) : null}
             {child.locked ? (
-              <p className="mt-1 text-sm text-gray-600">
-                {t("lockedChildHint")}
-              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                <span>{t("lockedChildHint")}</span>
+                <ButtonLink href="/parents" size="sm">
+                  {t("lockedAllAction")}
+                </ButtonLink>
+              </div>
             ) : null}
           </div>
         </div>

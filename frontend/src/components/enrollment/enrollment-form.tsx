@@ -1773,7 +1773,11 @@ export function EnrollmentForm({
                 <InfoItem
                   label={tr("locked.care")}
                   value={
-                    booked.length > 0 ? booked.join(", ") : tr("locked.noCare")
+                    booked.length > 0
+                      ? booked.join(", ")
+                      : child.offering_ids.size > 0
+                        ? "-"
+                        : tr("locked.noCare")
                   }
                 />
                 <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
