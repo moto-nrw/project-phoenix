@@ -25,7 +25,7 @@ export function mapProvisioningStats(
   };
 }
 
-export interface BackendPWAPortalUsage {
+interface BackendPWAPortalUsage {
   standalone_users: number;
   eligible_users: number;
 }
@@ -36,7 +36,7 @@ export interface BackendSchoolPWAUsage {
   parent: BackendPWAPortalUsage;
 }
 
-export interface PWAPortalUsage {
+interface PWAPortalUsage {
   standaloneUsers: number;
   eligibleUsers: number;
 }
