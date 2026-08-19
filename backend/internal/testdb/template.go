@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -223,9 +224,36 @@ func buildTemplate(ctx context.Context, templateDSN string) error {
 	return nil
 }
 
-// migrationsComplete reports whether every migration file's version (the
-// digit prefix bun records as the migration name) is applied in the database
-// behind dsn.
+// normalizeMigrationVersion makes filename prefixes (001015301) and Bun's
+// semantic migration names (1.15.301) comparable.
+func normalizeMigrationVersion(version string) string {
+	if strings.Contains(version, ".") {
+		parts := strings.Split(version, ".")
+		for i, part := range parts {
+			n, err := strconv.ParseInt(part, 10, 64)
+			if err != nil {
+				return version
+			}
+			parts[i] = strconv.FormatInt(n, 10)
+		}
+		return strings.Join(parts, ".")
+	}
+	if len(version)%3 != 0 {
+		return version
+	}
+	parts := make([]string, 0, len(version)/3)
+	for i := 0; i < len(version); i += 3 {
+		n, err := strconv.ParseInt(version[i:i+3], 10, 64)
+		if err != nil {
+			return version
+		}
+		parts = append(parts, strconv.FormatInt(n, 10))
+	}
+	return strings.Join(parts, ".")
+}
+
+// migrationsComplete reports whether every migration file's version is
+// applied in the database behind dsn.
 func migrationsComplete(ctx context.Context, dsn string) (bool, error) {
 	dir, err := migrationsDir()
 	if err != nil {
@@ -246,7 +274,7 @@ func migrationsComplete(ctx context.Context, dsn string) (bool, error) {
 			continue
 		}
 		if m := migrationFilePattern.FindStringSubmatch(name); m != nil {
-			wanted = append(wanted, m[1])
+			wanted = append(wanted, normalizeMigrationVersion(m[1]))
 		}
 	}
 	if len(wanted) == 0 {
@@ -278,7 +306,7 @@ func migrationsComplete(ctx context.Context, dsn string) (bool, error) {
 		if err := rows.Scan(&name); err != nil {
 			return false, err
 		}
-		applied[name] = struct{}{}
+		applied[normalizeMigrationVersion(name)] = struct{}{}
 	}
 	if err := rows.Err(); err != nil {
 		return false, err

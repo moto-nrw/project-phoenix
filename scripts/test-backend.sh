@@ -16,7 +16,9 @@ PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
 export PHX_TEST_RUN_ID
 
 sweep() {
-  go run ./internal/testdb/cmd/sweep
+  status=$?
+  go run ./internal/testdb/cmd/sweep || true
+  return "$status"
 }
 trap sweep EXIT
 

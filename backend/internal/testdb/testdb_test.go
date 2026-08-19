@@ -85,6 +85,8 @@ func TestMigrationFilePatternMatchesOnlyRealMigrations(t *testing.T) {
 
 	assert.Equal(t, "000001", migrationFilePattern.FindStringSubmatch("000001_core_functions.go")[1])
 	assert.Equal(t, "001015302", migrationFilePattern.FindStringSubmatch("001015302_pickup_change_requests.go")[1])
+	assert.Equal(t, "1.15.301", normalizeMigrationVersion("001015301"))
+	assert.Equal(t, "1.15.301", normalizeMigrationVersion("1.15.301"))
 }
 
 func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
@@ -138,6 +140,10 @@ func integrationConfig(t *testing.T) *Config {
 	name := fmt.Sprintf("phx_test_selftmpl_%d_%d", os.Getpid()%100000, selfTestSeq.Add(1))
 	cfg, err := NewConfig(base.DatabaseDSN(name))
 	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	require.NoError(t, EnsureServer(ctx, cfg))
 
 	t.Cleanup(func() {
 		maint := openSQL(cfg.MaintenanceDSN())
@@ -253,6 +259,7 @@ func TestMigrationsCompleteAgainstRealTemplate(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	require.NoError(t, EnsureServer(ctx, cfg))
 
 	// Ensure the template exists before checking it (a pristine server has
 	// none yet), and hold the lifecycle lock during the check: it opens

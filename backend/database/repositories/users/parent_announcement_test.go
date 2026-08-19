@@ -40,11 +40,7 @@ func publishedAnnouncement(
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
-	// Publish visibly in the past: the MarkRead/MarkAcknowledged guard checks
-	// published_at <= NOW() on the DB clock, and the Docker VM's Postgres
-	// clock can lag the host's time.Now() by tens of milliseconds — a
-	// host-clock "now" would flake the guard (#2419 story 20).
-	now := time.Now().Add(-2 * time.Second)
+	now := time.Now()
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	a.PublishedAt = &now // reflect the persisted version so callers can pass it to MarkRead/MarkAcknowledged
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
@@ -243,10 +239,8 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
 
-	// Publish (visibly in the past — the read/ack guard compares against the
-	// DB clock, which can lag the host clock; see publish helper above),
-	// then the guardian reads + acknowledges.
-	now := time.Now().Add(-2 * time.Second)
+	// Publish, then the guardian reads + acknowledges.
+	now := time.Now()
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, a.ID, chain.AccountID, now)
 	require.NoError(t, err)

@@ -300,6 +300,7 @@ func (r *ParentAnnouncementRepository) AccountMayAnswerForStudent(ctx context.Co
 // answer 409.
 func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
 	db := base.GetDB(ctx, r.DB)
+	now := time.Now()
 	// The advisory transaction lock serializes all replacements for this
 	// announcement/child pair.  The response table's option-level uniqueness is
 	// insufficient: two guardians could otherwise both delete and then insert a
@@ -332,10 +333,10 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE a.id = ? AND a.tenant_id = ?
-				AND a.active AND a.published_at = ? AND a.published_at <= NOW()
-				AND (a.expires_at IS NULL OR a.expires_at > NOW())
+				AND a.active AND a.published_at = ? AND a.published_at <= ?
+				AND (a.expires_at IS NULL OR a.expires_at > ?)
 				AND a.response_type <> 'none'
-				AND (a.response_deadline IS NULL OR a.response_deadline > NOW())
+				AND (a.response_deadline IS NULL OR a.response_deadline > ?)
 		)`
 	var live bool
 	if err := db.NewRaw(guard+`, requested AS (
@@ -356,7 +357,7 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 			AND (SELECT valid FROM selection_valid)
 	)
 	SELECT valid FROM selection_valid`,
-		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
+		studentID, accountID, announcementID, tenantID, expectedPublishedAt, now, now, now,
 		pgdialect.Array(optionIDs), announcementID, tenantID,
 		announcementID, studentID, tenantID,
 	).Scan(ctx, &live); err != nil {
@@ -390,9 +391,9 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 		ON CONFLICT (announcement_id, student_id, option_id) DO NOTHING
 	)
 	SELECT valid FROM selection_valid`,
-		studentID, accountID, announcementID, tenantID, expectedPublishedAt,
+		studentID, accountID, announcementID, tenantID, expectedPublishedAt, now, now, now,
 		pgdialect.Array(optionIDs), announcementID, tenantID,
-		tenantID, announcementID, studentID, accountID, time.Now(), announcementID, tenantID, bun.List(optionIDs),
+		tenantID, announcementID, studentID, accountID, now, announcementID, tenantID, bun.List(optionIDs),
 	).Scan(ctx, &live); err != nil {
 		return false, &modelBase.DatabaseError{Op: "insert parent announcement response", Err: err}
 	}

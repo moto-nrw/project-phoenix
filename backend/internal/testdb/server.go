@@ -52,25 +52,26 @@ func pingServer(ctx context.Context, cfg *Config) error {
 }
 
 // startTestContainer starts the postgres-test compose service from the
-// project root (the parent of the backend module root, where
-// docker-compose.yml lives).
+// project root (the parent of the backend module root, where the tracked
+// docker-compose.example.yml lives).
 func startTestContainer(ctx context.Context) error {
 	backend, err := backendRoot()
 	if err != nil {
 		return fmt.Errorf("locate backend module root: %w", err)
 	}
 	projectRoot := filepath.Dir(backend)
-	if _, err := os.Stat(filepath.Join(projectRoot, "docker-compose.yml")); err != nil {
-		return fmt.Errorf("no docker-compose.yml at %s", projectRoot)
+	composeFile := filepath.Join(projectRoot, "docker-compose.example.yml")
+	if _, err := os.Stat(composeFile); err != nil {
+		return fmt.Errorf("no docker-compose.example.yml at %s", projectRoot)
 	}
 
 	startCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(startCtx, "docker", "compose", "--profile", "test", "up", "-d", "postgres-test")
+	cmd := exec.CommandContext(startCtx, "docker", "compose", "-f", composeFile, "--profile", "test", "up", "-d", "postgres-test")
 	cmd.Dir = projectRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker compose --profile test up -d postgres-test: %w\n%s", err, out)
+		return fmt.Errorf("docker compose -f docker-compose.example.yml --profile test up -d postgres-test: %w\n%s", err, out)
 	}
 	return nil
 }
