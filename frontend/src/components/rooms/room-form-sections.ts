@@ -1,29 +1,24 @@
 "use client";
 
-import { createElement, type ComponentProps } from "react";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
-import { RoomColorField } from "@/components/ui/database/room-color-field";
 import { configToFormSection } from "@/lib/database/types";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 import { isColorLockedRoom, isSystemRoom, type Room } from "@/lib/room-helpers";
 import type { FormSection } from "~/components/ui/database/database-form";
 
 /**
- * The shared {@link RoomColorField} with the schoolyard's preview and hint
- * bound in (#2405): without a chosen colour the Schulhof badge renders orange,
- * not the generic room blue, so "Standard" has to preview orange.
+ * Preview and hint for the schoolyard's colour picker (#2405): without a
+ * chosen colour the Schulhof badge renders orange, not the generic room blue,
+ * so "Standard" has to preview orange and the copy has to say so.
  *
- * DatabaseForm hands custom fields a fixed prop set, so these two props cannot
- * travel through the field config and are bound here instead of by a second
- * component in the UI kit. Module scope keeps the component identity stable
- * across renders, so the picker is never remounted mid-edit.
+ * Bound through the field config, so the shared RoomColorField is reused as
+ * is. The copy travels as a prop because custom fields do not render
+ * `helperText`.
  */
-const SchulhofColorField = (props: ComponentProps<typeof RoomColorField>) =>
-  createElement(RoomColorField, {
-    ...props,
-    defaultHex: LOCATION_COLORS.SCHOOLYARD,
-    hint: "Ohne eigene Farbe erscheint der Schulhof in Orange. Wähle eine Farbe, die du noch nicht für einen anderen Raum benutzt.",
-  });
+const SCHULHOF_COLOR_FIELD_PROPS = {
+  defaultHex: LOCATION_COLORS.SCHOOLYARD,
+  hint: "Ohne eigene Farbe erscheint der Schulhof in Orange. Wähle eine Farbe, die du noch nicht für einen anderen Raum benutzt.",
+};
 
 const STANDARD_CATEGORIES = new Set([
   "Normaler Raum",
@@ -85,9 +80,7 @@ export function buildRoomFormSections(
             };
           }
           if (field.name === "color") {
-            // Swap in the Schulhof-bound picker. Custom fields do not render
-            // `helperText`, so the copy has to reach the component as a prop.
-            return { ...field, component: SchulhofColorField };
+            return { ...field, componentProps: SCHULHOF_COLOR_FIELD_PROPS };
           }
           return field;
         }),

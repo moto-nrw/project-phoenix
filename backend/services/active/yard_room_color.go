@@ -18,9 +18,10 @@ import (
 // method it never calls. Same optional-capability pattern the tenant-resolve
 // handler uses for ResolveManyForTenant.
 type YardRoomColorResolver interface {
-	// GetSchulhofRoomColor returns the canonical Schulhof room's color, or
-	// nil when the room does not exist yet or carries no color.
-	GetSchulhofRoomColor(ctx context.Context) (*string, error)
+	// ResolveSchulhofRoomColor returns the canonical Schulhof room's color,
+	// or nil when the room does not exist yet, carries no color, or the
+	// lookup failed. Fails soft; the implementation owns the logging.
+	ResolveSchulhofRoomColor(ctx context.Context) *string
 }
 
 // ResolveYardRoomColor returns the tenant's Schulhof room color for the
@@ -40,15 +41,28 @@ func ResolveYardRoomColor(ctx context.Context, svc Service) *string {
 	if !ok {
 		return nil
 	}
-	color, err := resolver.GetSchulhofRoomColor(ctx)
+	return resolver.ResolveSchulhofRoomColor(ctx)
+}
+
+// ResolveSchulhofRoomColor implements YardRoomColorResolver: the fail-soft
+// wrapper around GetSchulhofRoomColor.
+//
+// The lookup keeps returning its error so a broken connection stays
+// distinguishable from "no colour set"; swallowing it happens here, once, and
+// goes through the service's injected logger so the entry carries the same
+// handler, level and service attributes as every other line from active.
+func (s *service) ResolveSchulhofRoomColor(ctx context.Context) *string {
+	color, err := s.GetSchulhofRoomColor(ctx)
 	if err != nil {
-		slog.WarnContext(ctx, "yard_room_color_lookup_failed", slog.String("error", err.Error()))
+		s.getLogger().WarnContext(ctx, "yard room color lookup failed, badge falls back to default",
+			slog.String("error", err.Error()),
+		)
 		return nil
 	}
 	return color
 }
 
-// GetSchulhofRoomColor implements YardRoomColorResolver.
+// GetSchulhofRoomColor looks up the canonical Schulhof room's color.
 //
 // Returns nil (not an error) when the room is missing: the Schulhof room is
 // bootstrapped lazily on first use, so "not there yet" is a normal state for

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { type ComponentProps } from "react";
 import { RoomColorField } from "@/components/ui/database/room-color-field";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 import { buildRoomFormSections } from "./room-form-sections";
@@ -81,13 +82,23 @@ describe("buildRoomFormSections", () => {
       .find((field) => field.name === "color");
 
     expect(colorField).toBeDefined();
-    const Picker = colorField?.component;
-    if (!Picker) throw new Error("Schulhof color field lost its picker");
+    // Same shared kit component as every other room; only its preset props
+    // differ, bound through the field config.
+    expect(colorField?.component).toBe(RoomColorField);
 
-    // Same shared picker, Schulhof preview: with no colour set the swatch
-    // must show the orange the yard badge actually renders, not the generic
-    // room blue, and the hint has to say so.
-    render(<Picker value={null} onChange={vi.fn()} label="Farbe" />);
+    // With no colour set the swatch must show the orange the yard badge
+    // actually renders, not the generic room blue, and the hint has to say so.
+    const preset = colorField?.componentProps as ComponentProps<
+      typeof RoomColorField
+    >;
+    render(
+      <RoomColorField
+        {...preset}
+        value={null}
+        onChange={vi.fn()}
+        label="Farbe"
+      />,
+    );
 
     expect(screen.getByLabelText("Farbe")).toHaveValue(
       LOCATION_COLORS.SCHOOLYARD.toLowerCase(),
@@ -128,6 +139,7 @@ describe("buildRoomFormSections", () => {
       .find((field) => field.name === "color");
 
     expect(colorField?.component).toBe(RoomColorField);
+    expect(colorField?.componentProps).toBeUndefined();
   });
 
   it("keeps the color field for regular rooms", () => {
