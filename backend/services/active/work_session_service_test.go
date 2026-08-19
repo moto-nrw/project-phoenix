@@ -3342,6 +3342,30 @@ func TestWSCreateSessionAsAdmin_AllowsTouchingBlock(t *testing.T) {
 	assert.True(t, created)
 }
 
+func TestWSCheckIn_RejectsOverlapWithClosedFutureBlock(t *testing.T) {
+	// A closed block can reach past "now" (an admin Nachtrag for the
+	// afternoon, an edited checkout in the future). A check-in inside that
+	// interval must be rejected, or the overlap double-counts in every sum
+	// built from the day's rows.
+	now := time.Date(2026, time.August, 17, 12, 0, 0, 0, timezone.Berlin)
+	day := timezone.NewDate(2026, 8, 17)
+
+	svc, sessionRepo, _, _, _ := wsCreateTestService()
+	svc.nowFunc = func() time.Time { return now }
+
+	sessionRepo.listByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{wsClosedBlock(1, day, 8, 16)}, nil
+	}
+	sessionRepo.createFunc = func(_ context.Context, _ *activeModels.WorkSession) error {
+		t.Fatal("a check-in inside a closed block must not be created")
+		return nil
+	}
+
+	_, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "work session overlaps an existing block")
+}
+
 func TestWSUpdateSession_RejectsOverlapWithSiblingBlock(t *testing.T) {
 	svc, sessionRepo, _, _, _ := wsCreateTestService()
 	day := timezone.NewDate(2026, 8, 17)

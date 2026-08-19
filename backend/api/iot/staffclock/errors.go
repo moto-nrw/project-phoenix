@@ -51,6 +51,12 @@ func classifyError(err error) render.Renderer {
 		"no active session found", "no session found for today", "no active break found":
 		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
 	}
+	if strings.HasPrefix(err.Error(), "work session overlaps an existing block") {
+		// The shared check-in body rejects a stamp that falls inside a closed
+		// block (e.g. an admin Nachtrag reaching past "now") — a state
+		// conflict the kiosk already knows how to recover from.
+		return common.ErrorConflictWithCode(err, "invalid_staff_clock_state")
+	}
 	if strings.HasPrefix(err.Error(), "planned_duration_minutes must be") {
 		return common.ErrorInvalidRequestWithCode(err, "invalid_staff_clock_request")
 	}

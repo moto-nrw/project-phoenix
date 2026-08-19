@@ -472,6 +472,14 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, lookupD
 		}
 	}
 
+	// A closed block can still reach past "now" (an admin Nachtrag for the
+	// afternoon, an edited checkout in the future). A new block starting
+	// inside that interval would double-count the overlap in every sum built
+	// from the day's rows, so it is rejected like any other overlap.
+	if err := assertNoBlockOverlapIn(existingBlocks, 0, now, nil); err != nil {
+		return nil, err
+	}
+
 	// The session is created on the day of its own stamp: the schedule and
 	// deviation checks below have to be read on that same day, or a stamp
 	// taken just after midnight is measured against the previous day's shift.
@@ -1251,6 +1259,12 @@ func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID i
 	if err != nil {
 		return fmt.Errorf("failed to load sessions for overlap check: %w", err)
 	}
+	return assertNoBlockOverlapIn(siblings, excludeID, checkIn, checkOut)
+}
+
+// assertNoBlockOverlapIn is the list-based body of assertNoBlockOverlap, for
+// callers that already hold the day's blocks.
+func assertNoBlockOverlapIn(siblings []*activeModels.WorkSession, excludeID int64, checkIn time.Time, checkOut *time.Time) error {
 	for _, sibling := range siblings {
 		if sibling.ID == excludeID {
 			continue
