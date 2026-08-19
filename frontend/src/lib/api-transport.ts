@@ -1,6 +1,7 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 import { env } from "~/env";
+import { sanitizeEndpoint } from "~/lib/log-sanitize";
 import { createLogger } from "~/lib/logger";
 import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
 
@@ -154,7 +155,7 @@ api.interceptors.response.use(
     if (error.response?.status !== 401) {
       logger.error("api request failed", {
         method: originalRequest?.method?.toUpperCase(),
-        url: originalRequest?.url,
+        url: sanitizeEndpoint(originalRequest?.url ?? ""),
         status: error.response?.status,
         error: error.message,
       });
@@ -172,7 +173,7 @@ api.interceptors.response.use(
 
     logger.info("token expired, attempting refresh", {
       method: originalRequest.method?.toUpperCase(),
-      url: originalRequest.url,
+      url: sanitizeEndpoint(originalRequest.url ?? ""),
       retry_count: originalRequest._retryCount,
       caller_id: callerId,
     });
@@ -181,7 +182,7 @@ api.interceptors.response.use(
     if (originalRequest._retryCount > 3) {
       logger.warn("max token refresh retries reached", {
         method: originalRequest.method?.toUpperCase(),
-        url: originalRequest.url,
+        url: sanitizeEndpoint(originalRequest.url ?? ""),
         retry_count: originalRequest._retryCount,
         action: "redirecting to login",
       });

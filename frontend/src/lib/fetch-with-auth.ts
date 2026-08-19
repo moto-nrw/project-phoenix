@@ -1,4 +1,5 @@
 import { handleAuthFailure } from "./auth-failure";
+import { sanitizeEndpoint } from "~/lib/log-sanitize";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "FetchWithAuth" });
@@ -33,7 +34,10 @@ export async function fetchWithAuth(
           return fetchWithAuth(url, { ...fetchOptions, retry: false });
         }
       } catch (error) {
-        logger.error("token refresh failed", { url, error: String(error) });
+        logger.error("token refresh failed", {
+          url: sanitizeEndpoint(url),
+          error: String(error),
+        });
       }
     }
   }
