@@ -25,16 +25,12 @@ func getClassListImportHeaders() []string {
 	return []string{"Vorname", "Nachname", "Klasse"}
 }
 
-// getClassListImportExamples returns example data rows for the template —
-// exactly the canonical rows the parsers drop again on upload, so an
-// unchanged template never imports the demo children as real tenant data.
-func getClassListImportExamples() [][]any {
-	examples := make([][]any, 0, len(importService.ClassListTemplateExampleRows))
-	for _, row := range importService.ClassListTemplateExampleRows {
-		examples = append(examples, []any{row.FirstName, row.LastName, row.SchoolClass})
-	}
-	return examples
-}
+// The class-list template deliberately ships NO example data rows (#2399
+// review round 10): a class-list row is nothing but a name and a class, so
+// any rule that recognizes example rows again on upload is a name blocklist
+// that would silently drop a real child of the same name. The columns are
+// explained on the "Hinweise" sheet instead, and an unchanged template upload
+// is rejected as "keine Datenzeilen" because it carries none.
 
 // ClassListFileUploadResult carries the parsed rows plus the original
 // filename for the audit trail.
@@ -94,15 +90,6 @@ func (rs *Resource) downloadClassListTemplateCSV(w http.ResponseWriter, _ *http.
 		http.Error(w, errTemplateCreation, http.StatusInternalServerError)
 		return
 	}
-	for _, row := range getClassListImportExamples() {
-		strRow := make([]string, len(row))
-		for i, v := range row {
-			strRow[i] = fmt.Sprintf("%v", v)
-		}
-		if err := csvWriter.Write(strRow); err != nil {
-			slog.Default().Error("Error writing CSV row", slog.String("error", err.Error()))
-		}
-	}
 	csvWriter.Flush()
 }
 
@@ -126,7 +113,6 @@ func (rs *Resource) downloadClassListTemplateXLSX(w http.ResponseWriter, _ *http
 
 	headers := getClassListImportHeaders()
 	writeExcelHeaders(f, sheetName, headers)
-	writeExcelExampleRows(f, sheetName, getClassListImportExamples())
 	setExcelColumnWidths(f, sheetName, len(headers), 20)
 	writeClassListHinweiseSheet(f)
 
@@ -152,7 +138,7 @@ func writeClassListHinweiseSheet(f *excelize.File) {
 		{"", "", ""},
 		{"Hinweis", "", "Klassenlisteneinträge sind Kinder OHNE OGS-Betreuung: Sie erscheinen nur auf Klassenlisten und in der Klassenansicht, nie in Anwesenheit oder Betreuungsplanung."},
 		{"Hinweis", "", "Kinder, die bereits in moto angelegt sind, werden übersprungen — sie stehen schon auf der Klassenliste."},
-		{"Hinweis", "", "Die Beispielzeilen der Vorlage (Lena Beispiel, Jonas Muster) werden beim Import ignoriert — bitte durch echte Daten ersetzen."},
+		{"Hinweis", "", "Die Vorlage enthält nur die Kopfzeile: Bitte tragen Sie die Kinder ab Zeile 2 des Tabellenblatts \"Klassenliste\" ein, eine Zeile pro Kind."},
 	}
 	for rowIdx, row := range rows {
 		for colIdx, val := range row {

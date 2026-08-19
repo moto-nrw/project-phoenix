@@ -371,9 +371,8 @@ export default function ClassListImportPage() {
         <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
           <li>Laden Sie die Vorlage herunter (siehe unten)</li>
           <li>
-            Tragen Sie pro Kind nur Vorname, Nachname und Klasse ein — mehr
-            braucht ein Klassenlisteneintrag nicht (die Beispielzeilen der
-            Vorlage werden beim Import ignoriert)
+            Tragen Sie ab Zeile 2 pro Kind nur Vorname, Nachname und Klasse ein.
+            Mehr braucht ein Klassenlisteneintrag nicht
           </li>
           <li>
             Kinder, die bereits in moto angelegt sind, werden übersprungen — sie

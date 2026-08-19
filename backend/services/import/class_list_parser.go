@@ -17,29 +17,13 @@ import (
 // name + class.
 var classListRequiredColumns = []string{"vorname", "nachname", "klasse"}
 
-// ClassListTemplateExampleRows are the demo rows shipped in the import
-// template (the API's template download renders exactly these). An unchanged
-// template upload must not create these children as real tenant data, so the
-// parsers drop matching rows — a file consisting only of them then hits the
-// "keine Datenzeilen … Vorlage hochgeladen" error.
-var ClassListTemplateExampleRows = []importModels.ClassListEntryImportRow{
-	{FirstName: "Lena", LastName: "Beispiel", SchoolClass: "1a"},
-	{FirstName: "Jonas", LastName: "Muster", SchoolClass: "3b"},
-}
-
-// isClassListTemplateExample reports whether a parsed row is one of the
-// template's example rows (case-insensitive, trimmed — the template ships
-// them verbatim, but hand-copied variants should not slip through either).
-func isClassListTemplateExample(row importModels.ClassListEntryImportRow) bool {
-	for _, example := range ClassListTemplateExampleRows {
-		if strings.EqualFold(strings.TrimSpace(row.FirstName), example.FirstName) &&
-			strings.EqualFold(strings.TrimSpace(row.LastName), example.LastName) &&
-			strings.EqualFold(strings.TrimSpace(row.SchoolClass), example.SchoolClass) {
-			return true
-		}
-	}
-	return false
-}
+// The import template ships HEADERS ONLY (#2399 review round 10). Example
+// data rows would have to be recognized again on upload, and a class-list row
+// carries nothing but a name and a class — any recognition rule is a name
+// blocklist that silently drops a real child who happens to be called like
+// the example. The column meanings live in the template's "Hinweise" sheet
+// instead, and an unchanged template upload hits the "keine Datenzeilen …
+// Vorlage hochgeladen" error because it has no data rows at all.
 
 // MapClassListRow maps column values to a ClassListEntryImportRow.
 func MapClassListRow(mapper *ColumnMapper) importModels.ClassListEntryImportRow {
@@ -98,10 +82,7 @@ func ParseClassListCSV(reader io.Reader) ([]importModels.ClassListEntryImportRow
 		}
 
 		mapper := NewColumnMapper(mapping, values)
-		row := MapClassListRow(mapper)
-		if !isClassListTemplateExample(row) {
-			rows = append(rows, row)
-		}
+		rows = append(rows, MapClassListRow(mapper))
 		rowNum++
 	}
 
@@ -156,10 +137,7 @@ func ParseClassListXLSX(reader io.Reader) ([]importModels.ClassListEntryImportRo
 			continue
 		}
 		mapper := NewColumnMapper(mapping, values)
-		row := MapClassListRow(mapper)
-		if !isClassListTemplateExample(row) {
-			rows = append(rows, row)
-		}
+		rows = append(rows, MapClassListRow(mapper))
 	}
 
 	if len(rows) == 0 {

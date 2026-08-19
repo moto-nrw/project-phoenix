@@ -447,7 +447,7 @@ export default function ClassListEntriesPage() {
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="text-[#DC2626] hover:text-[#DC2626]"
+                className="text-moto-red hover:text-moto-red-hover"
                 onClick={() => {
                   setModalError(null);
                   setModal({ kind: "delete", entry });
