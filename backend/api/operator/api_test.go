@@ -53,7 +53,6 @@ func TestNewResource(t *testing.T) {
 	t.Run("creates resource with nil services", func(t *testing.T) {
 		cfg := operator.ResourceConfig{
 			AuthService:          nil,
-			SuggestionsService:   nil,
 			AnnouncementsService: nil,
 			TokenAuth:            nil,
 		}
@@ -68,7 +67,6 @@ func TestNewResource(t *testing.T) {
 
 		cfg := operator.ResourceConfig{
 			AuthService:          nil,
-			SuggestionsService:   nil,
 			AnnouncementsService: nil,
 			TokenAuth:            tokenAuth,
 		}

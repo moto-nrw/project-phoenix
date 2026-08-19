@@ -84,7 +84,7 @@ type SelectedActiveGroup struct {
 
 // CheckinResult holds the outcome of processing a check-in request. It is built
 // by BuildCheckinResult and then enriched by the handler (daily-checkout flag,
-// feedback flag, active-student count, pickup time).
+// active-student count, pickup time).
 type CheckinResult struct {
 	Action                 string
 	VisitID                *int64
@@ -92,7 +92,6 @@ type CheckinResult struct {
 	PreviousRoomName       string
 	GreetingMsg            string
 	DailyCheckoutAvailable bool
-	FeedbackEnabled        bool
 	ActiveStudents         *int
 	PickupTime             *string
 }

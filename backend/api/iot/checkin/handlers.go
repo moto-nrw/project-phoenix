@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -386,8 +385,8 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		result.Action = "checked_out_daily"
 	}
 
-	// Step 11: Set the checkout response flags (daily-checkout availability +
-	// feedback) and scope the active_students count to the scanning device.
+	// Step 11: Set the daily-checkout availability flag and scope the
+	// active_students count to the scanning device.
 	rs.applyCheckoutFlags(ctx, result, student, currentVisit)
 	if req.RoomID != nil {
 		result.ActiveStudents = rs.Checkin.ResolveActiveStudentCount(ctx, checkinResult, *req.RoomID, deviceCtx.ID)
@@ -419,23 +418,15 @@ func shouldRollbackDestinationCheckin(checkedOut bool, err error) bool {
 	return errors.As(err, &roomCapacityErr) || errors.As(err, &activityCapacityErr)
 }
 
-// applyCheckoutFlags sets the daily-checkout-available and feedback-enabled
-// response flags. Both are only meaningful when the student just left a room via
-// checkout, so the flags stay at their defaults otherwise. feedback_enabled
-// defaults to false (opt-in, GDPR).
+// applyCheckoutFlags sets the daily-checkout-available response flag. It is
+// only meaningful when the student just left a room via checkout, so the flag
+// stays at its default otherwise.
 func (rs *Resource) applyCheckoutFlags(ctx context.Context, result *checkinSvc.CheckinResult, student *users.Student, currentVisit *active.Visit) {
 	if currentVisit == nil || (result.Action != "checked_out" && result.Action != "checked_out_daily") {
 		return
 	}
 
 	result.DailyCheckoutAvailable = rs.Checkin.ShouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
-
-	result.FeedbackEnabled = false
-	if rs.SettingsService != nil {
-		if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyFeedbackEnabled); err == nil {
-			result.FeedbackEnabled = val
-		}
-	}
 }
 
 // applyPickupTime looks up today's pickup time and sets it on the result.
@@ -530,7 +521,6 @@ func (rs *Resource) processBinaryModeCheckin(
 		"message":                  message,
 		"status":                   "success",
 		"daily_checkout_available": false, // daily-checkout semantics belong to the detailed flow
-		"feedback_enabled":         false,
 	}
 
 	rs.getLogger().InfoContext(ctx, "binary mode checkin complete",

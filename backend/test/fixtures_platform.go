@@ -45,7 +45,7 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 
 // CleanupOperator removes an operator and its audit-log rows. All other
 // operator-scoped tables (tokens, MFA, passkeys) cascade on delete; rows in
-// domain tables referencing the operator (announcements, suggestion comments)
+// domain tables referencing the operator (announcements)
 // must be removed by the caller's own cleanup first.
 func CleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()

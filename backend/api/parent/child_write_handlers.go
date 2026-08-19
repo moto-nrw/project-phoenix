@@ -410,11 +410,6 @@ func parseSickNoteDates(raw []string) ([]timezone.Date, error) {
 
 // renderParentWriteError maps the service sentinels to stable HTTP codes.
 func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
-	// Feedback-board errors (#1678) are classified in their own file so the
-	// board's vocabulary stays next to its handlers.
-	if renderFeedbackError(w, r, err) {
-		return
-	}
 	switch {
 	case errors.Is(err, parentService.ErrChildNotLinked):
 		// Don't reveal whether the student exists elsewhere — treat an

@@ -22,10 +22,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -2565,33 +2563,6 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 	return token
 }
 
-// CreateTestFeedbackEntryForTenant creates a feedback entry belonging to a specific tenant.
-// Requires an existing student ID within the same tenant.
-func CreateTestFeedbackEntryForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *feedback.Entry {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	now := time.Now()
-
-	entry := &feedback.Entry{
-		Value:     feedback.ValuePositive,
-		Day:       timezone.DateFromTime(now),
-		Time:      now,
-		StudentID: studentID,
-	}
-	entry.SetTenantID(tenantID)
-
-	err := db.NewInsert().
-		Model(entry).
-		ModelTableExpr(`feedback.entries`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test feedback entry for tenant")
-
-	return entry
-}
-
 // CreateTestStaffForTenant creates a staff member (and person) belonging to a specific tenant.
 func CreateTestStaffForTenant(tb testing.TB, db *bun.DB, tenantID int64, firstName, lastName string) *users.Staff {
 	tb.Helper()
@@ -2814,31 +2785,6 @@ func CreateTestVisitForTenant(tb testing.TB, db *bun.DB, tenantID int64, student
 	return visit
 }
 
-// CreateTestSuggestionPostForTenant creates a suggestion post belonging to a specific tenant.
-func CreateTestSuggestionPostForTenant(tb testing.TB, db *bun.DB, tenantID int64, accountID int64) *suggestions.Post {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	post := &suggestions.Post{
-		Title:       fmt.Sprintf("Isolation Post T%d-%d", tenantID, time.Now().UnixNano()),
-		Description: "Test suggestion post for tenant isolation",
-		AuthorID:    accountID,
-		Status:      suggestions.StatusOpen,
-	}
-	post.SetTenantID(tenantID)
-
-	_, err := db.NewInsert().
-		Model(post).
-		ModelTableExpr(`suggestions.posts`).
-		Returning("*").
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to create test suggestion post for tenant")
-
-	return post
-}
-
 // CreateTestDataDeletionForTenant creates a data deletion audit record belonging to a specific tenant.
 func CreateTestDataDeletionForTenant(tb testing.TB, db *bun.DB, tenantID int64, studentID int64) *audit.DataDeletion {
 	tb.Helper()
@@ -2880,14 +2826,9 @@ func CleanupTenantTestData(tb testing.TB, db *bun.DB, tenantIDs ...int64) {
 	// Delete in reverse-FK order (children before parents).
 	// Each delete is best-effort; failures are logged but do not fail the test.
 	tables := []string{
-		"feedback.entries",
 		"auth.tokens",
 		"schedule.timeframes",
 		"iot.devices",
-		"suggestions.votes",
-		"suggestions.comment_reads",
-		"suggestions.comments",
-		"suggestions.posts",
 		"audit.data_deletions",
 		"audit.auth_events",
 		"active.visits",

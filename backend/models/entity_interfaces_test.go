@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/feedback"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -63,9 +62,6 @@ var (
 
 	// facilities package
 	_ base.Entity = (*facilities.Room)(nil)
-
-	// feedback package
-	_ base.Entity = (*feedback.Entry)(nil)
 
 	// iot package
 	_ base.Entity = (*iot.Device)(nil)

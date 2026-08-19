@@ -34,7 +34,6 @@ import (
 	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
@@ -52,7 +51,6 @@ import (
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
-	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
@@ -112,9 +110,7 @@ type API struct {
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
 	ShiftTypes       *shifttypesAPI.Resource
-	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
-	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
 	Display          *displayAPI.Resource
 	Schedules        *schedulesAPI.Resource
@@ -561,7 +557,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
-	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
@@ -582,7 +577,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
-	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
 	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
@@ -600,7 +594,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:       api.Services.Settings,
 		FacilityService:       api.Services.Facilities,
 		EducationService:      api.Services.Education,
-		FeedbackService:       api.Services.Feedback,
 		PickupScheduleService: api.Services.PickupSchedule,
 		SchoolService:         api.Services.Schools,
 		TimetableDataService:  api.Services.TimetableData,
@@ -657,7 +650,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		InvitationService:          api.Services.OperatorInvitation,
 		ProvisioningService:        api.Services.OperatorProvisioning,
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
-		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
 		UnregisteredTagScanService: api.Services.UnregisteredTagScans,
 		SettingsService:            api.Services.Settings,
@@ -866,9 +858,6 @@ func (a *API) registerTenantRoutes() {
 		// Mount personal calendar resources
 		r.Mount("/calendar", a.Calendar.Router())
 
-		// Mount feedback resources
-		r.Mount("/feedback", a.Feedback.Router())
-
 		// Mount meal plan resources
 		r.Mount("/meal-plan", a.MealPlan.Router())
 
@@ -877,9 +866,6 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount info-point display resources (issue #1325)
 		r.Mount("/display", a.Display.Router())
-
-		// Mount suggestions resources
-		r.Mount("/suggestions", a.Suggestions.Router())
 
 		// Mount schedule resources
 		r.Mount("/schedules", a.Schedules.Router())

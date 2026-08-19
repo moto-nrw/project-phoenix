@@ -11,13 +11,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	mealplanRepo "github.com/moto-nrw/project-phoenix/database/repositories/mealplan"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -30,13 +28,11 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	feedbackModels "github.com/moto-nrw/project-phoenix/models/feedback"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/uptrace/bun"
@@ -154,9 +150,6 @@ type Factory struct {
 	// Meal plan domain
 	MealPlanEntry mealplanModels.MealPlanEntryRepository
 
-	// Feedback domain
-	FeedbackEntry feedbackModels.EntryRepository
-
 	// IoT domain
 	Device             iotModels.DeviceRepository
 	PushSubscription   iotModels.PushSubscriptionRepository
@@ -167,13 +160,6 @@ type Factory struct {
 	SettingAudit      configModels.SettingAuditRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
 	WorkTimeModel     configModels.WorkTimeModelRepository
-
-	// Suggestions domain
-	SuggestionPost        suggestionsModels.PostRepository
-	SuggestionVote        suggestionsModels.VoteRepository
-	SuggestionComment     suggestionsModels.CommentRepository
-	SuggestionCommentRead suggestionsModels.CommentReadRepository
-	SuggestionPostRead    suggestionsModels.PostReadRepository
 
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
@@ -373,9 +359,6 @@ func NewFactory(db *bun.DB) *Factory {
 		// Meal plan repositories
 		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
 
-		// Feedback repositories
-		FeedbackEntry: feedback.NewEntryRepository(db),
-
 		// IoT repositories
 		Device:             iot.NewDeviceRepository(db),
 		PushSubscription:   iot.NewPushSubscriptionRepository(db),
@@ -386,13 +369,6 @@ func NewFactory(db *bun.DB) *Factory {
 		SettingAudit:      config.NewSettingAuditRepository(db),
 		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
 		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
-
-		// Suggestions repositories
-		SuggestionPost:        suggestionsRepo.NewPostRepository(db),
-		SuggestionVote:        suggestionsRepo.NewVoteRepository(db),
-		SuggestionComment:     suggestionsRepo.NewCommentRepository(db),
-		SuggestionCommentRead: suggestionsRepo.NewCommentReadRepository(db),
-		SuggestionPostRead:    suggestionsRepo.NewPostReadRepository(db),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),

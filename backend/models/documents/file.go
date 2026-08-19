@@ -1,6 +1,6 @@
 // Package documents holds the shape every uploaded document row shares,
-// independent of the entity it hangs off (a staff member, a child, later a
-// feedback post).
+// independent of the entity it hangs off (a staff member, a child, later
+// other owners).
 //
 // Two things are deliberately NOT generic here. The owner reference stays on
 // the concrete type, because a document belongs to its owner through a real

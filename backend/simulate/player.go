@@ -32,7 +32,6 @@ type RuntimeCounts struct {
 	StudentsSick       int
 	StudentsCheckedOut int
 	DailyCheckouts     int
-	FeedbackSubmitted  int
 	SessionsEnded      int
 }
 

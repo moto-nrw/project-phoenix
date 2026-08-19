@@ -446,7 +446,6 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	hasWriteAccess := rs.checkStudentFullAccess(r, student)
 
 	attendanceLogEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyAttendanceLogEnabled, false, rs.Logger)
-	feedbackEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyFeedbackEnabled, false, rs.Logger)
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 
 	response := StudentDetailResponse{
@@ -464,7 +463,6 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		HasWriteAccess:        hasWriteAccess,
 		HasAbsenceWriteAccess: rs.checkStudentAbsenceWriteAccess(r, student),
 		AttendanceLogEnabled:  attendanceLogEnabled,
-		FeedbackEnabled:       feedbackEnabled,
 	}
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)

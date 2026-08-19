@@ -72,7 +72,6 @@ func TestNewResource(t *testing.T) {
 		ActivitiesService: nil,
 		FacilityService:   nil,
 		EducationService:  nil,
-		FeedbackService:   nil,
 	}
 
 	resource := NewResource(deps)
@@ -84,7 +83,6 @@ func TestNewResource(t *testing.T) {
 	assert.Nil(t, resource.ActivitiesService)
 	assert.Nil(t, resource.FacilityService)
 	assert.Nil(t, resource.EducationService)
-	assert.Nil(t, resource.FeedbackService)
 }
 
 // =============================================================================
@@ -101,7 +99,6 @@ func TestServiceDependencies_Struct(t *testing.T) {
 	assert.Nil(t, deps.ActivitiesService)
 	assert.Nil(t, deps.FacilityService)
 	assert.Nil(t, deps.EducationService)
-	assert.Nil(t, deps.FeedbackService)
 }
 
 // =============================================================================
@@ -118,7 +115,6 @@ func TestResource_Struct(t *testing.T) {
 	assert.Nil(t, resource.ActivitiesService)
 	assert.Nil(t, resource.FacilityService)
 	assert.Nil(t, resource.EducationService)
-	assert.Nil(t, resource.FeedbackService)
 }
 
 // =============================================================================
@@ -195,18 +191,6 @@ func TestResource_Router_SessionRoute(t *testing.T) {
 	router := resource.Router()
 
 	req := httptest.NewRequest("POST", "/session/start", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Route exists (not 404)
-	assert.NotEqual(t, http.StatusNotFound, w.Code)
-}
-
-func TestResource_Router_FeedbackRoute(t *testing.T) {
-	resource := &Resource{}
-	router := resource.Router()
-
-	req := httptest.NewRequest("POST", "/feedback", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

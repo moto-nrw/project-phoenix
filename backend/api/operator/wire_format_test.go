@@ -5,7 +5,7 @@
 // These are B0 wire-format golden tests for issue #575 (API layer
 // technical-debt / error-response consolidation). The upcoming B1 refactor
 // collapses the per-package ErrResponse/ErrorRenderer duplication (active,
-// feedback, suggestions, operator, ...) into shared helpers in api/common.
+// operator, ...) into shared helpers in api/common.
 // That refactor MUST NOT change a single byte of what a client currently
 // receives on the wire. This file is the oracle: it renders through the
 // real render.Render(...) pipeline (go-chi/render's json.NewEncoder, which
@@ -15,7 +15,7 @@
 // Note: operator.ErrResponse diverges from every other package's
 // ErrResponse in two ways that B1 must reconcile or deliberately preserve:
 //  1. The error-text field is tagged json:"message" here, not json:"error"
-//     like api/active, api/feedback, api/iot/common.
+//     like api/active, api/iot/common.
 //  2. Most helpers hardcode StatusText to the literal string "error"
 //     (lowercase, not human text like "Forbidden"), except
 //     ErrTooManyRequests ("Too Many Requests") and ErrServiceUnavailable

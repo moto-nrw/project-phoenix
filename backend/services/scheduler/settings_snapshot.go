@@ -38,7 +38,6 @@ var schedulerPollingSettingKeys = []string{
 	configModel.KeyDataCleanupEnabled,
 	configModel.KeyDataCleanupTime,
 	configModel.KeyDataCleanupTimeoutMinutes,
-	configModel.KeyFeedbackDataRetentionDays,
 	configModel.KeySessionEndEnabled,
 	configModel.KeySessionEndTime,
 	configModel.KeySessionEndTimeoutMinutes,

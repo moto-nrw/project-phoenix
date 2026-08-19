@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
@@ -26,7 +25,7 @@ const (
 
 // ErrorRenderer renders an error to an HTTP response based on the IoT
 // service error type. Deliberately hand-written, not a B2 rule table: it
-// dispatches across three service domains (iot, active, feedback) with
+// dispatches across two service domains (iot, active) with
 // type-switch fallbacks, and its output strings are part of the PyrePortal
 // contract.
 func ErrorRenderer(err error) render.Renderer {
@@ -41,14 +40,6 @@ func ErrorRenderer(err error) render.Renderer {
 
 	if activeErr, ok := err.(*activeSvc.ActiveError); ok {
 		return handleActiveServiceError(activeErr)
-	}
-
-	if feedbackErr, ok := err.(*feedbackSvc.InvalidEntryDataError); ok {
-		return common.ErrorInvalidRequest(feedbackErr)
-	}
-
-	if renderer := handleFeedbackServiceError(err); renderer != nil {
-		return renderer
 	}
 
 	// For unknown errors, return a generic internal server error
@@ -162,20 +153,4 @@ func isActiveValidationError(err error) bool {
 		errors.Is(err, activeSvc.ErrCannotDeleteActiveGroup) ||
 		errors.Is(err, activeSvc.ErrInvalidData) ||
 		errors.Is(err, activeSvc.ErrInvalidActivitySession)
-}
-
-// handleFeedbackServiceError maps Feedback service errors to HTTP responses
-func handleFeedbackServiceError(err error) render.Renderer {
-	switch {
-	case errors.Is(err, feedbackSvc.ErrEntryNotFound):
-		return common.ErrorNotFound(err)
-	case errors.Is(err, feedbackSvc.ErrInvalidEntryData):
-		return common.ErrorInvalidRequest(err)
-	case errors.Is(err, feedbackSvc.ErrStudentNotFound):
-		return common.ErrorNotFound(err)
-	case errors.Is(err, feedbackSvc.ErrInvalidDateRange):
-		return common.ErrorInvalidRequest(err)
-	default:
-		return nil // Not a feedback error
-	}
 }

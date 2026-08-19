@@ -17,7 +17,6 @@ const (
 	ResourceRooms         = "rooms"
 	ResourceGroups        = "groups"
 	ResourceSubstitutions = "substitutions"
-	ResourceFeedback      = "feedback"
 	ResourceConfig        = "config"
 	ResourceAuth          = "auth"
 	ResourceIOT           = "iot"
@@ -103,13 +102,6 @@ const (
 	GroupsAssign = ResourceGroups + ":assign"
 )
 
-// Feedback permissions
-const (
-	FeedbackCreate = ResourceFeedback + ":" + ActionCreate
-	FeedbackRead   = ResourceFeedback + ":" + ActionRead
-	FeedbackDelete = ResourceFeedback + ":" + ActionDelete
-)
-
 // Config permissions
 const (
 	ConfigRead   = ResourceConfig + ":" + ActionRead
@@ -156,17 +148,6 @@ const (
 	SubstitutionsRead   = ResourceSubstitutions + ":" + ActionRead
 	SubstitutionsUpdate = ResourceSubstitutions + ":" + ActionUpdate
 	SubstitutionsDelete = ResourceSubstitutions + ":" + ActionDelete
-)
-
-// Suggestions permissions
-const (
-	ResourceSuggestions = "suggestions"
-
-	SuggestionsCreate = ResourceSuggestions + ":" + ActionCreate
-	SuggestionsRead   = ResourceSuggestions + ":" + ActionRead
-	SuggestionsUpdate = ResourceSuggestions + ":" + ActionUpdate
-	SuggestionsDelete = ResourceSuggestions + ":" + ActionDelete
-	SuggestionsList   = ResourceSuggestions + ":" + ActionList
 )
 
 // Visit permissions

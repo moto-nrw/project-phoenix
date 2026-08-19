@@ -100,9 +100,6 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 		// #1798: auto-checkout at planned shift end (per-tenant opt-in).
 		sched.SetAutoCheckouter(svc.WorkSession)
 	}
-	if svc.Feedback != nil {
-		sched.SetFeedbackCleaner(svc.Feedback)
-	}
 	if svc.UnregisteredTagScans != nil {
 		sched.SetUnregisteredTagScanCleaner(svc.UnregisteredTagScans)
 	}

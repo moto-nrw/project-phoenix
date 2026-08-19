@@ -157,12 +157,12 @@ func TestOperatorSetSchoolSettingValue_BypassesPermissionCheck(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	// feedback.enabled requires config:manage for tenant users and is a
-	// shared setting operators may write. Operators have empty permissions
+	// gdpr.attendance_log_enabled requires config:manage for tenant users and
+	// is a shared setting operators may write. Operators have empty permissions
 	// but should still succeed because the handler passes nil to SetValue
 	// to bypass per-setting permission checks.
 	body := map[string]interface{}{"value": true}
-	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/feedback.enabled", body)
+	req := newOperatorRequest(t, http.MethodPut, "/schools/1/settings/values/gdpr.attendance_log_enabled", body)
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)

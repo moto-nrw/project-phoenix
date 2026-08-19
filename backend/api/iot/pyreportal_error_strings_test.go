@@ -15,7 +15,7 @@
 // History: this guard originally lived in api/iot/checkin/ with a hardcoded
 // file list covering only the four checkin-boundary routes (POST /checkin,
 // POST /pickup-query, POST /ping, GET /status). Issue #575 B0 moved it here
-// and extended it to the session / attendance / data / rfid / feedback
+// and extended it to the session / attendance / data / rfid
 // routes so the IoT package consolidation cannot silently orphan a string.
 package iot
 
@@ -117,11 +117,6 @@ var pyreportalErrorStrings = []string{
 	"staff not found",
 	"staff has no RFID tag assigned",
 	"failed to get person data for staff",
-
-	// Feedback (POST /feedback)
-	"student_id is required",
-	"value is required",
-	"student not found",
 }
 
 // Staff-clock screens branch on stable codes rather than English prose. Keep

@@ -62,12 +62,6 @@ const (
 	KeyRoomDetailVisibleDays = "gdpr.room_detail_visible_days"
 )
 
-// Feedback settings.
-const (
-	KeyFeedbackEnabled           = "feedback.enabled"
-	KeyFeedbackDataRetentionDays = "feedback.data_retention_days"
-)
-
 // Checkout button settings (devices tab).
 const (
 	KeyCheckoutRaumwechselEnabled = "checkout.raumwechsel_enabled"

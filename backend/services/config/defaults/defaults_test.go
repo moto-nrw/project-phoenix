@@ -43,8 +43,6 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"gdpr.student_change_log_retention_days",
 		// PWA standalone-usage retention (issue #2189).
 		"gdpr.pwa_usage_retention_days",
-		"feedback.enabled",
-		"feedback.data_retention_days",
 		"security.ogs_device_pin",
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
@@ -1010,8 +1008,6 @@ func TestGDPRSettings_Types(t *testing.T) {
 		{"gdpr.attendance_log_enabled", config.FieldBoolean},
 		{"gdpr.attendance_visible_days", config.FieldNumber},
 		{"gdpr.room_detail_visible_days", config.FieldNumber},
-		{"feedback.enabled", config.FieldBoolean},
-		{"feedback.data_retention_days", config.FieldNumber},
 	}
 
 	for _, tc := range tests {
@@ -1184,25 +1180,6 @@ func TestDependsOn_AttendanceLogGroup(t *testing.T) {
 	}
 }
 
-func TestDependsOn_FeedbackGroup(t *testing.T) {
-	retentionDef := config.GetDefinition("feedback.data_retention_days")
-	require.NotNil(t, retentionDef)
-	require.NotNil(t, retentionDef.DependsOn)
-	assert.Equal(t, "feedback.enabled", retentionDef.DependsOn.Key)
-	assert.Equal(t, "eq", retentionDef.DependsOn.Condition)
-	assert.Equal(t, true, retentionDef.DependsOn.Value)
-}
-
-func TestFeedbackSettings(t *testing.T) {
-	def := config.GetDefinition("feedback.enabled")
-	require.NotNil(t, def)
-	assert.Equal(t, config.FieldBoolean, def.Type)
-	assert.Equal(t, "gdpr", def.Tab)
-	assert.Equal(t, "feedback", def.Category)
-	assert.Equal(t, false, def.Default, "feedback should default to false (opt-in)")
-	assert.Equal(t, "config:manage", def.WritePermission)
-}
-
 func TestDevicesSettings(t *testing.T) {
 	keys := []string{
 		"checkout.raumwechsel_enabled",
@@ -1286,7 +1263,6 @@ func TestValidation_NumberFields(t *testing.T) {
 		"gdpr.data_cleanup_timeout_minutes",
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
-		"feedback.data_retention_days",
 		"operations.per_student_checkout_delta_minutes",
 	}
 
@@ -1321,8 +1297,6 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"gdpr.attendance_log_enabled", false},
 		{"gdpr.attendance_visible_days", 30},
 		{"gdpr.room_detail_visible_days", 7},
-		{"feedback.enabled", false},
-		{"feedback.data_retention_days", 90},
 		{"security.ogs_device_pin", "1234"},
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", false},

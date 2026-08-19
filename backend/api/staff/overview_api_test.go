@@ -99,7 +99,7 @@ func TestDashboardSummaryAPI(t *testing.T) {
 	rec = ctx.get("/staff/dashboard-summary?period=quarter", "users:read")
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 
-	rec = ctx.get("/staff/dashboard-summary", "feedback:read")
+	rec = ctx.get("/staff/dashboard-summary", "rooms:read")
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 

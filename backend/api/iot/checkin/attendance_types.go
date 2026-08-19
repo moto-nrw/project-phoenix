@@ -75,9 +75,8 @@ func (req *AttendanceToggleRequest) Bind(_ *http.Request) error {
 
 // AttendanceToggleResponse represents the response after toggling attendance
 type AttendanceToggleResponse struct {
-	Action          string                `json:"action"` // "checked_in", "checked_out", "cancelled"
-	Student         AttendanceStudentInfo `json:"student"`
-	Attendance      AttendanceInfo        `json:"attendance"`
-	Message         string                `json:"message"`                    // User-friendly message for RFID device display
-	FeedbackEnabled *bool                 `json:"feedback_enabled,omitempty"` // Whether the feedback modal should be shown
+	Action     string                `json:"action"` // "checked_in", "checked_out", "cancelled"
+	Student    AttendanceStudentInfo `json:"student"`
+	Attendance AttendanceInfo        `json:"attendance"`
+	Message    string                `json:"message"` // User-friendly message for RFID device display
 }

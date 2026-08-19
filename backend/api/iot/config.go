@@ -22,11 +22,6 @@ type deviceConfigCheckout struct {
 	DailyCheckoutTime  *string `json:"daily_checkout_time"` // "HH:MM" or null (always available)
 }
 
-// deviceConfigFeedback holds feedback settings.
-type deviceConfigFeedback struct {
-	Enabled bool `json:"enabled"`
-}
-
 // deviceConfigResponse is the payload for GET /api/iot/config.
 // PresenceMode tells the kiosk whether the tenant runs the detailed flow
 // (room selection, visit tracking) or the binary flow (attendance only —
@@ -34,7 +29,6 @@ type deviceConfigFeedback struct {
 // default to detailed behavior, so the contract is backwards-compatible.
 type deviceConfigResponse struct {
 	Checkout     deviceConfigCheckout `json:"checkout"`
-	Feedback     deviceConfigFeedback `json:"feedback"`
 	PresenceMode string               `json:"presence_mode"`
 }
 
@@ -78,8 +72,6 @@ func (rs *Resource) resolveDeviceConfig(ctx context.Context, tenantID int64) dev
 		settingsCtx, rs.SettingsService, configModel.KeyCheckoutSchulhofEnabled, true)
 	response.Checkout.WCEnabled = resolveDeviceConfigBool(
 		settingsCtx, rs.SettingsService, configModel.KeyCheckoutWCEnabled, true)
-	response.Feedback.Enabled = resolveDeviceConfigBool(
-		settingsCtx, rs.SettingsService, configModel.KeyFeedbackEnabled, false)
 
 	response.PresenceMode = configSvc.ResolvePresenceModeForTenant(
 		settingsCtx, rs.SettingsService, tenantID, rs.getLogger())
@@ -101,7 +93,6 @@ func (rs *Resource) deviceConfigSettingsContext(ctx context.Context, tenantID in
 		configModel.KeyCheckoutRaumwechselEnabled,
 		configModel.KeyCheckoutSchulhofEnabled,
 		configModel.KeyCheckoutWCEnabled,
-		configModel.KeyFeedbackEnabled,
 		configModel.KeyStudentDailyCheckoutTime,
 		configModel.KeyPresenceMode,
 	})

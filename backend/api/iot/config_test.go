@@ -68,7 +68,6 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,
 			"checkout.wc_enabled":          true,
-			"feedback.enabled":             true,
 		},
 		map[string]string{},
 	)},
@@ -96,10 +95,6 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	assert.Equal(t, true, checkout["wc_enabled"])
 	assert.Nil(t, checkout["daily_checkout_time"], "should be null when not configured")
 
-	feedback, ok := data["feedback"].(map[string]any)
-	require.True(t, ok, "data should have feedback field")
-	assert.Equal(t, true, feedback["enabled"])
-
 	// Default presence_mode is "detailed" (backwards-compatible for tenants
 	// that never configured the setting).
 	assert.Equal(t, "detailed", data["presence_mode"])
@@ -113,7 +108,6 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 			"checkout.raumwechsel_enabled": false, // typically off in binary (no rooms)
 			"checkout.schulhof_enabled":    true,  // binary + schulhof → 3-button kiosk
 			"checkout.wc_enabled":          false, // WC is visit-only; hidden in binary
-			"feedback.enabled":             false,
 		},
 		map[string]string{
 			"operations.presence_mode": "binary",
@@ -145,7 +139,6 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 			"checkout.raumwechsel_enabled": false,
 			"checkout.schulhof_enabled":    false,
 			"checkout.wc_enabled":          true,
-			"feedback.enabled":             false,
 		},
 		map[string]string{},
 	)},
@@ -168,9 +161,6 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	assert.Equal(t, false, checkout["raumwechsel_enabled"])
 	assert.Equal(t, false, checkout["schulhof_enabled"])
 	assert.Equal(t, true, checkout["wc_enabled"])
-
-	feedback := data["feedback"].(map[string]any)
-	assert.Equal(t, false, feedback["enabled"])
 }
 
 func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
@@ -181,7 +171,6 @@ func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,
 			"checkout.wc_enabled":          true,
-			"feedback.enabled":             true,
 		},
 		map[string]string{
 			"operations.student_daily_checkout_time": "16:30",
@@ -215,7 +204,6 @@ func TestGetDeviceConfig_EnvVarFallback(t *testing.T) {
 			"checkout.raumwechsel_enabled": true,
 			"checkout.schulhof_enabled":    true,
 			"checkout.wc_enabled":          true,
-			"feedback.enabled":             true,
 		},
 		map[string]string{},
 	)},
@@ -302,8 +290,4 @@ func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 	assert.Equal(t, true, checkout["schulhof_enabled"])
 	assert.Equal(t, true, checkout["wc_enabled"])
 	assert.Nil(t, checkout["daily_checkout_time"])
-
-	// Feedback defaults to false (opt-in / GDPR) when no settings service
-	feedback := data["feedback"].(map[string]any)
-	assert.Equal(t, false, feedback["enabled"])
 }

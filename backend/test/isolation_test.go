@@ -20,12 +20,9 @@ import (
 	repoAuth "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoFacilities "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
-	repoFeedback "github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -331,60 +328,6 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 }
 
 // ============================================================================
-// Feedback Domain
-// ============================================================================
-
-func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
-	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
-
-	// Feedback entries require students (which require persons).
-	sA := CreateTestStudentForTenant(t, db, tenantA, "FeedbackA", "Student", "2a")
-	sB := CreateTestStudentForTenant(t, db, tenantB, "FeedbackB", "Student", "2a")
-
-	feA := CreateTestFeedbackEntryForTenant(t, db, tenantA, sA.ID)
-	feB := CreateTestFeedbackEntryForTenant(t, db, tenantB, sB.ID)
-
-	repo := repoFeedback.NewEntryRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	entries, err := repo.List(ctx42, nil)
-	require.NoError(t, err)
-
-	for _, e := range entries {
-		assert.Equal(t, tenantA, e.TenantID,
-			"cross-tenant leak: tenant B feedback visible to tenant A (List)")
-	}
-
-	// FeedbackEntryRepository.FindByID returns (nil, nil) on not-found
-	result, err := repo.FindByID(ctx42, feB.ID)
-	assert.NoError(t, err, "EntryRepository.FindByID returns nil on not-found, not error")
-	assert.Nil(t, result,
-		"cross-tenant FindByID should return nil: tenant A must not see tenant B feedback %d", feB.ID)
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	entries, err = repo.List(ctx43, nil)
-	require.NoError(t, err)
-
-	for _, e := range entries {
-		assert.Equal(t, tenantB, e.TenantID,
-			"cross-tenant leak: tenant A feedback visible to tenant B (List)")
-	}
-
-	result, err = repo.FindByID(ctx43, feA.ID)
-	assert.NoError(t, err)
-	assert.Nil(t, result,
-		"cross-tenant FindByID should return nil: tenant B must not see tenant A feedback %d", feA.ID)
-}
-
-// ============================================================================
 // Active Domain
 // ============================================================================
 
@@ -476,61 +419,6 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 	_, err = repo.FindByID(ctx43, catA.ID)
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A category %d", catA.ID)
-}
-
-// ============================================================================
-// Suggestions Domain
-// ============================================================================
-
-func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
-	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
-
-	// Posts require an author (account_id). Accounts are not tenant-scoped.
-	acctA := CreateTestAccount(t, db, "suggestion-isolation-a")
-	acctB := CreateTestAccount(t, db, "suggestion-isolation-b")
-	defer CleanupAuthFixtures(t, db, acctA.ID, acctB.ID)
-
-	postA := CreateTestSuggestionPostForTenant(t, db, tenantA, acctA.ID)
-	postB := CreateTestSuggestionPostForTenant(t, db, tenantB, acctB.ID)
-
-	repo := repoSuggestions.NewPostRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	resultA, err := repo.FindByID(ctx42, postB.ID, suggestions.ReaderTypeOperator)
-	assert.NoError(t, err, "PostRepository.FindByID returns nil on not-found, not error")
-	assert.Nil(t, resultA,
-		"cross-tenant FindByID should return nil: tenant A must not see tenant B post %d", postB.ID)
-
-	// List has unusual signature (accountID, readerType, sortBy, status)
-	posts, err := repo.List(ctx42, acctA.ID, "operator", "score", "")
-	require.NoError(t, err)
-
-	for _, p := range posts {
-		assert.Equal(t, tenantA, p.TenantID,
-			"cross-tenant leak: tenant B post visible to tenant A (List)")
-	}
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	resultB, err := repo.FindByID(ctx43, postA.ID, suggestions.ReaderTypeOperator)
-	assert.NoError(t, err)
-	assert.Nil(t, resultB,
-		"cross-tenant FindByID should return nil: tenant B must not see tenant A post %d", postA.ID)
-
-	posts, err = repo.List(ctx43, acctB.ID, "operator", "score", "")
-	require.NoError(t, err)
-
-	for _, p := range posts {
-		assert.Equal(t, tenantB, p.TenantID,
-			"cross-tenant leak: tenant A post visible to tenant B (List)")
-	}
 }
 
 // ============================================================================

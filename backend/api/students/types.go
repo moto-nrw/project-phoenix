@@ -203,7 +203,6 @@ type StudentDetailResponse struct {
 	HasAbsenceWriteAccess bool                `json:"has_absence_write_access"`
 	GroupSupervisors      []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled  bool                `json:"attendance_log_enabled"`
-	FeedbackEnabled       bool                `json:"feedback_enabled"`
 }
 
 type StudentStatusDayResponse struct {

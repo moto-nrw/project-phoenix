@@ -403,7 +403,7 @@ func TeacherTestClaims(accountID int) jwt.AppClaims {
 		FirstName:   "Test",
 		LastName:    "Teacher",
 		Roles:       []string{"user"},
-		Permissions: []string{"students:read", "groups:read", "groups:update", "groups:list", "visits:read", "visits:create", "visits:update", "visits:delete", "visits:list", "activities:update", "activities:delete", "activities:list", "activities:manage", "activities:enroll", "activities:assign", "users:list", "rooms:list", "schedules:read", "schedules:list", "feedback:read", "feedback:list", "substitutions:read"},
+		Permissions: []string{"students:read", "groups:read", "groups:update", "groups:list", "visits:read", "visits:create", "visits:update", "visits:delete", "visits:list", "activities:update", "activities:delete", "activities:list", "activities:manage", "activities:enroll", "activities:assign", "users:list", "rooms:list", "schedules:read", "schedules:list", "substitutions:read"},
 		TenantID:    1,
 	}
 }

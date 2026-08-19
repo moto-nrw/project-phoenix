@@ -72,18 +72,6 @@ func TestConflictError(t *testing.T) {
 	assert.Contains(t, err.Error(), "duplicate slug")
 }
 
-func TestPostNotFoundError(t *testing.T) {
-	err := &platform.PostNotFoundError{PostID: 111}
-	assert.Contains(t, err.Error(), "111")
-	assert.Contains(t, err.Error(), "not found")
-}
-
-func TestCommentNotFoundError(t *testing.T) {
-	err := &platform.CommentNotFoundError{CommentID: 222}
-	assert.Contains(t, err.Error(), "222")
-	assert.Contains(t, err.Error(), "not found")
-}
-
 func TestPasswordMismatchError(t *testing.T) {
 	err := &platform.PasswordMismatchError{}
 	assert.Equal(t, "current password is incorrect", err.Error())

@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/render"
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,26 +80,6 @@ func TestErrorRenderer_ActiveErrors(t *testing.T) {
 		{"ErrInvalidData", &activeSvc.ActiveError{Err: activeSvc.ErrInvalidData}},
 		// Database errors
 		{"ErrDatabaseOperation", &activeSvc.ActiveError{Err: activeSvc.ErrDatabaseOperation}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			renderer := shared.ErrorRenderer(tt.err)
-			assert.NotNil(t, renderer)
-		})
-	}
-}
-
-// Test ErrorRenderer for Feedback Service Errors
-func TestErrorRenderer_FeedbackErrors(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-	}{
-		{"ErrEntryNotFound", feedbackSvc.ErrEntryNotFound},
-		{"ErrInvalidEntryData", feedbackSvc.ErrInvalidEntryData},
-		{"ErrStudentNotFound", feedbackSvc.ErrStudentNotFound},
-		{"ErrInvalidDateRange", feedbackSvc.ErrInvalidDateRange},
 	}
 
 	for _, tt := range tests {

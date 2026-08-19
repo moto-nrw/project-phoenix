@@ -178,6 +178,5 @@ func TestRuntimeCounts_Defaults(t *testing.T) {
 	assert.Equal(t, 0, c.StudentsSick)
 	assert.Equal(t, 0, c.StudentsCheckedOut)
 	assert.Equal(t, 0, c.DailyCheckouts)
-	assert.Equal(t, 0, c.FeedbackSubmitted)
 	assert.Equal(t, 0, c.SessionsEnded)
 }

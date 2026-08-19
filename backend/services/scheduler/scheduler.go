@@ -74,11 +74,6 @@ type OperatorInvitationCleaner interface {
 	CleanupExpiredOperatorInvitations(ctx context.Context) (int, error)
 }
 
-// FeedbackCleaner exposes the cleanup routine for old feedback entries.
-type FeedbackCleaner interface {
-	DeleteEntriesOlderThan(ctx context.Context, days int) (int, error)
-}
-
 type UnregisteredTagScanCleaner interface {
 	DeleteOlderThan(ctx context.Context, days int) (int, error)
 }
@@ -112,7 +107,6 @@ type Scheduler struct {
 	workSessionCleanup         WorkSessionCleaner
 	breakAutoEnder             BreakAutoEnder
 	autoCheckouter             AutoCheckouter
-	feedbackCleaner            FeedbackCleaner
 	unregisteredTagScanCleaner UnregisteredTagScanCleaner
 	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	studentDocumentFileCleaner StudentDocumentFileCleaner
@@ -267,11 +261,6 @@ func (s *Scheduler) SetAutoCheckouter(ac AutoCheckouter) {
 	s.autoCheckouter = ac
 }
 
-// SetFeedbackCleaner sets the feedback cleanup service (optional).
-func (s *Scheduler) SetFeedbackCleaner(fc FeedbackCleaner) {
-	s.feedbackCleaner = fc
-}
-
 func (s *Scheduler) SetUnregisteredTagScanCleaner(cleaner UnregisteredTagScanCleaner) {
 	s.unregisteredTagScanCleaner = cleaner
 }
@@ -292,7 +281,7 @@ func (s *Scheduler) SetStudentDocumentFileCleaner(cleaner StudentDocumentFileCle
 // scheduler registers the weekly materialization task in Start(). A nil
 // materializer is a valid configuration — the task simply does not register,
 // matching the legacy "opt-in via dependency injection" pattern used by the
-// feedback cleaner, work-session cleaner, and break auto-ender above.
+// work-session cleaner and break auto-ender above.
 func (s *Scheduler) SetMaterializer(m scheduleSvc.MaterializationService) {
 	s.materializer = m
 }
@@ -821,23 +810,6 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 			s.getLogger().Info("work session cleanup completed",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int("sessions_closed", closedCount),
-			)
-		}
-	}
-
-	// Cleanup old feedback entries based on data retention setting
-	if s.feedbackCleaner != nil {
-		retentionDays := s.resolveIntSetting(ctx, configModel.KeyFeedbackDataRetentionDays, "", 90)
-		if deleted, err := s.feedbackCleaner.DeleteEntriesOlderThan(ctx, retentionDays); err != nil {
-			s.getLogger().Error("feedback cleanup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-		} else if deleted > 0 {
-			s.getLogger().Info("feedback cleanup completed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("records_deleted", deleted),
-				slog.Int("retention_days", retentionDays),
 			)
 		}
 	}

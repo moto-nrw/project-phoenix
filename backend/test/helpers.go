@@ -141,7 +141,7 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 	// BUN's Relation() JOIN generation sometimes uses unqualified table names,
 	// which fails when the target schema isn't in search_path.
 	_, _ = db.ExecContext(context.Background(),
-		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, feedback, config, meta, audit`)
+		`SET search_path TO public, platform, auth, users, education, facilities, activities, active, schedule, iot, config, meta, audit`)
 
 	// Spread PK sequences into disjoint per-table ranges so fixture IDs from
 	// different tables never collide numerically (see sequence_offsets.go).

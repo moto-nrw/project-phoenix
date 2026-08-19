@@ -23,7 +23,6 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	staffclockSvc "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
@@ -54,7 +53,6 @@ type ServiceDependencies struct {
 	SettingsService       configSvc.SettingsService
 	FacilityService       facilitiesSvc.Service
 	EducationService      educationSvc.Service
-	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
 	TimetableDataService  *scheduleSvc.TimetableDataService
@@ -129,7 +127,7 @@ func (rs *Resource) Router() chi.Router {
 		// School name endpoint (device API key → school name)
 		r.Get("/school-name", rs.getSchoolName)
 
-		// Device configuration endpoint (checkout buttons, feedback settings)
+		// Device configuration endpoint (checkout buttons, presence mode)
 		r.Get("/config", rs.getDeviceConfig)
 	})
 
@@ -170,10 +168,6 @@ func (rs *Resource) Router() chi.Router {
 		staffClockHandler := delegateHandler(staffClockResource.Router())
 		r.Post("/staff-clock", staffClockHandler)
 		r.Post("/staff-clock/state", staffClockHandler)
-
-		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := dataAPI.NewFeedbackResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
-		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
 		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)

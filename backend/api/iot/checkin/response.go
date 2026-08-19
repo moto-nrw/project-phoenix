@@ -24,7 +24,6 @@ func buildCheckinResponse(student *users.Student, result *checkinSvc.CheckinResu
 		"message":                  result.GreetingMsg,
 		"status":                   "success",
 		"daily_checkout_available": result.DailyCheckoutAvailable,
-		"feedback_enabled":         result.FeedbackEnabled,
 	}
 
 	if result.Action == "transferred" && result.PreviousRoomName != "" {
