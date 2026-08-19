@@ -121,6 +121,33 @@ func TestWithdraw_LeavesNoSnapshot(t *testing.T) {
 	assert.NotEmpty(t, item.Requested)
 }
 
+// TestListHistory_LegacyDecidedRowFallsBackToRequested: a row decided before
+// the snapshot existed (simulated by clearing the column) carries no Diff and
+// the history keeps serving the payload-derived requested summary.
+func TestListHistory_LegacyDecidedRowFallsBackToRequested(t *testing.T) {
+	f := newCareFixture(t)
+
+	req := f.createPending(t, careWeekdays(
+		map[string]any{"weekday": 1, "pickup": "16:00"},
+	))
+	_, err := f.svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: false, Reason: "passt nicht", ReviewedBy: f.staffAccount,
+	})
+	require.NoError(t, err)
+
+	// Altzeile: pre-#2430 decided rows have no snapshot.
+	_, err = f.db.NewUpdate().
+		TableExpr("schedule.care_schedule_change_requests").
+		Set("decision_snapshot = NULL").
+		Where("id = ?", req.ID).
+		Exec(t.Context())
+	require.NoError(t, err)
+
+	item := historyItemByID(t, f, req.ID)
+	assert.Nil(t, item.Diff, "a row without a snapshot must not fabricate a diff")
+	assert.NotEmpty(t, item.Requested, "the payload summary remains the fallback")
+}
+
 // TestDecide_PickupChangeFreezesDiff covers the pickup-change kind: the
 // one-day exception's alt → neu is frozen on decision too.
 func TestDecide_PickupChangeFreezesDiff(t *testing.T) {

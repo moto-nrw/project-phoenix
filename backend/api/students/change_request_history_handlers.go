@@ -162,27 +162,10 @@ type CareRequestHistoryResponse struct {
 // by the per-type history route and the aggregated list, #2432).
 func toCareRequestHistoryResponse(item *scheduleService.CareRequestHistoryItem) CareRequestHistoryResponse {
 	req := item.Request
-	requested := make([]CareRequestDiffResponse, 0, len(item.Requested))
-	for _, e := range item.Requested {
-		requested = append(requested, CareRequestDiffResponse{
-			Label:    e.Label,
-			New:      e.New,
-			Weekday:  e.Weekday,
-			CareKind: e.CareKind,
-			NewMode:  e.NewMode,
-		})
-	}
+	requested := toCareRequestDiffResponses(item.Requested)
 	var diff []CareRequestDiffResponse
-	for _, e := range item.Diff {
-		diff = append(diff, CareRequestDiffResponse{
-			Label:    e.Label,
-			Old:      e.Old,
-			New:      e.New,
-			Weekday:  e.Weekday,
-			CareKind: e.CareKind,
-			OldModes: e.OldModes,
-			NewMode:  e.NewMode,
-		})
+	if len(item.Diff) > 0 {
+		diff = toCareRequestDiffResponses(item.Diff)
 	}
 	return CareRequestHistoryResponse{
 		ID:             strconv.FormatInt(req.ID, 10),

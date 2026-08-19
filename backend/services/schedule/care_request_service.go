@@ -910,6 +910,10 @@ func (s *careScheduleRequestService) Decide(ctx context.Context, input CareReque
 		return nil, err
 	}
 	if snapshot != nil {
+		// Unlike a failed diff BUILD (tolerated above), a failed WRITE must
+		// propagate: a failed statement poisons the ambient Postgres
+		// transaction, so there is no "log and continue" here — the whole
+		// decision rolls back.
 		if err := s.requestRepo.UpdateDecisionSnapshot(ctx, req.ID, snapshot); err != nil {
 			return nil, fmt.Errorf("schedule: store care request decision snapshot: %w", err)
 		}

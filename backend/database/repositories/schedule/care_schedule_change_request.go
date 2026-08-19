@@ -234,8 +234,12 @@ func (r *CareScheduleChangeRequestRepository) UpdateDecisionSnapshot(ctx context
 		Set("updated_at = ?", time.Now()).
 		Where(`"care_schedule_change_request".id = ?`, id)
 	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
-	if _, err := q.Exec(ctx); err != nil {
+	res, err := q.Exec(ctx)
+	if err != nil {
 		return &modelBase.DatabaseError{Op: "update care request decision snapshot", Err: err}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrCareRequestNotFound
 	}
 	return nil
 }
