@@ -1741,15 +1741,49 @@ export function EnrollmentForm({
             childOfferings,
           );
           if (child.locked) {
+            const name = `${child.first_name} ${child.last_name}`.trim();
+            const booked = offerings
+              .filter((offering) => child.offering_ids.has(offering.id))
+              .map((offering) => offering.name);
             return (
-              <LockedChildCard
+              <InfoCard
                 key={child.clientId}
-                child={child}
-                offerings={offerings}
-                collectGradeLevel={collectGradeLevel}
-                activeLocale={activeLocale}
-                tr={tr}
-              />
+                title={name || tr("structured.child")}
+                icon={
+                  <Lock className="h-5 w-5 text-gray-600" aria-hidden="true" />
+                }
+              >
+                <StatusBadge label={tr("locked.badge")} tone="green" />
+                <InfoItem
+                  label={tr("locked.birthday")}
+                  value={
+                    child.date_of_birth
+                      ? formatDate(child.date_of_birth, false, activeLocale)
+                      : "-"
+                  }
+                />
+                {collectGradeLevel && child.target_grade_level ? (
+                  <InfoItem
+                    label={tr("locked.grade")}
+                    value={tr("fields.grade", {
+                      grade: child.target_grade_level,
+                    })}
+                  />
+                ) : null}
+                <InfoItem
+                  label={tr("locked.care")}
+                  value={
+                    booked.length > 0 ? booked.join(", ") : tr("locked.noCare")
+                  }
+                />
+                <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
+                  {tr("locked.hint", {
+                    name: name || tr("structured.child"),
+                  })}
+                  <br />
+                  {tr("locked.noAccess")}
+                </p>
+              </InfoCard>
             );
           }
           return (
@@ -2347,61 +2381,6 @@ function blankChild(requiredOfferingIDs: readonly string[] = []): ChildDraft {
     offering_days: {},
     custom: {},
   };
-}
-
-// LockedChildCard renders a child that is already taken over into care: the
-// status link keeps its data readable, but every change for it runs through
-// the parents app (ADR 0003). The values stay in form state untouched, so the
-// submitted payload carries them back unchanged — the backend refuses a change
-// request that touches a locked child.
-function LockedChildCard({
-  child,
-  offerings,
-  collectGradeLevel,
-  activeLocale,
-  tr,
-}: {
-  readonly child: ChildDraft;
-  readonly offerings: readonly PublicCareOffering[];
-  readonly collectGradeLevel: boolean;
-  readonly activeLocale: string;
-  readonly tr: EnrollmentFormTranslator;
-}) {
-  const name = `${child.first_name} ${child.last_name}`.trim();
-  const booked = offerings
-    .filter((offering) => child.offering_ids.has(offering.id))
-    .map((offering) => offering.name);
-  return (
-    <InfoCard
-      title={name || tr("structured.child")}
-      icon={<Lock className="h-5 w-5 text-gray-600" aria-hidden="true" />}
-    >
-      <StatusBadge label={tr("locked.badge")} tone="green" />
-      <InfoItem
-        label={tr("locked.birthday")}
-        value={
-          child.date_of_birth
-            ? formatDate(child.date_of_birth, false, activeLocale)
-            : "-"
-        }
-      />
-      {collectGradeLevel && child.target_grade_level ? (
-        <InfoItem
-          label={tr("locked.grade")}
-          value={tr("fields.grade", { grade: child.target_grade_level })}
-        />
-      ) : null}
-      <InfoItem
-        label={tr("locked.care")}
-        value={booked.length > 0 ? booked.join(", ") : tr("locked.noCare")}
-      />
-      <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
-        {tr("locked.hint", { name: name || tr("structured.child") })}
-        <br />
-        {tr("locked.noAccess")}
-      </p>
-    </InfoCard>
-  );
 }
 
 function draftChildren(

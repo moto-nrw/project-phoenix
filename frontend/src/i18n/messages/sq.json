@@ -1118,7 +1118,8 @@
     "lockedChildHint": "Ndryshimet për këtë fëmijë bëhen përmes aplikacionit për prindër.",
     "lockedAllTitle": "Ndryshimet bëhen përmes aplikacionit për prindër",
     "lockedAllBodyOne": "Fëmija juaj është tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
-    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë."
+    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
+    "lockedAllAction": "Te aplikacioni për prindër"
   },
   "parentMasterData": {
     "title": "Të dhënat dhe përkujdesja",

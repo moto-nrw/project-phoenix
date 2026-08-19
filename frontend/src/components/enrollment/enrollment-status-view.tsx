@@ -472,6 +472,7 @@ function EnrollmentStatusContent({
   const adjustHref = pathname?.startsWith("/parents")
     ? `/parents/enroll/status/${encodeURIComponent(token)}/adjust`
     : `${pathname?.replace(/\/$/, "") ?? ""}/adjust`;
+  const parentsHref = pathname?.startsWith("/parents") ? "/" : "/parents";
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
@@ -510,6 +511,9 @@ function EnrollmentStatusContent({
               ? t("lockedAllBodyMany")
               : t("lockedAllBodyOne")}
           </p>
+          <ButtonLink href={parentsHref} className="w-full sm:w-auto">
+            {t("lockedAllAction")}
+          </ButtonLink>
         </section>
       ) : null}
 

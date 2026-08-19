@@ -1118,7 +1118,8 @@
     "lockedChildHint": "Changes for this child go through the parents app.",
     "lockedAllTitle": "Changes go through the parents app",
     "lockedAllBodyOne": "Your child is already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
-    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? The OGS can invite you."
+    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
+    "lockedAllAction": "Go to parents app"
   },
   "parentMasterData": {
     "title": "Details and care",

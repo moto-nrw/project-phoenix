@@ -1118,7 +1118,8 @@
     "lockedChildHint": "Änderungen für dieses Kind laufen über die Eltern-App.",
     "lockedAllTitle": "Änderungen laufen über die Eltern-App",
     "lockedAllBodyOne": "Ihr Kind ist schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
-    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen."
+    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
+    "lockedAllAction": "Zur Eltern-App"
   },
   "parentMasterData": {
     "title": "Daten und Betreuung",

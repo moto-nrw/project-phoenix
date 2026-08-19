@@ -295,6 +295,9 @@ describe("EnrollmentStatusView", () => {
       await screen.findByText("Änderungen laufen über die Eltern-App"),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("link", { name: "Zur Eltern-App" }),
+    ).toHaveAttribute("href", "/parents");
+    expect(
       screen.queryByRole("link", { name: "Änderung anfragen" }),
     ).not.toBeInTheDocument();
   });
