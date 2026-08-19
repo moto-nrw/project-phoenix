@@ -2,8 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -71,30 +69,28 @@ func (s *service) ResolveSchulhofRoomColor(ctx context.Context) *string {
 // instead of reading as "no colour configured" — the two are indistinguishable
 // on the badge, and only one of them is worth waking up for.
 //
-// The canonical-name check mirrors facilities.FindCanonicalSchulhofRoom —
-// FindByName matches case-insensitively, and a stray "schulhof" room created
-// before the reservation guards landed must not tint the yard badge.
+// The name lookup is case-insensitive while the uniqueness index is not, so a
+// tenant carrying a legacy "schulhof" room from before the reservation guards
+// has TWO matching rows. Reading a single unordered row would hand back the
+// legacy one often enough to silently drop the configured colour, so every
+// match is inspected and only the exact reserved name on a system room counts
+// — the same validation facilities.FindCanonicalSchulhofRoom applies.
 func (s *service) GetSchulhofRoomColor(ctx context.Context) (*string, error) {
 	if s.RoomRepo == nil {
 		return nil, nil
 	}
-	room, err := s.RoomRepo.FindByName(ctx, constants.SchulhofRoomName)
+	rooms, err := s.RoomRepo.List(ctx, map[string]any{"name": constants.SchulhofRoomName})
 	if err != nil {
-		// The repository wraps the driver error, so the no-rows sentinel is
-		// only reachable through the error chain.
-		if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("list Schulhof rooms: %w", err)
+	}
+	for _, room := range rooms {
+		if room == nil || room.Name != constants.SchulhofRoomName || !room.IsSystem {
+			continue
+		}
+		if room.Color == nil || *room.Color == "" {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("find Schulhof room: %w", err)
+		return room.Color, nil
 	}
-	if room == nil {
-		return nil, nil
-	}
-	if room.Name != constants.SchulhofRoomName || !room.IsSystem {
-		return nil, nil
-	}
-	if room.Color == nil || *room.Color == "" {
-		return nil, nil
-	}
-	return room.Color, nil
+	return nil, nil
 }

@@ -2,7 +2,6 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -59,16 +58,22 @@ func TestResolveYardRoomColorWithoutCapability(t *testing.T) {
 
 // yardColorRoomRepository is a stub for the single lookup GetSchulhofRoomColor
 // performs; everything else on the interface stays unimplemented on purpose.
+// rooms carries every case-insensitive name match, in the order the database
+// would hand them over — the ordering is what the resolver must not trust.
 type yardColorRoomRepository struct {
 	facilityModels.RoomRepository
-	room    *facilityModels.Room
-	err     error
-	gotName string
+	rooms      []*facilityModels.Room
+	err        error
+	gotFilters map[string]any
 }
 
-func (r *yardColorRoomRepository) FindByName(_ context.Context, name string) (*facilityModels.Room, error) {
-	r.gotName = name
-	return r.room, r.err
+func (r *yardColorRoomRepository) List(_ context.Context, filters map[string]any) ([]*facilityModels.Room, error) {
+	r.gotFilters = filters
+	return r.rooms, r.err
+}
+
+func yardColorRepo(rooms ...*facilityModels.Room) *yardColorRoomRepository {
+	return &yardColorRoomRepository{rooms: rooms}
 }
 
 func yardColorService(repo facilityModels.RoomRepository) *service {
@@ -91,7 +96,7 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 
 	t.Run("returns the configured color", func(t *testing.T) {
 		color := "#A3D977"
-		repo := &yardColorRoomRepository{room: schulhofRoom(&color)}
+		repo := yardColorRepo(schulhofRoom(&color))
 
 		got, err := yardColorService(repo).GetSchulhofRoomColor(ctx)
 
@@ -99,15 +104,13 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 		if assert.NotNil(t, got) {
 			assert.Equal(t, color, *got)
 		}
-		assert.Equal(t, constants.SchulhofRoomName, repo.gotName)
+		assert.Equal(t, map[string]any{"name": constants.SchulhofRoomName}, repo.gotFilters)
 	})
 
 	t.Run("treats a missing room as no color", func(t *testing.T) {
 		// The Schulhof room is bootstrapped lazily, so a tenant that never
 		// opened the yard is a normal state, not a failure.
-		repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "find by name", Err: sql.ErrNoRows}}
-
-		got, err := yardColorService(repo).GetSchulhofRoomColor(ctx)
+		got, err := yardColorService(yardColorRepo()).GetSchulhofRoomColor(ctx)
 
 		require.NoError(t, err)
 		assert.Nil(t, got)
@@ -116,7 +119,7 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 	t.Run("propagates a real repository failure", func(t *testing.T) {
 		// The review case: a dead connection must not read as "orange".
 		boom := errors.New("connection refused")
-		repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "find by name", Err: boom}}
+		repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "list", Err: boom}}
 
 		got, err := yardColorService(repo).GetSchulhofRoomColor(ctx)
 
@@ -126,27 +129,50 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 	})
 
 	t.Run("ignores a non-canonical or non-system room", func(t *testing.T) {
-		// FindByName matches case-insensitively; a stray "schulhof" room from
-		// before the reservation guards must not tint the yard badge.
+		// The name lookup matches case-insensitively; a stray "schulhof" room
+		// from before the reservation guards must not tint the yard badge.
 		color := "#A3D977"
 
 		stray := schulhofRoom(&color)
 		stray.Name = "schulhof"
-		got, err := yardColorService(&yardColorRoomRepository{room: stray}).GetSchulhofRoomColor(ctx)
+		got, err := yardColorService(yardColorRepo(stray)).GetSchulhofRoomColor(ctx)
 		require.NoError(t, err)
 		assert.Nil(t, got)
 
 		notSystem := schulhofRoom(&color)
 		notSystem.IsSystem = false
-		got, err = yardColorService(&yardColorRoomRepository{room: notSystem}).GetSchulhofRoomColor(ctx)
+		got, err = yardColorService(yardColorRepo(notSystem)).GetSchulhofRoomColor(ctx)
 		require.NoError(t, err)
 		assert.Nil(t, got)
+	})
+
+	t.Run("picks the canonical room out of a legacy collision", func(t *testing.T) {
+		// The uniqueness index is case-sensitive, the lookup is not, so both
+		// rows come back — and unordered. Whichever one the database hands
+		// over first, the configured colour must survive.
+		color := "#A3D977"
+		legacy := schulhofRoom(nil)
+		legacy.Model.ID = 3
+		legacy.Name = "schulhof"
+		legacy.IsSystem = false
+		canonical := schulhofRoom(&color)
+
+		for _, rooms := range [][]*facilityModels.Room{
+			{legacy, canonical},
+			{canonical, legacy},
+		} {
+			got, err := yardColorService(yardColorRepo(rooms...)).GetSchulhofRoomColor(ctx)
+			require.NoError(t, err)
+			if assert.NotNil(t, got) {
+				assert.Equal(t, color, *got)
+			}
+		}
 	})
 
 	t.Run("treats an unset or empty color as no color", func(t *testing.T) {
 		empty := ""
 		for _, room := range []*facilityModels.Room{schulhofRoom(nil), schulhofRoom(&empty)} {
-			got, err := yardColorService(&yardColorRoomRepository{room: room}).GetSchulhofRoomColor(ctx)
+			got, err := yardColorService(yardColorRepo(room)).GetSchulhofRoomColor(ctx)
 			require.NoError(t, err)
 			assert.Nil(t, got)
 		}
@@ -158,8 +184,8 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 		assert.Nil(t, got)
 	})
 
-	t.Run("treats a nil room without an error as no color", func(t *testing.T) {
-		got, err := yardColorService(&yardColorRoomRepository{}).GetSchulhofRoomColor(ctx)
+	t.Run("skips a nil row without an error", func(t *testing.T) {
+		got, err := yardColorService(yardColorRepo(nil)).GetSchulhofRoomColor(ctx)
 		require.NoError(t, err)
 		assert.Nil(t, got)
 	})
@@ -169,7 +195,7 @@ func TestGetSchulhofRoomColor(t *testing.T) {
 // interface: a Service that resolves a colour hands it straight to the caller.
 func TestResolveYardRoomColorSuccess(t *testing.T) {
 	color := "#A3D977"
-	svc := yardColorService(&yardColorRoomRepository{room: schulhofRoom(&color)})
+	svc := yardColorService(yardColorRepo(schulhofRoom(&color)))
 
 	got := ResolveYardRoomColor(context.Background(), svc)
 
@@ -181,7 +207,7 @@ func TestResolveYardRoomColorSuccess(t *testing.T) {
 // TestResolveYardRoomColorSwallowsErrors pins the fail-soft contract at the
 // call site: the error is logged, the student list still renders.
 func TestResolveYardRoomColorSwallowsErrors(t *testing.T) {
-	repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "find by name", Err: errors.New("connection refused")}}
+	repo := &yardColorRoomRepository{err: &base.DatabaseError{Op: "list", Err: errors.New("connection refused")}}
 
 	assert.Nil(t, ResolveYardRoomColor(context.Background(), yardColorService(repo)))
 }
