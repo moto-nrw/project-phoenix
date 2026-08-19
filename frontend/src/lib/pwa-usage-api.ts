@@ -21,10 +21,14 @@ function reportPath(portal: PushPortal): string {
  * mode and after a successful report in the same browser session (the server
  * upsert makes repeats harmless anyway — the guard just saves the request).
  */
-export async function reportStandaloneUsage(portal: PushPortal): Promise<void> {
+export async function reportStandaloneUsage(
+  portal: PushPortal,
+  accountID: string,
+  tenantID?: number,
+): Promise<void> {
   if (!isStandaloneApp()) return;
 
-  const sessionKey = `${SESSION_REPORTED_KEY_PREFIX}${portal}`;
+  const sessionKey = `${SESSION_REPORTED_KEY_PREFIX}${portal}.${accountID}.${tenantID ?? "parent"}`;
   try {
     if (sessionStorage.getItem(sessionKey) === "1") return;
   } catch {

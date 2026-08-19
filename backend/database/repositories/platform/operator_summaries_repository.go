@@ -337,8 +337,10 @@ WITH mappings AS (
 				AND LOWER("sr".name) <> ?
 		) AS is_staff
 	FROM auth.account_tenants AS "at"
+	INNER JOIN auth.accounts AS "a" ON "a".id = "at".account_id
 	INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
 	WHERE "at".status = 'active'
+		AND "a".active = TRUE
 		AND "s".deleted_at IS NULL
 		%s
 ),

@@ -11,12 +11,12 @@ import { reportStandaloneUsage } from "~/lib/pwa-usage-api";
  * nothing and never blocks anything — the report itself swallows all errors.
  */
 export function PwaUsageReporter({ portal }: { readonly portal: PushPortal }) {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
 
   useEffect(() => {
-    if (status !== "authenticated") return;
-    void reportStandaloneUsage(portal);
-  }, [portal, status]);
+    if (status !== "authenticated" || !session?.user.id) return;
+    void reportStandaloneUsage(portal, session.user.id, session.user.tenantId);
+  }, [portal, session?.user.id, session?.user.tenantId, status]);
 
   return null;
 }

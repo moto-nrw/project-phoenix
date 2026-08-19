@@ -10,6 +10,7 @@ const isStandaloneApp = vi.mocked(pushApi.isStandaloneApp);
 
 describe("reportStandaloneUsage", () => {
   const fetchMock = vi.fn();
+  const accountID = "account-1";
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -20,7 +21,7 @@ describe("reportStandaloneUsage", () => {
   });
 
   it("posts to the staff endpoint in standalone mode", async () => {
-    await reportStandaloneUsage("tenant");
+    await reportStandaloneUsage("tenant", accountID, 1);
     expect(fetchMock).toHaveBeenCalledWith("/api/pwa/usage", {
       method: "POST",
       credentials: "include",
@@ -28,7 +29,7 @@ describe("reportStandaloneUsage", () => {
   });
 
   it("posts to the parent endpoint for the parents portal", async () => {
-    await reportStandaloneUsage("parent");
+    await reportStandaloneUsage("parent", accountID);
     expect(fetchMock).toHaveBeenCalledWith("/api/parent/me/pwa-usage", {
       method: "POST",
       credentials: "include",
@@ -37,29 +38,32 @@ describe("reportStandaloneUsage", () => {
 
   it("never posts outside standalone mode", async () => {
     isStandaloneApp.mockReturnValue(false);
-    await reportStandaloneUsage("tenant");
+    await reportStandaloneUsage("tenant", accountID, 1);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("reports once per browser session and portal", async () => {
-    await reportStandaloneUsage("tenant");
-    await reportStandaloneUsage("tenant");
+  it("reports once per browser session, portal, account, and tenant", async () => {
+    await reportStandaloneUsage("tenant", accountID, 1);
+    await reportStandaloneUsage("tenant", accountID, 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // A different portal has its own session guard.
-    await reportStandaloneUsage("parent");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await reportStandaloneUsage("tenant", "account-2", 1);
+    await reportStandaloneUsage("tenant", accountID, 2);
+    await reportStandaloneUsage("parent", accountID);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("does not mark the session on a rejected report", async () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
-    await reportStandaloneUsage("tenant");
-    await reportStandaloneUsage("tenant");
+    await reportStandaloneUsage("tenant", accountID, 1);
+    await reportStandaloneUsage("tenant", accountID, 1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("swallows network errors", async () => {
     fetchMock.mockRejectedValueOnce(new Error("offline"));
-    await expect(reportStandaloneUsage("tenant")).resolves.toBeUndefined();
+    await expect(
+      reportStandaloneUsage("tenant", accountID, 1),
+    ).resolves.toBeUndefined();
   });
 });

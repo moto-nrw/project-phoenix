@@ -89,11 +89,13 @@ func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 	acctStaff := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-staff-%d", now))
 	acctGuardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-guardian-%d", now))
 	acctDual := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-dual-%d", now))
+	acctInactive := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-inactive-%d", now))
 
 	testpkg.MapAccountToTenant(t, db, acctStaff.ID, schoolX.ID)
 	testpkg.MapAccountToTenant(t, db, acctGuardian.ID, schoolX.ID)
 	testpkg.MapAccountToTenant(t, db, acctDual.ID, schoolX.ID)
 	testpkg.MapAccountToTenant(t, db, acctDual.ID, schoolY.ID)
+	testpkg.MapAccountToTenant(t, db, acctInactive.ID, schoolX.ID)
 
 	assignRoleForTenant(t, db, acctStaff.ID, schoolX.ID, authModels.BaseRoleUser)
 	assignRoleForTenant(t, db, acctGuardian.ID, schoolX.ID, authModels.BaseRoleGuardian)
@@ -101,18 +103,22 @@ func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 	// follow the per-tenant role, not any role anywhere.
 	assignRoleForTenant(t, db, acctDual.ID, schoolX.ID, authModels.BaseRoleUser)
 	assignRoleForTenant(t, db, acctDual.ID, schoolY.ID, authModels.BaseRoleGuardian)
+	assignRoleForTenant(t, db, acctInactive.ID, schoolX.ID, authModels.BaseRoleUser)
+	_, err := db.ExecContext(ctx, `UPDATE auth.accounts SET active = FALSE WHERE id = ?`, acctInactive.ID)
+	require.NoError(t, err)
 
 	// Usage: acctStaff fresh in X (staff), acctDual stale in X (staff, outside
 	// the window) and fresh in Y (parent). acctGuardian never reported.
 	recordUsageRow(t, db, schoolX.ID, acctStaff.ID, "staff", time.Now())
 	recordUsageRow(t, db, schoolX.ID, acctDual.ID, "staff", time.Now().AddDate(0, 0, -40))
 	recordUsageRow(t, db, schoolY.ID, acctDual.ID, "parent", time.Now())
+	recordUsageRow(t, db, schoolX.ID, acctInactive.ID, "staff", time.Now())
 
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM iot.pwa_standalone_usage WHERE tenant_id IN (?, ?)`, schoolX.ID, schoolY.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_roles WHERE account_id IN (?, ?, ?)`, acctStaff.ID, acctGuardian.ID, acctDual.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id IN (?, ?, ?)`, acctStaff.ID, acctGuardian.ID, acctDual.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id IN (?, ?, ?)`, acctStaff.ID, acctGuardian.ID, acctDual.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_roles WHERE account_id IN (?, ?, ?, ?)`, acctStaff.ID, acctGuardian.ID, acctDual.ID, acctInactive.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id IN (?, ?, ?, ?)`, acctStaff.ID, acctGuardian.ID, acctDual.ID, acctInactive.ID)
+		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id IN (?, ?, ?, ?)`, acctStaff.ID, acctGuardian.ID, acctDual.ID, acctInactive.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id IN (?, ?)`, schoolX.ID, schoolY.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
 	})
@@ -125,7 +131,7 @@ func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 
 		staff := usageRowFor(rows, schoolX.ID, "staff")
 		require.NotNil(t, staff)
-		assert.Equal(t, 2, staff.EligibleUsers, "acctStaff + acctDual hold staff roles in X")
+		assert.Equal(t, 2, staff.EligibleUsers, "inactive accounts are excluded")
 		assert.Equal(t, 1, staff.StandaloneUsers, "acctDual's report is outside the window")
 
 		parent := usageRowFor(rows, schoolX.ID, "parent")
