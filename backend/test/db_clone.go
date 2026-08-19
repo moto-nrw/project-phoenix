@@ -2,134 +2,200 @@ package test
 
 import (
 	"context"
-	"crypto/sha1"
-	"database/sql"
-	"encoding/hex"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
-	"testing"
 	"time"
 
-	"github.com/uptrace/bun/driver/pgdriver"
+	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
+	"github.com/uptrace/bun"
 )
 
-const (
-	testDBCloneAdvisoryLockKey = int64(914735692)
-	testDBClonePrefix          = "phx_test_pkg_"
-)
+// This file wires SetupTestDB to the test-database lifecycle in
+// internal/testdb (ADR 0004): the process-once setup below makes `go test`
+// self-initializing (server up, template current per migrations hash, one
+// run-stamped clone per package binary) and keeps the per-test path free of
+// t.Setenv/viper writes so tests can run in parallel.
 
 var (
 	packageTestDBOnce sync.Once
-	packageTestDBDSN  string
 	packageTestDBErr  error
+
+	// packageClone pins this binary's clone via a keeper connection for the
+	// whole process lifetime, so the cross-run generation GC never collects
+	// a clone whose tests are still running. Deliberately never closed.
+	packageClone *testdb.CloneHandle
 )
 
-func packageIsolatedTestDSN(tb testing.TB, sourceDSN string) string {
-	tb.Helper()
-
-	packageTestDBOnce.Do(func() {
-		packageTestDBDSN, packageTestDBErr = ensurePackageTestDB(sourceDSN)
-	})
-	if packageTestDBErr != nil {
-		tb.Fatalf("setup package-isolated test database: %v", packageTestDBErr)
+// initPackageTestDB is the process-once part of SetupTestDB: environment,
+// lifecycle (server/template/clone), viper config, and the one-time clone
+// bootstrap. Everything after it is per-test and parallel-safe.
+func initPackageTestDB() error {
+	// Force test environment so database config always resolves to the test
+	// DB, regardless of how `go test` was invoked. Process-wide instead of
+	// t.Setenv: t.Setenv forbids t.Parallel(), and tests that need a
+	// different APP_ENV set their own via t.Setenv (which overrides this).
+	if err := os.Setenv("APP_ENV", "test"); err != nil {
+		return err
 	}
-	return packageTestDBDSN
-}
 
-func ensurePackageTestDB(sourceDSN string) (string, error) {
-	sourceURL, err := parsePostgresDSN(sourceDSN)
+	// Load .env from project root (contains TEST_DB_DSN). Best-effort: CI
+	// provides the variables directly.
+	if projectRoot, err := testdb.ProjectRoot(); err == nil {
+		_ = gotenv.Load(filepath.Join(projectRoot, ".env"))
+	}
+
+	viper.AutomaticEnv()
+
+	dsn := os.Getenv("TEST_DB_DSN")
+	if dsn == "" {
+		return fmt.Errorf(`test database not configured.
+
+To run integration tests, ensure .env contains:
+  TEST_DB_DSN=postgres://postgres:postgres@localhost:5433/phoenix_test?sslmode=disable
+
+The suite starts the postgres-test container and migrates the template
+automatically. For CI, set TEST_DB_DSN as an environment variable`)
+	}
+
+	cfg, err := testdb.NewConfig(dsn)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	sourceDB := databaseNameFromURL(sourceURL)
-	if sourceDB == "" {
-		return "", fmt.Errorf("TEST_DB_DSN must include a database name")
-	}
-
-	cloneDB, err := packageCloneDatabaseName()
-	if err != nil {
-		return "", err
-	}
-
-	maintenanceDSN := withDatabaseName(sourceURL, "postgres").String()
-	cloneDSN := withDatabaseName(sourceURL, cloneDB).String()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	// Template rebuilds run all migrations (~25s); everything else is fast.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(maintenanceDSN)))
-	defer func() { _ = sqldb.Close() }()
-
-	if err := sqldb.PingContext(ctx); err != nil {
-		return "", fmt.Errorf("connect to postgres maintenance database: %w", err)
+	if err := testdb.EnsureServer(ctx, cfg); err != nil {
+		return err
 	}
-
-	if _, err := sqldb.ExecContext(ctx, fmt.Sprintf(`SELECT pg_advisory_lock(%d)`, testDBCloneAdvisoryLockKey)); err != nil {
-		return "", fmt.Errorf("acquire package test DB clone lock: %w", err)
+	if err := testdb.EnsureTemplate(ctx, cfg); err != nil {
+		return err
 	}
-	defer func() {
-		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer unlockCancel()
-		_, _ = sqldb.ExecContext(unlockCtx, fmt.Sprintf(`SELECT pg_advisory_unlock(%d)`, testDBCloneAdvisoryLockKey))
-	}()
-
-	if _, err := sqldb.ExecContext(ctx, `DROP DATABASE IF EXISTS `+quoteIdentifier(cloneDB)+` WITH (FORCE)`); err != nil {
-		return "", fmt.Errorf("drop stale package test database %q: %w", cloneDB, err)
-	}
-	if _, err := sqldb.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(cloneDB)+` TEMPLATE `+quoteIdentifier(sourceDB)); err != nil {
-		return "", fmt.Errorf("clone test database %q from %q: %w", cloneDB, sourceDB, err)
-	}
-
-	return cloneDSN, nil
-}
-
-func parsePostgresDSN(dsn string) (*url.URL, error) {
-	if strings.TrimSpace(dsn) == "" {
-		return nil, fmt.Errorf("TEST_DB_DSN is empty")
-	}
-
-	parsed, err := url.Parse(dsn)
+	clone, err := testdb.CreateClone(ctx, cfg, testdb.RunID())
 	if err != nil {
-		return nil, fmt.Errorf("parse TEST_DB_DSN: %w", err)
+		return err
 	}
-	if parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
-		return nil, fmt.Errorf("TEST_DB_DSN must use postgres/postgresql scheme, got %q", parsed.Scheme)
-	}
-	if databaseNameFromURL(parsed) == "" {
-		return nil, fmt.Errorf("TEST_DB_DSN must include a database name")
-	}
-	return parsed, nil
-}
+	packageClone = clone
 
-func packageCloneDatabaseName() (string, error) {
-	wd, err := os.Getwd()
+	applyViperTestConfig()
+
+	db, err := database.DBConn()
 	if err != nil {
-		return "", fmt.Errorf("determine package working directory: %w", err)
+		return fmt.Errorf("connect to package test database: %w", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	return initCloneBootstrap(ctx, db)
+}
+
+// applyViperTestConfig points viper at the package clone. APP_ENV=test
+// deliberately resolves only test_db_dsn; setting db_dsn would be ignored and
+// would silently send integration tests to the shared template database.
+//
+// Pool caps: each SetupTestDB call still opens its own pool (tests
+// `defer db.Close()`); the PR-2 sweep replaces these with one pool per
+// package. 3 conns/test fits comfortably within max_connections even with
+// all packages running in parallel.
+func applyViperTestConfig() {
+	viper.AutomaticEnv()
+	viper.Set("test_db_dsn", packageClone.DSN)
+	viper.Set("db_debug", false) // Set to true for SQL debugging
+	viper.Set("db_max_open_conns", 3)
+	viper.Set("db_max_idle_conns", 1)
+}
+
+// initCloneBootstrap seeds the per-package clone once: sequence offsets, the
+// default tenant (school 1), the default room, and the system staff fixture.
+// The fixed bootstrap entities disappear with the PR-2 per-test-tenant sweep.
+func initCloneBootstrap(ctx context.Context, db *bun.DB) error {
+	if err := applySequenceOffsets(ctx, db); err != nil {
+		return fmt.Errorf("apply test sequence offsets: %w", err)
 	}
 
-	normalized := filepath.ToSlash(wd)
-	sum := sha1.Sum([]byte(normalized))
-	hash := hex.EncodeToString(sum[:])[:16]
+	// Ensure the default tenant (school ID 1) exists in platform.schools.
+	// Legacy fixtures use tenant_id=1, which requires a FK target row.
+	if err := ensureBootstrapTenant(ctx, db); err != nil {
+		return fmt.Errorf("ensure default test tenant: %w", err)
+	}
 
-	return testDBClonePrefix + hash, nil
+	// Ensure default fallback room exists (ID 1).
+	// session_service.go:determineRoomIDWithStrategy uses hardcoded fallback
+	// to room 1 when no room is specified and no planned room exists.
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO facilities.rooms (id, tenant_id, name, building)
+		VALUES (1, 1, 'Default Room', 'Default')
+		ON CONFLICT (id) DO UPDATE
+		SET tenant_id = EXCLUDED.tenant_id, name = EXCLUDED.name, building = EXCLUDED.building`); err != nil {
+		return fmt.Errorf("ensure default room fixture (id=1): %w", err)
+	}
+
+	// Ensure default system staff exists (person ID 1, staff ID 1) for legacy
+	// tests that hardcode CreatedBy: 1 to satisfy created_by FK constraints.
+	// Each ID is reconciled so an adopted legacy template cannot retain a
+	// bootstrap row from another tenant.
+	if err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, e := tx.ExecContext(ctx, `
+			INSERT INTO users.persons (id, tenant_id, first_name, last_name)
+			VALUES (1, 1, 'System', 'Test')
+			ON CONFLICT (id) DO UPDATE
+			SET tenant_id = EXCLUDED.tenant_id, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name`); e != nil {
+			return fmt.Errorf("ensure system person fixture (id=1): %w", e)
+		}
+		if _, e := tx.ExecContext(ctx, `
+			INSERT INTO users.staff (id, tenant_id, person_id)
+			VALUES (1, 1, 1)
+			ON CONFLICT (id) DO UPDATE
+			SET tenant_id = EXCLUDED.tenant_id, person_id = EXCLUDED.person_id`); e != nil {
+			return fmt.Errorf("ensure system staff fixture (id=1): %w", e)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("ensure system person/staff fixtures (id=1): %w", err)
+	}
+
+	// Advance the BIGSERIAL sequences past the explicitly-inserted IDs.
+	if _, err := db.ExecContext(ctx, `
+		SELECT setval('facilities.rooms_id_seq', GREATEST((SELECT last_value FROM facilities.rooms_id_seq), (SELECT COALESCE(MAX(id), 1) FROM facilities.rooms))),
+		       setval('users.persons_id_seq', GREATEST((SELECT last_value FROM users.persons_id_seq), (SELECT COALESCE(MAX(id), 1) FROM users.persons))),
+		       setval('users.staff_id_seq', GREATEST((SELECT last_value FROM users.staff_id_seq), (SELECT COALESCE(MAX(id), 1) FROM users.staff)))`); err != nil {
+		return fmt.Errorf("advance bootstrap sequences: %w", err)
+	}
+
+	return nil
 }
 
-func databaseNameFromURL(parsed *url.URL) string {
-	return strings.Trim(strings.TrimPrefix(parsed.Path, "/"), "/")
-}
-
-func withDatabaseName(source *url.URL, dbName string) *url.URL {
-	clone := *source
-	clone.Path = "/" + dbName
-	clone.RawPath = ""
-	return &clone
-}
-
-func quoteIdentifier(identifier string) string {
-	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+// ensureBootstrapTenant reconciles ID 1 from a legacy template before its
+// dependent bootstrap fixtures are created. Unlike ordinary test tenants,
+// this fixed ID is an invariant of legacy fixtures and cannot retain data
+// owned by another tenant.
+func ensureBootstrapTenant(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organizations (id, name, slug, active)
+		VALUES (1, 'Test Org 1', 'test-org-1', true)
+		ON CONFLICT (id) DO UPDATE
+		SET name = EXCLUDED.name, slug = EXCLUDED.slug, active = EXCLUDED.active`); err != nil {
+		return fmt.Errorf("ensure bootstrap organization: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (1, 1, 'Test School 1', 'test-school-1', 't1', true)
+		ON CONFLICT (id) DO UPDATE
+		SET organization_id = EXCLUDED.organization_id, name = EXCLUDED.name,
+			slug = EXCLUDED.slug, subdomain = EXCLUDED.subdomain, active = EXCLUDED.active`); err != nil {
+		return fmt.Errorf("ensure bootstrap school: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		SELECT setval(pg_get_serial_sequence('platform.organizations', 'id'),
+			GREATEST((SELECT last_value FROM platform.organizations_id_seq), 1)),
+		       setval(pg_get_serial_sequence('platform.schools', 'id'),
+			GREATEST((SELECT last_value FROM platform.schools_id_seq), 1))`); err != nil {
+		return fmt.Errorf("advance bootstrap tenant sequences: %w", err)
+	}
+	return nil
 }
