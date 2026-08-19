@@ -1111,6 +1111,7 @@ function MeinRaumPageContent() {
   const now = useMinuteClock();
   const dashboardDay = berlinTodayISO(now);
   const previousDashboardDayRef = useRef(dashboardDay);
+  const lastDashboardReconciliationRef = useRef<string | null>(null);
 
   // SWR-based aggregate fetching with caching
   // Cache key "active-supervision-dashboard" will be invalidated by global SSE on relevant events
@@ -1182,12 +1183,17 @@ function MeinRaumPageContent() {
   // Reconcile selection and aggregate: whenever the visible session changes
   // through any path (tab click, Schulhof open, URL/localStorage restore)
   // and the cached aggregate belongs to another session, re-run the fetch.
-  // Payloads without selectedGroupId (older backend) never trigger this.
   useEffect(() => {
     requestedGroupIdRef.current = currentRoomId ?? null;
     if (!currentRoomId || !dashboardData) return;
     const resolved = dashboardData.selectedGroupId;
-    if (resolved == null || resolved === currentRoomId) return;
+    if (resolved === currentRoomId) {
+      lastDashboardReconciliationRef.current = null;
+      return;
+    }
+    const reconciliation = `${resolved ?? "none"}:${currentRoomId}`;
+    if (lastDashboardReconciliationRef.current === reconciliation) return;
+    lastDashboardReconciliationRef.current = reconciliation;
     void Promise.resolve(mutateDashboard()).catch(() => {
       // Errors surface via dashboardError handling
     });
