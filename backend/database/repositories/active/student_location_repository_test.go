@@ -21,6 +21,8 @@ import (
 // TestAttendanceRepository_GetTodayByStudentIDs tests fetching today's attendance
 // records for multiple students with hermetic fixtures.
 func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -100,6 +102,8 @@ func TestAttendanceRepository_GetTodayByStudentIDs(t *testing.T) {
 // TestVisitRepository_GetCurrentByStudentIDs tests fetching current (active) visits
 // for students using hermetic fixtures.
 func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -180,6 +184,8 @@ func TestVisitRepository_GetCurrentByStudentIDs(t *testing.T) {
 // TestGroupRepository_FindByIDs tests fetching active groups with their Room relations
 // using hermetic fixtures.
 func TestGroupRepository_FindByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

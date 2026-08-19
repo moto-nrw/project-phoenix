@@ -54,6 +54,8 @@ func buildInstance(tenantID, roomID int64, activityID *int64, date timezone.Date
 }
 
 func TestActivityInstanceRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -160,6 +162,8 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNotAbortTransaction(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -195,6 +199,8 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNo
 }
 
 func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranches(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -247,6 +253,8 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 }
 
 func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -293,6 +301,8 @@ func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -327,6 +337,8 @@ func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *
 }
 
 func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryState(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -366,6 +378,8 @@ func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryS
 }
 
 func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -414,6 +428,8 @@ func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -459,6 +475,8 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -487,6 +505,8 @@ func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -524,6 +544,8 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 // bridge invariant between schedule.activity_instances and active.groups:
 // two instances must not be able to claim the same active.group.
 func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -559,6 +581,8 @@ func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
 // predicate. Mirrors the FK OnDelete pattern — guards against a future
 // migration silently downgrading the invariant.
 func TestActivityInstanceActiveGroupUniqueIndex(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -581,6 +605,8 @@ func TestActivityInstanceActiveGroupUniqueIndex(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -611,6 +637,8 @@ func TestActivityInstanceRepository_List(t *testing.T) {
 //
 // Catalog code: 'n' = SET NULL, 'c' = CASCADE, 'r' = RESTRICT, 'a' = NO ACTION.
 func TestActivityInstanceFKOnDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -658,6 +686,8 @@ func TestActivityInstanceFKOnDelete(t *testing.T) {
 // override of the base plan and must be PRESERVED; only clean planned instances
 // are deleted and re-materialized.
 func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_PreservesDeviations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -736,6 +766,8 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 // following" leaves the series partly alive, and a split leaves a duplicate old
 // block next to the materialized successor.
 func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDeleteIgnoresDeviations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -776,6 +808,8 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 }
 
 func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -830,6 +864,8 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 // today/past rows, non-planned/spontaneous rows, and per-occurrence overrides
 // untouched — otherwise the classified daily lists stay empty until a re-plan.
 func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -912,6 +948,8 @@ func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testin
 }
 
 func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

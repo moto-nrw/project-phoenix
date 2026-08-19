@@ -90,6 +90,8 @@ func seedConflictInstance(t *testing.T, s *plannedConflictSetup, opts testpkg.Ac
 }
 
 func TestDetectPlannedConflicts_RoomOverlapAloneIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Belegt"})
 
@@ -103,6 +105,8 @@ func TestDetectPlannedConflicts_RoomOverlapAloneIsNotAConflict(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_AdjacencyIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Davor"}) // 14:00–15:00
 	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
@@ -119,6 +123,8 @@ func TestDetectPlannedConflicts_AdjacencyIsNotAConflict(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_Staff_IncludingAbsentExclusion(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Personal"})
 
@@ -145,6 +151,8 @@ func TestDetectPlannedConflicts_Staff_IncludingAbsentExclusion(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_StaffSameRoomIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Parallel"})
 	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
@@ -161,6 +169,8 @@ func TestDetectPlannedConflicts_StaffSameRoomIsNotAConflict(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_StaffDifferentRoomWarns(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Anderswo"})
 	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
@@ -182,6 +192,8 @@ func TestDetectPlannedConflicts_StaffDifferentRoomWarns(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_StaffRowRoomOverrideCountsAsSameRoom(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	// Instance sits in room A, but THIS staff member's row is overridden to
 	// room B (multi-room split). Probing room B with the same staff must not
@@ -203,6 +215,8 @@ func TestDetectPlannedConflicts_StaffRowRoomOverrideCountsAsSameRoom(t *testing.
 }
 
 func TestDetectPlannedConflicts_Student(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Kind"})
 
@@ -221,6 +235,8 @@ func TestDetectPlannedConflicts_Student(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_StudentWarnsEvenInSameRoom(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Kind-Raum"})
 
@@ -239,6 +255,8 @@ func TestDetectPlannedConflicts_StudentWarnsEvenInSameRoom(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_ExcludeSelf(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Selbst"})
 	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})
@@ -253,6 +271,8 @@ func TestDetectPlannedConflicts_ExcludeSelf(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_CancelledIgnored(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{
 		Title:  "PC-Abgesagt",
@@ -269,6 +289,8 @@ func TestDetectPlannedConflicts_CancelledIgnored(t *testing.T) {
 }
 
 func TestDetectPlannedConflicts_CrossTenantInvisible(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictSetup(t)
 	inst := seedConflictInstance(t, s, testpkg.ActivityInstanceOpts{Title: "PC-Fremd"})
 	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffID, testpkg.InstanceStaffOpts{})

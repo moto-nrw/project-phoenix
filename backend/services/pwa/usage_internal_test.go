@@ -75,6 +75,8 @@ func retentionSettings(days int) *configtest.Mock {
 }
 
 func TestUsageServiceReportStaff(t *testing.T) {
+	t.Parallel()
+
 	repo := &recordingUsageRepository{}
 	service := NewUsageService(nil, repo, nil, nil, nil, nil)
 
@@ -88,6 +90,8 @@ func TestUsageServiceReportStaff(t *testing.T) {
 }
 
 func TestUsageServiceReportParent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	t.Run("fans out one row per active guardian mapping", func(t *testing.T) {
@@ -127,6 +131,8 @@ func TestUsageServiceReportParent(t *testing.T) {
 }
 
 func TestUsageServiceCleanupExpiredUsage(t *testing.T) {
+	t.Parallel()
+
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes with the configured retention cutoff", func(t *testing.T) {
@@ -163,6 +169,8 @@ func TestUsageServiceCleanupExpiredUsage(t *testing.T) {
 }
 
 func TestUsageServiceSnapshotUsage(t *testing.T) {
+	t.Parallel()
+
 	rows := []platformModels.SchoolPWAUsageRow{{TenantID: testpkg.Tenant(t), Portal: "staff", StandaloneUsers: 2, EligibleUsers: 5}}
 	summaries := &summariesStub{rows: rows}
 	// nil db degrades WithAdminTxOrDirect to a direct call — exactly what a

@@ -58,6 +58,8 @@ func (s *planningTrackServiceStub) ValidatePlanningTrackAssignment(context.Conte
 }
 
 func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
+	t.Parallel()
+
 	service := new(planningTrackServiceStub)
 	resource := NewResource(Dependencies{PlanningTrackService: service})
 
@@ -85,6 +87,8 @@ func TestPlanningTrackHandlersCreateAndReorder(t *testing.T) {
 }
 
 func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewResource(Dependencies{PlanningTrackService: new(planningTrackServiceStub)})
 	request := httptest.NewRequest(http.MethodDelete, "/planning-tracks/99", nil)
 	routeContext := chi.NewRouteContext()
@@ -107,6 +111,8 @@ func TestPlanningTrackHandlerMapsNotFound(t *testing.T) {
 }
 
 func TestPlanningTrackHandlersReturnInternalErrorWithoutService(t *testing.T) {
+	t.Parallel()
+
 	resource := NewResource(Dependencies{})
 	tests := []struct {
 		name    string

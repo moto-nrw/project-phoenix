@@ -115,6 +115,8 @@ func documentCategories(infos []*usersSvc.StaffDocumentInfo) []string {
 }
 
 func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 
 	directory := s.actor("users:update")
@@ -209,6 +211,8 @@ func (s *staffDocumentScenario) accessLogRowsFor(t *testing.T) []*auditModels.Da
 }
 
 func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	directory := s.actor("users:update")
 
@@ -251,6 +255,8 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 }
 
 func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	info := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, s.actor("staff:financial"))
 
@@ -260,6 +266,8 @@ func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
 }
 
 func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	actor := s.actor("users:update")
 	info := s.create(t, userModels.StaffDocumentCategoryZeugnis, actor)
@@ -272,6 +280,8 @@ func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
 }
 
 func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
+	t.Parallel()
+
 	s := newStaffDocumentScenario(t)
 	admin := s.actor("admin:*")
 

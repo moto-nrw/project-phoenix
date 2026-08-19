@@ -16,6 +16,8 @@ import (
 )
 
 func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "BalanceLock")

@@ -196,6 +196,8 @@ func TestParsePositiveInt(t *testing.T) {
 
 // TestParsePositiveInt_DifferentDefaults tests parsePositiveInt with various default values
 func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		defaultValue int
@@ -217,6 +219,8 @@ func TestParsePositiveInt_DifferentDefaults(t *testing.T) {
 }
 
 func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -235,6 +239,8 @@ func TestInitializeAPIResources_WiresCaregiverServices(t *testing.T) {
 }
 
 func TestSyncClientIPToRemoteAddrUsesChiClientIP(t *testing.T) {
+	t.Parallel()
+
 	router := chi.NewRouter()
 	router.Use(chimiddleware.ClientIPFromXFF())
 	router.Use(syncClientIPToRemoteAddr)
@@ -569,6 +575,8 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 // registered in initializeAPIResources triggers WC infrastructure creation
 // when checkout.wc_enabled is set to true.
 func TestOnValueSetCallback_WCEnabled(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -597,6 +605,8 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 // TestOnValueSetCallback_SchulhofEnabled tests that the callback triggers
 // Schulhof infrastructure creation when checkout.schulhof_enabled is set to true.
 func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -623,6 +633,8 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 // TestOnValueSetCallback_FalseValueSkipsInfrastructure tests that setting
 // a checkout setting to false does not trigger infrastructure creation.
 func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -671,6 +683,8 @@ func adminClaimsForCallback() jwt.AppClaims {
 // Empty subscribed-groups slice still receives BroadcastToAll events, which
 // is the path the post-commit closure uses.
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -779,6 +793,8 @@ func drainEvents(ch chan realtime.Event) {
 // Asserts the photo toggle emits a tenant_settings_changed event whose
 // Source labels which key changed, on both enable and disable PUT paths.
 func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	db, serviceFactory := testutil.SetupAPITest(t)
 
 	repoFactory := repositories.NewFactory(db)

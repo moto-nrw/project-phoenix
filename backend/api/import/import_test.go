@@ -76,6 +76,8 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestDownloadTemplate_NoAuth(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Use the full router which has JWT middleware
@@ -91,6 +93,8 @@ func TestDownloadTemplate_NoAuth(t *testing.T) {
 }
 
 func TestDownloadTemplate_CSV(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin")
@@ -110,6 +114,8 @@ func TestDownloadTemplate_CSV(t *testing.T) {
 }
 
 func TestDownloadTemplate_XLSX(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin2")
@@ -129,6 +135,8 @@ func TestDownloadTemplate_XLSX(t *testing.T) {
 }
 
 func TestDownloadTemplate_DefaultFormat(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin3")
@@ -151,6 +159,8 @@ func TestDownloadTemplate_DefaultFormat(t *testing.T) {
 // =============================================================================
 
 func TestPreviewImport_NoAuth(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -165,6 +175,8 @@ func TestPreviewImport_NoAuth(t *testing.T) {
 }
 
 func TestPreviewImport_NoFile(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin4")
@@ -187,6 +199,8 @@ func TestPreviewImport_NoFile(t *testing.T) {
 // =============================================================================
 
 func TestImportStudents_NoAuth(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -201,6 +215,8 @@ func TestImportStudents_NoAuth(t *testing.T) {
 }
 
 func TestImportStudents_NoFile(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin5")
@@ -223,6 +239,8 @@ func TestImportStudents_NoFile(t *testing.T) {
 // =============================================================================
 
 func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "Admin6")
@@ -245,6 +263,8 @@ func TestDownloadTemplate_HasRequiredHeaders(t *testing.T) {
 }
 
 func TestDownloadTemplate_CSVAdvertisesBirthdayFormats(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	admin, _ := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "AdminBirthday")
@@ -269,6 +289,8 @@ func TestDownloadTemplate_CSVAdvertisesBirthdayFormats(t *testing.T) {
 // =============================================================================
 
 func TestPreviewImport_WithValidCSV(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "CSVTest")
@@ -292,6 +314,8 @@ func TestPreviewImport_WithValidCSV(t *testing.T) {
 }
 
 func TestPreviewImport_WithEmptyCSV(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "EmptyCSV")
@@ -313,6 +337,8 @@ func TestPreviewImport_WithEmptyCSV(t *testing.T) {
 }
 
 func TestPreviewImport_WithMissingHeaders(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Preview", "MissingHeaders")
@@ -338,6 +364,8 @@ func TestPreviewImport_WithMissingHeaders(t *testing.T) {
 // =============================================================================
 
 func TestImportStudents_WithValidCSV(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "CSVTest")
@@ -358,6 +386,8 @@ func TestImportStudents_WithValidCSV(t *testing.T) {
 }
 
 func TestImportStudents_WithDuplicateData(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Import", "DupeTest")
@@ -381,6 +411,8 @@ func TestImportStudents_WithDuplicateData(t *testing.T) {
 // the "Bus" column was parsed and validated but never written to the student
 // record, silently dropping the bus permission on import.
 func TestImportStudents_PersistsBusPermission(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "BusTest")
@@ -418,6 +450,8 @@ func TestImportStudents_PersistsBusPermission(t *testing.T) {
 // Gehweise columns (#1610) are parsed and persisted as departure_days, with the
 // legacy bus_days/pickup_days mirrors derived from them.
 func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "DepTest")
@@ -452,6 +486,8 @@ func TestImportStudents_PersistsDepartureFromGehweise(t *testing.T) {
 // the legacy "Bus" + "Abholstatus" columns and no Gehweise) is still processed
 // into departure_days (#1610) — the documented backward-compatible path.
 func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "LegacyTest")
@@ -488,6 +524,8 @@ func TestImportStudents_LegacyTemplateStillImports(t *testing.T) {
 // the student as pending (so the activate-students scheduler activates them
 // later), while a past/current start stays active (issue #1460, phase 2a).
 func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "EnrollTest")
@@ -536,6 +574,8 @@ func TestImportStudents_PersistsEnrollmentDatesAndStatus(t *testing.T) {
 // date columns (AGB, data processing, email contact, photo) are imported and
 // that photo_consent_given_by is left NULL on import (issue #1460, phase 2b).
 func TestImportStudents_PersistsConsentDates(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Import", "ConsentTest")
@@ -577,6 +617,8 @@ func TestImportStudents_PersistsConsentDates(t *testing.T) {
 // =============================================================================
 
 func TestPreviewImport_NoClaims(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -593,6 +635,8 @@ func TestPreviewImport_NoClaims(t *testing.T) {
 }
 
 func TestPreviewImport_AccountWithoutPerson(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create account without person/staff chain
@@ -613,6 +657,8 @@ func TestPreviewImport_AccountWithoutPerson(t *testing.T) {
 }
 
 func TestPreviewImport_PersonWithoutStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create account + person but no staff record
@@ -633,6 +679,8 @@ func TestPreviewImport_PersonWithoutStaff(t *testing.T) {
 }
 
 func TestImportStudents_AccountWithoutPerson(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create account without person/staff chain
@@ -654,6 +702,8 @@ func TestImportStudents_AccountWithoutPerson(t *testing.T) {
 }
 
 func TestImportStudents_PersonWithoutStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create account + person but no staff record
@@ -679,6 +729,8 @@ func TestImportStudents_PersonWithoutStaff(t *testing.T) {
 // =============================================================================
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -690,6 +742,8 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // =============================================================================
 
 func TestDownloadStaffTemplate_CSV(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	router := chi.NewRouter()
@@ -708,6 +762,8 @@ func TestDownloadStaffTemplate_CSV(t *testing.T) {
 }
 
 func TestDownloadStaffTemplate_XLSX(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	router := chi.NewRouter()
@@ -726,6 +782,8 @@ func TestDownloadStaffTemplate_XLSX(t *testing.T) {
 // valid role creates an invitation, while a row with an unknown role is rejected
 // (and never produces an invitation).
 func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Role visible to the caller: claims are rebased onto this test's tenant.
@@ -771,6 +829,8 @@ func TestImportStaff_CreatesInvitationForValidRole(t *testing.T) {
 // shown on the roles page (e.g. "Betreuer") is accepted in the CSV and resolves
 // to the underlying system role ("user").
 func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "DisplayRole")
@@ -813,6 +873,8 @@ func TestImportStaff_AcceptsRoleDisplayName(t *testing.T) {
 // handler: a valid row, an unknown-role row (suggestions path) and a row with
 // a missing name (required-field path). The preview persists nothing.
 func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	role := testpkg.CreateTestRoleForTenant(t, tc.db, "PreviewRolle", testpkg.Tenant(t))
@@ -846,6 +908,8 @@ func TestPreviewStaffImport_ValidatesRows(t *testing.T) {
 // paths (missing file, wrong file type, unparseable content) on the staff
 // endpoints.
 func TestStaffImport_UploadValidation(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffUpload", "Admin")
@@ -919,6 +983,8 @@ func cleanupImportAuditRecords(t *testing.T, db *bun.DB, filename string) {
 }
 
 func TestPreviewImport_PersistsAuditRecord(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditPrev", "Regression")
@@ -942,6 +1008,8 @@ func TestPreviewImport_PersistsAuditRecord(t *testing.T) {
 }
 
 func TestImportStudents_PersistsAuditRecord(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AuditImp", "Regression")

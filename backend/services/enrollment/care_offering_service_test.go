@@ -146,6 +146,8 @@ func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentM
 }
 
 func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	_ = db
@@ -175,6 +177,8 @@ func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
 }
 
 func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T) {
+	t.Parallel()
+
 	db, _, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	repos := repositories.NewFactory(db)
@@ -213,6 +217,8 @@ func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T
 }
 
 func TestCareOfferingService_ListActiveByPhase_FiltersInactive(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -246,6 +252,8 @@ func TestCareOfferingService_ListActiveByPhase_FiltersInactive(t *testing.T) {
 }
 
 func TestCareOfferingService_GetByID_NotFoundSentinel(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -256,6 +264,8 @@ func TestCareOfferingService_GetByID_NotFoundSentinel(t *testing.T) {
 }
 
 func TestCareOfferingService_Update_AppliesChanges(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -282,6 +292,8 @@ func TestCareOfferingService_Update_AppliesChanges(t *testing.T) {
 }
 
 func TestCareOfferingService_Create_ValidatesLinkedTemplate(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 
@@ -299,6 +311,8 @@ func TestCareOfferingService_Create_ValidatesLinkedTemplate(t *testing.T) {
 }
 
 func TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -318,6 +332,8 @@ func TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback(t *testin
 }
 
 func TestCareOfferingService_Create_RejectsIncompatibleSplitSeriesSegment(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	t.Cleanup(cleanup)
 	ctx := testpkg.Ctx(t)
@@ -356,6 +372,8 @@ func TestCareOfferingService_Create_RejectsIncompatibleSplitSeriesSegment(t *tes
 }
 
 func TestCareOfferingService_Create_RejectsTemplateOutsidePhaseWindow(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	t.Cleanup(cleanup)
 	ctx := testpkg.Ctx(t)
@@ -379,6 +397,8 @@ func TestCareOfferingService_Create_RejectsTemplateOutsidePhaseWindow(t *testing
 }
 
 func TestCareOfferingService_Create_RejectsUnavailableOfferingWeekday(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := createCareOfferingTestPeriod(t, db, "care-weekday-period",
@@ -392,6 +412,8 @@ func TestCareOfferingService_Create_RejectsUnavailableOfferingWeekday(t *testing
 }
 
 func TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	phase.ServiceStartDate = timezone.NewDate(2026, time.April, 21) // Tuesday
@@ -408,6 +430,8 @@ func TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase(t *
 }
 
 func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	anchor := timezone.NewDate(2026, time.August, 31) // Monday, week A
@@ -450,6 +474,8 @@ func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) 
 }
 
 func TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	phase.ServiceStartDate = timezone.NewDate(2026, time.April, 17) // Friday
@@ -477,6 +503,8 @@ func TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries(t *testin
 }
 
 func TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := &scheduleModels.CalendarPeriod{
@@ -502,6 +530,8 @@ func TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod(t *testin
 }
 
 func TestCareOfferingService_Create_RejectsNonTemplateActivityGroup(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	group := testpkg.CreateTestActivityGroup(t, db, "Care-NonTemplate")
@@ -516,6 +546,8 @@ func TestCareOfferingService_Create_RejectsNonTemplateActivityGroup(t *testing.T
 }
 
 func TestCareOfferingService_Create_RejectsTemplateWithoutSchedules(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	group := createCareOfferingTemplateGroup(t, db, "care-empty-template")
@@ -527,6 +559,8 @@ func TestCareOfferingService_Create_RejectsTemplateWithoutSchedules(t *testing.T
 }
 
 func TestCareOfferingService_Create_RejectsTemplateWithoutUniquePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	periodA := createCareOfferingTestPeriod(t, db, "care-period-a",
@@ -546,6 +580,8 @@ func TestCareOfferingService_Create_RejectsTemplateWithoutUniquePeriod(t *testin
 }
 
 func TestCareOfferingService_Create_RejectsTemplateWithNullPeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	group := createCareOfferingTemplateGroup(t, db, "care-null-period-template")
@@ -558,6 +594,8 @@ func TestCareOfferingService_Create_RejectsTemplateWithNullPeriod(t *testing.T) 
 }
 
 func TestCareOfferingService_Create_RejectsPhaseOutsideTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := createCareOfferingTestPeriod(t, db, "care-short-period",
@@ -574,6 +612,8 @@ func TestCareOfferingService_Create_RejectsPhaseOutsideTemplatePeriod(t *testing
 }
 
 func TestCareOfferingService_Update_RejectsPhaseOutsideTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -596,6 +636,8 @@ func TestCareOfferingService_Update_RejectsPhaseOutsideTemplatePeriod(t *testing
 }
 
 func TestCareOfferingService_Update_RejectsUnavailableOfferingWeekday(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -615,6 +657,8 @@ func TestCareOfferingService_Update_RejectsUnavailableOfferingWeekday(t *testing
 }
 
 func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -673,6 +717,8 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 }
 
 func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -718,6 +764,8 @@ func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 }
 
 func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -745,6 +793,8 @@ func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
 // alone only flips the templates to manual rosters and would leave their
 // offering-derived enrollment rows behind.
 func TestCareOfferingService_Delete_DetachesSourcedTemplates(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -772,6 +822,8 @@ func TestCareOfferingService_Delete_DetachesSourcedTemplates(t *testing.T) {
 }
 
 func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -818,6 +870,8 @@ func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
 }
 
 func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *testing.T) {
+	t.Parallel()
+
 	for _, rule := range []string{
 		enrollmentModels.SelectionRuleExactlyOne,
 		enrollmentModels.SelectionRuleAtMostOne,
@@ -861,6 +915,8 @@ func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *
 }
 
 func TestCareOfferingService_AllowsAutoAddTriggersOutsideExclusiveSelectionGroups(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name        string
 		triggerRule string

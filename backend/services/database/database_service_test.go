@@ -40,6 +40,8 @@ func contextWithPermissions(tb testing.TB, userID int, perms ...string) context.
 // ============================================================================
 
 func TestDatabaseService_GetStats(t *testing.T) {
+	t.Parallel()
+
 	_, service := setupDatabaseService(t)
 
 	t.Run("returns stats for admin user", func(t *testing.T) {
@@ -273,6 +275,8 @@ func TestDatabaseService_GetStats(t *testing.T) {
 // ============================================================================
 
 func TestDatabaseService_PermissionChecks(t *testing.T) {
+	t.Parallel()
+
 	_, service := setupDatabaseService(t)
 
 	t.Run("users list permission grants student access", func(t *testing.T) {

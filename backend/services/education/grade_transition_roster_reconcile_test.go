@@ -30,6 +30,8 @@ import (
 // rows, and a revert must re-add them. Past rows are historical and never
 // touched.
 func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	reconciler := scheduleSvc.NewRosterReconciler(
@@ -141,6 +143,8 @@ func TestGradeTransitionService_Apply_ReconcilesFutureRosters(t *testing.T) {
 // behind them. The apply therefore archives every row it deletes and the revert
 // replays exactly those.
 func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)
@@ -230,6 +234,8 @@ func TestGradeTransitionService_Revert_PreservesPerOccurrenceRosterEdits(t *test
 // leftover row keeps the departed child in today's Plan/Abgleich lists and
 // staffing counts. Rows that already recorded an event stay as history.
 func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)
@@ -314,6 +320,8 @@ func TestGradeTransitionService_Apply_RemovesTodaysPlannedRows(t *testing.T) {
 // the child back. Excluding the boundary date left them off today's roster
 // permanently, with nothing left to repair it.
 func TestGradeTransitionService_Revert_FillsTodaysInstanceMaterializedWhileAlumnus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)
@@ -430,6 +438,8 @@ func newRosterReconcilingTransitionService(t *testing.T, db *bun.DB) *educationS
 // pins both sides with explicit clocks). manual_status_at alone is therefore
 // not the exemption — where the occurrence sits relative to now is.
 func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)
@@ -512,6 +522,8 @@ func TestGradeTransitionService_Apply_PreservesRecordedAttendance(t *testing.T) 
 // classifying those as pre-transition leaves the restored child off their
 // rosters with no archive row to repair it.
 func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)
@@ -602,6 +614,8 @@ func TestGradeTransitionService_Revert_FillsBackdatedInstance(t *testing.T) {
 // nobody assigned them to. Only rows the materializer produced — the ones
 // carrying a calendar_period_id — are enrollment-derived.
 func TestGradeTransitionService_Revert_SkipsHandPlannedInstance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)

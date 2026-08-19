@@ -27,6 +27,8 @@ import (
 // child while being unable to open or decide the queue. The fix gates the whole enrichment on
 // users:update; this test pins that only that permission flips the note on.
 func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The caller is verified staff, so they have full read access to the child
@@ -84,6 +86,8 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 // must reach its reviewer. A note withheld from the person who decides it
 // hides work they own — the same drift as the leak above, mirrored.
 func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "AbsenceNote", "Supervisor")

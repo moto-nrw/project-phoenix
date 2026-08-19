@@ -857,6 +857,8 @@ func schemaVisibility(schema *configSvc.SettingsSchema) map[string]bool {
 }
 
 func TestSettingsError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	inner := &configSvc.DefinitionNotFoundError{Key: "test"}
 	err := &configSvc.SettingsError{Op: "resolve", Err: inner}
 
@@ -866,12 +868,16 @@ func TestSettingsError_Unwrap(t *testing.T) {
 }
 
 func TestDefinitionNotFoundError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.DefinitionNotFoundError{Key: "missing.key"}
 	assert.Contains(t, err.Error(), "missing.key")
 	assert.ErrorIs(t, err, configSvc.ErrDefinitionNotFound)
 }
 
 func TestInvalidValueError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.InvalidValueError{Key: "test.key", Reason: "too small"}
 	assert.Contains(t, err.Error(), "test.key")
 	assert.Contains(t, err.Error(), "too small")
@@ -879,6 +885,8 @@ func TestInvalidValueError(t *testing.T) {
 }
 
 func TestPermissionDeniedError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"}
 	assert.Contains(t, err.Error(), "admin.setting")
 	assert.Contains(t, err.Error(), "config:manage")
@@ -2057,6 +2065,8 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 }
 
 func TestSetLoginImageURL_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2072,6 +2082,8 @@ func TestSetLoginImageURL_Success(t *testing.T) {
 }
 
 func TestSetLoginImageURL_ReplacesExisting(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2091,6 +2103,8 @@ func TestSetLoginImageURL_ReplacesExisting(t *testing.T) {
 }
 
 func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2113,6 +2127,8 @@ func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
 }
 
 func TestClearLoginImageURL_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2130,6 +2146,8 @@ func TestClearLoginImageURL_Success(t *testing.T) {
 }
 
 func TestClearLoginImageURL_NoExistingImage(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2139,6 +2157,8 @@ func TestClearLoginImageURL_NoExistingImage(t *testing.T) {
 }
 
 func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
+	t.Parallel()
+
 	svc, _, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 

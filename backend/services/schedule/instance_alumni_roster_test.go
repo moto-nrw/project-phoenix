@@ -37,6 +37,8 @@ func graduate(t *testing.T, s *lifecycleSetup, studentID int64) {
 }
 
 func TestInstance_Create_RejectsGraduatedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	graduate(t, s, s.student1)
@@ -61,6 +63,8 @@ func TestInstance_Create_RejectsGraduatedStudent(t *testing.T) {
 }
 
 func TestInstance_UpdatePlanned_RejectsGraduatedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	date := timezone.TodayDate().AddDays(7)
@@ -107,6 +111,8 @@ func TestInstance_UpdatePlanned_RejectsGraduatedStudent(t *testing.T) {
 // make the block uneditable forever without protecting anything, so a past-dated
 // save may still carry the departed child.
 func TestInstance_UpdatePlanned_PastDatedRosterKeepsGraduate(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	past := timezone.TodayDate().AddDays(-14)

@@ -18,6 +18,8 @@ import (
 // the payload-derived requested summary (no recomputed live diff) — while
 // pending rows stay out and withdrawals carry no reviewer.
 func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 
 	// Request 1: rejected by the staff account.
@@ -84,6 +86,8 @@ func TestListHistory_DecidedRequestsWithReviewerAndSummary(t *testing.T) {
 }
 
 func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	date := timezone.TodayDate().AddDays(1)
 	pickupTime := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)

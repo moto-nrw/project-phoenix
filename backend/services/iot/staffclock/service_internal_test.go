@@ -181,6 +181,8 @@ func checkInCommand() Command {
 // today" and both insert. The loser must learn it lost the race, not that the
 // server broke.
 func TestExecute_ConcurrentCheckInReportsStateConflict(t *testing.T) {
+	t.Parallel()
+
 	service, sessions := newRacedService(
 		&modelBase.DatabaseError{Op: "create", Err: pgUniqueViolation(workSessionDateConstraint)},
 	)
@@ -202,6 +204,8 @@ func TestExecute_ConcurrentCheckInReportsStateConflict(t *testing.T) {
 // session" for a successful stamp, which invites the kiosk to check in a second
 // time and leaves the first session open overnight.
 func TestExecute_CheckInAcrossMidnightReportsTheStampedDay(t *testing.T) {
+	t.Parallel()
+
 	service, sessions := newRacedService(nil)
 
 	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
@@ -247,6 +251,8 @@ func TestExecute_CheckInAcrossMidnightReportsTheStampedDay(t *testing.T) {
 // runs and misses the session opened seconds before midnight, refusing a valid
 // stamp with "no active session found".
 func TestExecute_ActionsPinTheLookupToTheRequestDay(t *testing.T) {
+	t.Parallel()
+
 	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
 	requestDay := timezone.DateFromTime(requestedAt)
 
@@ -306,6 +312,8 @@ func nightSession(openedAt time.Time) *activeModels.WorkSession {
 // second check-in on the new day, and left yesterday's session with no way to be
 // closed from the kiosk at all.
 func TestGetState_OpenSessionFromPreviousDayStaysCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	service, sessions := newRacedService(nil)
 
 	openedAt := time.Date(2026, 7, 21, 22, 30, 0, 0, timezone.Berlin)
@@ -329,6 +337,8 @@ func TestGetState_OpenSessionFromPreviousDayStaysCheckedIn(t *testing.T) {
 // session carries. Pinning it to the new day looks up a day the session was
 // never written on and refuses a valid scan with "no active session found".
 func TestExecute_ActionsAfterMidnightUseTheOpenSessionDay(t *testing.T) {
+	t.Parallel()
+
 	openedAt := time.Date(2026, 7, 21, 22, 30, 0, 0, timezone.Berlin)
 	open := nightSession(openedAt)
 	afterMidnight := openedAt.Add(3 * time.Hour)
@@ -357,6 +367,8 @@ func TestExecute_ActionsAfterMidnightUseTheOpenSessionDay(t *testing.T) {
 // the conflict. Letting it re-derive the day opens a fresh session on the new
 // day while the paired status update rewrites the previous day's closed row.
 func TestExecute_ReopenRetryStaysOnTheConflictedDay(t *testing.T) {
+	t.Parallel()
+
 	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
 	requestDay := timezone.DateFromTime(requestedAt)
 
@@ -392,6 +404,8 @@ func TestExecute_ReopenRetryStaysOnTheConflictedDay(t *testing.T) {
 // A unique violation on another constraint is a genuine fault and must keep
 // its 500 classification instead of being dressed up as a state conflict.
 func TestExecute_UnrelatedUniqueViolationStaysAnError(t *testing.T) {
+	t.Parallel()
+
 	service, _ := newRacedService(
 		&modelBase.DatabaseError{Op: "create", Err: pgUniqueViolation("uq_something_else")},
 	)
@@ -408,6 +422,8 @@ func TestExecute_UnrelatedUniqueViolationStaysAnError(t *testing.T) {
 // terminal must be told the tag is unknown, the same answer a never-seen card
 // gets — dereferencing the missing person turned an unassigned card into a 500.
 func TestGetState_UnassignedCardIsReportedAsUnknownTag(t *testing.T) {
+	t.Parallel()
+
 	card := &userModels.RFIDCard{Active: true}
 	card.ID = "A1654BEEF"
 	service := NewService(&stubPeople{}, &stubCards{card: card}, &stubWorkSessions{})
@@ -423,6 +439,8 @@ func TestGetState_UnassignedCardIsReportedAsUnknownTag(t *testing.T) {
 // it measures a session from before its own check-in: zero elapsed work and a
 // break requirement computed for the wrong point in the shift.
 func TestExecute_LaborTimeIsEvaluatedAfterTheStamp(t *testing.T) {
+	t.Parallel()
+
 	requestedAt := time.Date(2026, 7, 21, 23, 59, 59, 0, timezone.Berlin)
 	stampedAt := requestedAt.Add(2 * time.Second) // the write lands after midnight
 	evaluatedAt := stampedAt.Add(10 * time.Minute)

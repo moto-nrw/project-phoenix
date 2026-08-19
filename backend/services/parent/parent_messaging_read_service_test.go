@@ -102,6 +102,8 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *repositories.Factory, chain
 // --- GetChildConversation -----------------------------------------------
 
 func TestGetChildConversation_EmptyViewWhenNoThread(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -117,6 +119,8 @@ func TestGetChildConversation_EmptyViewWhenNoThread(t *testing.T) {
 }
 
 func TestGetChildConversation_ReturnsHistoryMarksReadAndBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db, repos := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -144,6 +148,8 @@ func TestGetChildConversation_ReturnsHistoryMarksReadAndBroadcasts(t *testing.T)
 // --- ListMessageThreads / ListChildThreads ------------------------------
 
 func TestListMessageThreads_ReturnsConversationAfterFirstMessage(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -166,6 +172,8 @@ func TestListMessageThreads_ReturnsConversationAfterFirstMessage(t *testing.T) {
 }
 
 func TestListMessageThreads_ReportsWhetherStaffReadTheLastGuardianMessage(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, repos := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -204,6 +212,8 @@ func TestListMessageThreads_ReportsWhetherStaffReadTheLastGuardianMessage(t *tes
 }
 
 func TestListChildThreads_FiltersToOneChild(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, repos := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -217,6 +227,8 @@ func TestListChildThreads_FiltersToOneChild(t *testing.T) {
 }
 
 func TestListChildThreads_NotOwnedDenied(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -234,6 +246,8 @@ func TestListChildThreads_NotOwnedDenied(t *testing.T) {
 // --- UnreadMessageCount -------------------------------------------------
 
 func TestUnreadMessageCount_ZeroWhenSchoolDisabled(t *testing.T) {
+	t.Parallel()
+
 	// Feature OFF: the guardian can still read history, but the badge goes dark.
 	svc, _, db, repos := buildReadService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -252,6 +266,8 @@ func TestUnreadMessageCount_ZeroWhenSchoolDisabled(t *testing.T) {
 }
 
 func TestParentMessaging_AccountIDMustBePositive(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, _ := buildReadService(t, true)
 	_, err := svc.ListMessageThreads(context.Background(), 0)
 	require.Error(t, err)
@@ -263,6 +279,8 @@ func TestParentMessaging_AccountIDMustBePositive(t *testing.T) {
 // wired, the persisted message carries the guardian's real display name (resolved
 // inside the child's tenant tx), not the "Elternteil" fallback.
 func TestPostChildMessage_DenormalizesGuardianName(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildReadService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -275,6 +293,8 @@ func TestPostChildMessage_DenormalizesGuardianName(t *testing.T) {
 }
 
 func TestPostChildMessage_NotifiesStaffAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	notifier := &recordingStaffParentMessageNotifier{}
 	svc, _, db, _ := buildReadServiceWithNotifier(t, true, notifier)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

@@ -18,6 +18,8 @@ import (
 // ============================================================================
 
 func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
@@ -198,6 +200,8 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
@@ -334,6 +338,8 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
@@ -403,6 +409,8 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
@@ -507,6 +515,8 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionEdit
@@ -658,6 +668,8 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 }
 
 func TestWorkSessionEditRepository_WrapsDatabaseErrors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 

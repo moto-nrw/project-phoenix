@@ -54,6 +54,8 @@ func requireStudentsAllowedDepartureModesColumn(t *testing.T, db *bun.DB) {
 // legacy bus_days/pickup_days/pickup_status mirrors, hydration reads the plan
 // back, and a unified replacement fully overwrites the legacy maps.
 func TestStudentRepository_DepartureDaysRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -433,6 +435,9 @@ func companionNoteColumnExists(t *testing.T, db *bun.DB) bool {
 // once at startup (VerifyStudentSchema) and every read/write path assumes it.
 // A missing mandatory column must surface as an error, never as a silent
 // fallback.
+// Deliberately NOT parallel: the test drops and restores a column of
+// users.students, which changes the schema of the clone every test in this
+// binary shares.
 func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -514,6 +519,8 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 // the hydrated baseline says otherwise. Such a caller must not revert the
 // committed change; a caller that genuinely edited the plan must still win.
 func TestStudentRepository_StaleDeparturePlanIsRebased(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student

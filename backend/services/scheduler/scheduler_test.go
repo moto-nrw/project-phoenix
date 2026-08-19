@@ -80,6 +80,8 @@ func (f *fakeInvitationCleaner) CleanupExpiredInvitations(_ context.Context) (in
 // =============================================================================
 
 func TestNewScheduler(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 
@@ -92,6 +94,8 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestNewScheduler_NilServices(t *testing.T) {
+	t.Parallel()
+
 	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	require.NotNil(t, s)
@@ -99,6 +103,8 @@ func TestNewScheduler_NilServices(t *testing.T) {
 }
 
 func TestNewScheduler_OnlyAuthService(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{}
 
 	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
@@ -108,6 +114,8 @@ func TestNewScheduler_OnlyAuthService(t *testing.T) {
 }
 
 func TestNewScheduler_OnlyInvitationService(t *testing.T) {
+	t.Parallel()
+
 	invitations := &fakeInvitationCleaner{}
 
 	s := NewScheduler(nil, nil, nil, invitations, nil, nil, slog.Default())
@@ -117,6 +125,8 @@ func TestNewScheduler_OnlyInvitationService(t *testing.T) {
 }
 
 func TestIsoWeekdayMatchesNow(t *testing.T) {
+	t.Parallel()
+
 	// This test checks the mapping from Go's Sunday=0 to ISO Sunday=7
 	// via the helper's sole branch point. It does not assert a specific
 	// day (that would depend on when the test runs) but asserts the
@@ -175,6 +185,8 @@ func TestScheduler_StartStop(t *testing.T) {
 }
 
 func TestScheduler_StopWithoutStart(t *testing.T) {
+	t.Parallel()
+
 	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Stop without start should not panic
@@ -223,6 +235,8 @@ func TestScheduler_StartWithTokenCleanupOnly(t *testing.T) {
 // =============================================================================
 
 func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{
 		tokenResult:     1,
 		passwordResult:  2,
@@ -247,6 +261,8 @@ func TestRunCleanupJobsExecutesAllJobs(t *testing.T) {
 }
 
 func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
+	t.Parallel()
+
 	expectedErr := errors.New("rate limit cleanup failed")
 
 	auth := &fakeAuthCleanup{
@@ -272,6 +288,8 @@ func TestRunCleanupJobsReturnsFirstErrorAndContinues(t *testing.T) {
 }
 
 func TestRunCleanupJobs_NoJobs(t *testing.T) {
+	t.Parallel()
+
 	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	// Should not error when no jobs
@@ -280,6 +298,8 @@ func TestRunCleanupJobs_NoJobs(t *testing.T) {
 }
 
 func TestRunCleanupJobs_NilRunFunc(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupJobs: []CleanupJob{
 			{Description: "nil job", Run: nil},
@@ -293,6 +313,8 @@ func TestRunCleanupJobs_NilRunFunc(t *testing.T) {
 }
 
 func TestRunCleanupJobs_MultipleErrors(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{
 		tokenErr:     errors.New("token error"),
 		passwordErr:  errors.New("password error"),
@@ -314,6 +336,8 @@ func TestRunCleanupJobs_MultipleErrors(t *testing.T) {
 }
 
 func TestRunCleanupJobs_Concurrent(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{
 		tokenResult:     1,
 		passwordResult:  2,
@@ -347,6 +371,8 @@ func TestRunCleanupJobs_Concurrent(t *testing.T) {
 // =============================================================================
 
 func TestBuildCleanupJobs_AllServices(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 
@@ -360,11 +386,15 @@ func TestBuildCleanupJobs_AllServices(t *testing.T) {
 }
 
 func TestBuildCleanupJobs_NoServices(t *testing.T) {
+	t.Parallel()
+
 	jobs := buildCleanupJobs(nil, nil, nil, nil)
 	assert.Empty(t, jobs)
 }
 
 func TestBuildCleanupJobs_OnlyAuth(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{}
 
 	jobs := buildCleanupJobs(auth, nil, nil, nil)
@@ -373,6 +403,8 @@ func TestBuildCleanupJobs_OnlyAuth(t *testing.T) {
 }
 
 func TestBuildCleanupJobs_OnlyInvitations(t *testing.T) {
+	t.Parallel()
+
 	invitations := &fakeInvitationCleaner{}
 
 	jobs := buildCleanupJobs(nil, invitations, nil, nil)
@@ -382,6 +414,8 @@ func TestBuildCleanupJobs_OnlyInvitations(t *testing.T) {
 }
 
 func TestBuildCleanupJobs_JobsAreCallable(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{tokenResult: 5}
 	invitations := &fakeInvitationCleaner{result: 3}
 
@@ -421,6 +455,8 @@ func TestScheduledTask_ConcurrentAccess(_ *testing.T) {
 }
 
 func TestScheduledTask_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	task := &ScheduledTask{
 		Name:     "test-task",
@@ -442,6 +478,8 @@ func TestScheduledTask_Fields(t *testing.T) {
 // =============================================================================
 
 func TestCleanupJob_Fields(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	job := CleanupJob{
 		Description: "Test cleanup",
@@ -461,6 +499,8 @@ func TestCleanupJob_Fields(t *testing.T) {
 }
 
 func TestCleanupJob_RunReturnsError(t *testing.T) {
+	t.Parallel()
+
 	expectedErr := errors.New("cleanup failed")
 	job := CleanupJob{
 		Description: "Failing cleanup",
@@ -516,6 +556,9 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestScheduler_DefaultEnvValues(t *testing.T) {
 	// Clear all env vars to test defaults
 	_ = os.Unsetenv("CLEANUP_SCHEDULER_ENABLED")
@@ -1305,6 +1348,8 @@ func (m *mockCleanupService) PreviewSupervisorCleanup(_ context.Context) (*activ
 // =============================================================================
 
 func TestExecuteSessionEndForTenant_Success(t *testing.T) {
+	t.Parallel()
+
 	activeSvc := &mockActiveService{
 		endDailySessionsResult: &activeService.DailySessionCleanupResult{
 			SessionsEnded:    5,
@@ -1330,6 +1375,8 @@ func TestExecuteSessionEndForTenant_Success(t *testing.T) {
 }
 
 func TestExecuteSessionEndForTenant_Error(t *testing.T) {
+	t.Parallel()
+
 	activeSvc := &mockActiveService{
 		endDailySessionsErr: errors.New("session end failed"),
 	}
@@ -1352,6 +1399,8 @@ func TestExecuteSessionEndForTenant_Error(t *testing.T) {
 }
 
 func TestExecuteSessionEndForTenant_WithErrors(t *testing.T) {
+	t.Parallel()
+
 	activeSvc := &mockActiveService{
 		endDailySessionsResult: &activeService.DailySessionCleanupResult{
 			SessionsEnded:    5,
@@ -1378,6 +1427,8 @@ func TestExecuteSessionEndForTenant_WithErrors(t *testing.T) {
 }
 
 func TestExecuteSessionEndForTenant_WithManyErrors(t *testing.T) {
+	t.Parallel()
+
 	var errors []string
 	for i := 0; i < 15; i++ {
 		errors = append(errors, "error")
@@ -1407,6 +1458,8 @@ func TestExecuteSessionEndForTenant_WithManyErrors(t *testing.T) {
 }
 
 func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
 	activeSvc := &mockActiveService{}
 
 	s := &Scheduler{
@@ -1454,6 +1507,8 @@ func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 }
 
 func TestExecuteTokenCleanup_Success(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{
 		tokenResult:     5,
 		passwordResult:  3,
@@ -1481,6 +1536,8 @@ func TestExecuteTokenCleanup_Success(t *testing.T) {
 }
 
 func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{}
 
 	s := NewScheduler(nil, nil, auth, nil, nil, nil, slog.Default())
@@ -1497,6 +1554,8 @@ func TestExecuteTokenCleanup_AlreadyRunning(t *testing.T) {
 }
 
 func TestExecuteTokenCleanup_Error(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{
 		tokenErr: errors.New("token cleanup failed"),
 	}
@@ -1515,6 +1574,8 @@ func TestExecuteTokenCleanup_Error(t *testing.T) {
 }
 
 func TestCheckAndRunSessionCleanup_Success(t *testing.T) {
+	t.Parallel()
+
 	activeSvc := &mockActiveService{
 		cleanupAbandonedResult: 5,
 	}
@@ -1566,6 +1627,8 @@ func TestCheckAndRunSessionCleanup_NoAbandoned(t *testing.T) {
 }
 
 func TestCheckAndRunSessionCleanup_Error(t *testing.T) {
+	t.Parallel()
+
 	activeSvc := &mockActiveService{
 		cleanupAbandonedErr: errors.New("cleanup failed"),
 	}
@@ -1587,6 +1650,8 @@ func TestCheckAndRunSessionCleanup_Error(t *testing.T) {
 }
 
 func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
 	activeSvc := &mockActiveService{}
 
 	s := &Scheduler{
@@ -1797,6 +1862,9 @@ func TestScheduleSessionEndTask_CustomTime(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
 	// Clear env var to test default behavior (enabled)
 	_ = os.Unsetenv("SESSION_END_SCHEDULER_ENABLED")
@@ -1825,6 +1893,9 @@ func TestScheduleSessionEndTask_DefaultEnabled(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 	// Clear env var to test default behavior (enabled)
 	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
@@ -2082,6 +2153,9 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
 	// SESSION_CLEANUP_ENABLED defaults to enabled
 	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
@@ -2116,6 +2190,8 @@ func TestRunSessionCleanupTask_ExecutesAfterDelay(t *testing.T) {
 }
 
 func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		auth := &fakeAuthCleanup{
 			tokenResult:     1,
@@ -2156,6 +2232,9 @@ func TestRunTokenCleanupTask_TickerRepeat(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestRunSessionCleanupTask_StopsOnDoneAfterSleep(t *testing.T) {
 	// Enable session cleanup
 	_ = os.Unsetenv("SESSION_CLEANUP_ENABLED")
@@ -2213,6 +2292,8 @@ func (m *mockBreakAutoEnder) AutoEndExpiredBreaks(_ context.Context) (int, error
 }
 
 func TestWaitUntilNextMinute_ShutdownDuringWait(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		s := &Scheduler{done: make(chan struct{}), logger: slog.Default()}
 		go func() {
@@ -2248,6 +2329,8 @@ func TestScheduleSessionEndTask_DisabledByEnv(t *testing.T) {
 }
 
 func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupErr: errors.New("db error"),
@@ -2259,6 +2342,8 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
 }
 
 func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
@@ -2270,6 +2355,8 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 }
 
 func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
@@ -2283,6 +2370,8 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 }
 
 func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
@@ -2299,6 +2388,8 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 }
 
 func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
@@ -2315,6 +2406,8 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 }
 
 func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult: &activeService.CleanupResult{},
@@ -2330,6 +2423,8 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 }
 
 func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		cleanupService: &mockCleanupService{
 			cleanupResult:    &activeService.CleanupResult{},
@@ -2342,6 +2437,8 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 }
 
 func TestTimeMatchesNow(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	nowStr := now.Format("15:04")
 	assert.True(t, timeMatchesNow(nowStr))
@@ -2352,17 +2449,23 @@ func TestTimeMatchesNow(t *testing.T) {
 }
 
 func TestWasRunToday_NotRun(t *testing.T) {
+	t.Parallel()
+
 	var m sync.Map
 	assert.False(t, wasRunToday(&m, 1))
 }
 
 func TestWasRunToday_RanToday(t *testing.T) {
+	t.Parallel()
+
 	var m sync.Map
 	markRunToday(&m, 1)
 	assert.True(t, wasRunToday(&m, 1))
 }
 
 func TestWasRunToday_RanYesterday(t *testing.T) {
+	t.Parallel()
+
 	var m sync.Map
 	tenantID := int64(100)
 	m.Store(tenantID, time.Now().Add(-25*time.Hour))
@@ -2370,6 +2473,8 @@ func TestWasRunToday_RanYesterday(t *testing.T) {
 }
 
 func TestWasRunToday_InvalidType(t *testing.T) {
+	t.Parallel()
+
 	var m sync.Map
 	tenantID := int64(100)
 	m.Store(tenantID, "not a time")
@@ -2377,24 +2482,32 @@ func TestWasRunToday_InvalidType(t *testing.T) {
 }
 
 func TestWasRunToday_DifferentTenant(t *testing.T) {
+	t.Parallel()
+
 	var m sync.Map
 	markRunToday(&m, 1)
 	assert.False(t, wasRunToday(&m, 2))
 }
 
 func TestResolveStringSetting_NoSettings(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	val := s.resolveStringSetting(context.Background(), "key", "NONEXISTENT_ENV", "fallback")
 	assert.Equal(t, "fallback", val)
 }
 
 func TestResolveBoolSetting_NoSettings(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	val := s.resolveBoolSetting(context.Background(), "key", "NONEXISTENT_ENV", true)
 	assert.True(t, val)
 }
 
 func TestResolveIntSetting_NoSettings(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	val := s.resolveIntSetting(context.Background(), "key", "NONEXISTENT_ENV", 42)
 	assert.Equal(t, 42, val)
@@ -2429,6 +2542,8 @@ func TestResolveIntSetting_InvalidEnv(t *testing.T) {
 }
 
 func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
@@ -2472,6 +2587,8 @@ func TestEmailChangeTokenCleaner_InterfaceCompliance(_ *testing.T) {
 }
 
 func TestBuildCleanupJobs_WithEmailChangeCleaner(t *testing.T) {
+	t.Parallel()
+
 	auth := &fakeAuthCleanup{}
 	invitations := &fakeInvitationCleaner{}
 	cleaner := &fakeEmailChangeCleaner{result: 7}
@@ -2488,6 +2605,8 @@ func TestBuildCleanupJobs_WithEmailChangeCleaner(t *testing.T) {
 }
 
 func TestBuildCleanupJobs_EmailChangeCleanerPropagatesError(t *testing.T) {
+	t.Parallel()
+
 	cleaner := &fakeEmailChangeCleaner{err: fmt.Errorf("cleanup failed")}
 
 	jobs := buildCleanupJobs(nil, nil, cleaner, nil)
@@ -2519,6 +2638,8 @@ func (f *fakeFeedbackCleaner) DeleteEntriesOlderThan(_ context.Context, days int
 }
 
 func TestSetFeedbackCleaner(t *testing.T) {
+	t.Parallel()
+
 	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 
 	assert.Nil(t, s.feedbackCleaner)
@@ -2657,6 +2778,8 @@ func otherISOWeekday() int {
 }
 
 func TestSetMaterializer(t *testing.T) {
+	t.Parallel()
+
 	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 	assert.Nil(t, s.materializer)
 
@@ -2666,6 +2789,8 @@ func TestSetMaterializer(t *testing.T) {
 }
 
 func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
@@ -2676,6 +2801,8 @@ func TestScheduleMaterializationTask_NilMaterializer(t *testing.T) {
 }
 
 func TestScheduleMaterializationTask_RegistersTask(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		done:         make(chan struct{}),
 		logger:       slog.Default(),
@@ -2696,6 +2823,8 @@ func TestScheduleMaterializationTask_RegistersTask(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_AlreadyRunning(t *testing.T) {
+	t.Parallel()
+
 	m := &fakeMaterializer{}
 	s := &Scheduler{
 		logger:       slog.Default(),
@@ -2709,6 +2838,8 @@ func TestCheckAndRunMaterialization_AlreadyRunning(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_EnabledByDefault(t *testing.T) {
+	t.Parallel()
+
 	// With no tenant override on the enabled key, resolveBoolSetting returns
 	// the defaultVal (true) — materializer runs on the configured weekday.
 	m := &fakeMaterializer{}
@@ -2733,6 +2864,8 @@ func TestCheckAndRunMaterialization_EnabledByDefault(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
+	t.Parallel()
+
 	m := &fakeMaterializer{}
 	s := &Scheduler{
 		logger:       slog.Default(),
@@ -2754,6 +2887,8 @@ func TestCheckAndRunMaterialization_EnabledWrongWeekday(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
+	t.Parallel()
+
 	m := &fakeMaterializer{}
 	s := &Scheduler{
 		logger:       slog.Default(),
@@ -2778,6 +2913,8 @@ func TestCheckAndRunMaterialization_WasRunToday(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	m := &fakeMaterializer{
 		returnResult: &scheduleSvc.MaterializationResult{
 			InstancesCreated: 7,
@@ -2814,6 +2951,8 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
+	t.Parallel()
+
 	// When the result has zero created and zero raced, the success info log
 	// is suppressed — but the call still counts and the today-mark is set.
 	m := &fakeMaterializer{
@@ -2842,6 +2981,8 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
+	t.Parallel()
+
 	m := &fakeMaterializer{
 		returnErr: errors.New("materialization exploded"),
 	}
@@ -2866,6 +3007,8 @@ func TestCheckAndRunMaterialization_MaterializerError(t *testing.T) {
 }
 
 func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
+	t.Parallel()
+
 	// Triggers the "successful completion" info log branch where
 	// InstancesCreated==0 but CandidatesRaced>0.
 	m := &fakeMaterializer{
@@ -2894,6 +3037,8 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 }
 
 func TestIsoWeekdayMatchesNow_NonSundayMismatch(t *testing.T) {
+	t.Parallel()
+
 	// Exercises the "today != Sunday" branch explicitly with a mismatch.
 	// Combined with the existing TestIsoWeekdayMatchesNow, this covers both
 	// branches deterministically regardless of the day the suite runs.
@@ -2911,6 +3056,8 @@ func TestIsoWeekdayMatchesNow_NonSundayMismatch(t *testing.T) {
 }
 
 func TestRunMaterializationTaskPolling_ExitsOnDone(t *testing.T) {
+	t.Parallel()
+
 	// Pre-close done before launching so waitUntilNextMinute returns false
 	// immediately after the startup checkAndRunMaterialization completes.
 	m := &fakeMaterializer{}
@@ -2939,6 +3086,8 @@ func TestRunMaterializationTaskPolling_ExitsOnDone(t *testing.T) {
 }
 
 func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
+	t.Parallel()
+
 	// Use synctest to drive the ticker past waitUntilNextMinute and into the
 	// 60-second poll loop. The ticker branch + done branch both get exercised.
 	synctest.Test(t, func(t *testing.T) {

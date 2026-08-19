@@ -37,6 +37,8 @@ func (env *guardianTestEnv) deleteStudentGuardianLinks(studentID int64) {
 }
 
 func TestInviteToStudent_NewEmail_CreatesProfileLinkAndInvite(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -69,6 +71,8 @@ func TestInviteToStudent_NewEmail_CreatesProfileLinkAndInvite(t *testing.T) {
 }
 
 func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -100,6 +104,8 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 }
 
 func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -132,6 +138,8 @@ func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testin
 }
 
 func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_DefersAttachment(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -171,6 +179,8 @@ func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_Defe
 }
 
 func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -219,6 +229,8 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 }
 
 func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -252,6 +264,8 @@ func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.
 }
 
 func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLink(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -299,6 +313,8 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 }
 
 func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -333,6 +349,8 @@ func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
 }
 
 func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -376,6 +394,8 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 }
 
 func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -412,6 +432,8 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 }
 
 func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -452,6 +474,8 @@ func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
 }
 
 func TestRejectInvitation_MarksRejectedAndCleansOrphan(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -490,6 +514,8 @@ func TestRejectInvitation_MarksRejectedAndCleansOrphan(t *testing.T) {
 }
 
 func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -531,6 +557,8 @@ func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
 }
 
 func TestInviteToStudent_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
@@ -548,6 +576,8 @@ func TestInviteToStudent_ValidationErrors(t *testing.T) {
 }
 
 func TestApproveRejectInvitation_NotFoundAndNotPending(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
@@ -570,6 +600,8 @@ func TestApproveRejectInvitation_NotFoundAndNotPending(t *testing.T) {
 }
 
 func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
@@ -611,6 +643,8 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 }
 
 func TestRevokeAccess_ValidationAndNotLinked(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
@@ -626,6 +660,8 @@ func TestRevokeAccess_ValidationAndNotLinked(t *testing.T) {
 }
 
 func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
@@ -664,6 +700,8 @@ func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
 }
 
 func TestRejectInvitation_PreservesPreexistingProfileWithoutLinks(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
@@ -694,6 +732,8 @@ func TestRejectInvitation_PreservesPreexistingProfileWithoutLinks(t *testing.T) 
 }
 
 func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 	ctx := testpkg.Ctx(t)
@@ -765,6 +805,8 @@ func (env *guardianTestEnv) fetchLink(t *testing.T, studentID, guardianProfileID
 }
 
 func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -811,6 +853,8 @@ func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
 }
 
 func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -847,6 +891,8 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
 }
 
 func TestInviteToStudent_ConfirmedUpgrade_DirectExistingAccount(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -880,6 +926,8 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectExistingAccount(t *testing.T) {
 }
 
 func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprove(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -934,6 +982,8 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 }
 
 func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -979,6 +1029,8 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 }
 
 func TestInviteToStudent_FullRoleLink_NoConfirmationNeeded(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -1007,6 +1059,8 @@ func TestInviteToStudent_FullRoleLink_NoConfirmationNeeded(t *testing.T) {
 }
 
 func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -1063,6 +1117,8 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 // longer be applied, so the approval must fail loudly: approving anyway would
 // report success (and email an invitation) for access that was never granted.
 func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
+	t.Parallel()
+
 	outbox := &stubOutboxEnqueuer{}
 	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
 		cfg.OutboxEnqueuer = outbox
@@ -1121,6 +1177,8 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 // review step. Staff-shaped invites (no RequestedByParentAccountID) keep
 // resolving immediately — covered by the ConfirmedUpgrade_Direct* tests above.
 func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -1174,6 +1232,8 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 // upgrade, and the still-consumable token would grant an account without the
 // promised access.
 func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -1248,6 +1308,8 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 // of the older invite, and approve/reject are gated on it. A nearly-expired
 // leftover must not lock staff out of a request submitted seconds ago.
 func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -1311,6 +1373,8 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 // same (already registered) account directly. The queued row must not be left
 // behind as a phantom entry that can never do anything.
 func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -1376,6 +1440,8 @@ func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
 // to pending — that would invalidate its live token and force a re-approval.
 // Only a confirmed role upgrade may re-queue a resolved invitation.
 func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 

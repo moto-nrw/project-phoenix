@@ -7,6 +7,8 @@ import (
 )
 
 func TestRFIDCard_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		card    *RFIDCard
@@ -113,6 +115,8 @@ func TestRFIDCard_Validate(t *testing.T) {
 }
 
 func TestRFIDCard_Validate_Normalization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		inputID    string
@@ -169,6 +173,8 @@ func TestRFIDCard_Validate_Normalization(t *testing.T) {
 }
 
 func TestRFIDCard_IsActive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		card     *RFIDCard
@@ -203,6 +209,8 @@ func TestRFIDCard_IsActive(t *testing.T) {
 }
 
 func TestRFIDCard_Activate(t *testing.T) {
+	t.Parallel()
+
 	card := &RFIDCard{
 		StringIDModel: base.StringIDModel{ID: "ABCD12345678"},
 		Active:        false,
@@ -220,6 +228,8 @@ func TestRFIDCard_Activate(t *testing.T) {
 }
 
 func TestRFIDCard_Deactivate(t *testing.T) {
+	t.Parallel()
+
 	card := &RFIDCard{
 		StringIDModel: base.StringIDModel{ID: "ABCD12345678"},
 		Active:        true,
@@ -237,6 +247,8 @@ func TestRFIDCard_Deactivate(t *testing.T) {
 }
 
 func TestRFIDCard_LengthBoundaries(t *testing.T) {
+	t.Parallel()
+
 	t.Run("exactly minimum length", func(t *testing.T) {
 		// MinRFIDCardLength = 8
 		card := &RFIDCard{

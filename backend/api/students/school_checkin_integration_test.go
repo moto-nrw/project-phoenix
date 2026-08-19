@@ -33,6 +33,8 @@ func bytesReader(b []byte) io.Reader { return bytes.NewReader(b) }
 // testutil.AdminTestClaims so claims.ID matches what the middleware expects.
 
 func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -67,6 +69,8 @@ func TestSchoolCheckin_CheckIn_NewAttendance(t *testing.T) {
 }
 
 func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -101,6 +105,8 @@ func TestSchoolCheckin_CheckIn_Idempotent(t *testing.T) {
 }
 
 func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -148,6 +154,8 @@ func TestSchoolCheckin_CheckOut_FromCheckedIn(t *testing.T) {
 // attendance, never a visit. The visit must come from a separate kiosk-side
 // fixture for this branch to fire.
 func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Cleanup", "2c")
@@ -194,6 +202,8 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 // whole gate. Supervision of the child's group no longer participates, and the
 // per-child attendance.web_checkin_access setting is gone.
 func TestSchoolCheckin_NonSupervisingStaffAllowed(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -224,6 +234,8 @@ func TestSchoolCheckin_NonSupervisingStaffAllowed(t *testing.T) {
 // account holding users:checkin without a staff record in the tenant (guest,
 // guardian) has no identity to attribute the attendance row to and stays out.
 func TestSchoolCheckin_AccountWithoutStaffRecordDenied(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Denied", "Target", "3d")
@@ -246,6 +258,8 @@ func TestSchoolCheckin_AccountWithoutStaffRecordDenied(t *testing.T) {
 }
 
 func TestSchoolCheckin_InvalidAction_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Invalid", "Target", "4d")

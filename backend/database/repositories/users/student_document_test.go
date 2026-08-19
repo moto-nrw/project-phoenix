@@ -38,6 +38,8 @@ func storedName(t *testing.T) string {
 // comes from the embed, so a broken mapping fails right here rather than in
 // production.
 func TestStudentDocumentRepository_CreateAndList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Doku", "Kind", "1a")
@@ -75,6 +77,8 @@ func TestStudentDocumentRepository_CreateAndList(t *testing.T) {
 }
 
 func TestStudentDocumentRepository_FindForOwnerRejectsForeignStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Eigen", "Kind", "1a")
@@ -102,6 +106,8 @@ func TestStudentDocumentRepository_FindForOwnerRejectsForeignStudent(t *testing.
 }
 
 func TestStudentDocumentRepository_SoftDeleteHidesRowButKeepsIt(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Lösch", "Kind", "1a")
@@ -143,6 +149,8 @@ func TestStudentDocumentRepository_SoftDeleteHidesRowButKeepsIt(t *testing.T) {
 }
 
 func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Waise", "Kind", "1a")
@@ -197,6 +205,8 @@ func TestStudentDocumentRepository_CleanupIntentLifecycle(t *testing.T) {
 // from the moment it is written: nothing could ever find its bytes again, and
 // no cleanup pass could reclaim them.
 func TestStudentDocumentRepository_CreateRejectsInvalidRow(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Ungueltig", "Kind", "1a")
@@ -217,6 +227,8 @@ func TestStudentDocumentRepository_CreateRejectsInvalidRow(t *testing.T) {
 // ordinary find stops seeing it, but the handler still has to authorize a retry
 // of the unlink against the very row whose bytes are pending.
 func TestStudentDocumentRepository_FindIncludingDeletedFeedsCleanupRetry(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Nachlauf", "Kind", "1a")
@@ -254,6 +266,8 @@ func TestStudentDocumentRepository_FindIncludingDeletedFeedsCleanupRetry(t *test
 // live, because the cascade is about to remove their rows while the bytes stay
 // on disk.
 func TestStudentDocumentRepository_PendingCleanupCoversLiveAndDeletedRows(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Abbau", "Kind", "1a")
@@ -299,6 +313,8 @@ func TestStudentDocumentRepository_PendingCleanupCoversLiveAndDeletedRows(t *tes
 // per-owner view of the intent queue and settling an intent by its ID, which is
 // how the scheduler retires an object it has just unlinked.
 func TestStudentDocumentRepository_QueuedCleanupsAreScopedAndSettleable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Warteschlange", "Kind", "1a")
@@ -357,6 +373,8 @@ func storedNames(cleanups []*userModels.StudentDocumentFileCleanup) []string {
 // thousands of unlink-and-mark pairs, and a deadline firing mid-pass would roll
 // back every completion mark it had written.
 func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Viele", "Dokumente", "1a")
@@ -388,6 +406,8 @@ func TestStudentDocumentRepository_CleanupSweepIsBounded(t *testing.T) {
 // plus a transaction after the response, so a page view must never inherit a
 // backlog left by an unreachable storage backend.
 func TestStudentDocumentRepository_RequestRetryIsBounded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Rueckstand", "Kind", "1a")

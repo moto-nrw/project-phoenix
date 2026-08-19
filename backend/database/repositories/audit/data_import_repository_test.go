@@ -16,6 +16,8 @@ import (
 // ============================================================================
 
 func TestDataImportRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataImport
@@ -99,6 +101,8 @@ func TestDataImportRepository_Create(t *testing.T) {
 }
 
 func TestDataImportRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataImport
@@ -139,6 +143,8 @@ func TestDataImportRepository_FindByID(t *testing.T) {
 // ============================================================================
 
 func TestDataImportRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).DataImport

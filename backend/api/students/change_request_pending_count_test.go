@@ -20,6 +20,8 @@ import (
 // Their services scope per child but never re-check the permission, so an
 // absence-only caller would otherwise get a badge leading to three 403s.
 func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Count", "Teacher")
@@ -80,6 +82,8 @@ func TestPendingChangeRequestCount_AbsenceOnlyExcludesStudentDataQueues(t *testi
 // The badge counts only what its holder may open, and the queue behind it must
 // stay open to them: an absence reviewer sees the excused queue itself.
 func TestExcusedQueueReachable_WithAbsencePermission(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Queue", "Reviewer")

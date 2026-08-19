@@ -62,6 +62,8 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (parentService.Servi
 }
 
 func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -100,6 +102,8 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -135,6 +139,8 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 }
 
 func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -154,6 +160,8 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 }
 
 func TestGetChildMasterData_ReturnsChainData(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -169,6 +177,8 @@ func TestGetChildMasterData_ReturnsChainData(t *testing.T) {
 }
 
 func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -232,6 +242,8 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -262,6 +274,8 @@ func TestUpdateMasterDataField_HealthInfo_AppliesAndAudits(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -285,6 +299,8 @@ func TestUpdateMasterDataField_NormalizedNoopSkipsAudit(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -329,6 +345,8 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -349,6 +367,8 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 }
 
 func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -365,6 +385,8 @@ func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing
 }
 
 func TestUpdateMasterDataField_GuardianProfile_AddressAndContactFields(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -421,6 +443,8 @@ func TestUpdateMasterDataField_GuardianProfile_AddressAndContactFields(t *testin
 }
 
 func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -474,6 +498,8 @@ func TestUpdateMasterDataField_GuardianPhone_CreateUpdateClear(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_InvalidDirectValues(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -501,6 +527,8 @@ func TestUpdateMasterDataField_InvalidDirectValues(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_RejectsOversizedDirectValues(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -550,6 +578,8 @@ func TestUpdateMasterDataField_RejectsOversizedDirectValues(t *testing.T) {
 }
 
 func TestMasterDataField_InvalidOwnerAndPayloadRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -566,6 +596,8 @@ func TestMasterDataField_InvalidOwnerAndPayloadRejected(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_NonAllowlistedField_Rejected(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -579,6 +611,8 @@ func TestUpdateMasterDataField_NonAllowlistedField_Rejected(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_FeatureDisabled_Rejected(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildMasterDataService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

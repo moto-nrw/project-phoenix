@@ -89,6 +89,8 @@ func decodePlannedConflicts(t *testing.T, w *httptest.ResponseRecorder) PlannedC
 }
 
 func TestConflicts_BadRequestMatrix(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -119,6 +121,8 @@ func TestConflicts_BadRequestMatrix(t *testing.T) {
 }
 
 func TestConflicts_EmptyWarnings(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -135,6 +139,8 @@ func TestConflicts_EmptyWarnings(t *testing.T) {
 }
 
 func TestConflicts_RoomOverlapAloneYieldsNoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -152,6 +158,8 @@ func TestConflicts_RoomOverlapAloneYieldsNoWarning(t *testing.T) {
 }
 
 func TestConflicts_StaffSameRoomYieldsNoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -175,6 +183,8 @@ func TestConflicts_StaffSameRoomYieldsNoWarning(t *testing.T) {
 }
 
 func TestConflicts_StaffWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -199,6 +209,8 @@ func TestConflicts_StaffWarning(t *testing.T) {
 }
 
 func TestConflicts_StudentWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -223,6 +235,8 @@ func TestConflicts_StudentWarning(t *testing.T) {
 }
 
 func TestConflicts_ExcludeInstance(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 

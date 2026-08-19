@@ -66,6 +66,8 @@ func cleanupStaffRecords(t *testing.T, db *bun.DB, staffIDs ...int64) {
 // ============================================================================
 
 func TestStaffRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -130,6 +132,8 @@ func TestStaffRepository_Create(t *testing.T) {
 }
 
 func TestStaffRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -153,6 +157,8 @@ func TestStaffRepository_FindByID(t *testing.T) {
 }
 
 func TestStaffRepository_FindByPersonID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -175,6 +181,8 @@ func TestStaffRepository_FindByPersonID(t *testing.T) {
 }
 
 func TestStaffRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -202,6 +210,8 @@ func TestStaffRepository_Update(t *testing.T) {
 }
 
 func TestStaffRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -231,6 +241,8 @@ func TestStaffRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestStaffRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -263,6 +275,8 @@ func TestStaffRepository_List(t *testing.T) {
 // ============================================================================
 
 func TestStaffRepository_FindWithPerson(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -286,6 +300,8 @@ func TestStaffRepository_FindWithPerson(t *testing.T) {
 }
 
 func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -324,6 +340,8 @@ func TestStaffRepository_FindWithPersonByIDs(t *testing.T) {
 }
 
 func TestStaffRepository_FindByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -361,6 +379,8 @@ func TestStaffRepository_FindByIDs(t *testing.T) {
 // ============================================================================
 
 func TestStaffRepository_ListAllWithPerson(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff

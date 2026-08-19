@@ -68,6 +68,8 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestListRooms(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create test rooms
@@ -104,6 +106,8 @@ func TestListRooms(t *testing.T) {
 // =============================================================================
 
 func TestGetRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create test room
@@ -140,6 +144,8 @@ func TestGetRoom(t *testing.T) {
 // =============================================================================
 
 func TestCreateRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_room", func(t *testing.T) {
@@ -217,6 +223,8 @@ func TestCreateRoom(t *testing.T) {
 // =============================================================================
 
 func TestUpdateRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create test room
@@ -264,6 +272,8 @@ func TestUpdateRoom(t *testing.T) {
 // =============================================================================
 
 func TestDeleteRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_room", func(t *testing.T) {
@@ -312,6 +322,8 @@ func TestDeleteRoom(t *testing.T) {
 // =============================================================================
 
 func TestGetRoomsByCategory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_rooms_by_category", func(t *testing.T) {
@@ -336,6 +348,8 @@ func TestGetRoomsByCategory(t *testing.T) {
 // =============================================================================
 
 func TestGetBuildingList(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_building_list", func(t *testing.T) {
@@ -349,6 +363,8 @@ func TestGetBuildingList(t *testing.T) {
 }
 
 func TestGetCategoryList(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_category_list", func(t *testing.T) {
@@ -366,6 +382,8 @@ func TestGetCategoryList(t *testing.T) {
 // =============================================================================
 
 func TestGetAvailableRooms(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_gets_available_rooms", func(t *testing.T) {
@@ -390,6 +408,8 @@ func TestGetAvailableRooms(t *testing.T) {
 // =============================================================================
 
 func TestGetRoomHistory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Room history is gated by gdpr.attendance_log_enabled — opt-in per
@@ -462,6 +482,8 @@ func TestGetRoomHistory(t *testing.T) {
 // JSON-decode assertion below locks the shape in so a refactor of
 // common.ErrorForbidden can't silently break it.
 func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	room := testpkg.CreateTestRoom(t, tc.db, "FeatureDisabled Room")
@@ -488,6 +510,8 @@ func TestGetRoomHistory_FeatureDisabled(t *testing.T) {
 //     (`not_group_supervisor`) — the failure mode for a caregiver or other
 //     non-staff role that happens to hold the read permission.
 func TestGetRoomHistory_StaffScope(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	ctx := testpkg.Ctx(t)
@@ -602,6 +626,8 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 // before the window so this case truly tests the cap, not the activeness
 // branch.
 func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	ctx := testpkg.Ctx(t)
@@ -657,6 +683,8 @@ func TestGetRoomHistory_RangeCapClamped(t *testing.T) {
 // duration_minutes ≈ 90. Also asserts ended_at is non-null (the other
 // branch in the JSON envelope for closed sessions).
 func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	ctx := testpkg.Ctx(t)

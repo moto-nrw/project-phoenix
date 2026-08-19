@@ -30,6 +30,8 @@ func (*shiftMoveExceptionRepo) RepointToSeriesFrom(context.Context, int64, int64
 }
 
 func TestShiftService_MoveAcrossStaffPreservesIdentityAndConsumesSeriesOccurrence(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	reason := "Zeiten angepasst"
 	seriesID := int64(17)
@@ -84,6 +86,8 @@ func TestShiftService_MoveAcrossStaffPreservesIdentityAndConsumesSeriesOccurrenc
 }
 
 func TestShiftService_MoveRetryReturnsAlreadyMovedRowWithoutWriting(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	alreadyMoved := validShift(8)
 	alreadyMoved.ID = 5
@@ -114,6 +118,8 @@ func TestShiftService_MoveRetryReturnsAlreadyMovedRowWithoutWriting(t *testing.T
 }
 
 func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	seriesID := int64(17)
 	existing := validShift(7)
@@ -150,6 +156,8 @@ func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *t
 }
 
 func TestShiftService_MoveSeriesNoOpDoesNotDetachOrWrite(t *testing.T) {
+	t.Parallel()
+
 	svc, repo, _ := shiftServiceFixture()
 	seriesID := int64(17)
 	existing := validShift(7)

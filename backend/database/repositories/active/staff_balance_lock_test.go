@@ -12,6 +12,8 @@ import (
 )
 
 func TestStaffBalanceWritersShareAdvisoryLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Balance", "Lock")

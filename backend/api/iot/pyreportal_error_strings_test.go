@@ -160,6 +160,8 @@ var extraGuardSources = []string{
 // contains "PyrePortal" so failures in CI logs land the reader directly on
 // this file — and the file-top comment explains the coupling.
 func TestPyrePortalErrorStringsGuard(t *testing.T) {
+	t.Parallel()
+
 	_, thisFile, _, ok := runtime.Caller(0)
 	require.True(t, ok, "runtime.Caller failed — cannot locate guard sources")
 	iotDir := filepath.Dir(thisFile)                  // backend/api/iot

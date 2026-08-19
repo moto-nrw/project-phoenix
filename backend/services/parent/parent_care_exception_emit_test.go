@@ -27,6 +27,8 @@ import (
 // into the child's thread (the parent's own timeline of what they changed), and
 // deleting it drops a correction pill.
 func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 
@@ -85,6 +87,8 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 // showing a stale pickup time until they refocused or reloaded. The write must
 // now fan a message-independent parent_child_updated wake to EVERY guardian.
 func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 

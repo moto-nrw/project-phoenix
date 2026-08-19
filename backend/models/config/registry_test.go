@@ -130,6 +130,8 @@ func TestAllDefinitions(t *testing.T) {
 }
 
 func TestDefinitionValidate_OptionsOnNonSelect(t *testing.T) {
+	t.Parallel()
+
 	def := config.Definition{
 		Key:      "test.opts_on_text",
 		Type:     config.FieldText,
@@ -143,6 +145,8 @@ func TestDefinitionValidate_OptionsOnNonSelect(t *testing.T) {
 }
 
 func TestDefinitionValidate_SelectWithOptions(t *testing.T) {
+	t.Parallel()
+
 	def := config.Definition{
 		Key:      "test.valid_select",
 		Type:     config.FieldSelect,
@@ -218,6 +222,8 @@ func TestRegister_AllFieldTypes(t *testing.T) {
 }
 
 func TestValidate_InvalidPattern(t *testing.T) {
+	t.Parallel()
+
 	def := config.Definition{
 		Key:        "test.bad_pattern",
 		Type:       config.FieldPassword,
@@ -231,6 +237,8 @@ func TestValidate_InvalidPattern(t *testing.T) {
 }
 
 func TestValidate_ValidPattern(t *testing.T) {
+	t.Parallel()
+
 	def := config.Definition{
 		Key:        "test.good_pattern",
 		Type:       config.FieldPassword,
@@ -244,6 +252,8 @@ func TestValidate_ValidPattern(t *testing.T) {
 }
 
 func TestValidate_DefaultBelowMin(t *testing.T) {
+	t.Parallel()
+
 	minVal := 10.0
 	def := config.Definition{
 		Key:        "test.below_min",
@@ -259,6 +269,8 @@ func TestValidate_DefaultBelowMin(t *testing.T) {
 }
 
 func TestValidate_DefaultExceedsMax(t *testing.T) {
+	t.Parallel()
+
 	maxVal := 100.0
 	def := config.Definition{
 		Key:        "test.above_max",
@@ -274,6 +286,8 @@ func TestValidate_DefaultExceedsMax(t *testing.T) {
 }
 
 func TestValidate_DefaultWithinRange(t *testing.T) {
+	t.Parallel()
+
 	minVal := 1.0
 	maxVal := 100.0
 	def := config.Definition{

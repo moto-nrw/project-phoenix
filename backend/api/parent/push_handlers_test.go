@@ -27,6 +27,8 @@ func (s parentPushSubscriptionServiceStub) UnsubscribeParent(context.Context, in
 }
 
 func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		serviceErr    error
@@ -75,6 +77,8 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 }
 
 func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{PushService: parentPushSubscriptionServiceStub{
 		unsubscribeErr: errors.New("delete parent subscription: pq: internal detail"),
 	}}

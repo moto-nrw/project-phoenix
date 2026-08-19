@@ -31,6 +31,8 @@ func cleanupGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 // ============================================================================
 
 func TestGroupRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -74,6 +76,8 @@ func TestGroupRepository_Create(t *testing.T) {
 }
 
 func TestGroupRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -97,6 +101,8 @@ func TestGroupRepository_FindByID(t *testing.T) {
 }
 
 func TestGroupRepository_FindByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -122,6 +128,8 @@ func TestGroupRepository_FindByIDs(t *testing.T) {
 }
 
 func TestGroupRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -144,6 +152,8 @@ func TestGroupRepository_Update(t *testing.T) {
 }
 
 func TestGroupRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -165,6 +175,8 @@ func TestGroupRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGroupRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -181,6 +193,8 @@ func TestGroupRepository_List(t *testing.T) {
 }
 
 func TestGroupRepository_ListWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -200,6 +214,8 @@ func TestGroupRepository_ListWithOptions(t *testing.T) {
 }
 
 func TestGroupRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -221,6 +237,8 @@ func TestGroupRepository_FindByName(t *testing.T) {
 }
 
 func TestGroupRepository_FindByTeacher(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -266,6 +284,8 @@ func TestGroupRepository_FindByTeacher(t *testing.T) {
 }
 
 func TestGroupRepository_FindWithRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -306,6 +326,8 @@ func TestGroupRepository_FindWithRoom(t *testing.T) {
 // ============================================================================
 
 func TestGroupRepository_Create_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -327,6 +349,8 @@ func TestGroupRepository_Create_Validation(t *testing.T) {
 }
 
 func TestGroupRepository_Update_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -353,6 +377,8 @@ func TestGroupRepository_Update_Validation(t *testing.T) {
 // ============================================================================
 
 func TestGroupRepository_List_WithFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -431,6 +457,8 @@ func TestGroupRepository_List_WithFilters(t *testing.T) {
 }
 
 func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group
@@ -483,6 +511,8 @@ func TestGroupRepository_ListWithOptions_Advanced(t *testing.T) {
 }
 
 func TestGroupRepository_FindByName_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group

@@ -7,6 +7,8 @@ import "testing"
 // the repository, service, and staff review queue all depend on.
 
 func TestCareScheduleChangeRequest_IsTerminal(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		status   string
 		terminal bool

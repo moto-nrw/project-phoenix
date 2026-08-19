@@ -137,6 +137,8 @@ func (m *mockIoTService) UpdateDeviceLastSeenAt(_ context.Context, _ int64, last
 // =============================================================================
 
 func TestDeviceFromCtx_ValidDevice(t *testing.T) {
+	t.Parallel()
+
 	device := &iot.Device{
 		DeviceID:   "device-001",
 		DeviceType: "terminal",
@@ -152,18 +154,24 @@ func TestDeviceFromCtx_ValidDevice(t *testing.T) {
 }
 
 func TestDeviceFromCtx_NoDevice(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	result := DeviceFromCtx(ctx)
 	assert.Nil(t, result)
 }
 
 func TestDeviceFromCtx_WrongType(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxDevice, "not a device")
 	result := DeviceFromCtx(ctx)
 	assert.Nil(t, result)
 }
 
 func TestStaffFromCtx_ValidStaff(t *testing.T) {
+	t.Parallel()
+
 	staff := &users.Staff{
 		StaffNotes: "Test staff member",
 	}
@@ -176,36 +184,48 @@ func TestStaffFromCtx_ValidStaff(t *testing.T) {
 }
 
 func TestStaffFromCtx_NoStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	result := StaffFromCtx(ctx)
 	assert.Nil(t, result)
 }
 
 func TestStaffFromCtx_WrongType(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxStaff, "not a staff")
 	result := StaffFromCtx(ctx)
 	assert.Nil(t, result)
 }
 
 func TestIsIoTDeviceRequest_True(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxIsIoTDevice, true)
 	result := IsIoTDeviceRequest(ctx)
 	assert.True(t, result)
 }
 
 func TestIsIoTDeviceRequest_False(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxIsIoTDevice, false)
 	result := IsIoTDeviceRequest(ctx)
 	assert.False(t, result)
 }
 
 func TestIsIoTDeviceRequest_NotSet(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	result := IsIoTDeviceRequest(ctx)
 	assert.False(t, result)
 }
 
 func TestIsIoTDeviceRequest_WrongType(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxIsIoTDevice, "true")
 	result := IsIoTDeviceRequest(ctx)
 	assert.False(t, result)
@@ -216,12 +236,16 @@ func TestIsIoTDeviceRequest_WrongType(t *testing.T) {
 // =============================================================================
 
 func TestSecureCompareStrings_Equal(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, SecureCompareStrings("password", "password"))
 	assert.True(t, SecureCompareStrings("", ""))
 	assert.True(t, SecureCompareStrings("a very long string with special chars!@#$%", "a very long string with special chars!@#$%"))
 }
 
 func TestSecureCompareStrings_NotEqual(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, SecureCompareStrings("password", "different"))
 	assert.False(t, SecureCompareStrings("password", "Password")) // Case sensitive
 	assert.False(t, SecureCompareStrings("password", "password "))
@@ -229,6 +253,8 @@ func TestSecureCompareStrings_NotEqual(t *testing.T) {
 }
 
 func TestSecureCompareStrings_DifferentLengths(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, SecureCompareStrings("short", "muchlongerstring"))
 	assert.False(t, SecureCompareStrings("muchlongerstring", "short"))
 }
@@ -237,6 +263,8 @@ func TestSecureCompareStrings_DifferentLengths(t *testing.T) {
 // DeviceOnlyAuthenticator Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -273,6 +301,8 @@ func TestDeviceOnlyAuthenticator_ValidAPIKey(t *testing.T) {
 }
 
 func TestDeviceOnlyAuthenticator_MissingAuthHeader(t *testing.T) {
+	t.Parallel()
+
 	mockService := newMockIoTService()
 
 	r := chi.NewRouter()
@@ -290,6 +320,8 @@ func TestDeviceOnlyAuthenticator_MissingAuthHeader(t *testing.T) {
 }
 
 func TestDeviceOnlyAuthenticator_InvalidAuthFormat(t *testing.T) {
+	t.Parallel()
+
 	mockService := newMockIoTService()
 
 	testCases := []struct {
@@ -321,6 +353,8 @@ func TestDeviceOnlyAuthenticator_InvalidAuthFormat(t *testing.T) {
 }
 
 func TestDeviceOnlyAuthenticator_InvalidAPIKey(t *testing.T) {
+	t.Parallel()
+
 	mockService := newMockIoTService()
 	// No devices added
 
@@ -339,6 +373,8 @@ func TestDeviceOnlyAuthenticator_InvalidAPIKey(t *testing.T) {
 }
 
 func TestDeviceOnlyAuthenticator_InactiveDevice(t *testing.T) {
+	t.Parallel()
+
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
@@ -363,6 +399,8 @@ func TestDeviceOnlyAuthenticator_InactiveDevice(t *testing.T) {
 }
 
 func TestDeviceOnlyAuthenticator_OfflineDevice(t *testing.T) {
+	t.Parallel()
+
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
@@ -387,6 +425,8 @@ func TestDeviceOnlyAuthenticator_OfflineDevice(t *testing.T) {
 }
 
 func TestDeviceOnlyAuthenticator_MaintenanceDevice(t *testing.T) {
+	t.Parallel()
+
 	mockService := newMockIoTService()
 	apiKey := "valid-api-key-123"
 	device := &iot.Device{
@@ -511,6 +551,9 @@ func TestDeviceAuthenticator_InvalidPIN(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestDeviceAuthenticator_MissingOGSPINConfig(t *testing.T) {
 	// Ensure OGS_DEVICE_PIN is not set
 	_ = os.Unsetenv("OGS_DEVICE_PIN")
@@ -614,6 +657,9 @@ func TestDeviceAuthenticator_InactiveDevice(t *testing.T) {
 // PINResolver Wiring Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestDeviceAuthenticator_UsesPINResolver(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -693,6 +739,9 @@ func TestDeviceAuthenticator_PINResolverFallsBackToEnv(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code, "should fall back to OGS_DEVICE_PIN env var")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestDeviceAuthenticator_PINResolverWrongPIN(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 	_ = os.Unsetenv("OGS_DEVICE_PIN")
@@ -731,6 +780,8 @@ func TestDeviceAuthenticator_PINResolverWrongPIN(t *testing.T) {
 // =============================================================================
 
 func TestErrDeviceUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	renderer := ErrDeviceUnauthorized(ErrInvalidAPIKey)
 	assert.NotNil(t, renderer)
 
@@ -742,6 +793,8 @@ func TestErrDeviceUnauthorized(t *testing.T) {
 }
 
 func TestErrDeviceForbidden(t *testing.T) {
+	t.Parallel()
+
 	renderer := ErrDeviceForbidden(ErrDeviceInactive)
 	assert.NotNil(t, renderer)
 
@@ -753,6 +806,8 @@ func TestErrDeviceForbidden(t *testing.T) {
 }
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -772,6 +827,8 @@ func TestErrResponse_Render(t *testing.T) {
 // =============================================================================
 
 func TestErrorTypes(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		err      error
 		expected string
@@ -796,6 +853,8 @@ func TestErrorTypes(t *testing.T) {
 // =============================================================================
 
 func TestCtxKey_DistinctValues(t *testing.T) {
+	t.Parallel()
+
 	assert.NotEqual(t, CtxDevice, CtxStaff)
 	assert.NotEqual(t, CtxDevice, CtxIsIoTDevice)
 	assert.NotEqual(t, CtxStaff, CtxIsIoTDevice)
@@ -805,6 +864,8 @@ func TestCtxKey_DistinctValues(t *testing.T) {
 // Update Last Seen Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -835,6 +896,8 @@ func TestDeviceOnlyAuthenticator_UpdateLastSeenError(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -875,6 +938,8 @@ func TestDeviceOnlyAuthenticator_DebouncesLastSeenWrites(t *testing.T) {
 // =============================================================================
 
 func TestExtractAndValidateAPIKey_NilDeviceReturn(t *testing.T) {
+	t.Parallel()
+
 	// Test the path where GetDeviceByAPIKey returns nil device with no error
 	mockService := &mockIoTServiceNilDevice{}
 
@@ -919,6 +984,8 @@ func TestDeviceAuthenticator_NilDeviceReturn(t *testing.T) {
 }
 
 func TestDeviceOnlyAuthenticator_NilDeviceReturn(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockIoTServiceNilDevice{mockIoTService: *newMockIoTService()}
 
 	r := chi.NewRouter()
@@ -950,6 +1017,8 @@ func (m *mockSchoolRepo) GetSchoolByID(_ context.Context, _ int64) (*platform.Sc
 }
 
 func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockSchoolRepo{school: &platform.School{Active: true}}
 	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
 
@@ -958,6 +1027,8 @@ func TestRejectDeletedSchool_ActiveSchool_ReturnsNil(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_DeletedSchool_ReturnsForbidden(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	repo := &mockSchoolRepo{school: &platform.School{DeletedAt: &now, Active: true}}
 	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
@@ -967,6 +1038,8 @@ func TestRejectDeletedSchool_DeletedSchool_ReturnsForbidden(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_NilRepo_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
 
 	result := rejectDeletedSchool(context.Background(), nil, device)
@@ -974,6 +1047,8 @@ func TestRejectDeletedSchool_NilRepo_ReturnsNil(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_NilSchool_ReturnsForbidden(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockSchoolRepo{school: nil, err: nil}
 	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
 
@@ -982,6 +1057,8 @@ func TestRejectDeletedSchool_NilSchool_ReturnsForbidden(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_NonTransientDBError_RejectsDevice(t *testing.T) {
+	t.Parallel()
+
 	// Non-transient errors (bad query, permission issue, etc.) must fail closed
 	// to prevent bypassing the soft-delete guard.
 	repo := &mockSchoolRepo{err: errors.New("connection refused")}
@@ -992,6 +1069,8 @@ func TestRejectDeletedSchool_NonTransientDBError_RejectsDevice(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_TransientDBError_FailsOpen(t *testing.T) {
+	t.Parallel()
+
 	// Genuine transient connectivity errors should fail open so IoT devices
 	// keep working during brief outages.
 	repo := &mockSchoolRepo{err: &net.OpError{
@@ -1006,6 +1085,8 @@ func TestRejectDeletedSchool_TransientDBError_FailsOpen(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_ContextTimeout_FailsOpen(t *testing.T) {
+	t.Parallel()
+
 	repo := &mockSchoolRepo{err: context.DeadlineExceeded}
 	device := &iot.Device{DeviceID: "device-001", TenantModel: modelBase.TenantModel{TenantID: 100}}
 
@@ -1013,6 +1094,8 @@ func TestRejectDeletedSchool_ContextTimeout_FailsOpen(t *testing.T) {
 	assert.Nil(t, result, "context deadline errors should fail open")
 }
 
+// Deliberately NOT parallel: the test resets lastSeenWriteCache, the
+// package-level debounce map every device authentication shares.
 func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {
 	lastSeenWriteCache = sync.Map{}
 
@@ -1044,6 +1127,8 @@ func TestDeviceOnlyAuthenticator_DeletedSchool_Forbidden(t *testing.T) {
 }
 
 func TestSecureCompareStrings_TimingResistance(t *testing.T) {
+	t.Parallel()
+
 	// This test verifies the constant-time comparison is used
 	// We can't easily test timing, but we can verify behavior
 
@@ -1064,6 +1149,8 @@ func TestSecureCompareStrings_TimingResistance(t *testing.T) {
 // =============================================================================
 
 func TestIsNotFoundErr(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -1116,6 +1203,8 @@ func (stubNetError) Timeout() bool   { return true }
 func (stubNetError) Temporary() bool { return true }
 
 func TestIsTransientDBErr(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -1171,6 +1260,8 @@ func TestIsTransientDBErr(t *testing.T) {
 // =============================================================================
 
 func TestRejectDeletedSchool_SchoolNotFound(t *testing.T) {
+	t.Parallel()
+
 	// FindByID returns sql.ErrNoRows wrapped in DatabaseError — should reject.
 	repo := &mockSchoolRepo{
 		err: &modelBase.DatabaseError{Op: "find", Err: sql.ErrNoRows},
@@ -1185,6 +1276,8 @@ func TestRejectDeletedSchool_SchoolNotFound(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_TransientError_FailsOpen(t *testing.T) {
+	t.Parallel()
+
 	// FindByID returns context.DeadlineExceeded wrapped in DatabaseError — fail open.
 	repo := &mockSchoolRepo{
 		err: &modelBase.DatabaseError{Op: "find", Err: context.DeadlineExceeded},
@@ -1199,6 +1292,8 @@ func TestRejectDeletedSchool_TransientError_FailsOpen(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_NonTransientError_FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	// FindByID returns a permission error wrapped in DatabaseError — fail closed.
 	repo := &mockSchoolRepo{
 		err: &modelBase.DatabaseError{Op: "find", Err: errors.New("permission denied")},
@@ -1213,6 +1308,8 @@ func TestRejectDeletedSchool_NonTransientError_FailsClosed(t *testing.T) {
 }
 
 func TestRejectDeletedSchool_NilSchool(t *testing.T) {
+	t.Parallel()
+
 	// FindByID returns (nil, nil) — school doesn't exist, reject.
 	repo := &mockSchoolRepo{school: nil, err: nil}
 	device := &iot.Device{

@@ -33,6 +33,8 @@ func createActiveService(t *testing.T, db *bun.DB) active.Service {
 // =============================================================================
 
 func TestActiveService_GetActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -81,6 +83,8 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -136,6 +140,8 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CreateActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -180,6 +186,8 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_UpdateActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -257,6 +265,8 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_DeleteActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -317,6 +327,8 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ListActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -379,6 +391,8 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -438,6 +452,8 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -479,6 +495,8 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 }
 
 func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -524,6 +542,8 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndActiveGroupSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -562,6 +582,8 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -602,6 +624,8 @@ func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -643,6 +667,8 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetDashboardAnalytics(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -691,6 +717,8 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -714,6 +742,8 @@ func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
 }
 
 func TestActiveService_ClaimActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -756,6 +786,8 @@ func TestActiveService_ClaimActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -790,6 +822,8 @@ func uniqueName(prefix string) string {
 // =============================================================================
 
 func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -849,6 +883,8 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ProcessSessionTimeout(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -896,6 +932,8 @@ func TestActiveService_ProcessSessionTimeout(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ValidateSessionTimeout(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -938,6 +976,8 @@ func TestActiveService_ValidateSessionTimeout(t *testing.T) {
 }
 
 func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -986,6 +1026,8 @@ func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndDailySessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -1006,6 +1048,8 @@ func TestActiveService_EndDailySessions(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ForceStartActivitySession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -1061,6 +1105,8 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)
@@ -1231,6 +1277,8 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := createActiveService(t, db)

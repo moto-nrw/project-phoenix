@@ -7,6 +7,8 @@ import (
 )
 
 func TestCareOfferingAvailabilityRuleMatchesGradeLevel(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 	tests := []struct {
 		name  string
@@ -52,6 +54,8 @@ func TestCareOfferingAvailabilityRuleMatchesGradeLevel(t *testing.T) {
 }
 
 func TestCareOfferingAvailabilityRuleValidation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		rule CareOfferingAvailabilityRule
@@ -71,6 +75,8 @@ func TestCareOfferingAvailabilityRuleValidation(t *testing.T) {
 }
 
 func TestCareOfferingAvailabilityRuleNormalizesValues(t *testing.T) {
+	t.Parallel()
+
 	rule := gradeRule(AvailabilityMatchAll, AvailabilityOperatorIn, 3, 1, 3, 2)
 	require.NoError(t, rule.NormalizeAndValidate())
 	require.Equal(t, []int{1, 2, 3}, rule.Conditions[0].Value)

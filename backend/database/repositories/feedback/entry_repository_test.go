@@ -17,6 +17,8 @@ import (
 // ============================================================================
 
 func TestEntryRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -81,6 +83,8 @@ func TestEntryRepository_Create(t *testing.T) {
 }
 
 func TestEntryRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -115,6 +119,8 @@ func TestEntryRepository_FindByID(t *testing.T) {
 }
 
 func TestEntryRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -146,6 +152,8 @@ func TestEntryRepository_Update(t *testing.T) {
 }
 
 func TestEntryRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -180,6 +188,8 @@ func TestEntryRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -229,6 +239,8 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestEntryRepository_FindByDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -275,6 +287,8 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 }
 
 func TestEntryRepository_FindByDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -314,6 +328,8 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 }
 
 func TestEntryRepository_FindMensaFeedback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -364,6 +380,8 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 }
 
 func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -408,6 +426,8 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_DeleteOlderThan(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -484,6 +504,8 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -652,6 +674,8 @@ func TestEntryRepository_List(t *testing.T) {
 }
 
 func TestEntryRepository_Update_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry
@@ -689,6 +713,8 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).FeedbackEntry

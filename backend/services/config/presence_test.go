@@ -13,20 +13,28 @@ import (
 )
 
 func TestResolvePresenceModeForTenant_NilService(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), nil, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_OverrideBinary(t *testing.T) {
+	t.Parallel()
+
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strVal: configModel.PresenceModeBinary})
 	assert.Equal(t, configModel.PresenceModeBinary, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_EmptyString_FallsBackToDetailed(t *testing.T) {
+	t.Parallel()
+
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strVal: ""})
 	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
 
 func TestResolvePresenceModeForTenant_ResolveError_FallsBackToDetailed(t *testing.T) {
+	t.Parallel()
+
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strErr: errors.New("tenant not found")})
 	assert.Equal(t, configModel.PresenceModeDetailed, configSvc.ResolvePresenceModeForTenant(context.Background(), svc, 42, nil))
 }
@@ -37,6 +45,8 @@ func TestResolvePresenceModeForTenant_ResolveError_FallsBackToDetailed(t *testin
 // assert the warning message is emitted with the expected key/value shape.
 
 func TestResolvePresenceModeForTenant_ErrorWithLogger_LogsWarning(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	svc := newFakeSettingsService(fakeSettingsServiceOpts{strErr: errors.New("tenant 42 not found")})

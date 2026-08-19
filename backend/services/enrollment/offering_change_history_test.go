@@ -17,6 +17,8 @@ import (
 // name, the decision reason, and the FROZEN snapshot diff — while pending rows
 // stay out.
 func TestOfferingChangeRequestService_ListHistory(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)

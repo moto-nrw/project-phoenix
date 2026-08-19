@@ -57,6 +57,8 @@ func classListRow(firstName, lastName, schoolClass string) importModels.ClassLis
 }
 
 func TestClassListImportConfig_Validate(t *testing.T) {
+	t.Parallel()
+
 	config := NewClassListImportConfig(ClassListImportDeps{})
 
 	require.NoError(t, config.PreloadReferenceData(context.Background()))
@@ -77,6 +79,8 @@ func TestClassListImportConfig_Validate(t *testing.T) {
 }
 
 func TestClassListImportConfig_ValidateBatchFlagsInFileDuplicates(t *testing.T) {
+	t.Parallel()
+
 	config := NewClassListImportConfig(ClassListImportDeps{})
 
 	rows := []importModels.ClassListEntryImportRow{
@@ -96,6 +100,8 @@ func TestClassListImportConfig_ValidateBatchFlagsInFileDuplicates(t *testing.T) 
 }
 
 func TestClassListImportConfig_FindExisting(t *testing.T) {
+	t.Parallel()
+
 	existing := &userModels.ClassListEntry{}
 	existing.ID = 77
 
@@ -131,6 +137,8 @@ func TestClassListImportConfig_FindExisting(t *testing.T) {
 // class list: the preview must report the row as already existing, not as
 // creatable (the actual create would fail on ErrClassListEntryStudentExists).
 func TestClassListImportConfig_FindExistingReportsMatchingStudent(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{}
 	student.ID = 41
 
@@ -168,6 +176,8 @@ func TestClassListImportConfig_FindExistingReportsMatchingStudent(t *testing.T) 
 }
 
 func TestClassListImportConfig_CreateMapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	created := &userModels.ClassListEntry{}
 	created.ID = 9
 
@@ -203,6 +213,8 @@ func TestClassListImportConfig_CreateMapsServiceErrors(t *testing.T) {
 }
 
 func TestClassListImportConfig_UpdateIsRefused(t *testing.T) {
+	t.Parallel()
+
 	config := NewClassListImportConfig(ClassListImportDeps{})
 	err := config.Update(context.Background(), 1, classListRow("Zoe", "Aalders", "1a"))
 	require.Error(t, err)

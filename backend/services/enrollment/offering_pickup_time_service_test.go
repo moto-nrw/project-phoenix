@@ -65,6 +65,8 @@ func pickupRowsByWeekday(t *testing.T, env *decisionTestEnv, studentID int64) ma
 }
 
 func TestOfferingPickupRollout_CreatesSourcedRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -91,6 +93,8 @@ func TestOfferingPickupRollout_CreatesSourcedRows(t *testing.T) {
 }
 
 func TestOfferingPickupRollout_OverwritesStaffRowsUnlessSkipped(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -123,6 +127,8 @@ func TestOfferingPickupRollout_OverwritesStaffRowsUnlessSkipped(t *testing.T) {
 }
 
 func TestOfferingPickupRolloutPreview_ClassifiesWithoutWriting(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -158,6 +164,8 @@ func TestOfferingPickupRolloutPreview_ClassifiesWithoutWriting(t *testing.T) {
 }
 
 func TestOfferingPickupRollout_LatestTimeWinsAcrossOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -182,6 +190,8 @@ func TestOfferingPickupRollout_LatestTimeWinsAcrossOfferings(t *testing.T) {
 }
 
 func TestOfferingPickupRollout_UnrelatedOfferingDoesNotOverwriteStaffTime(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -207,6 +217,8 @@ func TestOfferingPickupRollout_UnrelatedOfferingDoesNotOverwriteStaffTime(t *tes
 }
 
 func TestOfferingPickupRollout_FuturePhaseDoesNotOverwriteCurrentSchedule(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(30))
@@ -248,6 +260,8 @@ func TestOfferingPickupRollout_FuturePhaseDoesNotOverwriteCurrentSchedule(t *tes
 }
 
 func TestOfferingPickupReconcile_IgnoresFutureOfferingUntilValidFrom(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -289,6 +303,8 @@ func TestOfferingPickupReconcile_IgnoresFutureOfferingUntilValidFrom(t *testing.
 }
 
 func TestOfferingPickupReconcile_RemovesStaleSourcedRowsKeepsStaff(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -327,6 +343,8 @@ func TestOfferingPickupReconcile_RemovesStaleSourcedRowsKeepsStaff(t *testing.T)
 }
 
 func TestOfferingPickupReset_RestoresOfferingTimeOrDeletes(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -381,6 +399,8 @@ func attachOfferingLink(t *testing.T, env *decisionTestEnv, requestChildID, offe
 }
 
 func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -402,6 +422,8 @@ func TestDecisionApproval_MaterializesOfferingPickupTimes(t *testing.T) {
 }
 
 func TestDecisionApproval_FuturePhaseDefersOfferingPickupMaterialization(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(30))
@@ -416,6 +438,8 @@ func TestDecisionApproval_FuturePhaseDefersOfferingPickupMaterialization(t *test
 }
 
 func TestDecisionApproval_CurrentPhaseMaterializesOfferingPickupWithoutReviewer(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -431,6 +455,8 @@ func TestDecisionApproval_CurrentPhaseMaterializesOfferingPickupWithoutReviewer(
 }
 
 func TestDecisionApproval_FormPickupTimeWinsOverOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
@@ -533,6 +559,8 @@ func submitAndApproveWithReviewer(
 }
 
 func TestUpdateChildOfferings_ReconcilesOfferingPickupRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))

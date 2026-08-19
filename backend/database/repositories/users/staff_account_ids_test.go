@@ -12,6 +12,8 @@ import (
 // TestStaffRepository_ListAccountIDsByStaffIDs pins the staff -> login account
 // mapping used to address people by account instead of by staff row.
 func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff
@@ -113,6 +115,8 @@ func TestStaffRepository_ListAccountIDsByStaffIDs(t *testing.T) {
 // answer "may this person be addressed in this school right now", and two
 // answers to that question would drift.
 func TestStaffRepository_ListAllStaffAccountIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Staff

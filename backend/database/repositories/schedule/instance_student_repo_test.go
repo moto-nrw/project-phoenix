@@ -19,6 +19,8 @@ import (
 )
 
 func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -100,6 +102,8 @@ func TestInstanceStudentRepository_Create_and_FindByInstanceID(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -141,6 +145,8 @@ func TestInstanceStudentRepository_Update(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -191,6 +197,8 @@ func TestInstanceStudentRepository_FindByStudentAndDateRange(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_CreateValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -216,6 +224,8 @@ func TestInstanceStudentRepository_CreateValidation(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_UpdateValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -241,6 +251,8 @@ func TestInstanceStudentRepository_UpdateValidation(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -255,6 +267,8 @@ func TestInstanceStudentRepository_FindByID_NotFound(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -308,6 +322,8 @@ func TestInstanceStudentRepository_List(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -355,6 +371,8 @@ func TestInstanceStudentRepository_ErrorBranches(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -484,6 +502,8 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_UpdateAttendanceCheckout_GuardsMirroredPresence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -534,6 +554,8 @@ func TestInstanceStudentRepository_UpdateAttendanceCheckout_GuardsMirroredPresen
 }
 
 func TestInstanceStudentRepository_CreateUnplannedPresentIfAbsent_PromotesConcurrentRosterRow(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -563,6 +585,8 @@ func TestInstanceStudentRepository_CreateUnplannedPresentIfAbsent_PromotesConcur
 }
 
 func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -605,6 +629,8 @@ func TestInstanceStudentRepository_FindCurrentCandidates_ExcludesEndedInstances(
 }
 
 func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousIntervalAsGuard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -651,6 +677,8 @@ func TestInstanceStudentRepository_ReconcileAttendanceInterval_UsesPreviousInter
 }
 
 func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -736,6 +764,8 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 // absence the day status wrote, or the child keeps a missed care day they were
 // never owed in their history and exports (#1747).
 func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -786,6 +816,8 @@ func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t 
 // The counterpart: outcomes that belong to a person or a device are never
 // relabelled as a non-booking, marker or not.
 func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -835,6 +867,8 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *test
 // deliberate expectation from the completed-instance views, the child's history
 // and the exports (#1747 review).
 func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -891,6 +925,8 @@ func TestInstanceStudentRepository_MarkNotScheduled_KeepsManualExpected(t *testi
 // completed between reading it and writing the marker. Landing the write then
 // would rewrite the history the marker exists to freeze (#1747 review).
 func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -941,6 +977,8 @@ func TestInstanceStudentRepository_MarkNotScheduled_LeavesFinishedInstancesAlone
 }
 
 func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1050,6 +1088,8 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 // expected on another's, and only the former row may be spared the absent
 // stamp (#1747).
 func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScopedExclusions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1119,6 +1159,8 @@ func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScoped
 }
 
 func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1216,6 +1258,8 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 }
 
 func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1247,6 +1291,8 @@ func TestInstanceStudentRepository_DeleteByInstanceID(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1329,6 +1375,8 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_FiltersStatus(t *te
 }
 
 func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewInstanceStudentRepository(db)
@@ -1361,6 +1409,8 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *tes
 // children from the bridge — leaving a never-booked child a false absence in
 // their history and exports (#1747 review).
 func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1430,6 +1480,8 @@ func TestInstanceStudentRepository_FindNotScheduledCandidatesByInstanceIDs(t *te
 }
 
 func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1492,6 +1544,8 @@ func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 // 'absent'. Anything recording an actual event and anything before `from`
 // survives, and every removed row is archived for the revert to replay.
 func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1710,6 +1764,8 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom(t *testing.T) 
 // row) in staffing counts, none of which filter alumni. The replay hands the
 // hand-set status back verbatim instead of re-deriving it from day statuses.
 func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRows(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1802,6 +1858,8 @@ func TestInstanceStudentRepository_ArchivePlannedByStudentIDsFrom_ManualStatusRo
 // observe what happened. Those ledger entries are dropped, not replayed — but
 // they ARE consumed, so a later re-apply starts from a clean snapshot.
 func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1887,6 +1945,8 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_SkipsFrozen(t *te
 // reconciler's active-status pass only touches instances it just materialized
 // (#405 review).
 func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1997,6 +2057,8 @@ func TestInstanceStudentRepository_RestoreArchivedByTransition_DerivesCurrentSta
 // ApplyActivePartialAbsencesForInstance runs must not stamp cancelled
 // attendance rows. Mirror ApplyPartialAbsence's status <> cancelled guard.
 func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInstance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2056,6 +2118,8 @@ func TestInstanceStudentRepository_ApplyActivePartialAbsencesSkipsCancelledInsta
 // record and must not be rewritten to absent/excused with fresh pickup
 // provenance.
 func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2113,6 +2177,8 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceSkipsCompletedInstance(t *
 // exception removed) must not strip its excused substatus or pickup
 // provenance, exactly as ApplyPartialAbsence refuses to claim completed rows.
 func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2178,6 +2244,8 @@ func TestInstanceStudentRepository_ReleasePartialAbsenceSkipsCompletedInstance(t
 // ApplyPartialAbsence must still claim those bare absences so release can
 // reconcile them by pickup_exception_id.
 func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2242,6 +2310,8 @@ func TestInstanceStudentRepository_ApplyPartialAbsenceClaimsBridgeBareAbsence(t 
 // Parallel-presence lookup (#2265): only rows in OTHER instances that are
 // currently active on the same day and hold the student as 'present' count.
 func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2321,6 +2391,8 @@ func TestInstanceStudentRepository_FindPresentInOtherActiveInstances(t *testing.
 // flip only guard-matching rows, and the plural finds resolve several
 // students in one query.
 func TestInstanceStudentRepository_BatchAttendanceMirrors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

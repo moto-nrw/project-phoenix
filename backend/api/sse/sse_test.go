@@ -57,6 +57,8 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestSSEEvents_NoAuth(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Use the full router which has JWT middleware
@@ -76,6 +78,8 @@ func TestSSEEvents_NoAuth(t *testing.T) {
 // =============================================================================
 
 func TestSSERouter_EndpointExists(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -94,6 +98,8 @@ func TestSSERouter_EndpointExists(t *testing.T) {
 }
 
 func TestSSERouter_WrongMethod(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()
@@ -115,6 +121,8 @@ func TestSSERouter_WrongMethod(t *testing.T) {
 // =============================================================================
 
 func TestSSEResource_Creation(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Verify resource was created successfully
@@ -123,6 +131,8 @@ func TestSSEResource_Creation(t *testing.T) {
 }
 
 func TestSSEResource_RouterReturnsValidRouter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	router := ctx.resource.Router()

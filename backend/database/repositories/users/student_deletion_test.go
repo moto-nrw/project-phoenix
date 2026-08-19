@@ -14,6 +14,8 @@ import (
 )
 
 func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := repositories.NewFactory(db).StudentDeletion
 
@@ -34,6 +36,8 @@ func TestStudentDeletionRepository_RequiresTenantContext(t *testing.T) {
 }
 
 func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -71,6 +75,8 @@ func TestStudentDeletionRepository_LockMessageThreadsBlocksNewRead(t *testing.T)
 }
 
 func TestStudentDeletionRepository_DeletesOnlyTargetAssignments(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

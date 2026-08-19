@@ -73,6 +73,8 @@ func groupLeader(t *testing.T, tc *testContext, label string) (groupID int64, ac
 }
 
 func TestTransferGroup_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, accountID := groupLeader(t, tc, "SSETransfer")
 
@@ -91,6 +93,8 @@ func TestTransferGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 }
 
 func TestCancelTransfer_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, accountID := groupLeader(t, tc, "SSECancel")
 
@@ -120,6 +124,8 @@ func TestCancelTransfer_BroadcastsGroupAccessChanged(t *testing.T) {
 // colleague to a group in the Gruppenverwaltung produces exactly the
 // invisibility a handover does, so it rides the same event.
 func TestUpdateGroupTeachers_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSEGroupTeachers")
@@ -145,6 +151,8 @@ func TestUpdateGroupTeachers_BroadcastsGroupAccessChanged(t *testing.T) {
 // The group form submits teacher_ids on every save, so a rename must not make
 // every client in the school refetch its group list.
 func TestUpdateGroupTeachers_Unchanged_BroadcastsNothing(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSESameTeachers")
 
@@ -170,6 +178,8 @@ func TestUpdateGroupTeachers_Unchanged_BroadcastsNothing(t *testing.T) {
 // a 4xx response alone would make TenantTxMiddleware commit those partial
 // writes without an event.
 func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSETeacherRollback")
 
@@ -209,6 +219,8 @@ func TestUpdateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 }
 
 func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 
 	candidate := testpkg.CreateTestTeacher(t, tc.db, "SSECreateRollback", "Candidate")
@@ -247,6 +259,8 @@ func TestCreateGroupTeachers_PartialFailureRollsBack(t *testing.T) {
 // handler-level emit. It announces once per removed link plus one structural
 // delete — the client debounce collapses the burst into one refetch.
 func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 	groupID, _ := groupLeader(t, tc, "SSEDeleteGroup")
 
@@ -277,6 +291,8 @@ func TestDeleteGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 }
 
 func TestDeleteEmptyGroup_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSEDeleteEmptyGroup")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
@@ -294,6 +310,8 @@ func TestDeleteEmptyGroup_BroadcastsGroupAccessChanged(t *testing.T) {
 // A rejected handover writes nothing, so it must announce nothing: every
 // client of the school would otherwise pay a refetch for a non-change.
 func TestTransferGroup_NotGroupLeader_BroadcastsNothing(t *testing.T) {
+	t.Parallel()
+
 	tc, router, broadcaster := setupRecordingRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "SSENoLeader")

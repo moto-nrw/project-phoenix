@@ -21,6 +21,8 @@ import (
 // ============================================================================
 
 func TestPermissionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -60,6 +62,8 @@ func TestPermissionRepository_Create(t *testing.T) {
 }
 
 func TestPermissionRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -82,6 +86,8 @@ func TestPermissionRepository_FindByID(t *testing.T) {
 }
 
 func TestPermissionRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -103,6 +109,8 @@ func TestPermissionRepository_FindByName(t *testing.T) {
 }
 
 func TestPermissionRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -123,6 +131,8 @@ func TestPermissionRepository_Update(t *testing.T) {
 }
 
 func TestPermissionRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -144,6 +154,8 @@ func TestPermissionRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestPermissionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -160,6 +172,8 @@ func TestPermissionRepository_List(t *testing.T) {
 }
 
 func TestPermissionRepository_FindByRoleID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -194,6 +208,8 @@ func TestPermissionRepository_FindByRoleID(t *testing.T) {
 }
 
 func TestPermissionRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -245,6 +261,8 @@ func TestPermissionRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -285,6 +303,8 @@ func TestPermissionRepository_FindDirectByAccountID(t *testing.T) {
 // Using direct DB access for reliable tests.
 
 func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission
@@ -307,6 +327,8 @@ func TestPermissionRepository_AssignPermissionToRole(t *testing.T) {
 }
 
 func TestPermissionRepository_RemovePermissionFromRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Permission

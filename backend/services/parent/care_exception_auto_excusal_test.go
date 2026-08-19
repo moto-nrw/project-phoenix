@@ -73,6 +73,8 @@ func loadSlotRow(t *testing.T, db *bun.DB, rowID int64) *scheduleModels.Instance
 }
 
 func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildCareServiceWithAutoExcusal(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -122,6 +124,8 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 }
 
 func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildCareServiceWithAutoExcusal(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

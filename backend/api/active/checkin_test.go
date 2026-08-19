@@ -32,6 +32,8 @@ const testJWTSecret = "test-jwt-secret-32-chars-minimum"
 // =============================================================================
 
 func TestActiveGroup_IsActive(t *testing.T) {
+	t.Parallel()
+
 	t.Run("group with no end time is active", func(t *testing.T) {
 		group := &activeModels.Group{
 			RoomID: 1,
@@ -64,6 +66,8 @@ func TestActiveGroup_IsActive(t *testing.T) {
 // =============================================================================
 
 func TestVisit_Fields(t *testing.T) {
+	t.Parallel()
+
 	t.Run("visit has required fields", func(t *testing.T) {
 		now := time.Now()
 		visit := &activeModels.Visit{
@@ -118,6 +122,8 @@ func TestVisit_Fields(t *testing.T) {
 // =============================================================================
 
 func TestCheckinRequest_Validation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid request with active_group_id", func(t *testing.T) {
 		req := active.CheckinRequest{
 			ActiveGroupID: 1,
@@ -132,6 +138,8 @@ func TestCheckinRequest_Validation(t *testing.T) {
 }
 
 func TestCheckinRequest_JSONDecoding(t *testing.T) {
+	t.Parallel()
+
 	t.Run("decodes from JSON correctly", func(t *testing.T) {
 		jsonData := `{"active_group_id": 456}`
 		var req active.CheckinRequest
@@ -161,6 +169,8 @@ func TestCheckinRequest_JSONDecoding(t *testing.T) {
 // =============================================================================
 
 func TestAttendance_Fields(t *testing.T) {
+	t.Parallel()
+
 	t.Run("attendance has required fields", func(t *testing.T) {
 		now := time.Now()
 		today := timezone.TodayDate()
@@ -236,6 +246,8 @@ func makeCheckinRequest(t *testing.T, studentID int64, body interface{}, token s
 }
 
 func TestCheckinStudent_Integration(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001
 	// device every real school is provisioned with.

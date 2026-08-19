@@ -59,6 +59,8 @@ func insertDecidedMasterDataRequest(t *testing.T, tc *testContext, studentID, te
 // chain, real services, real keyset SQL. The distinctive child name plus the
 // server-side search keeps the assertions hermetic on the shared test DB.
 func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "Reviewer")
@@ -115,6 +117,8 @@ func TestAggregatedChangeRequests_RouterHistoryCursor(t *testing.T) {
 }
 
 func TestAggregatedChangeRequests_RouterOpenSearchAndPermissions(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Agg", "OpenReviewer")

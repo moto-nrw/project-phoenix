@@ -21,6 +21,8 @@ import (
 )
 
 func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student

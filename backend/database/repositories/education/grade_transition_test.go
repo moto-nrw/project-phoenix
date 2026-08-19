@@ -15,6 +15,8 @@ import (
 )
 
 func TestGradeTransitionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -64,6 +66,8 @@ func TestGradeTransitionRepository_Create(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -89,6 +93,8 @@ func TestGradeTransitionRepository_FindByID(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_FindByIDWithMappings(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -112,6 +118,8 @@ func TestGradeTransitionRepository_FindByIDWithMappings(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -157,6 +165,8 @@ func TestGradeTransitionRepository_Update(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -192,6 +202,8 @@ func TestGradeTransitionRepository_Delete(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -213,6 +225,8 @@ func TestGradeTransitionRepository_List(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_FindByAcademicYear(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -238,6 +252,8 @@ func TestGradeTransitionRepository_FindByAcademicYear(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_FindByStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -261,6 +277,8 @@ func TestGradeTransitionRepository_FindByStatus(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -328,6 +346,8 @@ func TestGradeTransitionRepository_MappingOperations(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -394,6 +414,8 @@ func TestGradeTransitionRepository_HistoryOperations(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_GetDistinctClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -416,6 +438,8 @@ func TestGradeTransitionRepository_GetDistinctClasses(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -441,6 +465,8 @@ func TestGradeTransitionRepository_GetStudentCountByClass(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -474,6 +500,8 @@ func TestGradeTransitionRepository_GetStudentsByClasses(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -565,6 +593,8 @@ func TestGradeTransitionRepository_UpdateStudentClasses(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -652,6 +682,8 @@ func TestGradeTransitionRepository_GraduateStudentsByClasses(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -705,6 +737,8 @@ func TestGradeTransitionRepository_ReactivateStudentsByIDs(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionRepository_CreateWithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -718,6 +752,8 @@ func TestGradeTransitionRepository_CreateWithNil(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_UpdateWithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -731,6 +767,8 @@ func TestGradeTransitionRepository_UpdateWithNil(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_CreateMappingWithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -744,6 +782,8 @@ func TestGradeTransitionRepository_CreateMappingWithNil(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_CreateMappingsWithEmpty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -756,6 +796,8 @@ func TestGradeTransitionRepository_CreateMappingsWithEmpty(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_CreateHistoryWithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -769,6 +811,8 @@ func TestGradeTransitionRepository_CreateHistoryWithNil(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_CreateHistoryBatchWithEmpty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -785,6 +829,8 @@ func TestGradeTransitionRepository_CreateHistoryBatchWithEmpty(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionRepository_CreateWithInvalidData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -828,6 +874,8 @@ func TestGradeTransitionRepository_CreateWithInvalidData(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -867,6 +915,8 @@ func TestGradeTransitionRepository_CreateMappingWithInvalidData(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_CreateHistoryWithInvalidData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)

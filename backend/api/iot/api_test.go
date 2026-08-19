@@ -24,6 +24,8 @@ import (
 // =============================================================================
 
 func TestDelegateHandler_ForwardsRequest(t *testing.T) {
+	t.Parallel()
+
 	// Create a subrouter with a test endpoint
 	subrouter := chi.NewRouter()
 	subrouter.Get("/*", func(w http.ResponseWriter, r *http.Request) {
@@ -43,6 +45,8 @@ func TestDelegateHandler_ForwardsRequest(t *testing.T) {
 }
 
 func TestDelegateHandler_PostRequest(t *testing.T) {
+	t.Parallel()
+
 	subrouter := chi.NewRouter()
 	subrouter.Post("/*", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
@@ -65,6 +69,8 @@ func TestDelegateHandler_PostRequest(t *testing.T) {
 // =============================================================================
 
 func TestNewResource(t *testing.T) {
+	t.Parallel()
+
 	deps := ServiceDependencies{
 		IoTService:        nil,
 		UsersService:      nil,
@@ -92,6 +98,8 @@ func TestNewResource(t *testing.T) {
 // =============================================================================
 
 func TestServiceDependencies_Struct(t *testing.T) {
+	t.Parallel()
+
 	// Verify struct fields exist
 	deps := ServiceDependencies{}
 
@@ -109,6 +117,8 @@ func TestServiceDependencies_Struct(t *testing.T) {
 // =============================================================================
 
 func TestResource_Struct(t *testing.T) {
+	t.Parallel()
+
 	// Verify Resource struct can be instantiated
 	resource := &Resource{}
 
@@ -126,6 +136,8 @@ func TestResource_Struct(t *testing.T) {
 // =============================================================================
 
 func TestResource_Router_ReturnsRouter(t *testing.T) {
+	t.Parallel()
+
 	// Create resource with nil services (just testing router structure)
 	resource := &Resource{}
 
@@ -135,6 +147,8 @@ func TestResource_Router_ReturnsRouter(t *testing.T) {
 }
 
 func TestResource_Router_HasRoutes(t *testing.T) {
+	t.Parallel()
+
 	// Create resource with nil services
 	resource := &Resource{}
 
@@ -155,6 +169,8 @@ func TestResource_Router_HasRoutes(t *testing.T) {
 }
 
 func TestResource_Router_CheckinRoute(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -167,6 +183,8 @@ func TestResource_Router_CheckinRoute(t *testing.T) {
 }
 
 func TestResource_Router_PingRoute(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -179,6 +197,8 @@ func TestResource_Router_PingRoute(t *testing.T) {
 }
 
 func TestResource_Router_AttendanceRoute(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -191,6 +211,8 @@ func TestResource_Router_AttendanceRoute(t *testing.T) {
 }
 
 func TestResource_Router_SessionRoute(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -203,6 +225,8 @@ func TestResource_Router_SessionRoute(t *testing.T) {
 }
 
 func TestResource_Router_FeedbackRoute(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -215,6 +239,8 @@ func TestResource_Router_FeedbackRoute(t *testing.T) {
 }
 
 func TestResource_Router_DataRoutes(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -242,6 +268,8 @@ func TestResource_Router_DataRoutes(t *testing.T) {
 }
 
 func TestResource_Router_StaffRFIDRoute(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -254,6 +282,8 @@ func TestResource_Router_StaffRFIDRoute(t *testing.T) {
 }
 
 func TestResource_Router_SchoolNameRoute(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	router := resource.Router()
 
@@ -276,6 +306,8 @@ func withDeviceCtx(req *http.Request, d *iotModel.Device) *http.Request {
 }
 
 func TestGetSchoolName_Success(t *testing.T) {
+	t.Parallel()
+
 	repo := &testpkg.SchoolRepoMock{
 		FindByIDFn: func(_ context.Context, id int64) (*platform.School, error) {
 			assert.Equal(t, int64(42), id)
@@ -306,6 +338,8 @@ func TestGetSchoolName_Success(t *testing.T) {
 }
 
 func TestGetSchoolName_NoDeviceContext(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	req := httptest.NewRequest("GET", "/school-name", nil)
@@ -322,6 +356,8 @@ func TestGetSchoolName_NoDeviceContext(t *testing.T) {
 }
 
 func TestGetSchoolName_SchoolNotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &testpkg.SchoolRepoMock{
 		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
 			return nil, errors.New("sql: no rows in result set")
@@ -346,6 +382,8 @@ func TestGetSchoolName_SchoolNotFound(t *testing.T) {
 }
 
 func TestGetSchoolName_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	repo := &testpkg.SchoolRepoMock{
 		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
 			return nil, errors.New("connection refused")
@@ -365,6 +403,8 @@ func TestGetSchoolName_DatabaseError(t *testing.T) {
 }
 
 func TestGetSchoolName_EmptySchoolName(t *testing.T) {
+	t.Parallel()
+
 	repo := &testpkg.SchoolRepoMock{
 		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
 			return &platform.School{Name: ""}, nil
@@ -392,6 +432,8 @@ func TestGetSchoolName_EmptySchoolName(t *testing.T) {
 }
 
 func TestGetSchoolName_UsesTenantIDFromDevice(t *testing.T) {
+	t.Parallel()
+
 	var receivedID int64
 	repo := &testpkg.SchoolRepoMock{
 		FindByIDFn: func(_ context.Context, id int64) (*platform.School, error) {
@@ -414,6 +456,8 @@ func TestGetSchoolName_UsesTenantIDFromDevice(t *testing.T) {
 }
 
 func TestGetSchoolName_ResponseStructure(t *testing.T) {
+	t.Parallel()
+
 	repo := &testpkg.SchoolRepoMock{
 		FindByIDFn: func(_ context.Context, _ int64) (*platform.School, error) {
 			return &platform.School{Name: "Grundschule am Park"}, nil
@@ -450,6 +494,8 @@ func TestGetSchoolName_ResponseStructure(t *testing.T) {
 }
 
 func TestSchoolNameResponse_JSONSerialization(t *testing.T) {
+	t.Parallel()
+
 	resp := schoolNameResponse{Name: "Test Schule"}
 	b, err := json.Marshal(resp)
 	require.NoError(t, err)

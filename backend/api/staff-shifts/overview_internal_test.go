@@ -42,6 +42,8 @@ func overviewClock(t *testing.T, value string) time.Time {
 }
 
 func TestOverviewHandler_StableWireContract(t *testing.T) {
+	t.Parallel()
+
 	from := timezone.NewDate(2026, time.July, 6)
 	to := from.AddDays(4)
 	member := &users.Staff{Person: &users.Person{FirstName: "Ada", LastName: "Lovelace"}}
@@ -117,6 +119,8 @@ func TestOverviewHandler_StableWireContract(t *testing.T) {
 }
 
 func TestOverviewHandler_EmptyArraysStayNonNull(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	resource := &Resource{Overview: &fakeOverviewService{result: &scheduleSvc.StaffScheduleOverview{From: date, To: date}}}
 	recorder := httptest.NewRecorder()
@@ -134,6 +138,8 @@ func TestOverviewHandler_EmptyArraysStayNonNull(t *testing.T) {
 }
 
 func TestOverviewHandler_RejectsBadRangeAndPropagatesServiceFailure(t *testing.T) {
+	t.Parallel()
+
 	t.Run("bad date", func(t *testing.T) {
 		resource := &Resource{Overview: &fakeOverviewService{}}
 		recorder := httptest.NewRecorder()
@@ -167,6 +173,9 @@ func TestOverviewHandler_RejectsBadRangeAndPropagatesServiceFailure(t *testing.T
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestOverviewRoute_RequiresScheduleShiftAndUserPermissions(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db, _ := testutil.SetupAPITest(t)

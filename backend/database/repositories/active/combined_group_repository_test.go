@@ -106,6 +106,8 @@ func cleanupCombinedGroupTestData(t *testing.T, db *bun.DB, data *combinedGroupT
 // ============================================================================
 
 func TestCombinedGroupRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).CombinedGroup
@@ -150,6 +152,7 @@ func TestCombinedGroupRepository_Create(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -304,6 +307,7 @@ func TestCombinedGroupRepository_List(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_FindActive(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -350,6 +354,7 @@ func TestCombinedGroupRepository_FindActive(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -387,6 +392,7 @@ func TestCombinedGroupRepository_FindByTimeRange(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_EndCombination(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -414,6 +420,7 @@ func TestCombinedGroupRepository_EndCombination(t *testing.T) {
 }
 
 func TestCombinedGroupRepository_FindWithGroups(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 

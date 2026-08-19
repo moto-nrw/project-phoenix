@@ -15,6 +15,8 @@ import (
 // server boots. The missing-column rejection is covered in
 // TestStudentRepository_CompanionNoteSchemaCompatibility.
 func TestVerifyStudentSchema_FullyMigrated(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	require.NoError(t, repousers.VerifyStudentSchema(context.Background(), db))

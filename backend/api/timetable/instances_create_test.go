@@ -113,6 +113,8 @@ func decodeCreate(t *testing.T, w *httptest.ResponseRecorder) enrichedInstance {
 }
 
 func TestCreateInstance_Spontaneous(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
@@ -162,6 +164,8 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 }
 
 func TestCreateInstance_Validation(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
@@ -221,6 +225,8 @@ func TestCreateInstance_Validation(t *testing.T) {
 }
 
 func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
@@ -265,6 +271,8 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 }
 
 func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -308,6 +316,8 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 }
 
 func TestCreateInstance_UnwiredResource(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))

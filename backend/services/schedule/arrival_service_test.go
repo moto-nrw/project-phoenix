@@ -45,6 +45,8 @@ func createArrivalServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 // =============================================================================
 
 func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -80,6 +82,8 @@ func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -115,6 +119,8 @@ func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T
 }
 
 func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -176,6 +182,8 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 }
 
 func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -246,6 +254,8 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 }
 
 func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -275,6 +285,8 @@ func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -310,6 +322,8 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -373,6 +387,8 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -402,6 +418,8 @@ func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -446,6 +464,8 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 }
 
 func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -478,6 +498,8 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 }
 
 func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -519,6 +541,8 @@ func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *te
 }
 
 func TestArrivalScheduleService_UpdateExceptionClearsArrivalTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -555,6 +579,8 @@ func TestArrivalScheduleService_UpdateExceptionClearsArrivalTime(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -584,6 +610,8 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -620,6 +648,8 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) 
 // =============================================================================
 
 func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -674,6 +704,8 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -702,6 +734,8 @@ func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -738,6 +772,8 @@ func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -780,6 +816,8 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 }
 
 func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -825,6 +863,8 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -854,6 +894,8 @@ func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -890,6 +932,8 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
 // =============================================================================
 
 func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -936,6 +980,8 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -1132,6 +1178,8 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
@@ -1286,6 +1334,8 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 // =============================================================================
 
 func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)

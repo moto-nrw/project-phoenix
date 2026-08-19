@@ -138,6 +138,8 @@ func (e *seriesTestEnv) shiftsInRange(t *testing.T, from, to timezone.Date) []*s
 }
 
 func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodStart := today.AddDays(-7)
@@ -171,6 +173,8 @@ func TestStaffShiftSeries_CreateMaterializesFromTomorrow(t *testing.T) {
 }
 
 func TestStaffShiftSeries_WeekPatternARespectsCycle(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	// Anchor on the Monday of the current week so week parity is stable.
@@ -195,6 +199,8 @@ func TestStaffShiftSeries_WeekPatternARespectsCycle(t *testing.T) {
 }
 
 func TestStaffShiftSeries_WeekPatternRequiresCycle(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
@@ -208,6 +214,8 @@ func TestStaffShiftSeries_WeekPatternRequiresCycle(t *testing.T) {
 }
 
 func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
@@ -242,6 +250,8 @@ func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
 }
 
 func TestStaffShiftSeries_SplitOutsideSegmentRejected(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
@@ -278,6 +288,8 @@ func TestStaffShiftSeries_SplitOutsideSegmentRejected(t *testing.T) {
 }
 
 func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
@@ -315,6 +327,8 @@ func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 }
 
 func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
@@ -364,6 +378,8 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 }
 
 func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
@@ -447,6 +463,8 @@ func TestStaffShiftSeries_SplitTodayUpdatesOccurrenceAndReplansTomorrow(t *testi
 }
 
 func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	originalDate := today.AddDays(1)
@@ -509,6 +527,8 @@ func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *tes
 }
 
 func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	originalMonday := today.AddDays(1)
@@ -607,6 +627,8 @@ func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing
 }
 
 func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(14)
@@ -708,6 +730,8 @@ func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {
 }
 
 func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(14)
@@ -760,6 +784,8 @@ func TestStaffShiftSeries_EndSeriesKeepsDetachedAndPast(t *testing.T) {
 // columns), adding ZERO reads. This test is additive; the 6/13/9 assertions
 // in staff_schedule_overview_integration_test.go stay untouched.
 func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(14), 1, nil)
@@ -803,6 +829,8 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 // validity constraint: the predecessor collapses to an empty segment
 // (valid_until = valid_from) and every occurrence moves to the successor.
 func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(20)
@@ -851,6 +879,8 @@ func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
 // Ending a series at its very first occurrence must clamp valid_until to
 // valid_from (empty segment) instead of violating the validity constraint.
 func TestStaffShiftSeries_EndAtFirstOccurrence(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodEnd := today.AddDays(20)
@@ -880,6 +910,8 @@ func TestStaffShiftSeries_EndAtFirstOccurrence(t *testing.T) {
 // not to today — otherwise the cap violates the validity constraint and the
 // whole offboarding aborts.
 func TestStaffShiftSeries_CapAllByStaffIDClampsFutureSeries(t *testing.T) {
+	t.Parallel()
+
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
 	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)

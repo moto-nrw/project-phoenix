@@ -9,6 +9,8 @@ import (
 )
 
 func TestOperatorEmailChangeToken_Validate(t *testing.T) {
+	t.Parallel()
+
 	validToken := func() *OperatorEmailChangeToken {
 		return &OperatorEmailChangeToken{
 			OperatorID: 42,
@@ -59,6 +61,8 @@ func TestOperatorEmailChangeToken_Validate(t *testing.T) {
 }
 
 func TestOperatorEmailChangeToken_Accessors(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &OperatorEmailChangeToken{}
 	token.ID = 42

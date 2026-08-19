@@ -82,6 +82,8 @@ func decodeShiftCoverage(t *testing.T, recorder *httptest.ResponseRecorder) Shif
 }
 
 func TestShiftCoverage_ExactWarningAndConcreteDeviationSemantics(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	s.date = timezone.NewDate(2064, time.November, 3) // Monday
 	router := shiftCoverageRouter(s.ctx, s.res)
@@ -126,6 +128,8 @@ func TestShiftCoverage_ExactWarningAndConcreteDeviationSemantics(t *testing.T) {
 }
 
 func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	weekA := timezone.NewDate(2065, time.November, 2) // Monday
 	weekB := weekA.AddDays(7)
@@ -162,6 +166,8 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 }
 
 func TestShiftCoverage_SuppressesEachUnusedWorkWeekIndependently(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	usedMonday := timezone.NewDate(2066, time.November, 1)
 	unusedMonday := usedMonday.AddDays(7)
@@ -183,6 +189,8 @@ func TestShiftCoverage_SuppressesEachUnusedWorkWeekIndependently(t *testing.T) {
 }
 
 func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := shiftCoverageRouter(s.ctx, s.res)
 	validDate := timezone.NewDate(2067, time.November, 7)
@@ -232,6 +240,9 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db, services := testutil.SetupAPITest(t)

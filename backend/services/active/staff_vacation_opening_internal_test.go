@@ -10,6 +10,8 @@ import (
 )
 
 func TestVacationAbsenceHasWorkingDayBefore(t *testing.T) {
+	t.Parallel()
+
 	cutoff := timezone.NewDate(2026, time.June, 8) // Monday
 	yearStart := timezone.NewDate(2026, time.January, 1)
 

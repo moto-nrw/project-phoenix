@@ -12,6 +12,8 @@ import (
 )
 
 func TestOperatorRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platform.NewOperatorRepository(db)
@@ -77,6 +79,8 @@ func TestOperatorRepository_Create(t *testing.T) {
 }
 
 func TestOperatorRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platform.NewOperatorRepository(db)
@@ -102,6 +106,8 @@ func TestOperatorRepository_FindByID(t *testing.T) {
 }
 
 func TestOperatorRepository_FindByEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platform.NewOperatorRepository(db)
@@ -126,6 +132,8 @@ func TestOperatorRepository_FindByEmail(t *testing.T) {
 }
 
 func TestOperatorRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platform.NewOperatorRepository(db)
@@ -165,6 +173,8 @@ func TestOperatorRepository_Update(t *testing.T) {
 }
 
 func TestOperatorRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platform.NewOperatorRepository(db)
@@ -188,6 +198,8 @@ func TestOperatorRepository_Delete(t *testing.T) {
 // models that needs to be resolved in production code.
 
 func TestOperatorRepository_UpdateLastLogin(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platform.NewOperatorRepository(db)

@@ -60,6 +60,8 @@ func decodeResponseBody(t *testing.T, recorder *httptest.ResponseRecorder) map[s
 }
 
 func TestEnableCaregiverCapabilityRequestBind_TrimsFields(t *testing.T) {
+	t.Parallel()
+
 	req := &EnableCaregiverCapabilityRequest{
 		FirstName: "  Ada  ",
 		LastName:  "  Lovelace  ",
@@ -75,6 +77,8 @@ func TestEnableCaregiverCapabilityRequestBind_TrimsFields(t *testing.T) {
 }
 
 func TestGetCaregiverCapability_ServiceNotConfigured(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	req := withAccountRouteParam(httptest.NewRequest(http.MethodGet, "/accounts/7/caregiver-capability", nil), "7")
 	rr := httptest.NewRecorder()
@@ -85,6 +89,8 @@ func TestGetCaregiverCapability_ServiceNotConfigured(t *testing.T) {
 }
 
 func TestGetCaregiverCapability_InvalidAccountID(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{},
 	}
@@ -97,6 +103,8 @@ func TestGetCaregiverCapability_InvalidAccountID(t *testing.T) {
 }
 
 func TestGetCaregiverCapability_Success(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			getFn: func(_ context.Context, accountID int64) (*userModel.CaregiverCapabilityState, error) {
@@ -125,6 +133,8 @@ func TestGetCaregiverCapability_Success(t *testing.T) {
 }
 
 func TestEnableCaregiverCapability_Success(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			enableFn: func(_ context.Context, accountID int64, input userModel.EnableCaregiverCapabilityInput) (*userModel.CaregiverCapabilityState, error) {
@@ -154,6 +164,8 @@ func TestEnableCaregiverCapability_Success(t *testing.T) {
 }
 
 func TestEnableCaregiverCapability_InvalidBody(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{},
 	}
@@ -168,6 +180,8 @@ func TestEnableCaregiverCapability_InvalidBody(t *testing.T) {
 }
 
 func TestEnableCaregiverCapability_EmptyBody(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{},
 	}
@@ -188,6 +202,8 @@ func TestEnableCaregiverCapability_EmptyBody(t *testing.T) {
 }
 
 func TestEnableCaregiverCapability_RendersUsersValidationError(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			enableFn: func(context.Context, int64, userModel.EnableCaregiverCapabilityInput) (*userModel.CaregiverCapabilityState, error) {
@@ -210,6 +226,8 @@ func TestEnableCaregiverCapability_RendersUsersValidationError(t *testing.T) {
 }
 
 func TestDisableCaregiverCapability_RendersBlockedConflict(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		CaregiverCapabilityService: caregiverCapabilityServiceStub{
 			disableFn: func(context.Context, int64) (*userModel.CaregiverCapabilityState, error) {
@@ -235,6 +253,8 @@ func TestDisableCaregiverCapability_RendersBlockedConflict(t *testing.T) {
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsNotFound(t *testing.T) {
+	t.Parallel()
+
 	renderer := caregiverCapabilityErrorRenderer(authService.ErrAccountNotFound)
 	errResponse, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
@@ -242,6 +262,8 @@ func TestCaregiverCapabilityErrorRenderer_MapsNotFound(t *testing.T) {
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsUsersErrorToBadRequest(t *testing.T) {
+	t.Parallel()
+
 	renderer := caregiverCapabilityErrorRenderer(&usersService.UsersError{
 		Op:  "enable caregiver capability",
 		Err: &usersService.ValidationError{Err: fmt.Errorf("invalid caregiver capability request")},
@@ -252,6 +274,8 @@ func TestCaregiverCapabilityErrorRenderer_MapsUsersErrorToBadRequest(t *testing.
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsUsersOperationalErrorToInternalServerError(t *testing.T) {
+	t.Parallel()
+
 	renderer := caregiverCapabilityErrorRenderer(&usersService.UsersError{
 		Op:  "disable caregiver capability",
 		Err: fmt.Errorf("lock activities.supervisors: database offline"),
@@ -262,6 +286,8 @@ func TestCaregiverCapabilityErrorRenderer_MapsUsersOperationalErrorToInternalSer
 }
 
 func TestCaregiverCapabilityErrorRenderer_MapsBlockedToSharedRenderer(t *testing.T) {
+	t.Parallel()
+
 	renderer := caregiverCapabilityErrorRenderer(&usersService.CaregiverCapabilityBlockedError{
 		Reasons: []userModel.CaregiverCapabilityBlockerCode{
 			userModel.CaregiverCapabilityBlockerGroupAssignments,

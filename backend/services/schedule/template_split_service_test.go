@@ -383,6 +383,8 @@ func linkedTemplateUpdateInput(t *testing.T, s *scenarioSetup, periodID *int64) 
 }
 
 func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 
 	t.Run("split", func(t *testing.T) {
@@ -530,6 +532,8 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 }
 
 func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 
 	t.Run("split A to B", func(t *testing.T) {
@@ -606,6 +610,8 @@ func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *te
 }
 
 func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	tuesday := monday.AddDays(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
@@ -662,6 +668,8 @@ func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *test
 }
 
 func TestTemplateSplit_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	tuesday := monday.AddDays(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
@@ -702,6 +710,8 @@ func TestTemplateSplit_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T)
 }
 
 func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -847,6 +857,8 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 }
 
 func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -880,6 +892,8 @@ func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 }
 
 func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		provided  bool
@@ -923,6 +937,8 @@ func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
 }
 
 func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -942,6 +958,8 @@ func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
 }
 
 func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -1033,6 +1051,8 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 }
 
 func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1087,6 +1107,8 @@ func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
 }
 
 func TestTemplateSplit_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1151,6 +1173,8 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 // materialization run over a window BEFORE the split point never emits
 // phantom successor instances next to the old template's rows.
 func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	prevMonday := effective.AddDays(-7) // still in the future (futureMonday(0))
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -1185,6 +1209,8 @@ func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T)
 // the complete successor series: the predecessor still owns the prior Monday,
 // while the successor starts exactly at the split Monday and never backfills.
 func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	previousMonday := effective.AddDays(-7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -1483,6 +1509,8 @@ func registerSplitInstancesForCleanup(t *testing.T, s *scenarioSetup, groupIDs [
 // successor [b,∞). Materializing beyond b must therefore yield exactly one
 // occurrence from the original later successor.
 func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
+	t.Parallel()
+
 	outerBoundary := futureMonday(3)
 	innerBoundary := outerBoundary.AddDays(-7)
 	afterOuter := outerBoundary.AddDays(7)
@@ -1520,6 +1548,8 @@ func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
 }
 
 func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
+	t.Parallel()
+
 	boundary := futureMonday(2)
 	beforeBoundary := boundary.AddDays(-1)
 	futureRosterStart := boundary.AddDays(5)
@@ -1629,6 +1659,8 @@ func assertTemplateRosterWindowsNotInverted(t *testing.T, s *scenarioSetup, grou
 // then re-plan across both dates. The moved single occurrence and its
 // exception must not be joined by a backfilled successor occurrence.
 func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(2)
 	singleDate := effective.AddDays(-7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, singleDate)
@@ -1721,6 +1753,8 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 // shared tenant recurrence gate, then reject the now-bounded segment instead
 // of mutating a template the active CRUD contract no longer exposes.
 func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1832,6 +1866,8 @@ func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T)
 // predecessor occurrence after the end operation has already performed its
 // future-instance delete.
 func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1922,6 +1958,8 @@ func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *te
 // materializer that started concurrently must not insert an occurrence from a
 // template snapshot taken before the archive.
 func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t *testing.T) {
+	t.Parallel()
+
 	date := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -2014,6 +2052,8 @@ func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t 
 // the carry path stamped every active row with the successor's period id and
 // violated the active-row uniqueness indexes (500 on split).
 func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2099,6 +2139,8 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 // ErrSplitInvalidInput (→ 400) instead of bubbling out of the materializer
 // as 500s.
 func TestTemplateSplit_WindowValidation(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2141,6 +2183,8 @@ func TestTemplateSplit_WindowValidation(t *testing.T) {
 // a successful split NO planned non-spontaneous old-template instance exists
 // on/after the effective date, even beyond materialize_to.
 func TestTemplateSplit_DeletesPlannedBeyondMaterializeWindow(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -2190,6 +2234,8 @@ func reloadSplitGroup(t *testing.T, s *scenarioSetup, id int64) *activitiesModel
 }
 
 func TestTemplateSplit_CarriesTargetGroupAndCalendarPeriodToSuccessor(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2223,6 +2269,8 @@ func TestTemplateSplit_CarriesTargetGroupAndCalendarPeriodToSuccessor(t *testing
 }
 
 func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
+	t.Parallel()
+
 	firstBoundary := futureMonday(1)
 	secondBoundary := futureMonday(2)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, firstBoundary)
@@ -2248,6 +2296,8 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 }
 
 func TestTemplateSplit_ValidationErrors_RejectsInvalidTargetGroup(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2279,6 +2329,8 @@ func setSourceTemplateNotes(t *testing.T, s *scenarioSetup, notes string) {
 // inherited by the successor when omitted, overwritten when provided, and
 // cleared when explicitly nulled (#1837 follow-up).
 func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
+	t.Parallel()
+
 	t.Run("omitted note inherits the source template's Wochennotiz", func(t *testing.T) {
 		effective := futureMonday(1)
 		s := makeScenario(t, activitiesModels.WeekdayMonday, effective)

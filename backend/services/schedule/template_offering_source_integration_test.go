@@ -143,6 +143,8 @@ func linkApprovedChildToOffering(
 // successful editor create was the Schule-am-Berg report (kids selected
 // via Angebote + Jahrgangsfilter, then "Keine Kinder geplant").
 func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -228,6 +230,8 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 }
 
 func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
+	t.Parallel()
+
 	newStart := futureMonday(1)
 	oldStart := newStart.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, newStart)
@@ -288,6 +292,8 @@ func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
 }
 
 func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -327,6 +333,8 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 }
 
 func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -394,6 +402,8 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 }
 
 func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -447,6 +457,8 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 }
 
 func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -503,6 +515,8 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 // editor cannot replace (#2147 review). Manual rows carry over unchanged and
 // the predecessor's rows stay untouched.
 func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -596,6 +610,8 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 // and the changed feed must reconcile the carried roster — a row of a child
 // the new rule no longer wants may not survive the carry-over.
 func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -675,6 +691,8 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 // the rule is gone and the source-fed rows the carry-over copied are removed,
 // while the manual roster survives (#2147 review round 14).
 func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -755,6 +773,8 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 // could never materialize its children, so the template save rejects it
 // instead of persisting a dead rule (#2137).
 func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -823,6 +843,8 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 // The editor's selector only offers active offerings; a direct request naming
 // a retired offering must be rejected the same way (#2147 review round 9).
 func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -858,6 +880,8 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 // persist a state create/update reject, so the split must refuse it too
 // (#2147 review).
 func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -929,6 +953,8 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 // still-planned instance rows, so the update has to reconcile the manual
 // roster back onto existing occurrences afterwards (#2147 review, round 4).
 func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(2)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -1009,6 +1035,8 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 // already-materialized future occurrences, because the materializer never
 // revisits an existing instance (#2147 review, round 5).
 func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrences(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(3)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)

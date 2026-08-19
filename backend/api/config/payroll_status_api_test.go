@@ -14,6 +14,8 @@ import (
 )
 
 func TestPayrollStatusAPI_ManageOnly(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
 	router := ctx.resource.SettingsRouter()
 
@@ -35,6 +37,8 @@ func TestPayrollStatusAPI_ManageOnly(t *testing.T) {
 }
 
 func TestPayrollStatusAPI_ReadAndUpdateTiersAreRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupSettingsTest(t)
 	router := ctx.resource.SettingsRouter()
 

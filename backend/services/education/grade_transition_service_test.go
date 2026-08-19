@@ -46,6 +46,8 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 }
 
 func TestGradeTransitionService_Create(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -136,6 +138,8 @@ func TestGradeTransitionService_Create(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -227,6 +231,8 @@ func TestGradeTransitionService_Update(t *testing.T) {
 }
 
 func TestGradeTransitionService_Delete(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -277,6 +283,8 @@ func TestGradeTransitionService_Delete(t *testing.T) {
 }
 
 func TestGradeTransitionService_GetByID(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -306,6 +314,8 @@ func TestGradeTransitionService_GetByID(t *testing.T) {
 }
 
 func TestGradeTransitionService_List(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -349,6 +359,8 @@ func TestGradeTransitionService_List(t *testing.T) {
 }
 
 func TestGradeTransitionService_Preview(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -425,6 +437,8 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 }
 
 func TestGradeTransitionService_Apply(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -530,6 +544,8 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 }
 
 func TestGradeTransitionService_Revert(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -613,6 +629,8 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 }
 
 func TestGradeTransitionService_SuggestMappings(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -745,6 +763,8 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 }
 
 func TestGradeTransitionService_GetDistinctClasses(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -772,6 +792,8 @@ func TestGradeTransitionService_GetDistinctClasses(t *testing.T) {
 }
 
 func TestGradeTransitionService_GetHistory(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -828,6 +850,8 @@ func TestGradeTransitionService_GetHistory(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionService_Apply_RevertedTransition(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -862,6 +886,8 @@ func TestGradeTransitionService_Apply_RevertedTransition(t *testing.T) {
 }
 
 func TestGradeTransitionService_Create_InvalidAcademicYearFormat(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -895,6 +921,8 @@ func TestGradeTransitionService_Create_InvalidAcademicYearFormat(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update_InvalidAcademicYearFormat(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -920,6 +948,8 @@ func TestGradeTransitionService_Update_InvalidAcademicYearFormat(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -971,6 +1001,9 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the rollback check counts grade transitions by
+// academic year alone, with no tenant filter, so it also sees the rows of
+// tests running beside it.
 func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
@@ -1026,6 +1059,8 @@ func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 }
 
 func TestGradeTransitionService_Revert_NonExistentTransition(t *testing.T) {
+	t.Parallel()
+
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1040,6 +1075,8 @@ func TestGradeTransitionService_Revert_NonExistentTransition(t *testing.T) {
 }
 
 func TestGradeTransitionService_Apply_NonExistentTransition(t *testing.T) {
+	t.Parallel()
+
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1054,6 +1091,8 @@ func TestGradeTransitionService_Apply_NonExistentTransition(t *testing.T) {
 }
 
 func TestGradeTransitionService_SuggestMappings_EmptyResult(t *testing.T) {
+	t.Parallel()
+
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1071,6 +1110,8 @@ func TestGradeTransitionService_SuggestMappings_EmptyResult(t *testing.T) {
 }
 
 func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1127,6 +1168,8 @@ func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
 // the 3a children must NOT be graduated just because they land in 4a. Only the
 // original 4a members graduate; the promoted-in 3a children stay active.
 func TestGradeTransitionService_Apply_CascadingGraduation(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1191,6 +1234,8 @@ func TestGradeTransitionService_Apply_CascadingGraduation(t *testing.T) {
 }
 
 func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1273,6 +1318,8 @@ func (r *recordingRosterReconciler) CurrentRosterBaseline(_ context.Context) (in
 // inactive student back on upcoming timetables — reverting half of a change the
 // admin never asked to revert (#405 review).
 func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	reconciler := &recordingRosterReconciler{}
@@ -1333,6 +1380,8 @@ func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *test
 // and the apply's roster removal is the correct end state for them (#405
 // review).
 func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	reconciler := &recordingRosterReconciler{}
@@ -1386,6 +1435,8 @@ func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *
 }
 
 func TestGradeTransitionService_Preview_NoMappings(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1409,6 +1460,8 @@ func TestGradeTransitionService_Preview_NoMappings(t *testing.T) {
 }
 
 func TestGradeTransitionService_List_NilOptions(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1430,6 +1483,8 @@ func TestGradeTransitionService_List_NilOptions(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update_ClearMappings(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1466,6 +1521,8 @@ func TestGradeTransitionService_Update_ClearMappings(t *testing.T) {
 // preview counts, suggestions, and a subsequent apply — otherwise every next
 // school year would re-count last year's leavers.
 func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -1525,6 +1582,8 @@ func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
 // TestGradeTransitionService_PromotionSkipsAlumni verifies the bulk promotion
 // UPDATE does not drag alumni into the next class.
 func TestGradeTransitionService_PromotionSkipsAlumni(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 

@@ -9,6 +9,8 @@ import (
 
 // TestNormalizeHeaderKey tests header key normalization with annotation stripping
 func TestNormalizeHeaderKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected string
@@ -43,6 +45,8 @@ func TestNormalizeHeaderKey(t *testing.T) {
 
 // TestSanitizeCellValue tests CSV injection protection
 func TestSanitizeCellValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -120,6 +124,8 @@ func TestSanitizeCellValue(t *testing.T) {
 
 // TestColumnMapper tests the ColumnMapper functionality
 func TestColumnMapper(t *testing.T) {
+	t.Parallel()
+
 	t.Run("GetCol returns sanitized value", func(t *testing.T) {
 		mapping := map[string]int{"name": 0, "formula": 1}
 		values := []string{"John Doe", "=EVIL()"}
@@ -189,6 +195,8 @@ func TestColumnMapper(t *testing.T) {
 
 // TestParseBool tests German boolean parsing
 func TestParseBool(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -225,6 +233,8 @@ func TestParseBool(t *testing.T) {
 
 // TestMapStudentRow tests the student row mapping
 func TestMapStudentRow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("maps basic student fields", func(t *testing.T) {
 		mapping := map[string]int{
 			"vorname":     0,
@@ -432,6 +442,8 @@ func TestMapStudentRow(t *testing.T) {
 
 // TestDefaultPhoneMappings tests the default phone mapping configuration
 func TestDefaultPhoneMappings(t *testing.T) {
+	t.Parallel()
+
 	mappings := DefaultPhoneMappings()
 
 	assert.Len(t, mappings, 6)
@@ -459,6 +471,8 @@ func TestDefaultPhoneMappings(t *testing.T) {
 
 // TestParseGuardianPhoneNumbers tests phone number extraction
 func TestParseGuardianPhoneNumbers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("parses multiple phone types", func(t *testing.T) {
 		getCol := func(key string) string {
 			phones := map[string]string{
@@ -557,6 +571,8 @@ func TestParseGuardianPhoneNumbers(t *testing.T) {
 
 // TestMapStudentRow_GuardianProfileFields tests mapping of new guardian profile fields
 func TestMapStudentRow_GuardianProfileFields(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]int{
 		"vorname":      0,
 		"nachname":     1,
@@ -590,6 +606,8 @@ func TestMapStudentRow_GuardianProfileFields(t *testing.T) {
 
 // TestMapStudentRow_PickupSchedules tests mapping of pickup schedule columns
 func TestMapStudentRow_PickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	t.Run("maps all five weekdays", func(t *testing.T) {
 		mapping := map[string]int{
 			"vorname":             0,
@@ -667,6 +685,8 @@ func TestMapStudentRow_PickupSchedules(t *testing.T) {
 }
 
 func TestMapStudentRow_ArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	t.Run("maps all five weekdays", func(t *testing.T) {
 		mapping := map[string]int{
 			"vorname":            0,
@@ -744,6 +764,8 @@ func TestMapStudentRow_ArrivalSchedules(t *testing.T) {
 
 // TestMapStudentRow_GuardianProfileFieldsEmpty tests that empty guardian profile fields are mapped as empty strings
 func TestMapStudentRow_GuardianProfileFieldsEmpty(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]int{
 		"vorname":      0,
 		"nachname":     1,
@@ -777,6 +799,8 @@ func TestMapStudentRow_GuardianProfileFieldsEmpty(t *testing.T) {
 
 // TestMapStudentRow_MultipleGuardiansWithProfileFields tests two guardians each with different profile data
 func TestMapStudentRow_MultipleGuardiansWithProfileFields(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]int{
 		"vorname":      0,
 		"nachname":     1,
@@ -816,6 +840,8 @@ func TestMapStudentRow_MultipleGuardiansWithProfileFields(t *testing.T) {
 
 // TestMapStudentRow_GuardianProfileWithPhoneNumbers tests combining profile fields and phone numbers
 func TestMapStudentRow_GuardianProfileWithPhoneNumbers(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]int{
 		"vorname":         0,
 		"nachname":        1,
@@ -855,6 +881,8 @@ func TestMapStudentRow_GuardianProfileWithPhoneNumbers(t *testing.T) {
 
 // TestMapStudentRow_PickupNotesWithoutTime tests that notes-only columns (no time) don't create schedule entries
 func TestMapStudentRow_PickupNotesWithoutTime(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]int{
 		"vorname":             0,
 		"nachname":            1,
@@ -881,6 +909,8 @@ func TestMapStudentRow_PickupNotesWithoutTime(t *testing.T) {
 
 // TestMapStudentRow_PickupScheduleWithEmptyNotes tests schedule entries with time but no notes
 func TestMapStudentRow_PickupScheduleWithEmptyNotes(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]int{
 		"vorname":             0,
 		"nachname":            1,
@@ -903,6 +933,8 @@ func TestMapStudentRow_PickupScheduleWithEmptyNotes(t *testing.T) {
 
 // TestMapStudentRow_FullCSVRow tests a realistic complete CSV row with all fields
 func TestMapStudentRow_FullCSVRow(t *testing.T) {
+	t.Parallel()
+
 	mapping := map[string]int{
 		"vorname":                   0,
 		"nachname":                  1,
@@ -974,6 +1006,8 @@ func TestMapStudentRow_FullCSVRow(t *testing.T) {
 
 // TestColumnMapperIntegration tests the integration between ColumnMapper and other helpers
 func TestColumnMapperIntegration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("MapStudentRow uses GetRawCol for phone numbers", func(t *testing.T) {
 		mapping := map[string]int{
 			"vorname":      0,

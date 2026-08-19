@@ -50,6 +50,8 @@ func setupCleanupService(t *testing.T, db *bun.DB) active.CleanupService {
 // TestCleanupStaleAttendance_NoStaleRecords tests that cleanup works correctly
 // when there are no stale attendance records to clean up.
 func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -70,6 +72,8 @@ func TestCleanupStaleAttendance_NoStaleRecords(t *testing.T) {
 // TestCleanupStaleAttendance_ClosesStaleRecords tests that stale attendance
 // records from previous days without checkout times are properly closed.
 func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -116,6 +120,8 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 // TestPreviewAttendanceCleanup_NoStaleRecords tests preview when there are no
 // stale attendance records.
 func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -135,6 +141,8 @@ func TestPreviewAttendanceCleanup_NoStaleRecords(t *testing.T) {
 // TestPreviewAttendanceCleanup_ShowsStaleRecords tests that preview correctly
 // identifies stale attendance records that would be cleaned.
 func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -180,6 +188,8 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 // TestGetRetentionStatistics_EmptyDatabase tests statistics when there are
 // no expired visits to report.
 func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -197,6 +207,8 @@ func TestGetRetentionStatistics_EmptyDatabase(t *testing.T) {
 // TestGetRetentionStatistics_WithData tests statistics when there are
 // expired visits in the database.
 func TestGetRetentionStatistics_WithData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -269,6 +281,8 @@ func TestGetRetentionStatistics_WithData(t *testing.T) {
 
 // TestPreviewCleanup_EmptyDatabase tests preview when there are no expired visits.
 func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -290,6 +304,8 @@ func TestPreviewCleanup_EmptyDatabase(t *testing.T) {
 // TestCleanupExpiredVisits_NoExpiredVisits tests cleanup when there are no
 // expired visits to delete.
 func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -310,6 +326,8 @@ func TestCleanupExpiredVisits_NoExpiredVisits(t *testing.T) {
 // TestCleanupExpiredVisits_WithExpiredData tests cleanup when there are
 // expired visits that should be deleted.
 func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -384,6 +402,8 @@ func TestCleanupExpiredVisits_WithExpiredData(t *testing.T) {
 // TestCleanupStaleAttendance_DatabaseError tests error handling when database
 // operations fail.
 func TestCleanupStaleAttendance_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -406,6 +426,8 @@ func TestCleanupStaleAttendance_DatabaseError(t *testing.T) {
 // TestPreviewAttendanceCleanup_DatabaseError tests error handling when database
 // operations fail.
 func TestPreviewAttendanceCleanup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -425,6 +447,8 @@ func TestPreviewAttendanceCleanup_DatabaseError(t *testing.T) {
 // TestGetRetentionStatistics_DatabaseError tests error handling when database
 // operations fail.
 func TestGetRetentionStatistics_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -444,6 +468,8 @@ func TestGetRetentionStatistics_DatabaseError(t *testing.T) {
 // TestPreviewCleanup_DatabaseError tests error handling when database
 // operations fail.
 func TestPreviewCleanup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -463,6 +489,8 @@ func TestPreviewCleanup_DatabaseError(t *testing.T) {
 // TestCleanupExpiredVisits_DatabaseError tests error handling when getting
 // students fails.
 func TestCleanupExpiredVisits_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -489,6 +517,8 @@ func TestCleanupExpiredVisits_DatabaseError(t *testing.T) {
 // data integrity issue. The service should use check_in_time + 1 second as
 // the checkout time instead of 23:59:59.
 func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -546,6 +576,8 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 }
 
 func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -612,6 +644,8 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 // TestPreviewSupervisorCleanup_NoStaleRecords tests preview when there are no
 // stale supervisor records.
 func TestPreviewSupervisorCleanup_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -636,6 +670,8 @@ func TestPreviewSupervisorCleanup_NoStaleRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_ClosesStaleRecords tests that stale supervisor
 // records from previous days without end_date are properly closed.
 func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -682,6 +718,8 @@ func TestCleanupStaleSupervisors_ClosesStaleRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_DatabaseError tests error handling when database
 // operations fail.
 func TestCleanupStaleSupervisors_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -704,6 +742,8 @@ func TestCleanupStaleSupervisors_DatabaseError(t *testing.T) {
 // TestPreviewSupervisorCleanup_DatabaseError tests error handling when database
 // operations fail.
 func TestPreviewSupervisorCleanup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)

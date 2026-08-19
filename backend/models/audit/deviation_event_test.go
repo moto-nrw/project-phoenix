@@ -10,6 +10,8 @@ import (
 )
 
 func TestDeviationEventValidate(t *testing.T) {
+	t.Parallel()
+
 	groupID := int64(11)
 	instanceID := int64(12)
 	shiftID := int64(13)
@@ -45,6 +47,8 @@ func TestDeviationEventValidate(t *testing.T) {
 }
 
 func TestDeviationEventEntityAccessors(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 5, 4, 12, 30, 0, 0, time.UTC)
 	event := &DeviationEvent{ID: 42, OccurredAt: now}
 
@@ -59,5 +63,7 @@ func TestDeviationEventEntityAccessors(t *testing.T) {
 // Betreuungsplan history query at runtime. Whoever removes the last entry
 // must also remove the exclusion filter in the repository.
 func TestShiftScopedDeviationEventTypesNonEmpty(t *testing.T) {
+	t.Parallel()
+
 	assert.NotEmpty(t, ShiftScopedDeviationEventTypes)
 }

@@ -44,6 +44,8 @@ func createSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, timefr
 // ============================================================================
 
 func TestScheduleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -87,6 +89,8 @@ func TestScheduleRepository_Create(t *testing.T) {
 }
 
 func TestScheduleRepository_Create_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -100,6 +104,8 @@ func TestScheduleRepository_Create_WithNil(t *testing.T) {
 }
 
 func TestScheduleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -126,6 +132,8 @@ func TestScheduleRepository_FindByID(t *testing.T) {
 }
 
 func TestScheduleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -150,6 +158,8 @@ func TestScheduleRepository_Update(t *testing.T) {
 }
 
 func TestScheduleRepository_Update_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -163,6 +173,8 @@ func TestScheduleRepository_Update_WithNil(t *testing.T) {
 }
 
 func TestScheduleRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -188,6 +200,7 @@ func TestScheduleRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestScheduleRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -209,6 +222,8 @@ func TestScheduleRepository_List(t *testing.T) {
 }
 
 func TestScheduleRepository_FindByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -249,6 +264,8 @@ func TestScheduleRepository_FindByGroupID(t *testing.T) {
 }
 
 func TestScheduleRepository_FindByWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -290,6 +307,8 @@ func TestScheduleRepository_FindByWeekday(t *testing.T) {
 // ============================================================================
 
 func TestScheduleRepository_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -331,6 +350,8 @@ func createTestTimeframe(t *testing.T, db *bun.DB, startHour, startMin int) *sch
 }
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_ReturnsTimes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -388,6 +409,8 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_ReturnsTimes(t *tes
 }
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -399,6 +422,8 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_EmptyInput(t *testi
 }
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_AmbiguousWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule
@@ -431,6 +456,8 @@ func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_AmbiguousWeekday(t 
 }
 
 func TestScheduleRepository_FindTemplateStartTimesByGroupIDs_TenantScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySchedule

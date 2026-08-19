@@ -59,6 +59,8 @@ func newChangeRequestServiceForTestWithAuthorizer(
 }
 
 func TestChangeRequestService_ApproveLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
+	t.Parallel()
+
 	withLateInviteRenewalFixture(t, func(
 		env *requestTestEnv,
 		_ enrollmentService.RequestService,
@@ -139,6 +141,8 @@ func (r failAdminAuditChangeRequestRepo) Create(ctx context.Context, row *enroll
 }
 
 func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
+	t.Parallel()
+
 	assert.PanicsWithValue(t, "PARENTS_URL is required", func() {
 		enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 			FrontendURL: "http://localhost:3000",
@@ -147,6 +151,8 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 }
 
 func TestChangeRequestService_CorrectApprovedChildData_RequiresReason(t *testing.T) {
+	t.Parallel()
+
 	svc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
 		ParentsURL: "http://parents.localhost:3000",
 	})
@@ -215,6 +221,8 @@ func enableChangeRequestMode(t *testing.T, env *requestTestEnv, childID int64) {
 }
 
 func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -240,6 +248,8 @@ func TestRequestService_ReplaceEditable_PreservesLegacyCustomDataWithoutSchema(t
 }
 
 func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleChildRemoved(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -321,6 +331,8 @@ func TestRequestService_ReplaceEditable_PreservesChildCustomDataByIDWhenMiddleCh
 }
 
 func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -361,6 +373,8 @@ func TestChangeRequestService_Approve_PreservesLegacyCustomDataWithoutSchema(t *
 }
 
 func TestChangeRequestService_Create_RequiresStableChildIdentity(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -398,6 +412,8 @@ func TestChangeRequestService_Create_RequiresStableChildIdentity(t *testing.T) {
 }
 
 func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -430,6 +446,8 @@ func TestChangeRequestService_Approve_RejectsStaleBaseSnapshot(t *testing.T) {
 }
 
 func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -474,6 +492,8 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 }
 
 func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -529,6 +549,8 @@ func TestChangeRequestService_Approve_PreservesAdditionalGuardianProfileID(t *te
 }
 
 func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -556,6 +578,8 @@ func TestChangeRequestService_Create_AllowsOnlyOneOpenRequest(t *testing.T) {
 }
 
 func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -587,6 +611,8 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 }
 
 func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditionalOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -626,6 +652,8 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 }
 
 func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEnabledToggle(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -676,6 +704,8 @@ func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEn
 }
 
 func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChildAfterDisable(t *testing.T) {
+	t.Parallel()
+
 	careOfferingsEnabled := true
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
 		careOfferingsEnabled: &careOfferingsEnabled,
@@ -771,6 +801,8 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 }
 
 func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -836,6 +868,8 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 }
 
 func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentAndAudit(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -920,6 +954,8 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 }
 
 func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRequest(t *testing.T) {
+	t.Parallel()
+
 	for _, openStatus := range []string{
 		enrollmentModels.ChangeRequestStatusPendingReview,
 		enrollmentModels.ChangeRequestStatusNeedsParentResponse,
@@ -1005,6 +1041,8 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 }
 
 func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentChangeRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1053,6 +1091,8 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentCh
 }
 
 func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestWhenAuditFails(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1162,6 +1202,8 @@ func createApprovedAdminCorrectionFixture(
 }
 
 func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTargetsWhenCollectionIsDisabled(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1270,6 +1312,8 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 }
 
 func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1313,6 +1357,8 @@ func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnothe
 }
 
 func TestChangeRequestService_Create_ForcesStoredGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1333,6 +1379,8 @@ func TestChangeRequestService_Create_ForcesStoredGuardianEmail(t *testing.T) {
 }
 
 func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1377,6 +1425,8 @@ func TestChangeRequestService_Approve_DoesNotReopenUnchangedRejectedChild(t *tes
 }
 
 func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1436,6 +1486,8 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 }
 
 func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacity(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1495,6 +1547,8 @@ func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacit
 }
 
 func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1557,6 +1611,8 @@ func TestChangeRequestService_Approve_RejectsNonApprovedChildMovedOntoFullOfferi
 }
 
 func TestChangeRequestService_Approve_RollsBackApprovedChildScheduleReplacementFailure(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

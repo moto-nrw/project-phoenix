@@ -13,6 +13,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementRepository_Create(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -80,6 +84,10 @@ func TestAnnouncementRepository_Create(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementRepository_FindByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -107,6 +115,10 @@ func TestAnnouncementRepository_FindByID(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -148,6 +160,10 @@ func TestAnnouncementRepository_Update(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementRepository_Delete(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -168,6 +184,10 @@ func TestAnnouncementRepository_Delete(t *testing.T) {
 	assert.Nil(t, found)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementRepository_List(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -223,6 +243,10 @@ func TestAnnouncementRepository_List(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementRepository_Publish(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -248,6 +272,10 @@ func TestAnnouncementRepository_Publish(t *testing.T) {
 	assert.True(t, found.PublishedAt.Before(time.Now().Add(1*time.Second)))
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementRepository_Unpublish(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 

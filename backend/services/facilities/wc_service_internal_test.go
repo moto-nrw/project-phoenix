@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -45,33 +44,10 @@ func setupWCServiceInternal(t *testing.T, db *bun.DB) *wcService {
 	}
 }
 
-func cleanupWCArtifactsInternal(t *testing.T, db *bun.DB) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '` + constants.WCRoomName + `')`,
-		`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '` + constants.WCActivityName + `')`,
-		`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '` + constants.WCActivityName + `')`,
-		`DELETE FROM activities.groups WHERE name = '` + constants.WCActivityName + `'`,
-		`DELETE FROM activities.categories WHERE name = '` + constants.WCCategoryName + `'`,
-		`DELETE FROM facilities.rooms WHERE name = '` + constants.WCRoomName + `'`,
-	}
-
-	for _, stmt := range stmts {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			t.Logf("wc cleanup: %v (stmt: %s)", err, stmt)
-		}
-	}
-}
-
 func TestWCService_findWCActivity_NotFoundSentinel(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifactsInternal(t, db)
-	defer cleanupWCArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 
@@ -83,10 +59,9 @@ func TestWCService_findWCActivity_NotFoundSentinel(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_PropagatesActivityLookupErrors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifactsInternal(t, db)
-	defer cleanupWCArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 
@@ -101,10 +76,9 @@ func TestWCService_EnsureInfrastructure_PropagatesActivityLookupErrors(t *testin
 }
 
 func TestWCService_ensureWCRoom_PropagatesLookupErrors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifactsInternal(t, db)
-	defer cleanupWCArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 
@@ -119,10 +93,9 @@ func TestWCService_ensureWCRoom_PropagatesLookupErrors(t *testing.T) {
 }
 
 func TestWCService_ensureWCCategory_PropagatesLookupErrors(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifactsInternal(t, db)
-	defer cleanupWCArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 
@@ -136,11 +109,13 @@ func TestWCService_ensureWCCategory_PropagatesLookupErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to list activity categories")
 }
 
+// Deliberately NOT parallel: the test calls EnsureInfrastructure with a
+// tenant-less context, so its lookup is unscoped and sees the WC rows every
+// other test in this package creates. It only holds while no WC activity
+// exists anywhere in the clone, which is true for sequential tests (they run
+// before the parked parallel ones resume) and false for a parallel one.
 func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-
-	cleanupWCArtifactsInternal(t, db)
-	defer cleanupWCArtifactsInternal(t, db)
 
 	// Use a nil facility service to force ensureWCRoom to fail
 	activityService, err := activitiesSvc.NewService(
@@ -179,6 +154,8 @@ func TestWCService_EnsureInfrastructure_PropagatesRoomErrors(t *testing.T) {
 }
 
 func TestWCService_getLogger_NilSafe(t *testing.T) {
+	t.Parallel()
+
 	service := &wcService{
 		logger: nil,
 	}
@@ -190,10 +167,9 @@ func TestWCService_getLogger_NilSafe(t *testing.T) {
 }
 
 func TestWCService_ensureWCCategory_ReusesExisting(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifactsInternal(t, db)
-	defer cleanupWCArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 	ctx := testpkg.Ctx(t)
@@ -212,10 +188,9 @@ func TestWCService_ensureWCCategory_ReusesExisting(t *testing.T) {
 }
 
 func TestWCService_ensureWCRoom_CreatesNewRoom(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifactsInternal(t, db)
-	defer cleanupWCArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 	ctx := testpkg.Ctx(t)

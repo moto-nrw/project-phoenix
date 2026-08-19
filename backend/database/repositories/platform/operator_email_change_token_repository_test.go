@@ -16,6 +16,8 @@ import (
 )
 
 func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
@@ -106,6 +108,8 @@ func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_UpdateDeliveryResult(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
@@ -227,6 +231,8 @@ func TestOperatorEmailChangeTokenRepository_UpdateDeliveryResult(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_ConsumeByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
@@ -261,6 +267,8 @@ func TestOperatorEmailChangeTokenRepository_ConsumeByToken(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
@@ -304,6 +312,8 @@ func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T)
 }
 
 func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
@@ -344,6 +354,8 @@ func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T
 }
 
 func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
@@ -409,6 +421,8 @@ func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
 }
 
 func TestOperatorEmailChangeTokenRepository_CountRecentByOperatorID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)

@@ -16,6 +16,8 @@ import (
 // BroadcastChildUpdateToGuardians) is covered end-to-end by the external
 // students_test guardian-wake integration test.
 func TestResourceWakeChildGuardians(t *testing.T) {
+	t.Parallel()
+
 	// nil emitter: no-op, must not panic.
 	(&Resource{}).wakeChildGuardians(42, 100)
 

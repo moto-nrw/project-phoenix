@@ -220,6 +220,8 @@ func (f *overviewFixture) setEmploymentType(t *testing.T, staffID int64, employm
 // both run the same math. Without this the aggregate view could quietly
 // contradict the detail view a school admin drills into.
 func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 3)
 
 	// Make the three staff members genuinely different: a part-time contract,
@@ -262,6 +264,8 @@ func TestTimeTrackingOverview_MatchesMonthSummary(t *testing.T) {
 }
 
 func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	// Use a completed historical month so the production now-clamp cannot
 	// treat the fixture's fixed 08:00 session as future work before 10:00
@@ -299,6 +303,8 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 // TestTimeTrackingOverview_VacationMatchesQuotaEndpoint pins Resturlaub against
 // the per-staff endpoint it mirrors.
 func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 2)
 
 	// An approved vacation day earlier this year plus a still-requested one:
@@ -325,6 +331,8 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 }
 
 func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	historicalYear := f.today.Year - 1
 
@@ -358,6 +366,9 @@ func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
 // TestTimeTrackingOverview_QueryCountIsConstant is the only test that protects
 // the performance property. Without it the prefetch adapters could silently
 // regress to per-staff reads and nothing would fail.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestTimeTrackingOverview_QueryCountIsConstant(t *testing.T) {
 	small := newOverviewFixture(t, 1)
 	hook := &countingQueryHook{}
@@ -381,6 +392,8 @@ func TestTimeTrackingOverview_QueryCountIsConstant(t *testing.T) {
 // TestDashboardSummary_KPIs checks each counter, including the priority collapse
 // that keeps sick and vacation from double-counting the same person.
 func TestDashboardSummary_KPIs(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 4)
 
 	f.reopenSession(t, f.staff[0].ID, f.today)
@@ -405,6 +418,8 @@ func TestDashboardSummary_KPIs(t *testing.T) {
 }
 
 func TestDashboardSummary_AbsenceKPIsUseBerlinToday(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	absenceRepo := &recordingAbsenceRepository{StaffAbsenceRepository: f.repos.StaffAbsence}
 	settings := wtmIntSettings{
@@ -425,6 +440,8 @@ func TestDashboardSummary_AbsenceKPIsUseBerlinToday(t *testing.T) {
 // TestDashboardSummary_WeekVsMonth — the saldo is an account balance and must
 // not change with the selected period; Soll and Ist must.
 func TestDashboardSummary_WeekVsMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 2)
 
 	month, err := f.svc.GetDashboardSummary(f.ctx, active.OverviewPeriodMonth)
@@ -444,6 +461,8 @@ func TestDashboardSummary_WeekVsMonth(t *testing.T) {
 }
 
 func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 
 	before, err := f.svc.GetDashboardSummary(f.ctx, active.OverviewPeriodWeek)
@@ -479,6 +498,8 @@ func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
 }
 
 func TestDashboardSummary_RejectsUnknownPeriod(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 
 	_, err := f.svc.GetDashboardSummary(f.ctx, "quarter")
@@ -489,6 +510,8 @@ func TestDashboardSummary_RejectsUnknownPeriod(t *testing.T) {
 // before the computation, the saldo range narrows them after it, and neither
 // changes the values of the surviving rows.
 func TestTimeTrackingOverview_Filters(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 3)
 	f.setEmploymentType(t, f.staff[0].ID, userModels.EmploymentTypeFullTime)
 	f.setEmploymentType(t, f.staff[1].ID, userModels.EmploymentTypePartTime)
@@ -525,6 +548,8 @@ func TestTimeTrackingOverview_Filters(t *testing.T) {
 }
 
 func TestTimeTrackingOverview_RejectsBadFilters(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	low, high := 100, 10
 
@@ -542,6 +567,8 @@ func TestTimeTrackingOverview_RejectsBadFilters(t *testing.T) {
 // against the per-staff Monatskarte for the SAME month — the anti-drift
 // guarantee has to survive the month becoming a parameter.
 func TestTimeTrackingOverview_ExplicitMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	previous := f.today.AddDays(-int(f.today.Day) - 5) // safely inside last month
 
@@ -570,6 +597,8 @@ func TestTimeTrackingOverview_ExplicitMonth(t *testing.T) {
 // full month Soll against zero Ist, i.e. a large minus for work nobody has
 // missed yet.
 func TestTimeTrackingOverview_RejectsFutureMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	next := f.today.AddDays(40)
 
@@ -586,6 +615,8 @@ func TestTimeTrackingOverview_RejectsFutureMonth(t *testing.T) {
 // without an explicit staff-ID tiebreak equal balances would swap places
 // between identical requests.
 func TestTimeTrackingOverview_SortIsStable(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 4)
 
 	first, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{SortBy: active.OverviewSortBalance})
@@ -609,6 +640,8 @@ func TestTimeTrackingOverview_SortIsStable(t *testing.T) {
 // TestTimeTrackingOverview_EmptyAndDegenerate covers the shapes that would
 // otherwise 500 or return null.
 func TestTimeTrackingOverview_EmptyAndDegenerate(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 0)
 
 	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, active.OverviewFilters{})
@@ -637,6 +670,8 @@ func TestTimeTrackingOverview_EmptyAndDegenerate(t *testing.T) {
 // together: a closed past month must shape the overview's saldo exactly as it
 // shapes the detail card.
 func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	staffID := f.staff[0].ID
 
@@ -668,6 +703,8 @@ func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
 }
 
 func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	staffID := f.staff[0].ID
 	closedMonth := timezone.NewDate(f.today.Year, f.today.Month, 1).AddDays(-1)

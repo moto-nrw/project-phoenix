@@ -18,6 +18,8 @@ import (
 // pickup schedules are created together in one atomic request (issue #1502),
 // mirroring the existing atomic guardian-creation path.
 func TestCreateStudent_WithSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The schedule path stamps CreatedBy from the JWT, so the acting account
@@ -90,6 +92,8 @@ func TestCreateStudent_WithSchedules(t *testing.T) {
 // time is a client error (400) caught at Bind — before any row is written — so
 // no orphaned person/student survives.
 func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadTimeSchedule", "Creator")
@@ -147,6 +151,8 @@ func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 // care schedules are Betreuungszeiten writes and must require the same
 // users:update permission as the standalone update endpoints.
 func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleCreateOnly", "Creator")
@@ -193,6 +199,8 @@ func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
 // happy-path persistence of schedules inside the same transaction is covered by
 // TestCreateStudent_WithSchedules above.
 func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The schedule path resolves the acting staff from the JWT, so the account
@@ -291,6 +299,8 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 // so this exercises the pickup validation branch specifically — the same
 // validatePickupScheduleItems rules the bulk-update endpoint enforces.
 func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadPickupSchedule", "Creator")
@@ -350,6 +360,8 @@ func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 // with 403 — and no student/person may be created. Covers the getStaffIDFromJWT
 // failure branch of the atomic create path.
 func TestCreateStudent_SchedulesNonStaffAccountForbidden(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Person + account WITHOUT a staff record — getStaffIDFromJWT must fail.

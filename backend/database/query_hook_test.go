@@ -28,6 +28,8 @@ func newTestQueryHook(t *testing.T) (*QueryHook, *bytes.Buffer) {
 }
 
 func TestQueryHookAfterQuery_DemotesNoRowsToDebug(t *testing.T) {
+	t.Parallel()
+
 	hook, buf := newTestQueryHook(t)
 
 	hook.AfterQuery(context.Background(), &bun.QueryEvent{
@@ -49,6 +51,8 @@ func TestQueryHookAfterQuery_DemotesNoRowsToDebug(t *testing.T) {
 }
 
 func TestQueryHookAfterQuery_LogsNonNoRowsErrorsAtError(t *testing.T) {
+	t.Parallel()
+
 	hook, buf := newTestQueryHook(t)
 
 	hook.AfterQuery(context.Background(), &bun.QueryEvent{
@@ -70,6 +74,8 @@ func TestQueryHookAfterQuery_LogsNonNoRowsErrorsAtError(t *testing.T) {
 }
 
 func TestQueryHookAfterQuery_LogsPostgresErrorMetadata(t *testing.T) {
+	t.Parallel()
+
 	hook, buf := newTestQueryHook(t)
 
 	hook.AfterQuery(context.Background(), &bun.QueryEvent{
@@ -88,6 +94,8 @@ func TestQueryHookAfterQuery_LogsPostgresErrorMetadata(t *testing.T) {
 }
 
 func TestQueryHookAfterQuery_LogsSlowQueriesAtWarn(t *testing.T) {
+	t.Parallel()
+
 	hook, buf := newTestQueryHook(t)
 
 	hook.AfterQuery(context.Background(), &bun.QueryEvent{

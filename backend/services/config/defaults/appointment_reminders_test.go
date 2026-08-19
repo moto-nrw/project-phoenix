@@ -13,6 +13,8 @@ import (
 // registration sweep: flipping it silently would either start or stop mailing
 // every school's parents.
 func TestAppointmentReminderSettings(t *testing.T) {
+	t.Parallel()
+
 	t.Run("enabled defaults on", func(t *testing.T) {
 		def := config.GetDefinition(config.KeyCalendarAppointmentReminderEnabled)
 		require.NotNil(t, def, "calendar.appointment_reminder_enabled should be registered")

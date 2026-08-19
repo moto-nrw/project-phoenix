@@ -16,6 +16,8 @@ import (
 )
 
 func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -60,6 +62,8 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 // CreateForDates does: any active conflict rejects the whole selection and
 // leaves every student's rows unchanged.
 func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -111,6 +115,8 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 }
 
 func TestStudentStatusDayConflictError_SampleAndTotal(t *testing.T) {
+	t.Parallel()
+
 	rows := make([]*activeModels.StudentStatusDay, 0, MaxStudentStatusDayConflictDetails+5)
 	for i := 0; i < MaxStudentStatusDayConflictDetails+5; i++ {
 		rows = append(rows, &activeModels.StudentStatusDay{StudentID: int64(i + 1)})
@@ -129,6 +135,8 @@ func TestStudentStatusDayConflictError_SampleAndTotal(t *testing.T) {
 // Mixed-scope bulk status writes must fail closed before any row lands.
 // Regression for the class-trip bulk partial-commit path under outer withTx.
 func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)

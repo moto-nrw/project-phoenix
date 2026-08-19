@@ -42,6 +42,8 @@ func linkChildOffering(t *testing.T, env *rolloverTestEnv, link *enrollmentModel
 }
 
 func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -208,6 +210,8 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 }
 
 func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -262,6 +266,8 @@ func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *
 }
 
 func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRules(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -289,6 +295,8 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 }
 
 func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -336,6 +344,8 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 }
 
 func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplateOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -375,6 +385,8 @@ func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplate
 }
 
 func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -422,6 +434,8 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 // #2249 the carried booking pointed at a source-phase offering, which the
 // edit-draft loader rejects with ErrEditNotAllowed.
 func TestRolloverService_CreatePhaseFromSource_RolledRequestIsEditableInParentStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -471,6 +485,8 @@ func TestRolloverService_CreatePhaseFromSource_RolledRequestIsEditableInParentSt
 // Re-running the rollover must not duplicate target requests, bookings, or
 // cloned offerings — the second execution fails up front and atomically.
 func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplicates(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -516,6 +532,8 @@ func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplica
 // Freigabe, and the approval materializes the carried weekdays into the
 // template roster.
 func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

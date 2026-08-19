@@ -71,6 +71,8 @@ func hasGlobalPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster) bool {
 // clients and must not be a global fan-out, which would make every other school
 // refetch student and care-plan data for a child it cannot read.
 func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupCast", "Teacher")

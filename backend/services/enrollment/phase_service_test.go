@@ -71,6 +71,8 @@ func minimalPhase(t *testing.T, suffix string) *enrollmentModels.Phase {
 }
 
 func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -83,6 +85,8 @@ func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -96,6 +100,8 @@ func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -108,6 +114,8 @@ func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -123,6 +131,8 @@ func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -137,6 +147,8 @@ func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
 }
 
 func TestPhaseService_Update_AppliesChanges(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -157,6 +169,8 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 }
 
 func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(t *testing.T) {
+	t.Parallel()
+
 	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -232,6 +246,8 @@ func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(
 }
 
 func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *testing.T) {
+	t.Parallel()
+
 	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -283,6 +299,8 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 // transaction, instead of committing a phase whose sourced rosters and
 // materialized occurrences could never be resynced again.
 func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *testing.T) {
+	t.Parallel()
+
 	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := tenant.WithRollbackMarker(testpkg.Ctx(t))
@@ -328,6 +346,8 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 }
 
 func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -344,6 +364,8 @@ func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
 }
 
 func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -359,6 +381,8 @@ func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
 }
 
 func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -372,6 +396,8 @@ func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
 }
 
 func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -423,6 +449,8 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 // Business rule (changed): a phase with care offerings is now deletable.
 // The offerings cascade away with the phase; there is no reference guard.
 func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -456,6 +484,8 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 // were created from those requests are PRESERVED (created_student_id is
 // ON DELETE SET NULL; the student is the parent in that relationship).
 func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -513,6 +543,8 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 }
 
 func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -566,6 +598,8 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 }
 
 func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -580,6 +614,8 @@ func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
 }
 
 func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -590,6 +626,8 @@ func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
 }
 
 func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
+	t.Parallel()
+
 	repoErr := errors.New("database unavailable")
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Repo: findByIDErrorPhaseRepo{err: repoErr},
@@ -630,6 +668,8 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 }
 
 func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -669,6 +709,8 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 // calendar_period_id, so linking an EXISTING phase to a period silently
 // persisted nothing (create worked, update didn't).
 func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -711,6 +753,8 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -725,6 +769,8 @@ func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
 }
 
 func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -740,6 +786,8 @@ func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
 }
 
 func TestPhaseService_Create_PropagatesCalendarPeriodLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	lookupErr := errors.New("synthetic database failure")
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		CalendarPeriods: failingCalendarPeriodService{err: lookupErr},

@@ -25,6 +25,8 @@ import (
 // of today. Fixed now is Monday 2026-06-01; the requested day is Tuesday
 // 2026-06-02.
 func TestListStudents_DayPlanningForDate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	fixedNow := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	tc.resource.Now = func() time.Time { return fixedNow }
@@ -185,6 +187,8 @@ func decodeStudentLocationsByID(t *testing.T, body []byte) map[int64]studentLive
 // active.visits, and through the current-location snapshot on the response.
 // Fixed now is Monday 2026-06-01; the planning day is Tuesday 2026-06-02.
 func TestListStudents_LiveStateForPlanningDate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	fixedNow := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	tc.resource.Now = func() time.Time { return fixedNow }

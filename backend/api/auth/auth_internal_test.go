@@ -22,6 +22,8 @@ import (
 // =============================================================================
 
 func TestGetClientIP_IgnoresRawXRealIP(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.100")
 	req.RemoteAddr = "192.0.2.50:1234"
@@ -32,6 +34,8 @@ func TestGetClientIP_IgnoresRawXRealIP(t *testing.T) {
 }
 
 func TestGetClientIP_XForwardedFor_Single(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "10.0.0.50")
 
@@ -41,6 +45,8 @@ func TestGetClientIP_XForwardedFor_Single(t *testing.T) {
 }
 
 func TestGetClientIP_XForwardedFor_Multiple(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2, 10.0.0.3")
 
@@ -50,6 +56,8 @@ func TestGetClientIP_XForwardedFor_Multiple(t *testing.T) {
 }
 
 func TestGetClientIP_XForwardedFor_WithSpaces(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "  10.0.0.1  ,  10.0.0.2  ")
 
@@ -59,6 +67,8 @@ func TestGetClientIP_XForwardedFor_WithSpaces(t *testing.T) {
 }
 
 func TestGetClientIP_RemoteAddr_WithPort(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 
@@ -68,6 +78,8 @@ func TestGetClientIP_RemoteAddr_WithPort(t *testing.T) {
 }
 
 func TestGetClientIP_RemoteAddr_IPv6(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "[::1]:8080"
 
@@ -77,6 +89,8 @@ func TestGetClientIP_RemoteAddr_IPv6(t *testing.T) {
 }
 
 func TestGetClientIP_RemoteAddr_NoPort(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.RemoteAddr = "192.168.1.1"
 
@@ -87,6 +101,8 @@ func TestGetClientIP_RemoteAddr_NoPort(t *testing.T) {
 }
 
 func TestGetClientIP_XForwardedForBeatsRawXRealIP(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Real-IP", "1.1.1.1")
 	req.Header.Set("X-Forwarded-For", "2.2.2.2")
@@ -98,6 +114,8 @@ func TestGetClientIP_XForwardedForBeatsRawXRealIP(t *testing.T) {
 }
 
 func TestGetClientIP_XForwardedFor_TakesPrecedence_OverRemoteAddr(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "2.2.2.2")
 	req.RemoteAddr = "3.3.3.3:1234"
@@ -124,6 +142,8 @@ func getClientIPThroughXFFMiddleware(req *http.Request) string {
 // =============================================================================
 
 func TestLoginRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := LoginRequest{
 		Email:    "test@example.com",
 		Password: "password123",
@@ -134,6 +154,8 @@ func TestLoginRequest_Fields(t *testing.T) {
 }
 
 func TestTokenResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	resp := TokenResponse{
 		AccessToken:  "access_token_value",
 		RefreshToken: "refresh_token_value",
@@ -144,6 +166,8 @@ func TestTokenResponse_Fields(t *testing.T) {
 }
 
 func TestRegisterRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	roleID := int64(5)
 	req := RegisterRequest{
 		Email:           "test@example.com",
@@ -161,6 +185,8 @@ func TestRegisterRequest_Fields(t *testing.T) {
 }
 
 func TestChangePasswordRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := ChangePasswordRequest{
 		CurrentPassword: "old_password",
 		NewPassword:     "new_password",
@@ -173,6 +199,8 @@ func TestChangePasswordRequest_Fields(t *testing.T) {
 }
 
 func TestCreateRoleRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	baseRole := "user"
 	req := CreateRoleRequest{
 		Name:        "admin",
@@ -186,6 +214,8 @@ func TestCreateRoleRequest_Fields(t *testing.T) {
 }
 
 func TestUpdateRoleRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	baseRole := "admin"
 	req := UpdateRoleRequest{
 		Name:        "updated_role",
@@ -199,6 +229,8 @@ func TestUpdateRoleRequest_Fields(t *testing.T) {
 }
 
 func TestCreatePermissionRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := CreatePermissionRequest{
 		Name:        "read_users",
 		Description: "Read users permission",
@@ -213,6 +245,8 @@ func TestCreatePermissionRequest_Fields(t *testing.T) {
 }
 
 func TestUpdatePermissionRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := UpdatePermissionRequest{
 		Name:        "updated_permission",
 		Description: "Updated description",
@@ -227,6 +261,8 @@ func TestUpdatePermissionRequest_Fields(t *testing.T) {
 }
 
 func TestPasswordResetRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := PasswordResetRequest{
 		Email: "reset@example.com",
 	}
@@ -235,6 +271,8 @@ func TestPasswordResetRequest_Fields(t *testing.T) {
 }
 
 func TestAccountResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	resp := AccountResponse{
 		ID:          1,
 		Email:       "test@example.com",
@@ -253,6 +291,8 @@ func TestAccountResponse_Fields(t *testing.T) {
 }
 
 func TestRoleResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	resp := RoleResponse{
 		ID:          1,
 		Name:        "admin",
@@ -270,6 +310,8 @@ func TestRoleResponse_Fields(t *testing.T) {
 }
 
 func TestPermissionResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	resp := PermissionResponse{
 		ID:          1,
 		Name:        "read_users",
@@ -288,6 +330,8 @@ func TestPermissionResponse_Fields(t *testing.T) {
 }
 
 func TestUpdateAccountRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := UpdateAccountRequest{
 		Email:    "new@example.com",
 		Username: "newuser",
@@ -302,6 +346,8 @@ func TestUpdateAccountRequest_Fields(t *testing.T) {
 // =============================================================================
 
 func TestNewResource_ReturnsResource(t *testing.T) {
+	t.Parallel()
+
 	// Create resource with nil services (just testing initialization)
 	resource := NewResource(nil, nil, nil, nil)
 
@@ -313,6 +359,8 @@ func TestNewResource_ReturnsResource(t *testing.T) {
 // =============================================================================
 
 func TestNormalizeBaseRole(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil input returns nil", func(t *testing.T) {
 		assert.Nil(t, strutil.TrimPtrToNil(nil))
 	})
@@ -347,6 +395,8 @@ func TestNormalizeBaseRole(t *testing.T) {
 // =============================================================================
 
 func TestValidateBaseRole(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil is rejected", func(t *testing.T) {
 		err := validateBaseRole(nil)
 		require.Error(t, err)
@@ -375,6 +425,8 @@ func TestValidateBaseRole(t *testing.T) {
 }
 
 func TestValidateBaseRoleValue(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty string rejected", func(t *testing.T) {
 		assert.Error(t, validateBaseRoleValue(""))
 	})
@@ -395,6 +447,8 @@ func TestValidateBaseRoleValue(t *testing.T) {
 // =============================================================================
 
 func TestToRoleResponse(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 	baseRole := "admin"
 
@@ -450,6 +504,8 @@ func TestToRoleResponse(t *testing.T) {
 // =============================================================================
 
 func TestCreateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing base_role rejected", func(t *testing.T) {
 		req := &CreateRoleRequest{Name: "test", Description: "desc"}
 		err := req.Bind(nil)
@@ -482,6 +538,8 @@ func TestCreateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
 }
 
 func TestUpdateRoleRequest_Bind_BaseRoleValidation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil base_role accepted on update", func(t *testing.T) {
 		req := &UpdateRoleRequest{Name: "test", Description: "desc"}
 		err := req.Bind(nil)

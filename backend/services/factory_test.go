@@ -320,6 +320,8 @@ func seedFactoryRequiredConfig() {
 }
 
 func TestEnableStudentPhotos(t *testing.T) {
+	t.Parallel()
+
 	f := &services.Factory{SettingsSideEffects: sideeffects.NewRegistry()}
 	f.EnableStudentPhotos(services.StudentPhotoBootstrap{Logger: slog.Default()})
 	require.NotNil(t, f.StudentPhotos)

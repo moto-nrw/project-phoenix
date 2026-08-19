@@ -19,6 +19,8 @@ import (
 )
 
 func TestActivityService_GetStudentEnrollments_HidesGraduatedChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

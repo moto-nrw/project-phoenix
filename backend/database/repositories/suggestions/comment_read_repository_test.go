@@ -14,6 +14,8 @@ import (
 )
 
 func TestCommentReadRepository_Upsert(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
@@ -76,6 +78,8 @@ func TestCommentReadRepository_Upsert(t *testing.T) {
 }
 
 func TestCommentReadRepository_GetLastReadAt(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
@@ -111,6 +115,8 @@ func TestCommentReadRepository_GetLastReadAt(t *testing.T) {
 }
 
 func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentReadRepository(db)
@@ -185,6 +191,8 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the assertion is a count over a tenant-less
+// table, so every row a test running beside it creates is counted too.
 func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 

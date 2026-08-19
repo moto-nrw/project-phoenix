@@ -16,6 +16,8 @@ import (
 )
 
 func TestStaffMonthSummaryAPI(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	suffix := time.Now().UnixNano()
 

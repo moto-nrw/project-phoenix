@@ -9,6 +9,8 @@ import (
 )
 
 func TestStudentDataChangeRequest_IsTerminal(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		status string
 		want   bool

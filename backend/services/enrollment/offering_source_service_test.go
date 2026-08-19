@@ -143,6 +143,8 @@ func offeringResyncer(t *testing.T, env *decisionTestEnv) enrollmentService.Offe
 // ---- decision fan-out ----------------------------------------------------
 
 func TestDecide_FansOutToGradeFilteredSourcedTemplates(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -167,6 +169,8 @@ func TestDecide_FansOutToGradeFilteredSourcedTemplates(t *testing.T) {
 }
 
 func TestDecide_OverlappingSourcedTemplatesBothReceiveTheChild(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -186,6 +190,8 @@ func TestDecide_OverlappingSourcedTemplatesBothReceiveTheChild(t *testing.T) {
 }
 
 func TestDecide_SourcedFanOutCoexistsWithLegacyLink(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -208,6 +214,8 @@ func TestDecide_SourcedFanOutCoexistsWithLegacyLink(t *testing.T) {
 // ---- template-save resync ------------------------------------------------
 
 func TestResyncTemplateOfferingRoster_SeedsExistingApprovedChildren(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -242,6 +250,8 @@ func TestResyncTemplateOfferingRoster_SeedsExistingApprovedChildren(t *testing.T
 }
 
 func TestResyncTemplateOfferingRoster_EmptyFilterSeedsAllAndIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -268,6 +278,8 @@ func TestResyncTemplateOfferingRoster_EmptyFilterSeedsAllAndIsIdempotent(t *test
 }
 
 func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -314,6 +326,8 @@ func TestResyncTemplateOfferingRoster_FilterChangeAndSourceRemoval(t *testing.T)
 }
 
 func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -353,6 +367,8 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 }
 
 func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -387,6 +403,8 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 }
 
 func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -420,6 +438,8 @@ func TestResyncTemplateOfferingRoster_ProtectsLegacyLinkedRows(t *testing.T) {
 // from 'angebot' — must not treat carried legacy-fed rows as source-owned
 // leftovers and delete them (#2147 review).
 func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -480,6 +500,8 @@ func TestResyncTemplateOfferingRoster_LegacyProtectionFollowsSplitLineage(t *tes
 // template and make the tenant-wide resync skip it forever (review follow-up;
 // replaces the earlier hard-reject behavior).
 func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -519,6 +541,8 @@ func TestResyncTemplateOfferingRoster_VanishedOfferingIsDropped(t *testing.T) {
 // array, so an unbounded list would turn into thousands of sequential queries
 // inside one tenant transaction.
 func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -546,6 +570,8 @@ func TestResyncTemplateOfferingRoster_CapsSourceCount(t *testing.T) {
 // disjoint links. Merging them into one interval would plan the child during
 // the gap, so the resync must seed one row per window.
 func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -591,6 +617,8 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 // after the row was seeded — only ever extending would keep planning the
 // child past the link's end.
 func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -631,6 +659,8 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 // holds the new offering: a row inherited from the old source may not keep a
 // start before the new link's ValidFrom.
 func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -682,6 +712,8 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 // A grade transition rewrites school classes; the tenant-wide resync must
 // move children between Jahrgang-filtered Termine accordingly.
 func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -722,6 +754,8 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 // same flow, exactly like a direct school_class edit or a grade transition
 // (#2147 review round 13).
 func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -764,6 +798,8 @@ func TestSyncApprovedChildData_ClassChangeResyncsSourcedTemplates(t *testing.T) 
 // sourced Regeltermine must follow within the approval, exactly like a direct
 // school_class edit or a confirmed Änderungsanmeldung (#2147 review round 17).
 func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -824,6 +860,8 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 // mechanism that rewrites the template's source columns — including the
 // grade filter, whose CHECK forbids it without a source.
 func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -856,6 +894,8 @@ func TestOfferingDelete_DegradesSourcedTemplate(t *testing.T) {
 // NULL, and without the explicit IS NOT NULL conjunct the CHECK would treat
 // that branch as satisfied.
 func TestOfferingSourceCheck_RejectsFilterWithoutSource(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -877,6 +917,8 @@ func TestOfferingSourceCheck_RejectsFilterWithoutSource(t *testing.T) {
 // template sourced by the remainder — only the departing offering's children
 // leave the roster.
 func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -921,6 +963,8 @@ func TestOfferingDetach_KeepsRemainingSources(t *testing.T) {
 // vanished id that is ALREADY stored on the template stays tolerated so
 // edits of an orphaned template do not wedge.
 func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -953,6 +997,8 @@ func TestValidateTemplateOfferingSource_RejectsNewUnknownToleratesStored(t *test
 // provenance away, after which no later resync could ever attribute them.
 // Children the kept sibling also feeds stay planned.
 func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1007,6 +1053,8 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 // offering's overlapping weekday×date contribution instead of seeding a
 // duplicate row.
 func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1092,6 +1140,8 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 // skipped for those templates), so approving after the template exists still
 // seeds the roster.
 func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1117,6 +1167,8 @@ func TestDecide_FansOutToMultiSourceTemplate(t *testing.T) {
 // survives. Skipping shared children wholesale would leave the Di–Fr rows
 // planned forever, with the regular resync permanently blocked by the drift.
 func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1209,6 +1261,8 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 // of a running phase silently lost [phase start, N) for multi-source
 // templates only.
 func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1241,6 +1295,8 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 // resync boundary, the correction permanently truncated the already-elapsed
 // window, including the roster basis of recorded attendance.
 func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1289,6 +1345,8 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 // pre-existing offering links must not start materializing through the union
 // resync either.
 func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
+	t.Parallel()
+
 	disabled := false
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{careOfferingsEnabled: &disabled})
 	defer cleanup()
@@ -1314,6 +1372,8 @@ func TestDecide_MultiSourceResyncRespectsCareOfferingsDisabled(t *testing.T) {
 // rows FIRST — left behind, they would keep materializing children while
 // being invisible to every later resync.
 func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1426,6 +1486,8 @@ func createSourcedTemplateSegment(
 // capped predecessor must not receive coverage past its end, nor the
 // successor coverage before its start (#2147 review).
 func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -1458,6 +1520,8 @@ func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 // predecessors. Its wanted windows must stop at the segment envelope, or a
 // re-reconcile would extend the capped rows back out to the phase end.
 func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1498,6 +1562,8 @@ func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing
 // children leaving the filter disappear, children entering it appear, and
 // rows carrying an observation or a hand decision survive (#2147 review).
 func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1581,6 +1647,8 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 // resurrect an occurrence row staff removed by hand — only newly gained
 // coverage may create instance rows.
 func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1666,6 +1734,8 @@ func registerSourcedInstanceCleanup(t *testing.T, env *decisionTestEnv, instance
 // child whose link ends mid-phase must not stay planned for the rest of the
 // phase (#2147 review, round 4).
 func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1727,6 +1797,8 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 // already-materialized future occurrences itself — the materializer is
 // insert-only and never revisits an existing instance (#2147 review, round 4).
 func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -1756,6 +1828,8 @@ func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 // still-planned attendance row after that date has to disappear (#2147
 // review, round 4).
 func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1805,6 +1879,8 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 // otherwise regain coverage past the split and overlap its successor (#2147
 // review, round 4).
 func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1853,6 +1929,8 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 // review, round 5). Removing the source reconciles the source-shaped row away
 // by provenance instead of letting it survive behind the legacy protection.
 func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1944,6 +2022,8 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 // rows before it begins: the legacy protection is bounded by each link's
 // validity window, not just its weekday set (#2147 review, round 5).
 func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSourceRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1993,6 +2073,8 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 // the update-time resync the sourced rows would keep the pre-edit weekdays
 // until an unrelated template save (#2147 review, round 5).
 func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2050,6 +2132,8 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 // phase/offering edits surfaces ErrOfferingSourceInvalid so the caller
 // rejects the edit instead of committing it with stranded sourced rows.
 func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2083,6 +2167,8 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 // committing an offering whose sourced rosters and materialized occurrences
 // every later resync would only skip (#2147 review round 7).
 func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := tenant.WithRollbackMarker(testpkg.Ctx(t))
@@ -2137,6 +2223,8 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 // planning period — a link that ends before a future period begins would
 // otherwise inflate the preview for that period.
 func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -2195,6 +2283,8 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 // by design; the template list aggregates and the weekday roster read must
 // still surface them as long as they cover today or later.
 func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -2236,6 +2326,8 @@ func TestSourcedRosterRows_AppearInTemplateListReads(t *testing.T) {
 }
 
 func TestExplainEmptyOfferingRoster_UsesServiceStartAndStaysNeutralAfterward(t *testing.T) {
+	t.Parallel()
+
 	sourceID := time.Now().UnixNano()
 	serviceStart := timezone.NewDate(2026, 8, 13)
 	options := []enrollmentService.OfferingSourceOption{{

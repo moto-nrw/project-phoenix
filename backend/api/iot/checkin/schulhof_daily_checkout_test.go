@@ -63,7 +63,6 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 	defer assignStudentToGroup(t, ctx, student.ID, educationGroup.ID)()
 
 	schulhof := createSchulhofRoom(t, ctx.db)
-	defer cleanupSchulhofInfrastructure(t, ctx.db, schulhof.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())

@@ -139,6 +139,8 @@ func setUnderstaffedAckFixture(t *testing.T, db *bun.DB, ctx context.Context, in
 // the old substitute reads as absent (freeing the block), the replacement is
 // created, all in one call — the exact multi-edit scenario that used to 409.
 func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -183,6 +185,8 @@ func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
 // back the whole save. Now block2 classifies as already-on-instance: A's row is
 // flagged, no duplicate row is inserted (#1840).
 func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -245,6 +249,8 @@ func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 // fully covered rather than conflicting. (Previously this 409'd because ANY other
 // active substitute blocked covering an already-absent position.)
 func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -292,6 +298,8 @@ func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
 // positions); adding one more would overstaff. The co-payload absence (day-wide,
 // on another block) must NOT survive the abort — the Phase-A dry-run guarantee.
 func TestApplyDeviations_OverstaffConflict_NoPartialWrites(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -326,6 +334,8 @@ func TestApplyDeviations_OverstaffConflict_NoPartialWrites(t *testing.T) {
 // the stale acknowledgement in the same tx (finding: /gaps and the amber card
 // otherwise contradict).
 func TestApplyDeviations_ClearsStaleAckWhenCovered(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -359,6 +369,8 @@ func TestApplyDeviations_ClearsStaleAckWhenCovered(t *testing.T) {
 // Acknowledging a block while non-absent staff remain must be rejected, and
 // nothing else in the payload should commit.
 func TestApplyDeviations_AckWhileStaffed_Rejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -377,6 +389,8 @@ func TestApplyDeviations_AckWhileStaffed_Rejected(t *testing.T) {
 
 // Cancel is exclusive and delegates to the shared Cancel service.
 func TestApplyDeviations_Cancel(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -401,6 +415,8 @@ func TestApplyDeviations_Cancel(t *testing.T) {
 // Past blocks are historical record; the endpoint refuses to edit them. Uses the
 // timezone helper only to build a past date literal.
 func TestApplyDeviations_PastBlock_Rejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	past := timezone.TodayDate().AddDays(-1)
@@ -420,6 +436,8 @@ func TestApplyDeviations_PastBlock_Rejected(t *testing.T) {
 // too — not only the selected block (#1840). The selected block here is never
 // acked, so the only ack touched must be the OTHER block's.
 func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -465,6 +483,8 @@ func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
 // removal is correctable without a DB edit. The old planPresences skipped every
 // substitute row, so a removed substitute was stuck absent forever (#1840).
 func TestApplyDeviations_RestoreRemovedSubstitute(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -492,6 +512,8 @@ func TestApplyDeviations_RestoreRemovedSubstitute(t *testing.T) {
 // sequential /substitute path already produces exactly this, so the atomic path
 // must accept it too instead of 409-ing on the second position (#1840).
 func TestApplyDeviations_TwoDistinctSubstitutes_OneBlock(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -532,6 +554,8 @@ func TestApplyDeviations_TwoDistinctSubstitutes_OneBlock(t *testing.T) {
 // double-insert (instance_id, X) and 500. The repeat collapses to a single
 // covering row while both absent positions are still flagged (#1840).
 func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -578,6 +602,8 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
 // the substitution rows without de-duplicating the substitute id rebuilt and
 // re-appended the identical conflicts — inflating the UI warning count (#1840).
 func TestApplyDeviations_SameSubstituteForTwoAbsent_WarningsNotDuplicated(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -661,6 +687,8 @@ func doAck(t *testing.T, router chi.Router, instanceID int64, body any) *httptes
 // planned/active, so a status-only check would let a historical staffing record
 // be rewritten through this public endpoint (#1840).
 func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := ackRouter(s.ctx, s.res)
 	past := timezone.TodayDate().AddDays(-1)

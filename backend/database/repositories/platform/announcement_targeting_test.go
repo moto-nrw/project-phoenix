@@ -39,6 +39,10 @@ func cleanupTargetingTestData(t *testing.T, db *bun.DB, announcementIDs []int64,
 
 // --- Tests ---
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_CreateWithTargetingArrays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -73,6 +77,10 @@ func TestAnnouncementTargeting_CreateWithTargetingArrays(t *testing.T) {
 	assert.Equal(t, []int64{300}, found.TargetTenantIDs)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_CreateWithEmptyArrays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -106,6 +114,10 @@ func TestAnnouncementTargeting_CreateWithEmptyArrays(t *testing.T) {
 	assert.Empty(t, found.TargetTenantIDs)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -149,6 +161,10 @@ func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T)
 	assert.Equal(t, announcement.ID, unread[0].ID)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_OrgTargetedVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -204,6 +220,10 @@ func TestAnnouncementTargeting_GetUnreadForUser_OrgTargetedVisibility(t *testing
 	assert.Len(t, unreadB, 0, "user in org B should NOT see org-A-targeted announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_TenantTargetedVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -257,6 +277,10 @@ func TestAnnouncementTargeting_GetUnreadForUser_TenantTargetedVisibility(t *test
 	assert.Len(t, unreadB, 0, "user in school B should NOT see school-A-targeted announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_ORUnion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -311,6 +335,10 @@ func TestAnnouncementTargeting_GetUnreadForUser_ORUnion(t *testing.T) {
 	assert.Len(t, unreadB, 1, "user in school B should see announcement via tenant match")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_CountUnread_RespectsTargeting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -358,6 +386,10 @@ func TestAnnouncementTargeting_CountUnread_RespectsTargeting(t *testing.T) {
 	assert.Equal(t, 1, count, "should only count announcement targeting user's school")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -441,6 +473,10 @@ func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing
 	assert.Equal(t, 0, countB)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_DualRoleNotDuplicated(t *testing.T) {
 	// Regression test: an account with BOTH a direct role match AND a custom role
 	// with matching base_role must see the announcement exactly once, not duplicated.
@@ -513,6 +549,10 @@ func TestAnnouncementTargeting_GetUnreadForUser_DualRoleNotDuplicated(t *testing
 	assert.GreaterOrEqual(t, count, 1, "count should include the dual-matched announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t *testing.T) {
 	// Test: changing a custom role's base_role should change which announcements
 	// the user receives via the base_role expansion path.
@@ -615,6 +655,10 @@ func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t 
 	assert.True(t, hasAdmin2, "after base_role change to 'admin', should see admin-targeted announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestOrganizationRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -645,6 +689,10 @@ func TestOrganizationRepository_CountByIDs(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestSchoolRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 

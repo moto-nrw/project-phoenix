@@ -47,6 +47,8 @@ func (h *informationSchemaRecorder) recorded() []string {
 }
 
 func TestInformationSchemaRecorderMatchesSchemaCatalogs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		query string
@@ -70,6 +72,9 @@ func TestInformationSchemaRecorderMatchesSchemaCatalogs(t *testing.T) {
 // so no student request may re-detect them per request. The controlled staging
 // benchmark measured 5,582 information_schema queries across 8,676 HTTP
 // requests before this guard; the budget is ZERO.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestStudentRequestsNoInformationSchemaQueries(t *testing.T) {
 	tc := setupTestContext(t)
 

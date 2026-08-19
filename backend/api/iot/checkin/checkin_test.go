@@ -1059,33 +1059,6 @@ func TestDeviceCheckin_CheckoutWithoutActiveVisit(t *testing.T) {
 // SCHULHOF AUTO-CREATE TESTS
 // =============================================================================
 
-// cleanupSchulhofInfrastructure removes Schulhof auto-created data for a specific
-// room ID so tests clean up only their own data. Uses individual statements in FK order.
-func cleanupSchulhofInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
-	t.Helper()
-
-	dbCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
-	defer cancel()
-
-	// Delete in FK-safe order: child tables first, then parents.
-	// All queries are scoped to the specific room ID to avoid interfering
-	// with Schulhof tests running in parallel from other packages.
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE student_id IN (SELECT v.student_id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id = %d`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE category_id IN (SELECT ac.id FROM activities.categories ac JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = (SELECT name FROM facilities.rooms WHERE id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE id = %d`, roomID),
-	}
-	for _, stmt := range stmts {
-		_, _ = db.ExecContext(dbCtx, stmt)
-	}
-}
-
 // createSchulhofRoom creates a room with the exact name "Schulhof" (no timestamp
 // suffix) so the auto-create path in createSchulhofActiveGroupIfNeeded recognizes it.
 // If a Schulhof room already exists (e.g. from seed data), it cleans up and recreates it
@@ -1104,7 +1077,6 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Where("name = ?", "Schulhof").
 		Scan(dbCtx, &existingID)
 	if err == nil && existingID > 0 {
-		cleanupSchulhofInfrastructure(t, db, existingID)
 	}
 
 	// Also clean up any pre-existing Schulhof activity and category (auto-created artifacts)
@@ -1150,6 +1122,10 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // This is the code path fixed by the double-qualification bug where
 // filter.Equal("group.name", ...) was incorrectly double-qualified by the
 // repository's WithTableAlias("group").
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -1170,7 +1146,6 @@ func TestDeviceCheckin_SchulhofAutoCreate(t *testing.T) {
 	// path in createSchulhofActiveGroupIfNeeded recognizes it
 	room := createSchulhofRoom(t, ctx.db)
 	// Clean up all auto-created Schulhof infrastructure on teardown (scoped to this room)
-	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -1854,31 +1829,6 @@ func TestDeviceCheckin_UpdatesSessionActivity(t *testing.T) {
 // WC AUTO-CREATE TESTS
 // =============================================================================
 
-// cleanupWCInfrastructure removes WC auto-created data for a specific
-// room ID so tests clean up only their own data. Uses individual statements in FK order.
-func cleanupWCInfrastructure(t *testing.T, db *bun.DB, roomID int64) {
-	t.Helper()
-
-	dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Delete in FK-safe order: child tables first, then parents.
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE student_id IN (SELECT v.student_id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id WHERE ag.room_id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT id FROM active.groups WHERE room_id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id = %d`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT ag.id FROM activities.groups ag JOIN activities.categories ac ON ac.id = ag.category_id JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE category_id IN (SELECT ac.id FROM activities.categories ac JOIN facilities.rooms r ON r.name = ac.name WHERE r.id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = (SELECT name FROM facilities.rooms WHERE id = %d)`, roomID),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE id = %d`, roomID),
-	}
-	for _, stmt := range stmts {
-		_, _ = db.ExecContext(dbCtx, stmt)
-	}
-}
-
 // createWCRoom creates a room with the exact name "WC" (no timestamp
 // suffix) so the auto-create path in createSpecialRoomActiveGroupIfNeeded recognizes it.
 // If a WC room already exists (e.g. from seed data), it cleans up and recreates it
@@ -1897,7 +1847,6 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 		Where("name = ?", "WC").
 		Scan(dbCtx, &existingID)
 	if err == nil && existingID > 0 {
-		cleanupWCInfrastructure(t, db, existingID)
 	}
 
 	// Also clean up any pre-existing WC activity and category (auto-created artifacts)
@@ -1939,6 +1888,10 @@ func createWCRoom(t *testing.T, db *bun.DB) *facilities.Room {
 // TestDeviceCheckin_WCAutoCreate verifies that checking a student into a
 // room named "WC" with no existing active group triggers automatic
 // infrastructure creation (category, activity group, and active group).
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -1953,7 +1906,6 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createWCRoom(t, ctx.db)
-	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())
@@ -1999,6 +1951,10 @@ func TestDeviceCheckin_WCAutoCreate(t *testing.T) {
 // TestDeviceCheckin_WCAutoCreateIdempotent verifies that the WC
 // auto-create flow is idempotent: a second checkin reuses the already-created
 // activity group instead of failing or creating duplicates.
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -2021,7 +1977,6 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student2.PersonID, card2.ID)
 
 	room := createWCRoom(t, ctx.db)
-	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())
@@ -2065,6 +2020,10 @@ func TestDeviceCheckin_WCAutoCreateIdempotent(t *testing.T) {
 
 // TestDeviceCheckin_WCCheckoutFromWC verifies the full WC visit lifecycle:
 // check in to WC room, then check out.
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -2079,7 +2038,6 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createWCRoom(t, ctx.db)
-	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())
@@ -2131,6 +2089,10 @@ func TestDeviceCheckin_WCCheckoutFromWC(t *testing.T) {
 // into a normal room with staff present — that earlier check-in creates the
 // attendance record. We insert the record directly to satisfy that invariant
 // without needing a full two-step checkin/checkout flow.
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -2143,7 +2105,6 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createWCRoom(t, ctx.db)
-	defer cleanupWCInfrastructure(t, ctx.db, room.ID)
 
 	// Pre-condition: simulate prior morning check-in (with staff) by inserting the
 	// attendance record directly. In production this record always exists before a
@@ -2186,6 +2147,10 @@ func TestDeviceCheckin_WCAutoCreateWithoutStaff(t *testing.T) {
 //
 // Pre-condition: same as WC — students reach Schulhof only after a prior check-in
 // with staff that created today's attendance record. We insert it directly here.
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -2198,7 +2163,6 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createSchulhofRoom(t, ctx.db)
-	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	// Pre-condition: simulate prior morning check-in (with staff) by inserting the
 	// attendance record directly. In production this record always exists before a
@@ -2234,6 +2198,10 @@ func TestDeviceCheckin_SchulhofAutoCreateWithoutStaff(t *testing.T) {
 		"Expected 200 when Schulhof auto-create has no staff context. Body: %s", rr.Body.String())
 }
 
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -2256,7 +2224,6 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student2.PersonID, card2.ID)
 
 	room := createSchulhofRoom(t, ctx.db)
-	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -2307,6 +2274,10 @@ func TestDeviceCheckin_SchulhofAutoCreateIdempotent(t *testing.T) {
 // GetDeviceCurrentSession to return the WC group instead of the actual
 // room session. This broke session counts and session resume after device
 // restart. See commit 54ef0c99 for the regression.
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -2340,7 +2311,6 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 
 	// Create WC room
 	wcRoom := createWCRoom(t, ctx.db)
-	defer cleanupWCInfrastructure(t, ctx.db, wcRoom.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())
@@ -2387,6 +2357,10 @@ func TestDeviceCheckin_WCGroupDoesNotHijackDeviceSession(t *testing.T) {
 
 // TestDeviceCheckin_SchulhofGroupHasNoDeviceID verifies that auto-created
 // Schulhof groups never receive a DeviceID, same invariant as WC.
+// Deliberately NOT parallel: the WC/Schulhof system space is keyed by NAME,
+// and the provisioning path that auto-creates it looks the name up without a
+// tenant filter. Two of these tests running side by side see each other's
+// half-created room, category or activity.
 func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -2401,7 +2375,6 @@ func TestDeviceCheckin_SchulhofGroupHasNoDeviceID(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
 	room := createSchulhofRoom(t, ctx.db)
-	defer cleanupSchulhofInfrastructure(t, ctx.db, room.ID)
 
 	router := chi.NewRouter()
 	router.Mount("/", ctx.resource.Router())

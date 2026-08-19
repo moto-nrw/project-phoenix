@@ -84,6 +84,8 @@ func waitForDispatchedMessage(t *testing.T, mailer *capturingMailer) email.Messa
 }
 
 func TestCreatePost_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -110,6 +112,8 @@ func TestCreatePost_Success(t *testing.T) {
 }
 
 func TestCreatePost_NilPost(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
@@ -120,6 +124,8 @@ func TestCreatePost_NilPost(t *testing.T) {
 }
 
 func TestCreatePost_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
@@ -136,6 +142,8 @@ func TestCreatePost_ValidationError(t *testing.T) {
 }
 
 func TestCreatePost_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -158,6 +166,8 @@ func TestCreatePost_RepoError(t *testing.T) {
 }
 
 func TestCreatePost_DispatchesNotificationToTrimmedRecipients(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	mailer := newCapturingMailer(2)
 	dispatcher := email.NewDispatcher(mailer, nil)
@@ -221,6 +231,8 @@ func TestCreatePost_DispatchesNotificationToTrimmedRecipients(t *testing.T) {
 }
 
 func TestCreatePost_DispatchesNotificationWithInjectedLogger(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
@@ -264,6 +276,8 @@ func TestCreatePost_DispatchesNotificationWithInjectedLogger(t *testing.T) {
 }
 
 func TestCreatePost_IgnoresNotificationLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	createCalls := 0
 	lookupCalls := 0
@@ -294,6 +308,8 @@ func TestCreatePost_IgnoresNotificationLookupFailure(t *testing.T) {
 }
 
 func TestGetPost_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedPost := &suggestions.Post{Title: "Test Post"}
 
@@ -314,6 +330,8 @@ func TestGetPost_Success(t *testing.T) {
 }
 
 func TestGetPost_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -332,6 +350,8 @@ func TestGetPost_NotFound(t *testing.T) {
 }
 
 func TestGetPost_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -350,6 +370,8 @@ func TestGetPost_RepoError(t *testing.T) {
 }
 
 func TestUpdatePost_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -380,6 +402,8 @@ func TestUpdatePost_Success(t *testing.T) {
 }
 
 func TestUpdatePost_NilPost(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
@@ -390,6 +414,8 @@ func TestUpdatePost_NilPost(t *testing.T) {
 }
 
 func TestUpdatePost_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -412,6 +438,8 @@ func TestUpdatePost_PostNotFound(t *testing.T) {
 }
 
 func TestUpdatePost_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
@@ -434,6 +462,8 @@ func TestUpdatePost_FindByIDError(t *testing.T) {
 }
 
 func TestUpdatePost_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -458,6 +488,8 @@ func TestUpdatePost_Forbidden(t *testing.T) {
 }
 
 func TestUpdatePost_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -483,6 +515,8 @@ func TestUpdatePost_ValidationError(t *testing.T) {
 }
 
 func TestUpdatePost_RepoErrorOnUpdate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("update error")
 
@@ -511,6 +545,8 @@ func TestUpdatePost_RepoErrorOnUpdate(t *testing.T) {
 }
 
 func TestDeletePost_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -532,6 +568,8 @@ func TestDeletePost_Success(t *testing.T) {
 }
 
 func TestDeletePost_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -548,6 +586,8 @@ func TestDeletePost_PostNotFound(t *testing.T) {
 }
 
 func TestDeletePost_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
@@ -564,6 +604,8 @@ func TestDeletePost_FindByIDError(t *testing.T) {
 }
 
 func TestDeletePost_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -582,6 +624,8 @@ func TestDeletePost_Forbidden(t *testing.T) {
 }
 
 func TestDeletePost_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("delete error")
 
@@ -603,6 +647,8 @@ func TestDeletePost_RepoError(t *testing.T) {
 }
 
 func TestListPosts_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedPosts := []*suggestions.Post{{}, {}}
 
@@ -623,6 +669,8 @@ func TestListPosts_Success(t *testing.T) {
 }
 
 func TestListPosts_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("list error")
 
@@ -641,6 +689,8 @@ func TestListPosts_RepoError(t *testing.T) {
 }
 
 func TestVote_InvalidDirection(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
@@ -652,6 +702,8 @@ func TestVote_InvalidDirection(t *testing.T) {
 }
 
 func TestVote_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -669,6 +721,8 @@ func TestVote_PostNotFound(t *testing.T) {
 }
 
 func TestVote_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -704,6 +758,8 @@ func TestVote_Success(t *testing.T) {
 }
 
 func TestVote_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("find failed")
 
@@ -721,6 +777,8 @@ func TestVote_FindByIDError(t *testing.T) {
 }
 
 func TestVote_UpsertErrorRollsBack(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("upsert failed")
 
@@ -744,6 +802,8 @@ func TestVote_UpsertErrorRollsBack(t *testing.T) {
 }
 
 func TestVote_RecalculateErrorRollsBack(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("recalculate failed")
 
@@ -770,6 +830,8 @@ func TestVote_RecalculateErrorRollsBack(t *testing.T) {
 }
 
 func TestRemoveVote_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -787,6 +849,8 @@ func TestRemoveVote_PostNotFound(t *testing.T) {
 }
 
 func TestRemoveVote_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -819,6 +883,8 @@ func TestRemoveVote_Success(t *testing.T) {
 }
 
 func TestRemoveVote_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("find failed")
 
@@ -836,6 +902,8 @@ func TestRemoveVote_FindByIDError(t *testing.T) {
 }
 
 func TestRemoveVote_DeleteErrorRollsBack(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("delete failed")
 
@@ -859,6 +927,8 @@ func TestRemoveVote_DeleteErrorRollsBack(t *testing.T) {
 }
 
 func TestRemoveVote_RecalculateErrorRollsBack(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("recalculate failed")
 
@@ -885,6 +955,8 @@ func TestRemoveVote_RecalculateErrorRollsBack(t *testing.T) {
 }
 
 func TestCreateComment_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -915,6 +987,8 @@ func TestCreateComment_Success(t *testing.T) {
 }
 
 func TestCreateComment_NilComment(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
@@ -925,6 +999,8 @@ func TestCreateComment_NilComment(t *testing.T) {
 }
 
 func TestCreateComment_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -947,6 +1023,8 @@ func TestCreateComment_PostNotFound(t *testing.T) {
 }
 
 func TestCreateComment_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -969,6 +1047,8 @@ func TestCreateComment_ValidationError(t *testing.T) {
 }
 
 func TestCreateComment_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("create error")
 
@@ -997,6 +1077,8 @@ func TestCreateComment_RepoError(t *testing.T) {
 }
 
 func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	mailer := newCapturingMailer(2)
 	dispatcher := email.NewDispatcher(mailer, nil)
@@ -1065,6 +1147,8 @@ func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
 }
 
 func TestCreateComment_IgnoresNotificationLookupErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	findResolvedCommentCalls := 0
 
@@ -1101,6 +1185,8 @@ func TestCreateComment_IgnoresNotificationLookupErrors(t *testing.T) {
 }
 
 func TestCreateComment_IgnoresResolvedCommentLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -1134,6 +1220,8 @@ func TestCreateComment_IgnoresResolvedCommentLookupFailure(t *testing.T) {
 }
 
 func TestCreatePost_NotificationLookupUsesDetachedContext(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
@@ -1177,6 +1265,8 @@ func TestCreatePost_NotificationLookupUsesDetachedContext(t *testing.T) {
 }
 
 func TestCreateComment_NotificationLookupUsesDetachedContext(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
@@ -1233,6 +1323,8 @@ func TestCreateComment_NotificationLookupUsesDetachedContext(t *testing.T) {
 }
 
 func TestCreatePost_NotificationDescriptionTruncatesByRunes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
@@ -1278,6 +1370,8 @@ func TestCreatePost_NotificationDescriptionTruncatesByRunes(t *testing.T) {
 }
 
 func TestCreateComment_NotificationContentTruncatesByRunes(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
@@ -1335,6 +1429,8 @@ func TestCreateComment_NotificationContentTruncatesByRunes(t *testing.T) {
 }
 
 func TestGetComments_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedComments := []*suggestions.Comment{{Content: "Test"}}
 
@@ -1353,6 +1449,8 @@ func TestGetComments_Success(t *testing.T) {
 }
 
 func TestGetComments_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
@@ -1370,6 +1468,8 @@ func TestGetComments_RepoError(t *testing.T) {
 }
 
 func TestGetComments_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -1389,6 +1489,8 @@ func TestGetComments_PostNotFound(t *testing.T) {
 }
 
 func TestDeleteComment_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	commentRepo := &testpkg.SuggestionsCommentRepoMock{
@@ -1411,6 +1513,8 @@ func TestDeleteComment_Success(t *testing.T) {
 }
 
 func TestDeleteComment_CommentNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	commentRepo := &testpkg.SuggestionsCommentRepoMock{
@@ -1427,6 +1531,8 @@ func TestDeleteComment_CommentNotFound(t *testing.T) {
 }
 
 func TestDeleteComment_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
@@ -1443,6 +1549,8 @@ func TestDeleteComment_FindByIDError(t *testing.T) {
 }
 
 func TestDeleteComment_ForbiddenWrongAuthorType(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	commentRepo := &testpkg.SuggestionsCommentRepoMock{
@@ -1462,6 +1570,8 @@ func TestDeleteComment_ForbiddenWrongAuthorType(t *testing.T) {
 }
 
 func TestDeleteComment_ForbiddenWrongAuthorID(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	commentRepo := &testpkg.SuggestionsCommentRepoMock{
@@ -1481,6 +1591,8 @@ func TestDeleteComment_ForbiddenWrongAuthorID(t *testing.T) {
 }
 
 func TestDeleteComment_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("delete error")
 
@@ -1503,6 +1615,8 @@ func TestDeleteComment_RepoError(t *testing.T) {
 }
 
 func TestDeleteComment_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	commentRepo := &testpkg.SuggestionsCommentRepoMock{
@@ -1531,6 +1645,8 @@ func TestDeleteComment_PostNotFound(t *testing.T) {
 }
 
 func TestDeleteComment_PostLookupError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("post lookup error")
 
@@ -1558,6 +1674,8 @@ func TestDeleteComment_PostLookupError(t *testing.T) {
 }
 
 func TestMarkCommentsRead_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -1582,6 +1700,8 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 }
 
 func TestMarkCommentsRead_PostNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	postRepo := &testpkg.SuggestionsPostRepoMock{
@@ -1598,6 +1718,8 @@ func TestMarkCommentsRead_PostNotFound(t *testing.T) {
 }
 
 func TestMarkCommentsRead_FindByIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
@@ -1614,6 +1736,8 @@ func TestMarkCommentsRead_FindByIDError(t *testing.T) {
 }
 
 func TestMarkCommentsRead_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("upsert error")
 
@@ -1637,6 +1761,8 @@ func TestMarkCommentsRead_RepoError(t *testing.T) {
 }
 
 func TestGetTotalUnreadCount_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	commentReadRepo := &testpkg.SuggestionsCommentReadRepoMock{
@@ -1655,6 +1781,8 @@ func TestGetTotalUnreadCount_Success(t *testing.T) {
 }
 
 func TestGetTotalUnreadCount_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	expectedErr := errors.New("count error")
 

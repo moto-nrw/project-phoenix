@@ -40,6 +40,8 @@ func createTestCalendarPeriod(t *testing.T, repo scheduleModels.CalendarPeriodRe
 }
 
 func TestCalendarPeriodRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
@@ -158,6 +160,8 @@ func TestCalendarPeriodRepository_Create(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
@@ -185,6 +189,8 @@ func TestCalendarPeriodRepository_FindByID(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
@@ -232,6 +238,8 @@ func TestCalendarPeriodRepository_Update(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
@@ -275,6 +283,8 @@ func TestCalendarPeriodRepository_FindByTenantID(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
@@ -318,6 +328,8 @@ func TestCalendarPeriodRepository_FindActiveByTenantID(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
@@ -348,9 +360,12 @@ func TestCalendarPeriodRepository_FindByName(t *testing.T) {
 // exact: the shared tenant 1 accumulates periods from other tests (and other
 // packages running in parallel against the same test DB) whose ranges would
 // pollute overlap results.
-func newOverlapTenant(t *testing.T, db *bun.DB, base int64) (int64, context.Context) {
+func newOverlapTenant(t *testing.T, db *bun.DB) (int64, context.Context) {
 	t.Helper()
-	tenantID := base + time.Now().UnixNano()%50000
+	// UniqueTestTenantID, not a clock-derived offset: two subtests reading the
+	// same nanosecond used to get the same tenant, and the cross-tenant
+	// assertions below then compared a tenant with itself.
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
@@ -377,12 +392,14 @@ func createPeriodForTenant(t *testing.T, repo scheduleModels.CalendarPeriodRepos
 }
 
 func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 
 	t.Run("inserts when name is absent, no-ops on conflict", func(t *testing.T) {
-		tenantID, ctx := newOverlapTenant(t, db, 510000)
+		tenantID, ctx := newOverlapTenant(t, db)
 		name := fmt.Sprintf("Bootstrap-%d", time.Now().UnixNano())
 
 		first := &scheduleModels.CalendarPeriod{
@@ -423,8 +440,8 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 	})
 
 	t.Run("same name in another tenant still inserts", func(t *testing.T) {
-		tenantA, ctxA := newOverlapTenant(t, db, 520000)
-		tenantB, ctxB := newOverlapTenant(t, db, 530000)
+		tenantA, ctxA := newOverlapTenant(t, db)
+		tenantB, ctxB := newOverlapTenant(t, db)
 		name := fmt.Sprintf("Bootstrap-Cross-%d", time.Now().UnixNano())
 
 		makePeriod := func(tenantID int64) *scheduleModels.CalendarPeriod {
@@ -450,7 +467,7 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 	})
 
 	t.Run("fails on nil period", func(t *testing.T) {
-		_, ctx := newOverlapTenant(t, db, 540000)
+		_, ctx := newOverlapTenant(t, db)
 		created, err := repo.CreateIfAbsent(ctx, nil)
 		require.Error(t, err)
 		assert.False(t, created)
@@ -458,7 +475,7 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 	})
 
 	t.Run("fails validation before touching the database", func(t *testing.T) {
-		tenantID, ctx := newOverlapTenant(t, db, 550000)
+		tenantID, ctx := newOverlapTenant(t, db)
 		invalid := &scheduleModels.CalendarPeriod{
 			PeriodType:      scheduleModels.PeriodTypeSchoolYear,
 			StartDate:       timezone.NewDate(2030, time.August, 1),
@@ -474,10 +491,12 @@ func TestCalendarPeriodRepository_CreateIfAbsent(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	tenantID, ctx := newOverlapTenant(t, db, 560000)
+	tenantID, ctx := newOverlapTenant(t, db)
 
 	// Fixture layout (all in the fresh tenant):
 	//   active     2030-08-01 .. 2031-07-31  (the period others may collide with)
@@ -544,7 +563,7 @@ func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 	})
 
 	t.Run("cross-tenant isolation", func(t *testing.T) {
-		otherTenantID, otherCtx := newOverlapTenant(t, db, 570000)
+		otherTenantID, otherCtx := newOverlapTenant(t, db)
 		other := createPeriodForTenant(t, repo, otherCtx, otherTenantID, "Overlap-Fremd",
 			timezone.NewDate(2030, time.August, 1), timezone.NewDate(2031, time.July, 31), true)
 
@@ -564,10 +583,12 @@ func TestCalendarPeriodRepository_FindActiveOverlapping(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
-	tenantID, ctx := newOverlapTenant(t, db, 580000)
+	tenantID, ctx := newOverlapTenant(t, db)
 
 	createTyped := func(cctx context.Context, tid int64, name, periodType string, isActive bool) *scheduleModels.CalendarPeriod {
 		period := &scheduleModels.CalendarPeriod{
@@ -625,7 +646,7 @@ func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
 	})
 
 	t.Run("cross-tenant isolation", func(t *testing.T) {
-		otherTenantID, otherCtx := newOverlapTenant(t, db, 590000)
+		otherTenantID, otherCtx := newOverlapTenant(t, db)
 		other := createTyped(otherCtx, otherTenantID, "ByType-Fremd", scheduleModels.PeriodTypeSemester, true)
 
 		got, err := repo.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeSemester, queryStart, queryEnd, 0)
@@ -639,6 +660,8 @@ func TestCalendarPeriodRepository_FindActiveOverlappingByType(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -652,6 +675,8 @@ func TestCalendarPeriodRepository_UsageCounts_ReturnsDatabaseError(t *testing.T)
 }
 
 func TestCalendarPeriodRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)
@@ -676,6 +701,8 @@ func TestCalendarPeriodRepository_Delete(t *testing.T) {
 // Catalog code 'n' = SET NULL, 'a' = NO ACTION (default RESTRICT-equivalent),
 // 'c' = CASCADE, 'r' = RESTRICT, 'd' = SET DEFAULT.
 func TestCalendarPeriodFKOnDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -710,6 +737,8 @@ func TestCalendarPeriodFKOnDelete(t *testing.T) {
 }
 
 func TestCalendarPeriodRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewCalendarPeriodRepository(db)

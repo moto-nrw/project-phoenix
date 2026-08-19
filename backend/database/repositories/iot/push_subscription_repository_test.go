@@ -158,6 +158,8 @@ func hasSubscriptionEndpoint(subs []*iotModels.PushSubscription, endpoint string
 }
 
 func TestPushSubscriptionRepository(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
@@ -561,6 +563,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 }
 
 func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)

@@ -12,6 +12,8 @@ import (
 )
 
 func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -42,6 +44,8 @@ func TestRequestChildOfferingRepository_ListAtDate_DoesNotReturnFutureSelection(
 // editor seeded empty while the save still finds a selection to replace.
 // Whoever removes this fallback must also revisit ListChildOfferings.
 func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -61,6 +65,8 @@ func TestRequestChildOfferingRepo_AtDateBeforeServiceStart_ReturnsNextInterval(t
 }
 
 func TestRequestChildOfferingRepository_ListAtDates_DoesNotReturnHistoricalSelection(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

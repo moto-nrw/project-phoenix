@@ -94,6 +94,8 @@ func futureDate(offsetDays int) (string, timezone.Date) {
 }
 
 func TestGaps_Empty(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 	router := gapsRouter(s.ctx, s.res)
@@ -108,6 +110,8 @@ func TestGaps_Empty(t *testing.T) {
 }
 
 func TestGaps_OneGapPlannedNoStaff(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -130,6 +134,8 @@ func TestGaps_OneGapPlannedNoStaff(t *testing.T) {
 }
 
 func TestGaps_AllStaffAbsent_IsAGap(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -166,6 +172,8 @@ func TestGaps_AllStaffAbsent_IsAGap(t *testing.T) {
 // surface as a gap even though one person is still present, and report present
 // vs planned so the UI can show "1 von 2".
 func TestGaps_PartiallyStaffed_IsAGap(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -203,6 +211,8 @@ func TestGaps_PartiallyStaffed_IsAGap(t *testing.T) {
 // A block covered by a substitute (one planned absent, one substitute present)
 // is fully staffed again — it must NOT be a gap.
 func TestGaps_SubstituteCovers_NotAGap(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -232,6 +242,8 @@ func TestGaps_SubstituteCovers_NotAGap(t *testing.T) {
 }
 
 func TestGaps_NonAbsentStaff_NotAGap(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -256,6 +268,8 @@ func TestGaps_NonAbsentStaff_NotAGap(t *testing.T) {
 }
 
 func TestGaps_CompletedAndCancelled_Excluded(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -280,6 +294,8 @@ func TestGaps_CompletedAndCancelled_Excluded(t *testing.T) {
 // #1840: an instance with zero staff but understaffed_ack=true is partitioned
 // into Acknowledged, not Gaps — the shortfall stays visible but stops nagging.
 func TestGaps_UnderstaffedAck_MovedToAcknowledged(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -318,6 +334,8 @@ func TestGaps_UnderstaffedAck_MovedToAcknowledged(t *testing.T) {
 }
 
 func TestGaps_DateValidation(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 	router := gapsRouter(s.ctx, s.res)
@@ -354,6 +372,8 @@ func TestGaps_DateValidation(t *testing.T) {
 }
 
 func TestGaps_Sorting(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 
@@ -385,6 +405,8 @@ func TestGaps_Sorting(t *testing.T) {
 }
 
 func TestGaps_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()
 

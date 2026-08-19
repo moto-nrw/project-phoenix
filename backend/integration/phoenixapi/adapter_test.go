@@ -18,6 +18,8 @@ import (
 // =============================================================================
 
 func TestNew(t *testing.T) {
+	t.Parallel()
+
 	a := New("http://localhost:8080/", false)
 	assert.Equal(t, "http://localhost:8080", a.baseURL)
 	assert.False(t, a.verbose)
@@ -25,11 +27,15 @@ func TestNew(t *testing.T) {
 }
 
 func TestNew_StripsTrailingSlash(t *testing.T) {
+	t.Parallel()
+
 	a := New("http://example.com///", false)
 	assert.Equal(t, "http://example.com//", a.baseURL)
 }
 
 func TestNewWithHTTPClient_CustomClient(t *testing.T) {
+	t.Parallel()
+
 	custom := &http.Client{}
 	a := NewWithHTTPClient("http://localhost", true, custom)
 	assert.Same(t, custom, a.httpClient)
@@ -37,16 +43,22 @@ func TestNewWithHTTPClient_CustomClient(t *testing.T) {
 }
 
 func TestNewWithHTTPClient_NilClient(t *testing.T) {
+	t.Parallel()
+
 	a := NewWithHTTPClient("http://localhost", false, nil)
 	assert.NotNil(t, a.httpClient)
 }
 
 func TestAdapter_BaseURL(t *testing.T) {
+	t.Parallel()
+
 	a := New("http://localhost:8080", false)
 	assert.Equal(t, "http://localhost:8080", a.BaseURL())
 }
 
 func TestAdapter_HTTPClient(t *testing.T) {
+	t.Parallel()
+
 	a := New("http://localhost:8080", false)
 	assert.NotNil(t, a.HTTPClient())
 }
@@ -56,6 +68,8 @@ func TestAdapter_HTTPClient(t *testing.T) {
 // =============================================================================
 
 func TestCheckHealth_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/health", r.URL.Path)
 		assert.Equal(t, http.MethodGet, r.Method)
@@ -69,6 +83,8 @@ func TestCheckHealth_Success(t *testing.T) {
 }
 
 func TestCheckHealth_NonOK(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
@@ -81,6 +97,8 @@ func TestCheckHealth_NonOK(t *testing.T) {
 }
 
 func TestCheckHealth_Unreachable(t *testing.T) {
+	t.Parallel()
+
 	a := New("http://localhost:1", false)
 	err := a.CheckHealth(context.Background())
 	assert.Error(t, err)
@@ -92,6 +110,8 @@ func TestCheckHealth_Unreachable(t *testing.T) {
 // =============================================================================
 
 func TestLoginOperator_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/operator/auth/login", r.URL.Path)
 		assert.Equal(t, http.MethodPost, r.Method)
@@ -118,6 +138,8 @@ func TestLoginOperator_Success(t *testing.T) {
 }
 
 func TestLoginOperator_FallbackToken(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "flat-token"})
@@ -131,6 +153,8 @@ func TestLoginOperator_FallbackToken(t *testing.T) {
 }
 
 func TestLoginOperator_NoToken(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]string{}})
@@ -144,6 +168,8 @@ func TestLoginOperator_NoToken(t *testing.T) {
 }
 
 func TestLoginOperator_ServerError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = fmt.Fprint(w, `{"error":"bad creds"}`)
@@ -157,6 +183,8 @@ func TestLoginOperator_ServerError(t *testing.T) {
 }
 
 func TestLoginOperator_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
@@ -174,6 +202,8 @@ func TestLoginOperator_InvalidJSON(t *testing.T) {
 // =============================================================================
 
 func TestLoginTenant_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/auth/login", r.URL.Path)
 
@@ -196,6 +226,8 @@ func TestLoginTenant_Success(t *testing.T) {
 }
 
 func TestLoginTenant_EmptySlug(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
 		var payload map[string]string
@@ -214,6 +246,8 @@ func TestLoginTenant_EmptySlug(t *testing.T) {
 }
 
 func TestLoginTenant_WhitespaceSlug(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{"access_token": "jwt"})
@@ -227,6 +261,8 @@ func TestLoginTenant_WhitespaceSlug(t *testing.T) {
 }
 
 func TestLoginTenant_NoToken(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{})
@@ -240,6 +276,8 @@ func TestLoginTenant_NoToken(t *testing.T) {
 }
 
 func TestLoginTenant_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{broken`)
@@ -257,6 +295,8 @@ func TestLoginTenant_InvalidJSON(t *testing.T) {
 // =============================================================================
 
 func TestDeviceAuth(t *testing.T) {
+	t.Parallel()
+
 	auth := DeviceAuth("api-key-123", "1234", "scanner-1")
 	assert.Equal(t, AuthDevice, auth.Kind)
 	assert.Equal(t, "scanner-1", auth.Label)
@@ -269,6 +309,8 @@ func TestDeviceAuth(t *testing.T) {
 // =============================================================================
 
 func TestRaw_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/api/test", r.URL.Path)
@@ -289,6 +331,8 @@ func TestRaw_Success(t *testing.T) {
 }
 
 func TestRaw_WithBearerAuth(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer my-token", r.Header.Get("Authorization"))
 		w.WriteHeader(http.StatusOK)
@@ -303,6 +347,8 @@ func TestRaw_WithBearerAuth(t *testing.T) {
 }
 
 func TestRaw_WithDeviceAuth(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer dev-key", r.Header.Get("Authorization"))
 		assert.Equal(t, "9999", r.Header.Get("X-Staff-PIN"))
@@ -318,6 +364,8 @@ func TestRaw_WithDeviceAuth(t *testing.T) {
 }
 
 func TestRaw_CustomHeaders(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "custom-val", r.Header.Get("X-Custom"))
 		w.WriteHeader(http.StatusOK)
@@ -332,6 +380,8 @@ func TestRaw_CustomHeaders(t *testing.T) {
 }
 
 func TestRaw_HTTPError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = fmt.Fprint(w, `{"message":"bad input"}`)
@@ -350,6 +400,8 @@ func TestRaw_HTTPError(t *testing.T) {
 }
 
 func TestRaw_Verbose(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{}`)
@@ -362,6 +414,8 @@ func TestRaw_Verbose(t *testing.T) {
 }
 
 func TestRaw_VerboseError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"fail"}`)
@@ -374,6 +428,8 @@ func TestRaw_VerboseError(t *testing.T) {
 }
 
 func TestRaw_NilBody(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// No Content-Type when body is nil
 		assert.Empty(t, r.Header.Get("Content-Type"))
@@ -388,6 +444,8 @@ func TestRaw_NilBody(t *testing.T) {
 }
 
 func TestRaw_PathWithoutLeadingSlash(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/api/test", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
@@ -401,6 +459,8 @@ func TestRaw_PathWithoutLeadingSlash(t *testing.T) {
 }
 
 func TestRaw_Unreachable(t *testing.T) {
+	t.Parallel()
+
 	a := New("http://localhost:1", false)
 	_, _, err := a.Raw(context.Background(), AuthRef{}, http.MethodGet, "/test", nil, nil)
 	assert.Error(t, err)
@@ -412,6 +472,8 @@ func TestRaw_Unreachable(t *testing.T) {
 // =============================================================================
 
 func TestJSON_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{"name": "test"})
@@ -426,6 +488,8 @@ func TestJSON_Success(t *testing.T) {
 }
 
 func TestJSON_NilOut(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{"ignored": true}`)
@@ -438,6 +502,8 @@ func TestJSON_NilOut(t *testing.T) {
 }
 
 func TestJSON_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
@@ -452,6 +518,8 @@ func TestJSON_InvalidJSON(t *testing.T) {
 }
 
 func TestJSON_HTTPError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = fmt.Fprint(w, `{"error":"forbidden"}`)
@@ -469,6 +537,8 @@ func TestJSON_HTTPError(t *testing.T) {
 // =============================================================================
 
 func TestEnvelope_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -486,6 +556,8 @@ func TestEnvelope_Success(t *testing.T) {
 }
 
 func TestEnvelope_NilOut(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -501,6 +573,8 @@ func TestEnvelope_NilOut(t *testing.T) {
 }
 
 func TestEnvelope_NullData(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
@@ -514,6 +588,8 @@ func TestEnvelope_NullData(t *testing.T) {
 }
 
 func TestEnvelope_EmptyData(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success"}`)
@@ -527,6 +603,8 @@ func TestEnvelope_EmptyData(t *testing.T) {
 }
 
 func TestEnvelope_ErrorStatus(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"error","message":"something went wrong"}`)
@@ -543,6 +621,8 @@ func TestEnvelope_ErrorStatus(t *testing.T) {
 }
 
 func TestEnvelope_InvalidEnvelopeJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
@@ -557,6 +637,8 @@ func TestEnvelope_InvalidEnvelopeJSON(t *testing.T) {
 }
 
 func TestEnvelope_InvalidDataJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		// data is a string, but we try to unmarshal into a map
@@ -572,6 +654,8 @@ func TestEnvelope_InvalidDataJSON(t *testing.T) {
 }
 
 func TestEnvelope_HTTPError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = fmt.Fprint(w, `{"error":"not found"}`)
@@ -588,26 +672,36 @@ func TestEnvelope_HTTPError(t *testing.T) {
 // =============================================================================
 
 func TestAPIError_Error_WithMessage(t *testing.T) {
+	t.Parallel()
+
 	e := &APIError{Method: "GET", Path: "/test", StatusCode: 400, Message: "bad input"}
 	assert.Contains(t, e.Error(), "GET /test failed: 400 - bad input")
 }
 
 func TestAPIError_Error_WithBody(t *testing.T) {
+	t.Parallel()
+
 	e := &APIError{Method: "POST", Path: "/api", StatusCode: 500, Body: "raw body"}
 	assert.Contains(t, e.Error(), "POST /api failed: 500 - raw body")
 }
 
 func TestAPIError_Error_StatusOnly(t *testing.T) {
+	t.Parallel()
+
 	e := &APIError{Method: "DELETE", Path: "/item", StatusCode: 404}
 	assert.Equal(t, "DELETE /item failed: 404", e.Error())
 }
 
 func TestAPIError_Error_Nil(t *testing.T) {
+	t.Parallel()
+
 	var e *APIError
 	assert.Equal(t, "", e.Error())
 }
 
 func TestAPIError_Error_MessagePrecedence(t *testing.T) {
+	t.Parallel()
+
 	e := &APIError{Method: "GET", Path: "/", StatusCode: 400, Message: "msg", Body: "body"}
 	// Message takes precedence over Body
 	assert.Contains(t, e.Error(), "msg")
@@ -619,6 +713,8 @@ func TestAPIError_Error_MessagePrecedence(t *testing.T) {
 // =============================================================================
 
 func TestParseHTTPError_WithMessage(t *testing.T) {
+	t.Parallel()
+
 	body := `{"status":"error","message":"not found"}`
 	err := parseHTTPError("GET", "/test", 404, []byte(body))
 	var apiErr *APIError
@@ -628,6 +724,8 @@ func TestParseHTTPError_WithMessage(t *testing.T) {
 }
 
 func TestParseHTTPError_WithErrorField(t *testing.T) {
+	t.Parallel()
+
 	body := `{"error":"unauthorized"}`
 	err := parseHTTPError("POST", "/login", 401, []byte(body))
 	var apiErr *APIError
@@ -636,6 +734,8 @@ func TestParseHTTPError_WithErrorField(t *testing.T) {
 }
 
 func TestParseHTTPError_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	err := parseHTTPError("GET", "/test", 500, []byte("not json"))
 	var apiErr *APIError
 	require.ErrorAs(t, err, &apiErr)
@@ -644,6 +744,8 @@ func TestParseHTTPError_InvalidJSON(t *testing.T) {
 }
 
 func TestParseHTTPError_EmptyMessageAndError(t *testing.T) {
+	t.Parallel()
+
 	body := `{"status":"error"}`
 	err := parseHTTPError("GET", "/test", 500, []byte(body))
 	var apiErr *APIError
@@ -656,10 +758,14 @@ func TestParseHTTPError_EmptyMessageAndError(t *testing.T) {
 // =============================================================================
 
 func TestTruncateBody_Short(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "hello", truncateBody("hello"))
 }
 
 func TestTruncateBody_Exact200(t *testing.T) {
+	t.Parallel()
+
 	s := ""
 	for i := 0; i < 200; i++ {
 		s += "x"
@@ -668,6 +774,8 @@ func TestTruncateBody_Exact200(t *testing.T) {
 }
 
 func TestTruncateBody_Over200(t *testing.T) {
+	t.Parallel()
+
 	s := ""
 	for i := 0; i < 250; i++ {
 		s += "x"
@@ -678,10 +786,14 @@ func TestTruncateBody_Over200(t *testing.T) {
 }
 
 func TestTruncateBody_WithWhitespace(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "hello", truncateBody("  hello  "))
 }
 
 func TestTruncateBody_Empty(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "", truncateBody(""))
 }
 
@@ -690,26 +802,38 @@ func TestTruncateBody_Empty(t *testing.T) {
 // =============================================================================
 
 func TestAuthModeLabel_BearerWithLabel(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "admin", authModeLabel(AuthRef{Kind: AuthBearer, Label: "admin"}))
 }
 
 func TestAuthModeLabel_BearerNoLabel(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "bearer", authModeLabel(AuthRef{Kind: AuthBearer}))
 }
 
 func TestAuthModeLabel_DeviceWithLabel(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "device:scanner-1", authModeLabel(AuthRef{Kind: AuthDevice, Label: "scanner-1"}))
 }
 
 func TestAuthModeLabel_DeviceNoLabel(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "device", authModeLabel(AuthRef{Kind: AuthDevice}))
 }
 
 func TestAuthModeLabel_None(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "public", authModeLabel(AuthRef{Kind: AuthKind("none")}))
 }
 
 func TestAuthModeLabel_Default(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "public", authModeLabel(AuthRef{}))
 }
 
@@ -718,18 +842,24 @@ func TestAuthModeLabel_Default(t *testing.T) {
 // =============================================================================
 
 func TestApplyAuth_Bearer(t *testing.T) {
+	t.Parallel()
+
 	req, _ := http.NewRequest(http.MethodGet, "http://test", nil)
 	applyAuth(req, AuthRef{Kind: AuthBearer, Token: "tok123"})
 	assert.Equal(t, "Bearer tok123", req.Header.Get("Authorization"))
 }
 
 func TestApplyAuth_BearerEmptyToken(t *testing.T) {
+	t.Parallel()
+
 	req, _ := http.NewRequest(http.MethodGet, "http://test", nil)
 	applyAuth(req, AuthRef{Kind: AuthBearer, Token: ""})
 	assert.Empty(t, req.Header.Get("Authorization"))
 }
 
 func TestApplyAuth_Device(t *testing.T) {
+	t.Parallel()
+
 	req, _ := http.NewRequest(http.MethodGet, "http://test", nil)
 	applyAuth(req, AuthRef{Kind: AuthDevice, APIKey: "key", PIN: "1234"})
 	assert.Equal(t, "Bearer key", req.Header.Get("Authorization"))
@@ -737,6 +867,8 @@ func TestApplyAuth_Device(t *testing.T) {
 }
 
 func TestApplyAuth_DeviceEmptyKey(t *testing.T) {
+	t.Parallel()
+
 	req, _ := http.NewRequest(http.MethodGet, "http://test", nil)
 	applyAuth(req, AuthRef{Kind: AuthDevice, APIKey: "", PIN: "1234"})
 	assert.Empty(t, req.Header.Get("Authorization"))
@@ -744,6 +876,8 @@ func TestApplyAuth_DeviceEmptyKey(t *testing.T) {
 }
 
 func TestApplyAuth_DeviceEmptyPIN(t *testing.T) {
+	t.Parallel()
+
 	req, _ := http.NewRequest(http.MethodGet, "http://test", nil)
 	applyAuth(req, AuthRef{Kind: AuthDevice, APIKey: "key", PIN: ""})
 	assert.Equal(t, "Bearer key", req.Header.Get("Authorization"))
@@ -751,6 +885,8 @@ func TestApplyAuth_DeviceEmptyPIN(t *testing.T) {
 }
 
 func TestApplyAuth_None(t *testing.T) {
+	t.Parallel()
+
 	req, _ := http.NewRequest(http.MethodGet, "http://test", nil)
 	applyAuth(req, AuthRef{Kind: AuthKind("none")})
 	assert.Empty(t, req.Header.Get("Authorization"))

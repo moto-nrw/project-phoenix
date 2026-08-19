@@ -33,6 +33,8 @@ func createStudentsAPITestStaffID(t *testing.T, tc *testContext) int64 {
 // =============================================================================
 
 func TestGetStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "ArrivalGet", "Test", "AG1")
@@ -148,6 +150,8 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_schedules", func(t *testing.T) {
@@ -284,6 +288,8 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestCreateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_exception", func(t *testing.T) {
@@ -571,6 +577,8 @@ func TestCreateStudentArrivalException(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_exception", func(t *testing.T) {
@@ -724,6 +732,8 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_exception", func(t *testing.T) {
@@ -832,6 +842,8 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 // =============================================================================
 
 func TestCreateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_note", func(t *testing.T) {
@@ -946,6 +958,8 @@ func TestCreateStudentArrivalNote(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_note", func(t *testing.T) {
@@ -1020,6 +1034,8 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_note", func(t *testing.T) {
@@ -1073,6 +1089,8 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 // =============================================================================
 
 func TestBulkUpsertArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("bad_request_missing_filter", func(t *testing.T) {
@@ -1217,6 +1235,8 @@ func TestBulkUpsertArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestGetBulkArrivalTimes(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
@@ -1296,6 +1316,8 @@ func TestGetBulkArrivalTimes(t *testing.T) {
 // The note paths are covered explicitly: they carried no after-commit hook at
 // all before, so they are the easiest place for the wiring to be dropped again.
 func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ArrCast", "Teacher")

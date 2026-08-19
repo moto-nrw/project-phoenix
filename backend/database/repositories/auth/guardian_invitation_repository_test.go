@@ -17,6 +17,8 @@ import (
 // ============================================================================
 
 func TestGuardianInvitationRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -54,6 +56,8 @@ func TestGuardianInvitationRepository_Create(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -87,6 +91,8 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -121,6 +127,8 @@ func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -171,6 +179,8 @@ func TestGuardianInvitationRepository_Update(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -203,6 +213,8 @@ func TestGuardianInvitationRepository_FindByGuardianProfileID(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_FindPending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -231,6 +243,8 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -267,6 +281,8 @@ func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation
@@ -330,6 +346,8 @@ func TestGuardianInvitationRepository_UpdateEmailStatus(t *testing.T) {
 }
 
 func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianInvitation

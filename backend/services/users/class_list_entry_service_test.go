@@ -24,6 +24,8 @@ func setupClassListEntryService(t *testing.T, db *bun.DB) (usersService.ClassLis
 }
 
 func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassListEntryService(t, db)
@@ -120,6 +122,8 @@ func TestClassListEntryService_CreateUpdateDelete(t *testing.T) {
 }
 
 func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassListEntryService(t, db)
@@ -202,6 +206,8 @@ func TestClassListEntryService_AssignResolvesDuplicate(t *testing.T) {
 }
 
 func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, _ := setupClassListEntryService(t, db)
@@ -229,6 +235,8 @@ func TestClassListEntryService_ListAllSortsClassThenName(t *testing.T) {
 }
 
 func TestClassListEntryService_UpdateGuards(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassListEntryService(t, db)
@@ -308,6 +316,8 @@ func TestClassListEntryService_UpdateGuards(t *testing.T) {
 }
 
 func TestClassListEntryService_MissingTargets(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, _ := setupClassListEntryService(t, db)
@@ -347,6 +357,8 @@ func TestClassListEntryService_MissingTargets(t *testing.T) {
 // Errors from the storage layer must propagate, not vanish: a canceled
 // context fails the first repository call of every service path.
 func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassListEntryService(t, db)
@@ -387,12 +399,15 @@ func TestClassListEntryService_StorageErrorsPropagate(t *testing.T) {
 }
 
 func TestClassListEntryService_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, _ := setupClassListEntryService(t, db)
 
-	testpkg.EnsureTestTenant(t, db, 42)
-	foreign := testpkg.CreateTestClassListEntryForTenant(t, db, 42, "CleForeign", "Kind", "9x")
+	foreignTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, foreignTenant)
+	foreign := testpkg.CreateTestClassListEntryForTenant(t, db, foreignTenant, "CleForeign", "Kind", "9x")
 
 	t.Run("foreign tenant entries are invisible", func(t *testing.T) {
 		entries, err := svc.ListAll(testpkg.Ctx(t))

@@ -12,6 +12,8 @@ import (
 )
 
 func TestMockBatchResolversDelegateAndDefault(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	keys := []string{"test.key"}
 	var tenantID int64

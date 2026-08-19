@@ -39,6 +39,8 @@ func createTestDeviationEvent(t *testing.T, db *bun.DB, scope testpkg.TenantScop
 }
 
 func TestDeviationEventRepository_ListByRangeFiltersSlotAndRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	scope := testpkg.NewTenantScope(t, db)
@@ -70,6 +72,8 @@ func TestDeviationEventRepository_ListByRangeFiltersSlotAndRange(t *testing.T) {
 }
 
 func TestDeviationEventRepository_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	scopeA := testpkg.NewTenantScope(t, db)
@@ -87,6 +91,8 @@ func TestDeviationEventRepository_TenantIsolation(t *testing.T) {
 }
 
 func TestDeviationEventRepository_DeleteOlderThan(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	scope := testpkg.NewTenantScope(t, db)
@@ -113,6 +119,8 @@ func TestDeviationEventRepository_DeleteOlderThan(t *testing.T) {
 // TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows: #1884
 // Dienstplan shift-move events must not leak into the Betreuungsplan history.
 func TestDeviationEventRepository_ListByRangeExcludesShiftAnchoredRows(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	scope := testpkg.NewTenantScope(t, db)

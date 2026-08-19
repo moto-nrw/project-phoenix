@@ -94,6 +94,8 @@ func newTestToken(email string, createdBy int64) *platform.OperatorInvitationTok
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -108,6 +110,8 @@ func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
 }
 
 func TestOperatorInvitationTokenRepository_Create_NilToken(t *testing.T) {
+	t.Parallel()
+
 	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
 
 	err := repo.Create(context.Background(), nil)
@@ -116,6 +120,8 @@ func TestOperatorInvitationTokenRepository_Create_NilToken(t *testing.T) {
 }
 
 func TestOperatorInvitationTokenRepository_Create_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
 
 	// Missing required fields
@@ -129,6 +135,8 @@ func TestOperatorInvitationTokenRepository_Create_ValidationError(t *testing.T) 
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -145,6 +153,8 @@ func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
 }
 
 func TestOperatorInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
 
 	found, err := repo.FindByID(context.Background(), 999999)
@@ -157,6 +167,8 @@ func TestOperatorInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -172,6 +184,8 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T
 }
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -193,6 +207,8 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T
 }
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -211,6 +227,8 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 }
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
 
 	found, err := repo.FindValidByToken(context.Background(), "nonexistent-token")
@@ -223,6 +241,8 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_NotFound(t *testing.
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -239,6 +259,8 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) 
 }
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -259,6 +281,8 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *tes
 }
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
 
 	consumed, err := repo.ConsumeByToken(context.Background(), "nonexistent")
@@ -271,6 +295,8 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_NotFound(t *testing.T)
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -291,6 +317,8 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 }
 
 func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -315,6 +343,8 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) 
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -356,6 +386,8 @@ func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -376,6 +408,8 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
 }
 
 func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -398,6 +432,8 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -419,6 +455,8 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
 }
 
 func TestOperatorInvitationTokenRepository_InvalidateByEmail_NoMatch(t *testing.T) {
+	t.Parallel()
+
 	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
 
 	invalidated, err := repo.InvalidateByEmail(context.Background(), "nonexistent-invalidate@example.com")
@@ -431,6 +469,8 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail_NoMatch(t *testing.
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -452,6 +492,8 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testi
 }
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -474,6 +516,8 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *tes
 }
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -504,6 +548,8 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t 
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
@@ -543,6 +589,8 @@ func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
 // =====================================================================
 
 func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
 	ctx := context.Background()
 

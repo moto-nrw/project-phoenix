@@ -46,6 +46,8 @@ func cleanupDeviationEvents(t *testing.T, db *bun.DB, tenantID int64) {
 // regenerates — the snapshot is dropped and MUST leave a
 // deviation_dropped_by_replan protocol row anchored at the slot key.
 func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -77,6 +79,8 @@ func TestReplanWeek_LogsDroppedSnapshotWhenSlotVanishes(t *testing.T) {
 // TestReplanWeek_SuccessfulReapplyLogsNothing: the template is unchanged, the
 // deviation reattaches — per the owner's decision no protocol row is written.
 func TestReplanWeek_SuccessfulReapplyLogsNothing(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)

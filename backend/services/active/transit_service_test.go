@@ -18,6 +18,8 @@ import (
 var activeSvcBypassAuth = activeSvc.StudentMoveAuthorization{BypassResourceChecks: true}
 
 func TestActiveService_ListStudentsInTransit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -55,6 +57,8 @@ func TestActiveService_ListStudentsInTransit(t *testing.T) {
 }
 
 func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -67,6 +71,8 @@ func TestActiveService_ListStudentsInTransit_NoOpenAttendance(t *testing.T) {
 }
 
 func TestActiveService_ListStudentsPresentToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -95,6 +101,8 @@ func TestActiveService_ListStudentsPresentToday(t *testing.T) {
 }
 
 func TestActiveService_ListStudentsPresentToday_NoOpenAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -107,6 +115,8 @@ func TestActiveService_ListStudentsPresentToday_NoOpenAttendance(t *testing.T) {
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -181,6 +191,8 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -224,6 +236,8 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsGraduatedStudent(t *test
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -244,6 +258,8 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t 
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -266,6 +282,8 @@ func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -289,6 +307,8 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSource(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -331,6 +351,8 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsUnsupervisedSou
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourceAndTarget(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -375,6 +397,8 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsSupervisedSourc
 }
 
 func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitIntoSupervisedTarget(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -406,6 +430,8 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_AllowsOpenTransitInto
 }
 
 func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -438,6 +464,8 @@ func TestActiveService_MoveStudentsToTransitAuthorized_AllowsUnsupervisedSource(
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -477,6 +505,8 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 }
 
 func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -527,6 +557,8 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeRejectsStaleVisit(t *
 }
 
 func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -590,6 +622,8 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 }
 
 func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -606,6 +640,8 @@ func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *tes
 }
 
 func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -623,6 +659,8 @@ func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
 }
 
 func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -655,6 +693,8 @@ func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testi
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -702,6 +742,8 @@ func TestActiveService_AssignTransitStudentsToActiveGroup(t *testing.T) {
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -724,6 +766,8 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_InvalidInput(t *testin
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -765,6 +809,8 @@ func TestActiveService_AssignTransitStudentsToActiveGroup_BinaryModeSkipsAll(t *
 }
 
 func TestActiveService_AssignTransitStudentsToActiveGroup_EndedTargetFails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

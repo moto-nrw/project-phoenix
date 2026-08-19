@@ -269,6 +269,8 @@ func removeUploadedPhotoFile(t *testing.T, body []byte) {
 // the handler would refuse — that branch is exercised in a separate
 // test below.
 func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -306,6 +308,8 @@ func TestUploadStudentPhoto_HappyPath_ConsentOnRow(t *testing.T) {
 // The handler must atomically stamp consent and write photo_path so
 // the user does not need an intermediate PUT round-trip.
 func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -336,6 +340,8 @@ func TestUploadStudentPhoto_HappyPath_ConsentAcknowledged(t *testing.T) {
 // The handler returns 400 before any DB work; useful regression
 // against a future "lenient" parser silently coercing to 0.
 func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -353,6 +359,8 @@ func TestUploadStudentPhoto_InvalidStudentID(t *testing.T) {
 // handler returns 400. Without this assertion a future refactor
 // could silently accept zero-byte files.
 func TestUploadStudentPhoto_NoFile(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -373,6 +381,8 @@ func TestUploadStudentPhoto_NoFile(t *testing.T) {
 // application/octet-stream, not an allowed image MIME. The handler
 // must reject with 400 before any disk write.
 func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -395,6 +405,8 @@ func TestUploadStudentPhoto_InvalidImageBytes(t *testing.T) {
 // cannot bypass parental consent. The file gets unlinked so disk
 // stays clean.
 func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -420,6 +432,8 @@ func TestUploadStudentPhoto_MissingConsent(t *testing.T) {
 // the German error verbatim. Critical: a school that never opted in
 // MUST NOT receive photo writes even from an admin.
 func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Deliberately do NOT call enableStudentPhotos.
 
@@ -443,6 +457,8 @@ func TestUploadStudentPhoto_FeatureDisabled(t *testing.T) {
 // per-student write gate (canUpdateStudent) asks only for a staff record, so
 // this upload must succeed exactly like an admin's.
 func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -474,6 +490,8 @@ func TestUploadStudentPhoto_StaffOutsideGroup(t *testing.T) {
 // the tenant. Handler must return 404 (not 500). A legitimate caller
 // hitting a stale URL must see a clean error.
 func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -487,6 +505,8 @@ func TestUploadStudentPhoto_StudentNotFound(t *testing.T) {
 }
 
 func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -510,6 +530,8 @@ func TestUploadStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 // NOT assert the old file is gone (that is racy with the after-commit
 // goroutine) — only that the row points at a NEW filename.
 func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -541,6 +563,8 @@ func TestUploadStudentPhoto_ReplacesExistingPhoto(t *testing.T) {
 // deletes, row's photo_path goes NULL, response is 200 "Foto entfernt",
 // and a broadcast is emitted.
 func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -566,6 +590,8 @@ func TestDeleteStudentPhoto_HappyPath(t *testing.T) {
 // frontend can fire DELETE blindly when the user clicks "Foto
 // entfernen" without checking state first.
 func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -585,6 +611,8 @@ func TestDeleteStudentPhoto_Idempotent(t *testing.T) {
 // school that disabled photos but still has rows pointing at files
 // could not be administered consistently.
 func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Feature DELIBERATELY left disabled.
 
@@ -603,6 +631,8 @@ func TestDeleteStudentPhoto_FeatureDisabled(t *testing.T) {
 // upload: a staff member with users:update deletes any child's photo since
 // #2329, supervision of the group no longer participates.
 func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -628,6 +658,8 @@ func TestDeleteStudentPhoto_StaffOutsideGroup(t *testing.T) {
 // TestDeleteStudentPhoto_StudentNotFound — non-existent ID. The
 // pre-tx parseAndGetStudent maps to 404 before any tx work.
 func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -639,6 +671,8 @@ func TestDeleteStudentPhoto_StudentNotFound(t *testing.T) {
 }
 
 func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -665,6 +699,8 @@ func TestDeleteStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
 // feature/consent/delete take effect on the next image load), and
 // the body contains the on-disk bytes.
 func TestServeStudentPhoto_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -685,6 +721,8 @@ func TestServeStudentPhoto_HappyPath(t *testing.T) {
 // TestServeStudentPhoto_InvalidStudentID — non-numeric URL param.
 // Returns 400 before any DB or filesystem work.
 func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -699,6 +737,8 @@ func TestServeStudentPhoto_InvalidStudentID(t *testing.T) {
 // admin with a previously-cached URL must be rejected. The byte
 // boundary must enforce the gate, not just the JSON serializer.
 func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Photos enabled NOT called.
 
@@ -721,6 +761,8 @@ func TestServeStudentPhoto_FeatureDisabled(t *testing.T) {
 // photo_path is NULL. Returns 404 with the German "kein Foto
 // hinterlegt" message.
 func TestServeStudentPhoto_NoPhoto(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -740,6 +782,8 @@ func TestServeStudentPhoto_NoPhoto(t *testing.T) {
 // row's current photo would let a leaked filename outlive a delete
 // or replacement.
 func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -762,6 +806,8 @@ func TestServeStudentPhoto_FilenameMismatch(t *testing.T) {
 // that merely holds users:read. Mirrors the policy used by getStudent and
 // protects against leaked photo URLs.
 func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -794,6 +840,8 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 // TestServeStudentPhoto_AllowedForStaffOutsideGroup — the counterpart: a staff
 // member who does not supervise the child's group fetches the photo normally.
 func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -827,6 +875,8 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 // (not 500). The DB lookup distinguishes sql.ErrNoRows from real
 // infrastructure failures so monitoring stays clean.
 func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 
@@ -838,6 +888,8 @@ func TestServeStudentPhoto_StudentNotFound(t *testing.T) {
 }
 
 func TestServeStudentPhoto_GraduatedStudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableStudentPhotos(t, tc)
 

@@ -211,6 +211,8 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 // --- #1840 understaffed acknowledgement -------------------------------------
 
 func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false)
@@ -241,6 +243,8 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 }
 
 func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false)
@@ -254,6 +258,8 @@ func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
 // remain — that would persist contradictory state (a block that reads as
 // unstaffed yet never appears in /gaps because it is staffed).
 func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, true, false) // one non-absent primary staff row
@@ -277,6 +283,8 @@ func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
 // staffed block (present < planned) — it is rejected only when the block is
 // fully staffed (see TestInstance_SetUnderstaffedAck_RejectedWhileStaffed).
 func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false) // no staff seeded; we add two below
@@ -298,6 +306,8 @@ func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) 
 }
 
 func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 
@@ -307,6 +317,8 @@ func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
 
 // #1840: Cancel persists the optional reason.
 func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false)
@@ -326,6 +338,8 @@ func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
 // --- State machine: happy paths ---------------------------------------------
 
 func TestInstance_Start_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true)
@@ -364,6 +378,8 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 }
 
 func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
@@ -407,6 +423,8 @@ func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
 }
 
 func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
@@ -443,6 +461,8 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 // open "Heute geplant" card (focus revalidation disabled) or planner from
 // staying stale until reload.
 func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
@@ -490,6 +510,8 @@ func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
 }
 
 func TestInstance_Complete_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, false)
@@ -511,6 +533,8 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 }
 
 func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, true)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -535,6 +559,8 @@ func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
 }
 
 func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, true)
 
@@ -627,6 +653,8 @@ func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
 }
 
 func TestInstance_Reopen_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -651,6 +679,8 @@ func TestInstance_Reopen_HappyPath(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsOccupiedRoom(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	first := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, first.ID, 0)
@@ -677,6 +707,8 @@ func TestInstance_Reopen_RejectsOccupiedRoom(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, true)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -710,6 +742,8 @@ func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsNonActor(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -725,6 +759,8 @@ func TestInstance_Reopen_RejectsNonActor(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsExpiredWindow(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -747,6 +783,8 @@ func TestInstance_Reopen_RejectsExpiredWindow(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsAttendanceChangedAfterComplete(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, true)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -769,6 +807,8 @@ func TestInstance_Reopen_RejectsAttendanceChangedAfterComplete(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -805,6 +845,8 @@ func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsStaffNowSupervisingElsewhere(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -827,6 +869,8 @@ func TestInstance_Reopen_RejectsStaffNowSupervisingElsewhere(t *testing.T) {
 }
 
 func TestInstance_Reopen_RejectsMissingSnapshot(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
@@ -849,6 +893,8 @@ func TestInstance_Reopen_RejectsMissingSnapshot(t *testing.T) {
 }
 
 func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, false)
@@ -866,6 +912,8 @@ func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
 }
 
 func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, false)
@@ -887,6 +935,8 @@ func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
 // --- State machine: 409 branches --------------------------------------------
 
 func TestInstance_Start_Rejects_NonPlanned(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
@@ -906,6 +956,8 @@ func TestInstance_Start_Rejects_NonPlanned(t *testing.T) {
 }
 
 func TestInstance_Complete_Rejects_NonActive(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusPlanned,
 		scheduleModels.InstanceStatusCompleted,
@@ -924,6 +976,8 @@ func TestInstance_Complete_Rejects_NonActive(t *testing.T) {
 }
 
 func TestInstance_Cancel_Rejects_Completed(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
@@ -934,6 +988,8 @@ func TestInstance_Cancel_Rejects_Completed(t *testing.T) {
 }
 
 func TestInstance_Cancel_Rejects_AlreadyCancelled(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
@@ -944,6 +1000,8 @@ func TestInstance_Cancel_Rejects_AlreadyCancelled(t *testing.T) {
 }
 
 func TestInstance_Start_NotFound(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	_, err := s.svc.Start(s.ctx, 99999999, 0)
@@ -956,6 +1014,8 @@ func TestInstance_Start_NotFound(t *testing.T) {
 // this instance (sick, substitution flow); copying them would make them
 // appear as actively supervising and contradict the absence flag.
 func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, false)
@@ -999,6 +1059,8 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 // --- Conflict detection -----------------------------------------------------
 
 func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Pre-seed a live active.group in the same room. Since #2139 a shared
@@ -1027,6 +1089,8 @@ func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 }
 
 func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Our staff member already supervises a live group in the SAME room the
@@ -1086,6 +1150,8 @@ func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *activeMod
 }
 
 func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// The running group's PRIMARY room differs from the new instance's room,
@@ -1120,6 +1186,8 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 }
 
 func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// The running group's PRIMARY room equals the new instance's room, but the
@@ -1159,6 +1227,8 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 }
 
 func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// The supervision points at a group bridged to an instance whose roster
@@ -1194,6 +1264,8 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 }
 
 func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Pre-seed an active.group + a live supervision by our staff member on it.
@@ -1226,6 +1298,8 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 }
 
 func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Pre-seed an active.group in a different room + an open visit by student1.
@@ -1264,6 +1338,8 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 // --- Re-plan-week protection ------------------------------------------------
 
 func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	from := timezone.NewDate(2026, 4, 20)
@@ -1309,6 +1385,8 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 }
 
 func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	from := timezone.TodayDate()
@@ -1328,6 +1406,8 @@ func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
 // WP-B3: a re-plan scoped to one template deletes only that template's
 // planned non-spontaneous instances — other templates' rows survive.
 func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	from := timezone.NewDate(2026, 7, 20)
@@ -1366,6 +1446,8 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 }
 
 func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	from := timezone.NewDate(2026, 4, 27)
 	to := timezone.NewDate(2026, 4, 20)
@@ -1380,6 +1462,8 @@ func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) 
 }
 
 func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	createdBy := s.staffID
 
@@ -1410,6 +1494,8 @@ func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
 }
 
 func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	createdDate := timezone.NewDate(2026, 5, 12)
 	updatedDate := timezone.NewDate(2026, 5, 13)
@@ -1457,8 +1543,10 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 }
 
 func TestInstance_Create_RejectsCrossTenantReferences(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
-	const foreignTenantID int64 = 99002
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
 	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, foreignTenantID) })
 
@@ -1506,6 +1594,8 @@ func TestInstance_Create_RejectsCrossTenantReferences(t *testing.T) {
 }
 
 func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	inst, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
@@ -1551,6 +1641,8 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 }
 
 func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, true)
 
@@ -1597,6 +1689,8 @@ func (s guardedLifecycleSettings) ResolveBool(context.Context, string) (bool, er
 // offering link is subject to the lead-time guard, while an ad-hoc block
 // (explicit IsSpontaneous=true) stays exempt at the same clock.
 func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	date := timezone.NewDate(2026, 4, 22)
 	// 08:00 Berlin — far before the 14:00 start minus the 15-minute lead.
@@ -1659,6 +1753,8 @@ func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) 
 // #2299: is_spontaneous records the creation origin, so an edit that links an
 // offering to a spontaneous block must not reclassify it as planned either.
 func TestInstance_UpdatePlanned_KeepsSpontaneousOriginWhenLinkingOffering(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedSpontaneousInstance(t, s, false)
 
@@ -1678,8 +1774,10 @@ func TestInstance_UpdatePlanned_KeepsSpontaneousOriginWhenLinkingOffering(t *tes
 }
 
 func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
-	const foreignTenantID int64 = 99002
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
 	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, foreignTenantID) })
 
@@ -1727,6 +1825,8 @@ func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *te
 }
 
 func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
@@ -1751,6 +1851,8 @@ func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 }
 
 func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
@@ -1910,6 +2012,8 @@ func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int6
 // Complete must flip every remaining 'expected' row to 'absent' inside the
 // same tenant tx. Present rows stay untouched.
 func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true) // both students expected
@@ -1945,6 +2049,8 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 // claims they failed to show up to care they never had, and that claim then
 // travels into attendance statistics and exports.
 func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true) // both students expected
@@ -1995,6 +2101,8 @@ func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 // attendance history and the exports, so skipping the stamp would erase the
 // absence instead of recording it.
 func TestInstance_Complete_RecordsAbsenceForCancelledDay(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true) // both students expected
@@ -2033,6 +2141,8 @@ func TestInstance_Complete_RecordsAbsenceForCancelledDay(t *testing.T) {
 // so "absent" would falsely imply the student failed to show up to an event
 // that happened. The cancelled status on the instance itself is the signal.
 func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, true)
@@ -2052,6 +2162,8 @@ func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
 // who were present when the instance was aborted keep their present status,
 // and students who hadn't arrived stay 'expected' (no event → no absence).
 func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true)
@@ -2081,6 +2193,8 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 // --- Conflict-detection pure unit (nil-safe + empty happy path) ------------
 
 func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, false)

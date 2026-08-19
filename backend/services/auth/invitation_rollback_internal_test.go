@@ -39,6 +39,8 @@ func (r failingStaffRepo) Create(context.Context, *userModels.Staff) error {
 // the invitation tests use have no transaction, so they cannot tell a rollback
 // from a write that simply never happened.
 func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()

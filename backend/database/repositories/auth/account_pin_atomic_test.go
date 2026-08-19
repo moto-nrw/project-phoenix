@@ -29,6 +29,8 @@ import (
 // IncrementPINAttempts in parallel; post-fix the persisted row must show
 // exactly N attempts and the N return values must be the unique set {1..N}.
 func TestAccountRepository_IncrementPINAttempts_AtomicUnderRace(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "pin-atomic-counter")
@@ -85,6 +87,8 @@ func TestAccountRepository_IncrementPINAttempts_AtomicUnderRace(t *testing.T) {
 // successful-verify path. After ResetPINAttempts the counter is 0 and the lock
 // is cleared.
 func TestAccountRepository_ResetPINAttempts_ClearsCounterAndLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "pin-atomic-reset")

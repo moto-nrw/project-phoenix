@@ -37,6 +37,8 @@ func tagOf(t *testing.T, ctx context.Context, db *bun.DB, personID int64) string
 // releases the tag and ledgers it in grade_transition_history so the revert can
 // hand it back.
 func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)
@@ -104,6 +106,8 @@ func TestGradeTransitionService_Apply_ReleasesRFIDTag(t *testing.T) {
 // carries UNIQUE (tenant_id, tag_id), so the alternative is a failed revert) and
 // say so in the result warnings.
 func TestGradeTransitionService_Revert_KeepsReissuedRFIDTag(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newRosterReconcilingTransitionService(t, db)

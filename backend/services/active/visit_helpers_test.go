@@ -24,6 +24,8 @@ import (
 // =============================================================================
 
 func TestCreateVisit_WithDevice(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -66,6 +68,8 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 }
 
 func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -99,6 +103,8 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 }
 
 func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -136,6 +142,8 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 }
 
 func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -180,6 +188,8 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 // =============================================================================
 
 func TestCreateVisit_ReEntry(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -239,6 +249,8 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 // TestCreateVisit_AutoClearsSick — with default settings (sick_clear_mode =
 // next_checkin), a sick student's flag is cleared when they check in.
 func TestCreateVisit_AutoClearsSick(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -289,6 +301,8 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 // overrides operations.excused_clear_mode to "next_checkin", an excused
 // student gets the flag cleared on check-in (same behavior path as sick).
 func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -351,6 +365,8 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 // TestCreateVisit_DoesNotClearExcused_WhenDefaultMode — excused default is
 // end_of_day, so check-in must NOT clear the flag.
 func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -396,6 +412,8 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 }
 
 func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -472,6 +490,8 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 // the next-checkin clear must drop the still-active parent row — otherwise
 // status reads keep treating the child as sick after they showed up.
 func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupVisitHelperService(t, db)
@@ -517,6 +537,8 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 // =============================================================================
 
 func TestWebManualDeviceCode(t *testing.T) {
+	t.Parallel()
+
 	// Verify the constant is set correctly
 	assert.Equal(t, "WEB-MANUAL-001", active.WebManualDeviceCode, "WebManualDeviceCode should be 'WEB-MANUAL-001'")
 }

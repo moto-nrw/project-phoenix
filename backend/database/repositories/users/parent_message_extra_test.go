@@ -21,6 +21,8 @@ import (
 // an error) and the positive-limit tail load, which must return the most recent
 // `limit` messages back in oldest-first chat order.
 func TestParentMessage_FindByIDAndTail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -64,6 +66,8 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 // (event_type, ref_table, ref_id) and ignore a same-ref decision pill, a plain
 // chat message, and a non-matching ref (nil, not an error).
 func TestParentMessage_FindEventByRef(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -117,6 +121,8 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 // `1 = 0` guard and reads nothing at all. The group the child sits in no longer
 // takes part in the decision.
 func TestListInboxForStaff_ScopeFlag(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

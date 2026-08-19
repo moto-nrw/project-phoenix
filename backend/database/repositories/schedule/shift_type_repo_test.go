@@ -38,6 +38,8 @@ func cleanupShiftTypes(t *testing.T, repo scheduleModels.ShiftTypeRepository, ct
 }
 
 func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
@@ -74,6 +76,8 @@ func TestShiftTypeRepository_CreateNormalizesColorAndListsSorted(t *testing.T) {
 }
 
 func TestShiftTypeRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
@@ -105,6 +109,8 @@ func TestShiftTypeRepository_Update(t *testing.T) {
 }
 
 func TestShiftTypeRepository_UniqueNamePerTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
@@ -121,6 +127,8 @@ func TestShiftTypeRepository_UniqueNamePerTenant(t *testing.T) {
 }
 
 func TestShiftTypeRepository_CreateIfAbsent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
@@ -158,12 +166,14 @@ func TestShiftTypeRepository_CreateIfAbsent(t *testing.T) {
 }
 
 func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
 	tenant1 := testpkg.Ctx(t)
 
-	const otherTenantID = int64(910011)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
 
@@ -189,6 +199,8 @@ func TestShiftTypeRepository_TenantIsolation(t *testing.T) {
 }
 
 func TestShiftTypeRepository_GuardBranches(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType
@@ -210,6 +222,8 @@ func TestShiftTypeRepository_GuardBranches(t *testing.T) {
 }
 
 func TestShiftTypeRepository_ListWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ShiftType

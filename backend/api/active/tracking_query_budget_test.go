@@ -49,6 +49,9 @@ var trackingBudgetTenantCounter int64 = 890_000 + time.Now().UnixNano()%100_000
 // way production attaches it) and asserts the four settings the handler reads
 // (toggle + three labels) cost exactly one config.setting_values query
 // (issue #2065).
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db := testpkg.SetupTestDB(t)

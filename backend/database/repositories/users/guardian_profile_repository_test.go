@@ -26,6 +26,8 @@ import (
 // ============================================================================
 
 func TestGuardianProfileRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -66,6 +68,8 @@ func TestGuardianProfileRepository_Create(t *testing.T) {
 }
 
 func TestGuardianProfileRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -89,6 +93,8 @@ func TestGuardianProfileRepository_FindByID(t *testing.T) {
 }
 
 func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -121,6 +127,8 @@ func TestGuardianProfileRepository_FindByEmail(t *testing.T) {
 }
 
 func TestGuardianProfileRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -159,6 +167,8 @@ func TestGuardianProfileRepository_Update(t *testing.T) {
 }
 
 func TestGuardianProfileRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -188,6 +198,8 @@ func TestGuardianProfileRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -216,6 +228,8 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 }
 
 func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -241,6 +255,8 @@ func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 }
 
 func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -292,6 +308,8 @@ func TestGuardianProfileRepository_FindInvitable(t *testing.T) {
 // These tests verify error handling for non-existent profiles.
 
 func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -333,6 +351,8 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 }
 
 func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -350,6 +370,8 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 // ============================================================================
 
 func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -417,6 +439,8 @@ func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo users
 // It pins the substring/case-insensitive contract and the input guards that back
 // the picker's enumeration defense.
 func TestGuardianProfileRepository_SearchByText(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -500,6 +524,8 @@ func TestGuardianProfileRepository_SearchByText(t *testing.T) {
 // TestGuardianProfileRepository_UpdatePortalLocaleByAccountID covers the new
 // write path that persists the parent's explicit portals-portal language.
 func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -547,6 +573,8 @@ func TestGuardianProfileRepository_UpdatePortalLocaleByAccountID(t *testing.T) {
 // the happy path of the reworked FindByAccountID (deterministic ordering +
 // Limit(1)): a linked account resolves to its profile and carries portal_locale.
 func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -578,6 +606,8 @@ func TestGuardianProfileRepository_FindByAccountID_ReturnsLinkedProfile(t *testi
 // ordering guarantees that even though the explicit row is inserted *second*
 // (higher id) in a *different* tenant.
 func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile
@@ -628,6 +658,8 @@ func TestGuardianProfileRepository_FindByAccountID_PrefersExplicitPortalLocale(t
 // ============================================================================
 
 func TestGuardianProfileRepository_LockByIDForUpdate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianProfile

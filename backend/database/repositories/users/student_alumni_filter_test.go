@@ -29,6 +29,8 @@ func assignGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
 }
 
 func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
@@ -86,6 +88,8 @@ func TestStudentRepository_AlumniExcludedFromGroupReads(t *testing.T) {
 // (GET /api/iot/students) and the calendar student picker, and must hide
 // graduated students exactly like the other group reads.
 func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
@@ -135,6 +139,8 @@ func TestStudentRepository_AlumniExcludedFromGroupInfoReads(t *testing.T) {
 }
 
 func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
@@ -163,6 +169,8 @@ func TestStudentRepository_AlumniExcludedFromSchoolClasses(t *testing.T) {
 // new child; with the row retained, an unfiltered lookup rejects that import as
 // already_exists (#405 review).
 func TestStudentRepository_FindByNameAndClassExcludesAlumni(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)

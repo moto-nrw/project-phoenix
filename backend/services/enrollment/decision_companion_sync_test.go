@@ -224,6 +224,8 @@ func syncApprovedChild(t *testing.T, env *decisionTestEnv, applier enrollmentSer
 // admin correction report success for a change the database refused, leaving
 // the UI showing a plan nobody stored.
 func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutReplace(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -267,6 +269,8 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 // plan is not that question — writing the same modes back trims nothing, and
 // announcing it anyway costs unrelated staff their unsaved companion edits.
 func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	publishCompanionModesSchema(t, env, "Testformular Companion Event")

@@ -21,6 +21,8 @@ import (
 // stay out, withdrawals carry no reviewer, and the keyset cursor pages without
 // overlap.
 func TestListHistory_DecidedExcusedRequests(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })

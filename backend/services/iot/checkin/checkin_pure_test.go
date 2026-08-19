@@ -56,29 +56,39 @@ func (s *stubActiveService) CountActiveVisitsByActiveGroupID(ctx context.Context
 // =============================================================================
 
 func TestShouldSkipCheckin_NilRoomID(t *testing.T) {
+	t.Parallel()
+
 	result := checkin.ShouldSkipCheckin(nil, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_NotCheckedOut(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(1)
 	result := checkin.ShouldSkipCheckin(&roomID, false, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}}, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_NilCurrentVisit(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(1)
 	result := checkin.ShouldSkipCheckin(&roomID, true, nil, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_NilActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(1)
 	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{}, time.Now())
 	assert.False(t, result)
 }
 
 func TestShouldSkipCheckin_SameRoom(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(1)
 	now := time.Now()
 	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1, StartTime: now}}, now)
@@ -86,6 +96,8 @@ func TestShouldSkipCheckin_SameRoom(t *testing.T) {
 }
 
 func TestShouldSkipCheckin_DifferentRoom(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(2)
 	now := time.Now()
 	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1, StartTime: now}}, now)
@@ -93,6 +105,8 @@ func TestShouldSkipCheckin_DifferentRoom(t *testing.T) {
 }
 
 func TestShouldSkipCheckin_PreviousDaySameRoom(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(1)
 	now := time.Now()
 	result := checkin.ShouldSkipCheckin(&roomID, true, &active.Visit{
@@ -106,6 +120,8 @@ func TestShouldSkipCheckin_PreviousDaySameRoom(t *testing.T) {
 // =============================================================================
 
 func TestBuildCheckinResult_CheckedOutAndCheckedIn_Transfer(t *testing.T) {
+	t.Parallel()
+
 	newVisitID := int64(123)
 	checkoutVisitID := int64(100)
 
@@ -129,6 +145,8 @@ func TestBuildCheckinResult_CheckedOutAndCheckedIn_Transfer(t *testing.T) {
 }
 
 func TestBuildCheckinResult_CheckedOutAndCheckedIn_SameRoom(t *testing.T) {
+	t.Parallel()
+
 	newVisitID := int64(123)
 	checkoutVisitID := int64(100)
 
@@ -149,6 +167,8 @@ func TestBuildCheckinResult_CheckedOutAndCheckedIn_SameRoom(t *testing.T) {
 }
 
 func TestBuildCheckinResult_CheckedOutOnly(t *testing.T) {
+	t.Parallel()
+
 	checkoutVisitID := int64(100)
 
 	input := &checkin.CheckinResultInput{
@@ -168,6 +188,8 @@ func TestBuildCheckinResult_CheckedOutOnly(t *testing.T) {
 }
 
 func TestBuildCheckinResult_CheckedInOnly(t *testing.T) {
+	t.Parallel()
+
 	newVisitID := int64(123)
 
 	input := &checkin.CheckinResultInput{
@@ -186,6 +208,8 @@ func TestBuildCheckinResult_CheckedInOnly(t *testing.T) {
 }
 
 func TestBuildCheckinResult_NoAction(t *testing.T) {
+	t.Parallel()
+
 	input := &checkin.CheckinResultInput{
 		Student:    &users.Student{Model: base.Model{ID: 1}},
 		Person:     &users.Person{FirstName: "Max", LastName: "Test"},
@@ -201,6 +225,8 @@ func TestBuildCheckinResult_NoAction(t *testing.T) {
 }
 
 func TestBuildCheckinResult_TransferNoPreviousRoom(t *testing.T) {
+	t.Parallel()
+
 	newVisitID := int64(123)
 	checkoutVisitID := int64(100)
 
@@ -226,6 +252,8 @@ func TestBuildCheckinResult_TransferNoPreviousRoom(t *testing.T) {
 // =============================================================================
 
 func TestRoomNameByID_WithRoomObject(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{})
 	room := &facilityModels.Room{Name: "Test Room"}
 	name := svc.RoomNameByIDForTest(context.Background(), room, 1)
@@ -233,6 +261,8 @@ func TestRoomNameByID_WithRoomObject(t *testing.T) {
 }
 
 func TestRoomNameForResponse_WithActiveGroupRoom(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{})
 	currentVisit := &active.Visit{
 		ActiveGroup: &active.Group{
@@ -245,6 +275,8 @@ func TestRoomNameForResponse_WithActiveGroupRoom(t *testing.T) {
 }
 
 func TestRoomNameForResponse_NilVisit_NilRoomID(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{})
 
 	name := svc.RoomNameForResponseForTest(context.Background(), nil, nil)
@@ -256,6 +288,8 @@ func TestRoomNameForResponse_NilVisit_NilRoomID(t *testing.T) {
 // =============================================================================
 
 func TestProcessStudentCheckin_NoRoomNotCheckedOut(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{})
 
 	student := &users.Student{Model: base.Model{ID: 1}}
@@ -280,6 +314,8 @@ func TestProcessStudentCheckin_NoRoomNotCheckedOut(t *testing.T) {
 }
 
 func TestProcessStudentCheckin_SkippedCheckin_GetsRoomName(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{})
 
 	student := &users.Student{Model: base.Model{ID: 1}}
@@ -310,6 +346,8 @@ func TestProcessStudentCheckin_SkippedCheckin_GetsRoomName(t *testing.T) {
 // =============================================================================
 
 func TestCheckinProcessingResult_Struct(t *testing.T) {
+	t.Parallel()
+
 	visitID := int64(123)
 	result := &checkin.CheckinProcessingResult{
 		NewVisitID: &visitID,
@@ -321,6 +359,8 @@ func TestCheckinProcessingResult_Struct(t *testing.T) {
 }
 
 func TestCheckinProcessingInput_Struct(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(1)
 	input := &checkin.CheckinProcessingInput{
 		RoomID:       &roomID,
@@ -336,6 +376,8 @@ func TestCheckinProcessingInput_Struct(t *testing.T) {
 }
 
 func TestCheckinProcessingResult_ActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	activeGroupID := int64(42)
 	visitID := int64(123)
 	result := &checkin.CheckinProcessingResult{
@@ -350,6 +392,8 @@ func TestCheckinProcessingResult_ActiveGroupID(t *testing.T) {
 }
 
 func TestCheckinResult_AllFields(t *testing.T) {
+	t.Parallel()
+
 	visitID := int64(42)
 	activeStudents := 7
 	result := &checkin.CheckinResult{
@@ -376,6 +420,8 @@ func TestCheckinResult_AllFields(t *testing.T) {
 // =============================================================================
 
 func TestGetDeviceActiveGroupInRoom_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{
 		Active: &stubActiveService{
 			findDeviceActiveGroupInRoomFn: func(context.Context, int64, int64) (*active.Group, error) {
@@ -390,6 +436,8 @@ func TestGetDeviceActiveGroupInRoom_ServiceError(t *testing.T) {
 }
 
 func TestGetActiveStudentCountForRoom_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{
 		Active: &stubActiveService{
 			countActiveVisitsByRoomIDFn: func(context.Context, int64) (int, error) {
@@ -410,6 +458,8 @@ func TestGetActiveStudentCountForRoom_ServiceError(t *testing.T) {
 }
 
 func TestGetActiveStudentCountForGroup(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{
 		Active: &stubActiveService{
 			countActiveVisitsByRoomIDFn: func(context.Context, int64) (int, error) {
@@ -431,6 +481,8 @@ func TestGetActiveStudentCountForGroup(t *testing.T) {
 }
 
 func TestGetActiveStudentCountForGroup_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{
 		Active: &stubActiveService{
 			countActiveVisitsByRoomIDFn: func(context.Context, int64) (int, error) {

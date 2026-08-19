@@ -65,6 +65,8 @@ func assignStudentGroup(t *testing.T, tc *testContext, studentID, groupID int64)
 // (#2218). The filters therefore accept several values, and the result must be
 // the union — not the first value, and not everything.
 func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The suffix keeps the class names unique in the shared test database while
@@ -214,6 +216,8 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 // end to end; unescaped it would silently become two filters matching nothing
 // (#2218 review).
 func TestListStudents_ClassNameContainingTheSeparator(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	suffix := time.Now().UnixNano()

@@ -70,6 +70,8 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (paren
 }
 
 func TestListRelatedAccounts_ReturnsLinkedWithStatus(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -85,6 +87,8 @@ func TestListRelatedAccounts_ReturnsLinkedWithStatus(t *testing.T) {
 }
 
 func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -118,6 +122,8 @@ func TestListRelatedAccounts_NoAccountWithoutInviteIsNotPending(t *testing.T) {
 }
 
 func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -163,6 +169,8 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 }
 
 func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -211,6 +219,8 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 }
 
 func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -223,6 +233,8 @@ func TestInviteRelatedAccount_DisabledIsRejected(t *testing.T) {
 }
 
 func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -238,6 +250,8 @@ func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 }
 
 func TestInviteRelatedAccount_StaffApprovalRequiresApproval(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeStaffApproval, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -250,6 +264,8 @@ func TestInviteRelatedAccount_StaffApprovalRequiresApproval(t *testing.T) {
 }
 
 func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -267,6 +283,8 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 }
 
 func TestRemoveRelatedAccount_DisabledIsRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -279,6 +297,8 @@ func TestRemoveRelatedAccount_DisabledIsRejected(t *testing.T) {
 }
 
 func TestRemoveRelatedAccount_DisabledInviteModeRejectsStaleRemoveFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDisabled, true)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -291,6 +311,8 @@ func TestRemoveRelatedAccount_DisabledInviteModeRejectsStaleRemoveFlag(t *testin
 }
 
 func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, true)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -304,6 +326,8 @@ func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
 }
 
 func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
+	t.Parallel()
+
 	t.Run("invite enabled + remove on", func(t *testing.T) {
 		svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeStaffApproval, true)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -358,6 +382,8 @@ func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsServic
 }
 
 func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -369,6 +395,8 @@ func TestInviteRelatedAccount_EmptyEmailRejected(t *testing.T) {
 }
 
 func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -380,6 +408,8 @@ func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
 }
 
 func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRelAcctServiceWith(t, parentSettingsStub{
 		boolErr:   errors.New("settings unavailable"),
 		stringErr: errors.New("settings unavailable"),
@@ -430,6 +460,8 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 }
 
 func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -443,6 +475,8 @@ func TestListRelatedAccounts_UnownedChildErrors(t *testing.T) {
 }
 
 func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
+	t.Parallel()
+
 	t.Run("invite delegate error", func(t *testing.T) {
 		svc, db := buildRelAcctServiceInvites(t, configModels.ParentInviteModeDirect, true, failingInvites{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -463,6 +497,8 @@ func TestRelatedAccounts_DelegateErrorsSurface(t *testing.T) {
 }
 
 func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -501,6 +537,8 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 }
 
 func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

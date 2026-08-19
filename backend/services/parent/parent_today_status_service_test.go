@@ -231,6 +231,8 @@ func openAttendanceToday(t *testing.T, db *bun.DB, tenantID, studentID int64, ch
 // TestGetChildTodayStatusRejectsForeignChild ist die Mandantengrenze: ein
 // Elternkonto darf ausschliesslich verknuepfte Kinder lesen.
 func TestGetChildTodayStatusRejectsForeignChild(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -243,6 +245,8 @@ func TestGetChildTodayStatusRejectsForeignChild(t *testing.T) {
 // TestGetChildTodayStatusPresent prueft den Gutfall Ende zu Ende gegen die
 // Datenbank: eine offene Anwesenheit ergibt die Ja-Aussage plus die Uhrzeit.
 func TestGetChildTodayStatusPresent(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -265,6 +269,8 @@ func TestGetChildTodayStatusPresent(t *testing.T) {
 // Antwort keine Ja/Nein-Aussage, statt "nicht angekommen" zu behaupten und
 // Eltern grundlos zu beunruhigen.
 func TestGetChildTodayStatusWithoutAttendanceIsUnknown(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -281,6 +287,8 @@ func TestGetChildTodayStatusWithoutAttendanceIsUnknown(t *testing.T) {
 // nicht da. Die Antwort darf jetzt "nein" sagen, weil ein Betreuungstag belegt
 // ist, und nennt die erwartete Ankunftszeit.
 func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -306,6 +314,8 @@ func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
 // Anwesenheit und nicht mehr der Plan. Die erwartete Ankunft verschwindet dann
 // aus der Antwort, sie wuerde neben "ist da seit ..." nur verwirren.
 func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -329,6 +339,8 @@ func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 // heute hat keinen Betreuungstag, und ohne Betreuungstag gibt es auch keine
 // erwartete Ankunftszeit zu melden.
 func TestGetChildTodayStatusWithoutPlanIsNoCareDay(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -340,6 +352,8 @@ func TestGetChildTodayStatusWithoutPlanIsNoCareDay(t *testing.T) {
 }
 
 func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -362,6 +376,8 @@ func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
 // da" lauten statt zu schweigen. (Derselbe Fall trifft nach den Ferien jedes
 // Kind der Schule gleichzeitig.)
 func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -386,6 +402,8 @@ func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
 }
 
 func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

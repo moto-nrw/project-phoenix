@@ -18,6 +18,8 @@ import (
 // =============================================================================
 
 func TestGetDashboardAnalytics(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

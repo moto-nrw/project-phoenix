@@ -241,6 +241,8 @@ func parseHHMM(t *testing.T, hhmm string) time.Time {
 // -----------------------------------------------------------------------------
 
 func TestExceptionConflicts_CancelledInstance_EmitsWarningPerExpectedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -288,6 +290,8 @@ func TestExceptionConflicts_CancelledInstance_EmitsWarningPerExpectedStudent(t *
 }
 
 func TestExceptionConflicts_CancelledInstance_ArrivalExceptionOverridesSchedule(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -325,6 +329,8 @@ func TestExceptionConflicts_CancelledInstance_ArrivalExceptionOverridesSchedule(
 }
 
 func TestExceptionConflicts_CancelledInstance_NoArrivalInfo_OmitsTime(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -363,6 +369,8 @@ func TestExceptionConflicts_CancelledInstance_NoArrivalInfo_OmitsTime(t *testing
 }
 
 func TestExceptionConflicts_CancelledInstance_SkipsNonExpectedAttendance(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -407,6 +415,8 @@ func TestExceptionConflicts_CancelledInstance_SkipsNonExpectedAttendance(t *test
 }
 
 func TestExceptionConflicts_ModifiedEarlier_EmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -455,6 +465,8 @@ func TestExceptionConflicts_ModifiedEarlier_EmitsWarning(t *testing.T) {
 }
 
 func TestExceptionConflicts_ModifiedLater_NoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -492,6 +504,8 @@ func TestExceptionConflicts_ModifiedLater_NoWarning(t *testing.T) {
 }
 
 func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -544,6 +558,8 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 }
 
 func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -581,6 +597,8 @@ func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testi
 }
 
 func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -640,6 +658,8 @@ func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T)
 }
 
 func TestExceptionConflicts_ModifiedNoTemplateSchedule_EmitsWithoutOriginal(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -679,6 +699,8 @@ func TestExceptionConflicts_ModifiedNoTemplateSchedule_EmitsWithoutOriginal(t *t
 }
 
 func TestExceptionConflicts_ModifiedAmbiguousTemplate_EmitsWithoutOriginal(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -724,6 +746,8 @@ func TestExceptionConflicts_ModifiedAmbiguousTemplate_EmitsWithoutOriginal(t *te
 // -----------------------------------------------------------------------------
 
 func TestExceptionConflicts_Empty_NoExceptions(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -739,6 +763,8 @@ func TestExceptionConflicts_Empty_NoExceptions(t *testing.T) {
 }
 
 func TestExceptionConflicts_ExceptionWithoutInstance_SkipsSilently(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -761,6 +787,8 @@ func TestExceptionConflicts_ExceptionWithoutInstance_SkipsSilently(t *testing.T)
 }
 
 func TestExceptionConflicts_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -796,6 +824,8 @@ func TestExceptionConflicts_TenantIsolation(t *testing.T) {
 }
 
 func TestExceptionConflicts_SortOrder(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -878,6 +908,8 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestExceptionConflicts_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 	router := conflictsRouter(s.ctx, s.res)

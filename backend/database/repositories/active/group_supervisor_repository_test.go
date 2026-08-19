@@ -74,6 +74,8 @@ func cleanupSupervisorTestData(t *testing.T, db *bun.DB, data *supervisorTestDat
 // ============================================================================
 
 func TestGroupSupervisorRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -124,6 +126,8 @@ func TestGroupSupervisorRepository_Create(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -156,6 +160,8 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -186,6 +192,8 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -217,6 +225,8 @@ func TestGroupSupervisorRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGroupSupervisorRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -291,6 +301,8 @@ func TestGroupSupervisorRepository_List(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -332,6 +344,8 @@ func TestGroupSupervisorRepository_FindActiveByStaffID(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -408,6 +422,8 @@ func TestGroupSupervisorRepository_FindByActiveGroupID(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -473,6 +489,8 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 // ============================================================================
 
 func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -506,6 +524,8 @@ func TestGroupSupervisorRepository_EndSupervision(t *testing.T) {
 // ============================================================================
 
 func TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -651,6 +671,8 @@ func TestGroupSupervisorRepository_GetStaffIDsWithSupervisionToday(t *testing.T)
 // ============================================================================
 
 func TestGroupSupervisorRepository_Update_NilSupervision(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -664,6 +686,8 @@ func TestGroupSupervisorRepository_Update_NilSupervision(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_Update_ValidationFailure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -692,6 +716,8 @@ func TestGroupSupervisorRepository_Update_ValidationFailure(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_Create_ValidationFailure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -722,6 +748,8 @@ func TestGroupSupervisorRepository_Create_ValidationFailure(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_List_WithQueryOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -749,6 +777,8 @@ func TestGroupSupervisorRepository_List_WithQueryOptions(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_EndSupervision_AlreadyEnded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -777,6 +807,8 @@ func TestGroupSupervisorRepository_EndSupervision_AlreadyEnded(t *testing.T) {
 }
 
 func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -794,6 +826,8 @@ func TestGroupSupervisorRepository_EndSupervision_NonExistent(t *testing.T) {
 // ============================================================================
 
 func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	factory := repositories.NewFactory(db)
@@ -930,6 +964,8 @@ func TestGroupSupervisorRepository_EndAllActiveByStaffID(t *testing.T) {
 // codebase and account for the 6 uncovered lines (62.5% → ~68% coverage).
 
 func TestGroupSupervisorRepository_EndByActiveGroupAndStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -1028,6 +1064,8 @@ func createSupervisorRowForTenant(t *testing.T, db *bun.DB, tenantID, staffID, g
 }
 
 func TestGroupSupervisorRepository_FindStaleOpen(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor

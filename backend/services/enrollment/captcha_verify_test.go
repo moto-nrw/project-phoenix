@@ -216,6 +216,8 @@ func TestCaptchaVerify_TenantSecretPreferredOverEnv(t *testing.T) {
 // --- NewCaptchaService defaults -----------------------------------------
 
 func TestNewCaptchaService_NilLoggerFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	// Constructor must not panic on a nil logger — same defence as the
 	// parent service has. The verify path uses the logger on failure.
 	svc := NewCaptchaService(CaptchaServiceConfig{
@@ -226,6 +228,8 @@ func TestNewCaptchaService_NilLoggerFallsBackToDefault(t *testing.T) {
 }
 
 func TestNewCaptchaService_NilHTTPClientUses10sTimeout(t *testing.T) {
+	t.Parallel()
+
 	// Indirectly verify the constructor wires a default client — call
 	// Verify with a deliberately blocked server and confirm the call
 	// times out (rather than hanging forever). The default is 10s,
@@ -250,6 +254,8 @@ func TestNewCaptchaService_NilHTTPClientUses10sTimeout(t *testing.T) {
 }
 
 func TestNewCaptchaService_EmptyVerifyURLFallsBackToTurnstile(t *testing.T) {
+	t.Parallel()
+
 	// Indirect — the cs.verifyURL field is unexported. The smoke test
 	// hits the IsEnabled fast path (no HTTP) but the constructor branch
 	// is exercised. We can't introspect the URL without exporting it.

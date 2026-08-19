@@ -117,6 +117,8 @@ func (env *guardianTestEnv) cleanupInvitation(t *testing.T, invitationID, profil
 }
 
 func TestGuardianInvitationService_Create_TokenAndExpiry(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -148,6 +150,8 @@ func TestGuardianInvitationService_Create_TokenAndExpiry(t *testing.T) {
 }
 
 func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -184,6 +188,8 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 }
 
 func TestGuardianInvitationService_Validate_ReturnsPublicInfo(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -206,6 +212,8 @@ func TestGuardianInvitationService_Validate_ReturnsPublicInfo(t *testing.T) {
 }
 
 func TestGuardianInvitationService_Validate_UnknownTokenReturns404Error(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -215,6 +223,8 @@ func TestGuardianInvitationService_Validate_UnknownTokenReturns404Error(t *testi
 }
 
 func TestGuardianInvitationService_Validate_ExpiredTokenReturnsExpired(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -242,6 +252,8 @@ func TestGuardianInvitationService_Validate_ExpiredTokenReturnsExpired(t *testin
 }
 
 func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -309,6 +321,8 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 }
 
 func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -347,6 +361,8 @@ func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testi
 }
 
 func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordChange(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -383,6 +399,8 @@ func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordCh
 }
 
 func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -430,6 +448,8 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 }
 
 func TestGuardianInvitationService_Accept_PasswordMismatch(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -452,6 +472,8 @@ func TestGuardianInvitationService_Accept_PasswordMismatch(t *testing.T) {
 }
 
 func TestGuardianInvitationService_Accept_WeakPassword(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -474,6 +496,8 @@ func TestGuardianInvitationService_Accept_WeakPassword(t *testing.T) {
 }
 
 func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
+	t.Parallel()
+
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
@@ -517,6 +541,8 @@ func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
 }
 
 func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
+	t.Parallel()
+
 	// Wire the outbox path (what production uses since PR 5). The legacy
 	// dispatcher path would asynchronously re-populate email_sent_at after
 	// delivery, racing the nil assertions below.
@@ -622,6 +648,8 @@ func cleanupAcceptedAccount(t *testing.T, db *bun.DB, accountID int64) {
 }
 
 func TestGuardianInvitationService_Accept_InvokesBackfiller(t *testing.T) {
+	t.Parallel()
+
 	bf := &stubEnrollmentBackfiller{returnRows: 0}
 	env := setupGuardianInviteWithBackfiller(t, bf)
 	defer env.cleanup()
@@ -650,6 +678,8 @@ func TestGuardianInvitationService_Accept_InvokesBackfiller(t *testing.T) {
 }
 
 func TestGuardianInvitationService_Accept_NotInvokedOnPasswordMismatch(t *testing.T) {
+	t.Parallel()
+
 	bf := &stubEnrollmentBackfiller{}
 	env := setupGuardianInviteWithBackfiller(t, bf)
 	defer env.cleanup()
@@ -674,6 +704,8 @@ func TestGuardianInvitationService_Accept_NotInvokedOnPasswordMismatch(t *testin
 }
 
 func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *testing.T) {
+	t.Parallel()
+
 	bf := &stubEnrollmentBackfiller{returnError: errors.New("synthetic backfill failure")}
 	env := setupGuardianInviteWithBackfiller(t, bf)
 	defer env.cleanup()
@@ -710,6 +742,8 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 }
 
 func TestGuardianInvitationService_Accept_NilBackfillerIsSafe(t *testing.T) {
+	t.Parallel()
+
 	// Same setup as the production wiring used to be, no backfiller.
 	// The accept flow checks `if s.enrollmentBackfiller != nil` so this
 	// must not panic.

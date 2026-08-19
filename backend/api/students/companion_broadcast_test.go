@@ -56,6 +56,8 @@ func putStudent(t *testing.T, tc *testContext, studentID int64, body map[string]
 // that resubmits the unchanged plan must stay silent — otherwise routine
 // Stammdaten edits cost other people their unsaved work.
 func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionEvent", "Subject", "CE1")
@@ -117,6 +119,8 @@ func TestUpdateStudent_CompanionEventOnlyOnEffectiveChange(t *testing.T) {
 // child's list, so the other clients' companion cards and Kindersuche grouping
 // are stale the moment the row is gone (#1694).
 func TestDeleteStudent_AnnouncesCompanionChange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "CompanionDelete", "Subject", "CD1")

@@ -281,6 +281,8 @@ func rolloverServiceWithSettings(
 // --- CreatePhaseFromSource ---
 
 func TestRolloverService_CreatePhaseFromSource_RejectsMissingGradeSettingsService(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -300,6 +302,8 @@ func TestRolloverService_CreatePhaseFromSource_RejectsMissingGradeSettingsServic
 }
 
 func TestRolloverService_CreatePhaseFromSource_RejectsGradeSettingReadFailure(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -319,6 +323,8 @@ func TestRolloverService_CreatePhaseFromSource_RejectsGradeSettingReadFailure(t 
 }
 
 func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *testing.T) {
+	t.Parallel()
+
 	for _, value := range []int{0, 14} {
 		t.Run(fmt.Sprintf("value_%d", value), func(t *testing.T) {
 			env, cleanup := setupRolloverTest(t)
@@ -342,6 +348,8 @@ func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *
 }
 
 func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -387,6 +395,8 @@ func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
 // linked/class-restricted phase public — and the successor is the active
 // phase parents actually submit to (#1663).
 func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -417,6 +427,8 @@ func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *test
 }
 
 func TestRolloverService_CreatePhaseFromSource_OptInLandsInPendingRenewal(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -438,6 +450,8 @@ func TestRolloverService_CreatePhaseFromSource_OptInLandsInPendingRenewal(t *tes
 }
 
 func TestRolloverService_CreatePhaseFromSource_GradeAboveMaxGoesToReview(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -462,6 +476,8 @@ func TestRolloverService_CreatePhaseFromSource_GradeAboveMaxGoesToReview(t *test
 }
 
 func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -504,6 +520,8 @@ func TestRolloverService_CreatePhaseFromSource_NoGradeLevelGoesToReview(t *testi
 }
 
 func TestRolloverService_CreatePhaseFromSource_BumpsGradeFalseKeepsGrade(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -525,6 +543,8 @@ func TestRolloverService_CreatePhaseFromSource_BumpsGradeFalseKeepsGrade(t *test
 }
 
 func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -558,6 +578,8 @@ func TestRolloverService_CreatePhaseFromSource_SkipsNonApproved(t *testing.T) {
 }
 
 func TestRolloverService_CreatePhaseFromSource_SourceWithNoApprovedCreatesEmptyPhase(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -578,6 +600,8 @@ func TestRolloverService_CreatePhaseFromSource_SourceWithNoApprovedCreatesEmptyP
 }
 
 func TestRolloverService_CreatePhaseFromSource_RejectsMissingFields(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -595,6 +619,8 @@ func TestRolloverService_CreatePhaseFromSource_RejectsMissingFields(t *testing.T
 }
 
 func TestRolloverService_CreatePhaseFromSource_EnqueuesCorrectEmailKind(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -612,6 +638,8 @@ func TestRolloverService_CreatePhaseFromSource_EnqueuesCorrectEmailKind(t *testi
 // --- ListReviewQueue ---
 
 func TestRolloverService_ListReviewQueue_ReturnsPendingReviewRows(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -634,6 +662,8 @@ func TestRolloverService_ListReviewQueue_ReturnsPendingReviewRows(t *testing.T) 
 // --- DecideReview ---
 
 func TestRolloverService_DecideReview_KeepWithClassOverride(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -668,6 +698,8 @@ func TestRolloverService_DecideReview_KeepWithClassOverride(t *testing.T) {
 }
 
 func TestRolloverService_DecideReview_DropWithdraws(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -697,6 +729,8 @@ func TestRolloverService_DecideReview_DropWithdraws(t *testing.T) {
 // The carried letter (e.g. "5a") would otherwise win on approval even after
 // the admin overrides the target grade in the review queue. Issue #1833.
 func TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -727,6 +761,8 @@ func TestRolloverService_CreatePhaseFromSource_DropsClassForReviewRow(t *testing
 }
 
 func TestRolloverService_DecideReview_RejectsUnknownDecision(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -741,6 +777,10 @@ func TestRolloverService_DecideReview_RejectsUnknownDecision(t *testing.T) {
 
 // --- Deadline worker ---
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_TransitionsStatuses(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
@@ -780,6 +820,10 @@ func TestRolloverService_RunDeadlineWorker_TransitionsStatuses(t *testing.T) {
 	assert.Empty(t, remainingPending)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_IsIdempotent(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
@@ -863,6 +907,10 @@ func (f *fakeApproveDecisionService) Decide(ctx context.Context, input enrollmen
 	return &enrollmentService.DecideOutcome{}, nil
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
@@ -904,6 +952,10 @@ func TestRolloverService_RunDeadlineWorker_AutoApprovePromotesToApproved(t *test
 	assert.Equal(t, 1, stubDecision.calls)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_RunDeadlineWorker_AutoApproveFallbackWithoutDecisionService(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
@@ -930,6 +982,8 @@ func TestRolloverService_RunDeadlineWorker_AutoApproveFallbackWithoutDecisionSer
 // --- ConfirmRenewal (opt-in parent path) ---
 
 func TestRequestService_ConfirmRenewal_TransitionsPendingRenewalToSubmitted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -962,6 +1016,8 @@ func TestRequestService_ConfirmRenewal_TransitionsPendingRenewalToSubmitted(t *t
 }
 
 func TestRequestService_ConfirmRenewal_IsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -989,6 +1045,8 @@ func TestRequestService_ConfirmRenewal_IsIdempotent(t *testing.T) {
 }
 
 func TestRolloverService_RunDeadlineWorker_LeavesAdminReviewAlone(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

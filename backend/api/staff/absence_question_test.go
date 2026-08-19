@@ -58,6 +58,8 @@ func postQuestion(t *testing.T, tc *testContext, token string, absenceID int64, 
 }
 
 func TestQuestionAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -73,6 +75,8 @@ func TestQuestionAbsence_Success(t *testing.T) {
 }
 
 func TestQuestionAbsence_RequiresNote(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -82,6 +86,8 @@ func TestQuestionAbsence_RequiresNote(t *testing.T) {
 }
 
 func TestQuestionAbsence_RequiresPermission(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -91,6 +97,8 @@ func TestQuestionAbsence_RequiresPermission(t *testing.T) {
 }
 
 func TestQuestionAbsence_OnlyFromRequested(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 
@@ -102,6 +110,8 @@ func TestQuestionAbsence_OnlyFromRequested(t *testing.T) {
 }
 
 func TestListPendingAbsences_IncludesQuestionStatus(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	absence := createRequestedVacation(t, tc, subjectID)
 

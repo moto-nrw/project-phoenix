@@ -85,6 +85,8 @@ func changeLogSettings(retentionDays int) *configtest.Mock {
 }
 
 func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
@@ -117,6 +119,8 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 }
 
 func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 

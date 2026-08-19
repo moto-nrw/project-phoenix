@@ -76,6 +76,8 @@ func postAbsence(t *testing.T, tc *testContext, token string, staffID int64, bod
 }
 
 func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
+	t.Parallel()
+
 	tc, token, subjectID, shiftID := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 
@@ -122,6 +124,8 @@ func TestAdminCreateStaffAbsence_SickCascades(t *testing.T) {
 }
 
 func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
+	t.Parallel()
+
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 
@@ -152,6 +156,8 @@ func TestAdminCreateStaffAbsence_CompTimeAllowedForManager(t *testing.T) {
 }
 
 func TestAdminCreateStaffAbsence_RejectsMultiDayHalfDayCompTime(t *testing.T) {
+	t.Parallel()
+
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 
@@ -167,6 +173,8 @@ func TestAdminCreateStaffAbsence_RejectsMultiDayHalfDayCompTime(t *testing.T) {
 }
 
 func TestAdminCreateStaffAbsence_RequiresPermission(t *testing.T) {
+	t.Parallel()
+
 	tc, _, subjectID, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 
@@ -180,6 +188,8 @@ func TestAdminCreateStaffAbsence_RequiresPermission(t *testing.T) {
 }
 
 func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Reader-%d", time.Now().UnixNano()))
 	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, tc.db, staff.ID) })
@@ -200,6 +210,8 @@ func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
 }
 
 func TestAdminCreateStaffAbsence_UnknownStaff(t *testing.T) {
+	t.Parallel()
+
 	tc, token, _, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 
@@ -212,6 +224,8 @@ func TestAdminCreateStaffAbsence_UnknownStaff(t *testing.T) {
 }
 
 func TestAdminCreateStaffAbsence_RejectsVacationType(t *testing.T) {
+	t.Parallel()
+
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 

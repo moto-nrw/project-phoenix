@@ -37,6 +37,8 @@ func (a pinAccountStub) VerifyPIN(pin string) bool {
 }
 
 func TestResource_GetLogger(t *testing.T) {
+	t.Parallel()
+
 	customLogger := slog.Default()
 
 	assert.Same(t, customLogger, (&Resource{logger: customLogger}).getLogger())
@@ -52,6 +54,9 @@ func TestResource_Router(t *testing.T) {
 	require.NotNil(t, router)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	claims := testutil.DefaultTestClaims()
@@ -83,6 +88,8 @@ func TestResource_CrossStaffTimeAndAbsenceReadsRejectUsersRead(t *testing.T) {
 }
 
 func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
+	t.Parallel()
+
 	employmentType := users.EmploymentTypePartTime
 	response := newStaffResponse(&users.Staff{
 		Model:          base.Model{ID: 42},
@@ -99,6 +106,8 @@ func TestNewStaffResponse_IncludesEmploymentType(t *testing.T) {
 // proxy — as a number, an id past 2^53 would be rounded into a valid id for a
 // different person before any mapper could preserve it (#2222).
 func TestStaffResponse_PersonIDIsDecimalString(t *testing.T) {
+	t.Parallel()
+
 	const bigPersonID = int64(9007199254740993) // 2^53 + 1
 
 	encoded, err := json.Marshal(newStaffResponse(&users.Staff{
@@ -115,6 +124,8 @@ func TestStaffResponse_PersonIDIsDecimalString(t *testing.T) {
 }
 
 func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 
 	caregivers, err := resource.listActiveCaregivers(context.Background())
@@ -124,6 +135,8 @@ func TestResource_ListActiveCaregiversRequiresDirectoryAwarePersonService(t *tes
 }
 
 func TestBuildSubstitutionInfoList(t *testing.T) {
+	t.Parallel()
+
 	start := timezone.NewDate(2026, time.April, 1)
 	substitutions := []*education.GroupSubstitution{
 		{
@@ -154,6 +167,8 @@ func TestBuildSubstitutionInfoList(t *testing.T) {
 }
 
 func TestResource_CheckAccountLocked(t *testing.T) {
+	t.Parallel()
+
 	// The lockout decision moved off the model into AuthService.IsPINLocked
 	// (issue #586). IsPINLocked is a pure read of account.PINLockedUntil, so a
 	// zero-value Service suffices here.
@@ -171,6 +186,8 @@ func TestResource_CheckAccountLocked(t *testing.T) {
 }
 
 func TestVerifyCurrentPIN(t *testing.T) {
+	t.Parallel()
+
 	t.Run("skips verification when no pin exists", func(t *testing.T) {
 		result, renderer := verifyCurrentPIN(pinAccountStub{hasPIN: false}, nil)
 		assert.Equal(t, pinVerificationNotRequired, result)

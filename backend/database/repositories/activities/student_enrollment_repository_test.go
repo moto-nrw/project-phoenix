@@ -101,6 +101,8 @@ func createEnrollmentRequestChildForStudentEnrollmentTest(t *testing.T, db *bun.
 // ============================================================================
 
 func TestStudentEnrollmentRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -208,6 +210,8 @@ func TestStudentEnrollmentRepository_Create(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -221,6 +225,8 @@ func TestStudentEnrollmentRepository_Create_WithNil(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -248,6 +254,8 @@ func TestStudentEnrollmentRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -324,6 +332,8 @@ func TestStudentEnrollmentRepository_Update(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_Update_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -337,6 +347,8 @@ func TestStudentEnrollmentRepository_Update_WithNil(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -363,6 +375,7 @@ func TestStudentEnrollmentRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestStudentEnrollmentRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -402,6 +415,7 @@ func TestStudentEnrollmentRepository_List(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -445,6 +459,8 @@ func TestStudentEnrollmentRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -533,6 +549,8 @@ func TestStudentEnrollmentRepository_FindActiveByStudentIDs(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -581,6 +599,8 @@ func TestStudentEnrollmentRepository_FindByGroupID(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -628,6 +648,8 @@ func TestStudentEnrollmentRepository_CapActiveByGroup(t *testing.T) {
 }
 
 func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -696,6 +718,8 @@ func TestStudentEnrollmentRepository_BackfillEnrollmentRequestChildSource(t *tes
 }
 
 func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment
@@ -749,6 +773,8 @@ func TestStudentEnrollmentRepository_DeleteByEnrollmentRequestChild(t *testing.T
 }
 
 func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -814,6 +840,8 @@ func TestStudentEnrollmentRepository_CloseOpenByGroupAndPeriod(t *testing.T) {
 // ============================================================================
 
 func TestStudentEnrollmentRepository_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentEnrollment

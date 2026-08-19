@@ -40,6 +40,8 @@ func buildRequestService(t *testing.T) (parentService.Service, *bun.DB) {
 }
 
 func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -58,6 +60,8 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -78,6 +82,8 @@ func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_DepartureAndListRequests(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -102,6 +108,8 @@ func TestSubmitMasterDataChangeRequest_DepartureAndListRequests(t *testing.T) {
 }
 
 func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -147,6 +155,8 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -162,6 +172,8 @@ func TestSubmitMasterDataChangeRequest_DuplicatePending(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_ConcurrentDuplicatePending(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -197,6 +209,8 @@ func TestSubmitMasterDataChangeRequest_ConcurrentDuplicatePending(t *testing.T) 
 }
 
 func TestSubmitMasterDataChangeRequest_NoChange(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -209,6 +223,8 @@ func TestSubmitMasterDataChangeRequest_NoChange(t *testing.T) {
 }
 
 func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildRequestService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -254,6 +270,8 @@ func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
 // the thread timeline and the deep-link into the Änderungsanfragen queue can
 // resolve the exact row for any field, not just the first.
 func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	settings := parentSettingsStub{boolDefault: true}

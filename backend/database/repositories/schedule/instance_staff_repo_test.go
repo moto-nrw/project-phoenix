@@ -40,6 +40,8 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezon
 }
 
 func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -122,6 +124,8 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -154,6 +158,8 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -177,6 +183,8 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -237,6 +245,8 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -287,6 +297,8 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -334,6 +346,8 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -383,6 +397,8 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -419,6 +435,8 @@ func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -473,6 +491,8 @@ func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

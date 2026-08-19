@@ -20,6 +20,8 @@ import (
 // is the backend half of the "In Kindersuche öffnen" link from the room
 // detail page (#1323).
 func TestListStudents_RoomFilter_ReturnsOnlyStudentsInRoom(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Room A has an active group with two students currently checked-in.
@@ -74,6 +76,8 @@ func TestListStudents_RoomFilter_ReturnsOnlyStudentsInRoom(t *testing.T) {
 // must satisfy BOTH filters — otherwise the list contradicts the active group
 // chip in the UI (regression from the initial #1323 implementation).
 func TestListStudents_RoomFilter_IntersectsWithGroupFilter(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	roomA := testpkg.CreateTestRoom(t, tc.db, "RoomFilterIntersect")
@@ -129,6 +133,8 @@ func TestListStudents_RoomFilter_IntersectsWithGroupFilter(t *testing.T) {
 // room has no active groups (or none with open visits). The endpoint should
 // 200 with an empty data array, not error or fall back to "all students".
 func TestListStudents_RoomFilter_EmptyRoomReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	emptyRoom := testpkg.CreateTestRoom(t, tc.db, "EmptyFilterRoom")
@@ -150,6 +156,8 @@ func TestListStudents_RoomFilter_EmptyRoomReturnsEmpty(t *testing.T) {
 }
 
 func TestListStudents_LocationStateTransit_ReturnsCheckedInStudentsWithoutActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, tc.db, "TransitFilter", "Staff")
@@ -201,6 +209,8 @@ func TestListStudents_LocationStateTransit_ReturnsCheckedInStudentsWithoutActive
 }
 
 func TestListStudents_LocationStatePresent_ReturnsStudentsWithOpenAttendance(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, tc.db, "PresentFilter", "Staff")
@@ -257,6 +267,8 @@ func TestListStudents_LocationStatePresent_ReturnsStudentsWithOpenAttendance(t *
 }
 
 func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -317,6 +329,8 @@ func TestListStudents_LocationStateTransitWithGroupID_IntersectsFilters(t *testi
 }
 
 func TestListStudents_LocationStateTransit_InvalidFilters(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	tests := []struct {
@@ -348,6 +362,8 @@ func TestListStudents_LocationStateTransit_InvalidFilters(t *testing.T) {
 }
 
 func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	bystander := testpkg.CreateTestStudent(t, tc.db, "TransitEmpty", "Bystander", "TEB1")
@@ -374,6 +390,8 @@ func TestListStudents_LocationStateTransit_EmptyReturnsEmpty(t *testing.T) {
 }
 
 func TestListStudents_LocationStateTransitWithGroupID_NoIntersectionReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 

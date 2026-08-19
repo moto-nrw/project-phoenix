@@ -54,6 +54,8 @@ func cleanupOperators(t *testing.T, db *bun.DB, operatorIDs ...int64) {
 }
 
 func TestCommentRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)
@@ -112,6 +114,8 @@ func TestCommentRepository_Create(t *testing.T) {
 }
 
 func TestCommentRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)
@@ -156,6 +160,8 @@ func TestCommentRepository_FindByID(t *testing.T) {
 }
 
 func TestCommentRepository_FindByPostID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)
@@ -232,6 +238,8 @@ func TestCommentRepository_FindByPostID(t *testing.T) {
 }
 
 func TestCommentRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewCommentRepository(db)

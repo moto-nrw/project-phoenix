@@ -63,6 +63,8 @@ func detectWindow(t *testing.T, s *scenarioSetup, includeDeletions bool) []sched
 }
 
 func TestDetectEditedInWindow_Pristine(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	materializeSingleInstance(t, s)
@@ -71,6 +73,8 @@ func TestDetectEditedInWindow_Pristine(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_TitleEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -86,6 +90,8 @@ func TestDetectEditedInWindow_TitleEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_NotesEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -98,6 +104,8 @@ func TestDetectEditedInWindow_NotesEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_DescriptionEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -112,6 +120,8 @@ func TestDetectEditedInWindow_DescriptionEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_RoomEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -128,6 +138,8 @@ func TestDetectEditedInWindow_RoomEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_TimeMove(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -141,6 +153,8 @@ func TestDetectEditedInWindow_TimeMove(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -162,6 +176,8 @@ func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_StudentRosterRemoval(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -181,6 +197,8 @@ func TestDetectEditedInWindow_StudentRosterRemoval(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
+	t.Parallel()
+
 	statuses := []struct {
 		name      string
 		status    string
@@ -238,6 +256,8 @@ func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		apply func(*scheduleModels.InstanceStudent)
@@ -292,6 +312,8 @@ func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *te
 }
 
 func TestDetectEditedInWindow_StaffRosterEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -311,6 +333,8 @@ func TestDetectEditedInWindow_StaffRosterEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -340,6 +364,8 @@ func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
 // resurrected by a following-series split, so it must be reported — but only
 // when the caller asks for deletions (a same-template re-plan preserves it).
 func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -377,6 +403,8 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -397,6 +425,8 @@ func TestDetectEditedInWindow_TenantIsolation(t *testing.T) {
 // detector must NOT report it as a lost `time` edit (the re-plan re-applies the
 // same exception). The old (weekday, start) slot map flagged it.
 func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 
@@ -426,6 +456,8 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 // map matched it on (weekday, start) and missed the loss; the date-aware
 // projection returns no slot, so it is correctly flagged as a lost `time` edit.
 func TestDetectEditedInWindow_OffRecurrenceDateFlagged(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)

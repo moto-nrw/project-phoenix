@@ -28,6 +28,8 @@ func buildSessionEdgeCaseService(t *testing.T, db *bun.DB) activeSvc.Service {
 // =============================================================================
 
 func TestSessionStartWithRoomConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
@@ -64,6 +66,8 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 // =============================================================================
 
 func TestForceStartOverridesExistingSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
@@ -102,6 +106,8 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 }
 
 func TestForceStartWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
@@ -148,6 +154,8 @@ func TestForceStartWithSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestUpdateActiveGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
@@ -239,6 +247,8 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)
@@ -303,6 +313,8 @@ func TestStartActivitySessionWithSupervisors_EdgeCases(t *testing.T) {
 // =============================================================================
 
 func TestCheckActivityConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildSessionEdgeCaseService(t, db)

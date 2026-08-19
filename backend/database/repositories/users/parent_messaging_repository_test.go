@@ -47,6 +47,8 @@ func newMessage(tb testing.TB, threadID, studentID, accountID int64, kind, body 
 // oldest-first, and verify the read-cursor / unread arithmetic that drives both
 // the staff inbox and the parent thread list.
 func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -152,6 +154,8 @@ func TestParentMessaging_ThreadsMessagesAndReadState(t *testing.T) {
 // the reader never saw as already read; the composite (last_read_at,
 // last_read_message_id) cursor must keep it unread.
 func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -210,6 +214,8 @@ func TestParentMessaging_UnreadCreatedAtTie(t *testing.T) {
 // reply/message race: handling a snapshot up to one guardian row must leave a
 // later row with the same timestamp and a higher id unread for every colleague.
 func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -247,6 +253,8 @@ func TestParentMessaging_TeamHandledCursorDoesNotSkipTiedNewMessage(t *testing.T
 }
 
 func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -282,6 +290,8 @@ func TestParentMessaging_MessageAppendLockSerializesThreadWrites(t *testing.T) {
 }
 
 func TestParentMessaging_StaffNotificationClaimDebouncesOneThread(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -339,6 +349,8 @@ func newRequestCreatedPill(tb testing.TB, threadID, studentID, actorAccountID in
 // also asserts the per-thread unread_count column agrees with the aggregate badge,
 // the invariant the exclusion is baked into counterpartUnread to preserve.
 func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -392,6 +404,8 @@ func TestParentMessaging_RequestCreatedPillNotCounted(t *testing.T) {
 // rejected by the unique constraint, and FindByStudentGuardian returns the
 // existing thread so the "send" path is get-or-create.
 func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -431,6 +445,8 @@ func TestParentMessaging_OneThreadPerGuardian(t *testing.T) {
 // TestParentMessaging_ListGuardiansForStudent returns the child's
 // account-holding guardians for the staff recipient picker.
 func TestParentMessaging_ListGuardiansForStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -450,6 +466,8 @@ func TestParentMessaging_ListGuardiansForStudent(t *testing.T) {
 // picker must therefore NOT offer them — otherwise staff could send a message
 // the recipient can never see.
 func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -499,6 +517,8 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesNoPortalAccess(t *testi
 // open a thread the recipient can never see and BroadcastParentMessage would
 // still wake the revoked account.
 func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembership(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -529,6 +549,8 @@ func TestParentMessaging_ListGuardiansForStudent_ExcludesInactiveTenantMembershi
 // must NOT overwrite the newer one's preview/order just because it committed
 // last. TouchLastMessage no-ops on a stale (older-or-equal) instant.
 func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -578,6 +600,8 @@ func TestParentMessaging_TouchLastMessage_Monotonic(t *testing.T) {
 // cursor use). On an equal instant the higher-id message owns the preview/sender,
 // and a lower-id message that commits afterwards must NOT steal it back.
 func TestParentMessaging_TouchLastMessage_TiedTimestamp(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -621,6 +645,8 @@ func derefStr(s *string) string {
 // the shared unread-count query must not keep counting their messages — a
 // nonzero badge no portal can open or clear (#405 review).
 func TestParentMessaging_UnreadCountExcludesAlumni(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

@@ -15,6 +15,8 @@ import (
 )
 
 func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	// sqlmock without ExpectClose complains on Close; the close error is noise.
@@ -32,6 +34,8 @@ func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
 }
 
 func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	// sqlmock without ExpectClose complains on Close; the close error is noise.
@@ -54,6 +58,8 @@ func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 }
 
 func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	// sqlmock without ExpectClose complains on Close; the close error is noise.
@@ -70,6 +76,8 @@ func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
 }
 
 func TestAccountRepository_FindAvatarsByAccountIDs_Success(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	// sqlmock without ExpectClose complains on Close; the close error is noise.
@@ -95,6 +103,8 @@ func TestAccountRepository_FindAvatarsByAccountIDs_Success(t *testing.T) {
 }
 
 func TestAccountRepository_FindAvatarsByAccountIDs_ReturnsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	// sqlmock without ExpectClose complains on Close; the close error is noise.

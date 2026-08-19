@@ -104,6 +104,8 @@ func cleanupGroupMappingTestData(t *testing.T, db *bun.DB, data *groupMappingTes
 // ============================================================================
 
 func TestGroupMappingRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
@@ -146,6 +148,8 @@ func TestGroupMappingRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
@@ -190,6 +194,8 @@ func TestGroupMappingRepository_FindByActiveCombinedGroupID(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
@@ -228,6 +234,8 @@ func TestGroupMappingRepository_FindByActiveGroupID(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
@@ -267,6 +275,8 @@ func TestGroupMappingRepository_AddGroupToCombination(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
@@ -309,6 +319,8 @@ func TestGroupMappingRepository_RemoveGroupFromCombination(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping
@@ -390,6 +402,8 @@ func TestGroupMappingRepository_FindWithRelations(t *testing.T) {
 // ============================================================================
 
 func TestGroupMappingRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupMapping

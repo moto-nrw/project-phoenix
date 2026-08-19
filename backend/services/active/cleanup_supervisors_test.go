@@ -26,6 +26,8 @@ func utcToday() time.Time {
 // TestCleanupStaleSupervisors_NoStaleRecords tests that cleanup works correctly
 // when there are no stale supervisor records to clean up.
 func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -46,6 +48,8 @@ func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_ClosesYesterdayRecords tests that stale supervisor
 // records from previous days without end_date are properly closed.
 func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -101,6 +105,8 @@ func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_IgnoresTodayRecords tests that supervisor records
 // from today (with no end_date) are NOT closed — they are still active.
 func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -149,6 +155,8 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 // (visit_retention, manual, gdpr_request). The "supervisor_cleanup" type is logged
 // as an error in result.Errors but does not prevent the cleanup from completing.
 func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)
@@ -205,6 +213,8 @@ func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 // TestPreviewSupervisorCleanup tests that preview correctly identifies stale
 // supervisor records without modifying data.
 func TestPreviewSupervisorCleanup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cleanupService := setupCleanupService(t, db)

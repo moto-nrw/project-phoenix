@@ -120,6 +120,8 @@ func setupActiveService(t *testing.T, db *bun.DB) activeSvc.Service {
 // 2. Perform operations using real IDs
 // 3. Clean up after the test
 func TestActivitySessionConflictDetection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -268,6 +270,8 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 // TestSessionLifecycle tests the basic session lifecycle
 // Demonstrates hermetic test pattern with fixture creation and cleanup
 func TestSessionLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -320,6 +324,8 @@ func TestSessionLifecycle(t *testing.T) {
 
 // TestConflictInfoStructure tests the conflict information structure
 func TestConflictInfoStructure(t *testing.T) {
+	t.Parallel()
+
 	// Test that ActivityConflictInfo struct has expected fields
 	conflictInfo := &activeSvc.ActivityConflictInfo{
 		HasConflict:      true,
@@ -336,6 +342,8 @@ func TestConflictInfoStructure(t *testing.T) {
 
 // TestErrorTypes verifies the custom error types are properly defined
 func TestErrorTypes(t *testing.T) {
+	t.Parallel()
+
 	// Test that error constants are defined
 	errors := []error{
 		activeSvc.ErrDeviceAlreadyActive,
@@ -353,6 +361,8 @@ func TestErrorTypes(t *testing.T) {
 // TestConcurrentSessionAttempts tests race condition handling
 // Uses fixtures to test concurrent access with real database records
 func TestConcurrentSessionAttempts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -432,6 +442,8 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 
 // TestForceStartActivitySessionWithSupervisors tests the force start with multiple supervisors
 func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -676,6 +688,8 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 
 // TestStartActivitySessionWithSupervisors tests starting sessions with multiple supervisors
 func TestStartActivitySessionWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

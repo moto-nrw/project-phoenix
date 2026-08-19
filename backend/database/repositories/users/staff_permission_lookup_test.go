@@ -18,6 +18,8 @@ import (
 )
 
 func TestListStaffWithPermission_DirectGrant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := usersRepo.NewStaffRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -70,6 +72,8 @@ func TestListStaffWithPermission_DirectGrant(t *testing.T) {
 }
 
 func TestGetStaffContactInfo_ReturnsNameAndEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := usersRepo.NewStaffRepository(db)
 	ctx := testpkg.Ctx(t)

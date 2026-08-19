@@ -25,6 +25,8 @@ import (
 )
 
 func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(

@@ -12,6 +12,9 @@ import (
 // Command Registration Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGendocCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "gendoc", gendocCmd.Use)
 	assert.Contains(t, gendocCmd.Short, "Generate")
@@ -19,6 +22,9 @@ func TestGendocCmd_Metadata(t *testing.T) {
 	assert.NotNil(t, gendocCmd.Run)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGendocCmd_IsRegisteredOnRoot(t *testing.T) {
 	found := false
 	for _, cmd := range RootCmd.Commands() {
@@ -30,12 +36,18 @@ func TestGendocCmd_IsRegisteredOnRoot(t *testing.T) {
 	assert.True(t, found, "gendocCmd should be registered on RootCmd")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGendocCmd_Flags(t *testing.T) {
 	f := gendocCmd.Flags()
 	assert.NotNil(t, f.Lookup("routes"))
 	assert.NotNil(t, f.Lookup("openapi"))
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGendocCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	gendocCmd.SetOut(buf)
@@ -54,6 +66,9 @@ func TestGendocCmd_UsageOutput(t *testing.T) {
 // createOpenAPIBaseStructure Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCreateOpenAPIBaseStructure(t *testing.T) {
 	spec := createOpenAPIBaseStructure()
 
@@ -95,41 +110,62 @@ func TestCreateOpenAPIBaseStructure(t *testing.T) {
 // extractRoutePattern Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractRoutePattern_WithBackticksAndSummary(t *testing.T) {
 	line := "`/api/students` <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "/api/students", result)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractRoutePattern_NoBackticks(t *testing.T) {
 	line := "/api/students <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractRoutePattern_NoSummaryTag(t *testing.T) {
 	line := "`/api/students`"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractRoutePattern_EmptyLine(t *testing.T) {
 	result := extractRoutePattern("")
 	assert.Equal(t, "", result)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractRoutePattern_WildcardRoute(t *testing.T) {
 	line := "`*` <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractRoutePattern_EmptyBackticks(t *testing.T) {
 	line := "`` <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractRoutePattern_SingleBacktick(t *testing.T) {
 	line := "` <summary>"
 	result := extractRoutePattern(line)
@@ -140,26 +176,41 @@ func TestExtractRoutePattern_SingleBacktick(t *testing.T) {
 // extractPathParams Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractPathParams_SingleParam(t *testing.T) {
 	params := extractPathParams("/users/{id}")
 	assert.Equal(t, []string{"id"}, params)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractPathParams_MultipleParams(t *testing.T) {
 	params := extractPathParams("/users/{userId}/posts/{postId}")
 	assert.Equal(t, []string{"userId", "postId"}, params)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractPathParams_NoParams(t *testing.T) {
 	params := extractPathParams("/api/students")
 	assert.Nil(t, params)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractPathParams_EmptyPath(t *testing.T) {
 	params := extractPathParams("")
 	assert.Nil(t, params)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestExtractPathParams_ComplexPath(t *testing.T) {
 	params := extractPathParams("/api/{version}/groups/{groupId}/students/{studentId}")
 	assert.Equal(t, []string{"version", "groupId", "studentId"}, params)
@@ -169,37 +220,58 @@ func TestExtractPathParams_ComplexPath(t *testing.T) {
 // getTagsFromPath Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetTagsFromPath_SimpleAPI(t *testing.T) {
 	tags := getTagsFromPath("/api/students")
 	assert.Equal(t, []string{"Students"}, tags)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetTagsFromPath_NestedPath(t *testing.T) {
 	tags := getTagsFromPath("/api/groups/123/students")
 	assert.Equal(t, []string{"Groups"}, tags)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetTagsFromPath_IoTPath(t *testing.T) {
 	tags := getTagsFromPath("/api/iot/devices")
 	assert.Equal(t, []string{"Iot"}, tags)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetTagsFromPath_RootPath(t *testing.T) {
 	tags := getTagsFromPath("/")
 	assert.Equal(t, []string{"API"}, tags)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetTagsFromPath_EmptyPath(t *testing.T) {
 	tags := getTagsFromPath("")
 	assert.Equal(t, []string{"API"}, tags)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetTagsFromPath_APIOnly(t *testing.T) {
 	// /api with nothing after should fall through to "API" default
 	tags := getTagsFromPath("/api")
 	assert.Equal(t, []string{"API"}, tags)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetTagsFromPath_NonAPIPrefix(t *testing.T) {
 	tags := getTagsFromPath("/health")
 	assert.Equal(t, []string{"Health"}, tags)
@@ -209,6 +281,9 @@ func TestGetTagsFromPath_NonAPIPrefix(t *testing.T) {
 // getSettingsSchemas Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetSettingsSchemas(t *testing.T) {
 	schemas := getSettingsSchemas()
 
@@ -259,12 +334,18 @@ func TestGetSettingsSchemas(t *testing.T) {
 // tryAddHTTPMethod Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestTryAddHTTPMethod_EmptyCurrentRoute(t *testing.T) {
 	paths := map[string]interface{}{}
 	tryAddHTTPMethod("_GET_ /some/route", paths, "")
 	assert.Empty(t, paths)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestTryAddHTTPMethod_GET(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
@@ -275,6 +356,9 @@ func TestTryAddHTTPMethod_GET(t *testing.T) {
 	assert.Contains(t, pathInfo, "get")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestTryAddHTTPMethod_POST(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
@@ -285,6 +369,9 @@ func TestTryAddHTTPMethod_POST(t *testing.T) {
 	assert.Contains(t, pathInfo, "post")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestTryAddHTTPMethod_PUT(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
@@ -295,6 +382,9 @@ func TestTryAddHTTPMethod_PUT(t *testing.T) {
 	assert.Contains(t, pathInfo, "put")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestTryAddHTTPMethod_DELETE(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
@@ -305,6 +395,9 @@ func TestTryAddHTTPMethod_DELETE(t *testing.T) {
 	assert.Contains(t, pathInfo, "delete")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestTryAddHTTPMethod_PATCH(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
@@ -315,6 +408,9 @@ func TestTryAddHTTPMethod_PATCH(t *testing.T) {
 	assert.Contains(t, pathInfo, "patch")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestTryAddHTTPMethod_NoMethodMarker(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
@@ -329,6 +425,9 @@ func TestTryAddHTTPMethod_NoMethodMarker(t *testing.T) {
 // addMethod Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestAddMethod_CreatesOperation(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/students": map[string]interface{}{},
@@ -343,6 +442,9 @@ func TestAddMethod_CreatesOperation(t *testing.T) {
 	assert.Equal(t, []string{"Students"}, op["tags"])
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestAddMethod_SkipsDuplicate(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/students": map[string]interface{}{},
@@ -355,6 +457,9 @@ func TestAddMethod_SkipsDuplicate(t *testing.T) {
 	assert.Contains(t, pathInfo, "get")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestAddMethod_WithPathParams(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/students/{id}": map[string]interface{}{},
@@ -374,6 +479,9 @@ func TestAddMethod_WithPathParams(t *testing.T) {
 	assert.Equal(t, true, params[0]["required"])
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestAddMethod_WithMultiplePathParams(t *testing.T) {
 	paths := map[string]interface{}{
 		"/api/groups/{groupId}/students/{studentId}": map[string]interface{}{},
@@ -394,6 +502,9 @@ func TestAddMethod_WithMultiplePathParams(t *testing.T) {
 // mergeSettingsSchemas Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMergeSettingsSchemas(t *testing.T) {
 	spec := createOpenAPIBaseStructure()
 
@@ -410,12 +521,18 @@ func TestMergeSettingsSchemas(t *testing.T) {
 // parseRoutesFromMarkdown Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestParseRoutesFromMarkdown_Empty(t *testing.T) {
 	paths := map[string]interface{}{}
 	parseRoutesFromMarkdown("", paths)
 	assert.Empty(t, paths)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestParseRoutesFromMarkdown_WithRoutes(t *testing.T) {
 	md := "`/api/students` <summary>\n_GET_ handler\n_POST_ handler\n"
 	paths := map[string]interface{}{}
@@ -427,6 +544,9 @@ func TestParseRoutesFromMarkdown_WithRoutes(t *testing.T) {
 	assert.Contains(t, pathInfo, "post")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestParseRoutesFromMarkdown_MultipleRoutes(t *testing.T) {
 	md := "`/api/students` <summary>\n_GET_ handler\n`/api/groups` <summary>\n_POST_ handler\n"
 	paths := map[string]interface{}{}

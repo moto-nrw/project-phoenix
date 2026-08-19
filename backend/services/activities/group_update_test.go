@@ -18,6 +18,8 @@ import (
 // applied group-field changes — instead of the historical Warn-and-commit
 // partial write.
 func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -46,6 +48,8 @@ func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
 // TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules covers the
 // happy path: fields, supervisor set, and schedule replacement all land.
 func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)

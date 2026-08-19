@@ -194,6 +194,8 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 // --- IsRequired: drive each mode value ---
 
 func TestMFAService_IsRequired_ModeOff_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeOff)
 
@@ -205,6 +207,8 @@ func TestMFAService_IsRequired_ModeOff_ReturnsFalse(t *testing.T) {
 }
 
 func TestMFAService_IsRequired_ModeRequiredAll_ReturnsTrue(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeRequiredAll)
 
@@ -216,6 +220,8 @@ func TestMFAService_IsRequired_ModeRequiredAll_ReturnsTrue(t *testing.T) {
 }
 
 func TestMFAService_IsRequired_ModeRequiredAdmins_RequiresAdminsOnly(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeRequiredAdmins)
 
@@ -238,6 +244,8 @@ func TestMFAService_IsRequired_ModeRequiredAdmins_RequiresAdminsOnly(t *testing.
 }
 
 func TestMFAService_IsRequired_UnknownModeFallsBackToOff(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, "garbage_mode_value")
 
@@ -249,6 +257,8 @@ func TestMFAService_IsRequired_UnknownModeFallsBackToOff(t *testing.T) {
 }
 
 func TestMFAService_IsRequired_NoTenantID_UsesRegistryDefault(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	// No override — should hit the ResolveString path (registry default = off).
 	acc := &authModel.Account{}
@@ -261,6 +271,8 @@ func TestMFAService_IsRequired_NoTenantID_UsesRegistryDefault(t *testing.T) {
 // --- IsTrustedDeviceEnabled & TrustedDeviceDays: per-tenant resolution ---
 
 func TestMFAService_IsTrustedDeviceEnabled_TenantOverrideRespected(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 
 	// Registry default for trusted_device_enabled is true. Explicitly flip
@@ -272,12 +284,16 @@ func TestMFAService_IsTrustedDeviceEnabled_TenantOverrideRespected(t *testing.T)
 }
 
 func TestMFAService_IsTrustedDeviceEnabled_NoOverride_UsesRegistryDefault(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	enabled := fix.svc.IsTrustedDeviceEnabled(context.Background(), fix.tenantID)
 	assert.True(t, enabled, "registry default for trusted_device_enabled is true")
 }
 
 func TestMFAService_TrustedDeviceDays_TenantOverrideRespected(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFATrustedDeviceDays, 14)
 
@@ -286,6 +302,8 @@ func TestMFAService_TrustedDeviceDays_TenantOverrideRespected(t *testing.T) {
 }
 
 func TestMFAService_TrustedDeviceDays_NegativeOverrideFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	fix := newWiredMFAFixture(t)
 	// A bad value (≤0) must fall through to the package constant default.
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFATrustedDeviceDays, -5)
@@ -296,6 +314,8 @@ func TestMFAService_TrustedDeviceDays_NegativeOverrideFallsBackToDefault(t *test
 // --- IssueTrustedDevice: trusted-device-disabled short-circuit ---
 
 func TestMFAService_IssueTrustedDevice_DisabledBySetting_NoCookieIssued(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fix := newWiredMFAFixture(t)
 
@@ -314,6 +334,8 @@ func TestMFAService_IssueTrustedDevice_DisabledBySetting_NoCookieIssued(t *testi
 }
 
 func TestMFAService_VerifyTrustedDevice_DisabledBySetting_ReturnsFalse(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fix := newWiredMFAFixture(t)
 
@@ -326,6 +348,8 @@ func TestMFAService_VerifyTrustedDevice_DisabledBySetting_ReturnsFalse(t *testin
 // --- dispatchChallengeEmail: real dispatcher + capturing mailer ---
 
 func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fix := newWiredMFAFixture(t)
 
@@ -351,6 +375,8 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 }
 
 func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	fix := newWiredMFAFixture(t)
 

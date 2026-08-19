@@ -60,6 +60,8 @@ func cleanupAccountRecords(t *testing.T, db *bun.DB, accountIDs ...int64) {
 // ============================================================================
 
 func TestRoleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -97,6 +99,8 @@ func TestRoleRepository_Create(t *testing.T) {
 }
 
 func TestRoleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -119,6 +123,8 @@ func TestRoleRepository_FindByID(t *testing.T) {
 }
 
 func TestRoleRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -140,6 +146,8 @@ func TestRoleRepository_FindByName(t *testing.T) {
 }
 
 func TestRoleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -160,6 +168,8 @@ func TestRoleRepository_Update(t *testing.T) {
 }
 
 func TestRoleRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -181,6 +191,8 @@ func TestRoleRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestRoleRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -197,6 +209,8 @@ func TestRoleRepository_List(t *testing.T) {
 }
 
 func TestRoleRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -275,6 +289,8 @@ func TestRoleRepository_FindByAccountID(t *testing.T) {
 // These tests verify the deprecated methods return appropriate errors.
 
 func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -293,6 +309,8 @@ func TestRoleRepository_AssignRoleToAccount(t *testing.T) {
 }
 
 func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role
@@ -315,6 +333,8 @@ func TestRoleRepository_RemoveRoleFromAccount(t *testing.T) {
 // ============================================================================
 
 func TestRoleRepository_FindRoleNamesByAccountIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Role

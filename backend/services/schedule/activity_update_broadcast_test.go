@@ -17,6 +17,8 @@ import (
 )
 
 func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
@@ -43,6 +45,8 @@ func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
 }
 
 func TestQueueActivityUpdates_DropsEventOnRollback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}

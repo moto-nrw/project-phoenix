@@ -83,6 +83,8 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) parentServic
 // --- ListChildrenForAccount ----------------------------------------------
 
 func TestService_ListChildrenForAccount_PassesAccountIDThrough(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubChildRepo{
 		result: []*parentModels.ChildSummary{
 			{StudentID: 4321, FirstName: "Lara", LastName: "Beispiel"},
@@ -98,6 +100,8 @@ func TestService_ListChildrenForAccount_PassesAccountIDThrough(t *testing.T) {
 }
 
 func TestService_ListChildrenForAccount_RejectsZeroAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubChildRepo{}
 	svc := newSvcWithChild(t, repo)
 
@@ -108,6 +112,8 @@ func TestService_ListChildrenForAccount_RejectsZeroAccount(t *testing.T) {
 }
 
 func TestService_ListChildrenForAccount_RejectsNegativeAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubChildRepo{}
 	svc := newSvcWithChild(t, repo)
 
@@ -116,6 +122,8 @@ func TestService_ListChildrenForAccount_RejectsNegativeAccount(t *testing.T) {
 }
 
 func TestService_ListChildrenForAccount_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	want := errors.New("synthetic child repo failure")
 	repo := &stubChildRepo{err: want}
 	svc := newSvcWithChild(t, repo)
@@ -126,6 +134,8 @@ func TestService_ListChildrenForAccount_PropagatesRepoError(t *testing.T) {
 }
 
 func TestService_ListChildrenForAccount_EmptyResultPropagates(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubChildRepo{result: []*parentModels.ChildSummary{}}
 	svc := newSvcWithChild(t, repo)
 
@@ -138,6 +148,8 @@ func TestService_ListChildrenForAccount_EmptyResultPropagates(t *testing.T) {
 // --- ListEnrollableForAccount --------------------------------------------
 
 func TestService_ListEnrollableForAccount_PassesAccountIDThrough(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollableRepo{
 		result: []*parentModels.EnrollablePhase{
 			{SchoolID: 5005, PhaseID: 7007, PhaseName: "Schuljahr 2026/27", AlreadyLinked: true},
@@ -154,6 +166,8 @@ func TestService_ListEnrollableForAccount_PassesAccountIDThrough(t *testing.T) {
 }
 
 func TestService_ListEnrollableForAccount_RejectsZeroAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollableRepo{}
 	svc := newSvcWithEnrollable(t, repo)
 
@@ -164,6 +178,8 @@ func TestService_ListEnrollableForAccount_RejectsZeroAccount(t *testing.T) {
 }
 
 func TestService_ListEnrollableForAccount_RejectsNegativeAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollableRepo{}
 	svc := newSvcWithEnrollable(t, repo)
 
@@ -172,6 +188,8 @@ func TestService_ListEnrollableForAccount_RejectsNegativeAccount(t *testing.T) {
 }
 
 func TestService_ListEnrollableForAccount_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	want := errors.New("synthetic enrollable repo failure")
 	repo := &stubEnrollableRepo{err: want}
 	svc := newSvcWithEnrollable(t, repo)
@@ -182,6 +200,8 @@ func TestService_ListEnrollableForAccount_PropagatesRepoError(t *testing.T) {
 }
 
 func TestService_ListEnrollableForAccount_EmptyResultPropagates(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{}}
 	svc := newSvcWithEnrollable(t, repo)
 
@@ -194,6 +214,8 @@ func TestService_ListEnrollableForAccount_EmptyResultPropagates(t *testing.T) {
 // --- NewService logger fallback ------------------------------------------
 
 func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	// Constructor must not panic when the caller forgets to pass a
 	// logger — the parent service is constructed at app boot, and a nil
 	// pointer dereference there would mean no server. The fallback is

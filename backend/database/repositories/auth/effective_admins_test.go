@@ -49,6 +49,8 @@ func grantTenantRole(t *testing.T, db *bun.DB, ctx context.Context, accountID, t
 // directions matter: missing an admin is an annoyance, including a non-admin is
 // a disclosure.
 func TestAccountRepository_ListEffectiveAdminAccountIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Account

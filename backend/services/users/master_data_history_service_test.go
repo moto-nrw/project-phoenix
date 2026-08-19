@@ -23,6 +23,8 @@ import (
 // child's and the reviewer's names, pending rows stay out, and the keyset
 // cursor pages without overlap.
 func TestMasterDataReview_ListHistory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
@@ -110,6 +112,8 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 // TestMasterDataReview_ListHistoryScopedToWritableChildren proves the history
 // applies the same per-child write gate as the pending queue.
 func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())

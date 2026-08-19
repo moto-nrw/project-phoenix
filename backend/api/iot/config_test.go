@@ -66,6 +66,9 @@ func newConfigMock(boolValues map[string]bool, stringValues map[string]string) *
 	}
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -111,6 +114,9 @@ func TestGetDeviceConfig_AllDefaults(t *testing.T) {
 	assert.Equal(t, "detailed", data["presence_mode"])
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -143,6 +149,9 @@ func TestGetDeviceConfig_PresenceModeBinary(t *testing.T) {
 	assert.Equal(t, "binary", data["presence_mode"], "binary-mode tenants must advertise binary so the kiosk branches its UX")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -179,6 +188,9 @@ func TestGetDeviceConfig_ButtonsDisabled(t *testing.T) {
 	assert.Equal(t, false, feedback["enabled"])
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_WithDailyCheckoutTime(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
@@ -272,6 +284,8 @@ func TestGetDeviceConfig_EnvVarFallbackWhenBatchFails(t *testing.T) {
 }
 
 func TestGetDeviceConfig_NoDeviceContext(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	req := httptest.NewRequest("GET", "/api/iot/config", nil)
@@ -283,6 +297,9 @@ func TestGetDeviceConfig_NoDeviceContext(t *testing.T) {
 	assert.NotEqual(t, http.StatusOK, w.Code)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestGetDeviceConfig_NilSettingsService(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 

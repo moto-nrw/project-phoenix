@@ -32,6 +32,8 @@ import (
 // Tests use a short lock_timeout on the blocked transaction so the race is
 // detected deterministically instead of through goroutine timing.
 func TestOrganizationRepository_LockingContract(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewOrganizationRepository(db)

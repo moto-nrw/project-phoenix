@@ -142,12 +142,16 @@ func validPhaseBody(name string) map[string]any {
 // --- listPhases --------------------------------------------------------
 
 func TestListPhasesHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(nil)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestListPhasesHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{listResult: []*enrollmentModels.Phase{
 		makePhaseModel(1234, "Schuljahr 2026"),
 	}}
@@ -159,6 +163,8 @@ func TestListPhasesHandler_HappyPath(t *testing.T) {
 }
 
 func TestListPhasesHandler_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{listErr: errors.New("synthetic boom")}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases", nil)
@@ -166,6 +172,8 @@ func TestListPhasesHandler_ServiceErrorReturns500(t *testing.T) {
 }
 
 func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	now := time.Now().UnixNano()
@@ -233,18 +241,24 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 // --- getPhase ---------------------------------------------------------
 
 func TestGetPhaseHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(nil)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestGetPhaseHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/notanumber", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetPhaseHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{getByIDResult: makePhaseModel(1234, "Schuljahr 2026")}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234", nil)
@@ -254,6 +268,8 @@ func TestGetPhaseHandler_HappyPath(t *testing.T) {
 }
 
 func TestGetPhaseHandler_NotFoundReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{getByIDErr: enrollmentService.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234", nil)
@@ -261,6 +277,8 @@ func TestGetPhaseHandler_NotFoundReturns404(t *testing.T) {
 }
 
 func TestGetPhaseHandler_GenericErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{getByIDErr: errors.New("synthetic boom")}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234", nil)
@@ -270,12 +288,16 @@ func TestGetPhaseHandler_GenericErrorReturns500(t *testing.T) {
 // --- createPhase ------------------------------------------------------
 
 func TestCreatePhaseHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(nil)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestCreatePhaseHandler_HappyPathReturns201(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{createResult: makePhaseModel(1234, "Schuljahr 2026")}
 	router := buildPhaseRouter(mock)
 	body := validPhaseBody("Schuljahr 2026")
@@ -293,6 +315,8 @@ func TestCreatePhaseHandler_HappyPathReturns201(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_BadServiceStartDateReturns400(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
 	body["service_start_date"] = "yesterday"
@@ -301,6 +325,8 @@ func TestCreatePhaseHandler_BadServiceStartDateReturns400(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_BadServiceEndDateReturns400(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
 	body["service_end_date"] = "tomorrow"
@@ -309,6 +335,8 @@ func TestCreatePhaseHandler_BadServiceEndDateReturns400(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_BadEnrollmentWindowReturns400(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
 	body["enrollment_open_at"] = "not-iso"
@@ -317,6 +345,8 @@ func TestCreatePhaseHandler_BadEnrollmentWindowReturns400(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_BadFormSchemaIDReturns400(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
 	body["form_schema_id"] = "not-a-number"
@@ -325,6 +355,8 @@ func TestCreatePhaseHandler_BadFormSchemaIDReturns400(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{createErr: enrollmentService.ErrInvalidPhase}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
@@ -332,6 +364,8 @@ func TestCreatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{createErr: enrollmentService.ErrPhaseDuplicateName}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
@@ -339,6 +373,8 @@ func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{createErr: errors.New("synthetic boom")}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
@@ -348,18 +384,24 @@ func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {
 // --- updatePhase ------------------------------------------------------
 
 func TestUpdatePhaseHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(nil)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestUpdatePhaseHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/notanumber", validPhaseBody("X"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestUpdatePhaseHandler_HappyPathRefetchesAfterUpdate(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated")}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
@@ -370,6 +412,8 @@ func TestUpdatePhaseHandler_HappyPathRefetchesAfterUpdate(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_OmittedCalendarPeriodIDPreservesExistingLink(t *testing.T) {
+	t.Parallel()
+
 	existing := makePhaseModel(1234, "Existing")
 	periodID := int64(42)
 	existing.CalendarPeriodID = &periodID
@@ -385,6 +429,8 @@ func TestUpdatePhaseHandler_OmittedCalendarPeriodIDPreservesExistingLink(t *test
 }
 
 func TestUpdatePhaseHandler_NullCalendarPeriodIDUnlinks(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated")}
 	router := buildPhaseRouter(mock)
 	body := validPhaseBody("Updated")
@@ -398,6 +444,8 @@ func TestUpdatePhaseHandler_NullCalendarPeriodIDUnlinks(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_NullCalendarPeriodIDMissingPhaseReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{getByIDErr: enrollmentService.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	body := validPhaseBody("Updated")
@@ -410,6 +458,8 @@ func TestUpdatePhaseHandler_NullCalendarPeriodIDMissingPhaseReturns404(t *testin
 }
 
 func TestUpdatePhaseHandler_BadDateReturns400(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
 	body["service_start_date"] = "yesterday"
@@ -418,6 +468,8 @@ func TestUpdatePhaseHandler_BadDateReturns400(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
 		updateErr:     enrollmentService.ErrInvalidPhase,
@@ -428,6 +480,8 @@ func TestUpdatePhaseHandler_InvalidPhaseReturns400(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
 		updateErr:     enrollmentService.ErrPhaseDuplicateName,
@@ -438,6 +492,8 @@ func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
 		updateErr:     enrollmentService.ErrPhaseCareOfferingConflict,
@@ -448,6 +504,8 @@ func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),
 		updateErr:     errors.New("synthetic boom"),
@@ -462,6 +520,8 @@ func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
 // fields from the stored phase so a partial update never wipes an admin's
 // class pick list / mandatory toggle.
 func TestUpdatePhaseHandler_OmittedClassConfigPreservesExisting(t *testing.T) {
+	t.Parallel()
+
 	existing := makePhaseModel(1234, "Updated")
 	existing.AvailableSchoolClasses = []string{"2a", "2b"}
 	existing.RequireSchoolClass = true
@@ -481,6 +541,8 @@ func TestUpdatePhaseHandler_OmittedClassConfigPreservesExisting(t *testing.T) {
 // An up-to-date client that explicitly sends the class config must have it
 // applied verbatim — including clearing the list / turning the flag off.
 func TestUpdatePhaseHandler_ExplicitClassConfigApplied(t *testing.T) {
+	t.Parallel()
+
 	existing := makePhaseModel(1234, "Updated")
 	existing.AvailableSchoolClasses = []string{"2a", "2b"}
 	existing.RequireSchoolClass = true
@@ -502,6 +564,8 @@ func TestUpdatePhaseHandler_ExplicitClassConfigApplied(t *testing.T) {
 // An explicit empty list is a deliberate clear, not an omission, and must be
 // applied rather than re-hydrated from the stored phase.
 func TestUpdatePhaseHandler_ExplicitEmptyClassListClears(t *testing.T) {
+	t.Parallel()
+
 	existing := makePhaseModel(1234, "Updated")
 	existing.AvailableSchoolClasses = []string{"2a", "2b"}
 	mock := &mockPhaseService{getByIDResult: existing}
@@ -517,6 +581,8 @@ func TestUpdatePhaseHandler_ExplicitEmptyClassListClears(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_ClassConfigApplied(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{createResult: makePhaseModel(1234, "Schuljahr 2026")}
 	router := buildPhaseRouter(mock)
 	body := validPhaseBody("Schuljahr 2026")
@@ -531,6 +597,8 @@ func TestCreatePhaseHandler_ClassConfigApplied(t *testing.T) {
 }
 
 func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{
 		getByIDResults: []*enrollmentModels.Phase{makePhaseModel(1234, "Updated")},
 		getByIDErrs:    []error{nil, errors.New("synthetic refetch boom")},
@@ -546,18 +614,24 @@ func TestUpdatePhaseHandler_RefetchErrorReturns500(t *testing.T) {
 // --- deletePhase ------------------------------------------------------
 
 func TestDeletePhaseHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(nil)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestDeletePhaseHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/notanumber", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestDeletePhaseHandler_HappyPathReturns204(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
@@ -566,6 +640,8 @@ func TestDeletePhaseHandler_HappyPathReturns204(t *testing.T) {
 }
 
 func TestDeletePhaseHandler_NotFoundReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{deleteErr: enrollmentService.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
@@ -573,6 +649,8 @@ func TestDeletePhaseHandler_NotFoundReturns404(t *testing.T) {
 }
 
 func TestDeletePhaseHandler_GenericErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{deleteErr: errors.New("synthetic boom")}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
@@ -582,6 +660,8 @@ func TestDeletePhaseHandler_GenericErrorReturns500(t *testing.T) {
 // --- getPhaseDeleteImpact ---------------------------------------------
 
 func TestPhaseDeleteImpactHandler_ReturnsCounts(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{
 		deleteImpactRes: &enrollmentService.PhaseDeleteImpact{
 			Requests:      3,
@@ -600,6 +680,8 @@ func TestPhaseDeleteImpactHandler_ReturnsCounts(t *testing.T) {
 }
 
 func TestPhaseDeleteImpactHandler_NotFoundReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockPhaseService{deleteImpactErr: enrollmentService.ErrPhaseNotFound}
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodGet, "/enrollment/phases/1234/delete-impact", nil)
@@ -607,6 +689,8 @@ func TestPhaseDeleteImpactHandler_NotFoundReturns404(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_CalendarPeriodIDRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	created := makePhaseModel(1234, "Schuljahr 2026")
 	periodID := int64(42)
 	created.CalendarPeriodID = &periodID
@@ -630,6 +714,8 @@ func TestCreatePhaseHandler_CalendarPeriodIDRoundtrip(t *testing.T) {
 }
 
 func TestCreatePhaseHandler_BadCalendarPeriodIDReturns400(t *testing.T) {
+	t.Parallel()
+
 	router := buildPhaseRouter(&mockPhaseService{})
 	body := validPhaseBody("X")
 	body["calendar_period_id"] = "not-a-number"

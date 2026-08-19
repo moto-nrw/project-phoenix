@@ -23,6 +23,8 @@ import (
 )
 
 func TestRefreshSingleflightKeyBindsIndependentProof(t *testing.T) {
+	t.Parallel()
+
 	refreshToken := "same-predecessor-refresh-handle"
 	legitimateProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "legitimate-recovery-secret"))
 	wrongProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "wrong-recovery-secret"))
@@ -103,6 +105,8 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 }
 
 func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -170,6 +174,8 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 }
 
 func TestFetchAndValidateAccount_TransientLookupErrorRemainsRetryable(t *testing.T) {
+	t.Parallel()
+
 	dbErr := errors.New("connection reset")
 	service := &Service{
 		repos: &repositories.Factory{
@@ -190,6 +196,8 @@ func TestFetchAndValidateAccount_TransientLookupErrorRemainsRetryable(t *testing
 }
 
 func TestFetchAndValidateAccount_MissingAccountRemainsTerminal(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			Account: stubRefreshAccountRepo{
@@ -208,6 +216,8 @@ func TestFetchAndValidateAccount_MissingAccountRemainsTerminal(t *testing.T) {
 }
 
 func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			School: &testpkg.SchoolRepoMock{
@@ -232,6 +242,8 @@ func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturns
 // DB errors from FindBySubdomain must propagate as-is, not collapse into ErrTenantNotFound.
 // A connection timeout is not "tenant not found", hiding it makes debugging impossible.
 func TestResolveAccountTenantBySlug_PropagatesDBErrors(t *testing.T) {
+	t.Parallel()
+
 	dbErr := errors.New("connection timed out")
 	service := &Service{
 		repos: &repositories.Factory{
@@ -259,6 +271,8 @@ func TestResolveAccountTenantBySlug_PropagatesDBErrors(t *testing.T) {
 // so the caller gets a clean error instead of proceeding with tenant_id=0 (which would
 // hit an FK constraint on auth.tokens).
 func TestResolveAccountTenantDefault_ReturnsErrWhenSchoolLookupReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -281,6 +295,8 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenSchoolLookupReturnsNil(t *tes
 }
 
 func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
@@ -311,6 +327,8 @@ func TestResolveAccountTenantDefault_SkipsDeletedSchoolAndFallsThrough(t *testin
 }
 
 func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
@@ -338,6 +356,8 @@ func TestResolveAccountTenantDefault_ReturnsErrWhenAllSchoolsDeleted(t *testing.
 }
 
 func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
@@ -373,6 +393,8 @@ func TestPersistAccountWithRole_CreatesTenantMappingWhenTenantIDProvided(t *test
 // A school with a non-nil DeletedAt must never be resolved as a valid tenant, even if
 // the account has an active mapping to it. This prevents login into decommissioned tenants.
 func TestResolveAccountTenantBySlug_DeletedSchool_ReturnsTenantNotFound(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
@@ -404,6 +426,8 @@ func TestResolveAccountTenantBySlug_DeletedSchool_ReturnsTenantNotFound(t *testi
 // resolveAccountTenantBySlug must reject inactive schools (Active == false) even when
 // the school is not soft-deleted and the account has a valid tenant mapping.
 func TestResolveAccountTenantBySlug_InactiveSchool_ReturnsTenantNotFound(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			School: &testpkg.SchoolRepoMock{
@@ -437,9 +461,11 @@ func TestResolveAccountTenantBySlug_InactiveSchool_ReturnsTenantNotFound(t *test
 // TestLoadAccountMetadataForTenant_WithValidTenant verifies that loading metadata
 // for a valid tenant populates the organization ID and returns no error.
 func TestLoadAccountMetadataForTenant_WithValidTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 77701
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "loadmeta-valid")
@@ -466,9 +492,11 @@ func TestLoadAccountMetadataForTenant_WithValidTenant(t *testing.T) {
 // TestLoadAccountMetadataForTenant_WithDeletedTenant verifies that a soft-deleted
 // school is treated as not found, the refresh flow must reject it with ErrTenantNotFound.
 func TestLoadAccountMetadataForTenant_WithDeletedTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
-	const tenantID int64 = 77702
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "loadmeta-deleted")
@@ -500,6 +528,8 @@ func TestLoadAccountMetadataForTenant_WithDeletedTenant(t *testing.T) {
 // TestLoadAccountMetadataForTenant_WithNonExistentTenant verifies that a tenantID
 // pointing to a school that was never created (or hard-deleted) returns ErrTenantNotFound.
 func TestLoadAccountMetadataForTenant_WithNonExistentTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	account := testpkg.CreateTestAccount(t, db, "loadmeta-noschool")
@@ -522,6 +552,8 @@ func TestLoadAccountMetadataForTenant_WithNonExistentTenant(t *testing.T) {
 // edge case (e.g. platform-scoped accounts), the function should succeed and return
 // orgID=0 without attempting a school lookup.
 func TestLoadAccountMetadataForTenant_WithZeroTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	account := testpkg.CreateTestAccount(t, db, "loadmeta-zero")
@@ -547,6 +579,8 @@ func TestLoadAccountMetadataForTenant_WithZeroTenant(t *testing.T) {
 // FindActiveByAccountID returns a DB error, it propagates as-is and is NOT masked
 // as ErrTenantNotFound.
 func TestResolveAccountTenantDefault_FindActiveByAccountID_Error(t *testing.T) {
+	t.Parallel()
+
 	dbErr := fmt.Errorf("connection refused")
 	service := &Service{
 		repos: &repositories.Factory{
@@ -572,6 +606,8 @@ func TestResolveAccountTenantDefault_FindActiveByAccountID_Error(t *testing.T) {
 // TestResolveAccountTenantDefault_SkipsInactiveSchool verifies that a school with
 // Active=false is skipped, and the next valid mapping is used.
 func TestResolveAccountTenantDefault_SkipsInactiveSchool(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -604,6 +640,8 @@ func TestResolveAccountTenantDefault_SkipsInactiveSchool(t *testing.T) {
 // when FindByID returns an error for every mapping, the last DB error is propagated
 // instead of returning ErrTenantNotFound.
 func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *testing.T) {
+	t.Parallel()
+
 	dbErr := fmt.Errorf("disk I/O error")
 	service := &Service{
 		repos: &repositories.Factory{
@@ -639,6 +677,8 @@ func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *test
 // ---------------------------------------------------------------------------
 
 func TestValidateTenantAccess_MappingLookupDBErrorIsRetryable(t *testing.T) {
+	t.Parallel()
+
 	dbErr := fmt.Errorf("temporary connection reset")
 	service := &Service{
 		repos: &repositories.Factory{
@@ -659,6 +699,8 @@ func TestValidateTenantAccess_MappingLookupDBErrorIsRetryable(t *testing.T) {
 }
 
 func TestValidateTenantAccess_MissingMappingIsTerminal(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -679,6 +721,8 @@ func TestValidateTenantAccess_MissingMappingIsTerminal(t *testing.T) {
 // soft-deleted school (IsDeleted() true) causes validateTenantAccess to return
 // ErrTenantNotFound even though the account_tenant mapping exists.
 func TestValidateTenantAccess_SchoolDeletedReturnsErrTenantNotFound(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	service := &Service{
 		repos: &repositories.Factory{
@@ -710,6 +754,8 @@ func TestValidateTenantAccess_SchoolDeletedReturnsErrTenantNotFound(t *testing.T
 // FindByID returns sql.ErrNoRows (school hard-deleted or never existed), the function
 // returns ErrTenantNotFound for a clean 401 response.
 func TestValidateTenantAccess_SchoolNotFoundReturnsErrTenantNotFound(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -736,6 +782,8 @@ func TestValidateTenantAccess_SchoolNotFoundReturnsErrTenantNotFound(t *testing.
 // (not sql.ErrNoRows) from FindByID is propagated so the frontend can retry,
 // rather than force-logging out the user.
 func TestValidateTenantAccess_SchoolLookupDBError(t *testing.T) {
+	t.Parallel()
+
 	dbErr := fmt.Errorf("connection reset by peer")
 	service := &Service{
 		repos: &repositories.Factory{
@@ -765,6 +813,8 @@ func TestValidateTenantAccess_SchoolLookupDBError(t *testing.T) {
 // FindByID returns (nil, nil), a defensive edge case, the function treats it
 // the same as a deleted school and returns ErrTenantNotFound.
 func TestValidateTenantAccess_SchoolNilReturnsErrTenantNotFound(t *testing.T) {
+	t.Parallel()
+
 	service := &Service{
 		repos: &repositories.Factory{
 			AccountTenant: stubAuthLoginAccountTenantRepo{
@@ -797,6 +847,8 @@ func TestValidateTenantAccess_SchoolNilReturnsErrTenantNotFound(t *testing.T) {
 // the transaction the same failure simply rolls the rotation back, and the
 // session the caller still holds keeps working.
 func TestRefreshTokenInTransaction_GuardFailureLeavesPresentedTokenUsable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

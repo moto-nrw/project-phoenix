@@ -54,6 +54,8 @@ func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaSer
 }
 
 func TestFormSchemaService_GetByID_RejectsNonPositive(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -66,6 +68,8 @@ func TestFormSchemaService_GetByID_RejectsNonPositive(t *testing.T) {
 }
 
 func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -83,6 +87,8 @@ func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_RequiresName(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -94,6 +100,8 @@ func TestFormSchemaService_CreateSchema_RequiresName(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_FreshNameOK(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -107,6 +115,8 @@ func TestFormSchemaService_CreateSchema_FreshNameOK(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_RefusesExistingName(t *testing.T) {
+	t.Parallel()
+
 	// CreateSchema is for *new* logical schemas. If the name already
 	// has a v1 row, the admin should call UpdateSchema instead — the
 	// service refuses to silently add a sibling.
@@ -127,6 +137,8 @@ func TestFormSchemaService_CreateSchema_RefusesExistingName(t *testing.T) {
 }
 
 func TestFormSchemaService_UpdateSchema_RejectsNonPositiveID(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -138,6 +150,8 @@ func TestFormSchemaService_UpdateSchema_RejectsNonPositiveID(t *testing.T) {
 }
 
 func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -164,6 +178,8 @@ func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
 }
 
 func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, repoFactory := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -220,6 +236,8 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 }
 
 func TestFormSchemaService_UpdateSchema_RejectsCoreFieldKey(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -236,6 +254,8 @@ func TestFormSchemaService_UpdateSchema_RejectsCoreFieldKey(t *testing.T) {
 }
 
 func TestFormSchemaService_DeleteSchema_RejectsZero(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -245,6 +265,8 @@ func TestFormSchemaService_DeleteSchema_RejectsZero(t *testing.T) {
 }
 
 func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -254,6 +276,8 @@ func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
 }
 
 func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 
@@ -263,6 +287,8 @@ func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
 }
 
 func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) {
+	t.Parallel()
+
 	db, svc, creatorID, _ := setupFullSchemaTest(t)
 	ctx := testpkg.Ctx(t)
 

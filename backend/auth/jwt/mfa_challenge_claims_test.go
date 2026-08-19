@@ -9,6 +9,8 @@ import (
 )
 
 func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
@@ -43,6 +45,8 @@ func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 }
 
 func TestMFAChallengeClaims_PlatformRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
@@ -71,6 +75,8 @@ func TestMFAChallengeClaims_PlatformRoundTrip(t *testing.T) {
 }
 
 func TestMFAChallengeClaims_RejectsMissingAccountID(t *testing.T) {
+	t.Parallel()
+
 	var c MFAChallengeClaims
 	err := c.ParseClaims(map[string]any{
 		"mfa_pending": true,
@@ -80,6 +86,8 @@ func TestMFAChallengeClaims_RejectsMissingAccountID(t *testing.T) {
 }
 
 func TestMFAChallengeClaims_RejectsBadScope(t *testing.T) {
+	t.Parallel()
+
 	var c MFAChallengeClaims
 	err := c.ParseClaims(map[string]any{
 		"account_id":  float64(1),
@@ -90,6 +98,8 @@ func TestMFAChallengeClaims_RejectsBadScope(t *testing.T) {
 }
 
 func TestMFAChallengeClaims_RejectsNonPendingToken(t *testing.T) {
+	t.Parallel()
+
 	var c MFAChallengeClaims
 	err := c.ParseClaims(map[string]any{
 		"account_id":  float64(1),
@@ -107,6 +117,8 @@ func TestMFAChallengeClaims_RejectsNonPendingToken(t *testing.T) {
 // caught.
 
 func TestParseMFAChallengeJWT_TenantRoundTripPopulatesClaims(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
@@ -127,6 +139,8 @@ func TestParseMFAChallengeJWT_TenantRoundTripPopulatesClaims(t *testing.T) {
 }
 
 func TestParseMFAChallengeJWT_PlatformRoundTripOmitsTenant(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
@@ -144,6 +158,8 @@ func TestParseMFAChallengeJWT_PlatformRoundTripOmitsTenant(t *testing.T) {
 }
 
 func TestParseMFAChallengeJWT_RejectsGarbageToken(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
@@ -153,6 +169,8 @@ func TestParseMFAChallengeJWT_RejectsGarbageToken(t *testing.T) {
 }
 
 func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T) {
+	t.Parallel()
+
 	issuer, err := NewTokenAuthWithSecret("issuer-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 	verifier, err := NewTokenAuthWithSecret("verifier-secret-must-be-at-least-32-characters-long")
@@ -171,6 +189,8 @@ func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T
 }
 
 func TestParseMFAChallengeJWT_RejectsExpiredToken(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
@@ -190,6 +210,8 @@ func TestParseMFAChallengeJWT_RejectsExpiredToken(t *testing.T) {
 }
 
 func TestParseMFAChallengeJWT_RejectsNonChallengeToken(t *testing.T) {
+	t.Parallel()
+
 	// Hand-craft a token where mfa_pending is missing — should fall through
 	// ParseClaims' "token is not a pending-MFA challenge" branch.
 	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")

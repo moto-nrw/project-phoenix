@@ -128,6 +128,8 @@ func cleanupOffboardedStaffChain(t *testing.T, db *bun.DB, staffID, personID int
 // the ON DELETE RESTRICT FK. With soft delete the offboarding must succeed and
 // the attendance history must survive untouched.
 func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Attendance", "History")
@@ -176,6 +178,8 @@ func TestOffboardStaff_WithAttendanceHistory(t *testing.T) {
 // TestOffboardStaff_RevokesAccountAccess covers bug 1 of issue #695: after
 // deletion the Betreuer must no longer be able to log in.
 func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	credential := offboardingCredential("Offboard", "123")
@@ -244,6 +248,8 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 // TestOffboardStaff_MultiTenantAccountKeepsOtherSchool: offboarding at school A
 // must not lock the account out of school B.
 func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	credential := offboardingCredential("Offboard", "123")
@@ -253,7 +259,7 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	staff := testpkg.CreateTestStaffForPerson(t, sc.db, person.ID)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
 
-	otherTenant := account.ID + 80000
+	otherTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, sc.db, otherTenant)
 	testpkg.MapAccountToTenant(t, sc.db, account.ID, otherTenant)
 
@@ -288,6 +294,8 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 // the same email must be re-invitable at the same school after offboarding,
 // and acceptance must restore a fully working Betreuer on the same account.
 func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	invSvc := authSvcPkg.NewInvitationService(authSvcPkg.InvitationServiceConfig{
@@ -376,6 +384,8 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 // TestOffboardStaff_ActiveSupervisionBlocks: an active room supervision still
 // blocks offboarding (no FK safety net remains, the pre-check is the guard).
 func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Supervising", "Staff")
@@ -410,6 +420,8 @@ func TestOffboardStaff_ActiveSupervisionBlocks(t *testing.T) {
 // TestOffboardStaff_CleansUpAssignments: planned assignments the old
 // ON DELETE CASCADE used to remove must be cleaned up explicitly.
 func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	teacher := testpkg.CreateTestTeacher(t, sc.db, "Assigned", "Teacher")
@@ -469,6 +481,8 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 // assignment cleanup invalidates open group views after the transaction
 // commits. Offboarding does not pass through the education service.
 func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	broadcastAware := sc.svc.(interface {
@@ -507,6 +521,8 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 }
 
 func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	sc.deps.DataDeletionRepo = &failingDataDeletionRepository{
@@ -547,6 +563,8 @@ func TestOffboardStaff_RollbackBroadcastsNothing(t *testing.T) {
 // TestOffboardStaff_Idempotent: deleting a non-existent staff member stays a
 // no-op so the HTTP handler keeps returning 200.
 func TestOffboardStaff_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, 999999, 999999, "test-admin"))
 }
@@ -554,6 +572,8 @@ func TestOffboardStaff_Idempotent(t *testing.T) {
 // TestOffboardStaff_ExcludedFromListsAndPIN: offboarded staff must vanish from
 // operational queries.
 func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Listed", "Staff")
@@ -580,6 +600,8 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 // grants must not survive offboarding — re-invitation reuses the account ID,
 // so leftover grants would restore old elevated permissions.
 func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Direct", "Permission")
@@ -611,6 +633,8 @@ func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
 // account loses staff access but must keep the guardian role and an active
 // tenant mapping so the parents portal keeps working.
 func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	credential := offboardingCredential("Offboard", "123")
@@ -674,6 +698,8 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 // removed (instance Start would copy them into active supervisors), while
 // already-completed same-day instances keep their rows as history.
 func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "SameDay", "Planned")
@@ -737,6 +763,8 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 // not-yet-over absences must disappear from operational queries; past decided
 // absences stay as history.
 func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Absent", "Staff")
@@ -813,6 +841,8 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 }
 
 func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Audit", "Rollback")
@@ -853,6 +883,8 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 }
 
 func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Shifted", "Offboard")
@@ -906,6 +938,8 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 // must not keep its work_time_model_id, or the RESTRICT FK blocks model
 // deletion while the live-staff pre-check reports zero assignments.
 func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
+	t.Parallel()
+
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Modeled", "Staff")
@@ -953,6 +987,9 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 //
 // The proof is indirect but exact: while another transaction holds the account
 // row, offboarding must not get as far as deleting the role mapping.
+// Deliberately NOT parallel: the test takes a row lock in one transaction and
+// expects the offboarding in the other to block on it. Beside a test that
+// touches the same rows, that contention turns into a deadlock instead.
 func TestOffboardStaff_LocksAccountBeforeRevokingRoles(t *testing.T) {
 	sc := newOffboardingScenario(t)
 

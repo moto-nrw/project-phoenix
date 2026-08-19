@@ -61,6 +61,8 @@ func (r *fakeActiveEnrollmentRepo) FindActiveByStudentIDs(ctx context.Context, s
 // =============================================================================
 
 func TestActivityService_CreateCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -105,6 +107,8 @@ func TestActivityService_CreateCategory(t *testing.T) {
 }
 
 func TestActivityService_GetCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -136,6 +140,8 @@ func TestActivityService_GetCategory(t *testing.T) {
 }
 
 func TestActivityService_ListCategories(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -162,6 +168,8 @@ func TestActivityService_ListCategories(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -192,6 +200,8 @@ func TestActivityService_GetGroup(t *testing.T) {
 }
 
 func TestActivityService_ListGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -214,6 +224,8 @@ func TestActivityService_ListGroups(t *testing.T) {
 }
 
 func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -282,6 +294,8 @@ func TestActivityService_ListGroupsWithOccupancy(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -358,6 +372,8 @@ func TestActivityService_UpdateGroup(t *testing.T) {
 }
 
 func TestActivityService_DeleteGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -411,6 +427,8 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 }
 
 func TestActivityService_RejectsLegacyMutationsForTimetableTemplates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -537,6 +555,8 @@ func TestActivityService_RejectsLegacyMutationsForTimetableTemplates(t *testing.
 }
 
 func TestActivityService_FindByCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -568,6 +588,8 @@ func TestActivityService_FindByCategory(t *testing.T) {
 }
 
 func TestActivityService_GetGroupWithDetails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -595,6 +617,8 @@ func TestActivityService_GetGroupWithDetails(t *testing.T) {
 }
 
 func TestActivityService_GetGroupsWithEnrollmentCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -620,6 +644,8 @@ func TestActivityService_GetGroupsWithEnrollmentCounts(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_EnrollStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -664,6 +690,8 @@ func TestActivityService_EnrollStudent(t *testing.T) {
 }
 
 func TestActivityService_UnenrollStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -688,6 +716,8 @@ func TestActivityService_UnenrollStudent(t *testing.T) {
 }
 
 func TestActivityService_GetEnrolledStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -726,6 +756,8 @@ func TestActivityService_GetEnrolledStudents(t *testing.T) {
 }
 
 func TestActivityService_GetStudentEnrollments(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -751,6 +783,8 @@ func TestActivityService_GetStudentEnrollments(t *testing.T) {
 }
 
 func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	onDate := timezone.NewDate(2026, time.September, 15)
 
 	t.Run("returns empty map without repository call for empty input", func(t *testing.T) {
@@ -807,6 +841,8 @@ func TestActivityService_GetActiveStudentEnrollmentsByStudentIDs(t *testing.T) {
 }
 
 func TestActivityService_GetAvailableGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -835,6 +871,8 @@ func TestActivityService_GetAvailableGroups(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetGroupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -861,6 +899,8 @@ func TestActivityService_GetGroupSchedules(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -881,6 +921,8 @@ func TestActivityService_GetGroupSupervisors(t *testing.T) {
 }
 
 func TestActivityService_AddSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -944,6 +986,8 @@ func TestActivityService_AddSupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_CreateGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1032,6 +1076,8 @@ func TestActivityService_CreateGroup(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_AddSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1072,6 +1118,8 @@ func TestActivityService_AddSchedule(t *testing.T) {
 }
 
 func TestActivityService_GetSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1109,6 +1157,8 @@ func TestActivityService_GetSchedule(t *testing.T) {
 }
 
 func TestActivityService_UpdateSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1140,6 +1190,8 @@ func TestActivityService_UpdateSchedule(t *testing.T) {
 }
 
 func TestActivityService_DeleteSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1175,6 +1227,8 @@ func TestActivityService_DeleteSchedule(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_GetSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1209,6 +1263,8 @@ func TestActivityService_GetSupervisor(t *testing.T) {
 }
 
 func TestActivityService_UpdateSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1237,6 +1293,8 @@ func TestActivityService_UpdateSupervisor(t *testing.T) {
 }
 
 func TestActivityService_DeleteSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1265,6 +1323,8 @@ func TestActivityService_DeleteSupervisor(t *testing.T) {
 }
 
 func TestActivityService_SetPrimarySupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1298,6 +1358,8 @@ func TestActivityService_SetPrimarySupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_UpdateGroupEnrollments(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1346,6 +1408,8 @@ func TestActivityService_UpdateGroupEnrollments(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1380,6 +1444,8 @@ func TestActivityService_UpdateGroupSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1422,6 +1488,8 @@ func TestActivityService_CreateGroup_WithSchedules(t *testing.T) {
 }
 
 func TestActivityService_DeleteSupervisor_Primary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1456,6 +1524,8 @@ func TestActivityService_DeleteSupervisor_Primary(t *testing.T) {
 }
 
 func TestActivityService_AddSupervisor_Duplicate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1481,6 +1551,8 @@ func TestActivityService_AddSupervisor_Duplicate(t *testing.T) {
 }
 
 func TestActivityService_EnrollStudent_Duplicate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1505,6 +1577,8 @@ func TestActivityService_EnrollStudent_Duplicate(t *testing.T) {
 }
 
 func TestActivityService_UnenrollStudent_NotEnrolled(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1525,6 +1599,8 @@ func TestActivityService_UnenrollStudent_NotEnrolled(t *testing.T) {
 }
 
 func TestActivityService_GetCategory_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1545,6 +1621,8 @@ func TestActivityService_GetCategory_NotFound(t *testing.T) {
 // operating - they pass through to the repository. This is by design for these simple CRUD ops.
 
 func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1581,6 +1659,8 @@ func TestActivityService_DeleteGroup_WithEnrollments(t *testing.T) {
 // are already defined above
 
 func TestActivityService_UpdateSupervisor_SetPrimary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1627,6 +1707,8 @@ func TestActivityService_UpdateSupervisor_SetPrimary(t *testing.T) {
 }
 
 func TestActivityService_DeleteSchedule_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1642,6 +1724,8 @@ func TestActivityService_DeleteSchedule_NotFound(t *testing.T) {
 }
 
 func TestActivityError_Methods(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error returns message without underlying error", func(t *testing.T) {
 		// ARRANGE
 		err := &activities.ActivityError{Op: "test operation", Err: nil}
@@ -1678,6 +1762,8 @@ func TestActivityError_Methods(t *testing.T) {
 }
 
 func TestActivityService_SetPrimarySupervisor_ExistingSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1718,6 +1804,8 @@ func TestActivityService_SetPrimarySupervisor_ExistingSupervisor(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupEnrollments_AddAndRemove(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1761,6 +1849,8 @@ func TestActivityService_UpdateGroupEnrollments_AddAndRemove(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1832,6 +1922,8 @@ func TestActivityService_UpdateGroupSupervisors_AddAndRemove(t *testing.T) {
 // ======== Additional Edge Case Tests for 80%+ Coverage ========
 
 func TestActivityService_UpdateGroupEnrollments_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1847,6 +1939,8 @@ func TestActivityService_UpdateGroupEnrollments_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroupSupervisors_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1862,6 +1956,8 @@ func TestActivityService_UpdateGroupSupervisors_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1889,6 +1985,8 @@ func TestActivityService_CreateGroup_WithCategoryValidation(t *testing.T) {
 }
 
 func TestActivityService_UpdateSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1913,6 +2011,8 @@ func TestActivityService_UpdateSupervisor_NotFound(t *testing.T) {
 // Note: TestActivityService_GetStaffAssignments is already defined above - see line 704
 
 func TestActivityService_SetPrimarySupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1928,6 +2028,8 @@ func TestActivityService_SetPrimarySupervisor_NotFound(t *testing.T) {
 }
 
 func TestActivityService_GetSchedule_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1944,6 +2046,8 @@ func TestActivityService_GetSchedule_NotFound(t *testing.T) {
 }
 
 func TestActivityService_UpdateSchedule_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1967,6 +2071,8 @@ func TestActivityService_UpdateSchedule_NotFound(t *testing.T) {
 }
 
 func TestActivityService_GetSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1983,6 +2089,8 @@ func TestActivityService_GetSupervisor_NotFound(t *testing.T) {
 }
 
 func TestActivityService_DeleteSupervisor_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -1998,6 +2106,8 @@ func TestActivityService_DeleteSupervisor_NotFound(t *testing.T) {
 }
 
 func TestActivityService_AddSchedule_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2019,6 +2129,8 @@ func TestActivityService_AddSchedule_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_AddSupervisor_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2041,6 +2153,8 @@ func TestActivityService_AddSupervisor_GroupNotFound(t *testing.T) {
 // ======== Final Coverage Push Tests ========
 
 func TestActivityService_CreateCategory_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2063,6 +2177,8 @@ func TestActivityService_CreateCategory_ValidationError(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2090,6 +2206,8 @@ func TestActivityService_CreateGroup_ValidationError(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2116,6 +2234,8 @@ func TestActivityService_UpdateGroup_ValidationError(t *testing.T) {
 }
 
 func TestActivityService_EnrollStudent_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2135,6 +2255,8 @@ func TestActivityService_EnrollStudent_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_UnenrollStudent_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2154,6 +2276,8 @@ func TestActivityService_UnenrollStudent_GroupNotFound(t *testing.T) {
 }
 
 func TestActivityService_ListCategories_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2170,6 +2294,8 @@ func TestActivityService_ListCategories_Empty(t *testing.T) {
 }
 
 func TestActivityService_ListGroups_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2186,6 +2312,8 @@ func TestActivityService_ListGroups_Empty(t *testing.T) {
 }
 
 func TestActivityService_GetGroupSchedules_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2206,6 +2334,8 @@ func TestActivityService_GetGroupSchedules_Empty(t *testing.T) {
 }
 
 func TestActivityService_GetGroupSupervisors_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2226,6 +2356,8 @@ func TestActivityService_GetGroupSupervisors_Empty(t *testing.T) {
 }
 
 func TestActivityService_GetEnrolledStudents_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2250,6 +2382,8 @@ func TestActivityService_GetEnrolledStudents_Empty(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2278,6 +2412,8 @@ func TestActivityService_CreateGroup_InvalidSupervisor(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2311,6 +2447,8 @@ func TestActivityService_CreateGroup_InvalidScheduleWeekday(t *testing.T) {
 }
 
 func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2340,6 +2478,8 @@ func TestActivityService_DeleteGroup_CascadesSupervisors(t *testing.T) {
 }
 
 func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2370,6 +2510,8 @@ func TestActivityService_DeleteGroup_CascadesSchedules(t *testing.T) {
 }
 
 func TestActivityService_GetCategory_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2392,6 +2534,8 @@ func TestActivityService_GetCategory_DatabaseError(t *testing.T) {
 }
 
 func TestActivityService_GetGroup_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2414,6 +2558,8 @@ func TestActivityService_GetGroup_DatabaseError(t *testing.T) {
 }
 
 func TestActivityService_UpdateGroup_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2451,6 +2597,8 @@ func TestActivityService_UpdateGroup_Success(t *testing.T) {
 }
 
 func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2501,6 +2649,8 @@ func TestActivityService_CreateGroup_InvalidCategoryID(t *testing.T) {
 // TestActivityService_AddSupervisor_PrimaryReplacement tests that adding a new primary
 // supervisor unsets the previous primary supervisor (tests unsetPrimarySupervisorsInTx)
 func TestActivityService_AddSupervisor_PrimaryReplacement(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2542,6 +2692,8 @@ func TestActivityService_AddSupervisor_PrimaryReplacement(t *testing.T) {
 
 // TestActivityService_GetAvailableGroups_DatabaseError tests error handling
 func TestActivityService_GetAvailableGroups_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2559,6 +2711,8 @@ func TestActivityService_GetAvailableGroups_DatabaseError(t *testing.T) {
 
 // TestActivityService_UpdateGroupSupervisors_EmptyList tests with empty supervisor list
 func TestActivityService_UpdateGroupSupervisors_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2579,6 +2733,8 @@ func TestActivityService_UpdateGroupSupervisors_EmptyList(t *testing.T) {
 
 // TestActivityService_UpdateGroupEnrollments_EmptyList tests with empty enrollment list
 func TestActivityService_UpdateGroupEnrollments_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2599,6 +2755,8 @@ func TestActivityService_UpdateGroupEnrollments_EmptyList(t *testing.T) {
 
 // TestActivityService_UpdateGroupSupervisors_AddThenRemove tests full supervisor update flow
 func TestActivityService_UpdateGroupSupervisors_AddThenRemove(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2631,6 +2789,8 @@ func TestActivityService_UpdateGroupSupervisors_AddThenRemove(t *testing.T) {
 
 // TestActivityService_GetEnrolledStudents_DatabaseError tests error handling
 func TestActivityService_GetEnrolledStudents_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2648,6 +2808,8 @@ func TestActivityService_GetEnrolledStudents_DatabaseError(t *testing.T) {
 
 // TestActivityService_CreateCategory_DatabaseError tests CreateCategory database error handling
 func TestActivityService_CreateCategory_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2670,6 +2832,8 @@ func TestActivityService_CreateCategory_DatabaseError(t *testing.T) {
 
 // TestActivityService_ListCategories_DatabaseError tests ListCategories database error handling
 func TestActivityService_ListCategories_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2687,6 +2851,8 @@ func TestActivityService_ListCategories_DatabaseError(t *testing.T) {
 
 // TestActivityService_ListGroups_DatabaseError tests ListGroups database error handling
 func TestActivityService_ListGroups_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2708,6 +2874,8 @@ func TestActivityService_ListGroups_DatabaseError(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_AdminBypassesOwnership tests that admins can modify any activity
 func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2739,6 +2907,8 @@ func TestActivityService_CanModifyActivity_AdminBypassesOwnership(t *testing.T) 
 
 // TestActivityService_CanModifyActivity_CreatorCanModify tests that the creator can modify their activity
 func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2769,6 +2939,8 @@ func TestActivityService_CanModifyActivity_CreatorCanModify(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_SupervisorCanModify tests that supervisors can modify the activity
 func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2801,6 +2973,8 @@ func TestActivityService_CanModifyActivity_SupervisorCanModify(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_NonOwnerCannotModify tests that non-owners cannot modify
 func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2832,6 +3006,8 @@ func TestActivityService_CanModifyActivity_NonOwnerCannotModify(t *testing.T) {
 
 // TestActivityService_CanModifyActivity_GroupNotFound tests error when group doesn't exist
 func TestActivityService_CanModifyActivity_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2848,6 +3024,8 @@ func TestActivityService_CanModifyActivity_GroupNotFound(t *testing.T) {
 
 // TestActivityService_UpdateGroup_OwnershipEnforced tests that UpdateGroup enforces ownership
 func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2880,6 +3058,8 @@ func TestActivityService_UpdateGroup_OwnershipEnforced(t *testing.T) {
 
 // TestActivityService_DeleteGroup_OwnershipEnforced tests that DeleteGroup enforces ownership
 func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2917,6 +3097,8 @@ func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
 // =============================================================================
 
 func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -2964,6 +3146,8 @@ func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
 // exactly the enrollments a grade transition preserved on purpose — the rows the
 // transition's revert and future materialization still need.
 func TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -3011,6 +3195,8 @@ func TestActivityService_UpdateGroupEnrollments_PreservesAlumnusEnrollment(t *te
 // row is invisible in the roster and its counts, cannot be removed again, and
 // still feeds materialization and a transition revert.
 func TestActivityService_EnrollmentWritesRejectAlumni(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)

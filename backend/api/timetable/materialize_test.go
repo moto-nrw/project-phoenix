@@ -68,6 +68,8 @@ func (m *mockMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _
 // -----------------------------------------------------------------------------
 
 func TestResolveMaterializationWindow(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.April, 22, 12, 0, 0, 0, time.UTC) // Wed
 	strp := func(s string) *string { return &s }
 
@@ -140,6 +142,8 @@ func setupMaterializeRouter(rs *Resource) chi.Router {
 }
 
 func TestMaterialize_NoBody_DefaultsToNextWeek(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockMaterializer{
 		result: &scheduleSvc.MaterializationResult{
 			InstancesCreated:        3,
@@ -164,6 +168,8 @@ func TestMaterialize_NoBody_DefaultsToNextWeek(t *testing.T) {
 }
 
 func TestMaterialize_ValidBody_ParsesAndForwards(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockMaterializer{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 1},
 	}
@@ -192,6 +198,8 @@ func TestMaterialize_ValidBody_ParsesAndForwards(t *testing.T) {
 }
 
 func TestMaterialize_InvalidWindow_Returns400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockMaterializer{}
 	rs := NewResource(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)
@@ -210,6 +218,8 @@ func TestMaterialize_InvalidWindow_Returns400(t *testing.T) {
 }
 
 func TestMaterialize_NilService_Returns500(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(Dependencies{})
 	router := setupMaterializeRouter(rs)
 
@@ -221,6 +231,8 @@ func TestMaterialize_NilService_Returns500(t *testing.T) {
 }
 
 func TestMaterialize_ServiceError_Returns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockMaterializer{err: errors.New("boom")}
 	rs := NewResource(Dependencies{MaterializationService: mock})
 	router := setupMaterializeRouter(rs)

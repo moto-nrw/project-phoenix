@@ -49,6 +49,8 @@ func cleanupEventsForInstances(t *testing.T, db *bun.DB, instanceIDs ...int64) {
 // absence (X) and a substitution (A→Y) writes exactly one event per touched
 // row with the right types and staff references.
 func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -98,6 +100,8 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 // TestApplyDeviations_PresenceWritesReturnEvent: restoring a wrongly-marked
 // absence writes a return_to_presence event carrying the old reason.
 func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -125,6 +129,8 @@ func TestApplyDeviations_PresenceWritesReturnEvent(t *testing.T) {
 // TestApplyDeviations_IdempotentReplayWritesNoEvent: re-marking an
 // already-absent person is a no-op and must not pollute the Verlauf.
 func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
@@ -150,6 +156,8 @@ func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
 // removed POST /substitute endpoint tests (#1886) — the live-session supervisor
 // swap must keep working through the consolidated deviations path.
 func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)

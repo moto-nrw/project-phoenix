@@ -92,6 +92,8 @@ func adminCtx() context.Context {
 // approval gate on an excused report becomes a pending request and does NOT
 // write a status day — the child stays "expected" until staff decide.
 func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -122,6 +124,8 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 // TestSubmitExcused_ApprovalOff_WritesDirectly verifies the gate-off path is
 // unchanged: an excused report is written straight to the status days.
 func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, db := buildExcusedServices(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -138,6 +142,8 @@ func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
 // TestSubmitExcused_EmptyNoteRejected verifies AC2: a note is mandatory for an
 // excused report, independent of the approval gate.
 func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
+	t.Parallel()
+
 	for _, gate := range []bool{true, false} {
 		svc, _, _, db := buildExcusedServices(t, gate)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -154,6 +160,8 @@ func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
 // TestExcusedRequest_ApproveWritesStatusDays drives the staff decide path: an
 // approval writes the excused status days that the parent list then shows.
 func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -193,6 +201,8 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 // TestExcusedRequest_RejectWritesNoStatusDay verifies a rejection leaves the
 // child expected: no status day is written.
 func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -227,6 +237,8 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 // row the instant it left the pending set, hiding the rejection from the parent
 // (#1845 review).
 func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -274,6 +286,8 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 // confirmation vanish entirely — the pending row would just disappear (#1845
 // review).
 func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -315,6 +329,8 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 // write gate must match it (portal access only) and rely on the request service
 // to enforce submitter ownership (#1845 review).
 func TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

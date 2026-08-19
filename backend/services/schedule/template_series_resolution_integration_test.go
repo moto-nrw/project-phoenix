@@ -136,6 +136,8 @@ func (c *seriesChain) assertShape(t *testing.T) {
 }
 
 func TestResolveLivingTemplateSegment_ResolvesCappedPredecessor(t *testing.T) {
+	t.Parallel()
+
 	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
@@ -151,6 +153,8 @@ func TestResolveLivingTemplateSegment_ResolvesCappedPredecessor(t *testing.T) {
 }
 
 func TestResolveLivingTemplateSegment_LeavesOpenTemplateAlone(t *testing.T) {
+	t.Parallel()
+
 	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 
@@ -161,6 +165,8 @@ func TestResolveLivingTemplateSegment_LeavesOpenTemplateAlone(t *testing.T) {
 }
 
 func TestResolveLivingTemplateSegment_ErrorsOnFullyEndedSeries(t *testing.T) {
+	t.Parallel()
+
 	chain := makeSeriesChain(t, []int{activitiesModels.WeekdayMonday}, futureMonday(1), futureMonday(3))
 	defer chain.runCleanup(t)
 

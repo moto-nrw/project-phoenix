@@ -49,6 +49,8 @@ func (r *lateArrivalRepo) GetStudentsByClasses(
 }
 
 func TestGradeTransitionService_Apply_RefusesChildAddedAfterCohortSnapshot(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)

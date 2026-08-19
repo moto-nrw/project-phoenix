@@ -9,6 +9,8 @@ import (
 )
 
 func TestGetAccountEmailsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupAuthService(t, db)

@@ -18,6 +18,8 @@ import (
 )
 
 func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Partial", "Absence", "PA1")
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Partial", "Teacher")
@@ -102,6 +104,8 @@ func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *te
 }
 
 func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Override", "PA2")
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Pickup", "Teacher")
@@ -136,6 +140,8 @@ func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 }
 
 func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Conflict", "Partial", "PA3")
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Conflict", "Teacher")
@@ -161,6 +167,8 @@ func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 }
 
 func TestPartialAbsenceIsAPlannedPickupTimeWithoutAFullDayStatus(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Pin the clock to a fixed Monday: the effective-time resolver skips
 	// Saturday/Sunday entirely (weekday > WeekdayFriday), so a real-today

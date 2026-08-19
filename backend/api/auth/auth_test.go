@@ -2222,7 +2222,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create a dedicated tenant for this test using a high ID to avoid collisions.
-	tenantID := int64(9900)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	// Soft-delete the school by setting deleted_at.

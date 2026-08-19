@@ -5,6 +5,8 @@ import (
 )
 
 func TestGroupMappingValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		groupMapping *GroupMapping

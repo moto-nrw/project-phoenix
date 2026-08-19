@@ -170,6 +170,8 @@ func findOptionalRecipientByGuardian(detail *calendarSvc.AppointmentDetail, guar
 }
 
 func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -263,6 +265,8 @@ func TestCalendarServiceIntegration_CreateRecurringAppointmentAndResponses(t *te
 }
 
 func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -294,6 +298,8 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 }
 
 func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -376,6 +382,8 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
@@ -437,6 +445,8 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
@@ -488,6 +498,8 @@ func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *tes
 }
 
 func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -534,6 +546,8 @@ func TestCalendarServiceIntegration_CancelAfterDeleteDoesNotTransition(t *testin
 }
 
 func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -604,6 +618,8 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
@@ -713,6 +729,8 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
@@ -787,6 +805,8 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 }
 
 func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -834,6 +854,8 @@ func TestCalendarServiceIntegration_EditRacingCancellationConflicts(t *testing.T
 }
 
 func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
@@ -887,6 +909,8 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 }
 
 func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -931,6 +955,8 @@ func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -974,6 +1000,8 @@ func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *
 }
 
 func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1020,6 +1048,8 @@ func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1082,6 +1112,8 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndRSVP(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1141,6 +1173,8 @@ func TestCalendarServiceIntegration_DeletedAppointmentUnreachableViaOverviewAndR
 }
 
 func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1194,6 +1228,8 @@ func TestCalendarServiceIntegration_AttendeeOverviewAccessRules(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1327,6 +1363,8 @@ func parentOptionIDs(options []calendarSvc.ParentOption) []string {
 }
 
 func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1389,6 +1427,8 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1425,6 +1465,8 @@ func TestCalendarServiceIntegration_InvalidRecurrenceDoesNotPersistAppointment(t
 }
 
 func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1479,6 +1521,8 @@ func TestCalendarServiceIntegration_MultiDayRecurrenceVisibleOnFinalOverlapDay(t
 }
 
 func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1568,6 +1612,8 @@ func TestCalendarServiceIntegration_ResponseAndOverviewErrors(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1664,6 +1710,8 @@ func TestCalendarServiceIntegration_RepositoryReadAndReplacePaths(t *testing.T) 
 }
 
 func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1695,6 +1743,8 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesAssignedTimetable(t *te
 }
 
 func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1750,6 +1800,8 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_ParentCalendarExcludesChildTimetable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1777,6 +1829,8 @@ func TestCalendarServiceIntegration_ParentCalendarExcludesChildTimetable(t *test
 // The public subscription feed bypasses parent auth, so a deactivated account
 // must lose feed access immediately — the token alone is not enough.
 func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
@@ -1834,6 +1888,8 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 // cancellations from the old cadence must not survive to suppress valid dates in
 // the edited series.
 func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1895,6 +1951,8 @@ func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testi
 // DTSTART on the first matching weekday, matching the in-app expansion, so
 // external calendars don't render a phantom occurrence on the StartDate.
 func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -1944,6 +2002,8 @@ func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *
 // create/update, so the worker can't deliver stale details — regardless of
 // whether the edit re-sends email.
 func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
@@ -2015,6 +2075,8 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 // guardian notification preference must be retained for this update and later
 // appointment lifecycle notices.
 func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEmailOmitted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
@@ -2060,6 +2122,8 @@ func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEm
 // StartDate, for a weekly rule whose weekdays exclude the StartDate weekday —
 // matching the in-app calendar and ICS export.
 func TestCalendarServiceIntegration_RecurringEmailUsesFirstOccurrenceDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
@@ -2103,6 +2167,8 @@ func TestCalendarServiceIntegration_RecurringEmailUsesFirstOccurrenceDate(t *tes
 // A cancelled appointment must be non-respondable: the API shape flips
 // CanRespond to false and the response endpoints reject RSVP changes.
 func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2164,6 +2230,8 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 // A cancelled appointment is terminal: editing it (which would re-notify while
 // it stays cancelled) must be rejected.
 func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2205,6 +2273,8 @@ func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.
 // Single-occurrence cancellation must reject non-recurring appointments and
 // dates the series never generates.
 func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2269,6 +2339,8 @@ func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
 // A recurrence that generates no occurrence (weekly weekday outside its EndsOn
 // window) must be rejected at create time rather than persisting a phantom.
 func TestCalendarServiceIntegration_EmptyRecurrenceRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2304,6 +2376,8 @@ func TestCalendarServiceIntegration_EmptyRecurrenceRejected(t *testing.T) {
 // The exported ICS SEQUENCE advances on every change (edit and single-occurrence
 // cancellation) so subscribers treat the event as a newer revision.
 func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2370,6 +2444,8 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 // (unbounded, so it genuinely produces occurrences) must NOT be rejected as
 // empty.
 func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2412,6 +2488,8 @@ func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
 // occurrences are all before the feed lookback window (the SQL window treats a
 // NULL ends_on as open-ended).
 func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	cfg := calendarTestConfig(db)
@@ -2480,6 +2558,8 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 // converge via the conflict-safe upsert instead of the second insert hitting the
 // (tenant, appointment, date) unique constraint and returning a 500.
 func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2528,6 +2608,8 @@ func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T)
 // 31) must be rejected at create time rather than persisting an invisible,
 // phantom-exporting appointment.
 func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)
@@ -2562,6 +2644,8 @@ func TestCalendarServiceIntegration_ImpossibleMonthlyRecurrenceRejected(t *testi
 // a queued email can't announce a date parents will no longer see (mirrors the
 // cancel/delete/update stale-notification cleanup).
 func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
@@ -2603,6 +2687,8 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 }
 
 func TestCalendarServiceIntegration_StaffTimetableEventsCarryRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarService(t, db)

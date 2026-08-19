@@ -20,6 +20,8 @@ import (
 // ============================================================================
 
 func TestGuestRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
@@ -129,6 +131,8 @@ func TestGuestRepository_Create(t *testing.T) {
 }
 
 func TestGuestRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
@@ -152,6 +156,8 @@ func TestGuestRepository_FindByID(t *testing.T) {
 }
 
 func TestGuestRepository_FindByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
@@ -175,6 +181,8 @@ func TestGuestRepository_FindByStaffID(t *testing.T) {
 }
 
 func TestGuestRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
@@ -205,6 +213,8 @@ func TestGuestRepository_Update(t *testing.T) {
 }
 
 func TestGuestRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
@@ -229,6 +239,8 @@ func TestGuestRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGuestRepository_FindActive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest
@@ -259,6 +271,8 @@ func TestGuestRepository_FindActive(t *testing.T) {
 // ============================================================================
 
 func TestGuestRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Guest

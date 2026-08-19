@@ -86,6 +86,9 @@ func (c *identityStageCounter) captured(stage string) []string {
 // Before #2099 the same request resolved the person+staff pair ~4 times.
 // The existing TestOGSGroupLive_QueryBudget bounds the total; this test pins
 // the identity share specifically.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 	tc := setupTestContext(t)
 

@@ -61,6 +61,8 @@ func (failingOverviewEducationService) ListGroups(context.Context, *modelBase.Qu
 }
 
 func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	groupA := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Gruppe A")
@@ -176,6 +178,8 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 }
 
 func TestGetStudentStatusDaysOverview_GroupFilter(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	groupA := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Filter A")
@@ -202,6 +206,8 @@ func TestGetStudentStatusDaysOverview_GroupFilter(t *testing.T) {
 }
 
 func TestGetStudentStatusDaysOverview_PastFromRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
@@ -212,6 +218,8 @@ func TestGetStudentStatusDaysOverview_PastFromRejected(t *testing.T) {
 }
 
 func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	today := timezone.TodayDate()
@@ -222,6 +230,8 @@ func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
 }
 
 func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Page Cap")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
@@ -235,6 +245,8 @@ func TestGetStudentStatusDaysOverview_PageSizeIsCapped(t *testing.T) {
 }
 
 func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Eligibility")
 	endedChild := testpkg.CreateTestStudent(t, tc.db, "A", "Beendet", "1a")
@@ -289,6 +301,8 @@ func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.
 }
 
 func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Audit Failure")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
@@ -301,6 +315,8 @@ func TestGetStudentStatusDaysOverview_AuditUnavailableFailsClosed(t *testing.T) 
 }
 
 func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Overview Service Failure")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
@@ -328,6 +344,8 @@ func TestGetStudentStatusDaysOverview_ServiceUnavailableFailsClosed(t *testing.T
 }
 
 func TestGetStudentStatusDaysOverview_GroupLookupFailureIsServerError(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	tc.resource.EducationService = failingOverviewEducationService{Service: tc.resource.EducationService}
 
@@ -338,6 +356,8 @@ func TestGetStudentStatusDaysOverview_GroupLookupFailureIsServerError(t *testing
 }
 
 func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "overview-unlinked@example.com")
@@ -350,6 +370,8 @@ func TestGetStudentStatusDaysOverview_UnlinkedStaffAccountForbidden(t *testing.T
 }
 
 func TestGetStudentStatusDaysOverview_StaffSeesAllGroups(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// #2329: tenant-wide for verified staff — no supervision narrowing.

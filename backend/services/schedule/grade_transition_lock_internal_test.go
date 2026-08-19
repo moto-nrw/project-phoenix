@@ -20,6 +20,8 @@ import (
 // protected work runs, and a call without a tenant would serialize on a key that
 // belongs to no school. Failing loudly beats an overlap nobody notices (#405).
 func TestLockTenantGradeTransitions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantCtx := testpkg.Ctx(t)
@@ -55,6 +57,8 @@ func TestLockTenantGradeTransitions(t *testing.T) {
 // TestLockTenantRecurrenceWrites covers the same guards on the recurrence gate,
 // which the documented lock order always takes FIRST.
 func TestLockTenantRecurrenceWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantCtx := testpkg.Ctx(t)

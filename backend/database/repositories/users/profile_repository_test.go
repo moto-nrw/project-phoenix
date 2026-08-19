@@ -19,6 +19,8 @@ import (
 // ============================================================================
 
 func TestProfileRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
@@ -91,6 +93,8 @@ func TestProfileRepository_Create(t *testing.T) {
 }
 
 func TestProfileRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
@@ -114,6 +118,8 @@ func TestProfileRepository_FindByID(t *testing.T) {
 }
 
 func TestProfileRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
@@ -137,6 +143,8 @@ func TestProfileRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestProfileRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
@@ -167,6 +175,8 @@ func TestProfileRepository_Update(t *testing.T) {
 }
 
 func TestProfileRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
@@ -191,6 +201,8 @@ func TestProfileRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestProfileRepository_UpdateAvatar(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile
@@ -216,6 +228,8 @@ func TestProfileRepository_UpdateAvatar(t *testing.T) {
 // ============================================================================
 
 func TestProfileRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Profile

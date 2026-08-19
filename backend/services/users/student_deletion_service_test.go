@@ -77,6 +77,8 @@ func tableRowCount(t *testing.T, db *bun.DB, table string, id int64) int {
 }
 
 func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -251,6 +253,8 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 }
 
 func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	hostingTenantID := testpkg.UniqueTestTenantID(t)
@@ -288,6 +292,8 @@ func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
 }
 
 func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -345,6 +351,8 @@ func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testin
 }
 
 func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -381,6 +389,8 @@ func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 }
 
 func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -422,6 +432,8 @@ func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *tes
 }
 
 func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := newStudentDeletionTestService(db, nil, nil)
 
@@ -446,6 +458,8 @@ func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T
 }
 
 func TestStudentDeletionService_PreviewRejectsAlumnus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "DeleteAlumnus", "Target", "1a")
@@ -465,6 +479,8 @@ func TestStudentDeletionService_PreviewRejectsAlumnus(t *testing.T) {
 }
 
 func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "DeleteMissingAudit", "Target", "1a")
@@ -489,6 +505,8 @@ func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *t
 }
 
 func TestStudentDeletionService_DeleteRollsBackWhenAuditFails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

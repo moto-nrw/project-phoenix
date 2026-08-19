@@ -22,6 +22,8 @@ import (
 )
 
 func TestGradeTransitionService_Fingerprint_PromotionToGraduateNamedClassIsNotGraduation(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 

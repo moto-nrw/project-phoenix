@@ -25,6 +25,8 @@ import (
 // pointing at them; written beforehand and outside, a deletion that then fails
 // leaves the scheduler about to delete a living child's documents.
 func TestStudentDeletionService_QueuesDocumentCleanupInsideTheTransaction(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

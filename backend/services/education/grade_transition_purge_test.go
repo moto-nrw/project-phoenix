@@ -21,6 +21,8 @@ import (
 // possible, and getting that wrong would offer "endgültig löschen" for a child
 // a revert already brought back.
 func TestGetHistoryWithStudentStates(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -76,6 +78,8 @@ func TestGetHistoryWithStudentStates(t *testing.T) {
 // denormalized copy that outlives both the student and the person row, so
 // without this step "endgültig löschen" would leave the name in the database.
 func TestAnonymizePurgedGraduate(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 

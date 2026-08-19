@@ -17,6 +17,8 @@ import (
 )
 
 func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
@@ -80,6 +82,8 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 }
 
 func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
@@ -129,6 +133,8 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 }
 
 func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
@@ -155,6 +161,8 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 }
 
 func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
@@ -241,6 +249,8 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 }
 
 func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
@@ -255,6 +265,8 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 // reactivating a previously-cleared row with no reason must NOT resurrect
 // the stale note from the superseded report.
 func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay
@@ -313,6 +325,8 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 // a re-upsert hits the conflict path instead of duplicating the row — the
 // exact failure mode of the historical bug class.
 func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentStatusDay

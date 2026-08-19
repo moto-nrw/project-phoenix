@@ -17,6 +17,8 @@ import (
 // validations the handlers depend on so wrong-shape payloads fail before the
 // service is touched.
 func TestOperatorMFAVerifyRequest_BindRejectsBadInputs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		req  MFAVerifyRequest
@@ -34,6 +36,8 @@ func TestOperatorMFAVerifyRequest_BindRejectsBadInputs(t *testing.T) {
 }
 
 func TestOperatorMFAVerifyRequest_BindAcceptsHappyPath(t *testing.T) {
+	t.Parallel()
+
 	req := MFAVerifyRequest{ChallengeToken: "  abc.def.ghi  ", Code: "  482157  "}
 	require.NoError(t, req.Bind(nil))
 	assert.Equal(t, "abc.def.ghi", req.ChallengeToken, "expected trimming")
@@ -41,11 +45,15 @@ func TestOperatorMFAVerifyRequest_BindAcceptsHappyPath(t *testing.T) {
 }
 
 func TestOperatorMFAResendRequest_BindRejectsEmpty(t *testing.T) {
+	t.Parallel()
+
 	req := MFAResendRequest{}
 	assert.Error(t, req.Bind(nil))
 }
 
 func TestOperatorMFAEnrollConfirmRequest_BindEnforcesCodeLength(t *testing.T) {
+	t.Parallel()
+
 	short := MFAEnrollConfirmRequest{Code: "12345"}
 	assert.Error(t, short.Bind(nil), "five-digit code must be rejected")
 
@@ -62,6 +70,8 @@ func TestOperatorMFAEnrollConfirmRequest_BindEnforcesCodeLength(t *testing.T) {
 // resource. A deployment that's missing the service must never silently fall
 // through to a partial-feature state.
 func TestOperatorMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{} // no mfaService, no authService, no tokenAuth
 
 	cases := []struct {
@@ -100,6 +110,8 @@ func TestOperatorMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 // errors are aliased to authService.ErrMFA* — those identities are the
 // shared contract between tenant and operator paths.
 func TestMapOperatorMFAError_StatusCodes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		err    error
 		status int

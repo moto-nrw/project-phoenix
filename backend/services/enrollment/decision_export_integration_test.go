@@ -119,6 +119,8 @@ func approveOneChildForExport(t *testing.T, env *decisionTestEnv, email, firstNa
 // disclosure. There is no legitimate "schema deleted" state either:
 // DeleteSchema refuses to drop a schema any request still references.
 func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -137,6 +139,8 @@ func TestDecisionService_ExportPhase_SchemaLoadFailureBlocksDisclosure(t *testin
 }
 
 func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -170,6 +174,8 @@ func TestDecisionService_ExportPhase_LoadsDataAndRecordsAudit(t *testing.T) {
 }
 
 func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -191,6 +197,8 @@ func TestDecisionService_ExportPhase_AuditFailureBlocksDisclosure(t *testing.T) 
 // only children whose own status matches are exported, requests with no
 // matching child drop out, and the audit counts reflect the filtered set.
 func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -237,6 +245,8 @@ func TestDecisionService_ExportPhase_ChildStatusFilter(t *testing.T) {
 }
 
 func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -265,6 +275,8 @@ func TestDecisionService_ExportStudent_LoadsDataAndRecordsAudit(t *testing.T) {
 }
 
 func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -279,9 +291,11 @@ func TestDecisionService_ExportStudent_MissingStudentBlocksAudit(t *testing.T) {
 }
 
 func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	const foreignTenantID = int64(9902)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, env.db, foreignTenantID)
 	defer testpkg.CleanupTenantTestData(t, env.db, foreignTenantID)
 
@@ -297,6 +311,8 @@ func TestDecisionService_ExportStudent_ForeignTenantStudentBlocksAudit(t *testin
 }
 
 func TestDecisionService_ExportStudent_PhaseLoadFailureBlocksDisclosure(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

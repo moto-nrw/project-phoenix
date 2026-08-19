@@ -23,6 +23,8 @@ func groupless() *users.Student {
 // --- CanManageStudentAbsence -------------------------------------------
 
 func TestCanManageStudentAbsence_StaffGrouplessStudent(t *testing.T) {
+	t.Parallel()
+
 	ok, err := CanManageStudentAbsence(
 		t.Context(),
 		[]string{"users:read", "users:update", "users:absence"},
@@ -34,6 +36,8 @@ func TestCanManageStudentAbsence_StaffGrouplessStudent(t *testing.T) {
 }
 
 func TestCanManageStudentAbsence_StaffWithoutSupervisionAllowed(t *testing.T) {
+	t.Parallel()
+
 	// #2329: the child's group no longer participates in the decision — any
 	// verified staff member of the tenant may write any child's absence.
 	ok, err := CanManageStudentAbsence(
@@ -47,6 +51,8 @@ func TestCanManageStudentAbsence_StaffWithoutSupervisionAllowed(t *testing.T) {
 }
 
 func TestCanManageStudentAbsence_AbsenceOnlyWithoutReadDenied(t *testing.T) {
+	t.Parallel()
+
 	// users:absence is a write scope on top of the children a caller may see.
 	// It unlocks no read surface — neither the child's list entry nor the
 	// detail page — so on its own it must grant nothing at all rather than a
@@ -62,6 +68,8 @@ func TestCanManageStudentAbsence_AbsenceOnlyWithoutReadDenied(t *testing.T) {
 }
 
 func TestCanManageStudentAbsence_UpdateHolderKeepsWorkingWithoutRead(t *testing.T) {
+	t.Parallel()
+
 	// The mirror image: users:update is the permission that gated these writes
 	// before #2232, and what it requires elsewhere is not this gate's business.
 	// A holder of it stays authorized exactly as before.
@@ -76,6 +84,8 @@ func TestCanManageStudentAbsence_UpdateHolderKeepsWorkingWithoutRead(t *testing.
 }
 
 func TestCanManageStudentAbsence_NonStaffDenied(t *testing.T) {
+	t.Parallel()
+
 	// Guest/guardian accounts authenticate against the same portal; holding the
 	// permission is not enough without a staff record in this tenant.
 	ok, err := CanManageStudentAbsence(
@@ -90,6 +100,8 @@ func TestCanManageStudentAbsence_NonStaffDenied(t *testing.T) {
 }
 
 func TestCanManageStudentAbsence_AdminAlwaysAllowed(t *testing.T) {
+	t.Parallel()
+
 	ok, err := CanManageStudentAbsence(
 		t.Context(),
 		[]string{"admin:*"},
@@ -101,6 +113,8 @@ func TestCanManageStudentAbsence_AdminAlwaysAllowed(t *testing.T) {
 }
 
 func TestCanManageStudentAbsence_NilStudentDenied(t *testing.T) {
+	t.Parallel()
+
 	ok, err := CanManageStudentAbsence(
 		t.Context(),
 		[]string{"users:read", "users:absence"},
@@ -114,6 +128,8 @@ func TestCanManageStudentAbsence_NilStudentDenied(t *testing.T) {
 // --- AbsenceWritableStudentFilter --------------------------------------
 
 func TestAbsenceWritableStudentFilter_StaffCoversEveryStudent(t *testing.T) {
+	t.Parallel()
+
 	filter := AbsenceWritableStudentFilter(
 		t.Context(),
 		[]string{"users:read", "users:absence"},
@@ -125,6 +141,8 @@ func TestAbsenceWritableStudentFilter_StaffCoversEveryStudent(t *testing.T) {
 }
 
 func TestAbsenceWritableStudentFilter_NonStaffSeesNothing(t *testing.T) {
+	t.Parallel()
+
 	filter := AbsenceWritableStudentFilter(
 		t.Context(),
 		[]string{"users:read", "users:update"},
@@ -135,6 +153,8 @@ func TestAbsenceWritableStudentFilter_NonStaffSeesNothing(t *testing.T) {
 }
 
 func TestAbsenceWritableStudentFilter_AbsenceOnlyWithoutReadSeesNothing(t *testing.T) {
+	t.Parallel()
+
 	// The set form has to agree with CanManageStudentAbsence, including its
 	// read requirement — otherwise the queue would list children the decision
 	// then refuses.
@@ -148,6 +168,8 @@ func TestAbsenceWritableStudentFilter_AbsenceOnlyWithoutReadSeesNothing(t *testi
 }
 
 func TestAbsenceWritableStudentFilter_AdminCoversEveryStudent(t *testing.T) {
+	t.Parallel()
+
 	// The admin wildcard outranks the read prerequisite, exactly as in
 	// CanManageStudentAbsence.
 	filter := AbsenceWritableStudentFilter(t.Context(), []string{"admin:*"}, nil)
@@ -159,6 +181,8 @@ func TestAbsenceWritableStudentFilter_AdminCoversEveryStudent(t *testing.T) {
 // --- CanReviewExcusedAbsenceRequests -----------------------------------
 
 func TestCanReviewExcusedAbsenceRequests(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name        string
 		permissions []string

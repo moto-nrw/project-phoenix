@@ -13,6 +13,8 @@ import (
 )
 
 func TestStudentDeletionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := repositories.NewFactory(db).StudentDeletionAudit
 

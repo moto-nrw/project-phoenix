@@ -133,6 +133,8 @@ func withGroup(i *scheduleModel.ActivityInstance, groupID int64) *scheduleModel.
 // nothing to print, and the caller has to hear about it rather than receive
 // an empty sheet that looks like an empty week.
 func TestExportsFailOnTheirOwnDataSource(t *testing.T) {
+	t.Parallel()
+
 	renderer := &captureRenderer{}
 
 	dienstplan := NewService(Dependencies{Overview: failingOverview{}, Renderer: renderer}, nil)
@@ -162,6 +164,8 @@ func TestExportsFailOnTheirOwnDataSource(t *testing.T) {
 // A half-wired service is a programming error, not a user error: it must say
 // so instead of rendering a plausible but empty document.
 func TestExportsRefuseAnUnwiredService(t *testing.T) {
+	t.Parallel()
+
 	unwired := NewService(Dependencies{}, nil)
 	if _, err := unwired.ExportDienstplan(context.Background(), defaultParams()); err == nil {
 		t.Fatal("expected the Dienstplan to refuse an unwired service")
@@ -174,6 +178,8 @@ func TestExportsRefuseAnUnwiredService(t *testing.T) {
 // Every optional lookup failing at once still produces the plan: the shift is
 // on the sheet, it has just lost its Schichtart label.
 func TestDienstplanSurvivesFailingOptionalLookups(t *testing.T) {
+	t.Parallel()
+
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
 		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{
@@ -197,6 +203,8 @@ func TestDienstplanSurvivesFailingOptionalLookups(t *testing.T) {
 // The same for the care plan: no room name, no staff name, no head count —
 // but the block is still on the sheet with its window.
 func TestBetreuungsplanSurvivesFailingOptionalLookups(t *testing.T) {
+	t.Parallel()
+
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
 		Instances:     stubInstances{instances: []*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
@@ -226,6 +234,8 @@ func TestBetreuungsplanSurvivesFailingOptionalLookups(t *testing.T) {
 // Each link in the chain (template, track, stored colour) is optional and
 // only ever costs the bar.
 func TestBetreuungsplanBlockColour(t *testing.T) {
+	t.Parallel()
+
 	build := func(groups ActivityGroupBatchReader, tracks PlanningTrackReader, grouped bool) *captureRenderer {
 		block := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 		if grouped {
@@ -280,6 +290,8 @@ func TestBetreuungsplanBlockColour(t *testing.T) {
 // A closing day is the tenant's own decision and carries the more specific
 // wording, so it wins over the holiday that falls on the same date.
 func TestNonWorkingDaysPrefersClosingDayOverHoliday(t *testing.T) {
+	t.Parallel()
+
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
 		Instances:     stubInstances{instances: []*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)}},
@@ -318,6 +330,8 @@ func TestNonWorkingDaysPrefersClosingDayOverHoliday(t *testing.T) {
 // A block with no title still needs a row: dropping it would silently shrink
 // the plan.
 func TestBetreuungsplanUntitledBlocksAndSameDayOrder(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{
 			instance(12, monday, clock(15, 0), clock(16, 0), "", 4),
@@ -339,6 +353,8 @@ func TestBetreuungsplanUntitledBlocksAndSameDayOrder(t *testing.T) {
 // Substitutes are named on the wall sheet — that is who is actually there —
 // and an unresolvable staff member is stated rather than dropped.
 func TestBetreuungsplanStaffLineMarksSubstitutes(t *testing.T) {
+	t.Parallel()
+
 	substitute := instanceStaff(11, 8)
 	substitute.IsSubstitute = true
 	unknown := instanceStaff(11, 99)
@@ -362,6 +378,8 @@ func TestBetreuungsplanStaffLineMarksSubstitutes(t *testing.T) {
 
 // The staffing note is an office concern: it names why a block is thin.
 func TestBetreuungsplanUnderstaffedNoteOnlyInternal(t *testing.T) {
+	t.Parallel()
+
 	block := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 	block.UnderstaffedNote = ptr("eine Kraft fehlt")
 
@@ -391,6 +409,8 @@ func TestBetreuungsplanUnderstaffedNoteOnlyInternal(t *testing.T) {
 // A weekend block gets its own column instead of being dropped or folded
 // into a weekday.
 func TestBetreuungsplanPrintsWeekendBlocksInTheirOwnColumn(t *testing.T) {
+	t.Parallel()
+
 	saturday := monday.AddDays(5)
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{
@@ -423,6 +443,8 @@ func TestBetreuungsplanPrintsWeekendBlocksInTheirOwnColumn(t *testing.T) {
 // The ordinary week has no weekend to print, and two permanently empty
 // columns would cost a quarter of the page.
 func TestBetreuungsplanStopsAfterFridayWithoutWeekendBlocks(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
 		nil,
@@ -439,6 +461,8 @@ func TestBetreuungsplanStopsAfterFridayWithoutWeekendBlocks(t *testing.T) {
 // A Saturday shift is valid (a series accepts ISO weekdays 1–7) and has to
 // reach the printed roster.
 func TestDienstplanPrintsWeekendShifts(t *testing.T) {
+	t.Parallel()
+
 	saturday := monday.AddDays(5)
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
@@ -465,6 +489,8 @@ func columnIDs(doc listexport.Document) []listexport.ColumnID {
 // A shift without a Schichtart still needs a row on the deployment sheet;
 // unnamed, it would otherwise disappear from the plan entirely.
 func TestDienstplanByAreaKeepsShiftsWithoutShiftType(t *testing.T) {
+	t.Parallel()
+
 	absent := scheduleSvc.StaffScheduleAssignment{
 		StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
 		ActivityTitle: "Mensa", IsAbsent: true,
@@ -502,6 +528,8 @@ func TestDienstplanByAreaKeepsShiftsWithoutShiftType(t *testing.T) {
 
 // A replacement shift is its own row and says so; the shift note is internal.
 func TestDienstplanMarksSubstituteShiftAndNote(t *testing.T) {
+	t.Parallel()
+
 	cover := shift(2, 7, monday, clock(7, 30), clock(14, 0))
 	cover.OriginShiftID = ptr(int64(1))
 	cover.Notes = "übernimmt die Randstunde"
@@ -537,6 +565,8 @@ func TestDienstplanMarksSubstituteShiftAndNote(t *testing.T) {
 // Two blocks starting at the same minute read in title order, so the cell is
 // stable across exports of the same week.
 func TestDienstplanOrdersSimultaneousTasksByTitle(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Assignments: []scheduleSvc.StaffScheduleAssignment{
@@ -557,6 +587,8 @@ func TestDienstplanOrdersSimultaneousTasksByTitle(t *testing.T) {
 // Two shifts on one day read in start order, and a block someone covers for
 // a colleague says so on the wall sheet: that is who will be standing there.
 func TestDienstplanOrdersShiftsAndMarksSubstitutedTasks(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Shifts: []*scheduleModel.StaffShift{
@@ -582,6 +614,8 @@ func TestDienstplanOrdersShiftsAndMarksSubstitutedTasks(t *testing.T) {
 // A staff member the overview lists without a person record is a data fault,
 // not a reason to omit their row or crash the export.
 func TestDienstplanNamesStaffWithoutPersonRecord(t *testing.T) {
+	t.Parallel()
+
 	headless := &usersModel.Staff{}
 	headless.ID = 7
 	overview := &scheduleSvc.StaffScheduleOverview{
@@ -600,6 +634,8 @@ func TestDienstplanNamesStaffWithoutPersonRecord(t *testing.T) {
 // A bad request must be refused at the export, not just by the validator the
 // handlers happen to call first.
 func TestExportsRefuseBadRequests(t *testing.T) {
+	t.Parallel()
+
 	service, _ := newDienstplanService(&scheduleSvc.StaffScheduleOverview{}, nil)
 
 	params := defaultParams()
@@ -626,6 +662,8 @@ func TestExportsRefuseBadRequests(t *testing.T) {
 // send anyone looking for them there, and the internal sheet says why the
 // block is thin.
 func TestDienstplanByPersonHidesAbsentTasks(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener"), nil},
 		Assignments: []scheduleSvc.StaffScheduleAssignment{
@@ -659,6 +697,8 @@ func TestDienstplanByPersonHidesAbsentTasks(t *testing.T) {
 // a cancellation, and a substituted block each have to be visible in the cell,
 // and a block with no title still needs a row.
 func TestDienstplanByAreaLabelsCoverCancellationAndUntitledBlocks(t *testing.T) {
+	t.Parallel()
+
 	cancelled := withType(shift(1, 7, monday, clock(7, 30), clock(9, 0)), 4)
 	cancelled.Cancelled = true
 	cover := withType(shift(2, 8, monday, clock(7, 30), clock(9, 0)), 4)
@@ -707,6 +747,8 @@ func TestDienstplanByAreaLabelsCoverCancellationAndUntitledBlocks(t *testing.T) 
 // A cover shift whose replacement is not in the overview's staff list still
 // has to name someone rather than print an empty "Vertretung:".
 func TestDienstplanNamesAnUnknownCover(t *testing.T) {
+	t.Parallel()
+
 	cancelled := shift(1, 7, monday, clock(7, 30), clock(14, 0))
 	cancelled.Cancelled = true
 	cover := shift(2, 99, monday, clock(7, 30), clock(14, 0))
@@ -728,6 +770,8 @@ func TestDienstplanNamesAnUnknownCover(t *testing.T) {
 // Two offerings starting at the same minute read in title order, so the same
 // week exports to the same sheet every time.
 func TestBetreuungsplanOrdersSimultaneousOfferingsByTitle(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
@@ -749,6 +793,8 @@ func TestBetreuungsplanOrdersSimultaneousOfferingsByTitle(t *testing.T) {
 // the second prints unchanged. A single uncoloured block must not cost the
 // colours of the rest of the sheet.
 func TestBetreuungsplanColoursOnlyTheBlocksItCan(t *testing.T) {
+	t.Parallel()
+
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
 		Instances: stubInstances{instances: []*scheduleModel.ActivityInstance{
@@ -775,6 +821,8 @@ func TestBetreuungsplanColoursOnlyTheBlocksItCan(t *testing.T) {
 // Names are the one thing on the sheet nobody can look up elsewhere. A
 // half-empty record must still print something a reader can act on.
 func TestNameFormatting(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		first, last string
 		short, full string
@@ -800,6 +848,8 @@ func TestNameFormatting(t *testing.T) {
 // Defensive: the exports always pass at least one week, but the document
 // helpers must not index into an empty slice if that ever stops being true.
 func TestDocumentHelpersTolerateAnEmptyRange(t *testing.T) {
+	t.Parallel()
+
 	if got := rangeSubtitle(nil); got != "" {
 		t.Fatalf("rangeSubtitle(nil) = %q, want empty", got)
 	}
@@ -823,6 +873,8 @@ func TestDocumentHelpersTolerateAnEmptyRange(t *testing.T) {
 // The variant is stamped in the header so nobody has to guess which of the
 // two sheets they are holding.
 func TestDocumentNamesTheVariant(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
@@ -844,6 +896,8 @@ func TestDocumentNamesTheVariant(t *testing.T) {
 // The injected logger is the one that must receive the export record — an
 // export nobody can trace back is not auditable.
 func TestExportLogsThroughTheInjectedLogger(t *testing.T) {
+	t.Parallel()
+
 	var sink bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&sink, nil))
 	renderer := &captureRenderer{}
@@ -866,6 +920,8 @@ func TestExportLogsThroughTheInjectedLogger(t *testing.T) {
 // Both dates are required: an absent one would otherwise widen to the zero
 // date's week and print a sheet from the year 1.
 func TestParamsRejectMissingDates(t *testing.T) {
+	t.Parallel()
+
 	params := defaultParams()
 	params.From = timezone.Date{}
 	if err := params.validate(TemplatesForDienstplan); err == nil {
@@ -880,6 +936,8 @@ func TestParamsRejectMissingDates(t *testing.T) {
 // be called "Lernzeit". Keying the deployment rows by title would print one
 // row that is neither of them, with both teams' names in the same cell.
 func TestDienstplanByAreaSeparatesSameNamedOfferings(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{
 			staffMember(7, "Franziska", "Kessener"),
@@ -916,6 +974,8 @@ func TestDienstplanByAreaSeparatesSameNamedOfferings(t *testing.T) {
 // its title — otherwise the same block through the week would print one row
 // per occurrence.
 func TestDienstplanByAreaMergesSpontaneousBlocksByTitle(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{
 			staffMember(7, "Franziska", "Kessener"),
@@ -957,6 +1017,8 @@ func cellsForLabel(doc listexport.Document, label string, column listexport.Colu
 // the one case that legitimately leaves the line off
 // (TestBetreuungsplanSurvivesFailingOptionalLookups).
 func TestBetreuungsplanPrintsZeroAndSingleChildCounts(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),

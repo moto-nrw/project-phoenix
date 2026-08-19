@@ -19,6 +19,8 @@ import (
 )
 
 func TestSelectGroup(t *testing.T) {
+	t.Parallel()
+
 	groups := []Group{{ID: 10}, {ID: 20}}
 	yardGroupID := int64(30)
 
@@ -53,6 +55,8 @@ func TestSelectGroup(t *testing.T) {
 }
 
 func TestBuildVisitsAndEffectiveTimes(t *testing.T) {
+	t.Parallel()
+
 	checkedIn := time.Date(2026, time.August, 19, 10, 0, 0, 0, time.UTC)
 	checkedOut := checkedIn.Add(time.Hour)
 	sick, excused := true, true
@@ -92,11 +96,15 @@ func TestBuildVisitsAndEffectiveTimes(t *testing.T) {
 }
 
 func TestBuildPhotoURL(t *testing.T) {
+	t.Parallel()
+
 	assert.Empty(t, buildPhotoURL(1, ""))
 	assert.Equal(t, "https://example.test/photo.jpg", buildPhotoURL(1, "https://example.test/photo.jpg"))
 }
 
 func TestEmptyAndPermissionRedactedProjection(t *testing.T) {
+	t.Parallel()
+
 	projection := emptyProjection()
 	assert.Empty(t, projection.Groups)
 	assert.Empty(t, projection.UnclaimedGroups)
@@ -124,6 +132,8 @@ func TestEmptyAndPermissionRedactedProjection(t *testing.T) {
 }
 
 func TestServiceDefaults(t *testing.T) {
+	t.Parallel()
+
 	service := NewService(Dependencies{}).(*service)
 	assert.NotNil(t, service.deps.Now)
 	assert.Error(t, service.validateDependencies())
@@ -134,6 +144,8 @@ func TestServiceDefaults(t *testing.T) {
 }
 
 func TestSettingsDrivenProjectionBranches(t *testing.T) {
+	t.Parallel()
+
 	settings := &configtest.Mock{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			switch key {

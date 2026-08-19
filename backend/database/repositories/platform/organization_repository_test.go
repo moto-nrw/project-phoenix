@@ -14,6 +14,8 @@ import (
 )
 
 func TestOrganizationRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewOrganizationRepository(db)
@@ -51,6 +53,8 @@ func TestOrganizationRepository_Create(t *testing.T) {
 }
 
 func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewOrganizationRepository(db)

@@ -9,6 +9,8 @@ import (
 )
 
 func TestWithTenantID_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ctx = tenant.WithTenantID(ctx, 42)
 
@@ -17,15 +19,21 @@ func TestWithTenantID_RoundTrip(t *testing.T) {
 }
 
 func TestFromContext_EmptyContext(t *testing.T) {
+	t.Parallel()
+
 	got := tenant.FromContext(context.Background())
 	assert.Equal(t, int64(0), got)
 }
 
 func TestIsAdminTx_EmptyContext(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, tenant.IsAdminTx(context.Background()))
 }
 
 func TestWithOrgID_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ctx = tenant.WithOrgID(ctx, 77)
 
@@ -34,11 +42,15 @@ func TestWithOrgID_RoundTrip(t *testing.T) {
 }
 
 func TestOrgFromContext_EmptyContext(t *testing.T) {
+	t.Parallel()
+
 	got := tenant.OrgFromContext(context.Background())
 	assert.Equal(t, int64(0), got)
 }
 
 func TestWithScope_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ctx = tenant.WithScope(ctx, tenant.ScopePlatform)
 
@@ -47,17 +59,23 @@ func TestWithScope_RoundTrip(t *testing.T) {
 }
 
 func TestScopeFromContext_EmptyContext(t *testing.T) {
+	t.Parallel()
+
 	got := tenant.ScopeFromContext(context.Background())
 	assert.Equal(t, "", got)
 }
 
 func TestScopeTenantIsEmptyString(t *testing.T) {
+	t.Parallel()
+
 	// Per architecture plan: "" is the default tenant scope.
 	// Existing JWTs have no scope field, which parses as "".
 	assert.Equal(t, "", tenant.ScopeTenant)
 }
 
 func TestMultipleContextValues(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	ctx = tenant.WithTenantID(ctx, 10)
 	ctx = tenant.WithOrgID(ctx, 20)

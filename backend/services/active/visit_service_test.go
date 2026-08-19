@@ -21,6 +21,8 @@ import (
 // =============================================================================
 
 func TestActiveService_GetVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -69,6 +71,8 @@ func TestActiveService_GetVisit(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CreateVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -271,6 +275,8 @@ func TestActiveService_CreateVisit(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_UpdateVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -402,6 +408,8 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_DeleteVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -449,6 +457,8 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ListVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -491,6 +501,8 @@ func TestActiveService_ListVisits(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindVisitsByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -536,6 +548,8 @@ func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -583,6 +597,8 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -640,6 +656,8 @@ func TestActiveService_EndVisit(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetStudentCurrentVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -703,6 +721,8 @@ func TestActiveService_GetStudentCurrentVisit(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -764,6 +784,8 @@ func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -804,6 +826,8 @@ func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
 // recheck) that closes the race against a concurrent grade-transition apply.
 // Covers both the visit path (detailed mode) and the attendance path.
 func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

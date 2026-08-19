@@ -66,18 +66,18 @@ func cleanupConversionTest(t *testing.T, s *templateSetup, periodID, instanceID 
 	}
 	_, err := s.db.NewDelete().Table("schedule.activity_instances").Where("id = ?", instanceID).Exec(s.ctx)
 	require.NoError(t, err)
-	cleanupTemplatesByPrefix(t, s.db, "Tpl-Convert-")
 	_, err = s.db.NewDelete().Table("schedule.calendar_periods").Where("id = ?", periodID).Exec(s.ctx)
 	require.NoError(t, err)
 	s.cleanupFn()
 }
 
 func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Period")
 	t.Cleanup(func() {
-		cleanupTemplatesByPrefix(t, s.db, "Tpl-Convert-")
 		_, err := s.db.NewDelete().Table("schedule.calendar_periods").Where("id = ?", period.ID).Exec(s.ctx)
 		require.NoError(t, err)
 	})
@@ -109,6 +109,8 @@ func TestConvertInstanceToSeries_MapsRequestAndResponse(t *testing.T) {
 }
 
 func TestConvertInstanceToSeries_RequiresStartDate(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	converter := &stubInstanceSeriesConverter{}
@@ -123,6 +125,8 @@ func TestConvertInstanceToSeries_RequiresStartDate(t *testing.T) {
 }
 
 func TestConvertInstanceToSeries_RejectsInvalidID(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	s.res.InstanceSeriesConverter = &stubInstanceSeriesConverter{}
@@ -133,6 +137,8 @@ func TestConvertInstanceToSeries_RejectsInvalidID(t *testing.T) {
 }
 
 func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Errors-Period")
@@ -163,6 +169,8 @@ func TestConvertInstanceToSeries_PreservesTemplateValidationErrorContract(t *tes
 }
 
 func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Atomic-Period")
 	date := timezone.NewDate(2026, 8, 10) // Monday, matching createTemplateBody.
@@ -222,6 +230,8 @@ func TestConvertInstanceToSeries_LinksExistingOccurrenceAndRejectsRetry(t *testi
 }
 
 func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Source-Period")
 	date := timezone.NewDate(2026, 8, 10) // Monday.
@@ -296,6 +306,8 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 }
 
 func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-Rollback-Period")
 	date := timezone.NewDate(2026, 8, 10)
@@ -338,6 +350,8 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 // A 4xx after CreateTemplate must not commit under TenantTxMiddleware: nested
 // WithTenantTx reuses the outer tx, and middleware only auto-rolls back 5xx.
 func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-4xx-Period")
 	// Existing seed is a weekday; conversion start_date moves it onto a
@@ -381,11 +395,12 @@ func TestConvertInstanceToSeries_RollsBackOrphanSeriesOn4xxLinkFailure(t *testin
 }
 
 func TestConvertInstanceToSeries_MarksRollbackOnServiceError(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Convert-MarkRollback-Period")
 	t.Cleanup(func() {
-		cleanupTemplatesByPrefix(t, s.db, "Tpl-Convert-")
 		_, err := s.db.NewDelete().Table("schedule.calendar_periods").Where("id = ?", period.ID).Exec(s.ctx)
 		require.NoError(t, err)
 	})

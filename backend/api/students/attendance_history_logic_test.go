@@ -24,6 +24,8 @@ import (
 )
 
 func TestParseAttendanceHistoryRange_Defaults(t *testing.T) {
+	t.Parallel()
+
 	defaultStart := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	defaultEnd := time.Date(2026, 3, 31, 23, 59, 59, 0, time.UTC)
 
@@ -35,6 +37,8 @@ func TestParseAttendanceHistoryRange_Defaults(t *testing.T) {
 }
 
 func TestParseAttendanceHistoryRange_ExplicitParams(t *testing.T) {
+	t.Parallel()
+
 	defaultStart := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	defaultEnd := time.Date(2026, 3, 31, 23, 59, 59, 0, time.UTC)
 
@@ -48,18 +52,24 @@ func TestParseAttendanceHistoryRange_ExplicitParams(t *testing.T) {
 }
 
 func TestParseAttendanceHistoryRange_InvalidStart(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students/1/attendance-history?start=not-a-date", nil)
 	_, _, err := parseAttendanceHistoryRange(req, time.Now(), time.Now())
 	require.Error(t, err)
 }
 
 func TestParseAttendanceHistoryRange_StartAfterEnd(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students/1/attendance-history?start=2026-03-20T00:00:00Z&end=2026-03-10T00:00:00Z", nil)
 	_, _, err := parseAttendanceHistoryRange(req, time.Now(), time.Now())
 	require.Error(t, err)
 }
 
 func TestClampAttendanceHistoryRange_ClampsFutureEndAndVisibilityCap(t *testing.T) {
+	t.Parallel()
+
 	endOfToday := time.Date(2026, 3, 20, 23, 59, 59, 0, time.UTC)
 	start := endOfToday.AddDate(0, 0, -60)
 	end := endOfToday.AddDate(0, 0, 5)
@@ -72,6 +82,8 @@ func TestClampAttendanceHistoryRange_ClampsFutureEndAndVisibilityCap(t *testing.
 }
 
 func TestClampAttendanceHistoryRange_RejectsFullyFutureRange(t *testing.T) {
+	t.Parallel()
+
 	endOfToday := time.Date(2026, 3, 20, 23, 59, 59, 0, time.UTC)
 	start := endOfToday.Add(time.Second)
 	end := start.Add(24 * time.Hour)
@@ -81,11 +93,15 @@ func TestClampAttendanceHistoryRange_RejectsFullyFutureRange(t *testing.T) {
 }
 
 func TestBuildAttendanceHistoryDays_EmptyRows(t *testing.T) {
+	t.Parallel()
+
 	days := buildAttendanceHistoryDays(nil, nil, nil, time.Now(), false)
 	assert.Empty(t, days)
 }
 
 func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.Today()
 	roomCutoff := date.AddDate(0, 0, -6)
 	checkIn := date.Add(8 * time.Hour)
@@ -134,6 +150,8 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 }
 
 func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testing.T) {
+	t.Parallel()
+
 	// Attendance date exactly equals roomCutoff → should still include room detail.
 	today := timezone.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
@@ -174,6 +192,8 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 }
 
 func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 	checkIn := today.Add(8 * time.Hour)
@@ -209,6 +229,8 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 }
 
 func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.Today()
 	yesterday := today.AddDate(0, 0, -1)
 	roomCutoff := today.AddDate(0, 0, -6)
@@ -222,6 +244,8 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 }
 
 func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 	reportedAt := today.Add(7 * time.Hour)
@@ -252,6 +276,8 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 }
 
 func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 
@@ -279,6 +305,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 }
 
 func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 
@@ -299,6 +327,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testin
 }
 
 func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
+	t.Parallel()
+
 	// Attendance from 10 days ago, room cutoff at 7 days ago → no room detail.
 	today := timezone.Today()
 	oldDate := today.AddDate(0, 0, -10)
@@ -327,6 +357,8 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 }
 
 func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 15)
 	morning := &schedule.ActivityInstance{
 		Date: date, Title: "Morgenbetreuung",
@@ -359,6 +391,8 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 }
 
 func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 10)
 	instance := &schedule.ActivityInstance{
 		Date: date, Title: "Morgenbetreuung",
@@ -401,6 +435,8 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 // be claimed via the scheduled-window fallback. Sessions outside every window
 // stay visible as neutral "Ohne Zuordnung" entries without an is_unplanned claim.
 func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) {
+	t.Parallel()
+
 	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
 	reentry := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
 	outside := time.Date(2026, 7, 15, 17, 30, 0, 0, timezone.Berlin)
@@ -434,6 +470,8 @@ func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) 
 // slots may claim sessions via their scheduled window — an absence (sick) with
 // an overlapping window must not swallow observed presence.
 func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T) {
+	t.Parallel()
+
 	sick := schedule.AttendanceSubstatusSick
 	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
 
@@ -455,6 +493,8 @@ func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T
 }
 
 func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T) {
+	t.Parallel()
+
 	checkIn := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
 
 	days := attachUnassignedAttendance([]attendanceHistoryDay{{
@@ -484,6 +524,8 @@ func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T
 // neutral — the day keeps its check-in/out times and gains no synthetic
 // entries.
 func TestAttachUnassignedAttendance_NoSlotExpectationStaysNeutral(t *testing.T) {
+	t.Parallel()
+
 	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
 	second := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
 
@@ -516,6 +558,8 @@ func TestAttachUnassignedAttendance_NoSlotExpectationStaysNeutral(t *testing.T) 
 // A school with a care plan keeps its "Ohne Zuordnung" rows on days that hold
 // no slot of their own.
 func TestAttachUnassignedAttendance_ExpectationKeepsUnassignedRowOnSlotFreeDay(t *testing.T) {
+	t.Parallel()
+
 	planned := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
 	walkIn := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
 
@@ -552,6 +596,8 @@ func TestAttachUnassignedAttendance_ExpectationKeepsUnassignedRowOnSlotFreeDay(t
 // slot row (still marked is_unplanned), but must not resurrect synthetic
 // "Ohne Zuordnung" entries for the remaining sessions.
 func TestAttachUnassignedAttendance_WalkInWithoutExpectationKeepsItsSlotOnly(t *testing.T) {
+	t.Parallel()
+
 	walkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
 	later := time.Date(2026, 7, 15, 17, 0, 0, 0, timezone.Berlin)
 
@@ -584,6 +630,8 @@ func TestAttachUnassignedAttendance_WalkInWithoutExpectationKeepsItsSlotOnly(t *
 // instances keep their assignment rows but are no evidence: a cancelled-only
 // booking was never a usable slot.
 func TestHasPlannedSlotRow(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 15)
 	assert.False(t, hasPlannedSlotRow(nil))
 	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{
@@ -605,6 +653,8 @@ func TestHasPlannedSlotRow(t *testing.T) {
 }
 
 func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 7, 15)
 	instance := &schedule.ActivityInstance{
 		Date:      date,

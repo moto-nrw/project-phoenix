@@ -25,7 +25,7 @@ func setupRequestChildRepoTest(t *testing.T) (
 ) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
@@ -65,6 +65,8 @@ func makeChild(requestID int64, firstName, lastName string) *enrollmentModels.Re
 // --- ListByRequestIDs (batch loader for the phase export) --------------
 
 func TestRequestChildRepository_ListByRequestIDs_BatchesAcrossRequests(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID, requestID := setupRequestChildRepoTest(t)
 
 	// Three children under the first request (sort order shuffled).
@@ -106,6 +108,8 @@ func TestRequestChildRepository_ListByRequestIDs_BatchesAcrossRequests(t *testin
 }
 
 func TestRequestChildRepository_ListByRequestIDs_EmptyInputShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	var list []*enrollmentModels.RequestChild
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -120,6 +124,8 @@ func TestRequestChildRepository_ListByRequestIDs_EmptyInputShortCircuits(t *test
 // --- Create + FindByID -------------------------------------------------
 
 func TestRequestChildRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	child := makeChild(requestID, "Lara", "Beispiel")
@@ -132,6 +138,8 @@ func TestRequestChildRepository_Create_PersistsAndReturnsID(t *testing.T) {
 }
 
 func TestRequestChildRepository_FindByID_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	child := makeChild(requestID, "Lara", "Beispiel")
@@ -154,6 +162,8 @@ func TestRequestChildRepository_FindByID_HappyPath(t *testing.T) {
 // --- ListByRequestID ---------------------------------------------------
 
 func TestRequestChildRepository_ListByRequestID_OrdersBySortOrder(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	// Insert children out of order to verify sort_order ordering.
@@ -183,6 +193,8 @@ func TestRequestChildRepository_ListByRequestID_OrdersBySortOrder(t *testing.T) 
 }
 
 func TestRequestChildRepository_ListByRequestID_EmptyResultNoError(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 
 	var list []*enrollmentModels.RequestChild
@@ -198,6 +210,8 @@ func TestRequestChildRepository_ListByRequestID_EmptyResultNoError(t *testing.T)
 // --- UpdateStatus ------------------------------------------------------
 
 func TestRequestChildRepository_UpdateStatus_StampsReviewerAndReason(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	// Need a real reviewer account so the FK passes.
@@ -232,6 +246,8 @@ func TestRequestChildRepository_UpdateStatus_StampsReviewerAndReason(t *testing.
 }
 
 func TestRequestChildRepository_UpdateStatus_ParentInitiatedNullsReviewer(t *testing.T) {
+	t.Parallel()
+
 	// reviewedBy=0 path — parent self-withdraw shouldn't trip the
 	// auth.accounts FK. The repo must explicitly set reviewed_by=NULL.
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
@@ -257,6 +273,8 @@ func TestRequestChildRepository_UpdateStatus_ParentInitiatedNullsReviewer(t *tes
 }
 
 func TestRequestChildRepository_UpdateStatus_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.UpdateStatus(ctx, 9_999_999, enrollmentModels.ChildStatusApproved, nil, 0)
@@ -268,6 +286,8 @@ func TestRequestChildRepository_UpdateStatus_MissingIDErrors(t *testing.T) {
 // --- LinkCreatedStudent ------------------------------------------------
 
 func TestRequestChildRepository_LinkCreatedStudent_StampsBackLink(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	// Need a real student row for the FK on created_student_id.
@@ -297,6 +317,8 @@ func TestRequestChildRepository_LinkCreatedStudent_StampsBackLink(t *testing.T) 
 }
 
 func TestRequestChildRepository_LinkCreatedStudent_MissingChildErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.LinkCreatedStudent(ctx, 9_999_999, 12345)
@@ -306,6 +328,8 @@ func TestRequestChildRepository_LinkCreatedStudent_MissingChildErrors(t *testing
 }
 
 func TestRequestChildRepository_UpdateActivationPlan_StampsImmediate(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	child := makeChild(requestID, "Immo", "Diate")
@@ -328,6 +352,8 @@ func TestRequestChildRepository_UpdateActivationPlan_StampsImmediate(t *testing.
 }
 
 func TestRequestChildRepository_UpdateActivationPlan_StampsScheduledDate(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	child := makeChild(requestID, "Sched", "Uled")
@@ -352,6 +378,8 @@ func TestRequestChildRepository_UpdateActivationPlan_StampsScheduledDate(t *test
 }
 
 func TestRequestChildRepository_UpdateActivationPlan_MissingChildErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.UpdateActivationPlan(ctx, 9_999_999, enrollmentModels.ChildActivationImmediate, nil)
@@ -363,6 +391,8 @@ func TestRequestChildRepository_UpdateActivationPlan_MissingChildErrors(t *testi
 // --- ListByPhaseAndStatuses --------------------------------------------
 
 func TestRequestChildRepository_ListByPhaseAndStatuses_Filters(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID, requestID := setupRequestChildRepoTest(t)
 
 	// Three children: two pending_admin_review, one approved.
@@ -392,6 +422,8 @@ func TestRequestChildRepository_ListByPhaseAndStatuses_Filters(t *testing.T) {
 }
 
 func TestRequestChildRepository_ListByPhaseAndStatuses_EmptyStatusesShortCircuit(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID, _ := setupRequestChildRepoTest(t)
 	var list []*enrollmentModels.RequestChild
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -404,6 +436,8 @@ func TestRequestChildRepository_ListByPhaseAndStatuses_EmptyStatusesShortCircuit
 }
 
 func TestRequestChildRepository_ListByPhaseAndStatuses_RejectsZeroPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		_, lErr := repo.ListByPhaseAndStatuses(ctx, 0,
@@ -416,6 +450,8 @@ func TestRequestChildRepository_ListByPhaseAndStatuses_RejectsZeroPhase(t *testi
 // --- BulkUpdateStatusByPhaseAndStatus -----------------------------------
 
 func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_TransitionsAll(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID, requestID := setupRequestChildRepoTest(t)
 
 	// Two children in pending_renewal + one in auto_renewed.
@@ -454,6 +490,8 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_TransitionsAll(
 }
 
 func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_RejectsZeroPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		_, bErr := repo.BulkUpdateStatusByPhaseAndStatus(ctx, 0,
@@ -465,6 +503,8 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_RejectsZeroPhas
 }
 
 func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_RejectsBlankStatuses(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		_, bErr := repo.BulkUpdateStatusByPhaseAndStatus(ctx, phaseID, "", "withdrawn")
@@ -479,6 +519,8 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_RejectsBlankSta
 }
 
 func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_ZeroAffectedNoError(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID, _ := setupRequestChildRepoTest(t)
 	var n int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -495,6 +537,8 @@ func TestRequestChildRepository_BulkUpdateStatusByPhaseAndStatus_ZeroAffectedNoE
 // --- UpdateRolloverReview ----------------------------------------------
 
 func TestRequestChildRepository_UpdateRolloverReview_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	account := testpkg.CreateTestAccount(t, db, "rolloverreviewer")
@@ -533,6 +577,8 @@ func TestRequestChildRepository_UpdateRolloverReview_HappyPath(t *testing.T) {
 }
 
 func TestRequestChildRepository_UpdateRolloverReview_NilGradePreservesExisting(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, requestID := setupRequestChildRepoTest(t)
 
 	// Child with a grade level already set.
@@ -560,6 +606,8 @@ func TestRequestChildRepository_UpdateRolloverReview_NilGradePreservesExisting(t
 }
 
 func TestRequestChildRepository_UpdateRolloverReview_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupRequestChildRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.UpdateRolloverReview(ctx, 9_999_999,

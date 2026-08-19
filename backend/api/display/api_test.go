@@ -155,6 +155,8 @@ func cleanupDisplays(t *testing.T, db *bun.DB, tenantID int64) {
 }
 
 func TestDisplayAdminCRUD(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
@@ -242,6 +244,8 @@ func TestDisplayAdminCRUD(t *testing.T) {
 }
 
 func TestDisplayDashboardPublic(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
@@ -357,6 +361,8 @@ func buildInstance(tenantID int64, title string, roomID int64, start time.Time) 
 }
 
 func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantA := newDisplayTestTenant(t, db)
@@ -400,6 +406,8 @@ func gjsonSchoolName(t *testing.T, body []byte) string {
 }
 
 func TestDisplayDashboardPickupBuckets(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	today := timezone.TodayDate()
@@ -498,6 +506,8 @@ func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID
 // live tenant data once its school is disabled or offboarded: the dashboard
 // must 404 (dead link), not keep aggregating.
 func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	router := newDisplayRouter(t, db)
@@ -552,6 +562,8 @@ func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
 // regeneration move the row's updated_at (the API otherwise keeps returning
 // the creation timestamp forever).
 func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
@@ -615,6 +627,8 @@ func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
 // Guard against accidental reintroduction of identity fields in the payload
 // structs themselves (compile-time-ish check via JSON round trip).
 func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
+	t.Parallel()
+
 	payload := displayService.DashboardPayload{}
 	raw, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -629,6 +643,8 @@ func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
 // and the public dashboard must reject a tenant that never turned it on,
 // and must resume working once the tenant enables it.
 func TestDisplayFeatureGate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	// Deliberately NOT using newDisplayTestTenant here — it enables the

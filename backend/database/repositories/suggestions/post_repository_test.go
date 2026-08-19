@@ -69,6 +69,8 @@ func cleanupPosts(t *testing.T, db *bun.DB, postIDs ...int64) {
 }
 
 func TestPostRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -109,6 +111,8 @@ func TestPostRepository_Create(t *testing.T) {
 }
 
 func TestPostRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -136,6 +140,8 @@ func TestPostRepository_FindByID(t *testing.T) {
 }
 
 func TestPostRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -194,6 +200,8 @@ func TestPostRepository_Update(t *testing.T) {
 }
 
 func TestPostRepository_UpdateStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -215,6 +223,8 @@ func TestPostRepository_UpdateStatus(t *testing.T) {
 }
 
 func TestPostRepository_UpdateHidden(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -236,6 +246,8 @@ func TestPostRepository_UpdateHidden(t *testing.T) {
 }
 
 func TestPostRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -258,6 +270,8 @@ func TestPostRepository_Delete(t *testing.T) {
 }
 
 func TestPostRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -324,11 +338,13 @@ func TestPostRepository_List(t *testing.T) {
 // and returns the post once per match. users.persons is unique on
 // (tenant_id, account_id) only for live rows, so both shapes are reachable.
 func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
 
-	const otherTenantID int64 = 99678
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "suggestions-operator-join")
@@ -401,6 +417,8 @@ func TestPostRepository_ListOperatorAuthorJoinIsScoped(t *testing.T) {
 }
 
 func TestPostRepository_FindByIDWithVote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)
@@ -444,6 +462,8 @@ func TestPostRepository_FindByIDWithVote(t *testing.T) {
 }
 
 func TestPostRepository_RecalculateScore(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostRepository(db)

@@ -18,6 +18,8 @@ import (
 // =============================================================================
 
 func TestGetStudentPrivacyConsent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Test", "PT1")
@@ -51,6 +53,8 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 }
 
 func TestUpdateStudentPrivacyConsent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PrivacyUpdate", "Test", "PU1")
@@ -94,6 +98,8 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 }
 
 func TestPrivacyConsent_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("update_creates_new_consent_for_different_version", func(t *testing.T) {
@@ -174,6 +180,8 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 }
 
 func TestPrivacyConsent_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("update_existing_consent_same_version", func(t *testing.T) {

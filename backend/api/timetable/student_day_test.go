@@ -126,6 +126,8 @@ func decodeEnvelope(t *testing.T, w *httptest.ResponseRecorder, target any) {
 // --- /day -----------------------------------------------------------------
 
 func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Create a planned instance on Wed 2026-04-22.
@@ -185,6 +187,8 @@ func TestGetStudentDay_HappyPath_WithScheduleAndEnrolledInstance(t *testing.T) {
 }
 
 func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	arrSched := testpkg.CreateTestArrivalSchedule(t, s.db, s.studentID, schedule.WeekdayWednesday, s.staffID, "13:00")
@@ -210,6 +214,8 @@ func TestGetStudentDay_ExceptionOverridesSchedule(t *testing.T) {
 }
 
 func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// A pickup exception with empty HHMM → PickupTime=NULL = absence for
@@ -235,6 +241,8 @@ func TestGetStudentDay_PickupException_NilTimeMeansAbsence(t *testing.T) {
 }
 
 func TestGetStudentDay_NoArrivalNoPickup_SourceNone(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	router := adminRouter(s.ctx, s.res)
@@ -258,6 +266,8 @@ func TestGetStudentDay_NoArrivalNoPickup_SourceNone(t *testing.T) {
 // loop skips ids already present in enrolledInstanceIDs; this test locks
 // that behavior in so a future rewrite can't introduce a duplicate.
 func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Active group + bridge instance (same shape as the unplanned test).
@@ -304,6 +314,8 @@ func TestGetStudentDay_EnrolledPlusVisit_NoDuplicate(t *testing.T) {
 // Unplanned scenario: active.visit exists for student on an active
 // instance's bridge group, but no instance_students row.
 func TestGetStudentDay_UnplannedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Active group + bridge instance.
@@ -348,6 +360,8 @@ func TestGetStudentDay_UnplannedStudent(t *testing.T) {
 }
 
 func TestGetStudentDay_InvalidDate_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -357,6 +371,8 @@ func TestGetStudentDay_InvalidDate_Returns400(t *testing.T) {
 }
 
 func TestGetStudentDay_MissingDate_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -366,6 +382,8 @@ func TestGetStudentDay_MissingDate_Returns400(t *testing.T) {
 }
 
 func TestGetStudentDay_InvalidStudentID_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -375,6 +393,8 @@ func TestGetStudentDay_InvalidStudentID_Returns400(t *testing.T) {
 }
 
 func TestGetStudentDay_UnknownStudent_Returns404(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -385,6 +405,8 @@ func TestGetStudentDay_UnknownStudent_Returns404(t *testing.T) {
 // Cross-tenant must 404, not 403: returning 403 for a student in tenant B
 // would leak their existence to a caller in tenant A.
 func TestGetStudentDay_CrossTenant_Returns404(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Pretend the caller is in tenant 2 — our fixture student lives in
@@ -399,6 +421,8 @@ func TestGetStudentDay_CrossTenant_Returns404(t *testing.T) {
 // Same-tenant, non-admin, not a group supervisor → 403 (we already know the
 // student exists in this tenant, so hiding them would be misleading).
 func TestGetStudentDay_SameTenantNoSupervisor_Returns403(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 
 	// Strip admin perms; CanReadStudent falls through to the group-
@@ -412,6 +436,8 @@ func TestGetStudentDay_SameTenantNoSupervisor_Returns403(t *testing.T) {
 // --- /week ----------------------------------------------------------------
 
 func TestGetStudentWeek_HappyPath_ReturnsEntryPerDay(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -434,6 +460,8 @@ func TestGetStudentWeek_HappyPath_ReturnsEntryPerDay(t *testing.T) {
 }
 
 func TestGetStudentWeek_RangeAtLimit_14Days_ReturnsOK(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -446,6 +474,8 @@ func TestGetStudentWeek_RangeAtLimit_14Days_ReturnsOK(t *testing.T) {
 }
 
 func TestGetStudentWeek_RangeExceedsLimit_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -461,6 +491,8 @@ func TestGetStudentWeek_RangeExceedsLimit_Returns400(t *testing.T) {
 // to.Sub(from).Hours()/24 would undercount by the missing hour and let it
 // through.
 func TestGetStudentWeek_SpringDST_15DayRangeStillRejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -472,6 +504,8 @@ func TestGetStudentWeek_SpringDST_15DayRangeStillRejected(t *testing.T) {
 // Spring DST: the same span minus one day (14 inclusive days crossing the
 // transition) must pass and return one entry per day.
 func TestGetStudentWeek_SpringDST_14DayRangeAtLimit_ReturnsOK(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -484,6 +518,8 @@ func TestGetStudentWeek_SpringDST_14DayRangeAtLimit_ReturnsOK(t *testing.T) {
 }
 
 func TestGetStudentWeek_FromAfterTo_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -493,6 +529,8 @@ func TestGetStudentWeek_FromAfterTo_Returns400(t *testing.T) {
 }
 
 func TestGetStudentWeek_MissingParams_Returns400(t *testing.T) {
+	t.Parallel()
+
 	s := buildStudentDaySetup(t)
 	router := adminRouter(s.ctx, s.res)
 
@@ -515,6 +553,9 @@ func (h *queryCounterHook) AfterQuery(context.Context, *bun.QueryEvent) {}
 // TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne locks in the N+1 fix:
 // a 14-day /week must fire at most 7 DB queries (enrolled + instances +
 // visits + 2 schedules + 2 exceptions). Previously this was ~98.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
 	s := buildStudentDaySetup(t)
 

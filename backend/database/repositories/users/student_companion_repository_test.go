@@ -64,6 +64,8 @@ func companionIDsOf(t *testing.T, studentID int64, edges []*users.StudentCompani
 // linking Lina to Tom from Lina's card must make Lina appear on Tom's card too.
 // If a future change ever stores a directed row per child, this fails.
 func TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion
@@ -99,6 +101,8 @@ func TestStudentCompanionRepository_ReplaceForStudent_IsSymmetric(t *testing.T) 
 // pair walking together on several days is stored as one row per weekday and
 // read back for both children.
 func TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion
@@ -130,6 +134,8 @@ func TestStudentCompanionRepository_ReplaceForStudent_MultipleWeekdays(t *testin
 // detail view must remove every edge of that child — including from the other
 // children's cards.
 func TestStudentCompanionRepository_ReplaceForStudent_EmptyClears(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion
@@ -161,6 +167,8 @@ func TestStudentCompanionRepository_ReplaceForStudent_EmptyClears(t *testing.T) 
 // edited child. A delete that forgot its WHERE (or matched on tenant only)
 // would wipe every other Laufgemeinschaft in the school — this catches that.
 func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion
@@ -206,6 +214,8 @@ func TestStudentCompanionRepository_ReplaceForStudent_LeavesUnrelatedEdges(t *te
 // behind the Kindersuche grouping: both directions of every edge are reported,
 // and only for the requested weekday.
 func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion
@@ -267,6 +277,8 @@ func TestStudentCompanionRepository_CompanionIDsForWeekday(t *testing.T) {
 // report every other member, including the two children bridging them. Direct
 // neighbours only would let the page render one group as two.
 func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion
@@ -312,6 +324,8 @@ func TestStudentCompanionRepository_CompanionIDsForWeekdayTransitive(t *testing.
 // companion's name joined in, so the detail view renders without a second round
 // trip.
 func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion
@@ -360,6 +374,8 @@ func TestStudentCompanionRepository_ListLinksForStudent(t *testing.T) {
 // export, which is quadratic at the sizes these documents are rendered at — the
 // result below must therefore stay identical while the work stays linear.
 func TestStudentCompanionRepository_ListLinksForStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentCompanion

@@ -20,6 +20,8 @@ import (
 // tests have.
 
 func TestOperatorMFAAdminResetRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects empty reason", func(t *testing.T) {
 		req := MFAAdminResetRequest{Reason: ""}
 		assert.Error(t, req.Bind(nil))
@@ -36,6 +38,8 @@ func TestOperatorMFAAdminResetRequest_Bind(t *testing.T) {
 }
 
 func TestOperatorMFAAdminOverrideSetRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects unknown override value", func(t *testing.T) {
 		req := MFAAdminOverrideSetRequest{Override: "maybe", Reason: "test"}
 		assert.Error(t, req.Bind(nil))
@@ -59,6 +63,8 @@ func TestOperatorMFAAdminOverrideSetRequest_Bind(t *testing.T) {
 // AccountTenantRepository) must answer 500 ("not configured") rather than
 // silently doing nothing.
 func TestOperatorMFAAdmin_FailsClosedWithoutDependencies(t *testing.T) {
+	t.Parallel()
+
 	rs := &ProvisioningResource{} // both deps nil
 
 	cases := []struct {

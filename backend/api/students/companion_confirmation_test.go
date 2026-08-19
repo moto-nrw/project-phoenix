@@ -13,6 +13,8 @@ import (
 // the meantime was never on screen, so it must not ride along on that yes —
 // the caller asks again instead (#1694).
 func TestCompanionConflictsConfirmed(t *testing.T) {
+	t.Parallel()
+
 	const (
 		tom = int64(77)
 		mia = int64(88)

@@ -69,6 +69,8 @@ func clearPersonTag(db *bun.DB, tagID string) {
 }
 
 func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -118,6 +120,8 @@ func TestGradeTransitionRepository_ReleaseStudentTagsByIDs(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -225,6 +229,8 @@ func TestGradeTransitionRepository_RestoreStudentTag(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -263,6 +269,8 @@ func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -328,6 +336,8 @@ func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -367,6 +377,8 @@ func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -407,6 +419,8 @@ func TestGradeTransitionRepository_PromoteStudentsByIDs(t *testing.T) {
 }
 
 func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)
@@ -449,6 +463,8 @@ func TestGradeTransitionRepository_GraduateAndReactivateByIDs(t *testing.T) {
 // classify — or, where no constraint exists (an unknown history action), lands
 // in the ledger and misleads every later revert.
 func TestGradeTransitionRepository_ValidationGuards(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := education.NewGradeTransitionRepository(db)

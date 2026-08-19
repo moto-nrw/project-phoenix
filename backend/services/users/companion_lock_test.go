@@ -49,6 +49,8 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 // PostgreSQL would resolve with a deadlock abort — a 500 on an edit that is
 // perfectly legal and succeeds on the next attempt.
 func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -74,6 +76,8 @@ func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testin
 // context deadline is what ends this call — proof that it queued rather than
 // bailing out with ErrCompanionLockBusy.
 func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := newCompanionTestService(db)
@@ -96,6 +100,8 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 // path the refusal must not regress: with nobody holding the rows, both the
 // plain entry point and the bounded one simply take their locks.
 func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -126,6 +132,8 @@ func TestStudentService_LockStudentsForUpdate_TakesFreeRows(t *testing.T) {
 // The far end of the SECOND subject is the one held here: a pass that only
 // looked at the first subject's graph would sail past it and return nil.
 func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

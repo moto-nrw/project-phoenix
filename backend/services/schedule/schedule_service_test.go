@@ -141,6 +141,8 @@ func cleanupScheduleFixtures(t *testing.T, db *bun.DB, dateframeIDs, timeframeID
 // ============================================================================
 
 func TestScheduleService_GetDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -174,6 +176,8 @@ func TestScheduleService_GetDateframe(t *testing.T) {
 }
 
 func TestScheduleService_CreateDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -238,6 +242,8 @@ func TestScheduleService_CreateDateframe(t *testing.T) {
 }
 
 func TestScheduleService_UpdateDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -267,6 +273,8 @@ func TestScheduleService_UpdateDateframe(t *testing.T) {
 }
 
 func TestScheduleService_DeleteDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -292,6 +300,8 @@ func TestScheduleService_DeleteDateframe(t *testing.T) {
 }
 
 func TestScheduleService_ListDateframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -327,6 +337,8 @@ func TestScheduleService_ListDateframes(t *testing.T) {
 }
 
 func TestScheduleService_FindDateframesByDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -360,6 +372,8 @@ func TestScheduleService_FindDateframesByDate(t *testing.T) {
 }
 
 func TestScheduleService_FindOverlappingDateframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -398,6 +412,8 @@ func TestScheduleService_FindOverlappingDateframes(t *testing.T) {
 // ============================================================================
 
 func TestScheduleService_GetTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -430,6 +446,8 @@ func TestScheduleService_GetTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_CreateTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -491,6 +509,8 @@ func TestScheduleService_CreateTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_UpdateTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -522,6 +542,8 @@ func TestScheduleService_UpdateTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_DeleteTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -547,6 +569,8 @@ func TestScheduleService_DeleteTimeframe(t *testing.T) {
 }
 
 func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	ctx := testpkg.Ctx(t)
@@ -607,6 +631,8 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 }
 
 func TestScheduleService_ListTimeframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -631,6 +657,8 @@ func TestScheduleService_ListTimeframes(t *testing.T) {
 }
 
 func TestScheduleService_FindActiveTimeframes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -665,6 +693,8 @@ func TestScheduleService_FindActiveTimeframes(t *testing.T) {
 }
 
 func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -712,6 +742,8 @@ func TestScheduleService_FindTimeframesByTimeRange(t *testing.T) {
 // ============================================================================
 
 func TestScheduleService_GetRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -743,6 +775,8 @@ func TestScheduleService_GetRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -912,6 +946,8 @@ func TestScheduleService_CreateRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_UpdateRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -939,6 +975,8 @@ func TestScheduleService_UpdateRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_DeleteRecurrenceRule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -962,6 +1000,8 @@ func TestScheduleService_DeleteRecurrenceRule(t *testing.T) {
 }
 
 func TestScheduleService_ListRecurrenceRules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -983,6 +1023,8 @@ func TestScheduleService_ListRecurrenceRules(t *testing.T) {
 }
 
 func TestScheduleService_FindRecurrenceRulesByFrequency(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -1013,6 +1055,8 @@ func TestScheduleService_FindRecurrenceRulesByFrequency(t *testing.T) {
 }
 
 func TestScheduleService_FindRecurrenceRulesByWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -1052,6 +1096,8 @@ func TestScheduleService_FindRecurrenceRulesByWeekday(t *testing.T) {
 // ============================================================================
 
 func TestScheduleService_GenerateEvents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -1315,6 +1361,8 @@ func TestScheduleService_GenerateEvents(t *testing.T) {
 }
 
 func TestScheduleService_CheckConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -1372,6 +1420,8 @@ func TestScheduleService_CheckConflict(t *testing.T) {
 }
 
 func TestScheduleService_FindAvailableSlots(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)
@@ -1439,6 +1489,8 @@ func TestScheduleService_FindAvailableSlots(t *testing.T) {
 }
 
 func TestScheduleService_GetCurrentDateframe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupScheduleService(t, db)

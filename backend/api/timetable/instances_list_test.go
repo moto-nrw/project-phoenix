@@ -119,6 +119,8 @@ func listFutureDate(offsetDays int) (string, timezone.Date) {
 }
 
 func TestListInstances_Empty(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 	router := listRouter(s.ctx, s.res)
@@ -135,6 +137,8 @@ func TestListInstances_Empty(t *testing.T) {
 }
 
 func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *testing.T) {
+	t.Parallel()
+
 	sourceID := time.Now().UnixNano()
 	serviceStart := timezone.NewDate(2026, 8, 13)
 	resource := NewResource(Dependencies{OfferingSourceOptions: &stubOfferingSourceLister{
@@ -180,6 +184,8 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 }
 
 func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Empty-Reason-Period")
@@ -230,6 +236,8 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 }
 
 func TestListInstances_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -269,6 +277,8 @@ func TestListInstances_HappyPath(t *testing.T) {
 }
 
 func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -301,6 +311,8 @@ func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
 }
 
 func TestListInstances_StaffAndStudentCounts(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -375,6 +387,8 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 // the two completion paths write it, so anything else (a reset through the
 // attendance PATCH) has to keep counting as a real expectation.
 func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -473,6 +487,8 @@ func (s stubListCareDays) ResolveForRange(
 // A manual absence on the same unbooked day is the counter-case: somebody
 // decided it (student_status_day_id is NULL), so it stays an absence.
 func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -534,6 +550,8 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 }
 
 func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -595,6 +613,8 @@ func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 }
 
 func TestListInstances_DateValidation(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 	router := listRouter(s.ctx, s.res)
@@ -619,6 +639,8 @@ func TestListInstances_DateValidation(t *testing.T) {
 }
 
 func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{})
 	got, err := res.enforcePlannedEnd(context.Background())
 	require.NoError(t, err)
@@ -626,6 +648,8 @@ func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
 }
 
 func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		SettingsService: &configtest.Mock{
 			ResolveBoolFn: func(context.Context, string) (bool, error) {
@@ -638,6 +662,8 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 }
 
 func TestListInstances_IsLive(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -690,6 +716,8 @@ func TestListInstances_IsLive(t *testing.T) {
 }
 
 func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -724,6 +752,8 @@ func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
 }
 
 func TestListInstances_CapacityFields(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -785,6 +815,8 @@ func TestListInstances_CapacityFields(t *testing.T) {
 // Wochennotiz on a template is joined onto every instance at read time
 // (series_notes), independently of the per-occurrence Tagesnotiz (notes).
 func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -850,6 +882,8 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 // TestListInstances_NoSeriesNotesWhenTemplateHasNone confirms an instance whose
 // template carries no Wochennotiz omits series_notes.
 func TestListInstances_NoSeriesNotesWhenTemplateHasNone(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 

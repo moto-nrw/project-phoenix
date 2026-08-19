@@ -197,6 +197,8 @@ func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
 // --- Tests ---
 
 func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -231,6 +233,8 @@ func TestCleanup_HappyPath_DeletesOldRowsKeepsFreshRows(t *testing.T) {
 }
 
 func TestCleanup_EmptyTenant_WritesNoAuditRowsForStudents(t *testing.T) {
+	t.Parallel()
+
 	f, _ := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -263,6 +267,8 @@ func TestCleanup_EmptyTenant_WritesNoAuditRowsForStudents(t *testing.T) {
 }
 
 func TestCleanup_Idempotent_SecondRunDeletesZero(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -280,6 +286,8 @@ func TestCleanup_Idempotent_SecondRunDeletesZero(t *testing.T) {
 }
 
 func TestCleanup_CASCADE_DeletesInstanceChildren(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -307,6 +315,8 @@ func TestCleanup_CASCADE_DeletesInstanceChildren(t *testing.T) {
 }
 
 func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
+	t.Parallel()
+
 	// Tenant override narrows the window to 30 days; a 60-day-old instance
 	// becomes deletable even though the registry default (365) would have
 	// spared it. Wires a stubSettingsService that reports HasTenantOverride
@@ -339,6 +349,8 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 }
 
 func TestCleanup_AllStatuses_DeletesPlannedActiveCompletedCancelled(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -358,6 +370,8 @@ func TestCleanup_AllStatuses_DeletesPlannedActiveCompletedCancelled(t *testing.T
 }
 
 func TestCleanup_TemplatesUntouched_OnlyInstancesAndExceptionsDeleted(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -384,6 +398,8 @@ func TestCleanup_TemplatesUntouched_OnlyInstancesAndExceptionsDeleted(t *testing
 }
 
 func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -436,6 +452,8 @@ func TestCleanup_PerStudentAuditRows_OneRowPerAffectedStudent(t *testing.T) {
 }
 
 func TestCleanup_DeletesGDPRSensitiveNotesViaCascade(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -470,6 +488,8 @@ func TestCleanup_DeletesGDPRSensitiveNotesViaCascade(t *testing.T) {
 }
 
 func TestCleanup_TenantIsolation_OtherTenantDataUntouched(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 
@@ -545,6 +565,8 @@ func (r *failingAuditRepo) CountByType(context.Context, string, time.Time) (int6
 }
 
 func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 
 	old := timezone.TodayDate().AddDays(-400)
@@ -586,6 +608,8 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 // (TestCleanup_AuditWriteFailure_BubblesError) runs outside a tx and can't
 // prove this — this test does.
 func TestCleanup_InsideWithTenantTx_Rollback_UndoesEverything(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := newCleanupSvc(f.db)
 

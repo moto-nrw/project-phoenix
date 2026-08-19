@@ -18,6 +18,8 @@ import (
 // =============================================================================
 
 func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create teacher, group, and student
@@ -91,6 +93,8 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 }
 
 func TestStudentAuthorization_StudentWithoutGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create student without group assignment
@@ -131,6 +135,8 @@ func TestStudentAuthorization_StudentWithoutGroup(t *testing.T) {
 // =============================================================================
 
 func TestStudentResponse_FullAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("admin_sees_all_fields", func(t *testing.T) {
@@ -223,6 +229,8 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentDetail_WithGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create teacher, group, and student
@@ -252,6 +260,8 @@ func TestGetStudentDetail_WithGroup(t *testing.T) {
 // =============================================================================
 
 func TestListStudents_WithTeacherAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ListTeacher", "Access")
@@ -266,6 +276,8 @@ func TestListStudents_WithTeacherAccess(t *testing.T) {
 }
 
 func TestGetStudent_WithTeacherAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "TeacherAccess", "Test", "TAT1")

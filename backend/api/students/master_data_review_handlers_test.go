@@ -83,6 +83,8 @@ func reviewRow(status string) *usersModels.StudentDataChangeRequest {
 }
 
 func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeMasterDataReviewService{
 		items: []*userService.MasterDataReviewItem{{
 			Request:   reviewRow(usersModels.DataChangeStatusPending),
@@ -104,6 +106,9 @@ func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
 	assert.Contains(t, body, `"field_key":"first_name"`)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
@@ -131,6 +136,8 @@ func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 }
 
 func TestListMasterDataChangeRequests_RequiresConfiguredService(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	req := staffRequest(http.MethodGet, "/students/master-data-change-requests", "", "")
 	w := httptest.NewRecorder()
@@ -141,6 +148,8 @@ func TestListMasterDataChangeRequests_RequiresConfiguredService(t *testing.T) {
 }
 
 func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeMasterDataReviewService{decided: reviewItem(usersModels.DataChangeStatusApproved)}
 	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
 	req := staffRequest(
@@ -164,6 +173,8 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 }
 
 func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}
 
 	req := staffRequest(http.MethodPost, "/students/master-data-change-requests/nope/decide", `{}`, "nope")
@@ -183,6 +194,8 @@ func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
 }
 
 func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error

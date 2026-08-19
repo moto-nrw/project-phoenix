@@ -26,6 +26,8 @@ import (
 )
 
 func TestExcusedRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildAbsenceService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

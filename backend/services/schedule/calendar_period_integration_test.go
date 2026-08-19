@@ -32,6 +32,8 @@ func setupCalendarPeriodService(t *testing.T, db *bun.DB) schedule.CalendarPerio
 // =============================================================================
 
 func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -75,6 +77,8 @@ func TestCalendarPeriodService_GetAllPeriods(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -120,6 +124,8 @@ func TestCalendarPeriodService_GetActivePeriods(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -159,6 +165,8 @@ func TestCalendarPeriodService_GetPeriodByID(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -266,6 +274,8 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -400,6 +410,8 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 // gate both requests could pass the overlap check before either insert
 // commits, silently violating the hard invariant.
 func TestCalendarPeriodService_ConcurrentCreateSameTypeOverlap(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -448,6 +460,8 @@ func TestCalendarPeriodService_ConcurrentCreateSameTypeOverlap(t *testing.T) {
 }
 
 func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -580,6 +594,8 @@ func newBootstrapTenant(t *testing.T, db *bun.DB) (int64, context.Context) {
 }
 
 func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -717,6 +733,8 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 // the committed period (created=false) or the explicit create loses with the
 // overlap conflict — exactly one row survives.
 func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -774,6 +792,8 @@ func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)
@@ -829,6 +849,8 @@ func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
 // =============================================================================
 
 func TestCalendarPeriodService_DeletePeriod(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)

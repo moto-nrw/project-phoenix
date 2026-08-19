@@ -43,6 +43,8 @@ func assertTokenCountByPortal(t *testing.T, db *bun.DB, accountID int64, portalS
 }
 
 func TestLogoutLeavesOtherDeviceSessionsIntact(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -71,6 +73,8 @@ func TestLogoutLeavesOtherDeviceSessionsIntact(t *testing.T) {
 }
 
 func TestLogoutLeavesStaffPushOnOtherDevices(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -149,6 +153,8 @@ func insertPush(t *testing.T, db *bun.DB, accountID, tenantID int64, portal, end
 }
 
 func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -175,6 +181,8 @@ func TestRevokeAllTokensClearsStaffPushAcrossTenants(t *testing.T) {
 }
 
 func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -216,6 +224,8 @@ func TestRevokeAllTokensFromTenantTxClearsOtherSchools(t *testing.T) {
 }
 
 func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -244,6 +254,8 @@ func TestSessionCapAppliesAcrossSchoolsOnSwitchTenant(t *testing.T) {
 }
 
 func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -264,6 +276,8 @@ func TestCleanupExpiredTokensRemovesOrphanPush(t *testing.T) {
 }
 
 func TestDeactivateAccountFromAdminTxRemovesPush(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -314,6 +328,8 @@ func countPush(t *testing.T, db *bun.DB, accountID int64, portal, endpoint strin
 }
 
 func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -344,6 +360,8 @@ func TestLogoutLeavesOtherPortalSessionsIntact(t *testing.T) {
 }
 
 func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -375,6 +393,8 @@ func TestSessionCapDoesNotEvictOtherPortalSessions(t *testing.T) {
 }
 
 func TestSessionCapRemovesStaffPushForEvictedFamily(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -408,6 +428,8 @@ func TestSessionCapRemovesStaffPushForEvictedFamily(t *testing.T) {
 }
 
 func TestLogoutRemovesUnboundStaffPushAtSessionTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -435,6 +457,8 @@ func TestLogoutRemovesUnboundStaffPushAtSessionTenant(t *testing.T) {
 }
 
 func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -465,6 +489,8 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 }
 
 func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -515,6 +541,8 @@ func uniqueTestName(prefix string) string {
 }
 
 func TestLogoutRemovesParentPushForFamily(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -553,6 +581,8 @@ func TestLogoutRemovesParentPushForFamily(t *testing.T) {
 }
 
 func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -583,6 +613,8 @@ func TestLogoutRemovesUnboundParentPushAtSessionTenant(t *testing.T) {
 }
 
 func TestSessionCapRemovesUnboundStaffPushAtEvictedTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -609,6 +641,8 @@ func TestSessionCapRemovesUnboundStaffPushAtEvictedTenant(t *testing.T) {
 }
 
 func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -643,6 +677,8 @@ func TestSessionCapRemovesParentPushForEvictedFamily(t *testing.T) {
 }
 
 func TestRevokeAllTokensClearsParentPushAcrossTenants(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -669,6 +705,8 @@ func TestRevokeAllTokensClearsParentPushAcrossTenants(t *testing.T) {
 }
 
 func TestLogoutUnknownScopeRemovesBothUnboundPortals(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -701,6 +739,8 @@ func TestLogoutUnknownScopeRemovesBothUnboundPortals(t *testing.T) {
 }
 
 func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -734,6 +774,8 @@ func TestSessionCapLeavesUnknownSessionsIsolated(t *testing.T) {
 }
 
 func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -769,6 +811,8 @@ func TestRevokeAllTokensDeletesSessionsAcrossTenants(t *testing.T) {
 }
 
 func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -797,6 +841,8 @@ func TestOrphanCleanupKeepsUnboundParentPushAtOtherSchool(t *testing.T) {
 }
 
 func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -834,6 +880,8 @@ func TestRevokeAllFromAdminTxWithTenantDeletesOtherSchoolTokens(t *testing.T) {
 }
 
 func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -868,6 +916,8 @@ func TestCleanupExpiredTokensDoesNotWipeReactivatedSessions(t *testing.T) {
 }
 
 func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -895,6 +945,8 @@ func TestActivateAccountClearsPendingAccountWideWipe(t *testing.T) {
 }
 
 func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -926,6 +978,8 @@ func TestCleanupExpiredTokensLeavesSessionsCreatedAfterPendingWipe(t *testing.T)
 }
 
 func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -964,6 +1018,8 @@ func TestCleanupExpiredTokensRevokesRefreshedFamilyAfterPendingWipe(t *testing.T
 }
 
 func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -1002,6 +1058,8 @@ func TestCleanupExpiredTokensRetriesPendingWipeOlderThanSevenDays(t *testing.T) 
 }
 
 func TestCleanupExpiredTokensKeepsParentPushForUnknownSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

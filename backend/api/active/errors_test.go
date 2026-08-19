@@ -12,6 +12,8 @@ import (
 )
 
 func TestErrorRenderer_NotFoundErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -38,6 +40,8 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_BadRequestErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -71,6 +75,8 @@ func TestErrorRenderer_BadRequestErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_ConflictError(t *testing.T) {
+	t.Parallel()
+
 	renderer := active.ErrorRenderer(activeSvc.ErrRoomConflict)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
@@ -79,6 +85,8 @@ func TestErrorRenderer_ConflictError(t *testing.T) {
 }
 
 func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
+	t.Parallel()
+
 	renderer := active.ErrorRenderer(&activeSvc.RoomCapacityError{
 		RoomID:           12,
 		RoomName:         "Mensa",
@@ -98,6 +106,8 @@ func TestErrorRenderer_RoomCapacityConflict(t *testing.T) {
 // including admin POST /active/visits — so a 400 here would
 // contradict the IoT path's 409 response on the same conflict.
 func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
+	t.Parallel()
+
 	renderer := active.ErrorRenderer(activeSvc.ErrStudentAlreadyActive)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
@@ -106,6 +116,8 @@ func TestErrorRenderer_StudentAlreadyActiveConflict(t *testing.T) {
 }
 
 func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
+	t.Parallel()
+
 	renderer := active.ErrorRenderer(activeSvc.ErrStudentsNotPresent)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
@@ -114,6 +126,8 @@ func TestErrorRenderer_StudentsNotPresentConflict(t *testing.T) {
 }
 
 func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
+	t.Parallel()
+
 	renderer := active.ErrorRenderer(activeSvc.ErrStudentMoveForbidden)
 	resp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
@@ -122,6 +136,8 @@ func TestErrorRenderer_StudentMoveForbidden(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
+	t.Parallel()
+
 	unknownErr := errors.New("unknown error")
 	renderer := active.ErrorRenderer(unknownErr)
 	resp, ok := renderer.(*common.ErrResponse)

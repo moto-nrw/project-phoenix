@@ -45,6 +45,8 @@ func (r *raceLosingChallengeRepo) MarkConsumed(_ context.Context, id int64, _ ti
 // one code, defeating single-use. The fix refuses the loser with
 // ErrMFACodeInvalid.
 func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
 
@@ -114,6 +116,8 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 // test for the JWT-less code path used by enrollment confirmation. The same
 // fail-closed-on-consume-failure rule applies.
 func TestMFAService_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	db := testpkg.SetupTestDB(t)
 

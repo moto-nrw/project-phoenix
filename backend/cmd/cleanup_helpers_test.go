@@ -15,6 +15,9 @@ import (
 // Constants Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestConstants(t *testing.T) {
 	assert.Equal(t, "2006-01-02", dateFormat)
 	assert.Equal(t, "2006-01-02 15:04:05", dateTimeFormat)
@@ -28,6 +31,9 @@ func TestConstants(t *testing.T) {
 // setupLogger Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestSetupLogger_Stdout(t *testing.T) {
 	logger, cleanup, err := setupLogger("")
 
@@ -39,6 +45,9 @@ func TestSetupLogger_Stdout(t *testing.T) {
 	cleanup()
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestSetupLogger_File(t *testing.T) {
 	// Create temp directory
 	tmpDir := t.TempDir()
@@ -59,6 +68,9 @@ func TestSetupLogger_File(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestSetupLogger_InvalidPath(t *testing.T) {
 	// Try to create log file in non-existent directory
 	logger, cleanup, err := setupLogger("/nonexistent/path/test.log")
@@ -77,6 +89,9 @@ func TestPrintStudentBreakdown_Empty(_ *testing.T) {
 	printStudentBreakdown("Test Header", "Count", map[int64]int{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStudentBreakdown_WithData(t *testing.T) {
 	// Capture output
 	oldStdout := os.Stdout
@@ -110,6 +125,9 @@ func TestPrintDateBreakdown_Empty(_ *testing.T) {
 	printDateBreakdown(map[string]int{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintDateBreakdown_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -142,6 +160,9 @@ func TestPrintStudentBreakdownWithTotal_Empty(_ *testing.T) {
 	printStudentBreakdownWithTotal("Count", map[int64]int{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStudentBreakdownWithTotal_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -175,6 +196,9 @@ func TestPrintMonthlyBreakdownWithTotal_Empty(_ *testing.T) {
 	printMonthlyBreakdownWithTotal("Test Header", map[string]int64{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintMonthlyBreakdownWithTotal_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -207,6 +231,9 @@ func TestPrintRecentDeletions_Empty(_ *testing.T) {
 	printRecentDeletions([]recentDeletionRow{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintRecentDeletions_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -234,6 +261,9 @@ func TestPrintRecentDeletions_WithData(t *testing.T) {
 // recentDeletionRow Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRecentDeletionRow_Struct(t *testing.T) {
 	row := recentDeletionRow{
 		Date:           "2024-01-15",

@@ -11,6 +11,8 @@ import (
 )
 
 func TestApplyAdministrativeFilters(t *testing.T) {
+	t.Parallel()
+
 	planningDate := timezone.NewDate(2026, time.June, 1)
 	consentYes := true
 	consentNo := false
@@ -126,6 +128,8 @@ func TestApplyAdministrativeFilters(t *testing.T) {
 }
 
 func TestParseStudentListParamsReadsAdministrativeFilters(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students?bus=yes&photo_consent=no&pickup_status=self", nil)
 	params := parseStudentListParams(req)
 
@@ -139,6 +143,8 @@ func TestParseStudentListParamsReadsAdministrativeFilters(t *testing.T) {
 }
 
 func TestParseStudentListParamsAdministrativeFiltersDefaultOff(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students?bus=all", nil)
 	params := parseStudentListParams(req)
 

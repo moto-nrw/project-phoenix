@@ -16,6 +16,8 @@ import (
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -96,6 +98,8 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -135,6 +139,8 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -201,6 +207,8 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -262,6 +270,8 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -301,6 +311,8 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -364,6 +376,8 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -409,6 +423,8 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -452,6 +468,8 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber
@@ -498,6 +516,8 @@ func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
 // ============================================================================
 
 func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GuardianPhoneNumber

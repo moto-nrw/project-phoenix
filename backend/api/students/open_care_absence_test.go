@@ -30,6 +30,8 @@ import (
 // its users:read prerequisite.
 
 func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// A staff member (the Sekretariat case) who supervises nothing, and a child
@@ -168,6 +170,8 @@ func TestAbsenceWriter_GrouplessStudent(t *testing.T) {
 // users:update check in authorizeStudentUpdate every absence writer would
 // inherit the full record write — address, class, notes — from being staff.
 func TestAbsenceWriterCannotEditStammdaten(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absence", "Supervisor")
@@ -222,6 +226,8 @@ func TestAbsenceWriterCannotEditStammdaten(t *testing.T) {
 // below. Whether that flag should carry the permission is an open follow-up —
 // this test asserts the enforced behavior, not the advisory flag.
 func TestAbsenceWriter_DetailFlags(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Flag", "Staff")
@@ -256,6 +262,8 @@ func TestAbsenceWriter_DetailFlags(t *testing.T) {
 // non-admin in a school without groups, so the queue and the decision follow
 // the same absence gate (#2232).
 func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
@@ -307,6 +315,8 @@ func TestAbsenceWriter_ParentExcusedRequestDecidable(t *testing.T) {
 // reviewer reads the child fully, so the note travels alongside the rest of the
 // record — a badge withheld from its decider would hide work they own.
 func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Note", "Reviewer")
@@ -348,6 +358,8 @@ func TestAbsenceWriter_PendingNoteReachesReviewer(t *testing.T) {
 // and the guardian requests behind it — from merely being staff, in a school
 // that never granted the pair.
 func TestAbsenceWithoutReadPermissionRefused(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NoRead", "Supervisor")

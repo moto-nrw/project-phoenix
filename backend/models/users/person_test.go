@@ -9,6 +9,8 @@ import (
 )
 
 func TestPerson_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		person  *Person
@@ -85,6 +87,8 @@ func TestPerson_Validate(t *testing.T) {
 }
 
 func TestPerson_Validate_TrimSpaces(t *testing.T) {
+	t.Parallel()
+
 	person := &Person{
 		FirstName: "  John  ",
 		LastName:  "  Doe  ",
@@ -105,6 +109,8 @@ func TestPerson_Validate_TrimSpaces(t *testing.T) {
 }
 
 func TestPerson_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		person   *Person
@@ -155,6 +161,8 @@ func TestPerson_GetFullName(t *testing.T) {
 }
 
 func TestPerson_SetAccount(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set account", func(t *testing.T) {
 		person := &Person{
 			FirstName: "John",
@@ -198,6 +206,8 @@ func TestPerson_SetAccount(t *testing.T) {
 }
 
 func TestPerson_SetRFIDCard(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set RFID card", func(t *testing.T) {
 		person := &Person{
 			FirstName: "John",
@@ -240,6 +250,8 @@ func TestPerson_SetRFIDCard(t *testing.T) {
 }
 
 func TestPerson_HasRFIDCard(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		person   *Person
@@ -285,6 +297,8 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 }
 
 func TestPerson_HasAccount(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		person   *Person
@@ -339,6 +353,8 @@ func TestPerson_HasAccount(t *testing.T) {
 }
 
 func TestPerson_GetID(t *testing.T) {
+	t.Parallel()
+
 	person := &Person{
 		Model:     base.Model{ID: 42},
 		FirstName: "John",
@@ -351,6 +367,8 @@ func TestPerson_GetID(t *testing.T) {
 }
 
 func TestPerson_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	person := &Person{
 		Model:     base.Model{CreatedAt: now},
@@ -364,6 +382,8 @@ func TestPerson_GetCreatedAt(t *testing.T) {
 }
 
 func TestPerson_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	person := &Person{
 		Model:     base.Model{UpdatedAt: now},

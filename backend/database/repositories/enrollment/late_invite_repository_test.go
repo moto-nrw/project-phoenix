@@ -13,6 +13,8 @@ import (
 )
 
 func TestLateInviteRepository_DeleteByUsedRequestID_DeletesOnlyLinkedInvite(t *testing.T) {
+	t.Parallel()
+
 	// setupRequestRepoTest owns the package's testpkg.SetupTestDB lifecycle and
 	// also creates the real tenant + phase fixtures this repository needs.
 	db, requestRepo, tenantID, phaseID := setupRequestRepoTest(t)

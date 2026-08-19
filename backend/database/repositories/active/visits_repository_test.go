@@ -71,6 +71,8 @@ func cleanupVisitTestData(t *testing.T, db *bun.DB, data *visitTestData) {
 // ============================================================================
 
 func TestVisitRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -119,6 +121,8 @@ func TestVisitRepository_Create(t *testing.T) {
 }
 
 func TestVisitRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -150,6 +154,8 @@ func TestVisitRepository_FindByID(t *testing.T) {
 }
 
 func TestVisitRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -180,6 +186,8 @@ func TestVisitRepository_Update(t *testing.T) {
 }
 
 func TestVisitRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -210,6 +218,8 @@ func TestVisitRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -235,6 +245,8 @@ func TestVisitRepository_List(t *testing.T) {
 }
 
 func TestVisitRepository_FindActiveVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -274,6 +286,8 @@ func TestVisitRepository_FindActiveVisits(t *testing.T) {
 }
 
 func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -312,6 +326,8 @@ func TestVisitRepository_FindActiveByStudentID(t *testing.T) {
 }
 
 func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -347,6 +363,8 @@ func TestVisitRepository_FindByActiveGroupID(t *testing.T) {
 }
 
 func TestVisitRepository_FindByActiveGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -393,6 +411,8 @@ func TestVisitRepository_FindByActiveGroupIDs(t *testing.T) {
 }
 
 func TestVisitRepository_FindByTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -434,6 +454,8 @@ func TestVisitRepository_FindByTimeRange(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -465,6 +487,8 @@ func TestVisitRepository_GetCurrentByStudentID(t *testing.T) {
 }
 
 func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -509,6 +533,8 @@ func TestVisitsRepository_GetCurrentByStudentIDs(t *testing.T) {
 }
 
 func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -544,6 +570,8 @@ func TestVisitRepository_GetTodayVisitNamesForStudents(t *testing.T) {
 }
 
 func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -605,6 +633,8 @@ func TestVisitRepository_GetCurrentRoomNamesForStudents(t *testing.T) {
 }
 
 func TestVisitRepository_FindActiveWithStudentDisplayByGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -660,6 +690,8 @@ func TestVisitRepository_FindActiveWithStudentDisplayByGroup(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_EndVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -692,6 +724,8 @@ func TestVisitRepository_EndVisit(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -752,6 +786,8 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -865,6 +901,8 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 }
 
 func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -929,6 +967,8 @@ func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
 }
 
 func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -980,6 +1020,8 @@ func TestVisitRepository_GetVisitRetentionStats(t *testing.T) {
 }
 
 func TestVisitRepository_CountExpiredVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1030,6 +1072,8 @@ func TestVisitRepository_CountExpiredVisits(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1119,6 +1163,8 @@ func TestVisitRepository_GetCurrentByStudentIDWithRoom(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_CountActiveByRoomID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1196,6 +1242,8 @@ func TestVisitRepository_CountActiveByRoomID(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_CountActiveByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1260,6 +1308,8 @@ func TestVisitRepository_CountActiveByGroupID(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1366,6 +1416,8 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 // ============================================================================
 
 func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1397,6 +1449,8 @@ func TestVisitsRepository_GetCurrentByStudentIDs_Deduplication(t *testing.T) {
 // ============================================================================
 
 func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1590,6 +1644,8 @@ func cleanupTenantPrivacyConsents(t *testing.T, db *bun.DB, tenantIDs ...int64) 
 }
 
 func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -1634,6 +1690,8 @@ func TestVisitRepository_OldestExpiredVisitDate(t *testing.T) {
 }
 
 func TestVisitRepository_ExpiredVisitMonthlyCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit

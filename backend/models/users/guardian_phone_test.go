@@ -8,6 +8,8 @@ import (
 )
 
 func TestGuardianPhoneNumber_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		phone   *GuardianPhoneNumber
@@ -207,6 +209,8 @@ func TestGuardianPhoneNumber_Validate(t *testing.T) {
 }
 
 func TestGuardianPhoneNumber_GetID(t *testing.T) {
+	t.Parallel()
+
 	phone := &GuardianPhoneNumber{
 		Model:             base.Model{ID: 42},
 		GuardianProfileID: 1,
@@ -220,6 +224,8 @@ func TestGuardianPhoneNumber_GetID(t *testing.T) {
 }
 
 func TestGuardianPhoneNumber_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	phone := &GuardianPhoneNumber{
 		Model:             base.Model{CreatedAt: now},
@@ -234,6 +240,8 @@ func TestGuardianPhoneNumber_GetCreatedAt(t *testing.T) {
 }
 
 func TestGuardianPhoneNumber_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	phone := &GuardianPhoneNumber{
 		Model:             base.Model{UpdatedAt: now},
@@ -248,6 +256,8 @@ func TestGuardianPhoneNumber_GetUpdatedAt(t *testing.T) {
 }
 
 func TestGuardianPhoneNumber_GetDisplayString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		phone    *GuardianPhoneNumber
@@ -291,6 +301,8 @@ func TestGuardianPhoneNumber_GetDisplayString(t *testing.T) {
 }
 
 func TestGuardianPhoneNumber_PhoneTypeLabel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		phoneType PhoneType
@@ -314,6 +326,8 @@ func TestGuardianPhoneNumber_PhoneTypeLabel(t *testing.T) {
 }
 
 func TestValidPhoneTypes(t *testing.T) {
+	t.Parallel()
+
 	expected := map[PhoneType]bool{
 		PhoneTypeMobile: true,
 		PhoneTypeHome:   true,
@@ -338,6 +352,8 @@ func TestValidPhoneTypes(t *testing.T) {
 }
 
 func TestPhoneTypeConstants(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		constant PhoneType

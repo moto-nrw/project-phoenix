@@ -39,6 +39,8 @@ func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 // ============================================================================
 
 func TestListGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -122,6 +124,8 @@ func TestListGroups(t *testing.T) {
 // ============================================================================
 
 func TestListSubstitutions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -176,6 +180,8 @@ func TestListSubstitutions(t *testing.T) {
 // ============================================================================
 
 func TestGetGroupTeachers(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -248,6 +254,8 @@ func TestGetGroupTeachers(t *testing.T) {
 // ============================================================================
 
 func TestCreateSubstitution_DateValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -374,6 +382,8 @@ func TestCreateSubstitution_DateValidation(t *testing.T) {
 // ============================================================================
 
 func TestUpdateSubstitution_DateValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -494,6 +504,8 @@ func TestUpdateSubstitution_DateValidation(t *testing.T) {
 // ============================================================================
 
 func TestGroupOperations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -528,6 +540,8 @@ func TestGroupOperations(t *testing.T) {
 // ============================================================================
 
 func TestTeacherGroupOperations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -590,6 +604,8 @@ func TestTeacherGroupOperations(t *testing.T) {
 // ============================================================================
 
 func TestEducationService_UpdateGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -662,6 +678,8 @@ func TestEducationService_UpdateGroup(t *testing.T) {
 }
 
 func TestEducationService_DeleteGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -731,6 +749,8 @@ func TestEducationService_DeleteGroup(t *testing.T) {
 }
 
 func TestEducationService_GetGroupsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -763,6 +783,8 @@ func TestEducationService_GetGroupsByIDs(t *testing.T) {
 }
 
 func TestEducationService_UpdateGroupTeachers(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -822,6 +844,8 @@ func TestEducationService_UpdateGroupTeachers(t *testing.T) {
 }
 
 func TestEducationService_DeleteSubstitution(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -860,6 +884,8 @@ func TestEducationService_DeleteSubstitution(t *testing.T) {
 }
 
 func TestEducationService_GetActiveSubstitutions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -892,6 +918,8 @@ func TestEducationService_GetActiveSubstitutions(t *testing.T) {
 }
 
 func TestEducationService_GetStaffSubstitutions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -959,6 +987,8 @@ func TestEducationService_GetStaffSubstitutions(t *testing.T) {
 }
 
 func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -1006,6 +1036,8 @@ func TestEducationService_CheckSubstitutionConflicts(t *testing.T) {
 }
 
 func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -1075,6 +1107,8 @@ func TestEducationService_CreateGroup_EdgeCases(t *testing.T) {
 }
 
 func TestEducationService_ListGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -1098,6 +1132,8 @@ func TestEducationService_ListGroups(t *testing.T) {
 }
 
 func TestEducationService_FindGroupWithRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -1131,6 +1167,8 @@ func TestEducationService_FindGroupWithRoom(t *testing.T) {
 }
 
 func TestEducationService_GetTeacherGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -1146,6 +1184,8 @@ func TestEducationService_GetTeacherGroups(t *testing.T) {
 }
 
 func TestEducationService_GetSubstitution(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -1187,6 +1227,8 @@ func TestEducationService_GetSubstitution(t *testing.T) {
 }
 
 func TestEducationService_ListSubstitutions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupEducationService(t, db)
@@ -1207,6 +1249,8 @@ func TestEducationService_ListSubstitutions(t *testing.T) {
 }
 
 func TestEducationError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	t.Run("unwraps inner error", func(t *testing.T) {
 		// ARRANGE
 		innerErr := educationSvc.ErrGroupNotFound

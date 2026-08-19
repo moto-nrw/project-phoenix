@@ -19,6 +19,8 @@ import (
 // =============================================================================
 
 func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with a valid tenant slug should succeed when the account
 	// is mapped to that tenant. This covers the resolveAccountTenantBySlug
 	// success path, ensureAccountRolesLoadedForTenant, loadAccountPermissionsForTenant,
@@ -53,6 +55,8 @@ func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
 }
 
 func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with a slug that does not match any school should return
 	// ErrTenantNotFound. Covers the resolveAccountTenantBySlug error path
 	// where the school lookup fails.
@@ -82,6 +86,8 @@ func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
 }
 
 func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit where the tenant slug resolves to a valid school but the
 	// account has no account_tenants mapping to it. Covers the
 	// resolveAccountTenantBySlug "account does not have access" path.
@@ -117,6 +123,8 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 }
 
 func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with an empty slug falls back to resolveAccountTenantDefault,
 	// which picks the first active account_tenants mapping. Covers the default
 	// resolution success path.
@@ -149,6 +157,8 @@ func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
 }
 
 func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with an empty slug when the account has zero account_tenants
 	// entries. resolveAccountTenantDefault returns ErrTenantNotFound because no
 	// active tenant mappings exist. This confirms that accounts without any tenant

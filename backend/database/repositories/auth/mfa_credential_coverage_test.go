@@ -18,6 +18,8 @@ import (
 )
 
 func TestMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()
@@ -43,6 +45,8 @@ func TestMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 }
 
 func TestMFACredentialRepository_Update_NilRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewMFACredentialRepository(db)
@@ -51,6 +55,8 @@ func TestMFACredentialRepository_Update_NilRejected(t *testing.T) {
 }
 
 func TestMFACredentialRepository_List_FilterByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()
@@ -71,6 +77,8 @@ func TestMFACredentialRepository_List_FilterByAccountID(t *testing.T) {
 }
 
 func TestMFACredentialRepository_List_NoFilters_Succeeds(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()

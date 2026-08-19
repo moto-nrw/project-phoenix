@@ -13,6 +13,8 @@ import (
 )
 
 func TestParseClassRosterExportRequestAllClasses(t *testing.T) {
+	t.Parallel()
+
 	t.Run("accepts all_classes without school_class", func(t *testing.T) {
 		req := httptest.NewRequest("POST", "/enrollment/admin/reports/class-roster/export", strings.NewReader(`{
 			"format":"pdf",
@@ -70,6 +72,8 @@ func allClassesTestReport() *enrollmentService.ClassRosterReport {
 }
 
 func TestBuildClassRosterTableDocumentAllClassesInsertsGroupHeadings(t *testing.T) {
+	t.Parallel()
+
 	doc := buildClassRosterTableDocument(allClassesTestReport())
 
 	var got []string
@@ -85,6 +89,8 @@ func TestBuildClassRosterTableDocumentAllClassesInsertsGroupHeadings(t *testing.
 }
 
 func TestBuildClassRosterTableDocumentMergesClassLabelVariants(t *testing.T) {
+	t.Parallel()
+
 	report := allClassesTestReport()
 	report.Rows = []enrollmentService.ClassRosterRow{
 		{StudentID: 1, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
@@ -106,6 +112,8 @@ func TestBuildClassRosterTableDocumentMergesClassLabelVariants(t *testing.T) {
 }
 
 func TestBuildClassRosterTableDocumentSingleClassHasNoGroupHeadings(t *testing.T) {
+	t.Parallel()
+
 	report := allClassesTestReport()
 	report.Filters.AllClasses = false
 	report.Filters.SchoolClass = "1a"
@@ -120,6 +128,8 @@ func TestBuildClassRosterTableDocumentSingleClassHasNoGroupHeadings(t *testing.T
 }
 
 func TestBuildClassRosterExportFileAllClassesFilename(t *testing.T) {
+	t.Parallel()
+
 	file, err := buildClassRosterExportFile(listexport.NewService(), allClassesTestReport(), listexport.FormatPDF)
 
 	require.NoError(t, err)

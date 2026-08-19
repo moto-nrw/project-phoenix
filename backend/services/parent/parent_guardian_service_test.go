@@ -80,6 +80,8 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 }
 
 func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -114,6 +116,8 @@ func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
 }
 
 func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -158,6 +162,8 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 }
 
 func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -181,6 +187,8 @@ func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
 }
 
 func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -220,6 +228,8 @@ func TestUpdateGuardianContact_EditsContactOnlyGuardian(t *testing.T) {
 }
 
 func TestUpdateGuardianContact_PromotesFirstPhoneWhenNoPrimarySubmitted(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -244,6 +254,8 @@ func TestUpdateGuardianContact_PromotesFirstPhoneWhenNoPrimarySubmitted(t *testi
 }
 
 func TestUpdateGuardianContact_KeepsOnlyFirstSubmittedPrimaryPhone(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -271,6 +283,8 @@ func TestUpdateGuardianContact_KeepsOnlyFirstSubmittedPrimaryPhone(t *testing.T)
 }
 
 func TestUpdateGuardianContact_RejectsInvalidPhoneBeforeRepository(t *testing.T) {
+	t.Parallel()
+
 	svc, _ := buildGuardianService(t)
 
 	_, err := svc.UpdateGuardianContact(context.Background(), 1, 1, 1, parentService.GuardianContactInput{
@@ -285,6 +299,8 @@ func TestUpdateGuardianContact_RejectsInvalidPhoneBeforeRepository(t *testing.T)
 }
 
 func TestUpdateGuardianContact_MapsDuplicateEmailToConflict(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -313,6 +329,8 @@ func TestUpdateGuardianContact_MapsDuplicateEmailToConflict(t *testing.T) {
 // staff-side guardian service; under a case-sensitive collation that precheck is
 // the only guard, so it must stay.
 func TestUpdateGuardianContact_RejectsCaseInsensitiveDuplicateEmail(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -336,6 +354,8 @@ func TestUpdateGuardianContact_RejectsCaseInsensitiveDuplicateEmail(t *testing.T
 }
 
 func TestUpdateGuardianContact_RejectsAccountHolder(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -370,6 +390,8 @@ func TestUpdateGuardianContact_RejectsAccountHolder(t *testing.T) {
 }
 
 func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -419,6 +441,8 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 }
 
 func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -467,6 +491,8 @@ func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 // leaves behind are exactly the stored ones — and would fail on a regression that
 // writes the flag columns unconditionally (e.g. with a zero-value default).
 func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -505,6 +531,8 @@ func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.
 }
 
 func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -558,6 +586,8 @@ func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing
 }
 
 func TestUpdateGuardianRelationship_RejectsFlagsOnAccountHolders(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -600,6 +630,8 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnAccountHolders(t *testing.T) {
 }
 
 func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -642,6 +674,8 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 }
 
 func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -702,6 +736,8 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 }
 
 func TestGuardianManagement_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianServiceFeature(t, false)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -885,6 +921,8 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 // personal contact data is hidden from a reading guardian (GDPR Datenminimierung)
 // while the name and care arrangement remain visible.
 func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -913,6 +951,8 @@ func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
 // TestUpdateGuardianContact_RejectsSocialWorker verifies a parent cannot rewrite
 // a school-managed social worker's contact data.
 func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -930,6 +970,8 @@ func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
 // TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker verifies a parent
 // cannot toggle a social worker's pickup/emergency flags.
 func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -949,6 +991,8 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
 // parent: contact stays VISIBLE (not redacted, unlike a social worker) but the
 // edit/pickup affordances are gone and the lock reason is surfaced (#1667).
 func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -975,6 +1019,8 @@ func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
 // TestUpdateGuardianContact_RejectsFullGuardian verifies a parent cannot rewrite
 // a non-registered full guardian's (legal/co) contact data.
 func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -992,6 +1038,8 @@ func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
 // TestUpdateGuardianRelationship_RejectsFullGuardian verifies a parent cannot
 // toggle a non-registered full guardian's pickup/emergency flags.
 func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1010,6 +1058,8 @@ func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
 // guard for the role tightening: a genuine helper role (pickup_only) without an
 // account stays editable — only full guardian roles are newly protected.
 func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1034,6 +1084,8 @@ func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
 // OMITTED (nil) note, which leaves the stored value untouched — so "clear" must
 // be expressible and must actually persist.
 func TestUpdateGuardianRelationship_ClearsPickupNote(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1073,6 +1125,8 @@ func TestUpdateGuardianRelationship_ClearsPickupNote(t *testing.T) {
 // rejected. This closes the UI-vs-service split by tightening the backend instead
 // of widening the UI.
 func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1116,6 +1170,8 @@ func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *t
 // note is NOT editable for a full legal guardian (school/self-managed): the
 // listing shows can_edit_contact=false and a note write is rejected.
 func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1141,6 +1197,8 @@ func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
 // on a school-managed social worker is rejected (note follows contact, which is
 // redacted for social workers).
 func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1160,6 +1218,8 @@ func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
 // the fix the audit rendering ignored the label, so a label-only change diffed
 // identically and produced no audit trail.
 func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1222,6 +1282,8 @@ func TestUpdateGuardianContact_LabelOnlyPhoneEditWritesAuditRow(t *testing.T) {
 // invariant regardless of which path fired. Drop the LOWER(email) index and this
 // fails — both writers commit and two rows share LOWER(email).
 func TestUpdateGuardianContact_CaseVariantEmailRaceLeavesSingleWinner(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1325,6 +1387,8 @@ func driftedGuardianInsertErr(t *testing.T, db *bun.DB, accountID *int64, hasAcc
 // is the primary guarantee — which is why this test asserts the write is rejected
 // rather than simulating a drifted row (it can no longer exist).
 func TestGuardianProfile_AccountStateCannotDrift(t *testing.T) {
+	t.Parallel()
+
 	_, db := buildGuardianService(t)
 
 	// Direction 1: an account is linked (account_id set) but has_account drifted
@@ -1363,6 +1427,8 @@ func (r emailLookupFailingGuardianRepo) FindByEmail(context.Context, string) (*u
 // swallowed as "no conflicting profile". Swallowing it would let the write
 // commit while a genuine duplicate could exist.
 func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)

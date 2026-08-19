@@ -111,6 +111,8 @@ func setupOfferingChangeFixture(
 }
 
 func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -148,6 +150,8 @@ func TestOfferingChangeRequestService_Create_StoresPendingRequest(t *testing.T) 
 }
 
 func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -185,6 +189,8 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 }
 
 func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -223,6 +229,8 @@ func TestOfferingChangeRequestService_Create_StripsChangedCurrentAutomaticOfferi
 }
 
 func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -252,6 +260,8 @@ func TestOfferingChangeRequestService_Create_RejectsSecondPendingRequest(t *test
 }
 
 func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -287,6 +297,8 @@ func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *tes
 }
 
 func TestOfferingChangeRequestService_Create_RejectsEffectiveDateInsideNoticePeriod(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -305,6 +317,8 @@ func TestOfferingChangeRequestService_Create_RejectsEffectiveDateInsideNoticePer
 }
 
 func TestOfferingChangeRequestService_Create_RejectsOfferingOutsideThePhase(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -323,6 +337,8 @@ func TestOfferingChangeRequestService_Create_RejectsOfferingOutsideThePhase(t *t
 }
 
 func TestOfferingChangeRequestService_Create_RefusedWhenSchoolDisabledIt(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -342,6 +358,8 @@ func TestOfferingChangeRequestService_Create_RefusedWhenSchoolDisabledIt(t *test
 }
 
 func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -396,6 +414,8 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 // period start — the queue has to name that date instead of today, or the
 // office approves a switch believing it takes effect immediately.
 func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseStart(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -433,6 +453,8 @@ func TestOfferingChangeRequestService_ListPending_ReportsDateClampedToThePhaseSt
 }
 
 func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAreDisabled(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -464,6 +486,8 @@ func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAre
 }
 
 func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNothing(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -507,6 +531,8 @@ func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNoth
 }
 
 func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -546,6 +572,8 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 }
 
 func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -581,6 +609,8 @@ func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t
 }
 
 func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -613,6 +643,8 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 }
 
 func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -649,6 +681,8 @@ func TestOfferingChangeRequestService_Withdraw_OnlyBySubmitter(t *testing.T) {
 }
 
 func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -682,6 +716,8 @@ func TestOfferingChangeRequestService_Catalog_MarksCurrentBookingAndCapacity(t *
 }
 
 func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -735,6 +771,8 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 }
 
 func TestOfferingChangeRequestService_GetForStudent_IgnoresOwnWithdrawal(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)

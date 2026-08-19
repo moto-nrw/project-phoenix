@@ -169,6 +169,8 @@ func deleteInstanceStudentRow(t *testing.T, s *scenarioSetup, groupID, studentID
 // criterion of #2187: a child added "ab D" stands on the D list even though
 // that day still materialized from the capped predecessor segment.
 func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -206,6 +208,8 @@ func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 }
 
 func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -234,6 +238,8 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 // a child who only ever stood on the predecessor (a split may have dropped
 // them) must survive a save that removes somebody else.
 func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -264,6 +270,8 @@ func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
 // rewritten (a stale client anchor degrades to today), and a row may not start
 // before the segment it belongs to.
 func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -291,6 +299,8 @@ func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
 // idempotent: rows that already cover the window exactly are recognised as
 // satisfied instead of being closed and rewritten on every save.
 func TestSeriesRoster_SecondIdenticalSaveKeepsRowsUntouched(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -327,6 +337,8 @@ func TestSeriesRoster_SecondIdenticalSaveKeepsRowsUntouched(t *testing.T) {
 // removing the supervisor from the series must clear it from the predecessor's
 // occurrences too.
 func TestSeriesRoster_RemovedStaffLosesPlannedOccurrenceRows(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -351,6 +363,8 @@ func TestSeriesRoster_RemovedStaffLosesPlannedOccurrenceRows(t *testing.T) {
 }
 
 func TestSeriesRoster_NoopWithoutSeriesRosterFrom(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -371,6 +385,8 @@ func TestSeriesRoster_NoopWithoutSeriesRosterFrom(t *testing.T) {
 // another workflow (an enrollment request child, a weekday-selection row) are
 // never rewritten by the series pass.
 func TestSeriesRoster_SkipsProtectedPredecessorEnrollments(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -444,6 +460,8 @@ func (c *seriesChain) reloadEnrollment(t *testing.T, id int64) *activitiesModels
 // removed a child from ONE occurrence by hand, a later series roster save must
 // not resurrect that row, while newly gained coverage still creates rows.
 func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -479,6 +497,8 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 // TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday: a per-weekday
 // deviation must retro-apply to that weekday only.
 func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
 	defer c.runCleanup(t)
 
@@ -515,6 +535,8 @@ func TestSeriesRoster_WeekdayScopedAddOnlyTouchesThatWeekday(t *testing.T) {
 // judged against it — neither a weekday-explicit row nor a shared one that
 // also covers days this edit says nothing about.
 func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
 	defer c.runCleanup(t)
 
@@ -586,6 +608,8 @@ func (c *seriesChain) dropLivingScheduleWeekday(t *testing.T, weekday int) {
 // predecessor is still clickable — and the child added there has to land on
 // Wednesday, not on Monday.
 func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
 	defer c.runCleanup(t)
 
@@ -620,6 +644,8 @@ func TestSeriesRoster_ReachesTheClickedWeekdayTheSuccessorNoLongerRuns(t *testin
 // predecessor row still covering Wednesday must be left alone instead of being
 // closed for a Monday-only change.
 func TestSeriesRoster_NarrowedSuccessorLeavesTheOtherWeekdayIntact(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday})
 	defer c.runCleanup(t)
 
@@ -645,6 +671,8 @@ func TestSeriesRoster_NarrowedSuccessorLeavesTheOtherWeekdayIntact(t *testing.T)
 // names the LIVING segment's Hauptbetreuung. Mirroring a membership change must
 // not hand the predecessor's lead to that person.
 func TestSeriesRoster_NewSupervisorDoesNotInheritTheSuccessorsLead(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -671,6 +699,8 @@ func TestSeriesRoster_NewSupervisorDoesNotInheritTheSuccessorsLead(t *testing.T)
 // Hauptbetreuung move changes no membership, so the occurrence rows are only
 // corrected when the reconciler also updates existing ones.
 func TestSeriesRoster_PrimaryChangeReachesMaterializedOccurrences(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -721,6 +751,8 @@ func instanceStaffPrimaryOn(t *testing.T, s *scenarioSetup, groupID int64, date 
 // of the roster pass, including the rule that an instance_staff row carrying a
 // real decision (here: an absence) is never removed.
 func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 

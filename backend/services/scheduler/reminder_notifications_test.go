@@ -218,6 +218,8 @@ func buildReminderSched(results map[int64]*reminders.Result, consent map[string]
 }
 
 func TestPersonalRemindersReachOnlyTheConsenting(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{
 			caregiverStaffID: resultOf(pickupFixture("11", "14:00")),
@@ -253,6 +255,8 @@ func TestPersonalRemindersReachOnlyTheConsenting(t *testing.T) {
 }
 
 func TestPersonalRemindersMarkAdminScope(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{adminStaffID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {adminAccountID}},
@@ -267,6 +271,8 @@ func TestPersonalRemindersMarkAdminScope(t *testing.T) {
 }
 
 func TestPersonalRemindersIncludeStafflessEffectiveAdminsWhenDutyGateDisabled(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{-stafflessAdminID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {stafflessAdminID}},
@@ -287,6 +293,8 @@ func TestPersonalRemindersIncludeStafflessEffectiveAdminsWhenDutyGateDisabled(t 
 }
 
 func TestPersonalRemindersExcludeStafflessEffectiveAdminsWhenDutyGateEnabled(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{-stafflessAdminID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {stafflessAdminID}},
@@ -302,6 +310,8 @@ func TestPersonalRemindersExcludeStafflessEffectiveAdminsWhenDutyGateEnabled(t *
 }
 
 func TestPersonalRemindersSkipComputationWithoutConsent(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
 		nil, // nobody agreed to anything
@@ -319,6 +329,8 @@ func TestPersonalRemindersSkipComputationWithoutConsent(t *testing.T) {
 }
 
 func TestPersonalRemindersTreatStoredConsentAsGateNotAudience(t *testing.T) {
+	t.Parallel()
+
 	const staleAccountID int64 = 999
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
@@ -336,6 +348,8 @@ func TestPersonalRemindersTreatStoredConsentAsGateNotAudience(t *testing.T) {
 }
 
 func TestPersonalRemindersAggregatePerTypeAndDedupPerPerson(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{
 			caregiverStaffID: resultOf(
@@ -379,6 +393,8 @@ func TestPersonalRemindersAggregatePerTypeAndDedupPerPerson(t *testing.T) {
 // An activity someone is personally planned on is their own slot, not "an
 // activity in the room I am watching". The two switches must not overlap.
 func TestPersonalRemindersClassifyAssignedActivities(t *testing.T) {
+	t.Parallel()
+
 	assigned := resultOf(activityFixture("31", "14:10"))
 	assigned.AssignedActivityInstanceIDs = map[string]struct{}{"31": {}}
 
@@ -425,6 +441,8 @@ func TestPersonalRemindersClassifyAssignedActivities(t *testing.T) {
 }
 
 func TestPersonalRemindersOnDutyGate(t *testing.T) {
+	t.Parallel()
+
 	results := map[int64]*reminders.Result{
 		caregiverStaffID: resultOf(pickupFixture("11", "14:00")),
 		adminStaffID:     resultOf(pickupFixture("11", "14:00")),
@@ -484,6 +502,8 @@ func TestPersonalRemindersOnDutyGate(t *testing.T) {
 }
 
 func TestPersonalRemindersSkipConditions(t *testing.T) {
+	t.Parallel()
+
 	consent := map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}}
 	reminder := pickupFixture("11", "14:00")
 
@@ -529,6 +549,8 @@ func TestPersonalRemindersSkipConditions(t *testing.T) {
 }
 
 func TestPersonalRemindersNotifyFailureLeavesUnmarked(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
@@ -545,6 +567,8 @@ func TestPersonalRemindersNotifyFailureLeavesUnmarked(t *testing.T) {
 }
 
 func TestPersonalRemindersMarkOccurrencesAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	reminder := pickupFixture("11", "14:00")
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{caregiverStaffID: resultOf(reminder)},
@@ -574,6 +598,8 @@ func TestPersonalRemindersMarkOccurrencesAfterCommit(t *testing.T) {
 }
 
 func TestPersonalRemindersRollbackLeavesOccurrencesUnmarked(t *testing.T) {
+	t.Parallel()
+
 	reminder := pickupFixture("11", "14:00")
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{caregiverStaffID: resultOf(reminder)},
@@ -597,6 +623,8 @@ func TestPersonalRemindersRollbackLeavesOccurrencesUnmarked(t *testing.T) {
 }
 
 func TestPersonalRemindersTenantIsolationAndDayRotation(t *testing.T) {
+	t.Parallel()
+
 	setup := buildReminderSched(
 		map[int64]*reminders.Result{caregiverStaffID: resultOf(pickupFixture("11", "14:00"))},
 		map[string][]int64{notifications.TypePickupUpcoming: {caregiverAccountID}},
@@ -673,6 +701,8 @@ func (registrySettingsResolver) ResolveString(_ context.Context, key string) (st
 // explicit override was silently skipped even though the setting reads "on" in
 // the UI and the router would have delivered.
 func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
+	t.Parallel()
+
 	definition := configModel.GetDefinition(configModel.KeyNotificationsDispatchEnabled)
 	require.NotNil(t, definition, "the dispatch flag must be registered")
 	require.Equal(t, true, definition.Default,
@@ -723,6 +753,8 @@ func TestReminderNotificationTickHonoursRegistryDefault(t *testing.T) {
 }
 
 func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
+	t.Parallel()
+
 	complete := buildReminderSched(nil, nil).sched.reminderNotifications
 
 	t.Run("nothing wired", func(t *testing.T) {
@@ -762,6 +794,8 @@ func TestScheduleReminderNotificationTaskRequiresEveryDep(t *testing.T) {
 // The copy table and the type list are two halves of one contract: a type
 // without wording would dispatch the generic fallback, which reads like a bug.
 func TestEveryPersonalReminderTypeHasCopy(t *testing.T) {
+	t.Parallel()
+
 	for _, notificationType := range personalReminderTypes {
 		copyFor, ok := reminderCopyByType[notificationType]
 		require.True(t, ok, "missing copy for %s", notificationType)

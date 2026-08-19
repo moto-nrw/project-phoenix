@@ -16,6 +16,8 @@ import (
 )
 
 func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -98,6 +100,8 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 }
 
 func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -133,6 +137,8 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -176,6 +182,8 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -226,6 +234,8 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -261,6 +271,8 @@ func TestActivityExceptionRepository_FindByID(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -311,6 +323,8 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -355,6 +369,8 @@ func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
 //
 // Catalog code: 'c' = CASCADE, 'n' = SET NULL.
 func TestActivityExceptionFKOnDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

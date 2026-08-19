@@ -92,6 +92,8 @@ func celebrationNames(overview *usersService.BirthdayOverview) []string {
 // Saturday, so without this rule a child born on a Saturday is never
 // celebrated.
 func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	monday := time.Date(2026, time.August, 3, 9, 0, 0, 0, timezone.Berlin)
@@ -134,6 +136,8 @@ func TestBirthdayOverviewMondayCarriesTheWeekend(t *testing.T) {
 
 // An ordinary weekday speaks only for itself.
 func TestBirthdayOverviewWeekdayIgnoresOtherDays(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	wednesday := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
@@ -159,6 +163,8 @@ func TestBirthdayOverviewWeekdayIgnoresOtherDays(t *testing.T) {
 
 // A leap-day child must not disappear for three years out of four.
 func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Jonas", "Schalttagskind", "1a")
@@ -186,6 +192,8 @@ func TestBirthdayOverviewLeapDayFallsOnFirstOfMarch(t *testing.T) {
 // Datenschutz: staff appear only when the school opted in, and never when the
 // person opted out.
 func TestBirthdayOverviewStaffVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
@@ -233,6 +241,8 @@ func TestBirthdayOverviewStaffVisibility(t *testing.T) {
 
 // The school switch is a real switch: off means nothing is queried at all.
 func TestBirthdayOverviewDisabled(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
@@ -253,6 +263,8 @@ func TestBirthdayOverviewDisabled(t *testing.T) {
 // A settings backend that errors must surface, not silently render an empty
 // card that looks like "nobody has a birthday today".
 func TestBirthdayOverviewSettingsErrors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -288,6 +300,8 @@ func TestBirthdayOverviewSettingsErrors(t *testing.T) {
 // birth month, and it deliberately keeps people who opted out of the dashboard
 // — the opt-out governs the shared screen, not the list an admin may pull.
 func TestListStaffBirthdays(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	march := testpkg.CreateTestStaff(t, db, "Clara", "Maerz")
@@ -352,6 +366,8 @@ func indexOf(values []string, want string) int {
 // The opt-out is self-service and idempotent: setting the value it already has
 // must not write, and must not fail either.
 func TestBirthdayOptOutRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Greta", "Selbst")
@@ -382,6 +398,8 @@ func TestBirthdayOptOutRoundTrip(t *testing.T) {
 // An account that is not staff of this tenant has nothing to opt out of. That
 // is a clean not-found, not a 500 and not a silent success.
 func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -412,6 +430,8 @@ func TestBirthdayOptOutWithoutStaffRecord(t *testing.T) {
 // child of the tenant, an unclassified caller (guest, guardian, or none at all)
 // receives nothing.
 func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	today := time.Date(2026, time.August, 5, 9, 0, 0, 0, timezone.Berlin)
@@ -482,6 +502,8 @@ func assignStudentGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
 // The repositories refuse an empty day set instead of building a WHERE clause
 // with no values (which would degenerate into "every person of the school").
 func TestBirthdayRepositoriesRejectAnEmptyDaySet(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)

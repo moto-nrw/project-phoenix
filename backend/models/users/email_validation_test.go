@@ -6,6 +6,8 @@ import (
 )
 
 func TestValidateOptionalEmail(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		email   string

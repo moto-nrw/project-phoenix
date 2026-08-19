@@ -102,6 +102,8 @@ func newSchoolPortalFixture(t *testing.T) (service *Service, account *authModels
 // --- findSchoolPortalTenantForAccount ----------------------------------------------
 
 func TestFindSchoolPortalTenant_MappingLookupError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	service, account, _ := newSchoolPortalFixture(t)
 	dbErr := errors.New("connection reset")
 	service.repos.AccountTenant = failingAccountTenantRepo{
@@ -118,6 +120,8 @@ func TestFindSchoolPortalTenant_MappingLookupError_Propagates(t *testing.T) {
 }
 
 func TestFindSchoolPortalTenant_SchoolLookupError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	// A DB failure while checking whether the mapped school is alive must
 	// not be flattened into "no portal role" — that would be a terminal
 	// 403 for a Lehrkraft whose school is perfectly fine.
@@ -139,6 +143,8 @@ func TestFindSchoolPortalTenant_SchoolLookupError_Propagates(t *testing.T) {
 }
 
 func TestFindSchoolPortalTenant_SchoolNotFound_SkipsMapping(t *testing.T) {
+	t.Parallel()
+
 	// A hard-deleted school behind a stale mapping is not an error — the
 	// scan moves on and reports "no portal role".
 	service, account, _ := newSchoolPortalFixture(t)
@@ -158,6 +164,8 @@ func TestFindSchoolPortalTenant_SchoolNotFound_SkipsMapping(t *testing.T) {
 }
 
 func TestFindSchoolPortalTenant_RoleLookupError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	service, account, _ := newSchoolPortalFixture(t)
 	dbErr := errors.New("connection reset")
 	service.repos.AccountRole = failingAccountRoleRepo{
@@ -173,6 +181,8 @@ func TestFindSchoolPortalTenant_RoleLookupError_Propagates(t *testing.T) {
 }
 
 func TestFindSchoolPortalTenant_RoleLookupNotFound_SkipsMapping(t *testing.T) {
+	t.Parallel()
+
 	service, account, _ := newSchoolPortalFixture(t)
 	service.repos.AccountRole = failingAccountRoleRepo{
 		AccountRoleRepository: service.repos.AccountRole,
@@ -186,6 +196,8 @@ func TestFindSchoolPortalTenant_RoleLookupNotFound_SkipsMapping(t *testing.T) {
 }
 
 func TestLoginSchool_MappingLookupError_SurfacesAsAuthError(t *testing.T) {
+	t.Parallel()
+
 	// The login wrapper turns the enumeration failure into an AuthError
 	// carrying the DB cause, not the portal-role sentinel: the handler must
 	// answer 500, never a terminal 403.
@@ -210,6 +222,8 @@ func TestLoginSchool_MappingLookupError_SurfacesAsAuthError(t *testing.T) {
 // --- hasSchoolPortalRoleAtTenant ---------------------------------------------------
 
 func TestHasSchoolPortalRoleAtTenant_RoleLookupError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	// Unlike the swallow-and-warn role hydration, this check propagates —
 	// on the refresh path a masked error would log the user out for good.
 	service, account, tenantID := newSchoolPortalFixture(t)
@@ -227,6 +241,8 @@ func TestHasSchoolPortalRoleAtTenant_RoleLookupError_Propagates(t *testing.T) {
 }
 
 func TestHasSchoolPortalRoleAtTenant_RoleLookupNotFound_ReportsNoRole(t *testing.T) {
+	t.Parallel()
+
 	service, account, tenantID := newSchoolPortalFixture(t)
 	service.repos.AccountRole = failingAccountRoleRepo{
 		AccountRoleRepository: service.repos.AccountRole,
@@ -242,6 +258,8 @@ func TestHasSchoolPortalRoleAtTenant_RoleLookupNotFound_ReportsNoRole(t *testing
 // --- loadSchoolMetadataForTenant ---------------------------------------------------
 
 func TestLoadSchoolMetadataForTenant_MetadataError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	service, account, tenantID := newSchoolPortalFixture(t)
 	calls := 0
 	service.repos.School = failingSchoolRepo{
@@ -261,6 +279,8 @@ func TestLoadSchoolMetadataForTenant_MetadataError_Propagates(t *testing.T) {
 }
 
 func TestLoadSchoolMetadataForTenant_LivenessLookupError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	// The shared metadata load succeeds, then the school-liveness lookup
 	// fails: a transient error there must not be mistaken for a dead school
 	// (which would be a terminal 404 for a live one).
@@ -336,6 +356,8 @@ func runMintGuard(t *testing.T, service *Service, db *bun.DB, accountID, tenantI
 }
 
 func TestSchoolMintGuard_LiveSessionPasses(t *testing.T) {
+	t.Parallel()
+
 	service, db, account, tenantID := newMintGuardFixture(t)
 	claims, err := runMintGuard(t, service, db, account.ID, tenantID)
 	require.NoError(t, err)
@@ -347,6 +369,8 @@ func TestSchoolMintGuard_LiveSessionPasses(t *testing.T) {
 }
 
 func TestSchoolMintGuard_ClaimsDropPermissionRevokedMidFlight(t *testing.T) {
+	t.Parallel()
+
 	// The finding this pins: the mint paths used to build their claims from
 	// metadata loaded BEFORE the guarded transaction. The guard re-checked
 	// membership and portal role, but not what the account may DO — so a
@@ -394,6 +418,8 @@ func TestSchoolMintGuard_ClaimsDropPermissionRevokedMidFlight(t *testing.T) {
 }
 
 func TestSchoolMintGuard_RefusesRevokedMembership(t *testing.T) {
+	t.Parallel()
+
 	// Membership is revoked by flipping account_tenants.status. Everything
 	// else about the account stays valid, which is exactly why the guard has
 	// to look at this row rather than trust the earlier resolution.
@@ -408,6 +434,8 @@ func TestSchoolMintGuard_RefusesRevokedMembership(t *testing.T) {
 }
 
 func TestSchoolMintGuard_RefusesRevokedPortalRole(t *testing.T) {
+	t.Parallel()
+
 	service, db, account, tenantID := newMintGuardFixture(t)
 	_, err := db.Exec(
 		"DELETE FROM auth.account_roles WHERE account_id = ? AND tenant_id = ?",
@@ -419,6 +447,8 @@ func TestSchoolMintGuard_RefusesRevokedPortalRole(t *testing.T) {
 }
 
 func TestSchoolMintGuard_RefusesDeactivatedSchool(t *testing.T) {
+	t.Parallel()
+
 	service, db, account, tenantID := newMintGuardFixture(t)
 	_, err := db.Exec("UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
 	require.NoError(t, err)
@@ -428,6 +458,8 @@ func TestSchoolMintGuard_RefusesDeactivatedSchool(t *testing.T) {
 }
 
 func TestSchoolMintGuard_RefusesSoftDeletedSchool(t *testing.T) {
+	t.Parallel()
+
 	service, db, account, tenantID := newMintGuardFixture(t)
 	_, err := db.Exec("UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?", tenantID)
 	require.NoError(t, err)
@@ -437,6 +469,8 @@ func TestSchoolMintGuard_RefusesSoftDeletedSchool(t *testing.T) {
 }
 
 func TestCreateRefreshTokenWithRetryGuarded_GuardRefusalWritesNoToken(t *testing.T) {
+	t.Parallel()
+
 	// The point of the guard is that it runs INSIDE the persistence
 	// transaction: a refusal must abort the whole thing, leaving no token
 	// row behind and surfacing the sentinel untouched (not buried under the
@@ -492,6 +526,8 @@ func insertPersonForAccountAtTenant(t *testing.T, db *bun.DB, tenantID, accountI
 }
 
 func TestSchoolClaimsPayload_RunsNoLivenessGate(t *testing.T) {
+	t.Parallel()
+
 	// The refresh path assembles its claims inside the rotation transaction,
 	// where schoolRefreshMintGuard has just checked liveness under the account
 	// lock. The claims loader must therefore NOT gate again: a second opinion
@@ -522,6 +558,8 @@ func TestSchoolClaimsPayload_RunsNoLivenessGate(t *testing.T) {
 // --- loadAccountMetadataForTenant: person names ------------------------------------
 
 func TestLoadAccountMetadataForTenant_PersonNameComesFromTargetSchool(t *testing.T) {
+	t.Parallel()
+
 	// A school switch runs inside the request of the school being LEFT, so
 	// the ambient context names the source school. The person lookup is
 	// tenant-filtered, so without pinning the target the new token carried
@@ -548,6 +586,8 @@ func TestLoadAccountMetadataForTenant_PersonNameComesFromTargetSchool(t *testing
 }
 
 func TestLoadAccountMetadataForTenant_NoPersonAtTargetFallsBack(t *testing.T) {
+	t.Parallel()
+
 	// Not every account has a person row at the school it is being minted
 	// for — an org-scope Träger user reaches a school through organization
 	// membership while their person row stays at their home school. Those
@@ -579,6 +619,8 @@ func (r failingPersonRepo) FindByAccountID(context.Context, int64) (*userModels.
 }
 
 func TestLoadAccountMetadataForTenant_PersonLookupError_Propagates(t *testing.T) {
+	t.Parallel()
+
 	// A failed person lookup used to be indistinguishable from "this account
 	// has no person row here", which sent the mint into the cross-school
 	// fallback on the strength of a DB error — and could stamp another
@@ -597,6 +639,8 @@ func TestLoadAccountMetadataForTenant_PersonLookupError_Propagates(t *testing.T)
 }
 
 func TestLoadAccountMetadataForTenant_AmbiguousNameAcrossSchools_YieldsNoName(t *testing.T) {
+	t.Parallel()
+
 	// No person row at the target school, but two OTHER schools the account is
 	// mapped to disagree about the name. The old unscoped fallback had no
 	// ORDER BY and took whichever row the database returned first — a coin
@@ -624,6 +668,8 @@ func TestLoadAccountMetadataForTenant_AmbiguousNameAcrossSchools_YieldsNoName(t 
 }
 
 func TestLoadAccountMetadataForTenant_FallbackIgnoresUnmappedSchools(t *testing.T) {
+	t.Parallel()
+
 	// The fallback consults only schools the account is ACTIVELY mapped to.
 	// A person row at a school the account has no mapping to must not reach
 	// the token — that row belongs to someone else's tenant boundary.
@@ -713,6 +759,8 @@ func staticPolicyResolver(policy MFAPolicy, calls *[]context.Context) mfaPolicyR
 }
 
 func TestSchoolMintGuard_MFARequirementAppearingMidLogin_AbortsMint(t *testing.T) {
+	t.Parallel()
+
 	// The finding this pins: the MFA gate ran BEFORE the mint transaction and
 	// was never revisited. Under `required_admins` an admin role granted after
 	// the gate said "not required" — and before the token was written — handed
@@ -728,6 +776,8 @@ func TestSchoolMintGuard_MFARequirementAppearingMidLogin_AbortsMint(t *testing.T
 }
 
 func TestSchoolMintGuard_MFARecheckPassesForNonAdmin(t *testing.T) {
+	t.Parallel()
+
 	// The same policy against a plain Lehrkraft: nothing changed under the
 	// lock, so the mint proceeds. Without this the re-check would refuse every
 	// login at a `required_admins` school.
@@ -742,6 +792,8 @@ func TestSchoolMintGuard_MFARecheckPassesForNonAdmin(t *testing.T) {
 }
 
 func TestSchoolMintGuard_MFAPolicyIsReadInsideTheMintTransaction(t *testing.T) {
+	t.Parallel()
+
 	// A policy resolved BEFORE the transaction is the stale input the re-check
 	// exists to replace: a school switching security.mfa_mode from off to
 	// required mid-login would otherwise be evaluated against "off". The guard
@@ -762,6 +814,8 @@ func TestSchoolMintGuard_MFAPolicyIsReadInsideTheMintTransaction(t *testing.T) {
 }
 
 func TestSchoolMintGuard_UnreadableMFAPolicyFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	// Fail-closed, exactly like the pre-transaction gate: if the policy cannot
 	// be read we do not know whether a second factor is owed, so this mint is
 	// refused with the 503 sentinel instead of proceeding as "not required".
@@ -777,6 +831,8 @@ func TestSchoolMintGuard_UnreadableMFAPolicyFailsClosed(t *testing.T) {
 }
 
 func TestSchoolMintGuard_WithoutRecheckAdminRoleStillMints(t *testing.T) {
+	t.Parallel()
+
 	// The MFA exchange and the school switch pass no policy: their second
 	// factor is settled (or, for the switch, was never gated here). An admin
 	// role must not turn those mints into a refusal.
@@ -803,6 +859,8 @@ func (r failingAccountRepo) FindByID(context.Context, any) (*authModels.Account,
 }
 
 func TestIssueSchoolTokens_AccountLookupError_IsNotACredentialFailure(t *testing.T) {
+	t.Parallel()
+
 	// A dropped connection while loading the account is not "wrong
 	// credentials". Collapsing the two told a Lehrkraft who had just entered a
 	// correct email code that their login was invalid (401) and hid a database
@@ -824,6 +882,8 @@ func TestIssueSchoolTokens_AccountLookupError_IsNotACredentialFailure(t *testing
 }
 
 func TestIssueSchoolTokens_AccountMissing_ReportsNotFound(t *testing.T) {
+	t.Parallel()
+
 	// The genuine no-such-row case keeps its sentinel — that is the one the
 	// handler is right to answer 401 to.
 	service, _, account, tenantID := newMintGuardFixture(t)
@@ -839,6 +899,8 @@ func TestIssueSchoolTokens_AccountMissing_ReportsNotFound(t *testing.T) {
 }
 
 func TestSwitchSchool_AccountLookupError_IsNotACredentialFailure(t *testing.T) {
+	t.Parallel()
+
 	service, _, account, tenantID := newMintGuardFixture(t)
 	dbErr := errors.New("connection reset")
 	service.repos.Account = failingAccountRepo{AccountRepository: service.repos.Account, err: dbErr}
@@ -908,6 +970,8 @@ func withRecordedPolicyLock(t *testing.T, service *Service, recorder *lockOrderR
 }
 
 func TestSchoolMintGuard_TakesMFAPolicyLockBeforeTheAccountRow(t *testing.T) {
+	t.Parallel()
+
 	// Re-reading the policy inside the mint transaction orders nothing: an
 	// admin enabling MFA can commit right after that read and the token still
 	// goes out unchallenged. The mint therefore pins security.mfa_mode for the
@@ -929,6 +993,8 @@ func TestSchoolMintGuard_TakesMFAPolicyLockBeforeTheAccountRow(t *testing.T) {
 }
 
 func TestSchoolMintGuard_UnavailableMFAPolicyLockFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	// A lock we could not take means the policy read that follows it is
 	// unordered against a concurrent write — exactly the state this closes.
 	// Refuse the mint (503) instead of deciding the gate on it.
@@ -946,6 +1012,8 @@ func TestSchoolMintGuard_UnavailableMFAPolicyLockFailsClosed(t *testing.T) {
 }
 
 func TestSchoolMintGuard_WithoutRecheckTakesNoPolicyLock(t *testing.T) {
+	t.Parallel()
+
 	// The MFA exchange and the school switch have their second factor settled
 	// (or never gated it here). Taking the policy lock there would serialize
 	// those mints against every mfa_mode write for nothing.

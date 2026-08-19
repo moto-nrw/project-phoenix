@@ -59,6 +59,8 @@ func setupServiceWithBroadcaster(t *testing.T) (active.Service, *testpkg.Recordi
 }
 
 func TestBroadcast_CreateVisitSendsDashboardCounts(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -123,6 +125,8 @@ func dashboardCountsTenantCalls(broadcaster *testpkg.RecordingBroadcaster) []tes
 }
 
 func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -162,6 +166,8 @@ func TestBroadcast_EndVisitSendsDashboardCounts(t *testing.T) {
 }
 
 func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
@@ -223,6 +229,8 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 }
 
 func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -261,6 +269,8 @@ func TestBroadcast_EndActivitySessionSendsDashboardCounts(t *testing.T) {
 // student. This is what keeps a single client's SSE channel buffer from
 // overflowing during a whole-session checkout.
 func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -322,6 +332,8 @@ func TestBroadcast_EndActivitySessionBatchesCheckouts(t *testing.T) {
 // invalidates exactly its students' caches, not the whole session's. The
 // active-group topic still carries every student.
 func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -452,6 +464,8 @@ func checkOutFixturedStudent(t *testing.T, db *bun.DB, svc active.Service, stude
 // field must then be absent entirely rather than an empty array — clients read
 // an empty array as "scope to nothing" and drop the invalidation (#2057).
 func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -467,6 +481,8 @@ func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 }
 
 func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -501,6 +517,8 @@ func TestBroadcast_RoomlessCheckoutCarriesEducationGroupID(t *testing.T) {
 //     the supervisors entitled to that child's data keep their per-child
 //     detail-cache invalidation and their views stay live.
 func TestBroadcast_TenantWideEventsCarryNoStudentIdentity(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001

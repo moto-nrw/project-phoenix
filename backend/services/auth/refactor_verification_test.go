@@ -22,6 +22,8 @@ import (
 // TestRefactoringPreservesRepositoryAccess verifies that after refactoring,
 // the service can still access all repositories through the factory pattern
 func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = sqlDB.Close() }()

@@ -14,6 +14,8 @@ import (
 )
 
 func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(2)
 	before := effective.AddDays(-7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, before)
@@ -158,6 +160,8 @@ func TestTemplateSplit_PreservesDeviationsOnSuccessor(t *testing.T) {
 }
 
 func TestTemplateSplit_DropsDeviationWhenWeekdayNoLongerExists(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(2)
 	tuesday := effective.AddDays(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)

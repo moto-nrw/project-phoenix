@@ -70,6 +70,9 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 // Category A: Pure Print/Format Functions
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestGetStatusString(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -96,6 +99,9 @@ func TestGetStatusString(t *testing.T) {
 	}
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestLogVisitCleanupResult_NoErrors(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
@@ -118,6 +124,9 @@ func TestLogVisitCleanupResult_NoErrors(t *testing.T) {
 	assert.NotContains(t, output, "Errors encountered")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestLogVisitCleanupResult_WithErrors_NotVerbose(t *testing.T) {
 	// Ensure verbose is false
 	oldVerbose := verbose
@@ -147,6 +156,9 @@ func TestLogVisitCleanupResult_WithErrors_NotVerbose(t *testing.T) {
 	assert.NotContains(t, output, "Student 2")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
 	// Set verbose to true
 	oldVerbose := verbose
@@ -176,6 +188,9 @@ func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
 	assert.Contains(t, output, "Student 2: error 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 	result := &active.CleanupResult{
 		StartedAt:         time.Now(),
@@ -198,6 +213,9 @@ func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
 	result := &active.CleanupResult{
 		StartedAt:         time.Now(),
@@ -218,6 +236,9 @@ func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 	oldestVisit := time.Now().Add(-48 * time.Hour)
 	preview := &active.CleanupPreview{
@@ -237,6 +258,9 @@ func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
 	preview := &active.CleanupPreview{
 		StudentVisitCounts: map[int64]int{1: 5},
@@ -254,6 +278,9 @@ func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 	oldestExpired := time.Now().Add(-30 * 24 * time.Hour)
 	stats := &active.RetentionStats{
@@ -273,6 +300,9 @@ func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 	assert.Contains(t, output, "days ago")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
 	stats := &active.RetentionStats{
 		TotalExpiredVisits: 50,
@@ -290,6 +320,9 @@ func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
 	assert.NotContains(t, output, "Oldest expired visit:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 	oldestRecord := timezone.TodayDate().AddDays(-1)
 	preview := &active.AttendanceCleanupPreview{
@@ -309,6 +342,9 @@ func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
 	preview := &active.AttendanceCleanupPreview{
 		TotalRecords:   10,
@@ -326,6 +362,9 @@ func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
 	oldestDate := timezone.TodayDate().AddDays(-2)
 	result := &active.AttendanceCleanupResult{
@@ -351,6 +390,9 @@ func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
 	result := &active.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
@@ -372,6 +414,9 @@ func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendanceCleanupSummary_WithErrors(t *testing.T) {
 	result := &active.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
@@ -391,6 +436,9 @@ func TestPrintAttendanceCleanupSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_Empty(t *testing.T) {
 	output := captureStdout(t, func() {
 		printErrorList([]string{})
@@ -399,6 +447,9 @@ func TestPrintErrorList_Empty(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_EmptySlice_Nil(t *testing.T) {
 	output := captureStdout(t, func() {
 		printErrorList(nil)
@@ -407,6 +458,9 @@ func TestPrintErrorList_EmptySlice_Nil(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_NotVerbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = false
@@ -423,6 +477,9 @@ func TestPrintErrorList_NotVerbose(t *testing.T) {
 	assert.NotContains(t, output, "error 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_Verbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = true
@@ -439,6 +496,9 @@ func TestPrintErrorList_Verbose(t *testing.T) {
 	assert.Contains(t, output, "error 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAbandonedSessionSummary(t *testing.T) {
 	threshold := 2 * time.Hour
 	count := 5
@@ -453,6 +513,9 @@ func TestPrintAbandonedSessionSummary(t *testing.T) {
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintDailySessionSummary_Success(t *testing.T) {
 	result := &active.DailySessionCleanupResult{
 		SessionsEnded:    10,
@@ -475,6 +538,9 @@ func TestPrintDailySessionSummary_Success(t *testing.T) {
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 	result := &active.DailySessionCleanupResult{
 		SessionsEnded:    5,
@@ -493,6 +559,9 @@ func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 	oldestRecord := timezone.TodayDate().AddDays(-1)
 	preview := &active.SupervisorCleanupPreview{
@@ -512,6 +581,9 @@ func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Staff affected: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 	preview := &active.SupervisorCleanupPreview{
 		TotalRecords: 10,
@@ -529,6 +601,9 @@ func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Staff affected: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
 	oldestDate := timezone.TodayDate().AddDays(-2)
 	result := &active.SupervisorCleanupResult{
@@ -554,6 +629,9 @@ func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
@@ -575,6 +653,9 @@ func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorCleanupSummary_WithErrors(t *testing.T) {
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
@@ -594,6 +675,9 @@ func TestPrintSupervisorCleanupSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_Empty(t *testing.T) {
 	output := captureStdout(t, func() {
 		printStaffBreakdown("Test Header", "Count", map[int64]int{})
@@ -602,6 +686,9 @@ func TestPrintStaffBreakdown_Empty(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_WithData(t *testing.T) {
 	data := map[int64]int{
 		1: 10,
@@ -626,6 +713,9 @@ func TestPrintStaffBreakdown_WithData(t *testing.T) {
 // Category B: Command Handler Functions (Require Test DB)
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = false
@@ -648,6 +738,9 @@ func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
 	// we just verify no error occurred
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunVisitsDryRun_Verbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = true
@@ -665,6 +758,9 @@ func TestRunVisitsDryRun_Verbose(t *testing.T) {
 	assert.Contains(t, logOutput, "DRY RUN MODE")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunVisitsCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
 
@@ -676,6 +772,9 @@ func TestRunVisitsCleanup(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunAttendanceDryRun_NotVerbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = false
@@ -687,6 +786,9 @@ func TestRunAttendanceDryRun_NotVerbose(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunAttendanceDryRun_Verbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = true
@@ -698,6 +800,9 @@ func TestRunAttendanceDryRun_Verbose(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunAttendanceCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
 
@@ -705,6 +810,9 @@ func TestRunAttendanceCleanup(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunSupervisorsDryRun_NotVerbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = false
@@ -716,6 +824,9 @@ func TestRunSupervisorsDryRun_NotVerbose(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = true
@@ -727,6 +838,9 @@ func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestRunSupervisorsCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
 
@@ -738,6 +852,9 @@ func TestRunSupervisorsCleanup(t *testing.T) {
 // Category C: Functions Needing ServiceFactory (New Tests)
 // =============================================================================
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintVerboseRecentDeletions(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
 
@@ -750,6 +867,9 @@ func TestPrintVerboseRecentDeletions(t *testing.T) {
 	assert.Contains(t, output, "Recent deletion activity:")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCountExpiredTokens(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
 
@@ -779,6 +899,9 @@ func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
 	assert.Contains(t, logOutput, "5m")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestRunAbandonedSessionCleanup_Execute(t *testing.T) {
 	oldDryRun := dryRun
 	dryRun = false
@@ -819,6 +942,9 @@ func TestRunDailySessionCleanup_DryRun(t *testing.T) {
 	assert.Contains(t, logOutput, "Would end all active sessions")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestRunDailySessionCleanup_Execute(t *testing.T) {
 	oldDryRun := dryRun
 	dryRun = false
@@ -843,6 +969,9 @@ func TestRunDailySessionCleanup_Execute(t *testing.T) {
 // Category D: Branch Coverage Tests for printStaffBreakdown
 // =============================================================================
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_Empty_AlreadyTested(t *testing.T) {
 	// This test already exists as TestPrintStaffBreakdown_Empty in cleanup_test.go
 	// It properly tests the empty data case (line 639 early return)
@@ -853,6 +982,9 @@ func TestPrintStaffBreakdown_Empty_AlreadyTested(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_WithData_AlreadyTested(t *testing.T) {
 	// This test already exists as TestPrintStaffBreakdown_WithData in cleanup_test.go
 	// It properly tests the non-empty data case with table output
@@ -878,6 +1010,9 @@ func TestPrintStaffBreakdown_WithData_AlreadyTested(t *testing.T) {
 // Category E: Cobra Command Registration Tests (from test/improve-coverage)
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupConstants(t *testing.T) {
 	assert.Equal(t, "dry-run", flagDryRun)
 	assert.Equal(t, "Show detailed information", flagDescShowDetails)
@@ -885,12 +1020,18 @@ func TestCleanupConstants(t *testing.T) {
 	assert.Equal(t, "Status: %s\n", fmtStatus)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "cleanup", cleanupCmd.Use)
 	assert.Contains(t, cleanupCmd.Short, "Clean up expired data")
 	assert.Contains(t, cleanupCmd.Long, "retention policies")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupCmd_IsRegisteredOnRoot(t *testing.T) {
 	found := false
 	for _, cmd := range RootCmd.Commands() {
@@ -902,6 +1043,9 @@ func TestCleanupCmd_IsRegisteredOnRoot(t *testing.T) {
 	assert.True(t, found, "cleanupCmd should be registered on RootCmd")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupCmd_HasSubcommands(t *testing.T) {
 	subcommands := cleanupCmd.Commands()
 	names := make([]string, 0, len(subcommands))
@@ -922,10 +1066,16 @@ func TestCleanupCmd_HasSubcommands(t *testing.T) {
 	assert.Contains(t, names, "time-tracking")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupCmd_SubcommandCount(t *testing.T) {
 	assert.Len(t, cleanupCmd.Commands(), 11, "cleanupCmd should have exactly 11 subcommands")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupVisitsCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "visits", cleanupVisitsCmd.Use)
 	assert.Contains(t, cleanupVisitsCmd.Short, "expired visit records")
@@ -933,54 +1083,81 @@ func TestCleanupVisitsCmd_Metadata(t *testing.T) {
 	assert.NotNil(t, cleanupVisitsCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupPreviewCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "preview", cleanupPreviewCmd.Use)
 	assert.Contains(t, cleanupPreviewCmd.Short, "Preview")
 	assert.NotNil(t, cleanupPreviewCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupStatsCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "stats", cleanupStatsCmd.Use)
 	assert.Contains(t, cleanupStatsCmd.Short, "retention statistics")
 	assert.NotNil(t, cleanupStatsCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupTokensCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "tokens", cleanupTokensCmd.Use)
 	assert.Contains(t, cleanupTokensCmd.Short, "expired authentication tokens")
 	assert.NotNil(t, cleanupTokensCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupTimetableCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "timetable", cleanupTimetableCmd.Use)
 	assert.Contains(t, cleanupTimetableCmd.Short, "timetable")
 	assert.NotNil(t, cleanupTimetableCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupInvitationsCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "invitations", cleanupInvitationsCmd.Use)
 	assert.Contains(t, cleanupInvitationsCmd.Short, "invitation tokens")
 	assert.NotNil(t, cleanupInvitationsCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupRateLimitsCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "rate-limits", cleanupRateLimitsCmd.Use)
 	assert.Contains(t, cleanupRateLimitsCmd.Short, "rate limit")
 	assert.NotNil(t, cleanupRateLimitsCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupAttendanceCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "attendance", cleanupAttendanceCmd.Use)
 	assert.Contains(t, cleanupAttendanceCmd.Short, "stale attendance")
 	assert.NotNil(t, cleanupAttendanceCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupSessionsCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "sessions", cleanupSessionsCmd.Use)
 	assert.Contains(t, cleanupSessionsCmd.Short, "abandoned active sessions")
 	assert.NotNil(t, cleanupSessionsCmd.RunE)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupSupervisorsCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "supervisors", cleanupSupervisorsCmd.Use)
 	assert.Contains(t, cleanupSupervisorsCmd.Short, "stale supervisor records")
@@ -991,6 +1168,9 @@ func TestCleanupSupervisorsCmd_Metadata(t *testing.T) {
 // Category F: Flag Registration Tests (from test/improve-coverage)
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupVisitsCmd_Flags(t *testing.T) {
 	f := cleanupVisitsCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
@@ -999,22 +1179,34 @@ func TestCleanupVisitsCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("batch-size"))
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupPreviewCmd_Flags(t *testing.T) {
 	f := cleanupPreviewCmd.Flags()
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupStatsCmd_Flags(t *testing.T) {
 	f := cleanupStatsCmd.Flags()
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupAttendanceCmd_Flags(t *testing.T) {
 	f := cleanupAttendanceCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
 	assert.NotNil(t, f.Lookup("verbose"))
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupSessionsCmd_Flags(t *testing.T) {
 	f := cleanupSessionsCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
@@ -1023,6 +1215,9 @@ func TestCleanupSessionsCmd_Flags(t *testing.T) {
 	assert.NotNil(t, f.Lookup("threshold"))
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupSupervisorsCmd_Flags(t *testing.T) {
 	f := cleanupSupervisorsCmd.Flags()
 	assert.NotNil(t, f.Lookup("dry-run"))
@@ -1033,6 +1228,9 @@ func TestCleanupSupervisorsCmd_Flags(t *testing.T) {
 // Category G: Parent-Child and Usage Tests (from test/improve-coverage)
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupSubcommands_ParentRelationship(t *testing.T) {
 	assert.Equal(t, cleanupCmd, cleanupVisitsCmd.Parent())
 	assert.Equal(t, cleanupCmd, cleanupPreviewCmd.Parent())
@@ -1045,6 +1243,9 @@ func TestCleanupSubcommands_ParentRelationship(t *testing.T) {
 	assert.Equal(t, cleanupCmd, cleanupSupervisorsCmd.Parent())
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cleanupCmd.SetOut(buf)
@@ -1058,6 +1259,9 @@ func TestCleanupCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "Available Commands")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupVisitsCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cleanupVisitsCmd.SetOut(buf)
@@ -1070,6 +1274,9 @@ func TestCleanupVisitsCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "visits")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestCleanupSessionsCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	cleanupSessionsCmd.SetOut(buf)

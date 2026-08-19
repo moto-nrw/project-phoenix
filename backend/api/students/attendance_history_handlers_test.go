@@ -29,6 +29,8 @@ func enableAttendanceLog(t *testing.T, tc *testContext) {
 }
 
 func TestGetStudentAttendanceHistory_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "DisabledFeat", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
@@ -41,6 +43,8 @@ func TestGetStudentAttendanceHistory_FeatureDisabled(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -91,6 +95,8 @@ func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -101,6 +107,8 @@ func TestGetStudentAttendanceHistory_InvalidStudentID(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_StudentNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -111,6 +119,8 @@ func TestGetStudentAttendanceHistory_StudentNotFound(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -143,6 +153,8 @@ func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -166,6 +178,8 @@ func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) 
 }
 
 func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureEnd", "Student", "2c")
@@ -201,6 +215,8 @@ func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureOnly", "Student", "2c")
@@ -219,6 +235,8 @@ func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_StaffCanAccessAnyStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -235,6 +253,8 @@ func TestGetStudentAttendanceHistory_StaffCanAccessAnyStudent(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -251,6 +271,8 @@ func TestGetStudentAttendanceHistory_UnlinkedAccountForbidden(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -264,6 +286,8 @@ func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
 }
 
 func TestGetStudentAttendanceHistory_EmptyResult(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 

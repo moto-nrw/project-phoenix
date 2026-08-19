@@ -137,6 +137,8 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (p
 // --- SubmitSickNote ---
 
 func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -159,6 +161,8 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 }
 
 func TestSubmitSickNote_ResubmitDoesNotNotifyAgain(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	notifier := &recordingParentAbsenceNotifier{}
 	require.Implements(t, (*parentService.AbsenceNotifierSetter)(nil), svc)
@@ -192,6 +196,8 @@ func TestSubmitSickNote_ResubmitDoesNotNotifyAgain(t *testing.T) {
 // UI already hides (ChildFeatures.NotesEnabled gates on the same permission). See
 // .claude/rules/guardian-parent-permissions.md.
 func TestChildMessaging_RequiresNotesWritePermission(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -215,6 +221,8 @@ func TestChildMessaging_RequiresNotesWritePermission(t *testing.T) {
 // clean ErrEmptyNote (→ 400) BEFORE any insert. Without it the empty body would
 // reach the chk_parent_messages_body_not_blank CHECK and surface as a raw 500.
 func TestPostChildMessage_EmptyBody(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -227,6 +235,8 @@ func TestPostChildMessage_EmptyBody(t *testing.T) {
 // (maxParentNoteLen = 2000) on the messaging path, mirroring the sick-note
 // ReasonTooLong guard. 2001 runes → ErrNoteTooLong (→ 400), never a silent insert.
 func TestPostChildMessage_BodyTooLong(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -244,6 +254,8 @@ func TestPostChildMessage_BodyTooLong(t *testing.T) {
 // (BodyTooLong above) was re-tested after the rewrite; this pins the boundary
 // from the accepting side so the rune-count semantics can't quietly revert.
 func TestPostChildMessage_AllowsMultibyteUpToRuneLimit(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -265,6 +277,8 @@ const maxMessageRunesForTest = 2000
 // fully-permitted guardian still cannot post a message or submit a request. The
 // frontend hides the composer on the same flag; this asserts the API agrees.
 func TestChildMessaging_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -281,6 +295,8 @@ func TestChildMessaging_FeatureDisabled(t *testing.T) {
 // writing into account B's family thread); enforcement lives in resolveOwnedChild,
 // so this pins it directly against a future refactor of that resolve path.
 func TestPostChildMessage_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -301,6 +317,8 @@ func TestPostChildMessage_NotOwned(t *testing.T) {
 // marks the thread read, so an ownership bypass here would both leak a message and
 // silently advance the wrong reader's cursor.
 func TestGetChildConversation_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -317,6 +335,8 @@ func TestGetChildConversation_NotOwned(t *testing.T) {
 }
 
 func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -336,6 +356,8 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 }
 
 func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -375,6 +397,8 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 }
 
 func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -464,12 +488,16 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 }
 
 func TestSubmitSickNote_NoDates(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildWriteService(t, true, true)
 	_, err := svc.SubmitSickNote(context.Background(), 123, 456, nil, "", activeModels.StudentStatusDaySick)
 	require.ErrorIs(t, err, parentService.ErrNoDates)
 }
 
 func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -486,6 +514,8 @@ func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
 }
 
 func TestSubmitSickNote_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, false, true) // sick disabled
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -496,6 +526,8 @@ func TestSubmitSickNote_FeatureDisabled(t *testing.T) {
 }
 
 func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -513,6 +545,8 @@ func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
 }
 
 func TestSubmitSickNote_ReasonTooLong(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -523,6 +557,8 @@ func TestSubmitSickNote_ReasonTooLong(t *testing.T) {
 }
 
 func TestSubmitSickNote_EmptyReasonRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -533,6 +569,8 @@ func TestSubmitSickNote_EmptyReasonRejected(t *testing.T) {
 }
 
 func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -562,6 +600,8 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 // --- ListSickDays ---
 
 func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -580,6 +620,8 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 }
 
 func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -603,6 +645,8 @@ func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 }
 
 func TestListSickDays_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildWriteService(t, true, true)
 	from := timezone.TodayDate()
 	_, err := svc.ListSickDays(context.Background(), 999999, 888888, from, timezone.NewDate(from.Year, from.Month+1, from.Day))
@@ -614,6 +658,8 @@ func TestListSickDays_NotOwned(t *testing.T) {
 // unrelated active excused row that falls on Tuesday inside the min..max
 // range.
 func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -648,6 +694,8 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 // --- SubmitSickNote: excused ("Termin/Abwesenheit") path (issue #1735) ---
 
 func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -673,6 +721,8 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 }
 
 func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -697,6 +747,8 @@ func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
 }
 
 func TestSubmitSickNote_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -707,6 +759,8 @@ func TestSubmitSickNote_InvalidStatus(t *testing.T) {
 }
 
 func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -738,6 +792,8 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 // own excused day on a different date still shows. Guards the privacy fix for
 // the issue #1735 follow-up review.
 func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -779,6 +835,8 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 // --- ChildFeatures ---
 
 func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, false) // sick on, notes off
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -790,6 +848,8 @@ func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
 }
 
 func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -822,6 +882,8 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 }
 
 func TestChildFeatures_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildWriteService(t, true, true)
 	_, err := svc.ChildFeatures(context.Background(), 999999, 888888)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)

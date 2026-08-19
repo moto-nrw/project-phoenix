@@ -23,6 +23,8 @@ import (
 )
 
 func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-race")
@@ -79,6 +81,8 @@ func TestSubmitFeedback_GraduatedAfterUnlockedRead(t *testing.T) {
 // student from the locked read, and the handler's alumnus refusal would look
 // like it had stopped working when in fact nothing was ever asked.
 func TestSubmitFeedback_LockedLookupFallsBackToPlainStub(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupFeedbackTestContext(t)
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-fallback")

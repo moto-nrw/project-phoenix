@@ -230,6 +230,8 @@ func makeScenario(t *testing.T, weekday int, materializeDate timezone.Date) *sce
 // -----------------------------------------------------------------------------
 
 func TestMaterializeForTenant_EndToEnd(t *testing.T) {
+	t.Parallel()
+
 	// Target Monday inside the wide period window; use a deterministic date
 	// in the middle of a "school year" so the period bounds are obviously
 	// satisfied.
@@ -284,6 +286,8 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 // instance_students row — otherwise upcoming cards, staffing ratios and
 // slot-list exports keep counting a departed child.
 func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
+	t.Parallel()
+
 	materializeDate := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
@@ -319,6 +323,8 @@ func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
 }
 
 func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testing.T) {
+	t.Parallel()
+
 	firstMonday := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
 	defer s.runCleanup(t)
@@ -364,6 +370,8 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 }
 
 func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
+	t.Parallel()
+
 	materializeDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
@@ -386,6 +394,8 @@ func TestMaterializeForTenant_ExceptionCancelled_Skips(t *testing.T) {
 }
 
 func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T) {
+	t.Parallel()
+
 	materializeDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
@@ -416,6 +426,8 @@ func TestMaterializeForTenant_ExceptionModified_OverridesStartTime(t *testing.T)
 }
 
 func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -432,7 +444,7 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 	//
 	// tenant_id = some large unlikely value — the hermetic linter whitelists
 	// the `tenant_id` key itself. We still must not use int64(1)-int64(9).
-	const emptyTenantID = int64(990001)
+	emptyTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTenantID)
 	from := timezone.NewDate(2026, 4, 20)
 	to := from.AddDays(6)
@@ -452,6 +464,8 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 }
 
 func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -464,7 +478,7 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 		repoFactory.Timeframe, serviceFactory.CalendarPeriod, db, nil, slog.Default(),
 	)
 
-	const emptyTemplateTenantID = int64(990002)
+	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTemplateTenantID)
 	testpkg.EnsureTestTenant(t, db, emptyTemplateTenantID)
 	_, err = db.ExecContext(context.Background(), `DELETE FROM schedule.calendar_periods WHERE tenant_id = ?`, emptyTemplateTenantID)
@@ -500,6 +514,8 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 }
 
 func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
+	t.Parallel()
+
 	// Verifies the "expected" half of the idempotency story the UNIQUE index
 	// backstops: a first-run insert is observed by the second run's pre-fetch
 	// and produces CandidatesSkippedExisting. The actual UNIQUE-violation
@@ -526,6 +542,8 @@ func TestMaterializeForTenant_PreFetchObservesFirstRunThenSkips(t *testing.T) {
 }
 
 func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *testing.T) {
+	t.Parallel()
+
 	materializeDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
@@ -564,6 +582,8 @@ func TestMaterializeForTenant_TemplateScheduleBoundToPeriod_OutOfRange_Skips(t *
 }
 
 func TestMaterializeForTenant_ABWeekSmoke(t *testing.T) {
+	t.Parallel()
+
 	materializeDate := timezone.NewDate(2026, time.April, 20) // Mon, "Week A"
 	s := makeScenario(t, activitiesModels.WeekdayMonday, materializeDate)
 	defer s.runCleanup(t)
@@ -635,6 +655,8 @@ func listInstancesForDate(tb testing.TB, db *bun.DB, templateID int64, date time
 // -----------------------------------------------------------------------------
 
 func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
+	t.Parallel()
+
 	firstMonday := timezone.NewDate(2026, time.April, 20) // Mon
 	secondMonday := firstMonday.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)
@@ -681,6 +703,8 @@ func TestMaterializeForTenant_ScheduleValidUntil_SkipsEndedDates(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestMaterializeForTenant_ScheduleValidFrom_SkipsNotStartedDates(t *testing.T) {
+	t.Parallel()
+
 	firstMonday := timezone.NewDate(2026, time.April, 20) // Mon
 	secondMonday := firstMonday.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, firstMonday)

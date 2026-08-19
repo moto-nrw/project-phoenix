@@ -89,6 +89,8 @@ func seedDeviatedOccurrence(t *testing.T, s *scenarioSetup, date timezone.Date) 
 // leave their substitute behind as an extra supervisor on the regenerated
 // block.
 func TestInstance_ReplanWeek_DropsOrphanedSubstituteWhenAbsentStaffRemoved(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -119,6 +121,8 @@ func TestInstance_ReplanWeek_DropsOrphanedSubstituteWhenAbsentStaffRemoved(t *te
 // counterpart: when the absent employee stays on the template, the absence is
 // reapplied and the substitute is recreated.
 func TestInstance_ReplanWeek_ReapplySubstituteWhenAbsenceRestored(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -155,6 +159,8 @@ func TestInstance_ReplanWeek_ReapplySubstituteWhenAbsenceRestored(t *testing.T) 
 // the removed position's substitute as an orphaned extra supervisor and overstaff
 // the block. The recreate must be capped at the number of surviving absences.
 func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -223,6 +229,8 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 // counting snapshots (rather than the original occurrence cardinality) would have
 // misread this day as "sole" and moved the override.
 func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -309,6 +317,8 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 // copied onto materialized rows, so template-level edits keep propagating
 // while a non-NULL instance value is always a deliberate pin.
 func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)

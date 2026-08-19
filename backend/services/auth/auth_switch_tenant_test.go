@@ -12,6 +12,8 @@ import (
 )
 
 func TestAuthService_SwitchTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
@@ -133,6 +135,8 @@ func TestAuthService_SwitchTenant(t *testing.T) {
 // proper logout, the old user's refresh tokens are invalidated and a different
 // user can switch tenants cleanly.
 func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
@@ -184,6 +188,8 @@ func TestLogoutInvalidatesTokensBeforeTenantSwitch(t *testing.T) {
 // TestLogoutInvalidatesRefreshToken verifies that after logout, the refresh
 // token used to authenticate is invalidated and cannot be reused.
 func TestLogoutInvalidatesRefreshToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)

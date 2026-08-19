@@ -107,6 +107,8 @@ func runAsAdmin(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) er
 // --- ListByAccount ----------------------------------------------------
 
 func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := parentRepo.NewChildRepository(db)
 
@@ -119,8 +121,10 @@ func TestChildRepository_ListByAccount_RejectsNonPositive(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-happy")
@@ -158,10 +162,12 @@ func TestChildRepository_ListByAccount_HappyPath(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
+	t.Parallel()
+
 	// A parent who lost access to a school (account_tenants.status !=
 	// 'active') MUST NOT continue to see its children.
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-inactive")
@@ -196,8 +202,10 @@ func TestChildRepository_ListByAccount_FiltersInactiveMembership(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-noportal")
@@ -227,9 +235,11 @@ func TestChildRepository_ListByAccount_FiltersMissingPortalAccess(t *testing.T) 
 }
 
 func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
+	t.Parallel()
+
 	// Soft-deleted persons (deleted_at IS NOT NULL) must be excluded.
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-softdel")
@@ -264,6 +274,8 @@ func TestChildRepository_ListByAccount_FiltersSoftDeletedPerson(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
+	t.Parallel()
+
 	// One account → two children at two different tenants. Both rows
 	// must come back in a single call (cross-tenant join via
 	// account_tenants).
@@ -313,10 +325,12 @@ func TestChildRepository_ListByAccount_CrossTenant(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
+	t.Parallel()
+
 	// Result ordering is school_name ASC, first_name ASC, last_name
 	// ASC. Verify with two children at the same school.
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-order")
@@ -355,6 +369,8 @@ func TestChildRepository_ListByAccount_OrdersBySchoolThenName(t *testing.T) {
 }
 
 func TestChildRepository_ListByAccount_UnknownAccountEmpty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := parentRepo.NewChildRepository(db)
 
@@ -384,6 +400,8 @@ func findChild(t *testing.T, db *bun.DB, accountID, studentID int64) *parentMode
 }
 
 func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := parentRepo.NewChildRepository(db)
 
@@ -394,8 +412,10 @@ func TestChildRepository_FindForAccount_RejectsNonPositive(t *testing.T) {
 }
 
 func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "find-owned")
@@ -417,8 +437,10 @@ func TestChildRepository_FindForAccount_OwnedChild(t *testing.T) {
 }
 
 func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "find-notlinked")
@@ -443,8 +465,10 @@ func TestChildRepository_FindForAccount_NotLinkedReturnsNil(t *testing.T) {
 }
 
 func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "find-inactive")
@@ -474,8 +498,10 @@ func TestChildRepository_FindForAccount_InactiveMappingReturnsNil(t *testing.T) 
 // because FindForAccount is the authorization gate for every per-child parent
 // write (#405 review).
 func TestChildRepository_AlumnusChildIsHiddenAndUnwritable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "parentchild-alumnus")

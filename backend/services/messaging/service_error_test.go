@@ -128,6 +128,8 @@ func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentM
 func errCtx(tb testing.TB) context.Context { return adminCtx(tb, 1) }
 
 func TestListInbox_RepoErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{inboxErr: errBoom})
 	_, err := svc.ListInbox(errCtx(t), false)
 	require.Error(t, err)
@@ -135,6 +137,8 @@ func TestListInbox_RepoErrorPropagates(t *testing.T) {
 }
 
 func TestUnreadMessageCount_RepoErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{unreadErr: errBoom})
 	_, err := svc.UnreadMessageCount(errCtx(t))
 	require.Error(t, err)
@@ -142,6 +146,8 @@ func TestUnreadMessageCount_RepoErrorPropagates(t *testing.T) {
 }
 
 func TestGetThread_FindThreadErrorIsServerFaultNotNotFound(t *testing.T) {
+	t.Parallel()
+
 	// A transient FindByID failure must be a server error, NOT ErrThreadNotFound
 	// (which would wrongly tell the client the thread does not exist).
 	svc := errSvc(&fakeThreadRepo{findErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
@@ -151,6 +157,8 @@ func TestGetThread_FindThreadErrorIsServerFaultNotNotFound(t *testing.T) {
 }
 
 func TestGetThread_ListMessagesErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	tr := &fakeThreadRepo{thread: &usersModels.ParentMessageThread{StudentID: 7}}
 	tr.thread.ID = 5
 	svc := errSvc(tr, &fakeMessageRepo{listErr: errBoom}, &fakeReadRepo{})
@@ -160,6 +168,8 @@ func TestGetThread_ListMessagesErrorPropagates(t *testing.T) {
 }
 
 func TestListStudentThreads_RepoErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	svc := errSvc(&fakeThreadRepo{}, &fakeMessageRepo{}, &fakeReadRepo{studentErr: errBoom})
 	_, err := svc.ListStudentThreads(errCtx(t), 7)
 	require.Error(t, err)
@@ -167,6 +177,8 @@ func TestListStudentThreads_RepoErrorPropagates(t *testing.T) {
 }
 
 func TestListGuardians_RepoErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	svc := errSvc(&fakeThreadRepo{listGuardiansErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
 	_, err := svc.ListGuardians(errCtx(t), 7)
 	require.Error(t, err)
@@ -174,6 +186,8 @@ func TestListGuardians_RepoErrorPropagates(t *testing.T) {
 }
 
 func TestStartThread_GuardianLookupErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	// authorizeThreadParticipants → ListGuardiansForStudent fails → server error,
 	// not ErrInvalidGuardian (which would wrongly imply the recipient is invalid).
 	svc := errSvc(&fakeThreadRepo{listGuardiansErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
@@ -183,6 +197,8 @@ func TestStartThread_GuardianLookupErrorPropagates(t *testing.T) {
 }
 
 func TestStartThread_GetOrCreateErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	tr := &fakeThreadRepo{
 		guardians:      []*usersModels.MessageableGuardian{{AccountID: 2}},
 		getOrCreateErr: errBoom,
@@ -194,6 +210,8 @@ func TestStartThread_GetOrCreateErrorPropagates(t *testing.T) {
 }
 
 func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
+	t.Parallel()
+
 	// A failed message insert must surface an error AND must not have fired the SSE
 	// fan-out (which would wake clients for a message that never persisted).
 	tr := &fakeThreadRepo{

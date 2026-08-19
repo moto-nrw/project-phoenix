@@ -20,6 +20,8 @@ func cleanupClassTeacherRecords(t *testing.T, db *bun.DB, ids ...int64) {
 }
 
 func TestClassTeacherRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ClassTeacher
@@ -58,6 +60,8 @@ func TestClassTeacherRepository_Create(t *testing.T) {
 }
 
 func TestClassTeacherRepository_FindByStaff(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ClassTeacher
@@ -81,6 +85,8 @@ func TestClassTeacherRepository_FindByStaff(t *testing.T) {
 }
 
 func TestClassTeacherRepository_DeleteByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ClassTeacher

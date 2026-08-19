@@ -76,6 +76,8 @@ func cleanupClassListEntriesByName(t *testing.T, db *bun.DB, names [][2]string) 
 // while leaving pre-existing and newly created entries untouched (#2399
 // review blocker).
 func TestGradeTransitionService_Apply_RemapsClassListEntries(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
@@ -142,6 +144,8 @@ func TestGradeTransitionService_Apply_RemapsClassListEntries(t *testing.T) {
 // removed: the ledger replay must not resurrect the child under the
 // pre-transition class name.
 func TestGradeTransitionService_Revert_KeepsAdminDeletedEntriesDeleted(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
@@ -188,6 +192,8 @@ func TestGradeTransitionService_Revert_KeepsAdminDeletedEntriesDeleted(t *testin
 // under that name and class in the meantime — either way the child already
 // has exactly one row on the class list.
 func TestGradeTransitionService_Revert_SkipsCollidingRestores(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
@@ -241,6 +247,8 @@ func TestGradeTransitionService_Revert_SkipsCollidingRestores(t *testing.T) {
 // attached to the old class name, and the revert must restore its original
 // display form (#2399 review round 9).
 func TestGradeTransitionService_Apply_RemapsCaseDivergentEntryClass(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
@@ -285,6 +293,8 @@ func TestGradeTransitionService_Apply_RemapsCaseDivergentEntryClass(t *testing.T
 // change is not mistaken for the untouched transition row and replayed over
 // (#2399 review round 11).
 func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 
@@ -332,6 +342,8 @@ func TestGradeTransitionService_Revert_KeepsAdminEditedCreatedEntry(t *testing.T
 // A transition over classes without any entries writes no ledger — apply and
 // revert both no-op cleanly.
 func TestGradeTransitionService_ClassListEntries_NoEntriesNoLedger(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupClassListEntryTransitionTest(t)
 	defer cleanup()
 

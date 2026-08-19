@@ -137,6 +137,8 @@ func requireDeviationErr(t *testing.T, err error) *scheduleSvc.DeviationError {
 }
 
 func TestMoveStaffBetweenBlocks_RelocatesRowAndLogsEvent(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	roomOverride := s.roomID
@@ -184,6 +186,8 @@ func TestMoveStaffBetweenBlocks_RelocatesRowAndLogsEvent(t *testing.T) {
 }
 
 func TestMoveStaffBetweenBlocks_AssignFromPoolCreatesRow(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 
@@ -207,6 +211,8 @@ func TestMoveStaffBetweenBlocks_AssignFromPoolCreatesRow(t *testing.T) {
 }
 
 func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	// Already-moved state: on target, gone from source.
@@ -223,6 +229,8 @@ func TestMoveStaffBetweenBlocks_RetryIsIdempotent(t *testing.T) {
 }
 
 func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
@@ -369,6 +377,8 @@ func TestMoveStaffBetweenBlocks_ValidationFailures(t *testing.T) {
 }
 
 func TestMoveStaffBetweenBlocks_TargetAckClearedSourceAckKept(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	createMoveStaffRow(t, s, s.source.ID, s.staffID, nil)
@@ -395,6 +405,8 @@ func TestMoveStaffBetweenBlocks_TargetAckClearedSourceAckKept(t *testing.T) {
 }
 
 func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	sourceGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
@@ -501,6 +513,8 @@ func TestMoveStaffBetweenBlocks_ActiveBlocksSyncSupervisionAndAllowRoundTrip(t *
 // instance_staff row; the move must reuse that open supervision instead of
 // tripping the end_date IS NULL partial unique index with a second Create.
 func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	targetGroup := testpkg.CreateTestActiveGroupForTenant(t, s.db, s.tenantID)
@@ -554,6 +568,8 @@ func TestMoveStaffBetweenBlocks_ExistingOpenSupervisionIsReused(t *testing.T) {
 
 // Guard: a DeviationError must always be extractable for the handler mapping.
 func TestMoveStaffBetweenBlocks_PastDateRejected(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	past := &scheduleModels.ActivityInstance{

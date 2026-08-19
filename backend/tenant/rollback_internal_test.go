@@ -10,6 +10,8 @@ import (
 // TestRollbackMarker_Lifecycle covers the unexported marker plumbing that lets a
 // handler request a tx rollback even after rendering a non-5xx response.
 func TestRollbackMarker_Lifecycle(t *testing.T) {
+	t.Parallel()
+
 	t.Run("marker is added once and reused on re-wrap", func(t *testing.T) {
 		base := context.Background()
 		ctx1 := withRollbackMarker(base)

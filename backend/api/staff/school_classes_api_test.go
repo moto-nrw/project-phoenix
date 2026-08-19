@@ -15,6 +15,8 @@ import (
 )
 
 func TestSchoolClassesAPI(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "SchoolClasses", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	t.Cleanup(func() {
@@ -63,6 +65,8 @@ func TestSchoolClassesAPI(t *testing.T) {
 }
 
 func TestSchoolClassesAPI_UnknownStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	ghost := testpkg.CreateTestStaff(t, ctx.tc.db, "SchoolClasses", fmt.Sprintf("Ghost-%d", time.Now().UnixNano()))
 	ghostID := ghost.ID

@@ -41,6 +41,8 @@ func createSupervisor(t *testing.T, db *bun.DB, staffID, groupID int64, isPrimar
 // ============================================================================
 
 func TestSupervisorPlannedRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -86,6 +88,8 @@ func TestSupervisorPlannedRepository_Create(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -99,6 +103,8 @@ func TestSupervisorPlannedRepository_Create_WithNil(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -126,6 +132,8 @@ func TestSupervisorPlannedRepository_FindByID(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -151,6 +159,8 @@ func TestSupervisorPlannedRepository_Update(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -164,6 +174,8 @@ func TestSupervisorPlannedRepository_Update_WithNil(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -186,6 +198,8 @@ func TestSupervisorPlannedRepository_Delete(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -225,6 +239,7 @@ func TestSupervisorPlannedRepository_DeleteByStaffID(t *testing.T) {
 // ============================================================================
 
 func TestSupervisorPlannedRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -247,6 +262,8 @@ func TestSupervisorPlannedRepository_List(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
+	t.Parallel()
+
 	// Skip: FindByStaffID method tries to load Group relation which doesn't exist or has schema issues
 
 	db := testpkg.SetupTestDB(t)
@@ -291,6 +308,8 @@ func TestSupervisorPlannedRepository_FindByStaffID(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -345,6 +364,8 @@ func TestSupervisorPlannedRepository_FindByGroupID(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -396,6 +417,8 @@ func TestSupervisorPlannedRepository_FindByGroupIDs(t *testing.T) {
 }
 
 func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor
@@ -424,6 +447,8 @@ func TestSupervisorPlannedRepository_SetPrimary(t *testing.T) {
 // ============================================================================
 
 func TestSupervisorPlannedRepository_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivitySupervisor

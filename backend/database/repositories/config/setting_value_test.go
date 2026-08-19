@@ -22,6 +22,8 @@ func newSV(tb testing.TB, key string, value string) *config.SettingValue {
 }
 
 func TestSettingValueRepository_Upsert_Insert(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -38,6 +40,8 @@ func TestSettingValueRepository_Upsert_Insert(t *testing.T) {
 }
 
 func TestSettingValueRepository_Upsert_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -54,6 +58,8 @@ func TestSettingValueRepository_Upsert_Update(t *testing.T) {
 }
 
 func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -64,6 +70,8 @@ func TestSettingValueRepository_FindByTenantAndKey_NotFound(t *testing.T) {
 }
 
 func TestSettingValueRepository_FindByTenantAndKeys(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -92,6 +100,8 @@ func TestSettingValueRepository_FindByTenantAndKeys(t *testing.T) {
 }
 
 func TestSettingValueRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -107,6 +117,8 @@ func TestSettingValueRepository_Delete(t *testing.T) {
 }
 
 func TestSettingValueRepository_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingValueRepository(db)
 
@@ -159,6 +171,8 @@ func TestSettingValueRepository_TenantIsolation(t *testing.T) {
 }
 
 func TestSettingValueRepository_Validate_RejectsEmpty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingValueRepository(db)
 	ctx := testpkg.Ctx(t)

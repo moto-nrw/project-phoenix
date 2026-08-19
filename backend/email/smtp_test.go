@@ -162,6 +162,8 @@ func TestNewMailer_NoTemplates_ReturnsError(t *testing.T) {
 // =============================================================================
 
 func TestSMTPMailer_Send_UsesDefaultFrom(t *testing.T) {
+	t.Parallel()
+
 	// This test verifies the defaultFrom logic without actual SMTP connection
 	smtpMailer := &SMTPMailer{
 		defaultFrom: Email{
@@ -272,6 +274,8 @@ func TestParseTemplates_MultipleTemplates(t *testing.T) {
 // =============================================================================
 
 func TestMessage_Parse_RequiresTemplates(t *testing.T) {
+	t.Parallel()
+
 	// This test documents that parse() requires templates to be initialized
 	// The current implementation panics if templates is nil,
 	// so we skip the actual parse call and just verify the setup

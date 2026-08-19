@@ -89,7 +89,7 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 	emailAddr := uniqueLoginEmail(t)
 	acc := testpkg.CreateTestAccountWithPassword(t, db, emailAddr, loginGatePassword)
 
-	const tenantID = int64(70010001)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
@@ -132,6 +132,8 @@ func (sc *loginGateScenario) setOverride(override string) {
 }
 
 func TestLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
+	t.Parallel()
+
 	sc := newLoginGateScenario(t, false)
 
 	result, err := sc.svc.LoginWithMFAGate(
@@ -148,6 +150,8 @@ func TestLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
 }
 
 func TestLoginWithMFAGate_MFANotRequired_ReturnsTokens(t *testing.T) {
+	t.Parallel()
+
 	sc := newLoginGateScenario(t, true)
 	sc.setOverride(auth.MFAAdminOverrideForceOff) // explicit "MFA off for this account"
 
@@ -165,6 +169,8 @@ func TestLoginWithMFAGate_MFANotRequired_ReturnsTokens(t *testing.T) {
 }
 
 func TestLoginWithMFAGate_MFARequiredNotEnrolled_IssuesEnrollmentToken(t *testing.T) {
+	t.Parallel()
+
 	// Post-#1430 review (Item #1) contract: unenrolled accounts on an
 	// mfa-required tenant get an ENROLLMENT-SCOPED JWT in AccessToken
 	// (not a full session) and NO refresh token. The previous design
@@ -192,6 +198,8 @@ func TestLoginWithMFAGate_MFARequiredNotEnrolled_IssuesEnrollmentToken(t *testin
 }
 
 func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) {
+	t.Parallel()
+
 	sc := newLoginGateScenario(t, true)
 	sc.setOverride(auth.MFAAdminOverrideForceOn)
 	require.NoError(t, sc.mfa.Enroll(context.Background(), sc.accountID),
@@ -212,6 +220,8 @@ func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) 
 }
 
 func TestLoginWithMFAGate_WrongPassword_ReturnsAuthError(t *testing.T) {
+	t.Parallel()
+
 	sc := newLoginGateScenario(t, false)
 
 	result, err := sc.svc.LoginWithMFAGate(

@@ -50,6 +50,8 @@ func setupGuardianService(t *testing.T, db *bun.DB) *users.GuardianService {
 // =============================================================================
 
 func TestGuardianService_CreateGuardian(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -134,6 +136,8 @@ func TestGuardianService_CreateGuardian(t *testing.T) {
 // the tenant-scoped UNIQUE(tenant_id, email) index fail the INSERT with a raw
 // 23505 that would surface as a generic 500 (#1513).
 func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -173,6 +177,8 @@ func TestGuardianService_CreateGuardian_DuplicateEmail(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetGuardianByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -210,6 +216,8 @@ func TestGuardianService_GetGuardianByID(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_UpdateGuardian(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -310,6 +318,8 @@ func TestGuardianService_UpdateGuardian(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_DeleteGuardian(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -362,6 +372,8 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -407,6 +419,8 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 }
 
 func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -442,6 +456,8 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 // =============================================================================
 
 func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -656,6 +672,8 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetStudentGuardians(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -744,6 +762,8 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetGuardianStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -816,6 +836,8 @@ func TestGuardianService_GetGuardianStudents(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -860,6 +882,8 @@ func TestGuardianService_GetStudentGuardianRelationship(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1021,6 +1045,8 @@ func validNewStudentGuardian(email string) users.NewStudentGuardian {
 }
 
 func TestGuardianService_ValidateNewGuardians(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1145,6 +1171,8 @@ func TestGuardianService_ValidateNewGuardians(t *testing.T) {
 }
 
 func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1226,6 +1254,8 @@ func TestGuardianService_AddGuardiansToStudent(t *testing.T) {
 }
 
 func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1289,6 +1319,8 @@ func TestGuardianService_SearchGuardiansForPicker(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1339,6 +1371,8 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_ListGuardians(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1364,6 +1398,8 @@ func TestGuardianService_ListGuardians(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1397,6 +1433,8 @@ func TestGuardianService_GetGuardiansWithoutAccount(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetInvitableGuardians(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1422,6 +1460,8 @@ func TestGuardianService_GetInvitableGuardians(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetPendingInvitations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	mailer := testpkg.NewCapturingMailer()
@@ -1472,6 +1512,8 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1524,6 +1566,8 @@ func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer)
 }
 
 func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	mailer := testpkg.NewCapturingMailer()
@@ -1572,6 +1616,8 @@ func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
 }
 
 func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1592,6 +1638,8 @@ func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
 }
 
 func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1622,6 +1670,8 @@ func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
 }
 
 func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	mailer := testpkg.NewCapturingMailer()
@@ -1669,6 +1719,8 @@ func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	mailer := testpkg.NewCapturingMailer()
@@ -1713,6 +1765,8 @@ func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
 }
 
 func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1737,6 +1791,8 @@ func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
 }
 
 func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	mailer := testpkg.NewCapturingMailer()
@@ -1787,6 +1843,8 @@ func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing
 // =============================================================================
 
 func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1902,6 +1960,8 @@ func TestGuardianService_AddPhoneNumber_Success(t *testing.T) {
 }
 
 func TestGuardianService_AddPhoneNumber_Errors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -1929,6 +1989,8 @@ func TestGuardianService_AddPhoneNumber_Errors(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2066,6 +2128,8 @@ func TestGuardianService_UpdatePhoneNumber_Success(t *testing.T) {
 }
 
 func TestGuardianService_UpdatePhoneNumber_Errors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2092,6 +2156,8 @@ func TestGuardianService_UpdatePhoneNumber_Errors(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2191,6 +2257,8 @@ func TestGuardianService_DeletePhoneNumber_Success(t *testing.T) {
 }
 
 func TestGuardianService_DeletePhoneNumber_Errors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2211,6 +2279,8 @@ func TestGuardianService_DeletePhoneNumber_Errors(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2252,6 +2322,8 @@ func TestGuardianService_SetPrimaryPhone_Success(t *testing.T) {
 }
 
 func TestGuardianService_SetPrimaryPhone_Errors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2272,6 +2344,8 @@ func TestGuardianService_SetPrimaryPhone_Errors(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2337,6 +2411,8 @@ func TestGuardianService_GetGuardianPhoneNumbers_Success(t *testing.T) {
 // =============================================================================
 
 func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2369,6 +2445,8 @@ func TestGuardianService_GetPhoneNumberByID_Success(t *testing.T) {
 }
 
 func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2385,6 +2463,8 @@ func TestGuardianService_GetPhoneNumberByID_Errors(t *testing.T) {
 }
 
 func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -2445,6 +2525,8 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 // LockByIDForUpdate calls and that writer races straight through, so a staff
 // edit could clobber or lose a concurrent parent contact save.
 func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupGuardianService(t, db)
@@ -2530,6 +2612,8 @@ func TestGuardianService_ContactWritersShareProfileLock(t *testing.T) {
 // only for an open invitation anchored to this child (a pending-approval
 // role-upgrade request) — never for a sibling's invite.
 func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)

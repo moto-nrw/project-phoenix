@@ -197,6 +197,8 @@ func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, even
 }
 
 func TestSickCascade_MarkSickForRange(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
@@ -313,6 +315,8 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 }
 
 func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	yesterday := timezone.TodayDate().AddDays(-1)
 	tomorrow := timezone.TodayDate().AddDays(1)
@@ -361,6 +365,8 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 }
 
 func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	syncer := scheduleSvc.NewShiftPlanSyncService(
@@ -405,6 +411,8 @@ func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
 }
 
 func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 
@@ -456,6 +464,8 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 }
 
 func TestSickCascade_HalfDayRules(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
@@ -498,6 +508,8 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 }
 
 func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	dayOne := timezone.TodayDate().AddDays(1)
 	dayTwo := dayOne.AddDays(1)
@@ -559,6 +571,8 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 }
 
 func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	oldDay := timezone.TodayDate().AddDays(1)
 	newDay := oldDay.AddDays(1)
@@ -591,6 +605,8 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 }
 
 func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	absenceID := e.createSickAbsence(t, day, day)
@@ -648,6 +664,8 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 }
 
 func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
@@ -707,6 +725,8 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 }
 
 func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
@@ -778,6 +798,8 @@ func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end timezone.Dat
 }
 
 func TestSickCascade_ClearSickForRange(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
@@ -873,6 +895,8 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 }
 
 func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	shift := e.createShift(t, e.subject.ID, day, "08:00", "12:00", nil)
@@ -909,6 +933,8 @@ func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *test
 }
 
 func TestSickCascade_ReassignSickStamps(t *testing.T) {
+	t.Parallel()
+
 	e := buildSickCascadeEnv(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
 

@@ -20,6 +20,8 @@ import (
 // createTestOperator helper from announcement_repository_test.go so the
 // platform_test package keeps a single operator-fixture shape.
 func TestOperatorMFARepositoriesSmoke(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()

@@ -17,6 +17,8 @@ import (
 // ============================================================================
 
 func TestDeviceRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -54,6 +56,8 @@ func TestDeviceRepository_Create(t *testing.T) {
 }
 
 func TestDeviceRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -75,6 +79,8 @@ func TestDeviceRepository_FindByID(t *testing.T) {
 }
 
 func TestDeviceRepository_FindByDeviceID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -96,6 +102,8 @@ func TestDeviceRepository_FindByDeviceID(t *testing.T) {
 }
 
 func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
@@ -128,6 +136,8 @@ func TestDeviceRepository_ArchivedDevicesAreHistoricalOnly(t *testing.T) {
 }
 
 func TestDeviceRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -148,6 +158,8 @@ func TestDeviceRepository_Update(t *testing.T) {
 }
 
 func TestDeviceRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -169,6 +181,8 @@ func TestDeviceRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestDeviceRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -185,6 +199,8 @@ func TestDeviceRepository_List(t *testing.T) {
 }
 
 func TestDeviceRepository_FindByStatus_Active(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -219,6 +235,8 @@ func TestDeviceRepository_FindByStatus_Active(t *testing.T) {
 // ============================================================================
 
 func TestDeviceRepository_Create_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -254,6 +272,8 @@ func TestDeviceRepository_Create_Validation(t *testing.T) {
 }
 
 func TestDeviceRepository_Update_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -271,6 +291,8 @@ func TestDeviceRepository_Update_Validation(t *testing.T) {
 // ============================================================================
 
 func TestDeviceRepository_FindByAPIKey(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -303,6 +325,8 @@ func TestDeviceRepository_FindByAPIKey(t *testing.T) {
 }
 
 func TestDeviceRepository_FindByType(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -342,6 +366,8 @@ func TestDeviceRepository_FindByType(t *testing.T) {
 }
 
 func TestDeviceRepository_FindByStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -374,6 +400,8 @@ func TestDeviceRepository_FindByStatus(t *testing.T) {
 }
 
 func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -422,6 +450,8 @@ func TestDeviceRepository_FindByRegisteredBy(t *testing.T) {
 // ============================================================================
 
 func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -443,6 +473,8 @@ func TestDeviceRepository_UpdateLastSeen(t *testing.T) {
 }
 
 func TestDeviceRepository_UpdateStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -478,6 +510,8 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 // ============================================================================
 
 func TestDeviceRepository_FindByStatus_Maintenance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -509,6 +543,8 @@ func TestDeviceRepository_FindByStatus_Maintenance(t *testing.T) {
 }
 
 func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -582,6 +618,8 @@ func TestDeviceRepository_FindOfflineDevices(t *testing.T) {
 }
 
 func TestDeviceRepository_CountDevicesByType(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -622,6 +660,8 @@ func TestDeviceRepository_CountDevicesByType(t *testing.T) {
 }
 
 func TestDeviceRepository_UpdateRoomID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device
@@ -698,6 +738,8 @@ func TestDeviceRepository_UpdateRoomID(t *testing.T) {
 // ============================================================================
 
 func TestDeviceRepository_List_WithFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Device

@@ -45,6 +45,8 @@ func createPickupServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 // =============================================================================
 
 func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -80,6 +82,8 @@ func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -115,6 +119,8 @@ func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) 
 }
 
 func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -176,6 +182,8 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 }
 
 func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -246,6 +254,8 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -275,6 +285,8 @@ func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -310,6 +322,8 @@ func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 // =============================================================================
 
 func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -382,6 +396,8 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 }
 
 func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
@@ -439,6 +455,8 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 }
 
 func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -469,6 +487,8 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -514,6 +534,8 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 }
 
 func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -546,6 +568,8 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 }
 
 func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -587,6 +611,8 @@ func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *test
 }
 
 func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -623,6 +649,8 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 }
 
 func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeChange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -668,6 +696,8 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 }
 
 func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnership(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -712,6 +742,8 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 }
 
 func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -770,6 +802,8 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -840,6 +874,8 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 // =============================================================================
 
 func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -876,6 +912,8 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1053,6 +1091,8 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1210,6 +1250,8 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 // =============================================================================
 
 func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1264,6 +1306,8 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1292,6 +1336,8 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1328,6 +1374,8 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1370,6 +1418,8 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 }
 
 func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1415,6 +1465,8 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1444,6 +1496,8 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1476,6 +1530,8 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 }
 
 func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
@@ -1522,6 +1578,8 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 }
 
 func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSelection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -1546,6 +1604,8 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSe
 // Production canUpdateStudent returns (false, err) on deny; that must map to
 // ErrBulkStudentUnauthorized (HTTP 403), not a bare authorize error (HTTP 500).
 func TestPickupScheduleService_BulkUpsertPickupSchedules_MapsAuthorizeErrorToUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupPickupScheduleService(t, db)
 	ctx := testpkg.Ctx(t)

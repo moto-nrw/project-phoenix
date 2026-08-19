@@ -12,6 +12,8 @@ import (
 )
 
 func TestStaffAbsenceAuditRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)

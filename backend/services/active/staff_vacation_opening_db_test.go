@@ -150,6 +150,8 @@ func (f *vacationOpeningFixture) set(remainingDays float64) (*activeModels.Staff
 // the admin enters the Resturlaub, the service stores the days taken before
 // the introduction, and the summary reproduces the entered Resturlaub.
 func TestSetVacationOpening_DerivesTakenBeforeFromQuota(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	opening, err := f.set(12.5)
@@ -189,6 +191,8 @@ func TestSetVacationOpening_DerivesTakenBeforeFromQuota(t *testing.T) {
 // member who already overdrew their vacation in the old system must be
 // representable — the takeover is signed on both ends.
 func TestSetVacationOpening_NegativeRemainingAllowsOverdrawnAccount(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	opening, err := f.set(-2)
@@ -205,6 +209,8 @@ func TestSetVacationOpening_NegativeRemainingAllowsOverdrawnAccount(t *testing.T
 // TestSetVacationOpening_RejectsSecondOpeningForSameYear pins the one-shot
 // rule: corrections are delete + re-create so the tombstone keeps the history.
 func TestSetVacationOpening_RejectsSecondOpeningForSameYear(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	_, err := f.set(10)
@@ -224,6 +230,8 @@ func TestSetVacationOpening_RejectsSecondOpeningForSameYear(t *testing.T) {
 // count: days already booked in-app before the Stichtag are also part of the
 // old system's Resturlaub figure.
 func TestSetVacationOpening_RejectsVacationAbsencesBeforeCutoff(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	// Must be a working day: a Saturday absence spends no quota and the guard
@@ -240,6 +248,8 @@ func TestSetVacationOpening_RejectsVacationAbsencesBeforeCutoff(t *testing.T) {
 }
 
 func TestSetVacationOpening_AllowsVacationBeginningOnWeekendBeforeCutoff(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 	for f.cutoff.Weekday() != time.Monday {
 		f.cutoff = f.cutoff.AddDays(-1)
@@ -257,6 +267,8 @@ func TestSetVacationOpening_AllowsVacationBeginningOnWeekendBeforeCutoff(t *test
 // TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences: only absences that
 // actually spend quota before the Stichtag block the takeover.
 func TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	before := f.cutoff.AddDays(-1)
@@ -285,6 +297,8 @@ func TestSetVacationOpening_IgnoresDeclinedAndLaterAbsences(t *testing.T) {
 // TestSetVacationOpening_RejectsOpenCutoff: the Stichtag needs a closed day,
 // otherwise today's bookings would be counted on both sides.
 func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	for _, effectiveDate := range []timezone.Date{
@@ -310,6 +324,8 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 // this already; the service must bound it too so the per-staff route cannot
 // bypass the restriction.
 func TestSetVacationOpening_RejectsPastVacationYear(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	lastYear := timezone.NewDate(timezone.TodayDate().Year-1, time.June, 10)
@@ -329,6 +345,8 @@ func TestSetVacationOpening_RejectsPastVacationYear(t *testing.T) {
 // TestSetVacationOpening_RequiresNote: the takeover row IS the audit record,
 // so it may not be booked anonymously.
 func TestSetVacationOpening_RequiresNote(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	_, err := f.svc.SetVacationOpening(f.ctx, f.staff.ID, f.admin.ID, active.SetVacationOpeningRequest{
@@ -342,6 +360,8 @@ func TestSetVacationOpening_RequiresNote(t *testing.T) {
 // TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary: the delete
 // removes the arithmetic but not the history.
 func TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	opening, err := f.set(12.5)
@@ -387,6 +407,8 @@ func TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary(t *testing.T) {
 // TestDeleteVacationOpening_MissingRowIsNotFound keeps the handler's 404
 // mapping honest.
 func TestDeleteVacationOpening_MissingRowIsNotFound(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	err := f.svc.DeleteVacationOpening(f.ctx, f.staff.ID, f.admin.ID, f.cutoff.Year)
@@ -396,6 +418,8 @@ func TestDeleteVacationOpening_MissingRowIsNotFound(t *testing.T) {
 // TestSetVacationOpening_RespectsCustomQuota: the takeover derives from the
 // stored Jahresanspruch, not from the 30/0 default.
 func TestSetVacationOpening_RespectsCustomQuota(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 
 	require.NoError(t, f.svc.UpsertVacationQuota(f.ctx, f.staff.ID, f.cutoff.Year, 26, 4))
@@ -416,6 +440,8 @@ func TestSetVacationOpening_RespectsCustomQuota(t *testing.T) {
 // bun qualifies model columns with the singular struct alias, which the
 // plural table name does not match).
 func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
+	t.Parallel()
+
 	f := newVacationOpeningFixture(t)
 	repo := activeRepos.NewStaffVacationOpeningRepository(f.db)
 

@@ -93,6 +93,8 @@ func (s *payrollScenario) auditRows(t *testing.T, staffID int64) []*auditModels.
 }
 
 func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
+	t.Parallel()
+
 	s := newPayrollScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Nummer")
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
@@ -137,6 +139,8 @@ func TestUpdatePersonnelNumber_SetChangeClear(t *testing.T) {
 }
 
 func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T) {
+	t.Parallel()
+
 	s := newPayrollScenario(t)
 	first := testpkg.CreateTestStaff(t, s.db, "Payroll", "Erste")
 	second := testpkg.CreateTestStaff(t, s.db, "Payroll", "Zweite")
@@ -166,6 +170,8 @@ func TestUpdatePersonnelNumber_DuplicateIsConflictAndLeavesNoAudit(t *testing.T)
 }
 
 func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
+	t.Parallel()
+
 	s := newPayrollScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Parallel")
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
@@ -257,6 +263,8 @@ func TestUpdatePersonnelNumber_SerializesConcurrentAuditValues(t *testing.T) {
 }
 
 func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T) {
+	t.Parallel()
+
 	s := newPayrollScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Stale")
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
@@ -285,6 +293,8 @@ func TestUpdateStaffWithTeacher_PreservesConcurrentPersonnelNumber(t *testing.T)
 }
 
 func TestUpdatePersonnelNumber_Validation(t *testing.T) {
+	t.Parallel()
+
 	s := newPayrollScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Valid")
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "Aktor")
@@ -306,6 +316,8 @@ func TestUpdatePersonnelNumber_Validation(t *testing.T) {
 }
 
 func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
+	t.Parallel()
+
 	s := newPayrollScenario(t)
 	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Feed")
 	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "FeedAktor")

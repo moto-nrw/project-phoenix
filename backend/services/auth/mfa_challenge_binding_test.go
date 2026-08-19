@@ -40,6 +40,8 @@ func seedChallenge(t *testing.T, repo authmodel.MFAEmailChallengeRepository, acc
 }
 
 func TestStartChallenge_TokenCarriesItsChallengeID(t *testing.T) {
+	t.Parallel()
+
 	svc, repos, accID := newExtraMFAService(t)
 	ctx := context.Background()
 	require.NoError(t, svc.Enroll(ctx, accID))
@@ -59,6 +61,8 @@ func TestStartChallenge_TokenCarriesItsChallengeID(t *testing.T) {
 }
 
 func TestVerifyChallenge_RedeemsOnlyTheNamedChallenge(t *testing.T) {
+	t.Parallel()
+
 	svc, repos, accID := newExtraMFAService(t)
 	ctx := context.Background()
 
@@ -97,6 +101,8 @@ func TestVerifyChallenge_RedeemsOnlyTheNamedChallenge(t *testing.T) {
 }
 
 func TestVerifyChallenge_TokenWithoutChallengeID_Refused(t *testing.T) {
+	t.Parallel()
+
 	// Tokens minted before the binding existed carry no challenge_id. They are
 	// refused rather than falling back to the ambiguous lookup — the challenge
 	// TTL is 5 minutes, so the whole cost is one re-login inside the deploy
@@ -125,6 +131,8 @@ func TestVerifyChallenge_TokenWithoutChallengeID_Refused(t *testing.T) {
 }
 
 func TestResendChallengeForScope_ForeignScope_Refused(t *testing.T) {
+	t.Parallel()
+
 	// The scope guard the tenant and school resend endpoints both rely on: a
 	// challenge started for one portal must not be re-driven — and its
 	// 3-codes-per-15-minutes budget burned — through another portal's surface.
@@ -143,6 +151,8 @@ func TestResendChallengeForScope_ForeignScope_Refused(t *testing.T) {
 }
 
 func TestVerifyChallengeForOwner_ForeignChallengeRefusedAndLeftRedeemable(t *testing.T) {
+	t.Parallel()
+
 	// The school enrollment confirm arrives with TWO credentials: an
 	// enrollment token naming account + school, and a challenge token. When
 	// they disagree the request is refused either way — but the refusal must

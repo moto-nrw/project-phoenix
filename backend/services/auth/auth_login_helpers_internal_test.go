@@ -17,18 +17,24 @@ import (
 // --- isTokenFamilyConflict ---
 
 func TestIsTokenFamilyConflict_NilError(t *testing.T) {
+	t.Parallel()
+
 	s := &Service{}
 	assert.False(t, s.isTokenFamilyConflict(nil),
 		"nil error must never count as a family conflict")
 }
 
 func TestIsTokenFamilyConflict_UnrelatedError(t *testing.T) {
+	t.Parallel()
+
 	s := &Service{}
 	assert.False(t, s.isTokenFamilyConflict(errors.New("connection refused")),
 		"errors not naming the family-generation constraint must return false")
 }
 
 func TestIsTokenFamilyConflict_MatchingConstraintName(t *testing.T) {
+	t.Parallel()
+
 	s := &Service{}
 	// The helper does a plain substring match on the constraint name —
 	// concurrent inserts that violate auth.uk_tokens_family_generation
@@ -41,16 +47,22 @@ func TestIsTokenFamilyConflict_MatchingConstraintName(t *testing.T) {
 // --- isDuplicateKeyError ---
 
 func TestIsDuplicateKeyError_NilError(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, isDuplicateKeyError(nil))
 }
 
 func TestIsDuplicateKeyError_NonPGError(t *testing.T) {
+	t.Parallel()
+
 	// Plain Go error — not a wrapped pgdriver.Error, so the errors.As
 	// branch must report false.
 	assert.False(t, isDuplicateKeyError(errors.New("network down")))
 }
 
 func TestIsDuplicateKeyError_PGUniqueViolationDetected(t *testing.T) {
+	t.Parallel()
+
 	// pgdriver.Error is constructed by the driver — we can't easily build
 	// a real one from outside the package. Instead exercise the false
 	// branch with a different PG error code wrapped in a wrapper that

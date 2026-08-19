@@ -26,6 +26,8 @@ import (
 // --- sick reason normalization (pure) ---
 
 func TestNormalizeSickReason(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, strutil.TrimPtrToNil(nil), "nil stays nil")
 
 	blank := "   "
@@ -59,6 +61,8 @@ func staffNotesRouter(rs *Resource) chi.Router {
 }
 
 func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	router := staffNotesRouter(newStaffNotesResource(db))
 

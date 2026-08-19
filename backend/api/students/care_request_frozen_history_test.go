@@ -25,6 +25,8 @@ import (
 )
 
 func TestCareRequestHistory_ServesFrozenDecisionDiff(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)

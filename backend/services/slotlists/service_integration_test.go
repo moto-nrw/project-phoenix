@@ -140,6 +140,8 @@ func (failingSlotListSettings) HasTenantOverride(context.Context, string) (bool,
 func (failingSlotListSettings) LockSlotListCutoffPairShared(context.Context) error { return nil }
 
 func TestSlotListEntryPointsRejectDisabledTimetable(t *testing.T) {
+	t.Parallel()
+
 	svc := slotlists.NewService(slotlists.Dependencies{
 		Settings: disabledTimetableSlotListSettings{
 			stubSlotListSettings: stubSlotListSettings{},
@@ -347,6 +349,8 @@ func rowByStudent(rows []slotlists.Row, studentID int64) *slotlists.Row {
 }
 
 func TestBuildList_MensaReconciliation(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -387,6 +391,8 @@ func TestBuildList_MensaReconciliation(t *testing.T) {
 // inflate the present counter (#1565 review pass 12 / P1). Without the manual
 // override in the merge this test fails: the visit forces Present=true.
 func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -467,6 +473,8 @@ func TestBuildList_ManualAbsenceOverridesStaleVisit(t *testing.T) {
 // (#1565 review pass 2). The instance window is 11:30–13:00 but the visit runs
 // 13:30–14:00 — wholly after the planned end, as for a late start.
 func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -548,6 +556,8 @@ func TestBuildList_VisitOutsideNominalWindowCountsPresent(t *testing.T) {
 // old occurrence still carries its active-group bridge/visits and when a stale
 // client submits the cancelled ID directly.
 func TestBuildList_CancelledInstanceExcluded(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -604,6 +614,8 @@ func TestBuildList_CancelledInstanceExcluded(t *testing.T) {
 // boundary for an occurrence with conflicting historical visit/manual roster
 // evidence: no evidence from a cancelled slot may leak into the list.
 func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -673,6 +685,8 @@ func TestBuildList_CancelledManualAttendanceExcluded(t *testing.T) {
 }
 
 func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -742,6 +756,8 @@ func TestBuildList_ListKindRestrictsSlots(t *testing.T) {
 // guardian) reads none of them — a slot list must never become the back door
 // around the per-child gate.
 func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -806,6 +822,8 @@ func TestBuildList_StaffReadsEveryStudentRow(t *testing.T) {
 }
 
 func TestBuildList_SlotFilter(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -855,6 +873,8 @@ func TestBuildList_SlotFilter(t *testing.T) {
 }
 
 func TestBuildList_ClassFilterAndOptions(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -882,6 +902,8 @@ func TestBuildList_ClassFilterAndOptions(t *testing.T) {
 }
 
 func TestBuildList_MensaPlannedAndActualModes(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -907,6 +929,8 @@ func TestBuildList_MensaPlannedAndActualModes(t *testing.T) {
 }
 
 func TestBuildList_TimetablePresentStatusCountsAsActual(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -958,6 +982,8 @@ func TestBuildList_TimetablePresentStatusCountsAsActual(t *testing.T) {
 }
 
 func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 	roomErr := errors.New("room repository unavailable")
@@ -976,6 +1002,8 @@ func TestBuildList_RoomLookupErrorsFail(t *testing.T) {
 }
 
 func TestBuildList_FullDayPickupCohorts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1030,6 +1058,8 @@ func TestBuildList_FullDayPickupCohorts(t *testing.T) {
 }
 
 func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1089,6 +1119,8 @@ func TestBuildList_FullDayPickupCohortsUseTenantCutoffs(t *testing.T) {
 }
 
 func TestBuildList_FullDayPickupCutoffsNormalizeBeforeComparison(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1117,6 +1149,8 @@ func TestBuildList_FullDayPickupCutoffsNormalizeBeforeComparison(t *testing.T) {
 }
 
 func TestBuildList_FullDayPickupSettingsErrorsFail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := newTestServiceWithSettingsReader(db, failingSlotListSettings{})
@@ -1134,6 +1168,8 @@ func TestBuildList_FullDayPickupSettingsErrorsFail(t *testing.T) {
 // TestBuildList_GroupByClass verifies grouping stamps a section heading on
 // every row and rejects a grouping that doesn't fit the target.
 func TestBuildList_GroupByClass(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -1175,6 +1211,8 @@ func TestBuildList_GroupByClass(t *testing.T) {
 // long-day child would flood the short-day Abgleich on an ordinary school day
 // (#1565 review pass 2 P1).
 func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1262,6 +1300,8 @@ func TestBuildList_FullDayActualScopedToCohort(t *testing.T) {
 // "Abgemeldet" status. Lifecycle no-shows (status=absent without substatus)
 // stay in the unexplained "Fehlt" counter.
 func TestBuildList_ExcusedAbsence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1355,6 +1395,8 @@ func TestBuildList_ExcusedAbsence(t *testing.T) {
 // current status, or the no-show is mislabelled as unexplained "Fehlt" (#1565
 // review).
 func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1424,6 +1466,8 @@ func TestBuildList_CancelledCareDayCompletedNoShowStaysAbgemeldet(t *testing.T) 
 }
 
 func TestRenderList_PDFSmoke(t *testing.T) {
+	t.Parallel()
+
 	f := buildMensaFixture(t)
 	ctx := testpkg.Ctx(t)
 
@@ -1443,6 +1487,8 @@ func TestRenderList_PDFSmoke(t *testing.T) {
 // child who left early (or was never expected after the cutoff) is labelled
 // "Fehlt" and inflates the missing counter.
 func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1515,6 +1561,8 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 // "Fehlt" — a pickup cohort has no instance_students row to carry the
 // sign-off, so the day status is the only absence evidence (#1565 review).
 func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1573,6 +1621,8 @@ func TestBuildList_PickupReconciliationMarksStatusDayAsExcused(t *testing.T) {
 // already past on the same list stays a genuine missing child (#1565 review
 // pass 1).
 func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -1655,6 +1705,8 @@ func TestBuildList_PickupReconciliationDefersNotYetArrivedChild(t *testing.T) {
 // (mark it cancelled anyway) — both would otherwise lose the sign-off (#1565
 // review).
 func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing.T) {
+	t.Parallel()
+
 	weekday := int(pickupDate.Weekday())
 
 	cases := []struct {
@@ -1731,6 +1783,8 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 // cohort as a planned / "Fehlt" child, and must not inflate options
 // availability (#1565 review).
 func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -1786,6 +1840,8 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 // schedule has no history — so BuildList refuses it (#1565 review). Slot-based
 // lists stay available for the same past date.
 func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	svc := newTestService(db)
@@ -1827,6 +1883,8 @@ func TestBuildList_PickupCohortRejectsPastDate(t *testing.T) {
 // today, and a pending child whose enrollment has already started is included
 // (#1565 review).
 func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -1896,6 +1954,8 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 // time must still be counted in the options availability (via the regular
 // weekly bucket), matching what the preview/export show (#1565 review).
 func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -1956,6 +2016,8 @@ func TestListOptions_CancelledCareDayCountedInCohort(t *testing.T) {
 // unexplained "Fehlt". An enrolled planned-absent child still shows as Fehlt
 // (#1565 review).
 func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -2029,6 +2091,8 @@ func TestBuildList_SlotListDropsPlannedRowForEndedEnrollment(t *testing.T) {
 // live care-day verdict and drop the unbooked child instead of reporting it as
 // planned and, in the Abgleich, as "Fehlt".
 func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -2124,6 +2188,8 @@ func TestBuildList_SlotListDropsPlannedRowForUnbookedCareDay(t *testing.T) {
 // service must key on the raw not_scheduled care-day verdict — exactly as it does
 // for a signed-off (cancelled) child who attends anyway.
 func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -2225,6 +2291,8 @@ func TestBuildList_SlotListUnbookedButPresentIsUnplanned(t *testing.T) {
 // slot stays "Abgemeldet" and MUST still count, so the fix must discriminate by
 // the row's present status, not blanket-drop every cancellation.
 func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -2336,6 +2404,8 @@ func TestListOptions_CancelledCareDayAttendedExcludedFromPlannedCount(t *testing
 // matches preview/export. A cancelled no-show with neither a visit nor a Present
 // status still counts as the Abgemeldet row it prints as.
 func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -2454,6 +2524,8 @@ func TestListOptions_CancelledCareDayAttendedViaVisitOnlyExcludedFromPlannedCoun
 // still-expected unbooked row, not printed as a planned "Fehlt"/"Abgemeldet"
 // child the plan never expected (#1565 review).
 func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -2560,6 +2632,8 @@ func TestBuildList_SlotListDropsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
 // nicht", CareDayCancelled) child on the same deferred slot must still survive as
 // "Abgemeldet", proving the guard is surgical (#1565 review pass 10).
 func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2673,6 +2747,8 @@ func TestBuildList_SlotReconciliationDropsUnbookedStatusDayAbsenceBeforeStart(t 
 // them too — otherwise the list-kind availability underreports what the
 // preview/export render (#1565 review).
 func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -2765,6 +2841,8 @@ func TestListOptions_CancelledCareDayCountedInSlotList(t *testing.T) {
 // from the merge rather than reported as a group of missing ("Fehlt") children.
 // A slot whose start has already passed still reconciles normally.
 func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2878,6 +2956,8 @@ func TestBuildList_SlotReconciliationExcludesNotYetStartedSlot(t *testing.T) {
 // count it as Excused, mirroring the pickup-cohort reconciliation, instead of
 // discarding the row until the slot's start (#1565 review pass 1 P2).
 func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -2966,6 +3046,8 @@ func TestBuildList_SlotReconciliationKeepsRegisteredAbsenceBeforeStart(t *testin
 // was signed off ("Kommt heute nicht") but who attends anyway is unplanned
 // presence ("Ungeplant anwesend"), never planned-and-present ("Anwesend").
 func TestBuildList_PickupReconciliationCancelledButPresentIsUnplanned(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()

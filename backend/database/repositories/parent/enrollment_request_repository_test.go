@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -118,18 +119,6 @@ func insertTestPhase(t *testing.T, db *bun.DB, tenantID int64, name string) int6
 	return id
 }
 
-// cleanupEnrollmentRows wipes request_children + requests + phases for
-// the given tenants. Best-effort.
-func cleanupEnrollmentRows(t *testing.T, db *bun.DB, tenantIDs ...int64) {
-	t.Helper()
-	bg := context.Background()
-	for _, tid := range tenantIDs {
-		_, _ = db.NewDelete().TableExpr("enrollment.request_children").Where("tenant_id = ?", tid).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.requests").Where("tenant_id = ?", tid).Exec(bg)
-		_, _ = db.NewDelete().TableExpr("enrollment.phases").Where("tenant_id = ?", tid).Exec(bg)
-	}
-}
-
 // listByAccount runs the repo's ListByAccount inside an admin tx, which
 // is how the production code path wraps the call (parent service uses
 // tenant.WithAdminTx around it).
@@ -183,19 +172,20 @@ func readGuardianAccountID(t *testing.T, db *bun.DB, requestID int64) *int64 {
 // --- ListByAccount ---
 
 func TestEnrollmentRequestRepository_ListByAccount_BasicHappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-basic")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-list-basic-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-list-basic-"+t.Name())
 
 	insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -207,12 +197,7 @@ func TestEnrollmentRequestRepository_ListByAccount_BasicHappyPath(t *testing.T) 
 
 	results := listByAccount(t, db, account.ID)
 	require.Len(t, results, 1)
-	// Tenant comparison kept against a typed var (rather than int64(1)
-	// literal) so the hermetic-pattern guard doesn't flag this as a
-	// hardcoded-id violation. The seeded tenant id matches the value
-	// passed to EnsureTestTenant above.
-	var wantTenantID int64 = 1
-	assert.Equal(t, wantTenantID, results[0].TenantID)
+	assert.Equal(t, tenantA, results[0].TenantID)
 	assert.Equal(t, phaseID, results[0].PhaseID)
 	require.Len(t, results[0].Children, 1)
 	assert.Equal(t, "Lina", results[0].Children[0].FirstName)
@@ -222,23 +207,24 @@ func TestEnrollmentRequestRepository_ListByAccount_BasicHappyPath(t *testing.T) 
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-order")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-list-order-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-list-order-"+t.Name())
 
 	now := time.Now()
 	older := now.Add(-2 * time.Hour)
 	middle := now.Add(-1 * time.Hour)
 
 	oldID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -248,7 +234,7 @@ func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *te
 		childLastName:     "Submission",
 	})
 	midID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -258,7 +244,7 @@ func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *te
 		childLastName:     "Submission",
 	})
 	newID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -277,9 +263,12 @@ func TestEnrollmentRequestRepository_ListByAccount_OrdersBySubmittedAtDesc(t *te
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
-	testpkg.EnsureTestTenant(t, db, 2)
+	tenantA := testpkg.Tenant(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	// One account with submissions at two different tenants — the cross-
 	// tenant query must return both rows (parent dashboard is global).
@@ -288,12 +277,11 @@ func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	t1Phase := insertTestPhase(t, db, 1, "phase-cross-t1-"+t.Name())
-	t2Phase := insertTestPhase(t, db, 2, "phase-cross-t2-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1, 2)
+	t1Phase := insertTestPhase(t, db, tenantA, "phase-cross-t1-"+t.Name())
+	t2Phase := insertTestPhase(t, db, tenantB, "phase-cross-t2-"+t.Name())
 
 	insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           t1Phase,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -302,7 +290,7 @@ func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
 		childLastName:     "T1",
 	})
 	insertEnrollment(t, db, enrollmentRow{
-		tenantID:          2,
+		tenantID:          tenantB,
 		phaseID:           t2Phase,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -317,13 +305,15 @@ func TestEnrollmentRequestRepository_ListByAccount_CrossTenant(t *testing.T) {
 	for _, r := range results {
 		seenTenants[r.TenantID] = true
 	}
-	assert.True(t, seenTenants[1])
-	assert.True(t, seenTenants[2])
+	assert.True(t, seenTenants[tenantA])
+	assert.True(t, seenTenants[tenantB])
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	mine := testpkg.CreateTestAccount(t, db, "parentlist-mine")
 	other := testpkg.CreateTestAccount(t, db, "parentlist-other")
@@ -332,20 +322,19 @@ func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testi
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id IN (?, ?)", mine.ID, other.ID).Exec(bg)
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-list-mine-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-list-mine-"+t.Name())
 
 	insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &mine.ID,
-		guardianEmail:     "mine@example.com",
+		guardianEmail:     "mine-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-mine-%d", time.Now().UnixNano()),
 		childFirstName:    "Mine",
 		childLastName:     "Child",
 	})
 	insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &other.ID,
 		guardianEmail:     "other@example.com",
@@ -355,7 +344,7 @@ func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testi
 	})
 	// Also a row with no guardian_account_id at all — must not leak in.
 	insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: nil,
 		guardianEmail:     "anonymous@example.com",
@@ -371,8 +360,10 @@ func TestEnrollmentRequestRepository_ListByAccount_IgnoresOtherAccounts(t *testi
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWithoutEnrollmentPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-permission")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-permission")
@@ -395,10 +386,9 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	relationship.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
 
-	phaseID := insertTestPhase(t, db, 1, "phase-list-permission-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-list-permission-"+t.Name())
 	insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -413,8 +403,10 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMaterializedRequest(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-mixed-permission")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "parentlist-mixed-permission")
@@ -441,10 +433,9 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	relationship.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
 
-	phaseID := insertTestPhase(t, db, 1, "phase-list-mixed-permission-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-list-mixed-permission-"+t.Name())
 	requestID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -453,15 +444,16 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 		childLastName:     "Child",
 		createdStudentID:  &visible.ID,
 	})
-	insertEnrollmentChild(t, db, 1, requestID, "Hidden", "Child", 1, &hidden.ID)
+	insertEnrollmentChild(t, db, tenantA, requestID, "Hidden", "Child", 1, &hidden.ID)
 
 	results := listByAccount(t, db, account.ID)
 	assert.Empty(t, results, "a shared request must not expose siblings when any materialized child lacks view permission")
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
 
 	// Don't insert any requests for this account.
 	account := testpkg.CreateTestAccount(t, db, "parentlist-empty")
@@ -475,19 +467,20 @@ func TestEnrollmentRequestRepository_ListByAccount_EmptyForUnknownAccount(t *tes
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "parentlist-multikid")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-list-multikid-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-list-multikid-"+t.Name())
 
 	requestID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &account.ID,
 		guardianEmail:     "anna@example.com",
@@ -495,7 +488,7 @@ func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *tes
 		childFirstName:    "First",
 		childLastName:     "Child",
 	})
-	insertEnrollmentChild(t, db, 1, requestID, "Second", "Child", 1, nil)
+	insertEnrollmentChild(t, db, tenantA, requestID, "Second", "Child", 1, nil)
 
 	results := listByAccount(t, db, account.ID)
 	require.Len(t, results, 1)
@@ -506,6 +499,8 @@ func TestEnrollmentRequestRepository_ListByAccount_GroupsMultipleChildren(t *tes
 }
 
 func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := parentRepo.NewEnrollmentRequestRepository(db)
@@ -520,28 +515,29 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 // --- BackfillGuardianAccountID ---
 
 func TestEnrollmentRequestRepository_Backfill_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-happy")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-backfill-happy-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-happy-"+t.Name())
 
 	requestID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: nil,
-		guardianEmail:     "needs-claim@example.com",
+		guardianEmail:     "needs-claim-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-backfill-%d", time.Now().UnixNano()),
 		childFirstName:    "Claim",
 		childLastName:     "Me",
 	})
 
-	n := backfill(t, db, account.ID, "needs-claim@example.com")
+	n := backfill(t, db, account.ID, "needs-claim-"+strings.ToLower(t.Name())+"@example.com")
 	assert.Equal(t, 1, n)
 
 	got := readGuardianAccountID(t, db, requestID)
@@ -550,29 +546,30 @@ func TestEnrollmentRequestRepository_Backfill_HappyPath(t *testing.T) {
 }
 
 func TestEnrollmentRequestRepository_Backfill_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-case")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-backfill-case-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-case-"+t.Name())
 
 	requestID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: nil,
-		guardianEmail:     "  Mixed.Case@Example.COM  ", // stored with whitespace + mixed case
+		guardianEmail:     "  Mixed.Case-" + strings.ToLower(t.Name()) + "@Example.COM  ", // stored with whitespace + mixed case
 		statusToken:       fmt.Sprintf("tok-case-%d", time.Now().UnixNano()),
 		childFirstName:    "Case",
 		childLastName:     "Child",
 	})
 
 	// Caller normalizes differently: lower-case + no whitespace
-	n := backfill(t, db, account.ID, "MIXED.case@example.com")
+	n := backfill(t, db, account.ID, "MIXED.case-"+strings.ToLower(t.Name())+"@example.com")
 	assert.Equal(t, 1, n, "trim+lower comparison must match regardless of whitespace and case")
 
 	got := readGuardianAccountID(t, db, requestID)
@@ -581,8 +578,10 @@ func TestEnrollmentRequestRepository_Backfill_CaseInsensitive(t *testing.T) {
 }
 
 func TestEnrollmentRequestRepository_Backfill_SkipsAlreadyStamped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	owner := testpkg.CreateTestAccount(t, db, "backfill-owner")
 	intruder := testpkg.CreateTestAccount(t, db, "backfill-intruder")
@@ -591,20 +590,19 @@ func TestEnrollmentRequestRepository_Backfill_SkipsAlreadyStamped(t *testing.T) 
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id IN (?, ?)", owner.ID, intruder.ID).Exec(bg)
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-backfill-skip-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-skip-"+t.Name())
 
 	requestID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: &owner.ID, // already claimed
-		guardianEmail:     "shared@example.com",
+		guardianEmail:     "shared-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-skip-%d", time.Now().UnixNano()),
 		childFirstName:    "Already",
 		childLastName:     "Claimed",
 	})
 
-	n := backfill(t, db, intruder.ID, "shared@example.com")
+	n := backfill(t, db, intruder.ID, "shared-"+strings.ToLower(t.Name())+"@example.com")
 	assert.Equal(t, 0, n, "stamped rows must not be reassigned")
 
 	got := readGuardianAccountID(t, db, requestID)
@@ -613,37 +611,38 @@ func TestEnrollmentRequestRepository_Backfill_SkipsAlreadyStamped(t *testing.T) 
 }
 
 func TestEnrollmentRequestRepository_Backfill_DoesNotTouchOtherEmails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-other")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-backfill-other-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-other-"+t.Name())
 
 	myID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: nil,
-		guardianEmail:     "mine@example.com",
+		guardianEmail:     "mine-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-mine-%d", time.Now().UnixNano()),
 		childFirstName:    "Mine",
 		childLastName:     "Child",
 	})
 	otherID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: nil,
-		guardianEmail:     "different@example.com",
+		guardianEmail:     "different-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-other-%d", time.Now().UnixNano()),
 		childFirstName:    "Different",
 		childLastName:     "Child",
 	})
 
-	n := backfill(t, db, account.ID, "mine@example.com")
+	n := backfill(t, db, account.ID, "mine-"+strings.ToLower(t.Name())+"@example.com")
 	assert.Equal(t, 1, n)
 
 	mineGuardian := readGuardianAccountID(t, db, myID)
@@ -655,22 +654,23 @@ func TestEnrollmentRequestRepository_Backfill_DoesNotTouchOtherEmails(t *testing
 }
 
 func TestEnrollmentRequestRepository_Backfill_EmptyEmailIsNoop(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	tenantA := testpkg.Tenant(t)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-empty")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	phaseID := insertTestPhase(t, db, 1, "phase-backfill-empty-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1)
+	phaseID := insertTestPhase(t, db, tenantA, "phase-backfill-empty-"+t.Name())
 
 	requestID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           phaseID,
 		guardianAccountID: nil,
-		guardianEmail:     "needs-claim@example.com",
+		guardianEmail:     "needs-claim-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-empty-%d", time.Now().UnixNano()),
 		childFirstName:    "Needs",
 		childLastName:     "Claim",
@@ -686,39 +686,41 @@ func TestEnrollmentRequestRepository_Backfill_EmptyEmailIsNoop(t *testing.T) {
 }
 
 func TestEnrollmentRequestRepository_Backfill_CrossTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
-	testpkg.EnsureTestTenant(t, db, 2)
+	tenantA := testpkg.Tenant(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantB)
 
 	account := testpkg.CreateTestAccount(t, db, "backfill-cross")
 	defer func() {
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(context.Background())
 	}()
 
-	t1Phase := insertTestPhase(t, db, 1, "phase-backfill-cross-t1-"+t.Name())
-	t2Phase := insertTestPhase(t, db, 2, "phase-backfill-cross-t2-"+t.Name())
-	defer cleanupEnrollmentRows(t, db, 1, 2)
+	t1Phase := insertTestPhase(t, db, tenantA, "phase-backfill-cross-t1-"+t.Name())
+	t2Phase := insertTestPhase(t, db, tenantB, "phase-backfill-cross-t2-"+t.Name())
 
 	t1ReqID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          1,
+		tenantID:          tenantA,
 		phaseID:           t1Phase,
 		guardianAccountID: nil,
-		guardianEmail:     "global@example.com",
+		guardianEmail:     "global-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-cross-t1-%d", time.Now().UnixNano()),
 		childFirstName:    "T1",
 		childLastName:     "Child",
 	})
 	t2ReqID := insertEnrollment(t, db, enrollmentRow{
-		tenantID:          2,
+		tenantID:          tenantB,
 		phaseID:           t2Phase,
 		guardianAccountID: nil,
-		guardianEmail:     "global@example.com",
+		guardianEmail:     "global-" + strings.ToLower(t.Name()) + "@example.com",
 		statusToken:       fmt.Sprintf("tok-cross-t2-%d", time.Now().UnixNano()),
 		childFirstName:    "T2",
 		childLastName:     "Child",
 	})
 
-	n := backfill(t, db, account.ID, "global@example.com")
+	n := backfill(t, db, account.ID, "global-"+strings.ToLower(t.Name())+"@example.com")
 	assert.Equal(t, 2, n, "backfill must claim across tenants under admin tx")
 
 	for _, id := range []int64{t1ReqID, t2ReqID} {
@@ -729,6 +731,8 @@ func TestEnrollmentRequestRepository_Backfill_CrossTenant(t *testing.T) {
 }
 
 func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := parentRepo.NewEnrollmentRequestRepository(db)

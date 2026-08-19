@@ -72,6 +72,8 @@ func bulkStaffState(t *testing.T, s *devSetup, instanceID int64) (absentA bool, 
 // One save must cover every selected day with the substitute — and leave a
 // same-week day that was NOT selected untouched.
 func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
@@ -125,6 +127,8 @@ func TestBulkSubstitution_MultiDayWithSubstitute(t *testing.T) {
 // Without a substitute the save is a multi-day absence-only marking: rows are
 // flagged absent, no cover rows appear.
 func TestBulkSubstitution_AbsenceOnly(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
@@ -156,6 +160,8 @@ func TestBulkSubstitution_AbsenceOnly(t *testing.T) {
 // selected day, the whole save is rejected and the first day keeps its
 // original state (Phase A runs for every day before any write).
 func TestBulkSubstitution_AtomicRejectAcrossDays(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := bulkRouter(s.ctx, s.res)
 	d1Str, d1 := futureSubDate(1)
@@ -190,6 +196,8 @@ func TestBulkSubstitution_AtomicRejectAcrossDays(t *testing.T) {
 // Past dates are historical record — the request is rejected before any lock
 // or write, mirroring the single-day past-block guard.
 func TestBulkSubstitution_RejectsPastAndInvalidInput(t *testing.T) {
+	t.Parallel()
+
 	s := buildDevSetup(t)
 	router := bulkRouter(s.ctx, s.res)
 	past := futureSubDateOffset(-1)

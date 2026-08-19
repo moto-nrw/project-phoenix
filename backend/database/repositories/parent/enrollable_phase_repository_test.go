@@ -70,6 +70,8 @@ func wipePhasesForTenant(db *bun.DB, tenantID int64, namePrefix string) {
 // --- ListEnrollable ---------------------------------------------------
 
 func TestEnrollablePhaseRepository_ListEnrollable_RejectsNonPositiveAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
 
@@ -82,8 +84,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_RejectsNonPositiveAccount(t *t
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -120,10 +124,12 @@ func TestEnrollablePhaseRepository_ListEnrollable_HappyPath(t *testing.T) {
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T) {
+	t.Parallel()
+
 	// Parent has an active account_tenants mapping → already_linked
 	// must be TRUE for that tenant's phases.
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -159,6 +165,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSetting(t *testing.T) {
+	t.Parallel()
+
 	// A tenant that hasn't enabled enrollment.enabled (or has it set
 	// to false) must drop out of the result entirely — the INNER JOIN
 	// on config.setting_values enforces this.
@@ -166,7 +174,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSett
 	// Uses a dedicated tenant ID so the tenant-1 setting other tests
 	// flip on/off doesn't bleed into this assertion.
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 91520
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	// Deliberately NOT calling enableEnrollmentForTenant.
 
@@ -194,8 +202,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsTenantsWithoutEnabledSett
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -223,10 +233,12 @@ func TestEnrollablePhaseRepository_ListEnrollable_OmitsInactivePhases(t *testing
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *testing.T) {
+	t.Parallel()
+
 	// A phase whose window has closed must NOT appear; one whose
 	// window opens in the future must NOT appear.
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -269,6 +281,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_RespectsEnrollmentWindow(t *te
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_OrdersLinkedFirst(t *testing.T) {
+	t.Parallel()
+
 	// Linked schools come before unlinked in the result order so the
 	// parent dashboard puts familiar schools at the top.
 	db := testpkg.SetupTestDB(t)

@@ -21,6 +21,8 @@ import (
 // =============================================================================
 
 func TestStudentPickupScheduleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -65,6 +67,8 @@ func TestStudentPickupScheduleRepository_Create(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -100,6 +104,8 @@ func TestStudentPickupScheduleRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -138,6 +144,8 @@ func TestStudentPickupScheduleRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_FindByStudentIDAndWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -173,6 +181,8 @@ func TestStudentPickupScheduleRepository_FindByStudentIDAndWeekday(t *testing.T)
 }
 
 func TestStudentPickupScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -209,6 +219,8 @@ func TestStudentPickupScheduleRepository_FindByStudentIDsAndWeekday(t *testing.T
 }
 
 func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -267,6 +279,8 @@ func TestStudentPickupScheduleRepository_UpsertSchedule(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -321,6 +335,8 @@ func TestStudentPickupScheduleRepository_Update(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -357,6 +373,8 @@ func TestStudentPickupScheduleRepository_List(t *testing.T) {
 }
 
 func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupScheduleRepository(db)
@@ -398,6 +416,8 @@ func TestStudentPickupScheduleRepository_DeleteByStudentID(t *testing.T) {
 // =============================================================================
 
 func TestStudentPickupExceptionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -429,6 +449,8 @@ func TestStudentPickupExceptionRepository_Create(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -463,6 +485,8 @@ func TestStudentPickupExceptionRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -499,6 +523,8 @@ func TestStudentPickupExceptionRepository_FindUpcomingByStudentID(t *testing.T) 
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -535,6 +561,8 @@ func TestStudentPickupExceptionRepository_FindByStudentIDAndDate(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -584,6 +612,8 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate(t *testing.T) 
 }
 
 func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInBerlinSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -646,6 +676,8 @@ func TestStudentPickupExceptionRepository_FindByStudentIDsAndDate_MatchesDateInB
 }
 
 func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -680,6 +712,8 @@ func TestStudentPickupExceptionRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -736,6 +770,8 @@ func TestStudentPickupExceptionRepository_Update(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -772,6 +808,8 @@ func TestStudentPickupExceptionRepository_List(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -803,6 +841,8 @@ func TestStudentPickupExceptionRepository_DeleteByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupExceptionRepository(db)
@@ -862,6 +902,8 @@ func TestStudentPickupExceptionRepository_DeletePastExceptions(t *testing.T) {
 // =============================================================================
 
 func TestStudentPickupNoteRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -906,6 +948,8 @@ func TestStudentPickupNoteRepository_Create(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -940,6 +984,8 @@ func TestStudentPickupNoteRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -983,6 +1029,8 @@ func TestStudentPickupNoteRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -1035,6 +1083,8 @@ func TestStudentPickupNoteRepository_FindByStudentIDAndDate(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -1073,6 +1123,8 @@ func TestStudentPickupNoteRepository_FindByStudentIDsAndDate(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -1124,6 +1176,8 @@ func TestStudentPickupNoteRepository_Update(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -1160,6 +1214,8 @@ func TestStudentPickupNoteRepository_List(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)
@@ -1197,6 +1253,8 @@ func TestStudentPickupNoteRepository_DeleteByStudentID(t *testing.T) {
 }
 
 func TestStudentPickupNoteRepository_DeletePastNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := scheduleRepo.NewStudentPickupNoteRepository(db)

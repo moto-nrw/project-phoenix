@@ -25,6 +25,8 @@ func cleanupMealPlan(t *testing.T, repo mealplan.MealPlanEntryRepository, ctx co
 }
 
 func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
@@ -87,6 +89,8 @@ func TestMealPlanRepository_ReplaceFindDelete(t *testing.T) {
 // an inclusive [start, end] filter: entries the day before start and the day
 // after end are not returned.
 func TestMealPlanRepository_DateRangeExcludesOutsideWeek(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
@@ -112,6 +116,8 @@ func TestMealPlanRepository_DateRangeExcludesOutsideWeek(t *testing.T) {
 }
 
 func TestMealPlanRepository_ReplaceDayZeroDateRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
@@ -125,12 +131,14 @@ func TestMealPlanRepository_ReplaceDayZeroDateRejected(t *testing.T) {
 // another tenant's rows: an entry written under tenant 1 is invisible to a
 // context scoped to a different tenant.
 func TestMealPlanRepository_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).MealPlanEntry
 	tenant1 := testpkg.Ctx(t)
 
-	const otherTenantID = int64(910001)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
 

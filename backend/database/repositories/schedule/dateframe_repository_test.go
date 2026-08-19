@@ -16,6 +16,8 @@ import (
 // ============================================================================
 
 func TestDateframeRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Dateframe
@@ -75,6 +77,8 @@ func TestDateframeRepository_Create(t *testing.T) {
 }
 
 func TestDateframeRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Dateframe
@@ -106,6 +110,8 @@ func TestDateframeRepository_FindByID(t *testing.T) {
 }
 
 func TestDateframeRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Dateframe
@@ -143,6 +149,8 @@ func TestDateframeRepository_Update(t *testing.T) {
 }
 
 func TestDateframeRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Dateframe
@@ -173,6 +181,7 @@ func TestDateframeRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestDateframeRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -205,6 +214,7 @@ func TestDateframeRepository_List(t *testing.T) {
 }
 
 func TestDateframeRepository_FindByName(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -256,6 +266,7 @@ func TestDateframeRepository_FindByName(t *testing.T) {
 }
 
 func TestDateframeRepository_FindByDate(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -344,6 +355,7 @@ func TestDateframeRepository_FindByDate(t *testing.T) {
 }
 
 func TestDateframeRepository_FindOverlapping(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 

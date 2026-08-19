@@ -58,6 +58,10 @@ func (r *cleanupLockSignalRepository) FindByIDForUpdate(ctx context.Context, req
 	return r.RequestRepository.FindByIDForUpdate(ctx, requestID)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
@@ -202,6 +206,10 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	require.NoError(t, err)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)

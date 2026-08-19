@@ -26,6 +26,8 @@ func wallClock(t *testing.T, hhmm string) time.Time {
 }
 
 func TestUpsertBulkPickupSchedules_PreservesOfferingProvenance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
@@ -86,6 +88,8 @@ func TestUpsertBulkPickupSchedules_PreservesOfferingProvenance(t *testing.T) {
 }
 
 func TestUpsertBulkPickupSchedules_ChangedTimeFlipsToStaff(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)

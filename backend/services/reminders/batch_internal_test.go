@@ -392,6 +392,8 @@ func admin(staffID int64) BatchScope {
 }
 
 func TestComputeBatchMatchesCompute(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
@@ -606,6 +608,8 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 // directly. Both entry points share this helper, so the equivalence test cannot
 // see a mistake in it — they would simply be wrong together.
 func TestActivityRoomFilterNilOnlyForAdmins(t *testing.T) {
+	t.Parallel()
+
 	t.Run("admin gets no restriction", func(t *testing.T) {
 		assert.Nil(t, activityRoomFilter(Scope{IsAdmin: true}, nil))
 		assert.Nil(t, activityRoomFilter(Scope{IsAdmin: true}, []int64{10}))
@@ -627,6 +631,8 @@ func TestActivityRoomFilterNilOnlyForAdmins(t *testing.T) {
 }
 
 func TestComputeBatchScopeHandling(t *testing.T) {
+	t.Parallel()
+
 	w := newWorld()
 	svc := w.service()
 	ctx := context.Background()
@@ -690,6 +696,8 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 // =============================================================================
 
 func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight")
@@ -761,6 +769,8 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 // distinction would have to be re-derived from supervision data, which is how
 // two answers to one question start drifting apart.
 func TestBatchReportsPersonalAssignments(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
@@ -799,6 +809,8 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 }
 
 func TestAssignedActivitiesExpandOnlyUpcomingScope(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight: fixtures would wrap the day boundary")

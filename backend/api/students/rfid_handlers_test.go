@@ -139,6 +139,8 @@ func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 }
 
 func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDevice", "RND1")
@@ -156,6 +158,8 @@ func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 }
 
 func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDeviceUnassign", "RNDU1")

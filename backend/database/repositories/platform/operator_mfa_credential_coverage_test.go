@@ -19,6 +19,8 @@ import (
 )
 
 func TestOperatorMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()
@@ -45,6 +47,8 @@ func TestOperatorMFACredentialRepository_Update_PersistsChanges(t *testing.T) {
 }
 
 func TestOperatorMFACredentialRepository_Update_NilRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewOperatorMFACredentialRepository(db)
@@ -53,6 +57,8 @@ func TestOperatorMFACredentialRepository_Update_NilRejected(t *testing.T) {
 }
 
 func TestOperatorMFACredentialRepository_List_FilterByOperatorID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()
@@ -73,6 +79,8 @@ func TestOperatorMFACredentialRepository_List_FilterByOperatorID(t *testing.T) {
 }
 
 func TestOperatorMFACredentialRepository_List_NoFilters_ReturnsAll(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := context.Background()

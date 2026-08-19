@@ -69,6 +69,8 @@ func cleanupStudentWithGuardians(t *testing.T, tc *testContext, studentID, perso
 // TestCreateStudent_WithGuardians verifies a student and its guardians (profile,
 // relationship, and phone numbers) are created together in one request.
 func TestCreateStudent_WithGuardians(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -145,6 +147,8 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 // is atomic: an invalid guardian (bad email) aborts the transaction and leaves
 // no orphaned person/student behind.
 func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "Rollback"
@@ -210,6 +214,8 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 // the surrounding transaction rolls back so no orphaned student survives —
 // matching the detail page, where a bad phone is a validation error.
 func TestCreateStudent_InvalidGuardianPhoneRollsBackStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "PhoneRollback"
@@ -321,6 +327,8 @@ func assertGuardianBadRequestNoOrphan(
 // TestCreateStudent_MultipleGuardians verifies the batch path: several guardians
 // in one request are each created and linked to the same student atomically.
 func TestCreateStudent_MultipleGuardians(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -388,6 +396,8 @@ func TestCreateStudent_MultipleGuardians(t *testing.T) {
 // profile/relationship fields (address, notes, contact method, pickup notes,
 // emergency flags) are mapped through and persisted, not silently dropped.
 func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -465,6 +475,8 @@ func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 // guardian without a relationship_type (the one field required to link) with a
 // 400 before any row is written.
 func TestCreateStudent_GuardianMissingRelationshipType(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "NoRelType", "Guardian", map[string]interface{}{
@@ -485,6 +497,8 @@ func TestCreateStudent_GuardianMissingRelationshipType(t *testing.T) {
 // TestCreateStudent_GuardianInvalidContactMethod verifies an unknown preferred
 // contact method is a classified client error (400) and rolls back the student.
 func TestCreateStudent_GuardianInvalidContactMethod(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "BadContact", "Method", map[string]interface{}{
@@ -507,6 +521,8 @@ func TestCreateStudent_GuardianInvalidContactMethod(t *testing.T) {
 // TestCreateStudent_GuardianPhoneMissingNumber verifies an empty phone number is
 // a classified client error (400) and rolls back the student.
 func TestCreateStudent_GuardianPhoneMissingNumber(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "EmptyPhone", "Guardian", map[string]interface{}{
@@ -531,6 +547,8 @@ func TestCreateStudent_GuardianPhoneMissingNumber(t *testing.T) {
 // TestCreateStudent_GuardianPhoneTooFewDigits verifies a phone number with fewer
 // than three digits is a classified client error (400) and rolls back.
 func TestCreateStudent_GuardianPhoneTooFewDigits(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	assertGuardianBadRequestNoOrphan(t, tc, "ShortPhone", "Guardian", map[string]interface{}{

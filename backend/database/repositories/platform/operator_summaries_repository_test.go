@@ -149,6 +149,9 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	}
 }
 
+// Deliberately NOT parallel: Stats counts the platform-wide entities of the
+// whole clone, so the before/after snapshots this test compares drift with
+// every fixture a test running beside it creates.
 func TestOperatorSummariesRepository_Stats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
@@ -177,6 +180,8 @@ func TestOperatorSummariesRepository_Stats(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -222,6 +227,8 @@ func TestOperatorSummariesRepository_OrganizationSummaries(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -260,6 +267,8 @@ func TestOperatorSummariesRepository_SchoolSummaries_Global(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -290,6 +299,8 @@ func TestOperatorSummariesRepository_SchoolSummariesByOrganization(t *testing.T)
 }
 
 func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -359,6 +370,8 @@ func TestOperatorSummariesRepository_PersonsBySchool(t *testing.T) {
 }
 
 func TestOperatorSummariesRepository_PersonsByOrganization(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := testpkg.Ctx(t)

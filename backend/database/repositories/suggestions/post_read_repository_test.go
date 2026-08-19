@@ -13,6 +13,8 @@ import (
 )
 
 func TestPostReadRepository_MarkViewed(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostReadRepository(db)
@@ -82,6 +84,8 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 }
 
 func TestPostReadRepository_IsViewed(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewPostReadRepository(db)
@@ -127,6 +131,8 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the assertion is a count over a tenant-less
+// table, so every row a test running beside it creates is counted too.
 func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 

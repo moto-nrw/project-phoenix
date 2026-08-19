@@ -13,6 +13,8 @@ import (
 )
 
 func TestSettingAuditRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingAuditRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -32,6 +34,8 @@ func TestSettingAuditRepository_Create(t *testing.T) {
 }
 
 func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingAuditRepository(db)
 	ctx := testpkg.Ctx(t)
@@ -53,6 +57,8 @@ func TestSettingAuditRepository_Create_ValidatesEntry(t *testing.T) {
 }
 
 func TestSettingAuditRepository_CreateNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := configRepo.NewSettingAuditRepository(db)
 	ctx := testpkg.Ctx(t)

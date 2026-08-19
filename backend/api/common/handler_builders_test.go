@@ -37,6 +37,8 @@ func route(t *testing.T, method, pattern, path string, h http.HandlerFunc, body 
 }
 
 func TestIDAction(t *testing.T) {
+	t.Parallel()
+
 	t.Run("success responds 204 and passes the parsed id", func(t *testing.T) {
 		var got int64
 		h := common.IDAction("id", "invalid id", func(_ context.Context, id int64) error {
@@ -86,6 +88,8 @@ func TestIDAction(t *testing.T) {
 }
 
 func TestTwoIDAction(t *testing.T) {
+	t.Parallel()
+
 	t.Run("success passes both ids in order", func(t *testing.T) {
 		var a, b int
 		h := common.TwoIDAction("accountId", "invalid account ID", "roleId", "invalid role ID",
@@ -111,6 +115,8 @@ func TestTwoIDAction(t *testing.T) {
 }
 
 func TestIDFetch(t *testing.T) {
+	t.Parallel()
+
 	t.Run("success wraps the payload in the standard envelope", func(t *testing.T) {
 		type thing struct {
 			Name string `json:"name"`
@@ -148,6 +154,8 @@ func (b *bindReq) Bind(_ *http.Request) error {
 }
 
 func TestBindAction(t *testing.T) {
+	t.Parallel()
+
 	newReq := func() *bindReq { return &bindReq{} }
 
 	t.Run("success responds with the given status", func(t *testing.T) {

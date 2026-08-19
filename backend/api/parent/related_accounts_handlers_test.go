@@ -88,6 +88,8 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 }
 
 func TestRelatedAccountsEndpoint_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -103,6 +105,8 @@ func TestRelatedAccountsEndpoint_List(t *testing.T) {
 }
 
 func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
+	t.Parallel()
+
 	sid := func(c testpkg.ParentChain) string { return strconv.FormatInt(c.StudentID, 10) }
 
 	t.Run("disabled → 403", func(t *testing.T) {
@@ -129,6 +133,8 @@ func TestRelatedAccountsEndpoint_InviteGate(t *testing.T) {
 }
 
 func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("removal disabled → 403", func(t *testing.T) {
 		db := testpkg.SetupTestDB(t)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -186,6 +192,8 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.G
 }
 
 func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -209,6 +217,8 @@ func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
 }
 
 func TestRelatedAccountsEndpoint_SocialWorkerRefusedWithCode(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 

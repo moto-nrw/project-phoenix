@@ -97,8 +97,10 @@ func (h *overviewQueryCounter) AfterQuery(_ context.Context, _ *bun.QueryEvent) 
 }
 
 func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	foreignTenantID := int64(1812002)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	date := timezone.TodayDate().AddDays(12000 + int(time.Now().UnixNano()%1000))
 	local := createOverviewTenantFixture(t, db, testpkg.Tenant(t), date, false)
 	foreign := createOverviewTenantFixture(t, db, foreignTenantID, date, true)
@@ -190,9 +192,11 @@ func createOverviewShift(t *testing.T, db *bun.DB, tenantID, staffID int64, date
 }
 
 func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	tenantID := int64(1837003)
-	foreignTenantID := int64(1837004)
+	tenantID := testpkg.UniqueTestTenantID(t)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 
 	monday := timezone.TodayDate().AddDays(14000 + int(time.Now().UnixNano()%1000))
 	for monday.Weekday() != time.Monday {
@@ -314,8 +318,10 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 }
 
 func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	tenantID := int64(1882001)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	monday := timezone.TodayDate().AddDays(15000 + int(time.Now().UnixNano()%1000))
@@ -367,8 +373,10 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 }
 
 func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	foreignTenantID := int64(1812003)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	monday := timezone.TodayDate().AddDays(13000 + int(time.Now().UnixNano()%1000))
 	// Keep the fixture anchored to Monday so containing-calendar-week activation is

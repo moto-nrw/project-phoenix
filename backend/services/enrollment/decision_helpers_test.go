@@ -19,10 +19,14 @@ import (
 // ---- stringValue --------------------------------------------------------
 
 func TestStringValue_TrimsString(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "hello", stringValue("  hello  "))
 }
 
 func TestStringValue_NonStringReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "", stringValue(42))
 	assert.Equal(t, "", stringValue(nil))
 	assert.Equal(t, "", stringValue(true))
@@ -30,6 +34,8 @@ func TestStringValue_NonStringReturnsEmpty(t *testing.T) {
 }
 
 func TestStringValue_EmptyStringReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "", stringValue(""))
 	assert.Equal(t, "", stringValue("   "))
 }
@@ -37,6 +43,8 @@ func TestStringValue_EmptyStringReturnsEmpty(t *testing.T) {
 // ---- decodeStructured ---------------------------------------------------
 
 func TestDecodeStructured_DecodesPhoneList(t *testing.T) {
+	t.Parallel()
+
 	raw := []any{
 		map[string]any{
 			"phone_number": "0177 12345",
@@ -53,6 +61,8 @@ func TestDecodeStructured_DecodesPhoneList(t *testing.T) {
 }
 
 func TestDecodeStructured_DecodesWeekdaySchedule(t *testing.T) {
+	t.Parallel()
+
 	raw := map[string]any{"mon": "08:00", "fri": "10:30"}
 	var out enrollmentModels.WeekdaySchedule
 	require.NoError(t, decodeStructured(raw, &out))
@@ -61,6 +71,8 @@ func TestDecodeStructured_DecodesWeekdaySchedule(t *testing.T) {
 }
 
 func TestDecodeStructured_DecodesWeekdayBoolean(t *testing.T) {
+	t.Parallel()
+
 	raw := map[string]any{"mon": true, "fri": false}
 	var out enrollmentModels.WeekdayBoolean
 	require.NoError(t, decodeStructured(raw, &out))
@@ -69,6 +81,8 @@ func TestDecodeStructured_DecodesWeekdayBoolean(t *testing.T) {
 }
 
 func TestDecodeBusDays_NormalizesSelectedWeekdays(t *testing.T) {
+	t.Parallel()
+
 	raw := map[string]any{"mon": true, "tue": false, "fri": true}
 	out, err := decodeBusDays(raw)
 	require.NoError(t, err)
@@ -79,6 +93,8 @@ func TestDecodeBusDays_NormalizesSelectedWeekdays(t *testing.T) {
 }
 
 func TestDecodeBusDays_AcceptsLegacyBoolean(t *testing.T) {
+	t.Parallel()
+
 	enabled, err := decodeBusDays(true)
 	require.NoError(t, err)
 	assert.True(t, enabled["mon"])
@@ -93,12 +109,16 @@ func TestDecodeBusDays_AcceptsLegacyBoolean(t *testing.T) {
 }
 
 func TestDecodeBusDays_RejectsUnknownWeekday(t *testing.T) {
+	t.Parallel()
+
 	_, err := decodeBusDays(map[string]any{"sat": true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sat")
 }
 
 func TestDecodeDepartureDays_MapsModes(t *testing.T) {
+	t.Parallel()
+
 	out, err := decodeDepartureDays(map[string]any{
 		"mon": "bus",
 		"wed": "pickup",
@@ -112,18 +132,24 @@ func TestDecodeDepartureDays_MapsModes(t *testing.T) {
 }
 
 func TestDecodeDepartureDays_RejectsUnknownMode(t *testing.T) {
+	t.Parallel()
+
 	_, err := decodeDepartureDays(map[string]any{"mon": "taxi"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "taxi")
 }
 
 func TestDecodeDepartureDays_RejectsUnknownWeekday(t *testing.T) {
+	t.Parallel()
+
 	_, err := decodeDepartureDays(map[string]any{"sat": "bus"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sat")
 }
 
 func TestDecodePickupDays_NormalizesWeekdayMap(t *testing.T) {
+	t.Parallel()
+
 	out, err := decodePickupDays(map[string]any{"mon": true, "wed": false, "fri": true})
 	require.NoError(t, err)
 	assert.True(t, out["mon"])
@@ -133,6 +159,8 @@ func TestDecodePickupDays_NormalizesWeekdayMap(t *testing.T) {
 }
 
 func TestDecodePickupDays_AcceptsLegacySelectValues(t *testing.T) {
+	t.Parallel()
+
 	// Pending pre-migration submissions stored the frontend select option
 	// *value*, not the German label. "picked_up" must map to all weekdays.
 	pickedUp, err := decodePickupDays("picked_up")
@@ -147,6 +175,8 @@ func TestDecodePickupDays_AcceptsLegacySelectValues(t *testing.T) {
 }
 
 func TestDecodePickupDays_AcceptsGermanLabels(t *testing.T) {
+	t.Parallel()
+
 	pickedUp, err := decodePickupDays(users.PickupStatusPickedUp)
 	require.NoError(t, err)
 	assert.True(t, pickedUp.HasAny())
@@ -157,12 +187,16 @@ func TestDecodePickupDays_AcceptsGermanLabels(t *testing.T) {
 }
 
 func TestDecodePickupDays_RejectsUnknownWeekday(t *testing.T) {
+	t.Parallel()
+
 	_, err := decodePickupDays(map[string]any{"sun": true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sun")
 }
 
 func TestDecodeStructured_DecodesContactList(t *testing.T) {
+	t.Parallel()
+
 	raw := []any{
 		map[string]any{
 			"first_name":           "Erika",
@@ -181,6 +215,8 @@ func TestDecodeStructured_DecodesContactList(t *testing.T) {
 }
 
 func TestDecodeStructured_RejectsMismatch(t *testing.T) {
+	t.Parallel()
+
 	// A scalar can't decode into []PhoneEntry — json.Unmarshal returns
 	// an error and decodeStructured surfaces it.
 	var out []enrollmentModels.PhoneEntry
@@ -189,6 +225,8 @@ func TestDecodeStructured_RejectsMismatch(t *testing.T) {
 }
 
 func TestContactGuardianRole(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		isEmergencyContact bool

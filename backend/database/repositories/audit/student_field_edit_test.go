@@ -13,6 +13,8 @@ import (
 )
 
 func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Audit", "History", "1a")
@@ -68,6 +70,8 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 }
 
 func TestStudentFieldEditRepository_CreateBatchValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentFieldEdit

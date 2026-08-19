@@ -23,6 +23,8 @@ import (
 )
 
 func TestCheckinStudent_SelfHealsOrphanVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	checkinPermissions := []string{permissions.VisitsUpdate}

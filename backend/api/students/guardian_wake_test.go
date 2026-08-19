@@ -21,6 +21,8 @@ import (
 // manual reload. One representative write (staff pickup exception) is asserted;
 // every staff care-write path calls the same wakeChildGuardians helper.
 func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
@@ -65,6 +67,8 @@ func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
 // parents SSE stream. The status write must ALSO wake the child's guardians; a
 // plain (non-status) edit must NOT, so a name/notes change never spams parent tabs.
 func TestStaffStatusUpdate_WakesChildGuardians(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)

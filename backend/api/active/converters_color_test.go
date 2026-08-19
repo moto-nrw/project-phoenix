@@ -25,6 +25,8 @@ import (
 // This test marshals the response struct and inspects the raw JSON to catch
 // all three regressions in one shot.
 func TestNewActiveGroupResponse_RoomColorPropagation(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	color := "#A3D977"
 

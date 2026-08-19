@@ -83,6 +83,8 @@ func seedPublishedAnnouncement(
 }
 
 func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -128,6 +130,8 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 }
 
 func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -144,6 +148,8 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 }
 
 func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -157,6 +163,8 @@ func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 }
 
 func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -168,6 +176,8 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 }
 
 func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, false) // feature OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -191,6 +201,8 @@ func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 }
 
 func TestAnnouncementFeed_RejectsNonPositiveAccount(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildAnnouncementService(t, true)
 	ctx := context.Background()
 

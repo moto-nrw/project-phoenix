@@ -45,6 +45,8 @@ func firstOfType(b *testpkg.RecordingBroadcaster, t realtime.EventType) *realtim
 }
 
 func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)
@@ -220,6 +222,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 // event MUST omit the three attendance fields. This rules out a regression
 // where we accidentally stamp status="present" for every check-in.
 func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)

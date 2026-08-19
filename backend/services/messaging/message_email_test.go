@@ -141,6 +141,8 @@ func guardianEmail(t *testing.T, db *bun.DB, accountID int64) string {
 // TestStartThread_SendsGuardianEmail is the reported gap: the OGS writes, and the
 // guardian learns about it even without push.
 func TestStartThread_SendsGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
 
@@ -165,6 +167,8 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 }
 
 func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
 	_, err := db.NewUpdate().
@@ -190,6 +194,8 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 }
 
 func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
+	t.Parallel()
+
 	f := newEmailFixture(t, nil)
 	ctx := adminCtx(t, f.staff)
 
@@ -210,6 +216,8 @@ func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 // TestStartThread_RespectsGuardianOptOut: who switched the notification off is
 // not written to by e-mail either.
 func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
+	t.Parallel()
+
 	preferences := &stubMessagePreferences{declined: true}
 	f := newEmailFixture(t, preferences)
 

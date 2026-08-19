@@ -1,7 +1,6 @@
 package suggestions_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -46,7 +45,6 @@ func setupIntegrationService(t *testing.T) (*bun.DB, suggestionsService.Service,
 	person := testpkg.CreateTestPersonWithAccountID(t, db, "Vote", "Tester", account.ID)
 
 	t.Cleanup(func() {
-		cleanupAllSuggestionData(t, db)
 	})
 
 	return db, svc, &testAccount{AccountID: account.ID, PersonID: person.ID}
@@ -62,32 +60,9 @@ func createExtraAccount(t *testing.T, db *bun.DB, prefix string) *testAccount {
 	return &testAccount{AccountID: account.ID, PersonID: person.ID}
 }
 
-// cleanupAllSuggestionData removes all test votes and posts from the suggestions schema.
-func cleanupAllSuggestionData(t *testing.T, db *bun.DB) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	// Delete votes first (FK)
-	_, err := db.NewDelete().
-		TableExpr("suggestions.votes").
-		Where("TRUE").
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup suggestions.votes: %v", err)
-	}
-
-	_, err = db.NewDelete().
-		TableExpr("suggestions.posts").
-		Where("TRUE").
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup suggestions.posts: %v", err)
-	}
-}
-
 func TestIntegration_Vote_Success(t *testing.T) {
+	t.Parallel()
+
 	_, svc, acct := setupIntegrationService(t)
 	ctx := testpkg.Ctx(t)
 
@@ -112,6 +87,8 @@ func TestIntegration_Vote_Success(t *testing.T) {
 }
 
 func TestIntegration_Vote_ChangeDirection(t *testing.T) {
+	t.Parallel()
+
 	_, svc, acct := setupIntegrationService(t)
 	ctx := testpkg.Ctx(t)
 
@@ -139,6 +116,8 @@ func TestIntegration_Vote_ChangeDirection(t *testing.T) {
 }
 
 func TestIntegration_Vote_MultipleVoters(t *testing.T) {
+	t.Parallel()
+
 	db, svc, acct1 := setupIntegrationService(t)
 	ctx := testpkg.Ctx(t)
 
@@ -172,6 +151,8 @@ func TestIntegration_Vote_MultipleVoters(t *testing.T) {
 }
 
 func TestIntegration_RemoveVote_Success(t *testing.T) {
+	t.Parallel()
+
 	_, svc, acct := setupIntegrationService(t)
 	ctx := testpkg.Ctx(t)
 
@@ -198,6 +179,8 @@ func TestIntegration_RemoveVote_Success(t *testing.T) {
 }
 
 func TestIntegration_RemoveVote_NoExistingVote(t *testing.T) {
+	t.Parallel()
+
 	_, svc, acct := setupIntegrationService(t)
 	ctx := testpkg.Ctx(t)
 
@@ -218,6 +201,8 @@ func TestIntegration_RemoveVote_NoExistingVote(t *testing.T) {
 }
 
 func TestIntegration_Vote_Atomicity(t *testing.T) {
+	t.Parallel()
+
 	db, svc, acct1 := setupIntegrationService(t)
 	ctx := testpkg.Ctx(t)
 

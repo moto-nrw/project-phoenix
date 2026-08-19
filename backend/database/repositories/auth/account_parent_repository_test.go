@@ -29,6 +29,8 @@ func cleanupParentAccount(tb testing.TB, db *bun.DB, accountID int64) {
 // ============================================================================
 
 func TestAccountParentRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
@@ -76,6 +78,8 @@ func TestAccountParentRepository_Create(t *testing.T) {
 }
 
 func TestAccountParentRepository_FindByEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
@@ -116,6 +120,8 @@ func TestAccountParentRepository_FindByEmail(t *testing.T) {
 }
 
 func TestAccountParentRepository_FindByUsername(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
@@ -139,6 +145,8 @@ func TestAccountParentRepository_FindByUsername(t *testing.T) {
 }
 
 func TestAccountParentRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
@@ -179,6 +187,8 @@ func TestAccountParentRepository_Update(t *testing.T) {
 }
 
 func TestAccountParentRepository_UpdateLastLogin(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
@@ -210,6 +220,8 @@ func TestAccountParentRepository_UpdateLastLogin(t *testing.T) {
 }
 
 func TestAccountParentRepository_UpdatePassword(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent
@@ -235,6 +247,8 @@ func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 // ============================================================================
 
 func TestAccountParentRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountParent

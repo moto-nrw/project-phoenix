@@ -18,6 +18,8 @@ import (
 // ============================================================================
 
 func TestWorkSessionBreakRepository_UpdateDuration(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
@@ -115,6 +117,8 @@ func TestWorkSessionBreakRepository_UpdateDuration(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionBreakRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
@@ -240,6 +244,8 @@ func TestWorkSessionBreakRepository_Create(t *testing.T) {
 }
 
 func TestWorkSessionBreakRepository_GetBySessionID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
@@ -289,6 +295,8 @@ func TestWorkSessionBreakRepository_GetBySessionID(t *testing.T) {
 }
 
 func TestWorkSessionBreakRepository_GetActiveBySessionID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
@@ -348,6 +356,8 @@ func TestWorkSessionBreakRepository_GetActiveBySessionID(t *testing.T) {
 }
 
 func TestWorkSessionBreakRepository_EndBreak(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionBreak
@@ -394,6 +404,8 @@ func TestWorkSessionBreakRepository_EndBreak(t *testing.T) {
 }
 
 func TestWorkSessionBreakRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSessionBreak

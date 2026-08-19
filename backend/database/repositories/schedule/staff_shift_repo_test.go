@@ -37,6 +37,8 @@ func cleanupShifts(t *testing.T, repo scheduleModels.StaffShiftRepository, ctx c
 }
 
 func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -65,6 +67,8 @@ func TestStaffShiftRepository_CreateFindNormalizesWallClock(t *testing.T) {
 }
 
 func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -95,6 +99,8 @@ func TestStaffShiftRepository_UpdateDeleteUseTenantAlias(t *testing.T) {
 }
 
 func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -127,6 +133,8 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 }
 
 func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -169,6 +177,8 @@ func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testin
 }
 
 func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -186,7 +196,7 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	}
 	defer cleanupShifts(t, repo, ctx, past.ID, sameDay.ID, future.ID)
 
-	const otherTenantID = int64(910004)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	otherTenantCtx := tenant.WithTenantID(context.Background(), otherTenantID)
 	deleted, err := repo.DeleteUpcomingByStaffID(otherTenantCtx, staff.ID, today)
@@ -208,6 +218,8 @@ func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 }
 
 func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -227,6 +239,8 @@ func TestStaffShiftRepository_DuplicateStartRejected(t *testing.T) {
 }
 
 func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -235,7 +249,7 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "Isolated")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
-	const otherTenantID = int64(910002)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
 
@@ -255,6 +269,8 @@ func TestStaffShiftRepository_TenantIsolation(t *testing.T) {
 }
 
 func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffShift
@@ -263,7 +279,7 @@ func TestStaffShiftRepository_RejectsCrossTenantStaffReference(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Shift", "CrossTenant")
 	defer testpkg.CleanupActivityFixtures(t, db, staff.PersonID)
 
-	const otherTenantID = int64(910003)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	tenant2 := tenant.WithTenantID(context.Background(), otherTenantID)
 

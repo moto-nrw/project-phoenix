@@ -81,6 +81,8 @@ func cleanupOrphanByName(t *testing.T, tc *testContext, firstName, lastName stri
 // guardian email must return 400 AND leave no orphaned student. Before the fix
 // the middleware committed the student because the 400 is not a 5xx.
 func TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "MiddlewareRollback"
@@ -109,6 +111,8 @@ func TestCreateStudent_BadGuardianDoesNotCommitUnderTenantTx(t *testing.T) {
 // 400, not a 500, and must roll back under the real middleware. Mirrors the
 // allowed set enforced by the detail-page link endpoint.
 func TestCreateStudent_GuardianInvalidRelationshipType(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	for _, relType := range []string{"sibling", "alien", "grandparent"} {
@@ -139,6 +143,8 @@ func TestCreateStudent_GuardianInvalidRelationshipType(t *testing.T) {
 // relationship type still creates the student+guardian, so tightening the
 // validation didn't reject valid input. Runs through the real middleware.
 func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	for _, relType := range []string{"parent", "guardian", "relative", "other"} {
@@ -173,6 +179,8 @@ func TestCreateStudent_GuardianRelationshipTypeAccepted(t *testing.T) {
 // finding: emergency_priority < 1 must be rejected with a 400 (parity with the
 // detail-page link endpoint, which rejects < 1), not silently stored as 0.
 func TestCreateStudent_GuardianEmergencyPriorityBelowOne(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	for _, prio := range []int{0, -1, -5} {
@@ -204,6 +212,8 @@ func TestCreateStudent_GuardianEmergencyPriorityBelowOne(t *testing.T) {
 // (not a 500) and must not commit an orphaned student. Profile reuse is deferred
 // to issue #1513; this test pins the interim contract.
 func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -252,6 +262,8 @@ func TestCreateStudent_DuplicateGuardianEmail(t *testing.T) {
 // sharing one email in a single request: the in-request duplicate must be
 // rejected up front rather than colliding on insert.
 func TestCreateStudent_DuplicateGuardianEmailWithinRequest(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "DupEmailInline"

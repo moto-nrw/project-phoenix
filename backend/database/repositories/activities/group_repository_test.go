@@ -16,6 +16,8 @@ import (
 )
 
 func TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
@@ -74,6 +76,8 @@ func TestActivityGroupRepositoryUpdateTemplateFieldsPlanningTrackPresence(t *tes
 // ============================================================================
 
 func TestActivityGroupRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -128,6 +132,8 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 }
 
 func TestActivityGroupTargets_AreTenantScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
@@ -160,6 +166,8 @@ func TestActivityGroupTargets_AreTenantScoped(t *testing.T) {
 }
 
 func TestActivityGroupTargets_ReplaceIsAtomic(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -195,6 +203,8 @@ func TestActivityGroupTargets_ReplaceIsAtomic(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -218,6 +228,8 @@ func TestActivityGroupRepository_FindByID(t *testing.T) {
 }
 
 func TestActivityGroupRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -268,6 +280,8 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 }
 
 func TestActivityGroupRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -291,6 +305,8 @@ func TestActivityGroupRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestActivityGroupRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -324,6 +340,8 @@ func TestActivityGroupRepository_List(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindByCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -359,6 +377,8 @@ func TestActivityGroupRepository_FindByCategory(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -391,6 +411,8 @@ func TestActivityGroupRepository_FindOpenGroups(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindAllTemplates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -441,6 +463,8 @@ func TestActivityGroupRepository_FindAllTemplates(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -502,6 +526,8 @@ func TestActivityGroupRepository_FindWithEnrollmentCounts(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -542,6 +568,8 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -596,6 +624,8 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 // ============================================================================
 
 func TestActivityGroupRepository_Create_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -609,6 +639,8 @@ func TestActivityGroupRepository_Create_WithNil(t *testing.T) {
 }
 
 func TestActivityGroupRepository_Update_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -622,6 +654,8 @@ func TestActivityGroupRepository_Update_WithNil(t *testing.T) {
 }
 
 func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup
@@ -634,6 +668,8 @@ func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
 }
 
 func TestActivityGroupRepository_FindByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityGroup

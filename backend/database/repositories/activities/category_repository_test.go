@@ -21,6 +21,8 @@ import (
 // ============================================================================
 
 func TestCategoryRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -42,6 +44,8 @@ func TestCategoryRepository_Create(t *testing.T) {
 }
 
 func TestCategoryRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -64,6 +68,8 @@ func TestCategoryRepository_FindByID(t *testing.T) {
 }
 
 func TestCategoryRepository_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -112,6 +118,8 @@ func TestCategoryRepository_FindByName(t *testing.T) {
 }
 
 func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -144,6 +152,8 @@ func TestCategoryRepository_FindByIDForShareBlocksArchive(t *testing.T) {
 }
 
 func TestCategoryRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -194,6 +204,8 @@ func TestCategoryRepository_Update(t *testing.T) {
 }
 
 func TestCategoryRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -215,6 +227,8 @@ func TestCategoryRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestCategoryRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -231,6 +245,8 @@ func TestCategoryRepository_List(t *testing.T) {
 }
 
 func TestCategoryRepository_ListAll(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -260,6 +276,8 @@ func TestCategoryRepository_ListAll(t *testing.T) {
 // ============================================================================
 
 func TestCategoryRepository_Create_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -273,6 +291,8 @@ func TestCategoryRepository_Create_WithNil(t *testing.T) {
 }
 
 func TestCategoryRepository_Update_WithNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -286,6 +306,8 @@ func TestCategoryRepository_Update_WithNil(t *testing.T) {
 }
 
 func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -302,6 +324,8 @@ func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 // ============================================================================
 
 func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -367,6 +391,8 @@ func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
 }
 
 func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -402,6 +428,8 @@ func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T)
 }
 
 func TestCategoryRepository_SetShiftTypeForCategories_RejectsUnknownID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory
@@ -430,6 +458,8 @@ func TestCategoryRepository_SetShiftTypeForCategories_RejectsUnknownID(t *testin
 }
 
 func TestCategoryRepository_SetShiftTypeForCategories_RequiresTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActivityCategory

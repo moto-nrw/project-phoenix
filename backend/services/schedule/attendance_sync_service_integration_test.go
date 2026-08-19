@@ -131,6 +131,8 @@ func seedInstanceStudent(t *testing.T, s *attendanceSyncSetup, studentID int64, 
 // --- MirrorCheckInForVisit ---------------------------------------------------
 
 func TestAttendanceSync_MirrorCheckIn_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Happy", fmt.Sprintf("A-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
@@ -159,6 +161,8 @@ func TestAttendanceSync_MirrorCheckIn_HappyPath(t *testing.T) {
 }
 
 func TestAttendanceSync_MirrorCheckIn_WalkIn_NoInstance(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Walk", fmt.Sprintf("W-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
@@ -176,6 +180,8 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NoInstance(t *testing.T) {
 }
 
 func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	// No instance_students row seeded for this student.
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Unsubbed", fmt.Sprintf("U-%d", time.Now().UnixNano()), "3a")
@@ -197,6 +203,8 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
 }
 
 func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Closed", fmt.Sprintf("U-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
@@ -221,6 +229,8 @@ func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *t
 }
 
 func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		timeout bool
@@ -269,6 +279,8 @@ func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 }
 
 func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Slots", fmt.Sprintf("S-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
@@ -341,6 +353,8 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 }
 
 func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Dbl", fmt.Sprintf("D-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
@@ -381,6 +395,8 @@ func TestAttendanceSync_MirrorCheckIn_AlreadyPresent_NoClobber(t *testing.T) {
 }
 
 func TestAttendanceSync_MirrorCheckIn_NilVisitOrZeroActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	// StudentID is never read in B1 (the ActiveGroupID<=0 check short-circuits
 	// above it), but we still use a real fixture to stay hermetic.
@@ -398,6 +414,8 @@ func TestAttendanceSync_MirrorCheckIn_NilVisitOrZeroActiveGroup(t *testing.T) {
 }
 
 func TestAttendanceSync_MirrorCheckIn_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Ten", fmt.Sprintf("T-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
@@ -416,6 +434,8 @@ func TestAttendanceSync_MirrorCheckIn_TenantIsolation(t *testing.T) {
 // --- MirrorCheckOutForVisit --------------------------------------------------
 
 func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-Load", fmt.Sprintf("L-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
@@ -451,6 +471,8 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 }
 
 func TestAttendanceSync_LoadAttendance_NoRow(t *testing.T) {
+	t.Parallel()
+
 	s := buildAttendanceSyncSetup(t)
 	student := testpkg.CreateTestStudent(t, s.db, "AS-NoRow", fmt.Sprintf("N-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })

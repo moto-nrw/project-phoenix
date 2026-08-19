@@ -25,6 +25,8 @@ func createActiveServiceWithCrossTenant(t *testing.T, db *bun.DB) active.Service
 }
 
 func TestCrossTenantStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	// Ensure two tenants exist
@@ -123,6 +125,8 @@ func TestCrossTenantStudents(t *testing.T) {
 // TestCrossTenantRepository_Direct tests the repository directly to ensure
 // the SQL query works correctly.
 func TestCrossTenantRepository_Direct(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantHost := int64(50)

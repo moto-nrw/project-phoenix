@@ -21,6 +21,8 @@ import (
 // CreatedAt = NOW()) by issuing raw UPSERTs after the insert.
 
 func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
@@ -71,6 +73,8 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 }
 
 func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
@@ -100,6 +104,8 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 }
 
 func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
@@ -126,6 +132,8 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 }
 
 func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
@@ -151,6 +159,8 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 }
 
 func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
@@ -180,6 +190,8 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 }
 
 func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
+	t.Parallel()
+
 	// Service must refuse to delete when no audit repo is configured,
 	// otherwise we'd lose the compliance trail silently.
 	db := testpkg.SetupTestDB(t)
@@ -197,6 +209,8 @@ func TestTimeTrackingCleanup_AuditRequired(t *testing.T) {
 }
 
 func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 

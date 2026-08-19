@@ -41,6 +41,8 @@ func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, repo
 }
 
 func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
+	t.Parallel()
+
 	const tenantID int64 = 17
 	const actorID = 23
 	today := timezone.TodayDate()
@@ -97,6 +99,8 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 }
 
 func TestStatusDayRangeParsing(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/status-days?from=2026-05-25&to=2026-05-29", nil)
 
 	from, to, err := parseStatusDayRange(req)
@@ -115,6 +119,8 @@ func TestStatusDayRangeParsing(t *testing.T) {
 }
 
 func TestStatusDayOverviewRangeUsesSingleTodaySnapshot(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2026, 5, 25)
 	from, to, err := parseStatusDayOverviewRange(
 		httptest.NewRequest("GET", "/status-days", nil),
@@ -127,6 +133,8 @@ func TestStatusDayOverviewRangeUsesSingleTodaySnapshot(t *testing.T) {
 }
 
 func TestStatusDayDateHelpers(t *testing.T) {
+	t.Parallel()
+
 	dates, err := parseStatusDayDates([]string{"2026-05-25", "2026-05-27"})
 	require.NoError(t, err)
 	require.Len(t, dates, 2)
@@ -138,6 +146,8 @@ func TestStatusDayDateHelpers(t *testing.T) {
 }
 
 func TestCreateStudentStatusDaysRequestRejectsRangeOverOneYear(t *testing.T) {
+	t.Parallel()
+
 	req := &CreateStudentStatusDaysRequest{
 		Status: active.StudentStatusDaySick,
 		Dates:  []string{"2026-01-01", "2027-01-02"},
@@ -149,6 +159,8 @@ func TestCreateStudentStatusDaysRequestRejectsRangeOverOneYear(t *testing.T) {
 }
 
 func TestApplyAndClearLiveStatusForToday(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 5, 25, 9, 30, 0, 0, time.UTC)
 	student := &users.Student{}
 
@@ -191,6 +203,8 @@ func TestApplyAndClearLiveStatusForToday(t *testing.T) {
 }
 
 func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
+	t.Parallel()
+
 	reportedSick := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
 	reportedExcused := reportedSick.Add(time.Hour)
 	sick := &active.StudentStatusDay{
@@ -257,6 +271,8 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 }
 
 func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
 	repo := &fakeStatusDayRepo{
 		findByIDsRows: []*active.StudentStatusDay{
@@ -284,6 +300,8 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 }
 
 func TestResolveDayPlanningStatusDaysOverridePlans(t *testing.T) {
+	t.Parallel()
+
 	arrivalTime := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
 	pickupTime := time.Date(2026, 5, 25, 15, 30, 0, 0, time.UTC)
 	timetableIDs := map[int64]struct{}{90: {}}
@@ -301,6 +319,8 @@ func TestResolveDayPlanningStatusDaysOverridePlans(t *testing.T) {
 }
 
 func TestResolveDayPlanningActualAttendanceOverridesStatusDays(t *testing.T) {
+	t.Parallel()
+
 	checkInTime := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
 
 	status, reason, _ := resolveDayPlanning(
@@ -316,6 +336,8 @@ func TestResolveDayPlanningActualAttendanceOverridesStatusDays(t *testing.T) {
 }
 
 func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	resource := newStatusDayTestResource(db)
@@ -351,6 +373,8 @@ func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 }
 
 func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	resource := newStatusDayTestResource(db)
@@ -472,6 +496,8 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 }
 
 func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	resource := newStatusDayTestResource(db)
@@ -545,6 +571,8 @@ func TestStudentStatusDayHandlers_InvalidRequests(t *testing.T) {
 }
 
 func TestStudentStatusDayHandlers_RepositoryMissingAndForbidden(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	resource := newStatusDayTestResource(db)
@@ -578,6 +606,8 @@ func TestStudentStatusDayHandlers_RepositoryMissingAndForbidden(t *testing.T) {
 }
 
 func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	student := testpkg.CreateTestStudent(t, db, "StatusErrors", "Student", "SE1")

@@ -23,6 +23,8 @@ import (
 // caller who has no full access at all, and such a caller is already refused on
 // the subject itself.
 func TestGetStudentCompanions_NamesVisibleAcrossGroups(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CompanionScope", "Supervisor")

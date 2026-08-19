@@ -36,6 +36,8 @@ func updateRouter(parentCtx context.Context, res *Resource) chi.Router {
 }
 
 func TestUpdateInstance_Success(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := updateRouter(s.ctx, s.res)
@@ -74,6 +76,8 @@ func TestUpdateInstance_Success(t *testing.T) {
 }
 
 func TestUpdateInstance_Validation(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := updateRouter(s.ctx, s.res)
@@ -120,6 +124,8 @@ func TestUpdateInstance_Validation(t *testing.T) {
 }
 
 func TestUpdateInstance_ServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := updateRouter(s.ctx, s.res)
@@ -165,6 +171,8 @@ func timetablePgErrorWithConstraint(code, constraintName string) error {
 }
 
 func TestUpdateInstance_UnwiredAndEnrichmentFailure(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := updateRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))

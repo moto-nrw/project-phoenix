@@ -10,6 +10,8 @@ import (
 )
 
 func TestNewFactory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	factory := repositories.NewFactory(db)

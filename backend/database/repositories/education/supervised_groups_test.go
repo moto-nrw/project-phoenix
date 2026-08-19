@@ -28,6 +28,8 @@ func staffIDsFor(pairs []education.StaffGroupID, groupID int64) map[int64]struct
 // group on a given day: teacher assignments plus substitutions active on that
 // day, and nobody else.
 func TestGroupRepository_ListStaffIDsByEducationGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Group

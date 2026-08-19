@@ -176,6 +176,8 @@ func createGuardianMessage(t *testing.T, db *bun.DB, chain testpkg.ParentChain, 
 // the chat detail carries the resolved header (child + guardian + relationship)
 // and the staff sender name, and a new-message SSE fan-out fires to the guardian.
 func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
@@ -202,6 +204,8 @@ func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
 // column — not a live re-read — is what the parent view later uses, so a message
 // keeps the visibility it was sent with even if the school toggles the setting.
 func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
+	t.Parallel()
+
 	t.Run("setting on -> stamped visible", func(t *testing.T) {
 		f := newFixtureWithSettings(t, stubSettings{messagingEnabled: true, staffNameVisible: true})
 		detail, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -223,6 +227,8 @@ func TestStartThread_StampsStaffNameVisibleFromSetting(t *testing.T) {
 // the same (child, guardian) appends to the existing conversation instead of
 // opening a duplicate.
 func TestStartThread_IsGetOrCreate(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
@@ -237,6 +243,8 @@ func TestStartThread_IsGetOrCreate(t *testing.T) {
 // TestPostMessage_AppendsAndBroadcasts replies into an existing thread and checks
 // the message is appended in chat order and a fan-out fires.
 func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
@@ -256,6 +264,8 @@ func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
 // forging a personal read cursor for colleagues. Later guardian activity becomes
 // unread for the whole team again.
 func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	colleague, colleagueAccount := testpkg.CreateTestStaffWithAccount(t, f.db, "Miriam", "Klein")
 	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, f.db, colleague.ID) })
@@ -321,6 +331,8 @@ func TestPostMessage_ClearsTeamUnreadForColleagues(t *testing.T) {
 }
 
 func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
@@ -343,6 +355,8 @@ func TestPostMessage_RejectsLegacyReplyWithoutVisibleBoundary(t *testing.T) {
 // TestPostMessage_EmptyAndTooLong pins the body guards: blank → ErrEmptyBody,
 // over the 2000-rune cap → ErrBodyTooLong, both BEFORE any insert.
 func TestPostMessage_EmptyAndTooLong(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -361,6 +375,8 @@ func TestPostMessage_EmptyAndTooLong(t *testing.T) {
 // chat shows "Gelesen" live. A second GetThread that marks nothing must NOT fire
 // another receipt (the anti-ping-pong gate).
 func TestGetThread_MarksReadAndBroadcastsReceipt(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	staffCtx := adminCtx(t, f.staffAccount)
 
@@ -392,6 +408,8 @@ func TestGetThread_MarksReadAndBroadcastsReceipt(t *testing.T) {
 // TestGetThread_NotFound: a thread id that does not exist in the tenant is
 // ErrThreadNotFound, not a 500.
 func TestGetThread_NotFound(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	_, err := f.svc.GetThread(adminCtx(t, f.staffAccount), 999999999)
 	require.ErrorIs(t, err, messaging.ErrThreadNotFound)
@@ -404,6 +422,8 @@ func TestGetThread_NotFound(t *testing.T) {
 // not appear in the inbox until its first message — so opening never litters the
 // list.
 func TestOpenThread_EmptyConversationStaysHiddenFromInbox(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
@@ -421,6 +441,8 @@ func TestOpenThread_EmptyConversationStaysHiddenFromInbox(t *testing.T) {
 // conversation that has an unread guardian message reads it (clearing the badge)
 // and fires a read-receipt SSE so the guardian's open chat updates live.
 func TestOpenThread_ExistingWithUnreadMarksReadAndBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -445,6 +467,8 @@ func TestOpenThread_ExistingWithUnreadMarksReadAndBroadcasts(t *testing.T) {
 // inbox row carries names, relationship, and the unread MESSAGE count; the
 // onlyUnread filter keeps it while there is unread and drops it once read.
 func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 
@@ -476,6 +500,8 @@ func TestListInbox_ShowsConversationWithUnread(t *testing.T) {
 // offers the child's account-holding guardian with their relationship + primary
 // flag.
 func TestListGuardians_ReturnsAccountHoldingGuardian(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	guardians, err := f.svc.ListGuardians(adminCtx(t, f.staffAccount), f.chain.StudentID)
 	require.NoError(t, err)
@@ -488,6 +514,8 @@ func TestListGuardians_ReturnsAccountHoldingGuardian(t *testing.T) {
 // TestListStudentThreads_FiltersToChild: the student-detail card sees the child's
 // conversation(s) after authorizing read access to that child.
 func TestListStudentThreads_FiltersToChild(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 	_, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -505,6 +533,8 @@ func TestListStudentThreads_FiltersToChild(t *testing.T) {
 // messageable guardian of the child is ErrInvalidGuardian — staff cannot message
 // an arbitrary account about a child.
 func TestStartThread_InvalidGuardian(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	stranger := testpkg.CreateTestAccount(t, f.db, "stranger")
 	t.Cleanup(func() {
@@ -520,6 +550,8 @@ func TestStartThread_InvalidGuardian(t *testing.T) {
 // CanReadStudent denies, and the service maps that to ErrForbidden (→ 403),
 // never leaking the conversation. users:read alone is not enough.
 func TestMessaging_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
@@ -541,6 +573,8 @@ func TestMessaging_Forbidden(t *testing.T) {
 // decision — GetStudentByID returns a wrapped sql.ErrNoRows — so the service maps
 // it to ErrForbidden (→ 403), never a 500 that would tell staff the child exists.
 func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 	_, err := f.svc.ListGuardians(ctx, 999999999)
@@ -550,6 +584,8 @@ func TestMessaging_MissingStudentIsForbidden(t *testing.T) {
 }
 
 func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -577,6 +613,8 @@ func TestMessaging_GraduatedStudentIsForbidden(t *testing.T) {
 // (the parent APIs now hide it, so a reply would be unreadable and the SSE would
 // leak to a revoked account).
 func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
@@ -602,6 +640,8 @@ func TestPostMessage_GuardianAccessRevoked(t *testing.T) {
 // inbox history stays readable but with its unread pills suppressed so the badge
 // and the rows agree.
 func TestMessaging_DisabledFeature(t *testing.T) {
+	t.Parallel()
+
 	f := newFixture(t, true)
 	ctx := adminCtx(t, f.staffAccount)
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")

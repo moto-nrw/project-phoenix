@@ -19,6 +19,8 @@ import (
 // (staff, room) projection that replaces the per-staff FindActiveByStaffID plus
 // GetActiveGroupsByIDs walk.
 func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSupervisor
@@ -199,6 +201,8 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 // TestVisitRepository_ListOpenVisitStudentIDsByRoom pins the whole-tenant
 // room -> present students projection that replaces the per-room query loop.
 func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit

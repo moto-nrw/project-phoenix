@@ -84,6 +84,8 @@ func setupEventsTestContext(t *testing.T) *eventsTestContext {
 // =============================================================================
 
 func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupEventsTestContext(t)
 
 	// Create a person without staff record (just a basic account)
@@ -112,6 +114,8 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 // =============================================================================
 
 func TestSSEEvents_StaffWithAccount(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupEventsTestContext(t)
 
 	// Create a teacher with account (has staff record)
@@ -136,6 +140,8 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 }
 
 func TestSSEEvents_AdminClaims(t *testing.T) {
+	t.Parallel()
+
 	tctx := setupEventsTestContext(t)
 
 	// Create admin without staff record
@@ -164,6 +170,8 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 }
 
 func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
+	t.Parallel()
+
 	tctx := setupEventsTestContext(t)
 
 	router := chi.NewRouter()
@@ -193,6 +201,8 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 // =============================================================================
 
 func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
+	t.Parallel()
+
 	tctx := setupEventsTestContext(t)
 
 	// Create a teacher with account (has staff record)
@@ -226,6 +236,8 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 }
 
 func TestSSEEvents_ResponseHeaders(t *testing.T) {
+	t.Parallel()
+
 	tctx := setupEventsTestContext(t)
 
 	// Create a teacher with account

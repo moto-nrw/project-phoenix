@@ -16,6 +16,8 @@ import (
 
 // Tests for isNotFoundError helper
 func TestIsNotFoundError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns true for DatabaseError with sql.ErrNoRows", func(t *testing.T) {
 		err := &base.DatabaseError{
 			Op:  "find by id",
@@ -73,6 +75,8 @@ func TestIsNotFoundError(t *testing.T) {
 // short-circuits inside the app-level ensureStudentHasNoActiveVisit
 // check and never reaches visitRepo.Create.
 func TestIsDuplicateActiveVisitViolation(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns false for nil error", func(t *testing.T) {
 		assert.False(t, isDuplicateActiveVisitViolation(nil))
 	})

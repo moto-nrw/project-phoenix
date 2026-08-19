@@ -142,6 +142,8 @@ func shiftFor(staffID int64, date timezone.Date, startHour, endHour int) *schedu
 // ============================================================================
 
 func TestAutoCheckout_ClosesDueSessionAtShiftEnd(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -187,6 +189,8 @@ func TestAutoCheckout_ClosesDueSessionAtShiftEnd(t *testing.T) {
 }
 
 func TestAutoCheckout_SkipsCheckInAfterShiftEnd(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -212,6 +216,8 @@ func TestAutoCheckout_SkipsCheckInAfterShiftEnd(t *testing.T) {
 }
 
 func TestAutoCheckout_SkipsReopenedAfterShiftEndFromLockedRow(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	listedSession := &activeModels.WorkSession{
@@ -247,6 +253,8 @@ func TestAutoCheckout_SkipsReopenedAfterShiftEndFromLockedRow(t *testing.T) {
 }
 
 func TestAutoCheckout_SkipsSessionWithoutShift(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	session := &activeModels.WorkSession{
 		StaffID:     7,
@@ -270,6 +278,8 @@ func TestAutoCheckout_SkipsSessionWithoutShift(t *testing.T) {
 }
 
 func TestAutoCheckout_MultipleShiftsLatestEndWins(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -300,6 +310,8 @@ func TestAutoCheckout_MultipleShiftsLatestEndWins(t *testing.T) {
 }
 
 func TestAutoCheckout_GraceNotElapsed(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -326,6 +338,8 @@ func TestAutoCheckout_GraceNotElapsed(t *testing.T) {
 }
 
 func TestAutoCheckout_EndsActiveBreakAfterCloseClaim(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -369,6 +383,8 @@ func TestAutoCheckout_EndsActiveBreakAfterCloseClaim(t *testing.T) {
 }
 
 func TestAutoCheckout_ReturnsErrorWhenActiveBreakEndFailsAfterClose(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -409,6 +425,8 @@ func TestAutoCheckout_ReturnsErrorWhenActiveBreakEndFailsAfterClose(t *testing.T
 }
 
 func TestAutoCheckout_ReturnsErrorWhenActiveBreakRecalcFailsAfterClose(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -455,6 +473,8 @@ func TestAutoCheckout_ReturnsErrorWhenActiveBreakRecalcFailsAfterClose(t *testin
 }
 
 func TestAutoCheckout_BreakCappedAtShiftEnd(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -496,6 +516,8 @@ func TestAutoCheckout_BreakCappedAtShiftEnd(t *testing.T) {
 }
 
 func TestAutoCheckout_SkipsBreakStartedAfterShiftEnd(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -536,6 +558,8 @@ func TestAutoCheckout_SkipsBreakStartedAfterShiftEnd(t *testing.T) {
 }
 
 func TestAutoCheckout_SkipsCompletedBreakStartedAfterShiftEnd(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -575,6 +599,8 @@ func TestAutoCheckout_SkipsCompletedBreakStartedAfterShiftEnd(t *testing.T) {
 }
 
 func TestAutoCheckout_SkipsCompletedBreakEndedAfterShiftEnd(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -614,6 +640,8 @@ func TestAutoCheckout_SkipsCompletedBreakEndedAfterShiftEnd(t *testing.T) {
 }
 
 func TestAutoCheckout_RechecksBreaksAfterCloseBeforeAudit(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -659,6 +687,8 @@ func TestAutoCheckout_RechecksBreaksAfterCloseBeforeAudit(t *testing.T) {
 }
 
 func TestAutoCheckout_AuditFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -686,6 +716,8 @@ func TestAutoCheckout_AuditFailureReturnsError(t *testing.T) {
 }
 
 func TestAutoCheckout_SkipsAuditWhenCloseRacesWithManualCheckout(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -723,6 +755,8 @@ func TestAutoCheckout_SkipsAuditWhenCloseRacesWithManualCheckout(t *testing.T) {
 }
 
 func TestAutoCheckout_EndsActiveSupervisions(t *testing.T) {
+	t.Parallel()
+
 	yesterday := timezone.TodayDate().AddDays(-1)
 	staffID := int64(7)
 	session := &activeModels.WorkSession{
@@ -763,6 +797,8 @@ func TestAutoCheckout_EndsActiveSupervisions(t *testing.T) {
 }
 
 func TestAutoCheckout_NoShiftRepoIsNoop(t *testing.T) {
+	t.Parallel()
+
 	service, sessionRepo, _, _, _ := wsCreateTestService()
 	sessionRepo.getOpenSessionsFunc = func(_ context.Context, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		t.Fatal("open sessions must not be queried without a shift repo")
@@ -775,6 +811,8 @@ func TestAutoCheckout_NoShiftRepoIsNoop(t *testing.T) {
 }
 
 func TestAutoCheckout_QueriesOpenSessionsIncludingToday(t *testing.T) {
+	t.Parallel()
+
 	service, sessionRepo, _, _, _ := autoCheckoutFixture(nil, nil)
 
 	var beforeDate timezone.Date

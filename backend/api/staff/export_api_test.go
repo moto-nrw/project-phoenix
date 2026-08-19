@@ -29,6 +29,8 @@ func setupExportAPI(t *testing.T) *overviewAPIContext {
 }
 
 func TestTimeTrackingExportAPI_PermissionSplit(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupExportAPI(t)
 	path := "/staff/time-tracking/export?year=2026&month=1"
 
@@ -46,6 +48,8 @@ func TestTimeTrackingExportAPI_PermissionSplit(t *testing.T) {
 }
 
 func TestTimeTrackingExportAPI_Validation(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupExportAPI(t)
 
 	for _, path := range []string{
@@ -63,6 +67,8 @@ func TestTimeTrackingExportAPI_Validation(t *testing.T) {
 }
 
 func TestTimeTrackingExportAPI_Formats(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupExportAPI(t)
 
 	rec := ctx.get("/staff/time-tracking/export?year=2026&month=1&format=xlsx", "time_tracking:manage")
@@ -82,6 +88,8 @@ func TestTimeTrackingExportAPI_Formats(t *testing.T) {
 // and the download refuse with the stable payroll_config_incomplete code
 // instead of producing an empty file.
 func TestTimeTrackingExportAPI_Datev(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupExportAPI(t)
 	reportPath := "/staff/time-tracking/export/datev-report?year=2026&month=1&format=datev_lodas"
 

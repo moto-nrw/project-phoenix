@@ -17,6 +17,8 @@ import (
 )
 
 func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

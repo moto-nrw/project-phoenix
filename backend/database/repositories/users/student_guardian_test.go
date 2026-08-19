@@ -54,6 +54,8 @@ func cleanupStudentGuardians(t *testing.T, db *bun.DB, ids ...int64) {
 // ============================================================================
 
 func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -83,6 +85,8 @@ func TestStudentGuardianRepository_FindByStudentID_Success(t *testing.T) {
 }
 
 func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -105,6 +109,8 @@ func TestStudentGuardianRepository_FindByStudentID_Empty(t *testing.T) {
 // ============================================================================
 
 func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -150,6 +156,8 @@ func TestStudentGuardianRepository_FindByGuardianProfileID_Success(t *testing.T)
 // ============================================================================
 
 func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -202,6 +210,8 @@ func TestStudentGuardianRepository_SetPrimary_Success(t *testing.T) {
 // ============================================================================
 
 func TestStudentGuardianRepository_Create_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -236,6 +246,8 @@ func TestStudentGuardianRepository_Create_Success(t *testing.T) {
 }
 
 func TestStudentGuardianRepository_Create_NilReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -250,6 +262,8 @@ func TestStudentGuardianRepository_Create_NilReturnsError(t *testing.T) {
 }
 
 func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -276,6 +290,8 @@ func TestStudentGuardianRepository_Create_ValidationError(t *testing.T) {
 // ============================================================================
 
 func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -320,6 +336,8 @@ func TestStudentGuardianRepository_List_WithFilters(t *testing.T) {
 // unique-violation that would abort the surrounding tenant tx), and tenant_id is
 // auto-populated from context when the caller leaves it unset.
 func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -436,6 +454,8 @@ func TestStudentGuardianRepository_LinkIfNotExists(t *testing.T) {
 // an empty result with no query (and no error), so SearchGuardiansForPicker can
 // call it unconditionally.
 func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -457,6 +477,8 @@ func TestStudentGuardianRepository_ListLinkedChildrenForGuardians_EmptyInput(t *
 // the authorization decision is made on a row that cannot change underneath it.
 // Drop the For("UPDATE") clause and the blocking subtest fails.
 func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -529,6 +551,8 @@ func TestStudentGuardianRepository_FindByStudentAndGuardianForUpdate(t *testing.
 // must NOT grant it on another child of the same guardian, and an inactive /
 // missing account_tenants mapping or a wrong tenant must report no permission.
 func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -590,6 +614,8 @@ func TestStudentGuardianRepository_AccountHasStudentPermission(t *testing.T) {
 // boundary the account variant enforces: relationship scope (permission on child
 // A never covers child B), tenant isolation, and case-insensitive email matching.
 func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian
@@ -688,6 +714,8 @@ func TestStudentGuardianRepository_GuardianEmailHasStudentPermission(t *testing.
 // is about. The filter must narrow (never widen) the caller's list, honour the
 // relationship scope, and isolate tenants.
 func TestStudentGuardianRepository_FilterAccountsWithStudentAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StudentGuardian

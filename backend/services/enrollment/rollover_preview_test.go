@@ -29,6 +29,8 @@ func seedChildWithStatus(t *testing.T, env *rolloverTestEnv, phaseID int64, emai
 }
 
 func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -57,6 +59,8 @@ func TestRolloverService_PreviewPhaseFromSource_CountsCarriedExcludedReview(t *t
 }
 
 func TestRolloverService_PreviewPhaseFromSource_NoGradeBumpKeepsAllCarried(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -73,6 +77,8 @@ func TestRolloverService_PreviewPhaseFromSource_NoGradeBumpKeepsAllCarried(t *te
 }
 
 func TestRolloverService_PreviewPhaseFromSource_IsReadOnly(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -93,6 +99,8 @@ func TestRolloverService_PreviewPhaseFromSource_IsReadOnly(t *testing.T) {
 }
 
 func TestRolloverService_PreviewPhaseFromSource_RejectsAlreadyRolledSource(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

@@ -79,8 +79,10 @@ func phaseNamesOf(list []*parentModels.EnrollablePhase) map[string]string {
 // --- ListEnrollable: audience + permission filtering (#1663) -----------
 
 func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseHiddenWithoutGuardianLink(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -104,6 +106,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseHiddenWithou
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -119,6 +123,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithS
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedToExistingStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -145,8 +151,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedT
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenWithoutGuardianLink(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -174,6 +182,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenWithoutG
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -203,6 +213,8 @@ func setStudentStatus(t *testing.T, db *bun.DB, studentID int64, status string) 
 // phase would be a guaranteed dead end — while linked_parents stays visible,
 // because that audience exists to enroll a genuinely NEW sibling (#1663).
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInactiveOnlyChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -225,6 +237,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInact
 // The same account with a still-enrolled (pending) child DOES see the phase:
 // the enrolled probe must accept pending, matching the submit-path scope.
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPendingChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -241,6 +255,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPend
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedPhase(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -269,6 +285,8 @@ func setSchoolHidden(t *testing.T, db *bun.DB, tenantID int64, hidden bool) {
 // --- ListEnrollable: hidden-school discovery (#1663) -------------------
 
 func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinkedParent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -306,6 +324,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinke
 // service dates to accounts with no guardian relationship at all. Only an
 // actual family link may lift the hidden flag (#1663).
 func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuardianMember(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -342,6 +362,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuar
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMember(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -364,6 +386,8 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMem
 // --- GuardianSubmitStatus ----------------------------------------------
 
 func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -383,6 +407,8 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsS
 }
 
 func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
@@ -436,6 +462,8 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 // loses the enrolled one, so the parents-portal form gate refuses the
 // existing_students phase its picker already hides (#1663).
 func TestEnrollablePhaseRepository_GuardianSubmitStatus_EnrolledPermissionTracksStudentStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })

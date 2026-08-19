@@ -37,6 +37,8 @@ import (
 )
 
 func TestOperationsPlannedNow(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		planned: []scheduleSvc.OperationPlannedInstance{{ID: 220, Title: "Lernzeit"}},
 	}
@@ -69,6 +71,8 @@ func testWorkdayNow() time.Time {
 }
 
 func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{})
 	router := operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
 	rr := executeOperationRequest(t, router, http.MethodGet, "/planned-now", nil)
@@ -93,6 +97,8 @@ func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
 }
 
 func TestOperationsInstanceEndpoints(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		roster: &scheduleSvc.OperationRoster{Instance: scheduleSvc.OperationRosterInstance{ID: 230}},
 		start: &scheduleSvc.StartInstanceResult{
@@ -130,6 +136,8 @@ func TestOperationsInstanceEndpoints(t *testing.T) {
 }
 
 func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
+	t.Parallel()
+
 	started := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
 	started.ID = 231
 	service := &fakeOperationsService{
@@ -170,6 +178,8 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
+	t.Parallel()
+
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 241
 	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
@@ -231,6 +241,8 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	guardianRepo := repositories.NewFactory(db).GuardianProfile
@@ -354,6 +366,8 @@ func (s *rollbackProbeInstanceService) Create(ctx context.Context, req scheduleS
 }
 
 func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
+	t.Parallel()
+
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 242
 	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
@@ -404,6 +418,8 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing.T) {
+	t.Parallel()
+
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 243
 	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
@@ -456,6 +472,8 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsArchivedCategory(t *testing.T) {
+	t.Parallel()
+
 	archivedAt := time.Now()
 	categoryRepo := &fakeOperationActivityCategoryRepo{
 		findByNameResult: &activityModels.Category{
@@ -501,6 +519,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsArchivedCategory(t *testing.T
 }
 
 func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
+	t.Parallel()
+
 	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 7, 5, 44, 0, time.UTC))
 
 	assert.Equal(t, "2026-05-12", window.date.Format(dateLayout))
@@ -509,6 +529,8 @@ func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
 }
 
 func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
+	t.Parallel()
+
 	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 21, 45, 0, 0, time.UTC))
 
 	assert.Equal(t, "2026-05-12", window.date.Format(dateLayout))
@@ -517,6 +539,8 @@ func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   &mockInstanceService{},
@@ -542,6 +566,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
+	t.Parallel()
+
 	const roomID int64 = 7
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
@@ -565,6 +591,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		InstanceService:   &mockInstanceService{},
@@ -591,6 +619,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -617,6 +647,8 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -644,6 +676,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *t
 }
 
 func TestOperationsCapabilities(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
@@ -660,6 +694,8 @@ func TestOperationsCapabilities(t *testing.T) {
 }
 
 func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
@@ -676,6 +712,8 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 }
 
 func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
@@ -693,6 +731,8 @@ func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T)
 }
 
 func TestOperationsRosterByActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		roster: &scheduleSvc.OperationRoster{Instance: scheduleSvc.OperationRosterInstance{ID: 240}},
 	}
@@ -714,6 +754,8 @@ func TestOperationsRosterByActiveGroup(t *testing.T) {
 }
 
 func TestOperationsStudentEndpoints(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		roster: &scheduleSvc.OperationRoster{Instance: scheduleSvc.OperationRosterInstance{ID: 250}},
 	}
@@ -752,6 +794,8 @@ func TestOperationsStudentEndpoints(t *testing.T) {
 }
 
 func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
+	t.Parallel()
+
 	status := schedule.AttendanceStatusAbsent
 	service := &fakeOperationsService{
 		patchRow: &scheduleSvc.OperationRosterRow{StudentID: 360, Status: schedule.AttendanceStatusAbsent},
@@ -772,6 +816,8 @@ func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
 }
 
 func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
+	t.Parallel()
+
 	nilService := NewResource(Dependencies{})
 	nilRouter := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", nilService.operationsPatchAttendance)
 	rr := executeOperationRequest(t, nilRouter, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "present"})
@@ -805,6 +851,8 @@ func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 }
 
 func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{OperationsService: &fakeOperationsService{err: scheduleSvc.ErrTimetableOperationForbidden}})
 	router := operationRouter(http.MethodGet, "/instances/{id}/roster", res.operationsRoster)
 	rr := executeOperationRequest(t, router, http.MethodGet, "/instances/abc/roster", nil)
@@ -1189,6 +1237,8 @@ func executeOperationRequest(tb testing.TB, router chi.Router, method, path stri
 }
 
 func TestSpontaneousStartWorkdayWindow_RejectsWeekend(t *testing.T) {
+	t.Parallel()
+
 	_, err := spontaneousStartWorkdayWindow(time.Date(2026, time.May, 9, 14, 0, 0, 0, timezone.Berlin))
 	require.ErrorIs(t, err, errTimetableWeekend)
 }

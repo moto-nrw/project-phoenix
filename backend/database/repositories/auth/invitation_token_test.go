@@ -53,6 +53,8 @@ func cleanupInvitationTokens(t *testing.T, db *bun.DB, ids ...int64) {
 // ============================================================================
 
 func TestInvitationTokenRepository_FindByToken_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -80,6 +82,8 @@ func TestInvitationTokenRepository_FindByToken_Success(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_FindByToken_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -97,6 +101,8 @@ func TestInvitationTokenRepository_FindByToken_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_FindByID_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -123,6 +129,8 @@ func TestInvitationTokenRepository_FindByID_Success(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -140,6 +148,8 @@ func TestInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_FindValidByToken_Valid(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -166,6 +176,8 @@ func TestInvitationTokenRepository_FindValidByToken_Valid(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -197,6 +209,8 @@ func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -233,6 +247,8 @@ func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_FindByEmail_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -260,6 +276,8 @@ func TestInvitationTokenRepository_FindByEmail_Success(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_FindByEmail_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -289,6 +307,8 @@ func TestInvitationTokenRepository_FindByEmail_CaseInsensitive(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -322,6 +342,8 @@ func TestInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_InvalidateByEmail_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -359,6 +381,8 @@ func TestInvitationTokenRepository_InvalidateByEmail_Success(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -407,6 +431,8 @@ func TestInvitationTokenRepository_DeleteExpired_Success(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_List_NoFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -432,6 +458,8 @@ func TestInvitationTokenRepository_List_NoFilters(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_List_WithEmailFilter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -463,6 +491,8 @@ func TestInvitationTokenRepository_List_WithEmailFilter(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_List_WithPendingFilter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -497,6 +527,8 @@ func TestInvitationTokenRepository_List_WithPendingFilter(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -529,6 +561,8 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -565,6 +599,8 @@ func TestInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) 
 // ============================================================================
 
 func TestInvitationTokenRepository_Update_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -599,6 +635,8 @@ func TestInvitationTokenRepository_Update_Success(t *testing.T) {
 }
 
 func TestInvitationTokenRepository_Update_NilReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken
@@ -617,6 +655,8 @@ func TestInvitationTokenRepository_Update_NilReturnsError(t *testing.T) {
 // ============================================================================
 
 func TestInvitationTokenRepository_InvalidateByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).InvitationToken

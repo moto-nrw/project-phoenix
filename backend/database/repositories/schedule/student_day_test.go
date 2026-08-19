@@ -18,6 +18,8 @@ import (
 // FindInstancesWithAttendanceByStudentAndDateRange must return one row per
 // (instance, attendance) pair in the range, tenant-scoped, sorted.
 func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -121,6 +123,8 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 // unmarked 'expected' row on a completed instance, which is what an attendance
 // PATCH reset writes and must never be mistaken for a non-booking.
 func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduledOnCompleted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -234,6 +238,8 @@ func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduled
 // range do not. The far-future window keeps concurrent fixtures from other
 // packages out of the tenant-wide EXISTS.
 func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -312,6 +318,8 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 // (#1920). The far-future window keeps concurrent fixtures from other packages
 // out of the tenant-wide EXISTS.
 func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

@@ -132,6 +132,8 @@ func (f *careFixture) createPending(t *testing.T, payload map[string]any) *sched
 // a verified non-admin staffer with the same permission sees and decides the
 // same request.
 func TestDecide_ForbiddenWithoutStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
@@ -164,6 +166,8 @@ func TestDecide_ForbiddenWithoutStaffRecord(t *testing.T) {
 // path: approving a pending request DURABLY applies the child's permanent
 // weekly plan (departure mode + arrival + pickup for the requested weekday).
 func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 
@@ -210,6 +214,8 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 // Tuesday arrival saved directly, and must preserve a multi-mode (bus+pickup)
 // Tuesday departure set — the collapse bug the apply guards against.
 func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 
@@ -261,6 +267,8 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 }
 
 func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	seedCareDay(t, f, ctx, 2)
@@ -286,6 +294,8 @@ func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
 }
 
 func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	seedCareDay(t, f, ctx, 2)
@@ -358,6 +368,8 @@ func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int)
 // (here the guardian account) cannot be stamped as the confirming staff, so the
 // apply returns ErrCareRequestForbidden rather than a 500.
 func TestDecide_NonStaffConfirmerForbidden(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
@@ -375,6 +387,8 @@ func TestDecide_NonStaffConfirmerForbidden(t *testing.T) {
 // REJECTING stays available so staff can wind it down. Mirrors the chat's
 // ConfirmRequest/requireLinkedGuardian split this flow replaced.
 func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// The default fixture passes a nil emitter; wire one so the link gate is
 	// live. Only the thread repo is consulted for the access check — the pill
@@ -444,6 +458,8 @@ func (s *toggleSettings) ResolveBoolForTenant(context.Context, int64, string) (b
 // a request the review queue has already resolved forever. The reconcile write
 // only appends to the EXISTING thread + created pill — it never creates a thread.
 func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// This test actually writes pills (created + status) from the separate staff
 	// account, whose sender_account_id FKs auth.accounts without cascade. Register
@@ -498,6 +514,8 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 // themselves. A subsequent non-request_created pill (the reject decision) MUST
 // advance the preview as before.
 func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// Created pill (guardian) + status pill (staff) both reference auth.accounts
 	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
@@ -554,6 +572,8 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 // conjure a dangling request_status pill (or create a thread). Only an
 // already-open notice is reconciled.
 func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
@@ -586,6 +606,8 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 // TestDecide_ApproveAllowedWhenMessagingDisabled pins that request decisions
 // are independent from the optional parent-message channel.
 func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// Wire an emitter whose settings report messaging OFF; notification pills
 	// are dropped, but the request workflow remains available.
@@ -624,6 +646,8 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 // request is approved, a second decide (or a reject racing it) sees the terminal
 // status under the FOR UPDATE re-read and returns ErrCareRequestNotPending.
 func TestDecide_SecondDecideNotPending(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "arrival": "07:45"}))
@@ -642,6 +666,8 @@ func TestDecide_SecondDecideNotPending(t *testing.T) {
 // reason is rejected, an over-2000-rune reason is rejected, and a valid reject
 // flips the row to rejected WITHOUT applying the plan.
 func TestDecide_RejectRequiresReasonAndBounds(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
@@ -668,6 +694,8 @@ func TestDecide_RejectRequiresReasonAndBounds(t *testing.T) {
 // TestCreateRequest_RejectsMidnight pins that 00:00 is rejected at create time
 // (it normalizes to the zero time the schedule validators treat as "unset").
 func TestCreateRequest_RejectsMidnight(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 
@@ -689,6 +717,8 @@ func TestCreateRequest_RejectsMidnight(t *testing.T) {
 // sanitized canonical form: unknown keys dropped, duplicate weekday entries
 // collapsed (last value per aspect wins).
 func TestCreateRequest_CanonicalizesPayload(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 
@@ -717,6 +747,8 @@ func TestCreateRequest_CanonicalizesPayload(t *testing.T) {
 // pending request for the same child is ErrCareRequestAlreadyPending — the
 // guardian withdraws and re-submits instead of stacking.
 func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
@@ -731,6 +763,8 @@ func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
 // request; a second withdraw of the now-terminal row fails; and a withdraw by a
 // DIFFERENT guardian account is reported not-found (id space is not probeable).
 func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
@@ -764,6 +798,8 @@ func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
 // TestGetPendingForStudent_NoneReturnsNil pins that a child with no open request
 // yields (nil, nil, nil) — the read view shows no pending card.
 func TestGetPendingForStudent_NoneReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req, diff, err := f.svc.GetPendingForStudent(f.staffCtx(f.staffAccount), f.chain.StudentID)
 	require.NoError(t, err)
@@ -774,6 +810,8 @@ func TestGetPendingForStudent_NoneReturnsNil(t *testing.T) {
 // TestGetPendingForStudent_ReturnsPendingWithDiff pins that an open request is
 // returned with a live "current → requested" diff.
 func TestGetPendingForStudent_ReturnsPendingWithDiff(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 	f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
@@ -790,6 +828,8 @@ func TestGetPendingForStudent_ReturnsPendingWithDiff(t *testing.T) {
 // child's name and a live current→requested diff. This is the counterpart to
 // the forbidden-scope test, which only exercises the empty-queue branch.
 func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
@@ -818,6 +858,8 @@ func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
 // new plan. The shared fixture wires a nil broadcaster; this rebuilds the service
 // with a capturing one against the SAME db/repos.
 func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "arrival": "08:00", "pickup": "16:00"},
@@ -847,6 +889,8 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 // drop one at all) has to stay silent, or routine parent requests cost unrelated
 // staff their unsaved companion edits.
 func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := schedule.NewCareScheduleRequestService(
@@ -939,6 +983,8 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 // panic or a leak of another child's row). The id is derived from a real
 // fixture request, then offset past any real row, to stay hermetic.
 func TestWithdrawRequest_BogusIDNotFound(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 	bogusID := req.ID + 1_000_000
@@ -952,6 +998,8 @@ func TestWithdrawRequest_BogusIDNotFound(t *testing.T) {
 // the pending-row lookup returns not-found, so Decide surfaces it instead of
 // dereferencing a nil request.
 func TestDecide_BogusIDNotFound(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 	bogusID := req.ID + 1_000_000
@@ -973,6 +1021,8 @@ func TestDecide_BogusIDNotFound(t *testing.T) {
 // withdraw) or pickup time (approve) until reload. A RecordingBroadcaster wired
 // into the emitter proves the guardian wake fires on each transition.
 func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// The create/withdraw/decide pills reference the staff + guardian accounts
 	// without cascade; clear them LIFO-first, ahead of the auth cleanup.

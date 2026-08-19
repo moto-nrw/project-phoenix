@@ -16,6 +16,8 @@ import (
 // ============================================================================
 
 func TestAuthEventRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
@@ -91,6 +93,8 @@ func TestAuthEventRepository_Create(t *testing.T) {
 }
 
 func TestAuthEventRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
@@ -122,6 +126,8 @@ func TestAuthEventRepository_FindByID(t *testing.T) {
 // ============================================================================
 
 func TestAuthEventRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
@@ -173,6 +179,8 @@ func TestAuthEventRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestAuthEventRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
@@ -213,6 +221,8 @@ func TestAuthEventRepository_List(t *testing.T) {
 }
 
 func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
@@ -241,6 +251,8 @@ func TestAuthEventRepository_PendingAccountWideWipes(t *testing.T) {
 }
 
 func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDays(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent
@@ -270,6 +282,8 @@ func TestAuthEventRepository_ListPendingAccountWideWipesIncludesOlderThanSevenDa
 }
 
 func TestAuthEventRepository_ClaimPendingAccountWideWipes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AuthEvent

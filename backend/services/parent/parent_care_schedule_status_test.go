@@ -7,6 +7,8 @@ import (
 )
 
 func TestCareDayStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		hasCarePlan bool

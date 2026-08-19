@@ -1,11 +1,8 @@
 package facilities_test
 
 import (
-	"context"
-	"fmt"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -16,28 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// cleanupWCArtifacts removes all WC-related database rows to ensure
-// hermetic test isolation.
-func cleanupWCArtifacts(t *testing.T, db *bun.DB) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.WCCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.WCRoomName),
-	}
-	for _, stmt := range stmts {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			t.Logf("wc cleanup: %v (stmt: %s)", err, stmt)
-		}
-	}
-}
 
 // setupWCService creates a WC service with real database connection.
 func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
@@ -74,10 +49,9 @@ func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
 // ============================================================================
 
 func TestWCService_EnsureInfrastructure_CreatesAll(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -96,10 +70,9 @@ func TestWCService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_Idempotent(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -117,10 +90,9 @@ func TestWCService_EnsureInfrastructure_Idempotent(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_CreatesRoom(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -142,10 +114,9 @@ func TestWCService_EnsureInfrastructure_CreatesRoom(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_CreatesCategory(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -166,10 +137,9 @@ func TestWCService_EnsureInfrastructure_CreatesCategory(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_ReuseExistingRoom(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
 

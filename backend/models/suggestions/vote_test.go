@@ -9,6 +9,8 @@ import (
 )
 
 func TestVote_Validate_Success(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{
 		PostID:    1,
 		VoterID:   2,
@@ -20,6 +22,8 @@ func TestVote_Validate_Success(t *testing.T) {
 }
 
 func TestVote_Validate_DownDirection(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{
 		PostID:    1,
 		VoterID:   2,
@@ -31,6 +35,8 @@ func TestVote_Validate_DownDirection(t *testing.T) {
 }
 
 func TestVote_Validate_ZeroPostID(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{
 		PostID:    0,
 		VoterID:   2,
@@ -43,6 +49,8 @@ func TestVote_Validate_ZeroPostID(t *testing.T) {
 }
 
 func TestVote_Validate_NegativePostID(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{
 		PostID:    -1,
 		VoterID:   2,
@@ -55,6 +63,8 @@ func TestVote_Validate_NegativePostID(t *testing.T) {
 }
 
 func TestVote_Validate_ZeroVoterID(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{
 		PostID:    1,
 		VoterID:   0,
@@ -67,6 +77,8 @@ func TestVote_Validate_ZeroVoterID(t *testing.T) {
 }
 
 func TestVote_Validate_InvalidDirection(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{
 		PostID:    1,
 		VoterID:   2,
@@ -79,6 +91,8 @@ func TestVote_Validate_InvalidDirection(t *testing.T) {
 }
 
 func TestVote_Validate_EmptyDirection(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{
 		PostID:    1,
 		VoterID:   2,
@@ -91,6 +105,8 @@ func TestVote_Validate_EmptyDirection(t *testing.T) {
 }
 
 func TestIsValidDirection(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		direction string
 		valid     bool
@@ -111,12 +127,16 @@ func TestIsValidDirection(t *testing.T) {
 }
 
 func TestVote_GetID(t *testing.T) {
+	t.Parallel()
+
 	vote := &Vote{}
 	vote.ID = 99
 	assert.Equal(t, int64(99), vote.GetID())
 }
 
 func TestVote_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	vote := &Vote{}
 	vote.CreatedAt = now
@@ -124,6 +144,8 @@ func TestVote_GetCreatedAt(t *testing.T) {
 }
 
 func TestVote_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	vote := &Vote{}
 	vote.UpdatedAt = now

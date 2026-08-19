@@ -42,6 +42,8 @@ import (
 // -----------------------------------------------------------------------------
 
 func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
+	t.Parallel()
+
 	excused := schedule.AttendanceSubstatusExcused
 	tests := []struct {
 		name         string
@@ -124,6 +126,8 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 }
 
 func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
+	t.Parallel()
+
 	cur := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
 
 	t.Run("invalid status", func(t *testing.T) {
@@ -156,6 +160,8 @@ func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
 }
 
 func TestDecodeNullableString(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing", func(t *testing.T) {
 		got, err := decodeNullableString(nil)
 		require.NoError(t, err)
@@ -285,6 +291,8 @@ func doPatch(t *testing.T, router chi.Router, path string, body any) *httptest.R
 }
 
 func TestPatchInstanceStudent_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -306,6 +314,8 @@ func TestPatchInstanceStudent_HappyPath(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	// Pre-populate note so the clear is observable.
 	initial := "pre"
@@ -332,6 +342,8 @@ func TestPatchInstanceStudent_ClearNoteWithExplicitNull(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_EmptyBody(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -341,6 +353,8 @@ func TestPatchInstanceStudent_400_EmptyBody(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -352,6 +366,8 @@ func TestPatchInstanceStudent_400_InvalidStatus(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_InvalidSubstatus(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -363,6 +379,8 @@ func TestPatchInstanceStudent_400_InvalidSubstatus(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_NonStringSubstatus(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -374,6 +392,8 @@ func TestPatchInstanceStudent_400_NonStringSubstatus(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_NoteTooLong(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -386,6 +406,8 @@ func TestPatchInstanceStudent_400_NoteTooLong(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	// Move the row into expected so the cross-field rule fires.
 	require.NoError(t, scheduleRepo.NewInstanceStudentRepository(s.db).UpdateAttendanceFields(s.ctx, s.row.ID, schedule.AttendanceFieldPatch{
@@ -401,6 +423,8 @@ func TestPatchInstanceStudent_400_SubstatusOnExpected(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	_, err := s.db.NewUpdate().
 		TableExpr("schedule.activity_instances").
@@ -423,6 +447,8 @@ func TestPatchInstanceStudent_409_CompletedInstance(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_404_Unknown(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	router := patchRouter(testpkg.Ctx(t), s.res)
 
@@ -433,6 +459,8 @@ func TestPatchInstanceStudent_404_Unknown(t *testing.T) {
 }
 
 func TestPatchInstanceStudent_404_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := buildPatchSetup(t)
 	// Row created in tenant 1. Fire PATCH with tenant 2 — RLS hides the row.
 	router := patchRouter(testpkg.TenantContext(2), s.res)

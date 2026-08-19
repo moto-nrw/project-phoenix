@@ -188,6 +188,8 @@ func eventsBySource(events []*active.AuditLogEvent) map[string][]*active.AuditLo
 }
 
 func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
+	t.Parallel()
+
 	f := newAuditLogFixture(t)
 
 	page, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{})
@@ -263,6 +265,8 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 }
 
 func TestTimeTrackingAuditLog_Filters(t *testing.T) {
+	t.Parallel()
+
 	f := newAuditLogFixture(t)
 
 	t.Run("staff filter keeps grouped events the person is part of", func(t *testing.T) {
@@ -340,6 +344,8 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 }
 
 func TestTimeTrackingAuditLog_KeysetPagination(t *testing.T) {
+	t.Parallel()
+
 	f := newAuditLogFixture(t)
 
 	all, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{})

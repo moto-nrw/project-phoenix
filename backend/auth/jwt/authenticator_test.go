@@ -19,6 +19,8 @@ import (
 // =============================================================================
 
 func TestClaimsFromCtx_ValidClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := AppClaims{
 		ID:          42,
 		Sub:         "user@example.com",
@@ -40,6 +42,8 @@ func TestClaimsFromCtx_ValidClaims(t *testing.T) {
 }
 
 func TestClaimsFromCtx_NoClaims(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	result := ClaimsFromCtx(ctx)
@@ -49,6 +53,8 @@ func TestClaimsFromCtx_NoClaims(t *testing.T) {
 }
 
 func TestClaimsFromCtx_WrongType(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxClaims, "not a claims struct")
 
 	result := ClaimsFromCtx(ctx)
@@ -56,6 +62,8 @@ func TestClaimsFromCtx_WrongType(t *testing.T) {
 }
 
 func TestActorAccountIDFromCtx(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing claims", func(t *testing.T) {
 		assert.Nil(t, ActorAccountIDFromCtx(context.Background()))
 	})
@@ -74,6 +82,8 @@ func TestActorAccountIDFromCtx(t *testing.T) {
 }
 
 func TestPermissionsFromCtx_ValidPermissions(t *testing.T) {
+	t.Parallel()
+
 	permissions := []string{"read", "write", "delete"}
 	ctx := context.WithValue(context.Background(), CtxPermissions, permissions)
 
@@ -82,6 +92,8 @@ func TestPermissionsFromCtx_ValidPermissions(t *testing.T) {
 }
 
 func TestPermissionsFromCtx_NoPermissions(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	result := PermissionsFromCtx(ctx)
@@ -89,6 +101,8 @@ func TestPermissionsFromCtx_NoPermissions(t *testing.T) {
 }
 
 func TestPermissionsFromCtx_WrongType(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxPermissions, "not a slice")
 
 	result := PermissionsFromCtx(ctx)
@@ -96,6 +110,8 @@ func TestPermissionsFromCtx_WrongType(t *testing.T) {
 }
 
 func TestPermissionsFromCtx_EmptySlice(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxPermissions, []string{})
 
 	result := PermissionsFromCtx(ctx)
@@ -103,6 +119,8 @@ func TestPermissionsFromCtx_EmptySlice(t *testing.T) {
 }
 
 func TestRefreshTokenFromCtx_ValidToken(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxRefreshToken, "refresh-token-value")
 
 	result := RefreshTokenFromCtx(ctx)
@@ -110,6 +128,8 @@ func TestRefreshTokenFromCtx_ValidToken(t *testing.T) {
 }
 
 func TestRefreshTokenFromCtx_NoToken(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	result := RefreshTokenFromCtx(ctx)
@@ -117,6 +137,8 @@ func TestRefreshTokenFromCtx_NoToken(t *testing.T) {
 }
 
 func TestRefreshTokenFromCtx_WrongType(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), CtxRefreshToken, 12345)
 
 	result := RefreshTokenFromCtx(ctx)
@@ -128,43 +150,59 @@ func TestRefreshTokenFromCtx_WrongType(t *testing.T) {
 // =============================================================================
 
 func TestExtractBearerToken_ValidToken(t *testing.T) {
+	t.Parallel()
+
 	// Using a clearly fake test token (not a real JWT)
 	result := extractBearerToken("Bearer test-token-value-for-unit-test")
 	assert.Equal(t, "test-token-value-for-unit-test", result)
 }
 
 func TestExtractBearerToken_EmptyHeader(t *testing.T) {
+	t.Parallel()
+
 	result := extractBearerToken("")
 	assert.Empty(t, result)
 }
 
 func TestExtractBearerToken_NoBearer(t *testing.T) {
+	t.Parallel()
+
 	// Token without "Bearer " prefix should return empty
 	result := extractBearerToken("some-token-without-bearer-prefix")
 	assert.Empty(t, result)
 }
 
 func TestExtractBearerToken_LowercaseBearer(t *testing.T) {
+	t.Parallel()
+
 	result := extractBearerToken("bearer token")
 	assert.Empty(t, result, "Should be case-sensitive")
 }
 
 func TestExtractBearerToken_BearerNoSpace(t *testing.T) {
+	t.Parallel()
+
 	result := extractBearerToken("Bearertoken")
 	assert.Empty(t, result)
 }
 
 func TestExtractBearerToken_BearerOnly(t *testing.T) {
+	t.Parallel()
+
 	result := extractBearerToken("Bearer ")
 	assert.Empty(t, result)
 }
 
 func TestExtractBearerToken_TooShort(t *testing.T) {
+	t.Parallel()
+
 	result := extractBearerToken("Bearer")
 	assert.Empty(t, result)
 }
 
 func TestExtractBearerToken_ExtraSpaces(t *testing.T) {
+	t.Parallel()
+
 	result := extractBearerToken("Bearer  token")
 	assert.Equal(t, " token", result, "Should preserve extra spaces in token")
 }
@@ -476,6 +514,8 @@ func TestAuthenticateRefreshJWT_MalformedClaims(t *testing.T) {
 // =============================================================================
 
 func TestCtxKey_DistinctValues(t *testing.T) {
+	t.Parallel()
+
 	// Ensure context keys are distinct
 	assert.NotEqual(t, CtxClaims, CtxRefreshToken)
 	assert.NotEqual(t, CtxClaims, CtxPermissions)
@@ -550,6 +590,8 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 // =============================================================================
 
 func TestRenderUnauthorized_SuccessfulRender(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -563,6 +605,8 @@ func TestRenderUnauthorized_SuccessfulRender(t *testing.T) {
 // =============================================================================
 
 func TestErrorTypes(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "token unauthorized", ErrTokenUnauthorized.Error())
 	assert.Equal(t, "token expired", ErrTokenExpired.Error())
 	assert.Equal(t, "invalid access token", ErrInvalidAccessToken.Error())
@@ -573,6 +617,8 @@ func TestErrorTypes(t *testing.T) {
 // =============================================================================
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -588,6 +634,8 @@ func TestErrResponse_Render(t *testing.T) {
 }
 
 func TestErrUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	renderer := ErrUnauthorized(ErrTokenExpired)
 	assert.NotNil(t, renderer)
 
@@ -603,6 +651,8 @@ func TestErrUnauthorized(t *testing.T) {
 // =============================================================================
 
 func TestContextValueIsolation(t *testing.T) {
+	t.Parallel()
+
 	// Test that different context keys don't interfere with each other
 	claims := AppClaims{ID: 42}
 	permissions := []string{"read"}
@@ -706,6 +756,8 @@ func TestAuthenticateRefreshJWT_ExpiredToken(t *testing.T) {
 }
 
 func TestAuthenticator_NilToken(t *testing.T) {
+	t.Parallel()
+
 	// Create router without Verifier middleware - this should result in nil token
 	r := chi.NewRouter()
 	// Intentionally not using Verifier() to get nil token
@@ -724,6 +776,8 @@ func TestAuthenticator_NilToken(t *testing.T) {
 }
 
 func TestAuthenticateRefreshJWT_NilToken(t *testing.T) {
+	t.Parallel()
+
 	// Test refresh JWT middleware without verifier - should result in nil token
 	r := chi.NewRouter()
 	r.Use(AuthenticateRefreshJWT)

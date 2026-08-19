@@ -65,6 +65,8 @@ func moveInput(s *scenarioSetup, inst *scheduleModels.ActivityInstance, date tim
 }
 
 func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -98,6 +100,8 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 }
 
 func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -125,6 +129,8 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 }
 
 func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -158,6 +164,8 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 }
 
 func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -182,6 +190,8 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 }
 
 func TestUpdatePlanned_SpontaneousMove_WritesNothing(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)

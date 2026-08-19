@@ -31,6 +31,8 @@ func markCategorySystem(t *testing.T, db *bun.DB, categoryID int64) {
 }
 
 func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -45,6 +47,8 @@ func TestServiceCreateCategoryRejectsDuplicateName(t *testing.T) {
 }
 
 func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -59,6 +63,8 @@ func TestServiceCreateCategoryRejectsReservedSystemNames(t *testing.T) {
 }
 
 func TestServiceUpdateCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -150,6 +156,8 @@ func TestServiceUpdateCategory(t *testing.T) {
 }
 
 func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -207,6 +215,8 @@ func TestServiceArchiveCategoryKeepsActivitiesValid(t *testing.T) {
 }
 
 func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -233,6 +243,8 @@ func TestServiceArchiveCategoryFreesTheNameAndBlocksConflictingRestore(t *testin
 }
 
 func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -248,6 +260,8 @@ func TestServiceArchiveCategoryRefusesSystemCategory(t *testing.T) {
 }
 
 func TestServiceCategoryUsageCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -267,6 +281,8 @@ func TestServiceCategoryUsageCounts(t *testing.T) {
 }
 
 func TestServiceCategoryWritesAreTenantScoped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActivityService(t, db)
@@ -274,7 +290,7 @@ func TestServiceCategoryWritesAreTenantScoped(t *testing.T) {
 	// A tenant id well above the seeded range; the hermetic scanner flags
 	// int64(1)..int64(9) literals, and the isolation suite uses the same
 	// convention.
-	const otherTenantID = int64(2131)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	foreign := testpkg.CreateTestActivityCategoryForTenant(t, db, otherTenantID, "ForeignCategory")
 	defer testpkg.CleanupActivityFixturesForTenant(t, db, otherTenantID, 0, 0, 0, foreign.ID, 0)

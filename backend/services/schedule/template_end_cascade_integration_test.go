@@ -18,6 +18,8 @@ import (
 )
 
 func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -61,6 +63,8 @@ func TestTemplateEnd_CascadesToCappedPredecessors(t *testing.T) {
 // first-week occurrence arrives on the CAPPED predecessor. The living
 // successor carries every later occurrence and must be ended along with it.
 func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 
@@ -98,6 +102,8 @@ func TestTemplateEnd_FromCappedPredecessorAlsoEndsLivingSuccessor(t *testing.T) 
 }
 
 func TestTemplateEnd_CascadeLeavesUnrelatedSeriesAlone(t *testing.T) {
+	t.Parallel()
+
 	c := makeRosterChain(t, []int{activitiesModels.WeekdayMonday})
 	defer c.runCleanup(t)
 

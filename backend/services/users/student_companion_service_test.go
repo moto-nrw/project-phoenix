@@ -76,6 +76,8 @@ func clearCompanionNote(t *testing.T, db *bun.DB, studentID int64) {
 // the plan from Mon+Tue to Mon must drop the Tuesday edge, or the Kindersuche
 // keeps grouping the children on a day the Stammdaten forbid.
 func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -117,6 +119,8 @@ func TestStudentService_TrimCompanionsToDays_DropsRemovedWeekdays(t *testing.T) 
 // tenant transaction commits on every non-5xx response, so a rejection raised
 // after the first write would keep that write.
 func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -165,6 +169,8 @@ func TestStudentService_CheckCompanionConflicts_ValidatesConfirmedRetry(t *testi
 // child's record: the write must come from a freshly locked row, not from the
 // snapshot the conflict check read.
 func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -215,6 +221,8 @@ func TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields(t *test
 }
 
 func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
@@ -273,6 +281,8 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 // care-request approval). Before the link was derived in the repository, those
 // paths failed with ErrDepartureCompanionNoteRequired.
 func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -316,6 +326,8 @@ func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 // accompanied plan, no note and no link — Stammdaten that contradict themselves
 // and block every later unrelated edit of that child.
 func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -359,6 +371,8 @@ func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T
 // the Tuesday edge was their only "mit wem" answer for that day — the surviving
 // Monday link must not vouch for it.
 func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -413,6 +427,8 @@ func TestStudentService_ReplaceCompanions_RefusesStrandingRemovedWeekday(t *test
 // Kind" from Tuesday trims the Tuesday edge, and the surviving Monday edge of
 // the SAME pair must not count as the far child's Tuesday answer.
 func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -453,6 +469,8 @@ func TestStudentService_CheckCompanionTrim_RefusesStrandingRemovedWeekday(t *tes
 // submitting a list. The trim drops whole links too, and it runs after the
 // update's first writes — so the refusal has to be available before them.
 func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -488,6 +506,8 @@ func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.
 // child over the cap — and unable to edit their own list afterwards, because
 // the full list is then rejected.
 func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -538,6 +558,8 @@ func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) 
 // conflict can grow a day in the meantime — widening that day too would change
 // a child's departure permission nobody was asked about (#1694).
 func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -594,6 +616,8 @@ func TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday(t *testing.T) {
 // Monday but claims "Anderes Kind" on Tuesday as well still has no answer for
 // Tuesday, so the departure plan must not be saveable without one.
 func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -642,6 +666,8 @@ func TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays(t *testing.T) {
 // had just committed. The row locks order the two writes; only the fingerprint
 // comparison notices that the second one describes a list that no longer exists.
 func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -708,6 +734,8 @@ func TestStudentService_ReplaceCompanions_RefusesStaleList(t *testing.T) {
 // lists use: one call, names joined in, and children without links simply
 // absent from the map.
 func TestStudentService_ListCompanionsForStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

@@ -30,6 +30,8 @@ type resolveCareOfferingsResponse struct {
 }
 
 func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
+	t.Parallel()
+
 	db, services := testutil.SetupAPITest(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)

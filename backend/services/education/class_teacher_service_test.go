@@ -43,6 +43,8 @@ func cleanupClassAssignments(t *testing.T, db *bun.DB, staffID int64) {
 }
 
 func TestSetStaffSchoolClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc, repos := setupClassTeacherService(t, db)

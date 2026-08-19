@@ -47,6 +47,8 @@ func seedExistingGuardian(t *testing.T, tc *testContext, firstName, lastName, em
 // created with guardian_profile_id links the EXISTING profile (no new profile,
 // no mutation, no phone writes) and applies only the relationship flags.
 func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -145,6 +147,8 @@ func TestCreateStudent_SelectExistingGuardian(t *testing.T) {
 // existing guardian selected twice in one request yields a single link (the
 // duplicate is skipped silently), never a UNIQUE-constraint 500.
 func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -180,6 +184,8 @@ func TestCreateStudent_SelectExistingGuardian_DuplicateSkipped(t *testing.T) {
 // TestCreateStudent_MixedNewAndExistingGuardian verifies one request can both
 // link an existing guardian and create a brand-new one in the same atomic write.
 func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	ctx := context.Background()
 
@@ -232,6 +238,8 @@ func TestCreateStudent_MixedNewAndExistingGuardian(t *testing.T) {
 // that does not exist (or belongs to another tenant — RLS makes it invisible) is
 // a clean 400, not a 500, and commits no orphaned student.
 func TestCreateStudent_SelectExistingGuardian_NotFound(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	const firstName = "GhostRef"

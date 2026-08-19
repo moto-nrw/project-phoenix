@@ -21,6 +21,8 @@ import (
 // ============================================================================
 
 func TestPrivacyConsentRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -118,6 +120,8 @@ func TestPrivacyConsentRepository_Create(t *testing.T) {
 }
 
 func TestPrivacyConsentRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -141,6 +145,8 @@ func TestPrivacyConsentRepository_FindByID(t *testing.T) {
 }
 
 func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -173,6 +179,8 @@ func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestPrivacyConsentRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -207,6 +215,8 @@ func TestPrivacyConsentRepository_Update(t *testing.T) {
 // ============================================================================
 
 func TestPrivacyConsentRepository_Accept(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -238,6 +248,8 @@ func TestPrivacyConsentRepository_Accept(t *testing.T) {
 }
 
 func TestPrivacyConsentRepository_Revoke(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -262,6 +274,8 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 // ============================================================================
 
 func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -294,6 +308,8 @@ func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 // ============================================================================
 
 func TestPrivacyConsentRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent
@@ -352,6 +368,8 @@ func insertConsentForTenant(t *testing.T, db *bun.DB, tenantID, studentID int64,
 }
 
 func TestPrivacyConsentRepository_ListAcceptedRetentionSettings(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PrivacyConsent

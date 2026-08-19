@@ -65,6 +65,8 @@ func (r *orderRecordingResyncer) ResyncOfferingSourcedTemplates(_ context.Contex
 }
 
 func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	log := make([]string, 0, 5)
@@ -108,6 +110,8 @@ func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *
 }
 
 func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{

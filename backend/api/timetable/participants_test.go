@@ -130,6 +130,8 @@ func participantsRouter(parentCtx context.Context, res *Resource, perms []string
 }
 
 func TestGetInstanceParticipants_AdminSeesSortedNames(t *testing.T) {
+	t.Parallel()
+
 	s := buildParticipantsSetup(t)
 
 	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})
@@ -147,6 +149,8 @@ func TestGetInstanceParticipants_AdminSeesSortedNames(t *testing.T) {
 }
 
 func TestGetInstanceParticipants_NonStaffSeesNoStudentNames(t *testing.T) {
+	t.Parallel()
+
 	s := buildParticipantsSetup(t)
 
 	// schedules:read alone reaches the endpoint, but with no verified staff
@@ -168,6 +172,8 @@ func TestGetInstanceParticipants_NonStaffSeesNoStudentNames(t *testing.T) {
 }
 
 func TestGetInstanceParticipants_AlumnusExcluded(t *testing.T) {
+	t.Parallel()
+
 	s := buildParticipantsSetup(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -190,6 +196,8 @@ func TestGetInstanceParticipants_AlumnusExcluded(t *testing.T) {
 }
 
 func TestGetInstanceParticipants_UnknownInstance404(t *testing.T) {
+	t.Parallel()
+
 	s := buildParticipantsSetup(t)
 
 	router := participantsRouter(s.ctx, s.res, []string{"admin:*"})

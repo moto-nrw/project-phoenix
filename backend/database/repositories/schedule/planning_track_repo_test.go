@@ -16,6 +16,8 @@ import (
 )
 
 func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
@@ -68,6 +70,8 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 }
 
 func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)
@@ -99,6 +103,8 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 }
 
 func TestPlanningTrackServiceNameConflictAndArchiveLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	defer testpkg.CleanupTenantTestData(t, db, scope.TenantID)

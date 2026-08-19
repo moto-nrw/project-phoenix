@@ -18,6 +18,8 @@ import (
 // repository must not let one account accumulate unbounded rows — inserts
 // beyond MaxConflictAcksPerAccount evict the oldest acknowledgements first.
 func TestTimetableConflictAckRepository_CapPrunesOldest(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

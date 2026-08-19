@@ -9,6 +9,8 @@ import (
 
 // TestUsersErrorVariables tests that error variables have correct messages
 func TestUsersErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -32,6 +34,8 @@ func TestUsersErrorVariables(t *testing.T) {
 
 // TestUsersErrorsAreDistinct ensures each error can be identified uniquely
 func TestUsersErrorsAreDistinct(t *testing.T) {
+	t.Parallel()
+
 	errorVars := []error{
 		ErrPersonNotFound,
 		ErrPersonIdentifierRequired,
@@ -55,6 +59,8 @@ func TestUsersErrorsAreDistinct(t *testing.T) {
 
 // TestUsersError tests the UsersError custom error type
 func TestUsersError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error message format", func(t *testing.T) {
 		underlyingErr := errors.New("database connection failed")
 		usersErr := &UsersError{
@@ -115,6 +121,8 @@ func TestUsersError(t *testing.T) {
 }
 
 func TestValidationError(t *testing.T) {
+	t.Parallel()
+
 	baseErr := errors.New("invalid caregiver capability request")
 	validationErr := &ValidationError{Err: baseErr}
 

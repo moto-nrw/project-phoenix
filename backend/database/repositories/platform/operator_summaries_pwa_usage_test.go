@@ -54,6 +54,8 @@ func usageRowFor(rows []platformModels.SchoolPWAUsageRow, tenantID int64, portal
 // push audience filters use, and the numerator only counts accounts inside
 // the window AND still in the matching bucket.
 func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := context.Background()

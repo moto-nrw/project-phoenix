@@ -15,6 +15,8 @@ import (
 // TestNotificationPreferenceRepository pins the store that decides whether a
 // notification may be delivered to a person at all.
 func TestNotificationPreferenceRepository(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).NotificationPreference

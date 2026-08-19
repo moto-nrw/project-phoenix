@@ -55,6 +55,8 @@ func cleanupActiveGroupRecords(t *testing.T, db *bun.DB, groupIDs ...int64) {
 // ============================================================================
 
 func TestActiveGroupRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -111,6 +113,8 @@ func TestActiveGroupRepository_Create(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -155,6 +159,8 @@ func TestActiveGroupRepository_FindActiveSessionsOlderThanPreservesTenant(t *tes
 }
 
 func TestActiveGroupRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -192,6 +198,8 @@ func TestActiveGroupRepository_FindByID(t *testing.T) {
 }
 
 func TestActiveGroupRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -225,6 +233,8 @@ func TestActiveGroupRepository_Update(t *testing.T) {
 }
 
 func TestActiveGroupRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -259,6 +269,8 @@ func TestActiveGroupRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroupRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -288,6 +300,8 @@ func TestActiveGroupRepository_List(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -331,6 +345,8 @@ func TestActiveGroupRepository_FindActiveGroups(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -379,6 +395,8 @@ func TestActiveGroupRepository_FindActiveByRoomID(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -434,6 +452,8 @@ func TestActiveGroupRepository_FindActiveByRoomIDAndDeviceID(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -472,6 +492,8 @@ func TestActiveGroupRepository_FindActiveByGroupID(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -516,6 +538,8 @@ func TestActiveGroupRepository_FindActiveByGroupIDs(t *testing.T) {
 }
 
 func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -562,6 +586,8 @@ func TestActiveGroupRepository_FindByTimeRange(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroupRepository_EndSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -594,6 +620,8 @@ func TestActiveGroupRepository_EndSession(t *testing.T) {
 }
 
 func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -658,6 +686,8 @@ func TestActiveGroupRepository_UpdateLastActivity(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -703,6 +733,8 @@ func TestActiveGroupRepository_FindActiveByDeviceID(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -751,6 +783,8 @@ func TestActiveGroupRepository_FindActiveByDeviceIDWithNames(t *testing.T) {
 }
 
 func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -811,6 +845,8 @@ func TestActiveGroupRepository_GetOccupiedRoomIDs(t *testing.T) {
 }
 
 func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -896,6 +932,8 @@ func TestActiveGroupRepository_GetOccupiedActivityGroupIDs(t *testing.T) {
 }
 
 func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -966,6 +1004,8 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroupRepository_FindByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -1019,6 +1059,8 @@ func TestActiveGroupRepository_FindByIDs(t *testing.T) {
 // ============================================================================
 
 func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -1090,6 +1132,8 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 }
 
 func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveGroup
@@ -1191,6 +1235,8 @@ func TestActiveGroupRepository_AggregateRoomSessions(t *testing.T) {
 }
 
 func TestActiveGroupRepository_AggregateRoomSessions_ReturnsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	repo := repositories.NewFactory(db).ActiveGroup
 	require.NoError(t, db.Close())

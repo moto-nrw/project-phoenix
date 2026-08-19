@@ -25,7 +25,7 @@ func uniqueKeyValue(prefix string) string {
 func setupRateLimitTest(t *testing.T) (*bun.DB, enrollmentModels.SubmissionRateLimitRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return db, enrollmentRepo.NewSubmissionRateLimitRepository(db), tenantID
 }
@@ -54,6 +54,8 @@ func wipeRateLimitsForKey(db *bun.DB, tenantID int64, keyValuePrefix string) {
 // --- IncrementAttempts -----------------------------------------------
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_FirstCallReturnsOne(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("first")
 	defer wipeRateLimitsForKey(db, tenantID, key)
@@ -72,6 +74,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_FirstCallReturnsOne(t *
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_RepeatHitsAccumulate(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupRateLimitTest(t)
 	key := uniqueKeyValue("accumulate")
 	defer wipeRateLimitsForKey(db, tenantID, key)
@@ -92,6 +96,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_RepeatHitsAccumulate(t 
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_ExpiredWindowResetsToOne(t *testing.T) {
+	t.Parallel()
+
 	// Seed a row with an ancient window_start. The upsert's CASE branch
 	// MUST detect the expired window and reset attempts back to 1.
 	db, repo, tenantID := setupRateLimitTest(t)
@@ -123,6 +129,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_ExpiredWindowResetsToOn
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeysSeparateBuckets(t *testing.T) {
+	t.Parallel()
+
 	// Two different key_values must NOT share a counter. Catches the
 	// "we accidentally dropped key_value from the ON CONFLICT" class of
 	// bug.
@@ -142,6 +150,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeysSeparateBuc
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeyTypesSeparateBuckets(t *testing.T) {
+	t.Parallel()
+
 	// Same key_value but different key_type (ip vs email) must NOT
 	// share a counter — UNIQUE is on (tenant, type, value).
 	db, repo, tenantID := setupRateLimitTest(t)
@@ -159,6 +169,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateKeyTypesSeparat
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateTenantsSeparateBuckets(t *testing.T) {
+	t.Parallel()
+
 	// Tenant isolation — same key in tenant A and tenant B must NOT
 	// share a counter.
 	db, repo, _ := setupRateLimitTest(t)
@@ -181,6 +193,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_SeparateTenantsSeparate
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_ZeroWindowRejected(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupRateLimitTest(t)
 	err := runUnscoped(t, db, func(ctx context.Context) error {
 		_, iErr := repo.IncrementAttempts(ctx, tenantID,
@@ -192,6 +206,8 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_ZeroWindowRejected(t *t
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_NegativeWindowRejected(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupRateLimitTest(t)
 	err := runUnscoped(t, db, func(ctx context.Context) error {
 		_, iErr := repo.IncrementAttempts(ctx, tenantID,
@@ -201,6 +217,10 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_NegativeWindowRejected(
 	require.Error(t, err)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestSubmissionRateLimitRepository_IncrementAttempts_RetryAtIsWindowStartPlusWindow(t *testing.T) {
 	// The retry_at the repo returns must equal window_start + window —
 	// rate-limited callers use it as a Retry-After hint and we don't
@@ -230,6 +250,10 @@ func TestSubmissionRateLimitRepository_IncrementAttempts_RetryAtIsWindowStartPlu
 
 // --- CleanupExpired ---------------------------------------------------
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *testing.T) {
 	db, repo, tenantID := setupRateLimitTest(t)
 	ancientKey := uniqueKeyValue("ancient")
@@ -283,6 +307,10 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 	assert.Equal(t, 1, c, "fresh row MUST survive CleanupExpired")
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestSubmissionRateLimitRepository_CleanupExpired_ZeroAffectedIsNoError(t *testing.T) {
 	// Running CleanupExpired on an empty (or all-fresh) table must
 	// return (0, nil) — scheduler-callable, must not error out when

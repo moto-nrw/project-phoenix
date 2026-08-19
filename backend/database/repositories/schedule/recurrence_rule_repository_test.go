@@ -16,6 +16,8 @@ import (
 // ============================================================================
 
 func TestRecurrenceRuleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RecurrenceRule
@@ -130,6 +132,8 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RecurrenceRule
@@ -159,6 +163,8 @@ func TestRecurrenceRuleRepository_FindByID(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RecurrenceRule
@@ -193,6 +199,8 @@ func TestRecurrenceRuleRepository_Update(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).RecurrenceRule
@@ -219,6 +227,7 @@ func TestRecurrenceRuleRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestRecurrenceRuleRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -247,6 +256,7 @@ func TestRecurrenceRuleRepository_List(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -322,6 +332,7 @@ func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -376,6 +387,7 @@ func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByMonthDay(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
@@ -430,6 +442,7 @@ func TestRecurrenceRuleRepository_FindByMonthDay(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 

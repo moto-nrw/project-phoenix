@@ -13,6 +13,8 @@ import (
 // FindByStudentAndActiveGroupIDs returns only the student's visits whose
 // active_group_id matches one of the given IDs. Empty slice must short-circuit.
 func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit
@@ -59,6 +61,8 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 }
 
 func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).ActiveVisit

@@ -26,7 +26,7 @@ func setupChildOfferingTest(t *testing.T) (
 ) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
@@ -204,6 +204,8 @@ func addRolloverSuccessorHolding(
 // --- Create + ListByRequestChildID ----------------------------------------
 
 func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 
 	notes := "Bitte Mo+Mi"
@@ -241,6 +243,8 @@ func TestRequestChildOfferingRepository_Create_PersistsAndReturnsID(t *testing.T
 }
 
 func TestRequestChildOfferingRepository_Create_BoundsPartialValidityWindow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	validFrom := timezone.NewDate(2026, 10, 1)
 	row := &enrollmentModels.RequestChildOffering{
@@ -258,6 +262,8 @@ func TestRequestChildOfferingRepository_Create_BoundsPartialValidityWindow(t *te
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 
 	// Second offering so the child has two picks.
@@ -296,6 +302,8 @@ func TestRequestChildOfferingRepository_ListByRequestChildID_ReturnsAllForChild(
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 
 	// Two offering links for the one child.
@@ -330,6 +338,8 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDs_BatchLoad(t *testi
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHistoricalIntervals(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
 	var first *enrollmentModels.CareOffering
@@ -374,6 +384,8 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDsAtDate_ExcludesHist
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildIDs_EmptyInputShortCircuits(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
 	var list []*enrollmentModels.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -386,6 +398,8 @@ func TestRequestChildOfferingRepository_ListByRequestChildIDs_EmptyInputShortCir
 }
 
 func TestRequestChildOfferingRepository_ListByRequestChildID_EmptyResultNoError(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
 	var list []*enrollmentModels.RequestChildOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -400,6 +414,8 @@ func TestRequestChildOfferingRepository_ListByRequestChildID_EmptyResultNoError(
 // --- CountActiveByCareOffering -------------------------------------------
 
 func TestRequestChildOfferingRepository_CountActiveByCareOffering_ExcludesTerminalStatuses(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
 
 	// Need three additional children with different statuses so we can
@@ -450,6 +466,8 @@ func TestRequestChildOfferingRepository_CountActiveByCareOffering_ExcludesTermin
 }
 
 func TestRequestChildOfferingRepository_CountActiveByCareOffering_ZeroWhenUnused(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
 	var count int
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {

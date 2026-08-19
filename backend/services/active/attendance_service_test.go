@@ -48,6 +48,8 @@ import (
 // TestAttendance_IsCheckedIn tests the IsCheckedIn helper method on the Attendance model.
 // This is a pure model test - it doesn't need a database connection.
 func TestAttendance_IsCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		checkOutTime   *time.Time
@@ -84,6 +86,8 @@ func TestAttendance_IsCheckedIn(t *testing.T) {
 // TestGetStudentAttendanceStatus_NotCheckedIn tests the scenario where a student
 // has no attendance record for today (not checked in).
 func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -110,6 +114,8 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 }
 
 func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -127,6 +133,8 @@ func TestGetStudentAttendanceStatus_ReadFailureReturnsError(t *testing.T) {
 // TestGetStudentAttendanceStatus_CheckedIn tests the scenario where a student
 // has checked in today (active attendance record).
 func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -156,6 +164,8 @@ func TestGetStudentAttendanceStatus_CheckedIn(t *testing.T) {
 // TestGetStudentAttendanceStatus_CheckedOut tests the scenario where a student
 // has checked in and then checked out.
 func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -186,6 +196,8 @@ func TestGetStudentAttendanceStatus_CheckedOut(t *testing.T) {
 // TestGetStudentsAttendanceStatuses tests batch retrieval of attendance statuses
 // for multiple students with mixed states.
 func TestGetStudentsAttendanceStatuses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -244,6 +256,8 @@ func TestGetStudentsAttendanceStatuses(t *testing.T) {
 // TestGetStudentsAttendanceStatuses_EmptyInput tests that empty input returns
 // an empty result without error.
 func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -263,6 +277,8 @@ func TestGetStudentsAttendanceStatuses_EmptyInput(t *testing.T) {
 
 // TestToggleStudentAttendance_CheckIn tests checking in a student who is not checked in.
 func TestToggleStudentAttendance_CheckIn(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -291,6 +307,8 @@ func TestToggleStudentAttendance_CheckIn(t *testing.T) {
 // device-authenticated legacy kiosk can record attendance without claiming an
 // unverified staff identity.
 func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -320,6 +338,8 @@ func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 
 // TestToggleStudentAttendance_CheckOut tests checking out a student who is checked in.
 func TestToggleStudentAttendance_CheckOut(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -349,6 +369,8 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 // TestToggleStudentAttendance_CheckOutWithZeroStaffID tests checking out when staffID is 0.
 // This exercises the `if staffID > 0` guard in performCheckOut.
 func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -383,6 +405,8 @@ func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {
 
 // TestToggleStudentAttendance_ReCheckIn tests re-checking in a student who was checked out.
 func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -417,6 +441,8 @@ func TestToggleStudentAttendance_ReCheckIn(t *testing.T) {
 // code path (authorizeWebToggle). Since #2329 any staff member may toggle any
 // student — the former education-group / room-supervision gate is gone.
 func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001
 	// device every real school is provisioned with.
@@ -445,6 +471,8 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 
 // TestCheckTeacherStudentAccess tests the CheckTeacherStudentAccess function
 func TestCheckTeacherStudentAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -530,6 +558,8 @@ func TestCheckTeacherStudentAccess(t *testing.T) {
 // =============================================================================
 
 func TestGetUnclaimedActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -562,6 +592,8 @@ func TestGetUnclaimedActiveGroups(t *testing.T) {
 // =============================================================================
 
 func TestClaimActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -661,6 +693,8 @@ func TestClaimActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestCheckRoomSupervisorAccess(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -707,6 +741,8 @@ func TestCheckRoomSupervisorAccess(t *testing.T) {
 // =============================================================================
 
 func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -769,6 +805,8 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 }
 
 func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -826,6 +864,8 @@ func TestGetStudentAttendanceStatus_WithStaffNames(t *testing.T) {
 //     student wasn't checked in (idempotent close).
 
 func TestCheckInStudent_FreshCheckIn(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -849,6 +889,8 @@ func TestCheckInStudent_FreshCheckIn(t *testing.T) {
 // in-conflict-loser path (a second concurrent "in") returns the already-open
 // row instead of erroring or flipping to a checkout.
 func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -874,6 +916,8 @@ func TestCheckInStudent_AlreadyCheckedIn_ReturnsExistingRow(t *testing.T) {
 }
 
 func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -903,6 +947,8 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 }
 
 func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -950,6 +996,8 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 }
 
 func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -985,6 +1033,8 @@ func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *tes
 // service still returns Action="checked_out" with no error. This is the key
 // difference from the legacy Toggle which would error or flip incorrectly.
 func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -1008,6 +1058,8 @@ func TestCheckOutStudent_NoOpenRow_IsIdempotent(t *testing.T) {
 // CheckOutStudent again. The state-checked WHERE filters out the closed row
 // (check_out_time IS NULL won't match), so we report idempotent success.
 func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -1039,6 +1091,8 @@ func TestCheckOutStudent_AlreadyCheckedOut_IsIdempotent(t *testing.T) {
 // deadlock from issue #895).
 
 func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -1079,6 +1133,8 @@ func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 // idempotent checkout path), an orphaned open visit left behind by pre-fix
 // code is closed.
 func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -1115,6 +1171,8 @@ func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 // "out" branch at service level: the kiosk toggle goes through the same
 // performCheckOut and must end the open visit too.
 func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -1148,6 +1206,8 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 // checkout for a student without today's attendance record returns the
 // wire-contract sentinel error.
 func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -1167,6 +1227,8 @@ func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
 // for a checked-in student leaves attendance untouched and reports the
 // "checked_out" transit action.
 func TestConfirmDailyCheckout_Unterwegs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

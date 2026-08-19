@@ -44,6 +44,8 @@ func listRestorationAuditRows(t *testing.T, env *decisionTestEnv, requestID int6
 }
 
 func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -84,6 +86,8 @@ func TestDecisionService_RestoreWithdrawn_HappyPath(t *testing.T) {
 }
 
 func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -131,6 +135,8 @@ func TestDecisionService_RestoreWithdrawn_TerminalSiblingUntouched(t *testing.T)
 }
 
 func TestDecisionService_RestoreWithdrawn_NothingWithdrawn(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -143,6 +149,8 @@ func TestDecisionService_RestoreWithdrawn_NothingWithdrawn(t *testing.T) {
 }
 
 func TestDecisionService_RestoreWithdrawn_NotFound(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -153,6 +161,8 @@ func TestDecisionService_RestoreWithdrawn_NotFound(t *testing.T) {
 }
 
 func TestDecisionService_RestoreWithdrawn_LoadFailurePreservesError(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 
@@ -170,6 +180,8 @@ func TestDecisionService_RestoreWithdrawn_LoadFailurePreservesError(t *testing.T
 }
 
 func TestDecisionService_RestoreWithdrawn_PhaseInactive(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -227,6 +239,8 @@ func cleanupRestorationAuditRows(t *testing.T, db *bun.DB, requestID int64) {
 }
 
 func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -275,6 +289,8 @@ func TestDecisionService_RestoreWithdrawn_WaitlistsOverCapacityChildren(t *testi
 }
 
 func TestDecisionService_RestoreWithdrawn_FreeSlotComesBackSubmitted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -325,6 +341,8 @@ func setOfferingInterval(t *testing.T, db *bun.DB, requestChildID int64, validFr
 // waitlist A's restore even though the offering's whole-window peak sits at
 // capacity.
 func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -371,6 +389,8 @@ func TestDecisionService_RestoreWithdrawn_DisjointIntervalNotWaitlisted(t *testi
 // counts by identical windows would restore both and overbook the offering
 // where the intervals meet — the second child must come back waitlisted.
 func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -426,6 +446,8 @@ func TestDecisionService_RestoreWithdrawn_OverlappingIntervalsShareCapacity(t *t
 }
 
 func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -460,6 +482,8 @@ func TestDecisionService_RestoreWithdrawn_RejectModeFailsWhenFull(t *testing.T) 
 }
 
 func TestDecisionService_RestoreWithdrawn_BlockedByActiveDuplicate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

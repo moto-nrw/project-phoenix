@@ -14,6 +14,8 @@ import (
 )
 
 func TestRequestService_LoadPublicFormBootstrap_AssemblesPhaseSchemaCapabilities(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 
@@ -30,6 +32,8 @@ func TestRequestService_LoadPublicFormBootstrap_AssemblesPhaseSchemaCapabilities
 }
 
 func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -60,6 +64,8 @@ func TestRequestService_LoadPublicFormBootstrap_ReturnsValidLateInvitePrefill(t 
 }
 
 func TestRequestService_LoadPublicFormBootstrap_CapabilityFailureIsStageError(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 
@@ -75,6 +81,8 @@ func TestRequestService_LoadPublicFormBootstrap_CapabilityFailureIsStageError(t 
 }
 
 func TestRequestService_LoadManualEnrollmentBootstrap_CapabilityFailureIsRaw(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 

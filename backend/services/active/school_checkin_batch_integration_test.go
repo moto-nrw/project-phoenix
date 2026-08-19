@@ -33,6 +33,8 @@ func setGroupID(t *testing.T, db *bun.DB, studentID, groupID int64) {
 }
 
 func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -101,6 +103,8 @@ func TestProcessSchoolCheckinBatch_CheckOutEndsOpenVisits(t *testing.T) {
 }
 
 func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001
 	// device every real school is provisioned with.
@@ -144,6 +148,8 @@ func TestProcessSchoolCheckinBatch_CheckInClearsPlannedStatusDay(t *testing.T) {
 }
 
 func TestProcessSchoolCheckinBatch_UnknownActionRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

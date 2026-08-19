@@ -33,6 +33,8 @@ func payrollStatusFixture(t *testing.T, values map[string]string) (configSvc.Pay
 }
 
 func TestPayrollStatus_EmptyConfigurationIsReportedNotInvented(t *testing.T) {
+	t.Parallel()
+
 	svc, _, ctx := payrollStatusFixture(t, map[string]string{})
 
 	status, err := svc.GetPayrollStatus(ctx)
@@ -60,6 +62,8 @@ func TestPayrollStatus_EmptyConfigurationIsReportedNotInvented(t *testing.T) {
 }
 
 func TestPayrollStatus_CompletenessCounting(t *testing.T) {
+	t.Parallel()
+
 	svc, _, ctx := payrollStatusFixture(t, map[string]string{
 		configModel.KeyPayrollLohnartRegelarbeit:   "9001",
 		configModel.KeyPayrollLohnartKrank:         "9002", // no unit yet → not complete
@@ -79,6 +83,8 @@ func TestPayrollStatus_CompletenessCounting(t *testing.T) {
 }
 
 func TestPayrollStatus_CountsStaffWithoutPersonnelNumber(t *testing.T) {
+	t.Parallel()
+
 	svc, repos, ctx := payrollStatusFixture(t, map[string]string{})
 	db := testpkg.SetupTestDB(t)
 

@@ -17,6 +17,8 @@ import (
 // activity-group names, the Vertretungsplan flags, ordered by start time, and
 // scoped strictly to the calling staff member.
 func TestStaffAssignmentServiceListForStaff(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.Tenant(t)

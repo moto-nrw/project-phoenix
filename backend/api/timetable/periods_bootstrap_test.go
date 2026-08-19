@@ -60,6 +60,8 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 // year (created=true), the second is a clean no-op (created=false) — both
 // answer 200, never 409.
 func TestBootstrapPeriodsEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	router := newPeriodsTestServer(t)
 
 	first := executeRequest(router, http.MethodPost, "/periods/bootstrap", nil)
@@ -86,6 +88,8 @@ func TestBootstrapPeriodsEndToEnd(t *testing.T) {
 // shape against the real overlap query: an overlapping active period yields
 // 201 + warnings, a disjoint one yields 201 without the warnings field.
 func TestCreatePeriodOverlapWarningsEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	router := newPeriodsTestServer(t)
 	suffix := time.Now().UnixNano()
 

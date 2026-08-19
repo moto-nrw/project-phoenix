@@ -39,6 +39,8 @@ func setLifecycle(t *testing.T, db *bun.DB, studentID int64, status users.Studen
 }
 
 func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -86,6 +88,8 @@ func TestStudentRepository_FindPendingDueForActivation(t *testing.T) {
 }
 
 func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -121,6 +125,8 @@ func TestStudentRepository_FindActiveDueForDeactivation(t *testing.T) {
 }
 
 func TestStudentRepository_UpdateStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -146,6 +152,8 @@ func TestStudentRepository_UpdateStatus(t *testing.T) {
 }
 
 func TestStudentRepository_TransitionStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student

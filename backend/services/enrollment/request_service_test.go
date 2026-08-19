@@ -298,6 +298,8 @@ func validSubmission(t *testing.T, phaseID int64) enrollmentService.SubmitReques
 }
 
 func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -329,6 +331,8 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 }
 
 func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -445,6 +449,8 @@ func withLateInviteRenewalFixture(
 }
 
 func TestRequestService_ReplaceEditableLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
+	t.Parallel()
+
 	withLateInviteRenewalFixture(t, func(
 		_ *requestTestEnv,
 		svc enrollmentService.RequestService,
@@ -470,6 +476,8 @@ func TestRequestService_ReplaceEditableLateInviteRenewalUsesInviteEmailForAuthor
 // cleanly and get stamped with tenant 1's tenant_id (#1663). SkipRateLimit
 // avoids writing a rate-limit row for the nonexistent claimed tenant.
 func TestRequestService_Submit_RejectsCrossTenantPhase(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -484,6 +492,8 @@ func TestRequestService_Submit_RejectsCrossTenantPhase(t *testing.T) {
 }
 
 func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -512,6 +522,8 @@ func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.
 // the primary + each other), and that fully-blank cards are dropped. The
 // email-less co-guardian must persist with a NULL email.
 func TestRequestService_Submit_PersistsAdditionalGuardians(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -557,6 +569,8 @@ func TestRequestService_Submit_PersistsAdditionalGuardians(t *testing.T) {
 // name-only dedup key folds in the phone, so the later row is not silently
 // dropped. A genuine duplicate (same name, same phone) is still deduped.
 func TestRequestService_Submit_KeepsSameNameCoGuardiansWithDifferentPhones(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -593,6 +607,8 @@ func TestRequestService_Submit_KeepsSameNameCoGuardiansWithDifferentPhones(t *te
 // verifies the public status page can read back the co-guardians via the
 // status token.
 func TestRequestService_GuardiansByStatusToken_ReturnsStoredCoGuardians(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -617,6 +633,8 @@ func TestRequestService_GuardiansByStatusToken_ReturnsStoredCoGuardians(t *testi
 }
 
 func TestRequestService_Submit_RejectsWhenDisabled(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -629,6 +647,8 @@ func TestRequestService_Submit_RejectsWhenDisabled(t *testing.T) {
 }
 
 func TestRequestService_Submit_RejectsOutsideWindow(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -649,6 +669,8 @@ func TestRequestService_Submit_RejectsOutsideWindow(t *testing.T) {
 }
 
 func TestRequestService_Submit_RejectsInvalidEmail(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -661,6 +683,8 @@ func TestRequestService_Submit_RejectsInvalidEmail(t *testing.T) {
 }
 
 func TestRequestService_Submit_NoLegalBlocksConfiguredRequiresNoConsentFlags(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -672,6 +696,8 @@ func TestRequestService_Submit_NoLegalBlocksConfiguredRequiresNoConsentFlags(t *
 }
 
 func TestRequestService_Submit_AGBToggleWithoutTextDoesNotRequireConsent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -685,6 +711,8 @@ func TestRequestService_Submit_AGBToggleWithoutTextDoesNotRequireConsent(t *test
 }
 
 func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -700,6 +728,8 @@ func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T)
 }
 
 func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -717,6 +747,8 @@ func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
 }
 
 func TestRequestService_Submit_AGBTermsOverrideCheckFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -731,6 +763,8 @@ func TestRequestService_Submit_AGBTermsOverrideCheckFailureFailsClosed(t *testin
 }
 
 func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -750,6 +784,8 @@ func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testin
 }
 
 func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -765,6 +801,8 @@ func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T
 }
 
 func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -783,6 +821,8 @@ func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 // ErrInvalidGuardianPhone, instead of being stored and later blocking
 // approval with a 500.
 func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -797,6 +837,8 @@ func TestRequestService_Submit_RejectsInvalidGuardianPhone(t *testing.T) {
 }
 
 func TestRequestService_Submit_RejectsMissingRequiredGuardianPhone(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -821,6 +863,8 @@ func TestRequestService_Submit_RejectsMissingRequiredGuardianPhone(t *testing.T)
 // leaving it permanently stuck. Submit must now reject them up front with
 // ErrInvalidGuardianEmail, using the same rule as approval.
 func TestRequestService_Submit_RejectsEmailRejectedAtApproval(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -836,6 +880,8 @@ func TestRequestService_Submit_RejectsEmailRejectedAtApproval(t *testing.T) {
 }
 
 func TestRequestService_Submit_RejectsNoChildren(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -853,6 +899,8 @@ func TestRequestService_Submit_RejectsNoChildren(t *testing.T) {
 // resulting student because users.Student.Validate() rejects empty
 // school_class downstream.
 func TestRequestService_Submit_RejectsMissingTargetGradeLevel(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -867,6 +915,8 @@ func TestRequestService_Submit_RejectsMissingTargetGradeLevel(t *testing.T) {
 }
 
 func TestRequestService_Submit_RejectsInvalidGradeLevelSetting(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -878,6 +928,8 @@ func TestRequestService_Submit_RejectsInvalidGradeLevelSetting(t *testing.T) {
 }
 
 func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -905,6 +957,8 @@ func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 }
 
 func TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -920,6 +974,8 @@ func TestRequestService_Submit_EnforcesPhaseCareOfferingSelectionMode(t *testing
 }
 
 func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -947,6 +1003,8 @@ func TestRequestService_Submit_EnforcesExactlyOneCareOffering(t *testing.T) {
 // both rejected. This guards the contradiction where a required base
 // offering would otherwise make exactly_one unsatisfiable.
 func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1003,6 +1061,8 @@ func TestRequestService_Submit_ExactlyOneCountsOnlyChoosableOfferings(t *testing
 // least one" on its own; the parent must additionally pick a choosable
 // offering.
 func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1045,6 +1105,8 @@ func TestRequestService_Submit_AtLeastOneCountsOnlyChoosableOfferings(t *testing
 // --- GetByStatusToken ---
 
 func TestRequestService_GetByStatusToken_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1064,6 +1126,8 @@ func TestRequestService_GetByStatusToken_RoundTrip(t *testing.T) {
 }
 
 func TestRequestService_GetByStatusToken_UnknownReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	_, _, err := env.svc.GetByStatusToken(context.Background(), "nope-no-such-token")
@@ -1075,6 +1139,8 @@ func TestRequestService_GetByStatusToken_UnknownReturnsNotFound(t *testing.T) {
 // has show_status_reason_to_parent=false (the default), the public status
 // page must NOT surface a stored rejection/waitlist note.
 func TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1100,6 +1166,8 @@ func TestRequestService_GetByStatusToken_RedactsReasonWhenPhaseDisablesIt(t *tes
 // Counterpart: when the phase opts in via show_status_reason_to_parent,
 // the stored reason is surfaced to the parent unchanged.
 func TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1126,6 +1194,8 @@ func TestRequestService_GetByStatusToken_SurfacesReasonWhenPhaseEnablesIt(t *tes
 // --- Edit ---
 
 func TestRequestService_Edit_AppliesPatchWhileSubmitted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1147,6 +1217,8 @@ func TestRequestService_Edit_AppliesPatchWhileSubmitted(t *testing.T) {
 }
 
 func TestRequestService_Edit_LocksAfterReviewStarted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1172,6 +1244,8 @@ func TestRequestService_Edit_LocksAfterReviewStarted(t *testing.T) {
 }
 
 func TestRequestService_Edit_RespectsAllowSubmissionEditFalse(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1190,6 +1264,8 @@ func TestRequestService_Edit_RespectsAllowSubmissionEditFalse(t *testing.T) {
 }
 
 func TestRequestService_ReplaceEditable_RewritesPayloadWithoutNewAdminNotification(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1267,6 +1343,8 @@ func TestRequestService_ReplaceEditable_RewritesPayloadWithoutNewAdminNotificati
 }
 
 func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1296,6 +1374,8 @@ func TestRequestService_ReplaceEditable_LocksAfterReviewStarted(t *testing.T) {
 }
 
 func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1330,6 +1410,8 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 }
 
 func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditionalOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1358,6 +1440,8 @@ func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditio
 }
 
 func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1372,6 +1456,8 @@ func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.
 }
 
 func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1393,6 +1479,8 @@ func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t 
 }
 
 func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindowClosed(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1421,6 +1509,8 @@ func TestRequestService_ReplaceEditable_AllowsSubmittedEditsAfterEnrollmentWindo
 }
 
 func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1468,6 +1558,8 @@ func TestRequestService_ReplaceEditable_PreservesRolloverMetadata(t *testing.T) 
 }
 
 func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1507,6 +1599,8 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildCountChanges(t *test
 }
 
 func TestRequestService_ReplaceEditable_RejectsRolloverChildReorder(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1549,6 +1643,8 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildReorder(t *testing.T
 }
 
 func TestRequestService_ReplaceEditable_RejectsRolloverChildIdentityChanges(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1578,6 +1674,8 @@ func TestRequestService_ReplaceEditable_RejectsRolloverChildIdentityChanges(t *t
 }
 
 func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1608,6 +1706,8 @@ func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists
 }
 
 func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1642,6 +1742,8 @@ func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *
 }
 
 func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1668,6 +1770,8 @@ func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testi
 }
 
 func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIdentity(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1731,6 +1835,8 @@ func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIden
 // --- Withdraw ---
 
 func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1762,6 +1868,8 @@ func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
 }
 
 func TestRequestService_Withdraw_BulkSetsWithdrawnAt(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1780,6 +1888,8 @@ func TestRequestService_Withdraw_BulkSetsWithdrawnAt(t *testing.T) {
 }
 
 func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1801,6 +1911,8 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 }
 
 func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1836,6 +1948,8 @@ func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T
 }
 
 func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1869,6 +1983,8 @@ func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
 }
 
 func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1904,6 +2020,8 @@ func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *te
 // doesn't short-circuit the rate-limit path; the rate-limit bucket is
 // keyed on (tenant_id, email) so child identity is independent.
 func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1933,6 +2051,8 @@ func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 // (10 submissions / 1h). Email is varied so we don't hit that bucket
 // first.
 func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1964,6 +2084,8 @@ func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
 // iteration so the duplicate guard doesn't reject before the
 // rate-limit bucket fills.
 func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2010,6 +2132,8 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 }
 
 func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2102,6 +2226,8 @@ func setPhaseOverflowMode(t *testing.T, env *requestTestEnv, mode string) {
 }
 
 func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2126,6 +2252,8 @@ func TestRequestService_Submit_UsesCapacityFromLockedOfferings(t *testing.T) {
 }
 
 func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2150,6 +2278,8 @@ func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing
 // the offering is at capacity AND the tenant mode is 'waitlist', the
 // new child lands as 'waitlisted' instead of 'submitted'.
 func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2184,6 +2314,8 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 }
 
 func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2212,6 +2344,8 @@ func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t
 }
 
 func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2247,6 +2381,8 @@ func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *tes
 }
 
 func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarly(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2283,6 +2419,8 @@ func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarl
 }
 
 func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2316,6 +2454,8 @@ func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testin
 // mode=reject aborts the submission with ErrCareOfferingFull instead
 // of writing rows.
 func TestRequestService_Submit_CapacityOverflowReject(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2343,6 +2483,8 @@ func TestRequestService_Submit_CapacityOverflowReject(t *testing.T) {
 // preserves the default 'submitted' status even when the offering is at
 // or over capacity. The admin sorts it out via PR 8 review.
 func TestRequestService_Submit_CapacityOverflowAllow(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2371,6 +2513,8 @@ func TestRequestService_Submit_CapacityOverflowAllow(t *testing.T) {
 // one form selecting the same offering with capacity=1 must trigger
 // the overflow path for the second sibling, not silently pass through.
 func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2399,6 +2543,8 @@ func TestRequestService_Submit_CapacityIntraSubmissionCounting(t *testing.T) {
 // offering with NULL capacity never triggers overflow regardless of how
 // many children claim it.
 func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2437,6 +2583,8 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 // is case-insensitive on email and child names, runs inside the write
 // tx under an advisory lock so concurrent submits serialize.
 func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
@@ -2461,6 +2609,8 @@ func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
 // the same child past the guard by retyping the form with
 // "Anna@Example.com" and "  lina   beispiel  ".
 func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
@@ -2481,6 +2631,8 @@ func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 }
 
 func TestRequestService_Submit_DuplicateWarnPersistsWithMachineWarning(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2498,6 +2650,8 @@ func TestRequestService_Submit_DuplicateWarnPersistsWithMachineWarning(t *testin
 }
 
 func TestRequestService_Submit_DuplicateIgnorePersistsWithoutWarning(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2518,6 +2672,8 @@ func TestRequestService_Submit_DuplicateIgnorePersistsWithoutWarning(t *testing.
 // after another in the same phase must succeed — twins or siblings
 // are a legitimate use case.
 func TestRequestService_Submit_DedupAllowsDifferentChild(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2537,6 +2693,8 @@ func TestRequestService_Submit_DedupAllowsDifferentChild(t *testing.T) {
 // distinct parents can each submit a child named "Lina Beispiel" in
 // the same phase. Dedup is keyed on the parent's email.
 func TestRequestService_Submit_DedupAllowsDifferentParent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2557,6 +2715,8 @@ func TestRequestService_Submit_DedupAllowsDifferentParent(t *testing.T) {
 // dedup query filters out rows where the child status is withdrawn or
 // rejected.
 func TestRequestService_Submit_DedupIgnoresWithdrawn(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2584,6 +2744,8 @@ func TestRequestService_Submit_DedupIgnoresWithdrawn(t *testing.T) {
 // Basis phase as soon as one was published. The fixup makes Basis
 // strict — admin said "nur die Standardfelder", so we honor it.
 func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2622,6 +2784,8 @@ func TestRequestService_Submit_BasisPhaseNoFallback(t *testing.T) {
 }
 
 func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSchemaChange(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2695,6 +2859,8 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 // otherwise valid submit, and a value smuggled for that hidden field must NOT
 // be persisted.
 func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2745,6 +2911,8 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 // counterpart: when the controller makes the required field visible, leaving it
 // blank must still block the submit.
 func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2782,6 +2950,8 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 // enough — malformed entries (a contact with no name / no contact channel)
 // must be rejected at submit, not pass through to a later approval failure.
 func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2847,6 +3017,8 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 // counterpart to the gate test below: per-weekday times drawn from the
 // configured fixed list must pass the server-side enforcement and persist.
 func TestRequestService_Submit_AcceptsAllowedPickupTime(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2869,6 +3041,8 @@ func TestRequestService_Submit_AcceptsAllowedPickupTime(t *testing.T) {
 // persisted (the decision service would otherwise dispatch it into a pickup
 // schedule). Mirrors the public form's client-side pruneWeekdayAnswers.
 func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2912,6 +3086,8 @@ func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 // rejected at submit, carrying the specific sentinel (so the handler attaches
 // a stable code) while remaining part of the broad invalid-submission category.
 func TestRequestService_Submit_RejectsOffListPickupTime(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2936,6 +3112,8 @@ func TestRequestService_Submit_RejectsOffListPickupTime(t *testing.T) {
 // by the allowed-times gate -- rejecting it would block an otherwise valid
 // submit. Only the schedulable (care) days are gated; the rest are stripped.
 func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2977,6 +3155,8 @@ func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *t
 // regression guard for the edit path: the same fixed-times enforcement runs
 // when a parent edits an already-submitted request, not only on first submit.
 func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3033,6 +3213,8 @@ func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source s
 // class_not_eligible on save, so the draft must present the eligible subset
 // only (#1663).
 func TestRequestService_GetEditDraft_NarrowsOfferedClassesToEligible(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3051,6 +3233,8 @@ func TestRequestService_GetEditDraft_NarrowsOfferedClassesToEligible(t *testing.
 // eligibility gates on edit, so its draft keeps the phase's full offered list —
 // narrowing it would strip the exception the admin deliberately created.
 func TestRequestService_GetEditDraft_TrustedSourceKeepsFullClassList(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

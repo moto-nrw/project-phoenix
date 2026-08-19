@@ -163,6 +163,8 @@ func cleanupEducationData(t *testing.T, db *bun.DB, groupIDs []int64, teacherIDs
 // ============================================================================
 
 func TestStudentRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -322,6 +324,8 @@ func TestStudentRepository_Create(t *testing.T) {
 }
 
 func TestStudentRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -345,6 +349,8 @@ func TestStudentRepository_FindByID(t *testing.T) {
 }
 
 func TestStudentRepository_FindByPersonID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -367,6 +373,8 @@ func TestStudentRepository_FindByPersonID(t *testing.T) {
 }
 
 func TestStudentRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -410,6 +418,8 @@ func TestStudentRepository_Update(t *testing.T) {
 }
 
 func TestStudentRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -453,6 +463,8 @@ func assignStudentToGroupDirect(t *testing.T, db *bun.DB, studentID, groupID int
 }
 
 func TestStudentRepository_FindByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -487,6 +499,8 @@ func TestStudentRepository_FindByGroupID(t *testing.T) {
 }
 
 func TestStudentRepository_FindByGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -522,6 +536,8 @@ func TestStudentRepository_FindByGroupIDs(t *testing.T) {
 // In production, this may work if the PostgreSQL search_path includes the "users" schema.
 
 func TestStudentRepository_AssignToGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -545,6 +561,8 @@ func TestStudentRepository_AssignToGroup(t *testing.T) {
 }
 
 func TestStudentRepository_RemoveFromGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -579,6 +597,8 @@ func TestStudentRepository_RemoveFromGroup(t *testing.T) {
 // ============================================================================
 
 func TestStudentRepository_FindBySchoolClass(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -623,6 +643,8 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 }
 
 func TestStudentRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -651,6 +673,8 @@ func TestStudentRepository_List(t *testing.T) {
 }
 
 func TestStudentRepository_ListWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -688,6 +712,8 @@ func TestStudentRepository_ListWithOptions(t *testing.T) {
 }
 
 func TestStudentRepository_CountWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -717,6 +743,8 @@ func TestStudentRepository_CountWithOptions(t *testing.T) {
 // ============================================================================
 
 func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -753,6 +781,8 @@ func TestStudentRepository_FindByTeacherIDWithGroups(t *testing.T) {
 }
 
 func TestStudentRepository_FindAllWithGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -828,6 +858,8 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 }
 
 func TestStudentRepository_FindByNameAndClass(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -877,6 +909,8 @@ func TestStudentRepository_FindByNameAndClass(t *testing.T) {
 // UPDATE locks), but we can lock down the basic contract — return-before-
 // clear and round-trip equivalence.
 func TestStudentRepository_PurgeAllPhotos(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -932,6 +966,8 @@ func TestStudentRepository_PurgeAllPhotos(t *testing.T) {
 // acquire the same key. After the first tx commits, a fresh attempt
 // must succeed — locks bound to the tenant id, not the connection.
 func TestStudentRepository_LockPhotoFeature(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student
@@ -979,6 +1015,8 @@ func TestStudentRepository_LockPhotoFeature(t *testing.T) {
 // observe deterministically in a unit test); here we just verify the
 // happy-path read and the not-found error.
 func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student

@@ -15,6 +15,8 @@ import (
 // when a concurrent request established the target state first.
 
 func TestCheckInStudent_ChangedFlag(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -36,6 +38,8 @@ func TestCheckInStudent_ChangedFlag(t *testing.T) {
 }
 
 func TestCheckOutStudent_ChangedFlag(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

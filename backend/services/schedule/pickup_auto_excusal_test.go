@@ -144,6 +144,8 @@ func (h *autoExcusalHarness) attendance(t *testing.T, rowID int64) *scheduleMode
 func (h *autoExcusalHarness) resolveStaff() (int64, error) { return h.staffID, nil }
 
 func TestAutoExcusal_PulledForwardPickupExcusesLaterBlocks(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -166,6 +168,8 @@ func TestAutoExcusal_PulledForwardPickupExcusesLaterBlocks(t *testing.T) {
 }
 
 func TestAutoExcusal_MovingPickupBackReleasesBlocks(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -184,6 +188,8 @@ func TestAutoExcusal_MovingPickupBackReleasesBlocks(t *testing.T) {
 }
 
 func TestAutoExcusal_MovingPickupEarlierWidensTheExcusal(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -201,6 +207,8 @@ func TestAutoExcusal_MovingPickupEarlierWidensTheExcusal(t *testing.T) {
 }
 
 func TestAutoExcusal_DeletingTheExceptionRestoresBlocks(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -220,6 +228,8 @@ func TestAutoExcusal_DeletingTheExceptionRestoresBlocks(t *testing.T) {
 }
 
 func TestAutoExcusal_NoWeeklyBaselineMeansNoCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, false)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -230,6 +240,8 @@ func TestAutoExcusal_NoWeeklyBaselineMeansNoCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_LaterThanBaselineMeansNoCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(17, 0), nil, h.staffID, h.resolveStaff)
@@ -240,6 +252,8 @@ func TestAutoExcusal_LaterThanBaselineMeansNoCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	// A manual partial absence from 13:30 (staff decision, own dialog).
@@ -266,6 +280,8 @@ func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -290,6 +306,8 @@ func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualDeleteRefusesAutoRows(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -303,6 +321,8 @@ func TestAutoExcusal_ManualDeleteRefusesAutoRows(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualDeleteOfConvertedRowRederivesAuto(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	// 14:45 pickup pulls forward against the 16:00 baseline → auto excusal.
@@ -351,6 +371,8 @@ func (h *autoExcusalHarness) exception(t *testing.T) *scheduleModel.StudentPicku
 }
 
 func TestAutoExcusal_WeeklyBaselineMovedEarlierReleasesCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -378,6 +400,8 @@ func TestAutoExcusal_WeeklyBaselineMovedEarlierReleasesCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_WeeklyBaselineDeletedReleasesCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -396,6 +420,8 @@ func TestAutoExcusal_WeeklyBaselineDeletedReleasesCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_WeeklyBaselineAddedCouplesExistingException(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, false)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -424,6 +450,8 @@ func TestAutoExcusal_WeeklyBaselineAddedCouplesExistingException(t *testing.T) {
 }
 
 func TestAutoExcusal_BulkWeeklyUpsertResyncsExceptions(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -448,6 +476,8 @@ func TestAutoExcusal_BulkWeeklyUpsertResyncsExceptions(t *testing.T) {
 }
 
 func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 	repos := repositories.NewFactory(h.db)
 

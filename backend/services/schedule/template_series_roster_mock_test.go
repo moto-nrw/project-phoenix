@@ -196,6 +196,8 @@ func seriesMockInput() TemplateUpdateInput {
 // ----------------------------------------------------------------- tests ----
 
 func TestReconcileSeriesPredecessorRoster_NoScopeIsANoop(t *testing.T) {
+	t.Parallel()
+
 	enrollments := &seriesMockEnrollmentRepo{}
 	svc := seriesMockChain(enrollments, &seriesMockSupervisorRepo{})
 
@@ -209,6 +211,8 @@ func TestReconcileSeriesPredecessorRoster_NoScopeIsANoop(t *testing.T) {
 }
 
 func TestReconcileSeriesPredecessorRoster_CreatesBoundedRows(t *testing.T) {
+	t.Parallel()
+
 	enrollments := &seriesMockEnrollmentRepo{}
 	supervisors := &seriesMockSupervisorRepo{}
 	svc := seriesMockChain(enrollments, supervisors)
@@ -227,6 +231,8 @@ func TestReconcileSeriesPredecessorRoster_CreatesBoundedRows(t *testing.T) {
 }
 
 func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		build  func() *TimetableDataService
@@ -333,6 +339,8 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 // TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows pins the three
 // classifications that make an existing row none of this pass's business.
 func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
+	t.Parallel()
+
 	otherPeriod := int64(4242)
 	longPast := timezone.TodayDate().AddDays(-90)
 	pastEnd := timezone.TodayDate().AddDays(-60)
@@ -377,6 +385,8 @@ func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
 // not block resolving the rest of the lineage, while the requested template's
 // own corruption stays a hard error.
 func TestLoadTemplateSeriesSegments_SkipsBrokenSibling(t *testing.T) {
+	t.Parallel()
+
 	until := seriesMockUntil()
 	other := until.AddDays(7)
 	broken := []*activitiesModel.Schedule{
@@ -401,6 +411,8 @@ func TestLoadTemplateSeriesSegments_SkipsBrokenSibling(t *testing.T) {
 }
 
 func TestResolveLivingTemplateSegment_PropagatesLineageErrors(t *testing.T) {
+	t.Parallel()
+
 	svc := NewTimetableDataService(TimetableDataDependencies{
 		ActivityGroupRepo:    &seriesMockGroupRepo{err: errSeriesMock},
 		ActivityScheduleRepo: &seriesMockScheduleRepo{},

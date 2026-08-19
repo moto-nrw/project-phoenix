@@ -20,6 +20,8 @@ import (
 // --- BuildServiceRequest -------------------------------------------------
 
 func TestBuildServiceRequest_CopiesGuardianFields(t *testing.T) {
+	t.Parallel()
+
 	phone := "+49 170 1234567"
 	wire := &SubmitEnrollmentRequest{
 		PhaseID:           42,
@@ -46,6 +48,8 @@ func TestBuildServiceRequest_CopiesGuardianFields(t *testing.T) {
 }
 
 func TestBuildServiceRequest_ParsesDateOfBirth(t *testing.T) {
+	t.Parallel()
+
 	wire := &SubmitEnrollmentRequest{
 		PhaseID: 42,
 		Children: []SubmitChildRequest{
@@ -61,6 +65,8 @@ func TestBuildServiceRequest_ParsesDateOfBirth(t *testing.T) {
 }
 
 func TestSubmitEnrollmentRequest_DecodesStringChildID(t *testing.T) {
+	t.Parallel()
+
 	var wire SubmitEnrollmentRequest
 	err := json.Unmarshal([]byte(`{
 		"phase_id": 42,
@@ -82,6 +88,8 @@ func TestSubmitEnrollmentRequest_DecodesStringChildID(t *testing.T) {
 }
 
 func TestEditBootstrapResponse_ExposesGradeLevelMax(t *testing.T) {
+	t.Parallel()
+
 	payload, err := json.Marshal(EditBootstrapResponse{GradeLevelMax: 13})
 	require.NoError(t, err)
 
@@ -91,6 +99,8 @@ func TestEditBootstrapResponse_ExposesGradeLevelMax(t *testing.T) {
 }
 
 func TestBuildServiceRequest_RejectsBadDateOfBirth(t *testing.T) {
+	t.Parallel()
+
 	wire := &SubmitEnrollmentRequest{
 		PhaseID: 42,
 		Children: []SubmitChildRequest{
@@ -104,6 +114,8 @@ func TestBuildServiceRequest_RejectsBadDateOfBirth(t *testing.T) {
 }
 
 func TestBuildServiceRequest_PreservesOfferingDays(t *testing.T) {
+	t.Parallel()
+
 	wire := &SubmitEnrollmentRequest{
 		PhaseID: 42,
 		Children: []SubmitChildRequest{
@@ -126,6 +138,8 @@ func TestBuildServiceRequest_PreservesOfferingDays(t *testing.T) {
 }
 
 func TestBuildServiceRequest_EmptyChildrenOK(t *testing.T) {
+	t.Parallel()
+
 	// The service layer enforces ≥1 child via ErrInvalidSubmission. The
 	// builder must not double-validate so callers get a consistent error
 	// surface.
@@ -135,6 +149,8 @@ func TestBuildServiceRequest_EmptyChildrenOK(t *testing.T) {
 }
 
 func TestBuildServiceRequest_ReportsCorrectChildIndex(t *testing.T) {
+	t.Parallel()
+
 	wire := &SubmitEnrollmentRequest{
 		PhaseID: 42,
 		Children: []SubmitChildRequest{
@@ -150,6 +166,8 @@ func TestBuildServiceRequest_ReportsCorrectChildIndex(t *testing.T) {
 // --- MapSubmitError ------------------------------------------------------
 
 func TestMapSubmitError_EnrollmentDisabled403(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrEnrollmentDisabled)
@@ -157,6 +175,8 @@ func TestMapSubmitError_EnrollmentDisabled403(t *testing.T) {
 }
 
 func TestMapSubmitError_EnrollmentWindowClosed403(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrEnrollmentWindowClosed)
@@ -164,6 +184,8 @@ func TestMapSubmitError_EnrollmentWindowClosed403(t *testing.T) {
 }
 
 func TestMapSubmitError_LateInviteInvalid403WithCode(t *testing.T) {
+	t.Parallel()
+
 	// The stable code is read by the parents-portal EnrollmentForm to
 	// render the localized late-invite message. Keep this assertion strict.
 	w := httptest.NewRecorder()
@@ -174,6 +196,8 @@ func TestMapSubmitError_LateInviteInvalid403WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_CareOfferingMissing400WithCode(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrCareOfferingMissing)
@@ -182,6 +206,8 @@ func TestMapSubmitError_CareOfferingMissing400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_CareOfferingUnavailable400WithStableCode(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, fmt.Errorf("child 1: %w", enrollmentService.ErrCareOfferingUnavailable))
@@ -190,6 +216,8 @@ func TestMapSubmitError_CareOfferingUnavailable400WithStableCode(t *testing.T) {
 }
 
 func TestMapSubmitError_InvalidGuardianPhone400WithCode(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrInvalidGuardianPhone)
@@ -198,6 +226,8 @@ func TestMapSubmitError_InvalidGuardianPhone400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_InvalidGuardianEmail400WithCode(t *testing.T) {
+	t.Parallel()
+
 	// ErrInvalidGuardianEmail wraps ErrInvalidSubmission, so its case must
 	// win over the generic branch to attach the stable code the parent form
 	// reads to localize the invalid-email message.
@@ -209,6 +239,8 @@ func TestMapSubmitError_InvalidGuardianEmail400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_PickupTimeNotAllowed400WithCode(t *testing.T) {
+	t.Parallel()
+
 	// ErrPickupTimeNotAllowed wraps ErrInvalidSubmission, so its case must
 	// win over the generic branch to attach the stable code the parent form
 	// reads to localize the off-list pickup message.
@@ -220,6 +252,8 @@ func TestMapSubmitError_PickupTimeNotAllowed400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_WrappedPickupTimeNotAllowed400WithCode(t *testing.T) {
+	t.Parallel()
+
 	// The service never returns the bare sentinel — it wraps it with the
 	// offending child index and field key. The mapper must still resolve the
 	// code via errors.Is traversal, not an identity check.
@@ -233,6 +267,8 @@ func TestMapSubmitError_WrappedPickupTimeNotAllowed400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_SelectedDayNotAvailable400WithCode(t *testing.T) {
+	t.Parallel()
+
 	// ErrSelectedDayNotAvailable wraps ErrInvalidSubmission, so its case
 	// must win over the generic branch to attach the stable code the
 	// enrollment form reads to localize the off-days message (#1885).
@@ -244,6 +280,8 @@ func TestMapSubmitError_SelectedDayNotAvailable400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_WrappedDepartureModeLimit400WithCode(t *testing.T) {
+	t.Parallel()
+
 	// Heimweg-Beschränkung (#2381): the wrapped sentinel must map to its
 	// stable code so the parent form can localize the message.
 	w := httptest.NewRecorder()
@@ -256,6 +294,8 @@ func TestMapSubmitError_WrappedDepartureModeLimit400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_WrappedSelectedDayNotAvailable400WithCode(t *testing.T) {
+	t.Parallel()
+
 	// The service wraps the sentinel with the offending day; the mapper
 	// must still resolve the code via errors.Is traversal.
 	w := httptest.NewRecorder()
@@ -268,6 +308,8 @@ func TestMapSubmitError_WrappedSelectedDayNotAvailable400WithCode(t *testing.T) 
 }
 
 func TestMapSubmitError_DaySelectionRequired400WithCode(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrDaySelectionRequired)
@@ -276,6 +318,8 @@ func TestMapSubmitError_DaySelectionRequired400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_DaySelectionNotAllowed400WithCode(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrDaySelectionNotAllowed)
@@ -284,6 +328,8 @@ func TestMapSubmitError_DaySelectionNotAllowed400WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_CareOfferingClosed400(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrCareOfferingClosed)
@@ -291,6 +337,8 @@ func TestMapSubmitError_CareOfferingClosed400(t *testing.T) {
 }
 
 func TestMapSubmitError_InvalidSubmission400(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrInvalidSubmission)
@@ -298,6 +346,8 @@ func TestMapSubmitError_InvalidSubmission400(t *testing.T) {
 }
 
 func TestMapSubmitError_CareOfferingFull409WithCode(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrCareOfferingFull)
@@ -306,6 +356,8 @@ func TestMapSubmitError_CareOfferingFull409WithCode(t *testing.T) {
 }
 
 func TestMapSubmitError_DuplicateEnrollment409(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrDuplicateEnrollment)
@@ -313,6 +365,8 @@ func TestMapSubmitError_DuplicateEnrollment409(t *testing.T) {
 }
 
 func TestMapSubmitError_RateLimited429WithRetryAfter(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, enrollmentService.ErrRateLimited)
@@ -321,6 +375,8 @@ func TestMapSubmitError_RateLimited429WithRetryAfter(t *testing.T) {
 }
 
 func TestMapSubmitError_CaptchaErrorMappedAs400(t *testing.T) {
+	t.Parallel()
+
 	// Captcha errors are constructed with fmt.Errorf("captcha ...") in
 	// the submit handler, not as a sentinel error. The mapper sniffs
 	// the message and re-routes to 400 instead of falling through to a
@@ -332,6 +388,8 @@ func TestMapSubmitError_CaptchaErrorMappedAs400(t *testing.T) {
 }
 
 func TestMapSubmitError_UnknownError500(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	MapSubmitError(w, r, errors.New("synthetic boom"))
@@ -341,6 +399,8 @@ func TestMapSubmitError_UnknownError500(t *testing.T) {
 // --- remoteIPFromRequest -------------------------------------------------
 
 func TestRemoteIPFromRequest_XForwardedForRightmostHop(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "203.0.113.5, 198.51.100.4, 192.0.2.1")
 	r.RemoteAddr = "10.0.0.1:54321"
@@ -348,6 +408,8 @@ func TestRemoteIPFromRequest_XForwardedForRightmostHop(t *testing.T) {
 }
 
 func TestRemoteIPFromRequest_XForwardedForSingleEntry(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "203.0.113.5")
 	r.RemoteAddr = "10.0.0.1:54321"
@@ -355,18 +417,24 @@ func TestRemoteIPFromRequest_XForwardedForSingleEntry(t *testing.T) {
 }
 
 func TestRemoteIPFromRequest_XForwardedForTrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "  203.0.113.5  ,198.51.100.4")
 	assert.Equal(t, "198.51.100.4", remoteIPFromRequestThroughXFFMiddleware(r))
 }
 
 func TestRemoteIPFromRequest_FallsBackToRemoteAddrSansPort(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.RemoteAddr = "203.0.113.5:54321"
 	assert.Equal(t, "203.0.113.5", remoteIPFromRequest(r))
 }
 
 func TestRemoteIPFromRequest_RemoteAddrWithoutPortReturnedRaw(t *testing.T) {
+	t.Parallel()
+
 	// httptest sets host:port by default; but in case a frontend hands
 	// us an unrouted RemoteAddr (no port), don't lose it.
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
@@ -375,6 +443,8 @@ func TestRemoteIPFromRequest_RemoteAddrWithoutPortReturnedRaw(t *testing.T) {
 }
 
 func TestRemoteIPFromRequest_IPv6BracketsHandled(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.RemoteAddr = "[2001:db8::1]:54321"
 	// net.SplitHostPort strips brackets.

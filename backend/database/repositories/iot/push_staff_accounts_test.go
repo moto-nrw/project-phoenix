@@ -19,6 +19,8 @@ import (
 // primitive for personal notifications: exactly the named recipients, and only
 // while they are still eligible to receive anything.
 func TestPushSubscriptionRepository_FindForStaffAccounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)

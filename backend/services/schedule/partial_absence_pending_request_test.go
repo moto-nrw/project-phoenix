@@ -15,6 +15,8 @@ import (
 )
 
 func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db)

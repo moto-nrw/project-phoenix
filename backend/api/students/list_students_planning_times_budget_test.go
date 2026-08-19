@@ -70,6 +70,9 @@ func (c *planningTimesCounter) captured(table string) []string {
 // bulk effective-time SELECT exactly once. Before the fix the paginated
 // enrichment stage re-ran the same three SELECTs per kind that
 // enrichWithDayPlanning had already issued, so every bucket held 2.
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
 	tc := setupTestContext(t)
 	tc.resource.Now = func() time.Time {

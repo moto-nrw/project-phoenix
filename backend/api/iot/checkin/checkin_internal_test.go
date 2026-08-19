@@ -27,6 +27,8 @@ import (
 // =============================================================================
 
 func TestSelectPickupNote_PreservesDayNoteOrder(t *testing.T) {
+	t.Parallel()
+
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		Notes: "Recurring note should be ignored when day notes exist",
 		DayNotes: []scheduleSvc.NoteData{
@@ -41,6 +43,8 @@ func TestSelectPickupNote_PreservesDayNoteOrder(t *testing.T) {
 }
 
 func TestSelectPickupNote_FallsBackToEffectiveNotes(t *testing.T) {
+	t.Parallel()
+
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		Notes: "Wait at the side entrance",
 	}
@@ -51,11 +55,15 @@ func TestSelectPickupNote_FallsBackToEffectiveNotes(t *testing.T) {
 }
 
 func TestSelectPickupNote_NilInput(t *testing.T) {
+	t.Parallel()
+
 	result := selectPickupNote(nil)
 	assert.Equal(t, "", result)
 }
 
 func TestSelectPickupNote_AllWhitespaceDayNotesFallsBackToRecurring(t *testing.T) {
+	t.Parallel()
+
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		Notes: "Recurring fallback note",
 		DayNotes: []scheduleSvc.NoteData{
@@ -70,6 +78,8 @@ func TestSelectPickupNote_AllWhitespaceDayNotesFallsBackToRecurring(t *testing.T
 }
 
 func TestSelectPickupNote_EmptyDayNotesAndEmptyRecurring(t *testing.T) {
+	t.Parallel()
+
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		Notes:    "  ",
 		DayNotes: []scheduleSvc.NoteData{},
@@ -85,6 +95,8 @@ func TestSelectPickupNote_EmptyDayNotesAndEmptyRecurring(t *testing.T) {
 // =============================================================================
 
 func TestAttachPickupInfoToResponse_NilPickup(t *testing.T) {
+	t.Parallel()
+
 	response := map[string]interface{}{}
 	attachPickupInfoToResponse(response, nil)
 
@@ -95,6 +107,8 @@ func TestAttachPickupInfoToResponse_NilPickup(t *testing.T) {
 }
 
 func TestAttachPickupInfoToResponse_WithPickupTimeOnly(t *testing.T) {
+	t.Parallel()
+
 	pickupTime := time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC)
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		PickupTime: &pickupTime,
@@ -109,6 +123,8 @@ func TestAttachPickupInfoToResponse_WithPickupTimeOnly(t *testing.T) {
 }
 
 func TestAttachPickupInfoToResponse_WithPickupNoteOnly(t *testing.T) {
+	t.Parallel()
+
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		Notes: "Bitte klingeln",
 	}
@@ -122,6 +138,8 @@ func TestAttachPickupInfoToResponse_WithPickupNoteOnly(t *testing.T) {
 }
 
 func TestAttachPickupInfoToResponse_WithPickupTimeAndNote(t *testing.T) {
+	t.Parallel()
+
 	pickupTime := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		PickupTime: &pickupTime,
@@ -136,6 +154,8 @@ func TestAttachPickupInfoToResponse_WithPickupTimeAndNote(t *testing.T) {
 }
 
 func TestAttachPickupInfoToResponse_WithDayNotes(t *testing.T) {
+	t.Parallel()
+
 	pickupTime := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		PickupTime: &pickupTime,
@@ -153,6 +173,8 @@ func TestAttachPickupInfoToResponse_WithDayNotes(t *testing.T) {
 }
 
 func TestAttachPickupInfoToResponse_EmptyNotesOmitsKey(t *testing.T) {
+	t.Parallel()
+
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
 		Notes: "",
 	}
@@ -169,6 +191,8 @@ func TestAttachPickupInfoToResponse_EmptyNotesOmitsKey(t *testing.T) {
 // =============================================================================
 
 func TestBuildCheckinResponse_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(123)
 	student := &users.Student{
@@ -195,6 +219,8 @@ func TestBuildCheckinResponse_BasicFields(t *testing.T) {
 }
 
 func TestBuildCheckinResponse_Transfer(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(123)
 	student := &users.Student{
@@ -216,6 +242,8 @@ func TestBuildCheckinResponse_Transfer(t *testing.T) {
 }
 
 func TestBuildCheckinResponse_NoTransferNoPreviousRoom(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	student := &users.Student{
 		Model:  base.Model{ID: 1},
@@ -238,6 +266,8 @@ func TestBuildCheckinResponse_NoTransferNoPreviousRoom(t *testing.T) {
 // =============================================================================
 
 func TestBuildCheckinResponse_DailyCheckoutAvailable(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(100)
 	student := &users.Student{
@@ -259,6 +289,8 @@ func TestBuildCheckinResponse_DailyCheckoutAvailable(t *testing.T) {
 }
 
 func TestBuildCheckinResponse_DailyCheckoutNotAvailable(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(200)
 	student := &users.Student{
@@ -284,6 +316,8 @@ func TestBuildCheckinResponse_DailyCheckoutNotAvailable(t *testing.T) {
 // =============================================================================
 
 func TestBuildCheckinResponse_WithPickupTime(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(300)
 	pickupTime := "15:30"
@@ -306,6 +340,8 @@ func TestBuildCheckinResponse_WithPickupTime(t *testing.T) {
 }
 
 func TestBuildCheckinResponse_WithoutPickupTime(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(400)
 	student := &users.Student{
@@ -331,6 +367,8 @@ func TestBuildCheckinResponse_WithoutPickupTime(t *testing.T) {
 // =============================================================================
 
 func TestSendCheckinResponse(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/checkin", nil)
 
@@ -356,6 +394,8 @@ func TestSendCheckinResponse(t *testing.T) {
 // =============================================================================
 
 func TestBuildCheckinResponse_WithActiveStudents(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(123)
 	activeStudents := 5
@@ -377,6 +417,8 @@ func TestBuildCheckinResponse_WithActiveStudents(t *testing.T) {
 }
 
 func TestBuildCheckinResponse_WithoutActiveStudents(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(123)
 	student := &users.Student{
@@ -398,6 +440,8 @@ func TestBuildCheckinResponse_WithoutActiveStudents(t *testing.T) {
 }
 
 func TestBuildCheckinResponse_ActiveStudentsZero(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	visitID := int64(123)
 	activeStudents := 0
@@ -423,6 +467,8 @@ func TestBuildCheckinResponse_ActiveStudentsZero(t *testing.T) {
 // =============================================================================
 
 func TestValidateDeviceContext_NilContext(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/checkin", nil)
 
@@ -437,6 +483,8 @@ func TestValidateDeviceContext_NilContext(t *testing.T) {
 // =============================================================================
 
 func TestParseCheckinRequest_NilBody(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/checkin", nil)
 	r.Header.Set("Content-Type", "application/json")

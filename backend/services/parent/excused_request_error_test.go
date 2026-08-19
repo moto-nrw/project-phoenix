@@ -65,6 +65,8 @@ func buildParentServiceWithExcused(t *testing.T, excused absenceSvc.ExcusedAbsen
 // translates the excused-request service's validation sentinels onto its own
 // stable parent sentinels (so the handler renders consistent status codes).
 func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	day := timezone.TodayDate().AddDays(3)
 	cases := []struct {
 		name string
@@ -100,6 +102,8 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 // TestSubmitExcused_NoServiceConfigured verifies the guard when the excused
 // service was not wired (gate on but ExcusedRequests nil).
 func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildParentServiceWithExcused(t, nil)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -113,6 +117,8 @@ func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
 // TestListExcusedRequests_Errors covers the ownership guard, the nil-service
 // short-circuit and the service-error wrap.
 func TestListExcusedRequests_Errors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("foreign child rejected", func(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -146,6 +152,8 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 // TestWithdrawExcusedRequest_Errors covers the ownership guard, the nil-service
 // path and the not-found / not-pending / wrapped mappings.
 func TestWithdrawExcusedRequest_Errors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("foreign child rejected", func(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)

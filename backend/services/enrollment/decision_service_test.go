@@ -410,6 +410,8 @@ func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceS
 // ---- Get ----------------------------------------------------------------
 
 func TestDecisionService_Get_NotFound(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -421,6 +423,8 @@ func TestDecisionService_Get_NotFound(t *testing.T) {
 }
 
 func TestDecisionService_Get_ReturnsRequestPhaseAndChildren(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -438,6 +442,8 @@ func TestDecisionService_Get_ReturnsRequestPhaseAndChildren(t *testing.T) {
 }
 
 func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -477,6 +483,8 @@ func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
 // ---- List ---------------------------------------------------------------
 
 func TestDecisionService_List_ReturnsAllRequestsInTenant(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -490,6 +498,8 @@ func TestDecisionService_List_ReturnsAllRequestsInTenant(t *testing.T) {
 }
 
 func TestDecisionService_List_FilterByPhaseNarrowsResults(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -507,6 +517,8 @@ func TestDecisionService_List_FilterByPhaseNarrowsResults(t *testing.T) {
 }
 
 func TestDecisionService_List_FilterByChildStatusNarrowsResults(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -524,6 +536,8 @@ func TestDecisionService_List_FilterByChildStatusNarrowsResults(t *testing.T) {
 // ---- Decide: validation -------------------------------------------------
 
 func TestDecisionService_Decide_RejectsZeroRequestID(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -538,6 +552,8 @@ func TestDecisionService_Decide_RejectsZeroRequestID(t *testing.T) {
 }
 
 func TestDecisionService_Decide_RejectsZeroChildID(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -553,6 +569,8 @@ func TestDecisionService_Decide_RejectsZeroChildID(t *testing.T) {
 }
 
 func TestDecisionService_Decide_RejectsUnknownStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -568,6 +586,8 @@ func TestDecisionService_Decide_RejectsUnknownStatus(t *testing.T) {
 }
 
 func TestDecisionService_Decide_RequestNotFound(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -582,6 +602,8 @@ func TestDecisionService_Decide_RequestNotFound(t *testing.T) {
 }
 
 func TestDecisionService_Decide_ChildNotFound(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -599,6 +621,8 @@ func TestDecisionService_Decide_ChildNotFound(t *testing.T) {
 // ---- Decide: non-terminal status transitions ----------------------------
 
 func TestDecisionService_Decide_WaitlistedSetsStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -619,6 +643,8 @@ func TestDecisionService_Decide_WaitlistedSetsStatus(t *testing.T) {
 }
 
 func TestDecisionService_Decide_RejectedSetsStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -635,6 +661,8 @@ func TestDecisionService_Decide_RejectedSetsStatus(t *testing.T) {
 }
 
 func TestDecisionService_Decide_UnderReviewSetsStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -651,6 +679,8 @@ func TestDecisionService_Decide_UnderReviewSetsStatus(t *testing.T) {
 }
 
 func TestDecisionService_Decide_TerminalTransitionRejected(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -677,6 +707,8 @@ func TestDecisionService_Decide_TerminalTransitionRejected(t *testing.T) {
 }
 
 func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDigest(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
 		notificationMode: configModel.EnrollmentNotifyPerDecisionDigest,
 	})
@@ -718,6 +750,8 @@ func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDi
 }
 
 func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) {
+	t.Parallel()
+
 	settings := newStubRequestSettings()
 	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
 	env, cleanup := setupDecisionTestWithSettings(t, settings)
@@ -750,6 +784,8 @@ func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) 
 }
 
 func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.T) {
+	t.Parallel()
+
 	settings := newStubRequestSettings()
 	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
 	env, cleanup := setupDecisionTestWithSettings(t, settings)
@@ -781,6 +817,8 @@ func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.
 }
 
 func TestDecisionService_Decide_WaitlistedPromotionVersionsDigestState(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
 		notificationMode: configModel.EnrollmentNotifyPerDecisionDigest,
 	})
@@ -827,6 +865,8 @@ func TestDecisionService_Decide_WaitlistedPromotionVersionsDigestState(t *testin
 }
 
 func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		mode string
@@ -866,6 +906,8 @@ func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *
 // ---- Decide: approval (the heavy path) ----------------------------------
 
 func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -910,6 +952,8 @@ func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
 // and the resolved guardian_profiles id is stamped back on the request row.
 // The email-less co-guardian must resolve to a contact profile with NULL email.
 func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -978,6 +1022,8 @@ func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
 }
 
 func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1028,6 +1074,8 @@ func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing
 }
 
 func TestDecisionService_SyncApprovedChildData_UpdatesStandalonePrimaryGuardianName(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1069,6 +1117,8 @@ func TestDecisionService_SyncApprovedChildData_UpdatesStandalonePrimaryGuardianN
 }
 
 func TestDecisionService_SyncApprovedChildData_DoesNotOverwriteAccountLinkedPrimaryGuardianName(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1112,6 +1162,8 @@ func TestDecisionService_SyncApprovedChildData_DoesNotOverwriteAccountLinkedPrim
 }
 
 func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardians(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1184,6 +1236,8 @@ func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardi
 }
 
 func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkForCoGuardian(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1260,6 +1314,8 @@ func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkFo
 }
 
 func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1305,6 +1361,8 @@ func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(
 // ONLY way to reach the approved emergency contact, so dropping it would
 // leave them unreachable.
 func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1347,6 +1405,8 @@ func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
 }
 
 func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1429,6 +1489,8 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *tes
 }
 
 func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPhoneOnlyContactList(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1482,6 +1544,8 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPhoneOnlyContactLi
 }
 
 func TestDecisionService_SyncApprovedChildData_ReusesUnchangedPhoneOnlyContactList(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1528,6 +1592,8 @@ func TestDecisionService_SyncApprovedChildData_ReusesUnchangedPhoneOnlyContactLi
 }
 
 func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermissions(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1596,6 +1662,8 @@ func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermiss
 }
 
 func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1676,6 +1744,8 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 // weekday_mode departure field (#1610) flows from the enrollment submission
 // onto the approved student's departure_days, deriving the legacy mirrors.
 func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1743,6 +1813,8 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 // field via a reserved custom-data key (not a separate schema field) lands on
 // the approved student's departure_companion_note.
 func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1812,6 +1884,8 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 // "Mit anderem Kind" plan (#1694). The server guard is the authority here — the
 // client's hasAccompanied gate cannot be trusted.
 func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1881,6 +1955,8 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 // field silently drop the accompanied mode and its companion note. The schema is
 // inserted raw to reproduce the pre-validation shape that the model now forbids.
 func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1963,6 +2039,8 @@ func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing
 // Settings setup, which must behave identically to an explicit
 // "scheduled" override (the safe default).
 func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2002,6 +2080,8 @@ func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.
 // still pinned to the phase's service-start date (the mode changes only
 // the status, never the dates).
 func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
@@ -2035,6 +2115,8 @@ func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) 
 }
 
 func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeScheduled,
 	})
@@ -2067,6 +2149,8 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 }
 
 func TestDecisionService_Decide_ApprovedUnknownActivationModeFallsBackToScheduled(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{mode: "bogus"})
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2093,6 +2177,8 @@ func TestDecisionService_Decide_ApprovedUnknownActivationModeFallsBackToSchedule
 }
 
 func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2121,6 +2207,8 @@ func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
 }
 
 func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2151,6 +2239,8 @@ func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) 
 }
 
 func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2194,6 +2284,8 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 }
 
 func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2243,6 +2335,8 @@ func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(
 }
 
 func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2292,6 +2386,8 @@ func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce
 }
 
 func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmittedSiblingValue(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2337,6 +2433,8 @@ func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmit
 }
 
 func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2388,6 +2486,8 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 }
 
 func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTargetError(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2460,6 +2560,8 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 }
 
 func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2488,6 +2590,8 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 }
 
 func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2522,6 +2626,8 @@ func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortAp
 // TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval
 // above, which is the additive fresh-create path where a skip is harmless.
 func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2694,6 +2800,8 @@ func cleanupExistingStudentApproval(t *testing.T, env *decisionTestEnv, student 
 // timestamp the matched student still carries from the original enrollment —
 // otherwise the school keeps acting on a consent that was explicitly withdrawn.
 func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2746,6 +2854,8 @@ func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testin
 // already carries the submitted guardian silently discards that guardian, their
 // phone number and their portal access.
 func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2799,6 +2909,8 @@ func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing
 }
 
 func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2851,6 +2963,8 @@ func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing
 // would strip a real guardian of pickup authority and parent-portal access just
 // because the other parent filed this year's renewal (#1663).
 func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2906,6 +3020,8 @@ func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t
 }
 
 func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2936,6 +3052,8 @@ func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
 }
 
 func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollment(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3030,6 +3148,8 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 }
 
 func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3160,6 +3280,8 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 }
 
 func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3243,6 +3365,8 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 // historical non-template activity-group link, which the clone carries
 // verbatim so Decide keeps materializing it for the target window.
 func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3378,6 +3502,8 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 }
 
 func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3467,6 +3593,8 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 // ---- ListChildOfferings -------------------------------------------------
 
 func TestDecisionService_ListChildOfferings_InvalidRequestID(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3476,6 +3604,8 @@ func TestDecisionService_ListChildOfferings_InvalidRequestID(t *testing.T) {
 }
 
 func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3495,6 +3625,8 @@ func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testin
 // the offering attributes and keeps future rows (flagged), dropping only rows
 // whose interval has already ended.
 func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3557,6 +3689,8 @@ func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t
 // instead of copying the predicate: the two are then the same code, and no
 // future change to the clamp can separate them.
 func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3622,6 +3756,8 @@ func (catalogFailureRepo) ListByIDs(_ context.Context, _ []int64) ([]*enrollment
 // real bookings. Degrading to rows without catalog data keeps that from
 // happening.
 func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3676,6 +3812,8 @@ func createChildOfferingLink(
 // start and request_child_offerings_nonempty_validity requires
 // valid_from < valid_until), so no pre-start row can be dropped either way.
 func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3704,6 +3842,8 @@ func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testi
 }
 
 func TestBookingViewDate(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2026, 8, 8)
 
 	assert.Equal(t, today, enrollmentService.BookingViewDate(today, timezone.NewDate(2027, 7, 31)),
@@ -3718,6 +3858,8 @@ func TestBookingViewDate(t *testing.T) {
 // ---- Offering adjustments ----------------------------------------------
 
 func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3739,6 +3881,8 @@ func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing
 }
 
 func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3786,6 +3930,8 @@ func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *tes
 }
 
 func TestDecisionService_UpdateChildOfferings_RejectsGroupRuleViolation(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3826,6 +3972,8 @@ func TestDecisionService_UpdateChildOfferings_RejectsGroupRuleViolation(t *testi
 }
 
 func TestDecisionService_UpdateChildOfferings_RematerializesRequiredAutomaticLunch(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3878,6 +4026,8 @@ func TestDecisionService_UpdateChildOfferings_RematerializesRequiredAutomaticLun
 }
 
 func TestDecisionService_UpdateChildOfferings_IgnoresInactiveOfferingsDuringValidation(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -3924,6 +4074,8 @@ func TestDecisionService_UpdateChildOfferings_IgnoresInactiveOfferingsDuringVali
 }
 
 func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -4025,6 +4177,8 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 }
 
 func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -4135,6 +4289,8 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 }
 
 func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhaseWindowChange(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -4212,6 +4368,8 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 }
 
 func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

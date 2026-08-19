@@ -92,6 +92,8 @@ func carePayload() map[string]any {
 // TestCreateCareScheduleRequest_Happy persists a pending request and returns it
 // on the refreshed Stammdaten view.
 func TestCreateCareScheduleRequest_Happy(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -108,6 +110,8 @@ func TestCreateCareScheduleRequest_Happy(t *testing.T) {
 // approve, so it requires parent_portal.request.submit — NOT the
 // parent_portal.notes.write that plain chat needs.
 func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -128,6 +132,8 @@ func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
 // TestCreateCareScheduleRequest_MessagingDisabledStillAllowed pins that messages
 // and permanent-data requests are independent capabilities.
 func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, false) // messaging OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -138,6 +144,8 @@ func TestCreateCareScheduleRequest_MessagingDisabledStillAllowed(t *testing.T) {
 }
 
 func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *testing.T) {
+	t.Parallel()
+
 	_, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -168,6 +176,8 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 }
 
 func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
+	t.Parallel()
+
 	_, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -187,6 +197,8 @@ func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
 // must be able to wind down an outstanding request even after the school turns
 // messaging OFF, instead of leaving it frozen open forever.
 func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -212,6 +224,8 @@ func TestWithdrawCareScheduleRequest_WorksWhenDisabled(t *testing.T) {
 // Gating withdraw on request.submit would strand the request behind an
 // always-403 button.
 func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -249,6 +263,8 @@ func TestWithdrawCareScheduleRequest_WorksAfterSubmitRevoked(t *testing.T) {
 // so it stays available regardless of the request feature gates, and it
 // surfaces an open request on the view once one exists.
 func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -274,6 +290,8 @@ func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {
 // TestGetChildCareSchedule_RequiresAccess proves the read view is gated on
 // parent_portal.access: a guardian link without it cannot read the schedule.
 func TestGetChildCareSchedule_RequiresAccess(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -296,6 +314,8 @@ func TestGetChildCareSchedule_RequiresAccess(t *testing.T) {
 // "Heute → Abholung" tile would show a pickup time for a child the school has
 // recorded as off.
 func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -340,6 +360,8 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 // the request/notes features are enabled; and once a care-schedule request is
 // pending, HasOpenChangeRequest badges the Stammdaten entry.
 func TestChildFeatures_ReflectsPermissionsAndOpenRequest(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -366,6 +388,8 @@ func TestChildFeatures_ReflectsPermissionsAndOpenRequest(t *testing.T) {
 // surfaces as the parent not-found sentinel, not a raw 500 — the id space must
 // not be probeable from the parents portal.
 func TestWithdrawCareScheduleRequest_NotFound(t *testing.T) {
+	t.Parallel()
+
 	svc, db, _ := buildCareScheduleService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

@@ -24,6 +24,8 @@ func buildDeviceLocationService(t *testing.T, db *bun.DB) activeSvc.Service {
 }
 
 func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildDeviceLocationService(t, db)

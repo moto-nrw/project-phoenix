@@ -49,6 +49,8 @@ func createPoolShift(t *testing.T, s *moveSetup, staffID int64, startHHMM, endHH
 // TestGetStaffPoolForInstance_Categories covers every category in one scene:
 // target 14:30–15:30; five staff members in distinct situations.
 func TestGetStaffPoolForInstance_Categories(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	db := s.db
@@ -118,6 +120,8 @@ func TestGetStaffPoolForInstance_Categories(t *testing.T) {
 // TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse: without any
 // shift in the calendar week, not_on_shift carries no signal.
 func TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 
@@ -136,6 +140,8 @@ func TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse(t *testing.T) {
 // TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap: a block ending
 // exactly when the target starts does not occupy the person.
 func TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	before := createMoveInstance(t, s, "Davor", "13:30", "14:30", scheduleModels.InstanceStatusPlanned)
@@ -158,6 +164,8 @@ func TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap(t *testing.T) {
 // TestGetStaffPoolForInstance_CancelledShiftIgnored: a cancelled shift does
 // not make someone available.
 func TestGetStaffPoolForInstance_CancelledShiftIgnored(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	createPoolShift(t, s, s.staffID, "08:00", "16:00", true)
@@ -178,6 +186,8 @@ func TestGetStaffPoolForInstance_CancelledShiftIgnored(t *testing.T) {
 // report dienstplan_in_use=false and show the missing-Dienstplan hint instead
 // of misleading not_on_shift categories.
 func TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse(t *testing.T) {
+	t.Parallel()
+
 	s := makeMoveSetup(t)
 	defer s.cleanup(t)
 	createPoolShift(t, s, s.staffID, "08:00", "16:00", true)
@@ -195,6 +205,8 @@ func TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse(t *tes
 }
 
 func TestGetStaffPoolForInstance_TerminalBlockAbsenceRemainsDayWide(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusCompleted,
 		scheduleModels.InstanceStatusCancelled,

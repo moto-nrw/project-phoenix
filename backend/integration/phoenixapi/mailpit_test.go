@@ -43,21 +43,29 @@ func TestMailpitURL_TrimsWhitespace(t *testing.T) {
 // =============================================================================
 
 func TestAddressedTo_Match(t *testing.T) {
+	t.Parallel()
+
 	addrs := []mailpitAddress{{Address: "op@test.de"}, {Address: "other@test.de"}}
 	assert.True(t, addressedTo(addrs, "op@test.de"))
 }
 
 func TestAddressedTo_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	addrs := []mailpitAddress{{Address: "Op@Test.De"}}
 	assert.True(t, addressedTo(addrs, "op@test.de"))
 }
 
 func TestAddressedTo_NoMatch(t *testing.T) {
+	t.Parallel()
+
 	addrs := []mailpitAddress{{Address: "other@test.de"}}
 	assert.False(t, addressedTo(addrs, "op@test.de"))
 }
 
 func TestAddressedTo_Empty(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, addressedTo(nil, "op@test.de"))
 }
 
@@ -218,6 +226,8 @@ func TestFetchLatestMFACode_ContextCanceled(t *testing.T) {
 }
 
 func TestFetchLatestMFACode_EmptyRecipient(t *testing.T) {
+	t.Parallel()
+
 	_, err := FetchLatestMFACode(context.Background(), "", time.Now())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "recipient is required")

@@ -17,6 +17,8 @@ import (
 // ============================================================================
 
 func TestStaffAbsenceRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
@@ -158,6 +160,8 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestStaffAbsenceRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
@@ -209,6 +213,8 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 }
 
 func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
@@ -281,6 +287,8 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 }
 
 func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence
@@ -345,6 +353,8 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 }
 
 func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).StaffAbsence

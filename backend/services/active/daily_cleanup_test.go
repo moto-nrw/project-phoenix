@@ -50,6 +50,8 @@ import (
 //
 // Hermetic Pattern: Creates real database records instead of hardcoded IDs.
 func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -126,6 +128,8 @@ func TestEndDailySessionsVisitLookupFailure(t *testing.T) {
 // Hermetic Pattern: Creates multiple sessions with real fixtures to test
 // batch cleanup behavior.
 func TestEndDailySessionsConsistency(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

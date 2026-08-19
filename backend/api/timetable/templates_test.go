@@ -58,6 +58,8 @@ type mockMaterializationService struct {
 }
 
 func TestValidateLegacyTemplateWorkdays(t *testing.T) {
+	t.Parallel()
+
 	existing := []templateScheduleResponse{
 		{Weekday: activitiesModel.WeekdayFriday},
 		{Weekday: activitiesModel.WeekdaySaturday},
@@ -131,7 +133,6 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	)
 
 	cleanup := func() {
-		cleanupTemplatesByPrefix(t, db, "Tpl-")
 		testpkg.CleanupTableRecords(t, db, "users.students", studentA.ID, studentB.ID)
 		testpkg.CleanupTableRecords(t, db, "users.staff", staffA.ID, staffB.ID)
 		testpkg.CleanupTableRecords(t, db, "users.persons", studentA.PersonID, studentB.PersonID, staffA.PersonID, staffB.PersonID)
@@ -165,6 +166,8 @@ func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
 }
 
 func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing settings service", func(t *testing.T) {
 		_, err := (&Resource{}).resolveTemplateGradeLevelMax(context.Background())
 		assert.ErrorContains(t, err, "settings service is not configured")
@@ -185,36 +188,6 @@ func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
 		_, err := resource.resolveTemplateGradeLevelMax(context.Background())
 		assert.ErrorContains(t, err, "outside 1..13")
 	})
-}
-
-func cleanupTemplatesByPrefix(t *testing.T, db *bun.DB, prefix string) {
-	t.Helper()
-	ctx := testpkg.Ctx(t)
-	_, err := db.NewDelete().
-		Table("activities.student_enrollments").
-		Where("activity_group_id IN (SELECT id FROM activities.groups WHERE name LIKE ?)", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("activities.supervisors").
-		Where("group_id IN (SELECT id FROM activities.groups WHERE name LIKE ?)", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("activities.schedules").
-		Where("activity_group_id IN (SELECT id FROM activities.groups WHERE name LIKE ?)", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("activities.groups").
-		Where("name LIKE ?", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("schedule.timeframes").
-		Where("description LIKE ?", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
 }
 
 func templateRouter(parentCtx context.Context, res *Resource) chi.Router {
@@ -285,6 +258,8 @@ func createTemplateBody(s *templateSetup, name string) map[string]any {
 }
 
 func TestTemplateCreateRejectsArchivedCategory(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -302,6 +277,8 @@ func TestTemplateCreateRejectsArchivedCategory(t *testing.T) {
 }
 
 func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 3},
 	}
@@ -402,6 +379,8 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 // list omits the series until someone re-plans the week. Per-occurrence
 // classification overrides and past/today rows must survive the propagation.
 func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -468,6 +447,8 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 }
 
 func TestListTemplates_CapacityFields(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -524,6 +505,8 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 }
 
 func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -565,6 +548,8 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 }
 
 func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -618,6 +603,8 @@ func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 }
 
 func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -640,6 +627,8 @@ func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 }
 
 func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -671,6 +660,8 @@ func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 }
 
 func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -685,6 +676,8 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 }
 
 func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -720,6 +713,8 @@ func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t 
 }
 
 func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects an above-cap Jahrgang before writing", func(t *testing.T) {
 		s := buildTemplateSetup(t, nil)
 		defer s.cleanupFn()
@@ -772,6 +767,8 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 }
 
 func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{err: errors.New("materializer unavailable")}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -809,6 +806,8 @@ func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
 }
 
 func TestTemplateCreateReusesExistingTimeframe(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -830,6 +829,8 @@ func TestTemplateCreateReusesExistingTimeframe(t *testing.T) {
 }
 
 func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -885,6 +886,8 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 }
 
 func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -907,6 +910,8 @@ func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
 }
 
 func TestListTemplatesFiltersByPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -955,6 +960,8 @@ func TestListTemplatesFiltersByPeriod(t *testing.T) {
 }
 
 func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -1088,6 +1095,8 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 }
 
 func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -1117,6 +1126,8 @@ func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
 }
 
 func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -1160,6 +1171,8 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 // template that is shown is always shown; rosters are period-scoped at write
 // time only.
 func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	studentC := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentC-%d", time.Now().UnixNano()), "3a")
 	staffC := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffC-%d", time.Now().UnixNano()))
@@ -1370,6 +1383,8 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 }
 
 func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	s.res.SettingsService = &configtest.Mock{
@@ -1796,6 +1811,8 @@ func setCapacityScheduleWindow(
 }
 
 func TestTemplateScheduleResponseIncludesValidityBounds(t *testing.T) {
+	t.Parallel()
+
 	row := templateRow{
 		ScheduleID:         9,
 		Weekday:            1,
@@ -1880,6 +1897,8 @@ func createTemplateTestPeriodRange(
 // create -> list/get -> update -> clear, plus the create-time length guard
 // (#1837 follow-up).
 func TestTemplate_WochennotizRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -1927,6 +1946,8 @@ func TestTemplate_WochennotizRoundTrip(t *testing.T) {
 }
 
 func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -1942,6 +1963,8 @@ func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
 // mapped to a Dienstplan shift type exposes shift_type_name/shift_type_color on
 // the list response (#1837 follow-up, timetable-view visibility).
 func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -1980,6 +2003,8 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 // dates) and the initial roster is valid from that date instead of the
 // period start.
 func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -2009,6 +2034,8 @@ func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
 // #2135: without a pinned calendar period the start_date still stamps the
 // schedule and roster validity (schedules resolve their period per date).
 func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -2032,6 +2059,8 @@ func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
 // omitted field keeps the legacy behavior (roster anchored on the period
 // start, schedules open-ended).
 func TestTemplateCreateStartDateValidation(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)

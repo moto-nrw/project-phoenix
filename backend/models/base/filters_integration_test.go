@@ -23,6 +23,8 @@ const accountTableAlias = `auth.accounts AS "account"`
 // =============================================================================
 
 func TestFilter_ApplyToQuery_Equal(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -48,6 +50,8 @@ func TestFilter_ApplyToQuery_Equal(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_ILike(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -71,6 +75,8 @@ func TestFilter_ApplyToQuery_ILike(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_IsNull(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -94,6 +100,8 @@ func TestFilter_ApplyToQuery_IsNull(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_IsNotNull(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -117,6 +125,8 @@ func TestFilter_ApplyToQuery_IsNotNull(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_In(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -136,6 +146,8 @@ func TestFilter_ApplyToQuery_In(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_WithTableAlias(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -161,6 +173,8 @@ func TestFilter_ApplyToQuery_WithTableAlias(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_MultipleConditions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -187,6 +201,8 @@ func TestFilter_ApplyToQuery_MultipleConditions(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_Comparisons(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -210,6 +226,8 @@ func TestFilter_ApplyToQuery_Comparisons(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_LessThan(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -236,6 +254,8 @@ func TestFilter_ApplyToQuery_LessThan(t *testing.T) {
 // =============================================================================
 
 func TestPagination_ApplyToQuery(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -283,6 +303,8 @@ func TestPagination_ApplyToQuery(t *testing.T) {
 }
 
 func TestPagination_ApplyToQuery_LargePageSize(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -308,6 +330,8 @@ func TestPagination_ApplyToQuery_LargePageSize(t *testing.T) {
 // =============================================================================
 
 func TestSorting_ApplyToQuery_Ascending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -332,6 +356,8 @@ func TestSorting_ApplyToQuery_Ascending(t *testing.T) {
 }
 
 func TestSorting_ApplyToQuery_Descending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -356,6 +382,8 @@ func TestSorting_ApplyToQuery_Descending(t *testing.T) {
 }
 
 func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -380,6 +408,8 @@ func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
 // =============================================================================
 
 func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -403,6 +433,8 @@ func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
 }
 
 func TestQueryOptions_ApplyToQuery_Empty(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -426,6 +458,8 @@ func TestQueryOptions_ApplyToQuery_Empty(t *testing.T) {
 // =============================================================================
 
 func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -451,6 +485,8 @@ func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	type logicalRow struct {
@@ -475,6 +511,8 @@ func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_Like(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -497,6 +535,8 @@ func TestFilter_ApplyToQuery_Like(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -519,6 +559,8 @@ func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -545,6 +587,8 @@ func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
 // =============================================================================
 
 func TestTxHandler_NewTxHandler(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	handler := base.NewTxHandler(db)
@@ -552,6 +596,8 @@ func TestTxHandler_NewTxHandler(t *testing.T) {
 }
 
 func TestTxHandler_RunInTx_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -574,6 +620,8 @@ func TestTxHandler_RunInTx_Success(t *testing.T) {
 }
 
 func TestTxHandler_RunInTx_Rollback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -589,6 +637,8 @@ func TestTxHandler_RunInTx_Rollback(t *testing.T) {
 }
 
 func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -603,6 +653,8 @@ func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
 }
 
 func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -630,6 +682,8 @@ func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
 }
 
 func TestContextWithTx_NoTxInContext(t *testing.T) {
+	t.Parallel()
+
 	// Test that TxFromContext returns false when no tx in context
 	ctx := testpkg.Ctx(t)
 	tx, ok := base.TxFromContext(ctx)
@@ -638,12 +692,16 @@ func TestContextWithTx_NoTxInContext(t *testing.T) {
 }
 
 func TestIsRetryableTxError(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, base.IsRetryableTxError(nil), "nil is not retryable")
 	assert.False(t, base.IsRetryableTxError(errors.New("some error")), "plain errors are not retryable")
 	assert.False(t, base.IsRetryableTxError(fmt.Errorf("wrap: %w", errors.New("inner"))), "non-pg wrapped errors are not retryable")
 }
 
 func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -659,6 +717,8 @@ func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
 }
 
 func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -680,6 +740,8 @@ func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
 // the two switches does not fail to compile — it drops the WHERE clause and
 // answers with every row, so both paths are exercised here (#2218 review).
 func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

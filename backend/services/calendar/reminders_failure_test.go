@@ -82,6 +82,8 @@ func (failingRecipientLookup) FindByAppointmentID(context.Context, int64) ([]*ca
 // silently queueing zero reminders is indistinguishable from a healthy tick and
 // the occurrence would simply never be reminded about.
 func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
@@ -156,6 +158,8 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 // The scheduler drives this per tenant. Without a tenant the scan would run
 // unscoped across every school, so it refuses instead.
 func TestCalendarServiceIntegration_ReminderScanRequiresATenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{})

@@ -42,6 +42,8 @@ func (ctx *testContext) execute(t *testing.T, path string, body map[string]any) 
 }
 
 func TestStaffClock_FullNFCFlow(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Nora", "Kiosk")
@@ -119,6 +121,8 @@ func TestStaffClock_FullNFCFlow(t *testing.T) {
 }
 
 func TestStaffClock_RejectsStudentCard(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Sam", "Schueler", "1a")

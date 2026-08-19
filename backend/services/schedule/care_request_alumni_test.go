@@ -20,6 +20,8 @@ import (
 )
 
 func TestCareRequest_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},

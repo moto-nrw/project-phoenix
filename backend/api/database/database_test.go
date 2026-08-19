@@ -47,6 +47,8 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestGetStats_NoAuth(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Use the full router which has JWT middleware
@@ -63,6 +65,8 @@ func TestGetStats_NoAuth(t *testing.T) {
 }
 
 func TestGetStats_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create admin with system:manage permission

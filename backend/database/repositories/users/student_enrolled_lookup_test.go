@@ -25,6 +25,8 @@ func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, birthday timezo
 }
 
 func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -74,6 +76,8 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 // already enrolled and must be matched, or it could be re-submitted through
 // a new_students phase and duplicated.
 func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

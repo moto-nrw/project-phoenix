@@ -22,6 +22,8 @@ import (
 )
 
 func TestPasskeyTenantOriginValidation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		tenantDomain string
@@ -96,6 +98,8 @@ func TestPasskeyTenantOriginValidation(t *testing.T) {
 }
 
 func TestPasskeyHelpers(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "example.com", HostWithoutPort("https://Example.COM:443/ignored"))
 	assert.Equal(t, "school.localhost", HostWithoutPort("school.localhost:3000"))
 
@@ -130,6 +134,8 @@ func TestPasskeyHelpers(t *testing.T) {
 }
 
 func TestPasskeySummaryAndUser(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC()
 	lastUsedAt := now.Add(time.Minute)
 	row := &authModel.PasskeyCredential{
@@ -157,6 +163,8 @@ func TestPasskeySummaryAndUser(t *testing.T) {
 }
 
 func TestNewPasskeyServiceValidation(t *testing.T) {
+	t.Parallel()
+
 	baseCfg := PasskeyServiceConfig{
 		Repos:        &repositories.Factory{},
 		MFAService:   &MFAStub{},
@@ -202,6 +210,8 @@ func TestNewPasskeyServiceValidation(t *testing.T) {
 }
 
 func TestPasskeyEnrollmentChallenge(t *testing.T) {
+	t.Parallel()
+
 	account := &authModel.Account{Model: base.Model{ID: 11}, Email: "teacher@example.test", Active: true}
 	mfa := &MFAStub{ChallengeToken: "challenge-token"}
 	svc := &passkeyService{
@@ -219,6 +229,8 @@ func TestPasskeyEnrollmentChallenge(t *testing.T) {
 }
 
 func TestPasskeyEnrollmentChallengeErrors(t *testing.T) {
+	t.Parallel()
+
 	account := &authModel.Account{Model: base.Model{ID: 12}, Email: "teacher@example.test", Active: true}
 	wantErr := errors.New("mfa down")
 
@@ -249,6 +261,8 @@ func TestPasskeyEnrollmentChallengeErrors(t *testing.T) {
 }
 
 func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
+	t.Parallel()
+
 	account := &authModel.Account{Model: base.Model{ID: 21}, Email: "teacher@example.test", Active: true}
 	sessions := &passkeySessionRepoStub{}
 	mfa := &MFAStub{}
@@ -290,6 +304,8 @@ func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
 }
 
 func TestPasskeyBeginRegistrationErrors(t *testing.T) {
+	t.Parallel()
+
 	account := &authModel.Account{Model: base.Model{ID: 22}, Email: "teacher@example.test", Active: true}
 	inactive := &authModel.Account{Model: base.Model{ID: 23}, Email: "inactive@example.test", Active: false}
 	wantErr := errors.New("boom")
@@ -388,6 +404,8 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 }
 
 func TestPasskeyBeginLoginStoresSession(t *testing.T) {
+	t.Parallel()
+
 	sessions := &passkeySessionRepoStub{}
 	svc := &passkeyService{
 		repos:        &repositories.Factory{PasskeySession: sessions},
@@ -414,6 +432,8 @@ func TestPasskeyBeginLoginStoresSession(t *testing.T) {
 }
 
 func TestPasskeyBeginLoginErrors(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("session down")
 
 	tests := []struct {
@@ -460,6 +480,8 @@ func TestPasskeyBeginLoginErrors(t *testing.T) {
 }
 
 func TestPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
+	t.Parallel()
+
 	account := &authModel.Account{Model: base.Model{ID: 31}, Email: "teacher@example.test", Active: true}
 	otherAccountID := account.ID + 1
 
@@ -553,6 +575,8 @@ func TestPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
 }
 
 func TestPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
+	t.Parallel()
+
 	tenantID := int64(55)
 
 	tests := []struct {
@@ -618,6 +642,8 @@ func TestPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 }
 
 func TestPasskeyCredentialServiceMethods(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().UTC()
 	account := &authModel.Account{Model: base.Model{ID: 91}, Email: "teacher@example.test"}
 	row := &authModel.PasskeyCredential{
@@ -660,6 +686,8 @@ func TestPasskeyCredentialServiceMethods(t *testing.T) {
 }
 
 func TestPasskeyCredentialServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	wantErr := errors.New("repo down")
 	repo := &passkeyCredentialRepoStub{err: wantErr}
 	svc := &passkeyService{repos: &repositories.Factory{PasskeyCredential: repo}}
@@ -735,6 +763,8 @@ func (r *passkeySessionRepoStub) DeleteExpired(context.Context, time.Time) (int,
 // MFAStub is defined in mfa_stub_test.go (shared with auth_login_mfa_infra_test.go).
 
 func TestPasskeyRepositories(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	requirePasskeyTables(t, db, "auth.passkey_credentials", "auth.passkey_sessions")
 	scope := testpkg.NewTenantScope(t, db)

@@ -1,10 +1,8 @@
 package facilities
 
 import (
-	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -13,50 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-func cleanupWCRoomAliasArtifactsInternal(t *testing.T, db *bun.DB) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	type stmt struct {
-		sql  string
-		args []interface{}
-	}
-	stmts := []stmt{
-		{
-			`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE LOWER(name) IN (LOWER(?), LOWER(?)))`,
-			[]interface{}{constants.WCRoomName, constants.WCRoomAliasName},
-		},
-		{
-			`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = ?)`,
-			[]interface{}{constants.WCActivityName},
-		},
-		{
-			`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = ?)`,
-			[]interface{}{constants.WCActivityName},
-		},
-		{
-			`DELETE FROM activities.groups WHERE name = ?`,
-			[]interface{}{constants.WCActivityName},
-		},
-		{
-			`DELETE FROM activities.categories WHERE name = ?`,
-			[]interface{}{constants.WCCategoryName},
-		},
-		{
-			`DELETE FROM facilities.rooms WHERE LOWER(name) IN (LOWER(?), LOWER(?))`,
-			[]interface{}{constants.WCRoomName, constants.WCRoomAliasName},
-		},
-	}
-
-	for _, s := range stmts {
-		if _, err := db.NewRaw(s.sql, s.args...).Exec(ctx); err != nil {
-			t.Logf("wc alias cleanup: %v (stmt: %s)", err, s.sql)
-		}
-	}
-}
 
 func createWCRoomAliasRoomInternal(t *testing.T, db *bun.DB, name string) *facilities.Room {
 	t.Helper()
@@ -78,10 +32,9 @@ func createWCRoomAliasRoomInternal(t *testing.T, db *bun.DB, name string) *facil
 }
 
 func TestWCService_ensureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCRoomAliasArtifactsInternal(t, db)
-	defer cleanupWCRoomAliasArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 	aliasRoom := createWCRoomAliasRoomInternal(t, db, constants.WCRoomAliasName)
@@ -102,6 +55,8 @@ func TestWCService_ensureWCRoom_ReusesExistingToiletteAlias(t *testing.T) {
 // TestRoomsWCAliasUniqueUp_PrefersCanonicalWC.
 
 func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
+	t.Parallel()
+
 	// Contract per issue #1184 review: only the exact-case names "WC" and
 	// "Toilette" are toilet system rooms. A lowercase "wc" must NOT be
 	// silently adopted by FindToiletRoom — otherwise it would be used as
@@ -117,9 +72,6 @@ func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 	// before the IoT WC button works. That's acceptable: no silent data
 	// adoption, no invisible cross-layer drift.
 	db := testpkg.SetupTestDB(t)
-
-	cleanupWCRoomAliasArtifactsInternal(t, db)
-	defer cleanupWCRoomAliasArtifactsInternal(t, db)
 
 	service := setupWCServiceInternal(t, db)
 	lowercaseWC := createWCRoomAliasRoomInternal(t, db, "wc")
@@ -146,10 +98,9 @@ func TestWCService_ensureWCRoom_IgnoresLowercaseWCRoom(t *testing.T) {
 // returned. Companion to the ensureWCRoom test above — that one asserts the
 // downstream side-effect, this one asserts the lookup primitive.
 func TestFindToiletRoom_SkipsLowercaseWCRoom(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupWCRoomAliasArtifactsInternal(t, db)
-	defer cleanupWCRoomAliasArtifactsInternal(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCServiceInternal(t, db)
 	_ = createWCRoomAliasRoomInternal(t, db, "wc")

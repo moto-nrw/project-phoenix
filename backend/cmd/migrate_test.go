@@ -16,6 +16,9 @@ import (
 // migrateCmd Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "migrate", migrateCmd.Use)
 	assert.Equal(t, "use bun migration tool", migrateCmd.Short)
@@ -23,6 +26,9 @@ func TestMigrateCmd_Metadata(t *testing.T) {
 	assert.NotNil(t, migrateCmd.Run)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateResetCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "reset", migrateResetCmd.Use)
 	assert.Equal(t, "reset database and run all migrations", migrateResetCmd.Short)
@@ -30,6 +36,9 @@ func TestMigrateResetCmd_Metadata(t *testing.T) {
 	assert.NotNil(t, migrateResetCmd.Run)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateStatusCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "status", migrateStatusCmd.Use)
 	assert.Equal(t, "show migration status", migrateStatusCmd.Short)
@@ -37,6 +46,9 @@ func TestMigrateStatusCmd_Metadata(t *testing.T) {
 	assert.NotNil(t, migrateStatusCmd.Run)
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateValidateCmd_Metadata(t *testing.T) {
 	assert.Equal(t, "validate", migrateValidateCmd.Use)
 	assert.Equal(t, "validate migration dependencies", migrateValidateCmd.Short)
@@ -48,6 +60,9 @@ func TestMigrateValidateCmd_Metadata(t *testing.T) {
 // Subcommand Registration Tests (verifies init() ran correctly)
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateCmd_IsRegisteredOnRoot(t *testing.T) {
 	found := false
 	for _, cmd := range RootCmd.Commands() {
@@ -59,6 +74,9 @@ func TestMigrateCmd_IsRegisteredOnRoot(t *testing.T) {
 	assert.True(t, found, "migrateCmd should be registered on RootCmd")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateCmd_HasSubcommands(t *testing.T) {
 	subcommands := migrateCmd.Commands()
 	names := make([]string, 0, len(subcommands))
@@ -71,6 +89,9 @@ func TestMigrateCmd_HasSubcommands(t *testing.T) {
 	assert.Contains(t, names, "validate", "migrateCmd should have 'validate' subcommand")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMigrateCmd_SubcommandCount(t *testing.T) {
 	assert.Len(t, migrateCmd.Commands(), 3, "migrateCmd should have exactly 3 subcommands")
 }
@@ -98,6 +119,9 @@ func captureStdout(t *testing.T, fn func()) string {
 	return buf.String()
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateCmd_Run_CallsMigrate(t *testing.T) {
 	called := false
 	original := migrateFn
@@ -108,6 +132,9 @@ func TestMigrateCmd_Run_CallsMigrate(t *testing.T) {
 	assert.True(t, called, "migrateCmd.Run should call migrateFn")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateResetCmd_Run_CallsReset(t *testing.T) {
 	called := false
 	original := migrateResetFn
@@ -118,6 +145,9 @@ func TestMigrateResetCmd_Run_CallsReset(t *testing.T) {
 	assert.True(t, called, "migrateResetCmd.Run should call migrateResetFn")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateStatusCmd_Run_CallsStatus(t *testing.T) {
 	called := false
 	original := migrateStatusFn
@@ -128,6 +158,9 @@ func TestMigrateStatusCmd_Run_CallsStatus(t *testing.T) {
 	assert.True(t, called, "migrateStatusCmd.Run should call migrateStatusFn")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMigrateValidateCmd_Run_Success(t *testing.T) {
 	// ValidateMigrations() and PrintMigrationPlan() are pure in-memory checks
 	// that operate on the global MigrationRegistry — no database needed.
@@ -141,6 +174,9 @@ func TestMigrateValidateCmd_Run_Success(t *testing.T) {
 	assert.Contains(t, output, "Migration Plan:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMigrateValidateCmd_Run_ValidationError(t *testing.T) {
 	// Inject a migration with a broken dependency to trigger the error path.
 	migrations.MigrationRegistry["test_broken_dep"] = &migrations.Migration{
@@ -164,6 +200,9 @@ func TestMigrateValidateCmd_Run_ValidationError(t *testing.T) {
 // Command Type Tests
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateCommands_AreCobraCommands(t *testing.T) {
 	commands := []*cobra.Command{
 		migrateCmd,
@@ -177,6 +216,9 @@ func TestMigrateCommands_AreCobraCommands(t *testing.T) {
 	}
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateCmd_ParentChildRelationship(t *testing.T) {
 	assert.Equal(t, migrateCmd, migrateResetCmd.Parent())
 	assert.Equal(t, migrateCmd, migrateStatusCmd.Parent())
@@ -187,6 +229,9 @@ func TestMigrateCmd_ParentChildRelationship(t *testing.T) {
 // Usage Output Tests (ensures commands are fully wired)
 // =============================================================================
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	migrateCmd.SetOut(buf)
@@ -203,6 +248,9 @@ func TestMigrateCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "validate")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateResetCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	migrateResetCmd.SetOut(buf)
@@ -215,6 +263,9 @@ func TestMigrateResetCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "reset")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateStatusCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	migrateStatusCmd.SetOut(buf)
@@ -227,6 +278,9 @@ func TestMigrateStatusCmd_UsageOutput(t *testing.T) {
 	assert.Contains(t, output, "status")
 }
 
+// Deliberately NOT parallel: the cmd package's tests drive cobra commands and
+// initConfig, which read and write the viper singleton and os.Stdout. Nothing
+// in this package is isolated from the next test.
 func TestMigrateValidateCmd_UsageOutput(t *testing.T) {
 	buf := new(bytes.Buffer)
 	migrateValidateCmd.SetOut(buf)

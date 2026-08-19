@@ -11,6 +11,8 @@ func strptr(s string) *string { return &s }
 func i64ptr(v int64) *int64   { return &v }
 
 func TestNormalizeLinkURL(t *testing.T) {
+	t.Parallel()
+
 	valid := map[string]string{
 		"https://schule.example.de/ausflug":   "https://schule.example.de/ausflug",
 		"  https://schule.example.de/a  ":     "https://schule.example.de/a",
@@ -54,6 +56,8 @@ func TestNormalizeLinkURL(t *testing.T) {
 }
 
 func TestNormalizeInput_Valid(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		Title:    "  Ausflug am Freitag  ",
 		Body:     "  Bitte Regenjacke mitgeben.  ",
@@ -89,6 +93,8 @@ func TestNormalizeInput_Valid(t *testing.T) {
 }
 
 func TestNormalizeInput_Errors(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   Input
@@ -113,6 +119,8 @@ func TestNormalizeInput_Errors(t *testing.T) {
 }
 
 func TestNormalizeInput_DedupesTargets(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		Title: "t", Body: "b",
 		Targets: []TargetInput{
@@ -132,6 +140,8 @@ func TestNormalizeInput_DedupesTargets(t *testing.T) {
 }
 
 func TestNormalizeInput_SendEmailPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		Title: "t", Body: "b", SendEmail: true,
 		Targets: []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},

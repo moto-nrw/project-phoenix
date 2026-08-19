@@ -41,6 +41,8 @@ func newTestMFAService(t *testing.T) (auth.MFAService, *repositories.Factory, *b
 }
 
 func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -65,6 +67,8 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 }
 
 func TestMFAService_TrustedDeviceFlow(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 
@@ -97,6 +101,8 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 }
 
 func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, repos, db := newTestMFAService(t)
 
@@ -121,6 +127,8 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 }
 
 func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 

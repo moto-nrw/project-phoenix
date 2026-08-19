@@ -88,6 +88,8 @@ func decodeTemplateError(t *testing.T, w *httptest.ResponseRecorder) struct {
 }
 
 func TestGetTemplate_ResolvesCappedPredecessorToLivingSuccessor(t *testing.T) {
+	t.Parallel()
+
 	s := buildSplitSeriesSetup(t, "Tpl-SeriesGet")
 	defer s.cleanupFn()
 
@@ -103,6 +105,8 @@ func TestGetTemplate_ResolvesCappedPredecessorToLivingSuccessor(t *testing.T) {
 }
 
 func TestGetTemplate_UnknownTemplateReturns404WithCode(t *testing.T) {
+	t.Parallel()
+
 	s := buildSplitSeriesSetup(t, "Tpl-SeriesMiss")
 	defer s.cleanupFn()
 
@@ -115,6 +119,8 @@ func TestGetTemplate_UnknownTemplateReturns404WithCode(t *testing.T) {
 }
 
 func TestUpdateTemplate_RejectsInvalidSeriesRosterFrom(t *testing.T) {
+	t.Parallel()
+
 	s := buildSplitSeriesSetup(t, "Tpl-SeriesBadDate")
 	defer s.cleanupFn()
 
@@ -126,6 +132,8 @@ func TestUpdateTemplate_RejectsInvalidSeriesRosterFrom(t *testing.T) {
 }
 
 func TestSplitTemplate_RejectsSeriesRosterFrom(t *testing.T) {
+	t.Parallel()
+
 	s := buildSplitSeriesSetup(t, "Tpl-SeriesSplitReject")
 	defer s.cleanupFn()
 
@@ -141,6 +149,8 @@ func TestSplitTemplate_RejectsSeriesRosterFrom(t *testing.T) {
 // path: a child added on the living segment with an anchor inside the capped
 // predecessor's window gets a bounded predecessor enrollment.
 func TestUpdateTemplate_SeriesRosterFromReachesPredecessor(t *testing.T) {
+	t.Parallel()
+
 	s := buildSplitSeriesSetup(t, "Tpl-SeriesRoster")
 	defer s.cleanupFn()
 

@@ -116,6 +116,8 @@ func adminContext() context.Context {
 }
 
 func TestGetFailsFast(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	_, err := NewService(Dependencies{}).Get(ctx, 0)
@@ -137,6 +139,8 @@ func TestGetFailsFast(t *testing.T) {
 }
 
 func TestLoadCurrentStaffIDBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	staff := &usersModels.Staff{Model: base.Model{ID: 42}}
 
@@ -171,6 +175,8 @@ func TestLoadCurrentStaffIDBranches(t *testing.T) {
 }
 
 func TestHasOperationalOverviewAdmin(t *testing.T) {
+	t.Parallel()
+
 	ctx := adminContext()
 
 	settings := &configtest.Mock{ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
@@ -192,6 +198,8 @@ func TestHasOperationalOverviewAdmin(t *testing.T) {
 }
 
 func TestResolveGroupsBroadScope(t *testing.T) {
+	t.Parallel()
+
 	ctx := adminContext()
 	color := "#83CD2D"
 	endedAt := time.Date(2026, time.August, 19, 12, 0, 0, 0, time.UTC)
@@ -237,6 +245,8 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 }
 
 func TestResolveGroupsSupervisedErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	settings := &configtest.Mock{}
 
@@ -258,6 +268,8 @@ func TestResolveGroupsSupervisedErrors(t *testing.T) {
 }
 
 func TestLoadStaticSectionsBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	roomID := int64(31)
 
@@ -298,6 +310,8 @@ func TestLoadStaticSectionsBranches(t *testing.T) {
 }
 
 func TestLoadTrackingBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	studentIDs := []int64{11}
 
@@ -338,6 +352,8 @@ func TestLoadTrackingBranches(t *testing.T) {
 }
 
 func TestResolveCapabilitiesClosedConcept(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	settings := &configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) { return "standard", nil }}

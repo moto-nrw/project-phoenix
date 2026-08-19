@@ -26,6 +26,8 @@ func tenantRole(name string, baseRole *string) *authModels.Role {
 }
 
 func TestEffectiveBaseRole(t *testing.T) {
+	t.Parallel()
+
 	admin := authModels.BaseRoleAdmin
 	user := authModels.BaseRoleUser
 
@@ -53,6 +55,8 @@ func TestEffectiveBaseRole(t *testing.T) {
 }
 
 func TestCanGrantRole(t *testing.T) {
+	t.Parallel()
+
 	admin := authModels.BaseRoleAdmin
 	user := authModels.BaseRoleUser
 
@@ -88,6 +92,8 @@ func TestCanGrantRole(t *testing.T) {
 }
 
 func TestCanGrantRole_RejectsTargetPermissionsTheCallerLacks(t *testing.T) {
+	t.Parallel()
+
 	user := authModels.BaseRoleUser
 	role := tenantRole("Sekretariat", &user)
 	role.Permissions = []*authModels.Permission{{Name: permissions.UsersManage}}
@@ -96,6 +102,8 @@ func TestCanGrantRole_RejectsTargetPermissionsTheCallerLacks(t *testing.T) {
 }
 
 func TestCanGrantRole_RejectsElevatedLegacyTenantRole(t *testing.T) {
+	t.Parallel()
+
 	role := tenantRole("Legacy", nil)
 	role.Permissions = []*authModels.Permission{{Name: permissions.UsersManage}}
 

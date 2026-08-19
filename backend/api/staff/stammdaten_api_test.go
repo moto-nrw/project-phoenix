@@ -20,6 +20,8 @@ import (
 )
 
 func TestStammdatenAPI_PermissionSplit(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("API-%d", time.Now().UnixNano()))
 	base := fmt.Sprintf("/staff/%d/stammdaten", target.ID)
@@ -67,6 +69,8 @@ func TestStammdatenAPI_PermissionSplit(t *testing.T) {
 }
 
 func TestStammdatenAPI_FinancialWriteAllowsAccountWithoutStaffMapping(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("Payroll-%d", time.Now().UnixNano()))
 	account := testpkg.CreateTestAccount(t, ctx.tc.db, fmt.Sprintf("payroll-%d@example.test", time.Now().UnixNano()))
@@ -88,6 +92,8 @@ func TestStammdatenAPI_FinancialWriteAllowsAccountWithoutStaffMapping(t *testing
 }
 
 func TestStammdatenAPI_WireShapeAndValidation(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupOverviewAPI(t)
 	target := testpkg.CreateTestStaff(t, ctx.tc.db, "Stammdaten", fmt.Sprintf("Wire-%d", time.Now().UnixNano()))
 	base := fmt.Sprintf("/staff/%d/stammdaten", target.ID)

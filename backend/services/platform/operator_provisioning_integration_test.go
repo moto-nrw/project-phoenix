@@ -417,7 +417,7 @@ func TestIntegration_ListAllDevices_HidesDeletedSchoolDevices(t *testing.T) {
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	tenantID := int64(90021)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "trash-test")
@@ -485,7 +485,7 @@ func TestIntegration_ListAllDevices_HidesDeletedOrgDevices(t *testing.T) {
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	tenantID := int64(90022)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "org-trash")
@@ -527,7 +527,7 @@ func TestIntegration_ListOrganizationDevices_RejectsDeletedOrg(t *testing.T) {
 	service := buildProvisioningService(t, db)
 	ctx := context.Background()
 
-	tenantID := int64(90023)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	t.Cleanup(func() {

@@ -27,6 +27,8 @@ func (failingAuthEventRepository) Create(context.Context, *auditModels.AuthEvent
 }
 
 func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -65,6 +67,8 @@ func TestLogoutPersistsRevocationAuditWithoutRawFamilyID(t *testing.T) {
 }
 
 func TestRevocationRollsBackWhenAuditInsertFails(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -94,6 +98,8 @@ func TestRevocationRollsBackWhenAuditInsertFails(t *testing.T) {
 }
 
 func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
@@ -127,6 +133,8 @@ func TestSessionCapAuditsEvictedTokenFamily(t *testing.T) {
 }
 
 func TestCleanupExpiredTokensRetainsPendingWipeReason(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)

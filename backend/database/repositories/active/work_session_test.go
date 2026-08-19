@@ -18,6 +18,8 @@ import (
 // ============================================================================
 
 func TestWorkSessionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -87,6 +89,8 @@ func TestWorkSessionRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -122,6 +126,8 @@ func TestWorkSessionRepository_GetByStaffAndDate(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -175,6 +181,8 @@ func TestWorkSessionRepository_GetCurrentByStaffID(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -227,6 +235,8 @@ func TestWorkSessionRepository_GetHistoryByStaffID(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
@@ -240,6 +250,8 @@ func TestWorkSessionRepository_GetHistoryByStaffIDWrapsDatabaseError(t *testing.
 }
 
 func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -300,6 +312,8 @@ func TestWorkSessionRepository_GetOpenSessions(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
@@ -311,6 +325,8 @@ func TestWorkSessionRepository_GetOpenSessionsWrapsDatabaseError(t *testing.T) {
 }
 
 func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -363,6 +379,8 @@ func TestWorkSessionRepository_GetTodayPresenceMap(t *testing.T) {
 }
 
 func TestWorkSessionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -412,6 +430,8 @@ func TestWorkSessionRepository_List(t *testing.T) {
 }
 
 func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
@@ -427,6 +447,8 @@ func TestWorkSessionRepository_ListWrapsDatabaseError(t *testing.T) {
 // ============================================================================
 
 func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -482,6 +504,8 @@ func TestWorkSessionRepository_UpdateBreakMinutes(t *testing.T) {
 }
 
 func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
@@ -493,6 +517,8 @@ func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T
 }
 
 func TestWorkSessionRepository_CloseSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).WorkSession
@@ -579,6 +605,8 @@ func TestWorkSessionRepository_CloseSession(t *testing.T) {
 }
 
 func TestWorkSessionRepository_CloseSessionWrapsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 

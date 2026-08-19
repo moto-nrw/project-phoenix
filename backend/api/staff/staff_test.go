@@ -168,6 +168,8 @@ func assignSystemRoleToAccount(
 // =============================================================================
 
 func TestListStaff_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff", nil,
@@ -183,6 +185,8 @@ func TestListStaff_Success(t *testing.T) {
 }
 
 func TestListStaff_WithTeachersOnlyFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?teachers_only=true", nil,
@@ -194,6 +198,8 @@ func TestListStaff_WithTeachersOnlyFilter(t *testing.T) {
 }
 
 func TestListStaff_WithTeachersOnlyFilter_IncludesLegacyTeacherAccounts(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Legacy", "TeacherOnly")
@@ -224,6 +230,8 @@ func TestListStaff_WithTeachersOnlyFilter_IncludesLegacyTeacherAccounts(t *testi
 }
 
 func TestListStaff_WithNameFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff?first_name=Test", nil,
@@ -235,6 +243,8 @@ func TestListStaff_WithNameFilter(t *testing.T) {
 }
 
 func TestListStaff_WithAccountEmail(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create staff with an account so the email-loading path is exercised
@@ -255,6 +265,8 @@ func TestListStaff_WithAccountEmail(t *testing.T) {
 // =============================================================================
 
 func TestGetStaff_WithAccountEmail(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create staff with an account so the email-loading path is exercised
@@ -281,6 +293,8 @@ func TestGetStaff_WithAccountEmail(t *testing.T) {
 }
 
 func TestGetStaff_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create test staff
@@ -296,6 +310,8 @@ func TestGetStaff_Success(t *testing.T) {
 }
 
 func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "TimeTrackingManager", "Profile")
@@ -310,6 +326,8 @@ func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
 }
 
 func TestGetFinancialProfile_AllowsStaffFinancial(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Payroll", "Profile")
@@ -324,6 +342,8 @@ func TestGetFinancialProfile_AllowsStaffFinancial(t *testing.T) {
 }
 
 func TestGetDocumentProfile_AllowsHealthDocuments(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Health", "Documents")
@@ -338,6 +358,8 @@ func TestGetDocumentProfile_AllowsHealthDocuments(t *testing.T) {
 }
 
 func TestGetStaff_RejectsUnrelatedPermission(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "UnrelatedPermission", "Profile")
@@ -352,6 +374,8 @@ func TestGetStaff_RejectsUnrelatedPermission(t *testing.T) {
 }
 
 func TestGetStaff_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999", nil,
@@ -363,6 +387,8 @@ func TestGetStaff_NotFound(t *testing.T) {
 }
 
 func TestGetStaff_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid", nil,
@@ -377,6 +403,8 @@ func TestGetStaff_InvalidID(t *testing.T) {
 // detail endpoint returned an empty work_status while the list endpoint
 // resolved it correctly, making the location badge flip-flop between views.
 func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Consistent", "Status")
@@ -439,6 +467,8 @@ func TestGetStaff_WorkStatusConsistentWithList(t *testing.T) {
 // =============================================================================
 
 func TestCreateStaff_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a person without staff record
@@ -468,6 +498,8 @@ func TestCreateStaff_Success(t *testing.T) {
 }
 
 func TestCreateStaff_AsTeacher(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a person without staff record
@@ -536,6 +568,9 @@ func createStaffForAccountPerson(t *testing.T, ctx *testContext, personID, accou
 // A Lehrkraft (#1772) holds class_day:read and nothing else. Granting the staff
 // default groups:read would open the tenant-wide group list and every group's
 // student names, far beyond the classes assigned to that Lehrkraft.
+// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
+// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
+// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -555,6 +590,9 @@ func TestCreateStaff_LehrkraftDoesNotGetGroupsRead(t *testing.T) {
 
 // The mirror image: a staff account without the Lehrkraft role keeps the
 // existing default, so the guard above cannot quietly disable the grant.
+// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
+// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
+// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -577,6 +615,8 @@ func TestCreateStaff_PlainStaffKeepsGroupsRead(t *testing.T) {
 // directory. That write belongs to users:update, so a create-only caller is
 // refused (#2222 review).
 func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "Vorhandene", "Kraft")
@@ -606,6 +646,9 @@ func TestCreateStaff_AdoptionRequiresUpdatePermission(t *testing.T) {
 // A Lehrkraft account (#1772) is provisioned without a caregiver profile on
 // purpose. The role-assignment paths refuse the combination from the other
 // direction; staff creation must not be the way around it (#2222 review).
+// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
+// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
+// has no tenant in it). Two tests inserting the same system role collide.
 func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -640,6 +683,8 @@ func TestCreateStaff_LehrkraftRefusesCaregiverProfile(t *testing.T) {
 }
 
 func TestCreateStaff_PersonNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -655,6 +700,8 @@ func TestCreateStaff_PersonNotFound(t *testing.T) {
 }
 
 func TestCreateStaff_MissingPersonID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -674,6 +721,8 @@ func TestCreateStaff_MissingPersonID(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStaff_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create test staff
@@ -694,6 +743,8 @@ func TestUpdateStaff_Success(t *testing.T) {
 }
 
 func TestUpdateStaff_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -710,6 +761,8 @@ func TestUpdateStaff_NotFound(t *testing.T) {
 }
 
 func TestUpdateStaff_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -729,6 +782,8 @@ func TestUpdateStaff_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStaff_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create test staff
@@ -761,6 +816,8 @@ func TestDeleteStaff_Success(t *testing.T) {
 }
 
 func TestDeleteStaff_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	token, cleanupActor := deleteStaffAuthToken(t, ctx.db)
@@ -776,6 +833,8 @@ func TestDeleteStaff_NotFound(t *testing.T) {
 }
 
 func TestDeleteStaff_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/staff/invalid", nil,
@@ -791,6 +850,8 @@ func TestDeleteStaff_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetStaffGroups_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a teacher with the full chain (person -> staff -> teacher)
@@ -806,6 +867,8 @@ func TestGetStaffGroups_Success(t *testing.T) {
 }
 
 func TestGetStaffGroups_NonTeacher(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create regular staff (not a teacher)
@@ -822,6 +885,8 @@ func TestGetStaffGroups_NonTeacher(t *testing.T) {
 }
 
 func TestGetStaffGroups_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/groups", nil,
@@ -837,6 +902,8 @@ func TestGetStaffGroups_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestGetStaffSubstitutions_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create test staff
@@ -852,6 +919,8 @@ func TestGetStaffSubstitutions_Success(t *testing.T) {
 }
 
 func TestGetStaffSubstitutions_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/999999/substitutions", nil,
@@ -867,6 +936,8 @@ func TestGetStaffSubstitutions_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestGetAvailableStaff_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available", nil,
@@ -882,6 +953,8 @@ func TestGetAvailableStaff_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetAvailableForSubstitution_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution", nil,
@@ -893,6 +966,8 @@ func TestGetAvailableForSubstitution_Success(t *testing.T) {
 }
 
 func TestGetAvailableForSubstitution_WithDateFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?date=2024-01-15", nil,
@@ -904,6 +979,8 @@ func TestGetAvailableForSubstitution_WithDateFilter(t *testing.T) {
 }
 
 func TestGetAvailableForSubstitution_WithSearchFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/available-for-substitution?search=Test", nil,
@@ -919,6 +996,8 @@ func TestGetAvailableForSubstitution_WithSearchFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetStaffByRole_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role?role=user", nil,
@@ -929,6 +1008,9 @@ func TestGetStaffByRole_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
+// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
+// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
+// has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -961,6 +1043,9 @@ func TestGetStaffByRole_Teacher_IncludesLegacyTeacherRoleAccounts(t *testing.T) 
 	assert.True(t, found, "expected role=teacher response to include legacy teacher staff ID %d", teacher.Staff.ID)
 }
 
+// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
+// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
+// has no tenant in it). Two tests inserting the same system role collide.
 func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
 	ctx := setupTestContext(t)
 
@@ -996,6 +1081,8 @@ func TestGetStaffByRole_User_IncludesLegacyTeacherRoleAccounts(t *testing.T) {
 }
 
 func TestGetStaffByRole_MissingRoleParam(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/by-role", nil,
@@ -1011,6 +1098,8 @@ func TestGetStaffByRole_MissingRoleParam(t *testing.T) {
 // =============================================================================
 
 func TestGetPINStatus_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a staff with account
@@ -1031,6 +1120,8 @@ func TestGetPINStatus_Success(t *testing.T) {
 }
 
 func TestGetPINStatus_InvalidToken(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Request with invalid (zero) user ID
@@ -1047,6 +1138,8 @@ func TestGetPINStatus_InvalidToken(t *testing.T) {
 // =============================================================================
 
 func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a staff with account
@@ -1071,6 +1164,8 @@ func TestUpdatePIN_InvalidPINFormat(t *testing.T) {
 }
 
 func TestUpdatePIN_NonDigitPIN(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a staff with account
@@ -1095,6 +1190,8 @@ func TestUpdatePIN_NonDigitPIN(t *testing.T) {
 }
 
 func TestUpdatePIN_MissingNewPIN(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a staff with account
@@ -1116,6 +1213,8 @@ func TestUpdatePIN_MissingNewPIN(t *testing.T) {
 }
 
 func TestUpdatePIN_InvalidToken(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	body := map[string]interface{}{
@@ -1132,6 +1231,8 @@ func TestUpdatePIN_InvalidToken(t *testing.T) {
 }
 
 func TestUpdatePIN_Success_FirstTime(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a staff with account (no existing PIN)
@@ -1159,6 +1260,8 @@ func TestUpdatePIN_Success_FirstTime(t *testing.T) {
 // =============================================================================
 
 func TestListStaff_WithAnwesendFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Test that the anwesend filter works (even if no staff are currently present)
@@ -1171,6 +1274,8 @@ func TestListStaff_WithAnwesendFilter(t *testing.T) {
 }
 
 func TestListStaff_WithRoleFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Test filtering by role (the role filter branch)
@@ -1183,6 +1288,8 @@ func TestListStaff_WithRoleFilter(t *testing.T) {
 }
 
 func TestListStaff_WithLastNameFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Test filtering by last name
@@ -1195,6 +1302,8 @@ func TestListStaff_WithLastNameFilter(t *testing.T) {
 }
 
 func TestListStaff_WithCombinedFilters(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Test multiple filters combined
@@ -1211,6 +1320,8 @@ func TestListStaff_WithCombinedFilters(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create regular staff (not a teacher)
@@ -1243,6 +1354,8 @@ func TestUpdateStaff_ConvertToTeacher(t *testing.T) {
 }
 
 func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a teacher with the full chain
@@ -1268,6 +1381,8 @@ func TestUpdateStaff_UpdateExistingTeacher(t *testing.T) {
 }
 
 func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a teacher
@@ -1289,6 +1404,8 @@ func TestUpdateStaff_KeepExistingTeacherWithoutIsTeacher(t *testing.T) {
 }
 
 func TestUpdateStaff_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidReq", "Staff")
@@ -1308,6 +1425,8 @@ func TestUpdateStaff_InvalidRequest(t *testing.T) {
 }
 
 func TestUpdateStaff_ChangePersonID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create two persons
@@ -1336,6 +1455,8 @@ func TestUpdateStaff_ChangePersonID(t *testing.T) {
 }
 
 func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "InvalidPerson", "Staff")
@@ -1360,6 +1481,8 @@ func TestUpdateStaff_ChangeToNonExistentPerson(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create a teacher (this creates person -> staff -> teacher chain)
@@ -1378,6 +1501,8 @@ func TestDeleteStaff_WhoIsTeacher(t *testing.T) {
 }
 
 func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Create staff with active supervision
@@ -1400,6 +1525,8 @@ func TestDeleteStaff_ConflictWithSupervision(t *testing.T) {
 }
 
 func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff := testpkg.CreateTestStaff(t, ctx.db, "ScheduleTemplate", "Clean")
@@ -1457,6 +1584,8 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 }
 
 func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Read")
@@ -1484,6 +1613,8 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 }
 
 func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	ownStaff, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "ScheduleOwn", "Only")
@@ -1506,6 +1637,8 @@ func TestGetSchedule_RejectsOtherStaffWithTimeTrackingOwn(t *testing.T) {
 // =============================================================================
 
 func TestGetStaffGroups_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid/groups", nil,
@@ -1521,6 +1654,8 @@ func TestGetStaffGroups_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetStaffSubstitutions_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/staff/invalid/substitutions", nil,
@@ -1536,6 +1671,8 @@ func TestGetStaffSubstitutions_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetAvailableForSubstitution_WithInvalidDate(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
 
 	// Invalid date format should fall back to current date

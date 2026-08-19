@@ -46,6 +46,8 @@ func cleanupAttendanceTestData(t *testing.T, db *bun.DB, data *attendanceTestDat
 
 // TestAttendanceRepository_Create tests basic record creation
 func TestAttendanceRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -164,6 +166,8 @@ func TestAttendanceRepository_Create(t *testing.T) {
 }
 
 func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -186,6 +190,8 @@ func TestAttendanceRepository_ListOpenStudentIDsForDate(t *testing.T) {
 
 // TestAttendanceRepository_FindByStudentAndDate tests querying attendance records by student and date
 func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -457,6 +463,8 @@ func TestAttendanceRepository_FindByStudentAndDate(t *testing.T) {
 
 // TestAttendanceRepository_FindLatestByStudent tests finding the most recent attendance record for a student
 func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -719,6 +727,8 @@ func TestAttendanceRepository_FindLatestByStudent(t *testing.T) {
 
 // TestAttendanceRepository_GetStudentCurrentStatus tests getting today's latest attendance record for a student
 func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -987,6 +997,8 @@ func TestAttendanceRepository_GetStudentCurrentStatus(t *testing.T) {
 
 // TestAttendanceRepository_Update tests updating attendance records
 func TestAttendanceRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -1043,6 +1055,8 @@ func TestAttendanceRepository_Update(t *testing.T) {
 
 // TestAttendanceRepository_FindByID tests finding by ID
 func TestAttendanceRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -1087,6 +1101,8 @@ func TestAttendanceRepository_FindByID(t *testing.T) {
 
 // TestAttendanceRepository_Delete tests deleting attendance records
 func TestAttendanceRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -1119,6 +1135,8 @@ func TestAttendanceRepository_Delete(t *testing.T) {
 
 // TestAttendanceRepository_GetTodayByStudentID tests getting today's attendance
 func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -1166,6 +1184,8 @@ func TestAttendanceRepository_GetTodayByStudentID(t *testing.T) {
 
 // TestAttendanceRepository_FindForDate tests finding all attendance for a date
 func TestAttendanceRepository_FindForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -1247,6 +1267,8 @@ func TestAttendanceRepository_FindForDate(t *testing.T) {
 //     open insert succeeds — the partial unique index only counts rows
 //     where check_out_time IS NULL.
 func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -1368,6 +1390,8 @@ func TestAttendanceRepository_CreateIfNoOpenForToday(t *testing.T) {
 //     concurrent caller already closed it) → returns nil (no row), no error
 //     — caller treats as idempotent success.
 func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance
@@ -1450,6 +1474,8 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 // must keep closing the snapshot day's rows — not silently switch to the new
 // day mid-batch.
 func TestAttendanceRepository_CloseOpenForTodayUsesCallerDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Attendance

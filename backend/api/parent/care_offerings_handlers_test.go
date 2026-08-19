@@ -13,12 +13,16 @@ import (
 )
 
 func TestCareOfferingsResponseOmitsActivityGroups(t *testing.T) {
+	t.Parallel()
+
 	payload, err := json.Marshal(toCareOfferingsResponse(&parentService.ChildCareOfferings{}))
 	require.NoError(t, err)
 	assert.NotContains(t, string(payload), `"groups"`)
 }
 
 func TestToCareOfferingsResponseIncludesOfferingInterval(t *testing.T) {
+	t.Parallel()
+
 	starts := timezone.NewDate(2026, 10, 1)
 	endsExclusive := timezone.NewDate(2027, 2, 1)
 
@@ -40,6 +44,8 @@ func TestToCareOfferingsResponseIncludesOfferingInterval(t *testing.T) {
 }
 
 func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
+	t.Parallel()
+
 	response := toCareOfferingsResponse(&parentService.ChildCareOfferings{
 		PendingRequest: &parentService.PendingOfferingChange{
 			Diff: []enrollmentService.OfferingChangeDiffEntry{{
@@ -62,6 +68,8 @@ func TestToCareOfferingsResponseUsesStableOfferingDiffValues(t *testing.T) {
 }
 
 func TestOfferingDiffResponseSeparatesRuleDaysFromRequiredAutomaticDays(t *testing.T) {
+	t.Parallel()
+
 	response := offeringDiffResponse(enrollmentService.OfferingChangeDiffEntry{
 		Label:            "Mittagessen",
 		NewState:         "booked",
@@ -77,6 +85,8 @@ func TestOfferingDiffResponseSeparatesRuleDaysFromRequiredAutomaticDays(t *testi
 }
 
 func TestToCareOfferingsResponsePreservesEmptyDecisionSnapshot(t *testing.T) {
+	t.Parallel()
+
 	response := toCareOfferingsResponse(&parentService.ChildCareOfferings{
 		LastDecision: &enrollmentService.OfferingChangeDecision{
 			Status:      "approved",

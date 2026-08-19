@@ -59,6 +59,8 @@ func buildSvc(db *bun.DB, settings configSvc.SettingsService) scheduleSvc.Timeta
 // -----------------------------------------------------------------------------
 
 func TestCleanupExpiredTimetableData_NoTenantInContext_ReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	svc := buildSvc(db, nil)
 
@@ -68,6 +70,8 @@ func TestCleanupExpiredTimetableData_NoTenantInContext_ReturnsError(t *testing.T
 }
 
 func TestPreviewExpiredTimetableData_NoTenantInContext_ReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	svc := buildSvc(db, nil)
 
@@ -77,6 +81,8 @@ func TestPreviewExpiredTimetableData_NoTenantInContext_ReturnsError(t *testing.T
 }
 
 func TestGetStats_NoTenantInContext_ReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	svc := buildSvc(db, nil)
 
@@ -91,6 +97,8 @@ func TestGetStats_NoTenantInContext_ReturnsError(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestPreviewExpiredTimetableData_CountsOldRows(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := buildSvc(f.db, nil)
 
@@ -113,6 +121,8 @@ func TestPreviewExpiredTimetableData_CountsOldRows(t *testing.T) {
 }
 
 func TestPreviewExpiredTimetableData_EmptyTenant_OldestIsNil(t *testing.T) {
+	t.Parallel()
+
 	f, _ := setupFixture(t)
 	svc := buildSvc(f.db, nil)
 
@@ -130,6 +140,8 @@ func TestPreviewExpiredTimetableData_EmptyTenant_OldestIsNil(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestGetStats_ReportsTotals(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := buildSvc(f.db, nil)
 
@@ -155,6 +167,8 @@ func TestGetStats_ReportsTotals(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestResolveRetentionDays_TenantOverride_UsesOverriddenValue(t *testing.T) {
+	t.Parallel()
+
 	// HasTenantOverride = true, ResolveInt returns a positive value → use it.
 	f, roomID := setupFixture(t)
 	settings := newStubSettingsService(true, nil, 42, nil)
@@ -172,6 +186,8 @@ func TestResolveRetentionDays_TenantOverride_UsesOverriddenValue(t *testing.T) {
 }
 
 func TestResolveRetentionDays_HasOverrideError_FallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	// HasTenantOverride returns err — service warn-logs and falls through to
 	// ResolveInt, which returns the registry default even when no override
 	// exists.
@@ -187,6 +203,8 @@ func TestResolveRetentionDays_HasOverrideError_FallsBackToDefault(t *testing.T) 
 }
 
 func TestResolveRetentionDays_NoOverride_UsesRegistryDefault(t *testing.T) {
+	t.Parallel()
+
 	// HasTenantOverride = false → service still calls ResolveInt, which
 	// returns the registry default. No tenant override means no per-school
 	// customization; the default 180 (via stub) is what the service should
@@ -202,6 +220,8 @@ func TestResolveRetentionDays_NoOverride_UsesRegistryDefault(t *testing.T) {
 }
 
 func TestResolveRetentionDays_ResolveIntReturnsZero_FallsThroughToLiteral(t *testing.T) {
+	t.Parallel()
+
 	// HasTenantOverride = true but ResolveInt returns 0 (simulating a bad
 	// stored value or misconfigured registry default). The `v > 0` guard
 	// rejects it and the function falls through to the literal default 365.
@@ -216,6 +236,8 @@ func TestResolveRetentionDays_ResolveIntReturnsZero_FallsThroughToLiteral(t *tes
 
 // Sanity check — the registered key constant is what the service reads.
 func TestResolveRetentionDays_UsesCorrectConfigKey(t *testing.T) {
+	t.Parallel()
+
 	// Documents the expected key: a regression test would catch someone
 	// renaming KeyGDPRTimetableRetentionDays without updating the service.
 	assert.Equal(t, "gdpr.timetable_retention_days", configModels.KeyGDPRTimetableRetentionDays)
@@ -226,6 +248,8 @@ func TestResolveRetentionDays_UsesCorrectConfigKey(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 
 	// Seed one affected student so writeStudentAuditRows has work to do.
@@ -259,6 +283,8 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	// Pass nil logger — constructor must substitute slog.Default() so calls
@@ -292,6 +318,8 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestCleanup_AuditMetadata_HasInstanceIDsSample(t *testing.T) {
+	t.Parallel()
+
 	f, roomID := setupFixture(t)
 	svc := buildSvc(f.db, nil)
 

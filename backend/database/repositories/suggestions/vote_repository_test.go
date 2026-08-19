@@ -14,6 +14,8 @@ import (
 )
 
 func TestVoteRepository_Upsert(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewVoteRepository(db)
@@ -70,6 +72,8 @@ func TestVoteRepository_Upsert(t *testing.T) {
 }
 
 func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewVoteRepository(db)
@@ -99,6 +103,8 @@ func TestVoteRepository_DeleteByPostAndVoter(t *testing.T) {
 }
 
 func TestVoteRepository_FindByPostAndVoter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repoSuggestions.NewVoteRepository(db)

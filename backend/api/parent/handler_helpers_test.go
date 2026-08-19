@@ -64,7 +64,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
 	school.ID = tenantID
 	requestSvc := &parentSubmitRequestStub{}

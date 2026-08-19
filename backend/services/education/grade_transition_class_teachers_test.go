@@ -33,6 +33,8 @@ func staffClassNames(t *testing.T, db *bun.DB, ctx context.Context, staffID int6
 // would collide with the unique index if applied one by one — and graduating
 // classes lose theirs. Revert carries the promotions back.
 func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -98,6 +100,8 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 // when the mapping renames "1a" — the "1A" children do not move either, and
 // remapping the teacher would take away sight of their own class.
 func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -141,6 +145,8 @@ func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t 
 // resurrected: offboarding cleared their class rows, and the soft-deleted
 // staff row would satisfy the FK even though the normal write path 404s on it.
 func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -195,6 +201,8 @@ func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
 // class away, and restoring the pre-apply name would silently re-grant
 // student-data scope.
 func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -305,6 +313,8 @@ func deleteClassTeacherRow(t *testing.T, db *bun.DB, ctx context.Context, staffI
 // less scope beats silently re-granting a removed class, and the admin can
 // re-assign.
 func TestGradeTransitionService_Revert_ChainAdminRemovedMiddleClass(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -335,6 +345,8 @@ func TestGradeTransitionService_Revert_ChainAdminRemovedMiddleClass(t *testing.T
 // The class NAMES the admin saw ("kept 2a") shift because every class name
 // rolls back with the students; the SCOPE the admin curated is preserved.
 func TestGradeTransitionService_Revert_ChainAdminRemovedEndClass(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -362,6 +374,8 @@ func TestGradeTransitionService_Revert_ChainAdminRemovedEndClass(t *testing.T) {
 // must survive the revert untouched, and a merge (teacher held both the from-
 // and the to-class) must round-trip without losing the surviving assignment.
 func TestGradeTransitionService_Revert_TouchesOnlyLedgeredClassTeachers(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 

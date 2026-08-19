@@ -54,6 +54,8 @@ func publishedAnnouncement(
 // guardian; a non-matching class does not; drafts stay out of the feed; and
 // read state flows through the feed + unread count.
 func TestParentAnnouncementAudience(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -150,6 +152,8 @@ func TestParentAnnouncementAudience(t *testing.T) {
 // read/acknowledged as the read row is stamped, and a non-matching target
 // yields no recipients.
 func TestParentAnnouncementAudienceRecipients(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -221,6 +225,8 @@ func TestParentAnnouncementAudienceRecipients(t *testing.T) {
 // publish can never be silently reverted), and editing a draft clears any
 // read/ack state left over from a previous publication (the correction path).
 func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -284,6 +290,8 @@ func TestParentAnnouncementUpdate_AtomicAndClearsReads(t *testing.T) {
 // targets) could race a target edit and desynchronize the e-mailed audience
 // from the live feed/stats audience.
 func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -326,6 +334,8 @@ func TestParentAnnouncementReplaceTargets_RefusesPublished(t *testing.T) {
 // survives (a bare-table override would produce a WHERE referencing a missing
 // alias and fail). Targets + reads cascade in the DB.
 func TestParentAnnouncementDelete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -355,6 +365,8 @@ func TestParentAnnouncementDelete(t *testing.T) {
 // must record nothing against the corrected wording — the guard closes the
 // window between the service's authorize phase and the write.
 func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -397,6 +409,8 @@ func TestParentAnnouncementMarkRead_VersionGuard(t *testing.T) {
 // rows (with parent_portal.access) still exist. Membership, not just the
 // relationship, is what grants parent-portal access.
 func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // active mapping, tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -446,6 +460,8 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 // ListSchoolClasses (TRIM) feeds the selector with — so staff can never pick a
 // visible class that then reaches no guardian.
 func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // student class "1a", tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -469,6 +485,8 @@ func TestParentAnnouncementAudience_ClassMatchIsCaseInsensitive(t *testing.T) {
 // started: a future valid_from is not yet in the audience, and the guardian
 // enters it once the enrollment becomes current.
 func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -522,6 +540,8 @@ func TestParentAnnouncementAudience_FutureEnrollmentExcluded(t *testing.T) {
 }
 
 func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -613,6 +633,8 @@ func announcementIDs(items []*usersModels.AnnouncementFeedItem) []int64 {
 // no announcement, while staff stats + e-mail counted them symmetrically. All
 // four surfaces (feed/unread, count, recipients, e-mail, stats) must agree.
 func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db) // account with a real e-mail, tenant 1
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

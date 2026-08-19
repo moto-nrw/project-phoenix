@@ -219,6 +219,10 @@ func (f *calendarPeriodValidationFixture) validator(
 	return validator
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-mutation")
@@ -243,6 +247,10 @@ func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *tes
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-cycle-change")
@@ -264,6 +272,10 @@ func TestCareOfferingCalendarPeriodValidation_RejectsWeekCycleCoverageGap(t *tes
 	assert.ErrorContains(t, err, "does not cover")
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	period := fixture.createPeriod(t, "care-period-inactive-referenced")
@@ -279,6 +291,10 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsInactiveReferencedOffering
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDelete(t *testing.T) {
 	fixture := newCalendarPeriodValidationFixture(t)
 	rootPeriod := fixture.createPeriod(t, "care-period-linked-root")
@@ -320,6 +336,10 @@ func TestCareOfferingCalendarPeriodValidation_ProtectsNonOverlappingLinkedRootDe
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingCalendarPeriodValidation_AllowsCompatibleFallbacks(t *testing.T) {
 	t.Run("period update still contains phase", func(t *testing.T) {
 		fixture := newCalendarPeriodValidationFixture(t)

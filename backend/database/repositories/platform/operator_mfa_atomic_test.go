@@ -19,6 +19,8 @@ import (
 // read-modify-write at the service layer let racing goroutines all see
 // the same starting count and overwrite each other.
 func TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	op := testpkg.CreateTestOperator(t, db)
@@ -70,6 +72,8 @@ func TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 }
 
 func TestOperatorRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	op := testpkg.CreateTestOperator(t, db)

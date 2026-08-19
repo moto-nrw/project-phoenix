@@ -31,6 +31,8 @@ func setupAuthServiceWithDB(t *testing.T, db *bun.DB) auth.AuthService {
 // =============================================================================
 
 func TestAuthService_DeleteRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -102,6 +104,8 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 }
 
 func TestAuthService_UpdateRole_SystemRoleProtection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -122,6 +126,8 @@ func TestAuthService_UpdateRole_SystemRoleProtection(t *testing.T) {
 }
 
 func TestAuthService_AssignPermissionToRole_SystemRoleProtection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -146,6 +152,8 @@ func TestAuthService_AssignPermissionToRole_SystemRoleProtection(t *testing.T) {
 }
 
 func TestAuthService_RemovePermissionFromRole_SystemRoleProtection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -165,6 +173,8 @@ func TestAuthService_RemovePermissionFromRole_SystemRoleProtection(t *testing.T)
 }
 
 func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -236,6 +246,8 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -273,6 +285,8 @@ func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetAccountRoles_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -307,6 +321,8 @@ func TestAuthService_GetAccountRoles_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_DeletePermission_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -371,6 +387,8 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 }
 
 func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -394,6 +412,8 @@ func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -426,6 +446,8 @@ func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_AssignPermissionToRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -461,6 +483,8 @@ func TestAuthService_AssignPermissionToRole_Extended(t *testing.T) {
 }
 
 func TestAuthService_RemovePermissionFromRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -497,6 +521,8 @@ func TestAuthService_RemovePermissionFromRole_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetRolePermissions_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -553,6 +579,8 @@ func TestAuthService_GetRolePermissions_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_ActivateAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -583,6 +611,8 @@ func TestAuthService_ActivateAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -640,6 +670,8 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_UpdateAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -690,6 +722,8 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_ListAccounts_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -724,6 +758,8 @@ func TestAuthService_ListAccounts_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -776,6 +812,8 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_CleanupExpiredTokens_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -792,6 +830,8 @@ func TestAuthService_CleanupExpiredTokens_Extended(t *testing.T) {
 }
 
 func TestAuthService_CleanupExpiredPasswordResetTokens_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -808,6 +848,8 @@ func TestAuthService_CleanupExpiredPasswordResetTokens_Extended(t *testing.T) {
 }
 
 func TestAuthService_CleanupExpiredRateLimits_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -824,6 +866,8 @@ func TestAuthService_CleanupExpiredRateLimits_Extended(t *testing.T) {
 }
 
 func TestAuthService_RevokeAllTokens_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -851,6 +895,8 @@ func TestAuthService_RevokeAllTokens_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetActiveTokens_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -886,6 +932,8 @@ func TestAuthService_GetActiveTokens_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_CreateParentAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -918,6 +966,8 @@ func TestAuthService_CreateParentAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetParentAccountByEmail_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -941,6 +991,8 @@ func TestAuthService_GetParentAccountByEmail_Extended(t *testing.T) {
 }
 
 func TestAuthService_UpdateParentAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -976,6 +1028,8 @@ func TestAuthService_UpdateParentAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_ListParentAccounts_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -1010,6 +1064,8 @@ func TestAuthService_ListParentAccounts_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_ResetPassword_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -1046,6 +1102,8 @@ func TestAuthService_ResetPassword_Extended(t *testing.T) {
 }
 
 func TestAuthService_InitiatePasswordReset_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -1085,6 +1143,8 @@ func TestAuthService_InitiatePasswordReset_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_Login_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -1132,6 +1192,8 @@ func TestAuthService_Login_Extended(t *testing.T) {
 }
 
 func TestAuthService_Register_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -1169,6 +1231,8 @@ func TestAuthService_Register_Extended(t *testing.T) {
 }
 
 func TestAuthService_RefreshToken_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -1200,6 +1264,8 @@ func TestAuthService_RefreshToken_Extended(t *testing.T) {
 }
 
 func TestAuthService_Logout_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)
@@ -1231,6 +1297,8 @@ func TestAuthService_Logout_Extended(t *testing.T) {
 }
 
 func TestAuthService_ChangePassword_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthServiceWithDB(t, db)

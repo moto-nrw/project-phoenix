@@ -21,6 +21,8 @@ import (
 // ============================================================================
 
 func TestTokenRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -63,6 +65,8 @@ func TestTokenRepository_Create(t *testing.T) {
 }
 
 func TestTokenRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -86,6 +90,8 @@ func TestTokenRepository_FindByID(t *testing.T) {
 }
 
 func TestTokenRepository_FindByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -109,6 +115,8 @@ func TestTokenRepository_FindByToken(t *testing.T) {
 }
 
 func TestTokenRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -133,6 +141,8 @@ func TestTokenRepository_Update(t *testing.T) {
 }
 
 func TestTokenRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -156,6 +166,8 @@ func TestTokenRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestTokenRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -174,6 +186,8 @@ func TestTokenRepository_List(t *testing.T) {
 }
 
 func TestTokenRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -214,6 +228,8 @@ func TestTokenRepository_FindByAccountID(t *testing.T) {
 // ============================================================================
 
 func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -254,6 +270,8 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 }
 
 func TestTokenRepository_HasLiveTokensCreatedAfter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -274,6 +292,8 @@ func TestTokenRepository_HasLiveTokensCreatedAfter(t *testing.T) {
 }
 
 func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -320,6 +340,8 @@ func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 }
 
 func TestTokenRepository_DeleteByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -344,6 +366,8 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 }
 
 func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -378,6 +402,8 @@ func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *
 }
 
 func TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -405,6 +431,8 @@ func TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant(t *testing.T
 }
 
 func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -445,6 +473,8 @@ func TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSucces
 // ============================================================================
 
 func TestTokenRepository_FindByFamilyID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -485,6 +515,8 @@ func TestTokenRepository_FindByFamilyID(t *testing.T) {
 }
 
 func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -528,6 +560,8 @@ func TestTokenRepository_DeleteByFamilyID(t *testing.T) {
 }
 
 func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -601,6 +635,8 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 }
 
 func TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -635,6 +671,8 @@ func TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal(t *testin
 }
 
 func TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -675,6 +713,8 @@ func TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolat
 }
 
 func TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -712,6 +752,8 @@ func TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg
 }
 
 func TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -754,6 +796,8 @@ func TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter(t
 }
 
 func TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -780,6 +824,8 @@ func TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown(
 }
 
 func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -821,6 +867,8 @@ func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
 }
 
 func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -880,6 +928,8 @@ func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {
 }
 
 func TestTokenRepository_ListWithFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -935,6 +985,8 @@ func TestTokenRepository_ListWithFilters(t *testing.T) {
 // ============================================================================
 
 func TestTokenRepository_CreateValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token
@@ -952,6 +1004,8 @@ func TestTokenRepository_CreateValidation(t *testing.T) {
 // ============================================================================
 
 func TestTokenRepository_DeleteByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Token

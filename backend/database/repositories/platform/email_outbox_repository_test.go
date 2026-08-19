@@ -23,7 +23,7 @@ func uniqueOutboxToken(prefix string) string {
 func setupOutboxRepoTest(t *testing.T) (*bun.DB, platformModels.EmailOutboxCleanupRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return db, platformRepo.NewEmailOutboxRepository(db), tenantID
 }
@@ -67,6 +67,10 @@ func makeOutbox(kind string) *platformModels.EmailOutbox {
 
 // --- Create + FindByID + Validate -------------------------------------
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("create")
@@ -81,6 +85,10 @@ func TestEmailOutboxRepository_Create_PersistsAndReturnsID(t *testing.T) {
 	assert.Equal(t, tenantID, row.TenantID)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_Create_RejectsInvalidRow(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	row := makeOutbox("") // blank Kind → Validate fails
@@ -91,6 +99,10 @@ func TestEmailOutboxRepository_Create_RejectsInvalidRow(t *testing.T) {
 	assert.Contains(t, err.Error(), "validation failed")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_Create_IdempotencyKeySuppressesDuplicate(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("idempotent")
@@ -117,6 +129,10 @@ func TestEmailOutboxRepository_Create_IdempotencyKeySuppressesDuplicate(t *testi
 	assert.Equal(t, 1, count)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_FindByID_HappyPath(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("find")
@@ -139,6 +155,10 @@ func TestEmailOutboxRepository_FindByID_HappyPath(t *testing.T) {
 	assert.Equal(t, kind, got.Kind)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_FindByID_NotFound(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	var got *platformModels.EmailOutbox
@@ -154,6 +174,10 @@ func TestEmailOutboxRepository_FindByID_NotFound(t *testing.T) {
 
 // --- ClaimDuePending --------------------------------------------------
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_ReturnsRowsAndFlipsToSending(t *testing.T) {
 	// Insert two due pending rows + one future-retry row. Claim should
 	// return exactly the two due ones, with their status flipped.
@@ -206,6 +230,10 @@ func TestEmailOutboxRepository_ClaimDuePending_ReturnsRowsAndFlipsToSending(t *t
 	assert.Equal(t, platformModels.EmailOutboxStatusPending, futureRow.Status)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_LimitCaps(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("limit")
@@ -235,6 +263,10 @@ func TestEmailOutboxRepository_ClaimDuePending_LimitCaps(t *testing.T) {
 	assert.Equal(t, 2, ours, "limit=2 must return at most 2 rows of ours")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_AlreadySendingNotReClaimed(t *testing.T) {
 	// A row already in 'sending' state must NOT be re-claimed — the
 	// status filter is explicit and FOR UPDATE SKIP LOCKED prevents
@@ -262,6 +294,10 @@ func TestEmailOutboxRepository_ClaimDuePending_AlreadySendingNotReClaimed(t *tes
 	}
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_OrdersByNextRetryAsc(t *testing.T) {
 	// FIFO-ish ordering — oldest next_retry_at first so retries don't
 	// starve.
@@ -298,6 +334,10 @@ func TestEmailOutboxRepository_ClaimDuePending_OrdersByNextRetryAsc(t *testing.T
 		"oldest next_retry_at must be claimed first to avoid starvation")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.T) {
 	// `if limit <= 0 { limit = 25 }` — caller passing 0 must get the
 	// default budget, not zero results.
@@ -328,6 +368,10 @@ func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.
 
 // --- LockSending -------------------------------------------------------
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_LockSending_TrueForSendingRow(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("locksending")
@@ -348,6 +392,10 @@ func TestEmailOutboxRepository_LockSending_TrueForSendingRow(t *testing.T) {
 	assert.True(t, claimed, "a row still in 'sending' must lock as claimed")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_LockSending_FalseWhenGoneOrNotSending(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("lockgone")
@@ -374,6 +422,10 @@ func TestEmailOutboxRepository_LockSending_FalseWhenGoneOrNotSending(t *testing.
 
 // --- MarkSent / MarkRetry / MarkFailed --------------------------------
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_MarkSent_HappyPath(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("marksent")
@@ -402,6 +454,10 @@ func TestEmailOutboxRepository_MarkSent_HappyPath(t *testing.T) {
 	assert.Nil(t, got.LastError, "MarkSent must CLEAR last_error")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_MarkSent_MissingIDErrors(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -410,6 +466,10 @@ func TestEmailOutboxRepository_MarkSent_MissingIDErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_MarkRetry_HappyPath(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("markretry")
@@ -439,6 +499,10 @@ func TestEmailOutboxRepository_MarkRetry_HappyPath(t *testing.T) {
 	assert.WithinDuration(t, retryAt, got.NextRetryAt, time.Second)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_MarkRetry_MissingIDErrors(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -447,6 +511,10 @@ func TestEmailOutboxRepository_MarkRetry_MissingIDErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_MarkFailed_TerminalAttemptCountPersisted(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("markfailed")
@@ -474,6 +542,10 @@ func TestEmailOutboxRepository_MarkFailed_TerminalAttemptCountPersisted(t *testi
 	assert.Equal(t, "permanent failure", *got.LastError)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_MarkFailed_MissingIDErrors(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -484,6 +556,10 @@ func TestEmailOutboxRepository_MarkFailed_MissingIDErrors(t *testing.T) {
 
 // --- FindByRelatedEntity ---------------------------------------------
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_FindByRelatedEntity_FiltersByTypeAndID(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("related")
@@ -535,6 +611,10 @@ func TestEmailOutboxRepository_FindByRelatedEntity_FiltersByTypeAndID(t *testing
 		"FindByRelatedEntity must filter on BOTH type and id (saw %d, want 2)", count)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_FindByRelatedEntity_EmptyResultNoError(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	var list []*platformModels.EmailOutbox
@@ -550,6 +630,10 @@ func TestEmailOutboxRepository_FindByRelatedEntity_EmptyResultNoError(t *testing
 
 // --- CancelPendingByRelatedEntity ------------------------------------
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_CancelPendingByRelatedEntity_FailsOnlyPendingForEntity(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("cancel")
@@ -614,6 +698,10 @@ func TestEmailOutboxRepository_CancelPendingByRelatedEntity_FailsOnlyPendingForE
 		"a pending row for a DIFFERENT entity must be untouched")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestEmailOutboxRepository_CancelPendingByRelatedEntity_NoMatchesReturnsZero(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	var cancelled int64

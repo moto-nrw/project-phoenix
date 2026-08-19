@@ -54,6 +54,8 @@ func postBatchCheckin(t *testing.T, tc *testContext, accountID int64, body map[s
 }
 
 func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -83,6 +85,8 @@ func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -124,6 +128,8 @@ func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -159,6 +165,8 @@ func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// The virtual WEB-MANUAL device is per tenant, so this test's own
 	// tenant (#2419) needs its own row before a manual check-in.
@@ -181,6 +189,8 @@ func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_InvalidAction_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchInvalid", "Target", "5a")
@@ -197,6 +207,8 @@ func TestSchoolCheckinBatch_InvalidAction_Rejects(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchMalformed", "Caller")
@@ -215,6 +227,8 @@ func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
 // the RAW list before deduplication (review #2372): a payload of duplicates
 // must not slip past the limit by collapsing to a single student.
 func TestSchoolCheckinBatch_TooManyIDs_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchCap", "Target", "6a")
@@ -240,6 +254,8 @@ func TestSchoolCheckinBatch_TooManyIDs_Rejects(t *testing.T) {
 // the JSON decoder (review #2372): a body past maxSchoolCheckinBatchBytes
 // fails during decode instead of being read into memory whole.
 func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchBytes", "Target", "6b")
@@ -269,6 +285,8 @@ func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
 // value, so trailing bytes would otherwise stay unread and an oversized or
 // malformed tail would slip past the advertised size limit.
 func TestSchoolCheckinBatch_TrailingBody_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchTrail", "Target", "6c")
@@ -286,6 +304,8 @@ func TestSchoolCheckinBatch_TrailingBody_Rejects(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_EmptyIDs_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchEmpty", "Caller")

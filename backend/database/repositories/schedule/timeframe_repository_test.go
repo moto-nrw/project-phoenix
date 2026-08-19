@@ -16,6 +16,8 @@ import (
 // ============================================================================
 
 func TestTimeframeRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
@@ -62,6 +64,8 @@ func TestTimeframeRepository_Create(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
@@ -91,6 +95,8 @@ func TestTimeframeRepository_FindByID(t *testing.T) {
 }
 
 func TestTimeframeRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
@@ -120,6 +126,8 @@ func TestTimeframeRepository_Update(t *testing.T) {
 }
 
 func TestTimeframeRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
@@ -148,6 +156,8 @@ func TestTimeframeRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestTimeframeRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
@@ -171,6 +181,8 @@ func TestTimeframeRepository_List(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindActive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
@@ -216,6 +228,8 @@ func TestTimeframeRepository_FindActive(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe
@@ -254,6 +268,8 @@ func TestTimeframeRepository_FindByTimeRange(t *testing.T) {
 }
 
 func TestTimeframeRepository_FindByDescription(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Timeframe

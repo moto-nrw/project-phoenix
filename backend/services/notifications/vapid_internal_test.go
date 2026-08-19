@@ -20,6 +20,8 @@ func generatedVAPIDConfig(t *testing.T) VAPIDConfig {
 }
 
 func TestVAPIDConfigValidate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("allows a completely empty disabled configuration", func(t *testing.T) {
 		config := VAPIDConfig{}
 		require.NoError(t, config.Validate())

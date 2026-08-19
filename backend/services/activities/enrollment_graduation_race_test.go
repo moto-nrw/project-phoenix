@@ -46,6 +46,8 @@ func (r *graduatingEnrollmentRepo) FindByGroupID(
 }
 
 func TestActivityService_UpdateGroupEnrollments_PreservesChildGraduatedAfterRosterRead(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

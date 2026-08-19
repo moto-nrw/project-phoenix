@@ -11,6 +11,8 @@ import (
 func int64Ptr(v int64) *int64 { return &v }
 
 func TestDataDeletion_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		dd      *DataDeletion
@@ -161,6 +163,8 @@ func TestDataDeletion_Validate(t *testing.T) {
 }
 
 func TestDataDeletion_Validate_SetsDefaultDeletedAt(t *testing.T) {
+	t.Parallel()
+
 	dd := &DataDeletion{
 		StudentID:      int64Ptr(1),
 		DeletionType:   DeletionTypeManual,
@@ -187,6 +191,8 @@ func TestDataDeletion_Validate_SetsDefaultDeletedAt(t *testing.T) {
 }
 
 func TestDataDeletion_Metadata(t *testing.T) {
+	t.Parallel()
+
 	t.Run("GetMetadata initializes nil map", func(t *testing.T) {
 		dd := &DataDeletion{
 			Metadata: nil,
@@ -247,6 +253,8 @@ func TestDataDeletion_Metadata(t *testing.T) {
 }
 
 func TestNewDataDeletion(t *testing.T) {
+	t.Parallel()
+
 	before := time.Now()
 	dd := NewDataDeletion(123, DeletionTypeGDPRRequest, 50, "admin@example.com")
 	after := time.Now()
@@ -280,6 +288,8 @@ func TestNewDataDeletion(t *testing.T) {
 }
 
 func TestDeletionTypeConstants(t *testing.T) {
+	t.Parallel()
+
 	// Verify constants have expected values
 	if DeletionTypeVisitRetention != "visit_retention" {
 		t.Errorf("DeletionTypeVisitRetention = %q, want visit_retention", DeletionTypeVisitRetention)
@@ -302,6 +312,8 @@ func TestDeletionTypeConstants(t *testing.T) {
 // DeletionTypeTimetableRetention constant is whitelisted by Validate(). Guards
 // against the "added the constant but forgot to update the switch" regression.
 func TestDataDeletion_Validate_AcceptsTimetableRetentionType(t *testing.T) {
+	t.Parallel()
+
 	dd := NewDataDeletion(42, DeletionTypeTimetableRetention, 1, "system")
 	if err := dd.Validate(); err != nil {
 		t.Fatalf("Validate() with timetable_retention type failed: %v", err)
@@ -311,6 +323,8 @@ func TestDataDeletion_Validate_AcceptsTimetableRetentionType(t *testing.T) {
 // Same guard for the staff-scoped time_tracking_retention type and the
 // NewStaffDataDeletion constructor.
 func TestNewStaffDataDeletion(t *testing.T) {
+	t.Parallel()
+
 	dd := NewStaffDataDeletion(7, DeletionTypeTimeTrackingRetention, 3, "system")
 	if dd.StaffID == nil || *dd.StaffID != 7 {
 		t.Errorf("NewStaffDataDeletion().StaffID = %v, want 7", dd.StaffID)

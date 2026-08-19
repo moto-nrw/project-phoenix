@@ -62,6 +62,8 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) parentSer
 }
 
 func TestService_ListEnrollmentsForAccount_PassesAccountIDThrough(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollmentRequestRepo{
 		listResult: []*parentModels.EnrollmentRequestSummary{
 			{RequestID: 42, TenantID: 7, SubmittedAt: time.Now()},
@@ -78,6 +80,8 @@ func TestService_ListEnrollmentsForAccount_PassesAccountIDThrough(t *testing.T) 
 }
 
 func TestService_ListEnrollmentsForAccount_RejectsZeroAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollmentRequestRepo{}
 	svc := buildParentService(t, repo)
 
@@ -88,6 +92,8 @@ func TestService_ListEnrollmentsForAccount_RejectsZeroAccount(t *testing.T) {
 }
 
 func TestService_ListEnrollmentsForAccount_RejectsNegativeAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollmentRequestRepo{}
 	svc := buildParentService(t, repo)
 
@@ -97,6 +103,8 @@ func TestService_ListEnrollmentsForAccount_RejectsNegativeAccount(t *testing.T) 
 }
 
 func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	want := errors.New("synthetic repo failure")
 	repo := &stubEnrollmentRequestRepo{listErr: want}
 	svc := buildParentService(t, repo)
@@ -107,6 +115,8 @@ func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
 }
 
 func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		EnrollmentRequestRepo: nil,
@@ -120,6 +130,8 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 }
 
 func TestService_ListEnrollmentsForAccount_EmptyResultPropagates(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubEnrollmentRequestRepo{
 		listResult: []*parentModels.EnrollmentRequestSummary{},
 	}
@@ -135,6 +147,8 @@ func TestService_ListEnrollmentsForAccount_EmptyResultPropagates(t *testing.T) {
 // show_status_reason_to_parent=false, the dashboard payload must not carry
 // the stored reason — even though the repo returns it.
 func TestService_ListEnrollmentsForAccount_RedactsReasonWhenPhaseDisablesIt(t *testing.T) {
+	t.Parallel()
+
 	reason := "intern: Kapazität voll"
 	repo := &stubEnrollmentRequestRepo{
 		listResult: []*parentModels.EnrollmentRequestSummary{
@@ -160,6 +174,8 @@ func TestService_ListEnrollmentsForAccount_RedactsReasonWhenPhaseDisablesIt(t *t
 
 // Counterpart: phase opted in → the reason is preserved on the dashboard.
 func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *testing.T) {
+	t.Parallel()
+
 	reason := "Leider kein Platz"
 	repo := &stubEnrollmentRequestRepo{
 		listResult: []*parentModels.EnrollmentRequestSummary{
@@ -266,6 +282,8 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 func localePtr(s string) *string { return &s }
 
 func TestService_GetProfile_ExplicitLocale(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{
 		findResult: &userModels.GuardianProfile{
 			FirstName:    "Karin",
@@ -286,6 +304,8 @@ func TestService_GetProfile_ExplicitLocale(t *testing.T) {
 }
 
 func TestService_GetProfile_NormalizesRegionSubtag(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{
 		findResult: &userModels.GuardianProfile{PortalLocale: localePtr("en-US")},
 	}
@@ -298,6 +318,8 @@ func TestService_GetProfile_NormalizesRegionSubtag(t *testing.T) {
 }
 
 func TestService_GetProfile_NullLocaleIsNotExplicit(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{
 		findResult: &userModels.GuardianProfile{PortalLocale: nil},
 	}
@@ -312,6 +334,8 @@ func TestService_GetProfile_NullLocaleIsNotExplicit(t *testing.T) {
 }
 
 func TestService_GetProfile_EmptyLocaleIsNotExplicit(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{
 		findResult: &userModels.GuardianProfile{PortalLocale: localePtr("")},
 	}
@@ -324,6 +348,8 @@ func TestService_GetProfile_EmptyLocaleIsNotExplicit(t *testing.T) {
 }
 
 func TestService_GetProfile_MissingProfileIsBenign(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{
 		findErr: userModels.ErrGuardianProfileNotFound,
 	}
@@ -337,6 +363,8 @@ func TestService_GetProfile_MissingProfileIsBenign(t *testing.T) {
 }
 
 func TestService_GetProfile_PropagatesRealRepoError(t *testing.T) {
+	t.Parallel()
+
 	want := errors.New("synthetic db failure")
 	repo := &stubGuardianProfileRepo{findErr: want}
 	svc := buildParentServiceWithGuardian(t, repo)
@@ -347,6 +375,8 @@ func TestService_GetProfile_PropagatesRealRepoError(t *testing.T) {
 }
 
 func TestService_GetProfile_RejectsNonPositiveAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -357,6 +387,8 @@ func TestService_GetProfile_RejectsNonPositiveAccount(t *testing.T) {
 }
 
 func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		GuardianProfileRepo: nil,
@@ -370,6 +402,8 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 }
 
 func TestService_UpdatePortalLocale_NormalizesAndPersists(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -384,6 +418,8 @@ func TestService_UpdatePortalLocale_NormalizesAndPersists(t *testing.T) {
 }
 
 func TestService_UpdatePortalLocale_RejectsNonPositiveAccount(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -394,6 +430,8 @@ func TestService_UpdatePortalLocale_RejectsNonPositiveAccount(t *testing.T) {
 }
 
 func TestService_UpdatePortalLocale_PropagatesRepoError(t *testing.T) {
+	t.Parallel()
+
 	want := errors.New("synthetic write failure")
 	repo := &stubGuardianProfileRepo{updateErr: want}
 	svc := buildParentServiceWithGuardian(t, repo)
@@ -404,6 +442,8 @@ func TestService_UpdatePortalLocale_PropagatesRepoError(t *testing.T) {
 }
 
 func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		GuardianProfileRepo: nil,
@@ -417,6 +457,8 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 }
 
 func TestService_UpdatePortalLocale_RejectsUnsupportedLocale(t *testing.T) {
+	t.Parallel()
+
 	repo := &stubGuardianProfileRepo{}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -428,6 +470,8 @@ func TestService_UpdatePortalLocale_RejectsUnsupportedLocale(t *testing.T) {
 }
 
 func TestService_UpdatePortalLocale_SurfacesMissingProfile(t *testing.T) {
+	t.Parallel()
+
 	// The repo returns ErrGuardianProfileNotFound when the UPDATE matched zero
 	// rows (account has no guardian_profiles row). The service must surface it,
 	// not report the locale as saved — a preference that never persisted cannot

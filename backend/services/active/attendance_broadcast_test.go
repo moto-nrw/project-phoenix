@@ -169,6 +169,8 @@ func checkoutEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []real
 // CheckOutStudent, which must produce the same event set the removed
 // EndVisit call used to produce.
 func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -215,6 +217,8 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 // TestCheckout_IdempotentCheckoutIsSilent pins the other half of the contract:
 // a repeated checkout closes no row, so no client has anything to refetch.
 func TestCheckout_IdempotentCheckoutIsSilent(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -237,6 +241,8 @@ func TestCheckout_IdempotentCheckoutIsSilent(t *testing.T) {
 // path: even when attendance is already closed or missing, ending the stale
 // room visit changes the room roster and must wake subscribed clients.
 func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -268,6 +274,8 @@ func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 // "Kinder an- und abmelden" flow) and by the kiosk daily checkout: attendance
 // closes, but no visit ends, so there is no active group to scope to.
 func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -302,6 +310,8 @@ func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
 // by the time the after-commit hook runs. A hook that did its own repository
 // read would emit an event without a name or a group scope — or fail outright.
 func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 
@@ -335,6 +345,8 @@ func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 // owns that emission, so the explicit call was removed. If it ever comes back,
 // every "nach Hause" scan wakes every client of the school twice.
 func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	// Own service instance rather than setupServiceWithBroadcaster: the daily
 	// checkout reads the attendance status first, which resolves staff names
@@ -376,6 +388,8 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 // path during kiosk day-end confirmation. The room-scoped event replaces the
 // historical roomless event but must retain its stable source wire value.
 func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	svc, broadcaster := newDailyCheckoutService(t, db)
 
@@ -417,6 +431,8 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 // check-in half: POST /api/students/{id}/school-checkin with action "in" lands
 // on CheckInStudent, which wrote attendance and told nobody.
 func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001
@@ -463,6 +479,8 @@ func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 // checkout: the second "in" is absorbed by the partial unique index, no row
 // moves, so no client has anything to refetch.
 func TestCheckin_RepeatedCheckinIsSilent(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001
@@ -488,6 +506,8 @@ func TestCheckin_RepeatedCheckinIsSilent(t *testing.T) {
 // the student read has to happen inside the transaction, because the tx carried
 // in ctx is closed by the time the after-commit hook runs.
 func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001
@@ -524,6 +544,8 @@ func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 // topic. If someone later routes CreateVisit through performCheckIn, every room
 // entry would wake each client twice and this test fails.
 func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
+	t.Parallel()
+
 	svc, broadcaster := setupServiceWithBroadcaster(t)
 	db := testpkg.SetupTestDB(t)
 	// A web check-in books attendance against the virtual WEB-MANUAL-001

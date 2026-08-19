@@ -10,6 +10,8 @@ import (
 )
 
 func TestWithTenantTx_RejectsZeroTenantID(t *testing.T) {
+	t.Parallel()
+
 	// WithTenantTx should reject tenantID == 0 before even touching the DB.
 	// We pass nil because the function should error before using it (mock-like unit test).
 	err := tenant.WithTenantTx(context.Background(), nil, 0, func(_ context.Context, _ bun.Tx) error {

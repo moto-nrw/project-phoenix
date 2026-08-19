@@ -15,6 +15,8 @@ import (
 func strptr(s string) *string { return &s }
 
 func TestTrimReason(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil stays nil", func(t *testing.T) {
 		assert.Nil(t, trimReason(nil))
 	})
@@ -52,6 +54,8 @@ func TestTrimReason(t *testing.T) {
 }
 
 func TestIsPlannableInstance(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		status string
 		want   bool

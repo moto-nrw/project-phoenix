@@ -37,6 +37,8 @@ func setupPersonService(t *testing.T, db *bun.DB) users.PersonService {
 // =============================================================================
 
 func TestPersonService_Get(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -98,6 +100,8 @@ func TestPersonService_Get(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_GetByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -148,6 +152,8 @@ func TestPersonService_GetByIDs(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -225,6 +231,8 @@ func TestPersonService_Create(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -273,6 +281,8 @@ func TestPersonService_Update(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -310,6 +320,8 @@ func TestPersonService_Delete(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -345,6 +357,8 @@ func TestPersonService_List(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_FindByTagID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -386,6 +400,8 @@ func TestPersonService_FindByTagID(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -426,6 +442,8 @@ func TestPersonService_FindByAccountID(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_FindByName(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -490,6 +508,8 @@ func TestPersonService_FindByName(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_LinkToAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -548,6 +568,8 @@ func TestPersonService_LinkToAccount(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_UnlinkFromAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -598,6 +620,8 @@ func TestPersonService_UnlinkFromAccount(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_LinkToRFIDCard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -676,6 +700,8 @@ func TestPersonService_LinkToRFIDCard(t *testing.T) {
 // graduation committing in between must still be caught here, under the student
 // row lock, instead of leaving a bracelet linked to a departed child (#405).
 func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -747,6 +773,8 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -800,6 +828,8 @@ func TestPersonService_UnlinkFromRFIDCard(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -841,6 +871,8 @@ func TestPersonService_GetStudentsWithGroupsByTeacher(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -883,6 +915,8 @@ func TestPersonService_GetAllStudentsWithGroups(t *testing.T) {
 // =============================================================================
 
 func TestUsersErrorTypes(t *testing.T) {
+	t.Parallel()
+
 	t.Run("error constants are defined", func(t *testing.T) {
 		errors := []error{
 			users.ErrPersonNotFound,
@@ -902,6 +936,8 @@ func TestUsersErrorTypes(t *testing.T) {
 // ======== Additional Tests for Higher Coverage ========
 
 func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -917,6 +953,8 @@ func TestPersonService_LinkToRFIDCard_PersonNotFound(t *testing.T) {
 }
 
 func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -940,6 +978,8 @@ func TestPersonService_LinkToRFIDCard_RFIDNotFound(t *testing.T) {
 }
 
 func TestPersonService_Get_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -956,6 +996,8 @@ func TestPersonService_Get_NotFound(t *testing.T) {
 }
 
 func TestPersonService_Update_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -978,6 +1020,8 @@ func TestPersonService_Update_NotFound(t *testing.T) {
 }
 
 func TestPersonService_Create_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1005,6 +1049,8 @@ func TestPersonService_Create_ValidationError(t *testing.T) {
 // =============================================================================
 
 func TestPersonService_Create_WithRFIDCard(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1058,6 +1104,8 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 }
 
 func TestPersonService_Update_WithChangedAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1123,6 +1171,8 @@ func TestPersonService_Update_WithChangedAccount(t *testing.T) {
 }
 
 func TestPersonService_Update_WithChangedRFID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1196,6 +1246,8 @@ func TestPersonService_Update_WithChangedRFID(t *testing.T) {
 }
 
 func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1221,6 +1273,8 @@ func TestPersonService_LinkToAccount_SamePersonRelink(t *testing.T) {
 }
 
 func TestPersonService_List_WithPagination(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1243,6 +1297,8 @@ func TestPersonService_List_WithPagination(t *testing.T) {
 }
 
 func TestPersonService_Delete_WithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1274,6 +1330,8 @@ func TestPersonService_Delete_WithRelations(t *testing.T) {
 }
 
 func TestPersonService_Get_WithIntID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1299,6 +1357,8 @@ func TestPersonService_Get_WithIntID(t *testing.T) {
 // =============================================================================
 
 func TestUsersError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	t.Run("unwraps the underlying error", func(t *testing.T) {
 		// ARRANGE
 		innerErr := users.ErrPersonNotFound
@@ -1349,6 +1409,8 @@ func TestUsersError_Unwrap(t *testing.T) {
 // row carries group supervisions, and removing it is what staff offboarding
 // does.
 func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1399,6 +1461,8 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 // users:update as well (the user role gets both in migration 1.5.3, admin
 // holds the wildcard).
 func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1453,6 +1517,8 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 // Every role-assignment path refuses the combination from the other direction,
 // and staff creation was the open side of the same door.
 func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraft(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1488,6 +1554,8 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 
 // The edit form must not be the way around the same rule.
 func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraft(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)
@@ -1518,6 +1586,8 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 // A staff member without an account cannot be a Lehrkraft, so the guard must
 // not stand in the way of the ordinary caregiver creation.
 func TestPersonService_CreateStaffWithTeacher_CreatesCaregiverProfileWithoutAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupPersonService(t, db)

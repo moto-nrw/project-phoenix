@@ -62,6 +62,8 @@ func agbPDFBlock(documentURL string) enrollmentModels.FormLegalBlock {
 }
 
 func TestFormSchemaService_CreateSchema_CreatesActive(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -81,6 +83,8 @@ func TestFormSchemaService_CreateSchema_CreatesActive(t *testing.T) {
 }
 
 func TestFormSchemaService_UpdateSchema_KeepsAllVersionsActive(t *testing.T) {
+	t.Parallel()
+
 	// Multi-schema rework (commit 5e29a0dc8): publishing a new version
 	// of the same logical schema no longer deactivates the previous
 	// version. Phases pin schemas by id, so historical versions need to
@@ -111,6 +115,8 @@ func TestFormSchemaService_UpdateSchema_KeepsAllVersionsActive(t *testing.T) {
 }
 
 func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -121,6 +127,8 @@ func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_RejectsCoreFieldKey(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -131,6 +139,8 @@ func TestFormSchemaService_CreateSchema_RejectsCoreFieldKey(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_RejectsDuplicateKey(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -142,6 +152,8 @@ func TestFormSchemaService_CreateSchema_RejectsDuplicateKey(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchemaWithLegal_NormalizesTenantDocumentURL(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/api/public/enrollment-form-legal-documents/%d_terms.pdf", tenantID)
@@ -166,6 +178,8 @@ func TestFormSchemaService_CreateSchemaWithLegal_NormalizesTenantDocumentURL(t *
 }
 
 func TestFormSchemaService_CreateSchemaWithLegal_AcceptsTenantSettingsDocumentURL(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/api/public/enrollment-legal-documents/%d_terms.pdf", tenantID)
@@ -190,6 +204,8 @@ func TestFormSchemaService_CreateSchemaWithLegal_AcceptsTenantSettingsDocumentUR
 }
 
 func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignDocumentURL(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/uploads/enrollment-form-legal-documents/%d_terms.pdf", tenantID+1)
@@ -210,6 +226,8 @@ func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignDocumentURL(t *te
 }
 
 func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignSettingsDocumentURL(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 	documentURL := fmt.Sprintf("/uploads/enrollment-legal-documents/%d_terms.pdf", tenantID+1)
@@ -230,6 +248,8 @@ func TestFormSchemaService_CreateSchemaWithLegal_RejectsForeignSettingsDocumentU
 }
 
 func TestFormSchemaService_CreateSchemaWithLegal_ClearsDocumentURLInTextMode(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 	block := agbPDFBlock(fmt.Sprintf("/uploads/enrollment-form-legal-documents/%d_terms.pdf", tenantID))
@@ -255,6 +275,8 @@ func TestFormSchemaService_CreateSchemaWithLegal_ClearsDocumentURLInTextMode(t *
 }
 
 func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -283,6 +305,8 @@ func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
 }
 
 func TestFormSchemaService_RenameSchema_RenamesWholeLineage(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -310,6 +334,8 @@ func TestFormSchemaService_RenameSchema_RenamesWholeLineage(t *testing.T) {
 }
 
 func TestFormSchemaService_RenameSchema_RejectsCollisionWithOtherSchema(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -327,6 +353,8 @@ func TestFormSchemaService_RenameSchema_RejectsCollisionWithOtherSchema(t *testi
 }
 
 func TestFormSchemaService_RenameSchema_SameNameIsNoOp(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -344,6 +372,8 @@ func TestFormSchemaService_RenameSchema_SameNameIsNoOp(t *testing.T) {
 }
 
 func TestFormSchemaService_RenameSchema_RejectsEmptyName(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -357,6 +387,8 @@ func TestFormSchemaService_RenameSchema_RejectsEmptyName(t *testing.T) {
 }
 
 func TestFormSchemaService_RenameSchema_RejectsNonPositiveID(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -366,6 +398,8 @@ func TestFormSchemaService_RenameSchema_RejectsNonPositiveID(t *testing.T) {
 }
 
 func TestFormSchemaService_RenameSchema_MissingSchemaReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -413,6 +447,8 @@ func (renameExecFailsRepo) RenameByName(context.Context, string, string) error {
 }
 
 func TestFormSchemaService_RenameSchema_LoadErrorIsServerFault(t *testing.T) {
+	t.Parallel()
+
 	_, _, _, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -427,6 +463,8 @@ func TestFormSchemaService_RenameSchema_LoadErrorIsServerFault(t *testing.T) {
 }
 
 func TestFormSchemaService_RenameSchema_ExistsCheckErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	db, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -442,6 +480,8 @@ func TestFormSchemaService_RenameSchema_ExistsCheckErrorPropagates(t *testing.T)
 }
 
 func TestFormSchemaService_RenameSchema_RenameExecErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	db, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -466,6 +506,8 @@ func TestFormSchemaService_RenameSchema_RenameExecErrorPropagates(t *testing.T) 
 // the pre-rename name and insert a new version under it while the rename moves
 // the existing rows — splitting the lineage across two names.
 func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *testing.T) {
+	t.Parallel()
+
 	db, svc, creatorID, tenantID := setupSchemaTest(t)
 
 	field := []enrollmentModels.FormField{
@@ -533,6 +575,8 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 // reserved core-field key (same rejection as
 // TestFormSchemaService_CreateSchema_RejectsCoreFieldKey).
 func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T) {
+	t.Parallel()
+
 	db, svc, creatorID, tenantID := setupSchemaTest(t)
 
 	field := []enrollmentModels.FormField{
@@ -586,6 +630,8 @@ func publishFormFields() []enrollmentModels.FormField {
 }
 
 func TestFormSchemaService_PublishForm_WithNameCreatesNamedSchema(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -602,6 +648,8 @@ func TestFormSchemaService_PublishForm_WithNameCreatesNamedSchema(t *testing.T) 
 }
 
 func TestFormSchemaService_PublishForm_NoNameNoActiveCreatesStandardformular(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -616,6 +664,8 @@ func TestFormSchemaService_PublishForm_NoNameNoActiveCreatesStandardformular(t *
 }
 
 func TestFormSchemaService_PublishForm_NoNameWithActiveUpdatesActive(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -640,6 +690,8 @@ func TestFormSchemaService_PublishForm_NoNameWithActiveUpdatesActive(t *testing.
 }
 
 func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -671,6 +723,8 @@ func TestFormSchemaService_PublishFormVersion_WithNameRenamesAndPublishes(t *tes
 }
 
 func TestFormSchemaService_PublishFormVersion_BlankNameSkipsRename(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
@@ -695,6 +749,8 @@ func TestFormSchemaService_PublishFormVersion_BlankNameSkipsRename(t *testing.T)
 }
 
 func TestFormSchemaService_PublishFormVersion_RenameCollisionWrapsError(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 

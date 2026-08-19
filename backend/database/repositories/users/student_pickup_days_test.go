@@ -34,6 +34,8 @@ func requireStudentsPickupDaysColumn(t *testing.T, db *bun.DB) {
 // plus the legacy pickup_status → pickup_days seeding that keeps old callers and
 // the importer working. Mirrors the bus_days roundtrip coverage.
 func TestStudentRepository_PickupDaysRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).Student

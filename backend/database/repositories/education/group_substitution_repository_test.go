@@ -53,6 +53,8 @@ func cleanupStaffChain(t *testing.T, db *bun.DB, staffID int64) {
 // ============================================================================
 
 func TestGroupSubstitutionRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -107,6 +109,8 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -155,6 +159,8 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 }
 
 func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -185,6 +191,8 @@ func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -213,6 +221,8 @@ func TestGroupSubstitutionRepository_Update(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -242,6 +252,8 @@ func TestGroupSubstitutionRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGroupSubstitutionRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -266,6 +278,8 @@ func TestGroupSubstitutionRepository_List(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -293,6 +307,8 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindByGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -326,6 +342,8 @@ func TestGroupSubstitutionRepository_FindByGroup(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindBySubstituteStaff(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -350,6 +368,8 @@ func TestGroupSubstitutionRepository_FindBySubstituteStaff(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindActive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -376,6 +396,8 @@ func TestGroupSubstitutionRepository_FindActive(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -429,6 +451,8 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindByRegularStaff(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -474,6 +498,8 @@ func TestGroupSubstitutionRepository_FindByRegularStaff(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -531,6 +557,8 @@ func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
 // ============================================================================
 
 func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -562,6 +590,8 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_Update_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -579,6 +609,8 @@ func TestGroupSubstitutionRepository_Update_Validation(t *testing.T) {
 // ============================================================================
 
 func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -674,6 +706,8 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 // ============================================================================
 
 func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -745,6 +779,8 @@ func TestGroupSubstitutionRepository_FindByIDWithRelations(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -800,6 +836,8 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindActiveWithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -839,6 +877,8 @@ func TestGroupSubstitutionRepository_FindActiveWithRelations(t *testing.T) {
 }
 
 func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution
@@ -870,6 +910,8 @@ func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *test
 }
 
 func TestGroupSubstitutionRepository_FindActiveByGroupWithRelations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).GroupSubstitution

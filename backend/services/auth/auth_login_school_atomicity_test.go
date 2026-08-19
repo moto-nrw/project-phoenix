@@ -33,6 +33,8 @@ const portalBindingJWTSecret = "portal-binding-test-secret-please-ignore"
 // the rotation rolls the rotation back with it, so the token the client still
 // holds keeps working the moment access is restored.
 func TestRefreshToken_SchoolScope_RoleRevoked_LeavesRefreshTokenUsable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -72,6 +74,8 @@ func TestRefreshToken_SchoolScope_RoleRevoked_LeavesRefreshTokenUsable(t *testin
 // switch-off both failed AND burned the token: reactivating the school left
 // every session dead anyway.
 func TestRefreshToken_SchoolScope_InactiveSchool_LeavesRefreshTokenUsable(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
 	ctx := context.Background()
@@ -110,6 +114,8 @@ func TestRefreshToken_SchoolScope_InactiveSchool_LeavesRefreshTokenUsable(t *tes
 // code, which would mint a tenant session off a second factor issued for the
 // school portal.
 func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

@@ -12,6 +12,8 @@ import (
 )
 
 func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
@@ -49,6 +51,8 @@ func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 }
 
 func TestAssignRoleToAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
@@ -110,6 +114,8 @@ func caregiverSystemRoleID(t *testing.T, db *bun.DB) int64 {
 }
 
 func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithoutProfile(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
@@ -135,6 +141,8 @@ func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithoutProfile(t *t
 }
 
 func TestAssignRoleToAccount_AllowsCaregiverRoleOnceProfileExists(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
@@ -166,6 +174,8 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleOnceProfileExists(t *testing.T) 
 }
 
 func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
@@ -182,6 +192,8 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
 }
 
 func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -233,6 +245,8 @@ func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) 
 // so linking it as Lehrkraft would revive a live caregiver profile and its group
 // supervisions under a JWT that only holds class_day permissions.
 func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)
@@ -257,6 +271,8 @@ func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 // The same path with no caregiver profile in the way is the ordinary case and
 // must keep working — the guard is about the profile, not about the role.
 func TestLinkSchoolAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupInternalAuthService(t, db)

@@ -18,6 +18,8 @@ import (
 )
 
 func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	repos := repositories.NewFactory(tc.db)
 	tc.resource.StudentDeletionService = usersService.NewStudentDeletionService(

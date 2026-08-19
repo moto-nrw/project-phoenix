@@ -124,6 +124,8 @@ func careParams() Params {
 }
 
 func TestBetreuungsplanRendersBlockRoomStaffAndChildren(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
 		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7), instanceStaff(11, 8)},
@@ -142,6 +144,8 @@ func TestBetreuungsplanRendersBlockRoomStaffAndChildren(t *testing.T) {
 }
 
 func TestBetreuungsplanShowsStaffRoomOverride(t *testing.T) {
+	t.Parallel()
+
 	overridden := instanceStaff(11, 8)
 	overridden.RoomID = ptr(int64(4))
 	service, renderer := newBetreuungsplanService(
@@ -162,6 +166,8 @@ func TestBetreuungsplanShowsStaffRoomOverride(t *testing.T) {
 // case StaffScheduleOverview cannot see, which is why the care plan reads
 // the instances directly.
 func TestBetreuungsplanShowsBlockWithoutStaff(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(14, 30), clock(15, 30), "Lernzeit", 4)},
 		nil,
@@ -180,6 +186,8 @@ func TestBetreuungsplanShowsBlockWithoutStaff(t *testing.T) {
 // A cancelled block stays on the sheet — "entfällt" is what the reader came
 // for — but its reason is internal.
 func TestBetreuungsplanCancelledBlockHidesReasonOnNotice(t *testing.T) {
+	t.Parallel()
+
 	cancelled := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 	cancelled.Status = scheduleModel.InstanceStatusCancelled
 	cancelled.CancelReason = ptr("Personalmangel")
@@ -214,6 +222,8 @@ func TestBetreuungsplanCancelledBlockHidesReasonOnNotice(t *testing.T) {
 // Absent staff are not at the block: the wall sheet drops them, the internal
 // one marks them.
 func TestBetreuungsplanAbsentStaffOnlyMarkedInternally(t *testing.T) {
+	t.Parallel()
+
 	absent := instanceStaff(11, 8)
 	absent.IsAbsent = true
 
@@ -246,6 +256,8 @@ func TestBetreuungsplanAbsentStaffOnlyMarkedInternally(t *testing.T) {
 
 // Rows read down the day, the way the hand-kept Excel sheets do.
 func TestBetreuungsplanOrdersOfferingsByEarliestStart(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{
 			instance(12, monday, clock(14, 30), clock(15, 30), "Lernzeit", 4),
@@ -274,6 +286,8 @@ func TestBetreuungsplanOrdersOfferingsByEarliestStart(t *testing.T) {
 // happen to share a name are two rows, or the sheet prints one row that is
 // neither of them.
 func TestBetreuungsplanKeepsSameNamedOfferingsApart(t *testing.T) {
+	t.Parallel()
+
 	first := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 	first.ActivityGroupID = ptr(int64(41))
 	second := instance(12, monday, clock(13, 0), clock(14, 0), "Mensa", 4)
@@ -304,6 +318,8 @@ func TestBetreuungsplanKeepsSameNamedOfferingsApart(t *testing.T) {
 // A spontaneous block has no Angebot to be identified by, so its repeats
 // across the week still collect into one row.
 func TestBetreuungsplanGroupsSpontaneousBlocksByTitle(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{
 			instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3),
@@ -319,6 +335,8 @@ func TestBetreuungsplanGroupsSpontaneousBlocksByTitle(t *testing.T) {
 
 // What somebody wrote about the day belongs to the team, not to the wall.
 func TestBetreuungsplanNoteOnlyOnInternalSheet(t *testing.T) {
+	t.Parallel()
+
 	noted := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 	noted.Notes = ptr("Zweite Gruppe isst später")
 
@@ -348,6 +366,8 @@ func TestBetreuungsplanNoteOnlyOnInternalSheet(t *testing.T) {
 // A cancelled block keeps its note too — the internal sheet is where anyone
 // finds out what actually happened that day.
 func TestBetreuungsplanCancelledBlockKeepsNoteInternally(t *testing.T) {
+	t.Parallel()
+
 	cancelled := instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)
 	cancelled.Status = scheduleModel.InstanceStatusCancelled
 	cancelled.Notes = ptr("Ersatz in Gruppenraum 1")
@@ -368,6 +388,8 @@ func TestBetreuungsplanCancelledBlockKeepsNoteInternally(t *testing.T) {
 // The care plan accepts only its own template; asking for the staff layout
 // is a client error, not a silently different document.
 func TestBetreuungsplanRejectsForeignTemplate(t *testing.T) {
+	t.Parallel()
+
 	service, _ := newBetreuungsplanService(nil, nil, nil)
 	params := careParams()
 	params.Template = TemplateByPerson

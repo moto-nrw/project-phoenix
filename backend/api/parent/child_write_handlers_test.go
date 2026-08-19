@@ -124,6 +124,8 @@ type envelope struct {
 }
 
 func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -148,6 +150,8 @@ func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 }
 
 func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	router := newWriteRouter(t, db)
 
@@ -156,6 +160,8 @@ func TestWriteEndpoints_RejectMissingToken(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -175,6 +181,8 @@ func TestSickNoteEndpoint_ForbidsNonOwnedChild(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -187,6 +195,8 @@ func TestSickNoteEndpoint_RejectsEmptyDates(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsBadStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	router := newWriteRouter(t, db)
 	token := parentToken(t, 12345)
@@ -218,6 +228,8 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 }
 
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newDisabledWriteRouter(t, db)
@@ -230,6 +242,8 @@ func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -243,6 +257,8 @@ func TestSickNoteEndpoint_RejectsBadDateRange(t *testing.T) {
 }
 
 func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -259,6 +275,8 @@ func TestSickNoteEndpoint_RejectsInvalidBody(t *testing.T) {
 // picks "Termin/Abwesenheit" sends status="excused", and the API stores and
 // returns an excused status day (not a Krankmeldung).
 func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -288,6 +306,8 @@ func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 // gated path (#1845 review). The freshly created request is discovered via the
 // excused-requests list endpoint the parent UI refetches after a submit.
 func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouterWithSettings(t, db, excusedApprovalOnSettings{})
@@ -325,6 +345,8 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 // TestSickNoteEndpoint_ExcusedRequiresNote covers AC2 at the HTTP boundary: an
 // excused submission with a blank note is rejected.
 func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -339,6 +361,8 @@ func TestSickNoteEndpoint_ExcusedRequiresNote(t *testing.T) {
 // TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted pins the status default:
 // a client that omits "status" still files a Krankmeldung.
 func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -363,6 +387,8 @@ func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 // {status_days, ...} object. A parent tab loaded before this deploy calls .map()
 // on the response, so an object here would crash it.
 func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)
@@ -390,6 +416,8 @@ func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
 // renderParentWriteError: a status that is neither sick nor excused is a 400 at
 // the API boundary, never silently coerced.
 func TestSickNoteEndpoint_RejectsInvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	router := newWriteRouter(t, db)

@@ -15,6 +15,8 @@ import (
 )
 
 func TestOperatorAuditLogRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platform.NewOperatorAuditLogRepository(db)

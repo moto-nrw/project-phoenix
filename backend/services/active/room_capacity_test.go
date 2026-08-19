@@ -20,6 +20,8 @@ type capacityRoomRepository struct {
 }
 
 func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T) {
+	t.Parallel()
+
 	capacity := 1
 	roomRepo := &capacityRoomRepository{room: &facilityModels.Room{
 		Model:    base.Model{ID: 12},
@@ -57,6 +59,8 @@ func (r *capacityRoomRepository) FindByIDForUpdate(_ context.Context, id int64) 
 }
 
 func TestEnsureRoomCapacity(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("allows rooms without a limit", func(t *testing.T) {

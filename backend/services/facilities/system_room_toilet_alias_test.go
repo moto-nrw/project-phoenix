@@ -13,6 +13,8 @@ import (
 )
 
 func TestFacilitiesService_ToiletteAliasSystemProtection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -54,6 +56,8 @@ func TestFacilitiesService_ToiletteAliasSystemProtection(t *testing.T) {
 }
 
 func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)
@@ -84,6 +88,8 @@ func TestFacilitiesService_CreateRoom_RejectsWCRoomAliasDuplicates(t *testing.T)
 }
 
 func TestFacilitiesService_UpdateRoom_RejectsWCRoomAliasDuplicates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupFacilitiesService(t, db)

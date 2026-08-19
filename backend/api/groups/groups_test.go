@@ -97,6 +97,8 @@ func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 // =============================================================================
 
 func TestListGroups_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test education group fixture
@@ -110,6 +112,8 @@ func TestListGroups_Success(t *testing.T) {
 }
 
 func TestListGroups_WithNameFilter(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group fixture
@@ -123,6 +127,8 @@ func TestListGroups_WithNameFilter(t *testing.T) {
 }
 
 func TestListGroups_WithPagination(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups?page=1&page_size=10", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -132,6 +138,8 @@ func TestListGroups_WithPagination(t *testing.T) {
 }
 
 func TestListGroups_WithoutPermission(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups", nil, testutil.DefaultTestClaims())
@@ -145,6 +153,8 @@ func TestListGroups_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestGetGroup_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group fixture
@@ -163,6 +173,8 @@ func TestGetGroup_Success(t *testing.T) {
 }
 
 func TestGetGroup_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/999999", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -172,6 +184,8 @@ func TestGetGroup_NotFound(t *testing.T) {
 }
 
 func TestGetGroup_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/invalid", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -181,6 +195,8 @@ func TestGetGroup_InvalidID(t *testing.T) {
 }
 
 func TestGetGroup_WithoutPermission(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "PermTest")
@@ -197,6 +213,8 @@ func TestGetGroup_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestCreateGroup_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Use unique name to avoid conflicts with seeded data
@@ -218,6 +236,8 @@ func TestCreateGroup_Success(t *testing.T) {
 }
 
 func TestCreateGroup_WithRoom(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create a room first
@@ -244,6 +264,8 @@ func TestCreateGroup_WithRoom(t *testing.T) {
 }
 
 func TestCreateGroup_MissingName(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{} // Missing name
@@ -255,6 +277,8 @@ func TestCreateGroup_MissingName(t *testing.T) {
 }
 
 func TestCreateGroup_WithoutPermission(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -272,6 +296,8 @@ func TestCreateGroup_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestUpdateGroup_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group with unique name
@@ -296,6 +322,8 @@ func TestUpdateGroup_Success(t *testing.T) {
 }
 
 func TestUpdateGroup_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -309,6 +337,8 @@ func TestUpdateGroup_NotFound(t *testing.T) {
 }
 
 func TestUpdateGroup_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -322,6 +352,8 @@ func TestUpdateGroup_InvalidID(t *testing.T) {
 }
 
 func TestUpdateGroup_WithoutPermission(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoPermUpdate")
@@ -342,6 +374,8 @@ func TestUpdateGroup_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestDeleteGroup_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group to delete
@@ -355,6 +389,8 @@ func TestDeleteGroup_Success(t *testing.T) {
 }
 
 func TestDeleteGroup_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "DELETE", "/groups/999999", nil, testutil.DefaultTestClaims(), "groups:delete")
@@ -364,6 +400,8 @@ func TestDeleteGroup_NotFound(t *testing.T) {
 }
 
 func TestDeleteGroup_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "DELETE", "/groups/invalid", nil, testutil.DefaultTestClaims(), "groups:delete")
@@ -373,6 +411,8 @@ func TestDeleteGroup_InvalidID(t *testing.T) {
 }
 
 func TestDeleteGroup_ConflictWithStudents(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "GroupWithStudents")
@@ -397,6 +437,8 @@ func TestDeleteGroup_ConflictWithStudents(t *testing.T) {
 }
 
 func TestDeleteGroup_WithoutPermission(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "NoPermDelete")
@@ -413,6 +455,8 @@ func TestDeleteGroup_WithoutPermission(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudents_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
@@ -426,6 +470,8 @@ func TestGetGroupStudents_Success(t *testing.T) {
 }
 
 func TestGetGroupStudents_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/999999/students", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -435,6 +481,8 @@ func TestGetGroupStudents_NotFound(t *testing.T) {
 }
 
 func TestGetGroupStudents_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/invalid/students", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -448,6 +496,8 @@ func TestGetGroupStudents_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupSupervisors_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
@@ -461,6 +511,8 @@ func TestGetGroupSupervisors_Success(t *testing.T) {
 }
 
 func TestGetGroupSupervisors_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/999999/supervisors", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -474,6 +526,8 @@ func TestGetGroupSupervisors_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupSubstitutions_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
@@ -487,6 +541,8 @@ func TestGetGroupSubstitutions_Success(t *testing.T) {
 }
 
 func TestGetGroupSubstitutions_WithDate(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
@@ -500,6 +556,8 @@ func TestGetGroupSubstitutions_WithDate(t *testing.T) {
 }
 
 func TestGetGroupSubstitutions_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/999999/substitutions", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -513,6 +571,8 @@ func TestGetGroupSubstitutions_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudentsRoomStatus_RequiresSupervisor(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
@@ -528,6 +588,8 @@ func TestGetGroupStudentsRoomStatus_RequiresSupervisor(t *testing.T) {
 }
 
 func TestGetGroupStudentsRoomStatus_NotFound(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/999999/students/room-status", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -537,6 +599,8 @@ func TestGetGroupStudentsRoomStatus_NotFound(t *testing.T) {
 }
 
 func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/invalid/students/room-status", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -550,6 +614,8 @@ func TestGetGroupStudentsRoomStatus_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	router := tc.resource.Router()
 	require.NotNil(t, router, "Router should return a valid chi.Router")
@@ -560,6 +626,8 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudents_WithStudent(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
@@ -589,6 +657,8 @@ func TestGetGroupStudents_WithStudent(t *testing.T) {
 // =============================================================================
 
 func TestCreateGroup_EmptyName(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	body := map[string]interface{}{
@@ -602,6 +672,8 @@ func TestCreateGroup_EmptyName(t *testing.T) {
 }
 
 func TestCreateGroup_WithDescription(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Use unique name to avoid conflicts
@@ -628,6 +700,8 @@ func TestCreateGroup_WithDescription(t *testing.T) {
 // =============================================================================
 
 func TestUpdateGroup_WithRoom(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group and room
@@ -649,6 +723,8 @@ func TestUpdateGroup_WithRoom(t *testing.T) {
 }
 
 func TestUpdateGroup_EmptyName(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "EmptyNameUpdateTest")
@@ -669,6 +745,8 @@ func TestUpdateGroup_EmptyName(t *testing.T) {
 // =============================================================================
 
 func TestListGroups_InvalidPagination(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	// Test with invalid page number
@@ -680,6 +758,8 @@ func TestListGroups_InvalidPagination(t *testing.T) {
 }
 
 func TestListGroups_LargePageSize(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups?page_size=1000", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -694,6 +774,8 @@ func TestListGroups_LargePageSize(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupSupervisors_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/invalid/supervisors", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -707,6 +789,8 @@ func TestGetGroupSupervisors_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupSubstitutions_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupProtectedRouter(t)
 
 	req := newReq(t, "GET", "/groups/invalid/substitutions", nil, testutil.DefaultTestClaims(), "groups:read")
@@ -716,6 +800,8 @@ func TestGetGroupSubstitutions_InvalidID(t *testing.T) {
 }
 
 func TestGetGroupSubstitutions_InvalidDate(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "InvalidDateTest")
@@ -748,6 +834,8 @@ func setupTransferRouter(t *testing.T) (*testContext, chi.Router) {
 }
 
 func TestTransferGroup_RequiresTeacher(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferTest")
@@ -765,6 +853,8 @@ func TestTransferGroup_RequiresTeacher(t *testing.T) {
 }
 
 func TestTransferGroup_InvalidGroupID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupTransferRouter(t)
 
 	body := map[string]interface{}{
@@ -778,6 +868,8 @@ func TestTransferGroup_InvalidGroupID(t *testing.T) {
 }
 
 func TestTransferGroup_MissingTargetUserID(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "TransferMissingTarget")
@@ -802,6 +894,8 @@ func TestTransferGroup_MissingTargetUserID(t *testing.T) {
 }
 
 func TestCancelSpecificTransfer_RequiresTeacher(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelTransferTest")
@@ -815,6 +909,8 @@ func TestCancelSpecificTransfer_RequiresTeacher(t *testing.T) {
 }
 
 func TestCancelSpecificTransfer_InvalidGroupID(t *testing.T) {
+	t.Parallel()
+
 	_, router := setupTransferRouter(t)
 
 	req := newReq(t, "DELETE", "/groups/invalid/transfer/1", nil, testutil.DefaultTestClaims())
@@ -824,6 +920,8 @@ func TestCancelSpecificTransfer_InvalidGroupID(t *testing.T) {
 }
 
 func TestCancelSpecificTransfer_InvalidSubstitutionID(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CancelInvalidSubst")
@@ -840,6 +938,8 @@ func TestCancelSpecificTransfer_InvalidSubstitutionID(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group with a room
@@ -872,6 +972,8 @@ func TestGetGroupStudentsRoomStatus_WithAdmin(t *testing.T) {
 }
 
 func TestGetGroupStudentsRoomStatus_NoRoomAssigned(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group without room
@@ -895,6 +997,8 @@ func TestGetGroupStudentsRoomStatus_NoRoomAssigned(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudents_WithFullAccessAdmin(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create test group
@@ -930,6 +1034,8 @@ func TestGetGroupStudents_WithFullAccessAdmin(t *testing.T) {
 // =============================================================================
 
 func TestListGroups_WithRoomIDFilter(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create room
@@ -959,6 +1065,8 @@ func TestListGroups_WithRoomIDFilter(t *testing.T) {
 // =============================================================================
 
 func TestCreateGroup_WithTeacherIDs(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create a teacher
@@ -988,6 +1096,8 @@ func TestCreateGroup_WithTeacherIDs(t *testing.T) {
 // =============================================================================
 
 func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "UpdateTeachersTest")
@@ -1012,6 +1122,8 @@ func TestUpdateGroup_WithTeacherIDs(t *testing.T) {
 // =============================================================================
 
 func TestTransferGroup_AsGroupLeader_Success(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group
@@ -1042,6 +1154,8 @@ func TestTransferGroup_AsGroupLeader_Success(t *testing.T) {
 }
 
 func TestTransferGroup_NotGroupLeader(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group
@@ -1069,6 +1183,8 @@ func TestTransferGroup_NotGroupLeader(t *testing.T) {
 }
 
 func TestTransferGroup_CannotTransferToSelf(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group
@@ -1100,6 +1216,8 @@ func TestTransferGroup_CannotTransferToSelf(t *testing.T) {
 // =============================================================================
 
 func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupProtectedRouter(t)
 
 	// Create group with room
@@ -1143,6 +1261,8 @@ func TestGetGroupStudentsRoomStatus_WithSubstitution(t *testing.T) {
 // =============================================================================
 
 func TestCancelSpecificTransfer_AsGroupLeader(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group
@@ -1173,6 +1293,8 @@ func TestCancelSpecificTransfer_AsGroupLeader(t *testing.T) {
 }
 
 func TestCancelSpecificTransfer_NotFound(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group
@@ -1199,6 +1321,8 @@ func TestCancelSpecificTransfer_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestTransferGroup_TargetNotStaff(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group
@@ -1240,6 +1364,8 @@ func TestTransferGroup_TargetNotStaff(t *testing.T) {
 }
 
 func TestTransferGroup_TargetNotFound(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group
@@ -1266,6 +1392,8 @@ func TestTransferGroup_TargetNotFound(t *testing.T) {
 }
 
 func TestTransferGroup_DuplicateTransfer(t *testing.T) {
+	t.Parallel()
+
 	tc, router := setupTransferRouter(t)
 
 	// Create group

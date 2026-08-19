@@ -32,6 +32,8 @@ func (r *recordingOfferingResyncer) ResyncOfferingSourcedTemplates(_ context.Con
 // lock runs too, so the ordering contract (gate before row locks, inside the
 // tenant transaction) is exercised, not just stubbed.
 func TestUpdateStudent_ClassChangeResyncsOfferingSourcedTemplates(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	rec := &recordingOfferingResyncer{}
 	tc.resource.OfferingSourceResyncer = rec

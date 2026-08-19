@@ -18,6 +18,8 @@ import (
 // =============================================================================
 
 func TestGetStudentCurrentLocation(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Test", "LT1")
@@ -40,6 +42,8 @@ func TestGetStudentCurrentLocation(t *testing.T) {
 }
 
 func TestGetStudentCurrentLocation_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("returns_absent_for_student_without_visit", func(t *testing.T) {
@@ -61,6 +65,8 @@ func TestGetStudentCurrentLocation_Extended(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentCurrentVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Test", "VT1")
@@ -83,6 +89,8 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("returns_null_when_no_visit", func(t *testing.T) {
@@ -103,6 +111,8 @@ func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentVisitHistory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "History", "Test", "HT1")
@@ -124,6 +134,8 @@ func TestGetStudentVisitHistory(t *testing.T) {
 }
 
 func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Test", "DR1")
@@ -145,6 +157,8 @@ func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
 }
 
 func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create a student with an active visit to test visit history
@@ -165,6 +179,8 @@ func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req := testutil.NewRequest("GET", "/invalid/in-group-room", nil)
@@ -174,6 +190,8 @@ func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req := testutil.NewRequest("GET", "/999999/in-group-room", nil)
@@ -183,6 +201,8 @@ func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Test", "GR1")
@@ -197,6 +217,8 @@ func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("student_no_educational_group", func(t *testing.T) {
@@ -248,6 +270,8 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create teacher and group
@@ -300,6 +324,8 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("student_in_group_room", func(t *testing.T) {
@@ -379,6 +405,8 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 }
 
 func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("student_checked_in_with_room", func(t *testing.T) {
@@ -454,6 +482,8 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("returns_current_visit", func(t *testing.T) {

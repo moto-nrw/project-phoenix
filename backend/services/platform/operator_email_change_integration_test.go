@@ -96,6 +96,10 @@ func insertRawToken(t *testing.T, db *bun.DB, operatorID int64, newEmail string,
 // Rate Limit Counting Tests
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_RateLimitCounting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -120,6 +124,10 @@ func TestIntegration_EmailChange_RateLimitCounting(t *testing.T) {
 	assert.Equal(t, 4, count, "rate limit should count all tokens regardless of used status")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_RateLimitIgnoresOldTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -152,6 +160,10 @@ func TestIntegration_EmailChange_RateLimitIgnoresOldTokens(t *testing.T) {
 // Token Consumption Tests
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_ConsumeToken_Success(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -190,6 +202,10 @@ func TestIntegration_EmailChange_ConsumeToken_Success(t *testing.T) {
 	assert.Nil(t, consumed2, "token should not be consumable twice")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_ConsumeToken_Expired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -217,6 +233,10 @@ func TestIntegration_EmailChange_ConsumeToken_Expired(t *testing.T) {
 	assert.Nil(t, consumed, "expired token should not be consumable")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_ConsumeToken_InvalidToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -232,6 +252,10 @@ func TestIntegration_EmailChange_ConsumeToken_InvalidToken(t *testing.T) {
 // Partial Unique Index Tests
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_UniqueIndex_OneActivePerOperator(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -267,6 +291,10 @@ func TestIntegration_EmailChange_UniqueIndex_OneActivePerOperator(t *testing.T) 
 	require.Error(t, err, "second active token should violate the partial unique index")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_UniqueIndex_AllowsAfterInvalidation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -310,6 +338,10 @@ func TestIntegration_EmailChange_UniqueIndex_AllowsAfterInvalidation(t *testing.
 // Cleanup Job Tests
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Cleanup_InvalidateExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -348,6 +380,10 @@ func TestIntegration_EmailChange_Cleanup_InvalidateExpired(t *testing.T) {
 	assert.True(t, used, "expired token should be marked as used after invalidation")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Cleanup_DeleteStaleTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -381,6 +417,10 @@ func TestIntegration_EmailChange_Cleanup_DeleteStaleTokens(t *testing.T) {
 	assert.Equal(t, 0, count, "stale token should be deleted")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Cleanup_PreservesRecentTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -420,6 +460,10 @@ func TestIntegration_EmailChange_Cleanup_PreservesRecentTokens(t *testing.T) {
 // Service-Level Integration Tests (InitiateEmailChange / ConfirmEmailChange)
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_InitiateAndConfirm_HappyPath(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -480,6 +524,10 @@ func TestIntegration_EmailChange_InitiateAndConfirm_HappyPath(t *testing.T) {
 	assert.Equal(t, 1, confirmAuditCount, "should have audit log for confirmation")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Initiate_WrongPassword(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -496,6 +544,10 @@ func TestIntegration_EmailChange_Initiate_WrongPassword(t *testing.T) {
 	assert.ErrorAs(t, err, &pwErr)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Initiate_SameEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -512,6 +564,10 @@ func TestIntegration_EmailChange_Initiate_SameEmail(t *testing.T) {
 	assert.ErrorAs(t, err, &sameErr)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Initiate_EmailAlreadyInUse(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -541,6 +597,10 @@ func TestIntegration_EmailChange_Initiate_EmailAlreadyInUse(t *testing.T) {
 	assert.Equal(t, 0, tokenCount, "no token should be created when email is already taken")
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Initiate_RateLimit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -565,6 +625,10 @@ func TestIntegration_EmailChange_Initiate_RateLimit(t *testing.T) {
 	assert.ErrorAs(t, err, &rlErr)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Confirm_InvalidToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -578,6 +642,10 @@ func TestIntegration_EmailChange_Confirm_InvalidToken(t *testing.T) {
 	assert.ErrorAs(t, err, &tokenErr)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Confirm_EmailTakenBetweenInitiateAndConfirm(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -620,6 +688,10 @@ func TestIntegration_EmailChange_Confirm_EmailTakenBetweenInitiateAndConfirm(t *
 	assert.ErrorAs(t, err, &inUseErr)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -672,6 +744,10 @@ func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 // Service-Level Cleanup Tests
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -732,6 +808,10 @@ func TestIntegration_EmailChange_Cleanup_ServiceLevel(t *testing.T) {
 // Inactive Operator Tests
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Initiate_InactiveOperator(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -752,6 +832,10 @@ func TestIntegration_EmailChange_Initiate_InactiveOperator(t *testing.T) {
 	assert.ErrorAs(t, err, &inactiveErr)
 }
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Confirm_InactiveOperator(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -792,6 +876,10 @@ func TestIntegration_EmailChange_Confirm_InactiveOperator(t *testing.T) {
 // Email Validation Tests
 // =============================================================================
 
+// Deliberately NOT parallel: platform announcements and operators are
+// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
+// count rows the whole clone shares, so two of these tests running side by
+// side see each other's data.
 func TestIntegration_EmailChange_Initiate_InvalidEmailFormat(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 

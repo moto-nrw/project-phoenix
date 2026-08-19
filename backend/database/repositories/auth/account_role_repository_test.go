@@ -17,6 +17,8 @@ import (
 // ============================================================================
 
 func TestAccountRoleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -46,6 +48,8 @@ func TestAccountRoleRepository_Create(t *testing.T) {
 }
 
 func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -87,6 +91,8 @@ func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -123,6 +129,8 @@ func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
 }
 
 func TestAccountRoleRepository_FindByAccountAndRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -156,6 +164,8 @@ func TestAccountRoleRepository_FindByAccountAndRole(t *testing.T) {
 // ============================================================================
 
 func TestAccountRoleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -196,6 +206,8 @@ func TestAccountRoleRepository_Update(t *testing.T) {
 // ============================================================================
 
 func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -233,10 +245,12 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 // (#1021): revoking access at one school must never touch the same account's
 // role assignments at another school.
 func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
-	const otherTenantID int64 = 1021003
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
 	t.Run("deletes only the assignment of the given school", func(t *testing.T) {
@@ -274,6 +288,8 @@ func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
 }
 
 func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -313,6 +329,8 @@ func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 }
 
 func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole
@@ -358,6 +376,8 @@ func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
 // ============================================================================
 
 func TestAccountRoleRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).AccountRole

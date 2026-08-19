@@ -141,6 +141,8 @@ func (p overviewPayload) names() []string {
 // Berechtigung: the overview lists names of children and colleagues, so it
 // stays behind users:read like the rest of the directory.
 func TestOverviewRequiresUsersRead(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-overview@example.com")
 
@@ -161,6 +163,8 @@ func TestOverviewRequiresUsersRead(t *testing.T) {
 }
 
 func TestOverviewRejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req, err := http.NewRequest("GET", "/", nil)
@@ -173,6 +177,8 @@ func TestOverviewRejectsUnauthenticated(t *testing.T) {
 // A child with today's birth date appears with the age it reaches; a child
 // without a stored date simply is not in the list (AK 5).
 func TestOverviewListsTodaysChildren(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
@@ -206,6 +212,8 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 // The school switch is a real switch: off means the dashboard shows nothing,
 // not "everything anyway".
 func TestOverviewDisabledReturnsNothing(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, false)
 
@@ -226,6 +234,8 @@ func TestOverviewDisabledReturnsNothing(t *testing.T) {
 // Datenschutz: staff birthdays appear only when the school opted in, and never
 // for someone who opted out personally.
 func TestOverviewStaffVisibility(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
@@ -279,6 +289,8 @@ func TestOverviewStaffVisibility(t *testing.T) {
 
 // The opt-out is self-service and acts on the caller's own row.
 func TestOptOutRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Clara", "Selbst")
@@ -307,6 +319,8 @@ func TestOptOutRoundTrip(t *testing.T) {
 // An account without a staff record has nothing to opt out of — a 404, not a
 // 500 and not a silent success.
 func TestOptOutWithoutStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-no-staff@example.com")
 
@@ -320,6 +334,8 @@ func TestOptOutWithoutStaffRecord(t *testing.T) {
 // Berechtigung: the staff list reveals full birth dates, so users:read is not
 // enough — it needs the permission that opens the Stammdaten behind it.
 func TestStaffExportPermissionGate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 
@@ -348,6 +364,8 @@ func TestStaffExportPermissionGate(t *testing.T) {
 // A month filter outside 01..12 is a client mistake, not a silent full-year
 // export.
 func TestStaffExportRejectsInvalidMonth(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export-month@example.com")
 
@@ -364,6 +382,8 @@ func TestStaffExportRejectsInvalidMonth(t *testing.T) {
 // school — the route applies the same student read gate as every other child
 // list, so an account without a staff record sees nothing.
 func TestOverviewAppliesStudentDataScope(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 

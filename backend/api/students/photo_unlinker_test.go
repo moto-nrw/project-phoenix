@@ -18,11 +18,15 @@ import (
 )
 
 func TestPhotoUnlinker_EmptyURLNoOp(t *testing.T) {
+	t.Parallel()
+
 	u := NewPhotoUnlinker(slog.Default())
 	require.NotPanics(t, func() { u.UnlinkStored("") })
 }
 
 func TestPhotoUnlinker_InvalidPrefixLogged(t *testing.T) {
+	t.Parallel()
+
 	// Capture warning output so we pin that the path is logged and *not*
 	// returned. ResolveStoredPath rejects a URL outside the canonical
 	// student-photo prefix.
@@ -37,6 +41,8 @@ func TestPhotoUnlinker_InvalidPrefixLogged(t *testing.T) {
 }
 
 func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	u := NewPhotoUnlinker(logger)
@@ -49,6 +55,8 @@ func TestPhotoUnlinker_TraversalRejected(t *testing.T) {
 }
 
 func TestPhotoUnlinker_NilLoggerSafe(t *testing.T) {
+	t.Parallel()
+
 	u := NewPhotoUnlinker(nil)
 	require.NotPanics(t, func() {
 		u.UnlinkStored("/uploads/not-student-photos/abc.jpg")

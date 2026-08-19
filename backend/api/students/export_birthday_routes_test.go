@@ -47,6 +47,8 @@ func birthdayExportClaims(tb testing.TB, accountID int64) jwt.AppClaims {
 // Berechtigung: the birthday list carries personal data, so it must stay behind
 // the same users:read gate as every other student export.
 func TestBirthdayExportRequiresUsersReadPermission(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
@@ -72,6 +74,8 @@ func TestBirthdayExportRequiresUsersReadPermission(t *testing.T) {
 }
 
 func TestBirthdayExportRejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	body := `{"format":"xlsx","preset":"birthday_list"}`
@@ -83,6 +87,8 @@ func TestBirthdayExportRejectsUnauthenticated(t *testing.T) {
 // Leere Ergebnisse: a month nobody was born in must still produce a valid,
 // downloadable document rather than an error or a zero-byte body.
 func TestBirthdayExportEmptyResultStillRendersDocument(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
@@ -106,6 +112,8 @@ func TestBirthdayExportEmptyResultStillRendersDocument(t *testing.T) {
 // An unknown month must fail loudly. Silently ignoring it would hand the user a
 // list that looks complete while covering the wrong period.
 func TestBirthdayExportRejectsInvalidMonth(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
 	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)

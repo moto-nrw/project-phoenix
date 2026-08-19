@@ -18,6 +18,10 @@ import (
 // schoolCounter ensures unique school slugs/subdomains across concurrent test runs.
 var schoolCounter int64
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementViewRepository_GetViewDetails(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -437,6 +441,10 @@ func pgInt64Array(vals []int64) string {
 
 // --- Test: MarkSeen ---
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementViewRepository_MarkSeen(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -470,6 +478,10 @@ func TestAnnouncementViewRepository_MarkSeen(t *testing.T) {
 
 // --- Test: MarkDismissed ---
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -508,6 +520,10 @@ func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 
 // --- Test: GetUnreadForUser ---
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -816,6 +832,10 @@ func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -951,6 +971,10 @@ func TestAnnouncementViewRepository_RecipientBaseline(t *testing.T) {
 
 // --- Test: CountUnread ---
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
@@ -1119,6 +1143,10 @@ func TestAnnouncementViewRepository_CountUnread(t *testing.T) {
 
 // --- Test: GetStats ---
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementViewRepository_GetStats(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 

@@ -92,6 +92,8 @@ func mintNoPermissionToken(t *testing.T, accountID int64) string {
 // ============================================================================
 
 func TestGradeTransitionResource_List(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create test account and transitions
@@ -201,6 +203,8 @@ func TestGradeTransitionResource_List(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_Create(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "create-test@example.com")
@@ -297,6 +301,8 @@ func TestGradeTransitionResource_Create(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_GetByID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "getbyid-test@example.com")
@@ -348,6 +354,8 @@ func TestGradeTransitionResource_GetByID(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_Update(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "update-test@example.com")
@@ -415,6 +423,8 @@ func TestGradeTransitionResource_Update(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_Delete(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "delete-test@example.com")
@@ -462,6 +472,8 @@ func TestGradeTransitionResource_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_Preview(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "preview-test@example.com")
@@ -512,6 +524,8 @@ func TestGradeTransitionResource_Preview(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_Apply(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "apply-test@example.com")
@@ -638,6 +652,8 @@ func TestGradeTransitionResource_Apply(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_Revert(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "revert-test@example.com")
@@ -756,6 +772,8 @@ func TestGradeTransitionResource_Revert(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_GetDistinctClasses(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "classes-test@example.com")
@@ -786,6 +804,8 @@ func TestGradeTransitionResource_GetDistinctClasses(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_SuggestMappings(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "suggest-test@example.com")
@@ -816,6 +836,8 @@ func TestGradeTransitionResource_SuggestMappings(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionResource_GetHistory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "history-test@example.com")
@@ -894,6 +916,8 @@ func TestGradeTransitionResource_GetHistory(t *testing.T) {
 // handler must answer 409/404/400 so the UI can refresh or prompt, never a
 // bare 500 (#405 review).
 func TestGradeTransitionResource_UpdateDelete_ErrorMapping(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "update-errors-test@example.com")
@@ -961,6 +985,8 @@ func TestGradeTransitionResource_UpdateDelete_ErrorMapping(t *testing.T) {
 // exists for the server-side tag restore on revert and must never cross this
 // wire (#405 review).
 func TestGradeTransitionResource_GetHistory_OmitsRFIDTag(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "history-rfid-test@example.com")
@@ -1021,6 +1047,8 @@ func TestGradeTransitionResource_GetHistory_OmitsRFIDTag(t *testing.T) {
 // ============================================================================
 
 func TestTransitionRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "bind-test@example.com")
@@ -1047,6 +1075,8 @@ func TestTransitionRequest_Bind(t *testing.T) {
 // ============================================================================
 
 func TestToTransitionResponse(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "response-test@example.com")

@@ -20,6 +20,8 @@ import (
 // =============================================================================
 
 func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	svc := setupCalendarPeriodService(t, db)

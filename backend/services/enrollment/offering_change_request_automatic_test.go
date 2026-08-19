@@ -78,6 +78,8 @@ func createPendingTriggerRequest(
 }
 
 func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -108,6 +110,10 @@ func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t 
 	assert.Empty(t, manualEntry.AutoTriggerNames)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
@@ -139,6 +145,8 @@ func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *t
 }
 
 func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfatheredRuleTarget(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -193,6 +201,8 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 }
 
 func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsOverride(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -235,6 +245,8 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 }
 
 func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFromSnapshot(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -257,6 +269,8 @@ func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFrom
 }
 
 func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomaticBooking(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -313,6 +327,8 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 }
 
 func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunchDays(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -368,6 +384,8 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 }
 
 func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusionCascade(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -410,6 +428,8 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 }
 
 func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -433,6 +453,8 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 }
 
 func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedDays(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -481,6 +503,8 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 }
 
 func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedRules(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -510,6 +534,8 @@ func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedR
 }
 
 func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -542,6 +568,8 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 }
 
 func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)

@@ -20,6 +20,8 @@ import (
 // =============================================================================
 
 func TestActiveService_GetGroupSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -79,6 +81,8 @@ func TestActiveService_GetGroupSupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CreateGroupSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -175,6 +179,8 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -240,6 +246,8 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -296,6 +304,8 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ListGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -348,6 +358,8 @@ func TestActiveService_ListGroupSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -403,6 +415,8 @@ func TestActiveService_FindSupervisorsByStaffID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -460,6 +474,8 @@ func TestActiveService_FindSupervisorsByActiveGroupID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -507,6 +523,8 @@ func TestActiveService_FindSupervisorsByActiveGroupIDs(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndSupervision(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -571,6 +589,8 @@ func TestActiveService_EndSupervision(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -626,6 +646,8 @@ func TestActiveService_GetStaffActiveSupervisions(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_UpdateActiveGroupSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

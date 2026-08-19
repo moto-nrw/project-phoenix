@@ -15,6 +15,8 @@ import (
 // =============================================================================
 
 func TestProfileUpdateRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	firstName := "John"
 	lastName := "Doe"
 	username := "johndoe"
@@ -34,6 +36,8 @@ func TestProfileUpdateRequest_Fields(t *testing.T) {
 }
 
 func TestProfileUpdateRequest_NilFields(t *testing.T) {
+	t.Parallel()
+
 	var req ProfileUpdateRequest
 	assert.Nil(t, req.FirstName)
 	assert.Nil(t, req.LastName)
@@ -42,6 +46,8 @@ func TestProfileUpdateRequest_NilFields(t *testing.T) {
 }
 
 func TestProfileUpdateRequest_PartialFields(t *testing.T) {
+	t.Parallel()
+
 	firstName := "Jane"
 	req := ProfileUpdateRequest{
 		FirstName: &firstName,
@@ -58,6 +64,8 @@ func TestProfileUpdateRequest_PartialFields(t *testing.T) {
 // =============================================================================
 
 func TestNewResource_ReturnsResource(t *testing.T) {
+	t.Parallel()
+
 	resource := NewResource(nil, nil)
 	assert.NotNil(t, resource)
 }

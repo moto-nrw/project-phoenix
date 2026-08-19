@@ -31,6 +31,8 @@ func buildCombinedGroupService(t *testing.T, db *bun.DB) active.Service {
 // =============================================================================
 
 func TestActiveService_GetCombinedGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -80,6 +82,8 @@ func TestActiveService_GetCombinedGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CreateCombinedGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -133,6 +137,8 @@ func TestActiveService_CreateCombinedGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_UpdateCombinedGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -192,6 +198,8 @@ func TestActiveService_UpdateCombinedGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_DeleteCombinedGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -239,6 +247,8 @@ func TestActiveService_DeleteCombinedGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ListCombinedGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -282,6 +292,8 @@ func TestActiveService_ListCombinedGroups(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -315,6 +327,8 @@ func TestActiveService_FindActiveCombinedGroups(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -348,6 +362,8 @@ func TestActiveService_FindCombinedGroupsByTimeRange(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndCombinedGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -403,6 +419,8 @@ func TestActiveService_EndCombinedGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -442,6 +460,8 @@ func TestActiveService_GetCombinedGroupWithGroups(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_AddGroupToCombination(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -501,6 +521,8 @@ func TestActiveService_AddGroupToCombination(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -545,6 +567,8 @@ func TestActiveService_RemoveGroupFromCombination(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -600,6 +624,8 @@ func TestActiveService_GetGroupMappingsByActiveGroupID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -658,6 +684,8 @@ func TestActiveService_GetGroupMappingsByCombinedGroupID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindCombinedGroupsByTimeRange_InvalidRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -684,6 +712,8 @@ func TestActiveService_FindCombinedGroupsByTimeRange_InvalidRange(t *testing.T) 
 // =============================================================================
 
 func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -723,6 +753,8 @@ func TestActiveService_AddGroupToCombination_Duplicate(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -768,6 +800,8 @@ func TestActiveService_DeleteCombinedGroup_WithMappings(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ListCombinedGroups_ErrorPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -790,6 +824,8 @@ func TestActiveService_ListCombinedGroups_ErrorPath(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindActiveCombinedGroups_ErrorPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)
@@ -812,6 +848,8 @@ func TestActiveService_FindActiveCombinedGroups_ErrorPath(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CreateCombinedGroupWithGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := buildCombinedGroupService(t, db)

@@ -23,6 +23,8 @@ import (
 
 // TestUpdateSessionActivity tests updating session activity timestamp
 func TestUpdateSessionActivity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -104,6 +106,8 @@ func TestUpdateSessionActivity(t *testing.T) {
 
 // TestValidateSessionTimeout tests timeout validation logic
 func TestValidateSessionTimeout(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -217,6 +221,8 @@ func TestValidateSessionTimeout(t *testing.T) {
 
 // TestGetSessionTimeoutInfo tests retrieving timeout information
 func TestGetSessionTimeoutInfo(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

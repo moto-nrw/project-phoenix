@@ -340,6 +340,8 @@ func absSetupService() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absWork
 }
 
 func TestValidateVacationOpeningAbsencesBefore_DoesNotLockPreview(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	lockCalls := 0
 	absRepo.lockStaffAbsenceWritesFunc = func(context.Context, int64) error {
@@ -362,6 +364,8 @@ func TestValidateVacationOpeningAbsencesBefore_DoesNotLockPreview(t *testing.T) 
 // ============================================================================
 
 func TestAbsCreateAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, workRepo := absSetupService()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -397,6 +401,8 @@ func TestAbsCreateAbsence_Success(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_BlocksVacationType(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
 		t.Fatal("vacation must not be created through generic absence create")
@@ -415,6 +421,8 @@ func TestAbsCreateAbsence_BlocksVacationType(t *testing.T) {
 }
 
 func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(100)
 		managerID = int64(200)
@@ -524,6 +532,8 @@ func TestAbsCompTimeRequiresManagerControl(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_InvalidDateStart(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := absSetupService()
 
 	req := CreateAbsenceRequest{
@@ -539,6 +549,8 @@ func TestAbsCreateAbsence_InvalidDateStart(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_InvalidDateEnd(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := absSetupService()
 
 	req := CreateAbsenceRequest{
@@ -554,6 +566,8 @@ func TestAbsCreateAbsence_InvalidDateEnd(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_ReversedDateRange(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := absSetupService()
 
 	req := CreateAbsenceRequest{
@@ -569,6 +583,8 @@ func TestAbsCreateAbsence_ReversedDateRange(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
 
@@ -597,6 +613,8 @@ func TestAbsCreateAbsence_OverlapDifferentType(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_MergeSameType(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -635,6 +653,8 @@ func TestAbsCreateAbsence_MergeSameType(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -683,6 +703,8 @@ func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_RepoCheckError(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -702,6 +724,8 @@ func TestAbsCreateAbsence_RepoCheckError(t *testing.T) {
 }
 
 func TestAbsCreateAbsence_RepoCreateError(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, workRepo := absSetupService()
 
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -731,6 +755,8 @@ func TestAbsCreateAbsence_RepoCreateError(t *testing.T) {
 // ============================================================================
 
 func TestAbsUpdateAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -773,6 +799,8 @@ func TestAbsUpdateAbsence_Success(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_BlocksVacationType(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 	absenceID := int64(100)
@@ -799,6 +827,8 @@ func TestAbsUpdateAbsence_BlocksVacationType(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_NotFound(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -812,6 +842,8 @@ func TestAbsUpdateAbsence_NotFound(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_OwnershipFails(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -828,6 +860,8 @@ func TestAbsUpdateAbsence_OwnershipFails(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_InvalidDateStart(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
@@ -850,6 +884,8 @@ func TestAbsUpdateAbsence_InvalidDateStart(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_InvalidDateEnd(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
@@ -872,6 +908,8 @@ func TestAbsUpdateAbsence_InvalidDateEnd(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 	absenceID := int64(100)
@@ -912,6 +950,8 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_BlocksVacationWorkflowRows(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 	absenceID := int64(100)
@@ -951,6 +991,8 @@ func TestAbsUpdateAbsence_BlocksVacationWorkflowRows(t *testing.T) {
 // ============================================================================
 
 func TestAbsDeleteAbsence_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 	absenceID := int64(100)
@@ -974,6 +1016,8 @@ func TestAbsDeleteAbsence_Success(t *testing.T) {
 }
 
 func TestAbsDeleteAbsence_NotFound(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -986,6 +1030,8 @@ func TestAbsDeleteAbsence_NotFound(t *testing.T) {
 }
 
 func TestAbsDeleteAbsence_OwnershipFails(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -1001,6 +1047,8 @@ func TestAbsDeleteAbsence_OwnershipFails(t *testing.T) {
 }
 
 func TestAbsDeleteAbsence_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
@@ -1021,6 +1069,8 @@ func TestAbsDeleteAbsence_RepoError(t *testing.T) {
 }
 
 func TestAbsDeleteAbsence_BlocksVacationWorkflowRows(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 	absenceID := int64(100)
@@ -1058,6 +1108,8 @@ func TestAbsDeleteAbsence_BlocksVacationWorkflowRows(t *testing.T) {
 // ============================================================================
 
 func TestAbsGetAbsencesForRange_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	ctx := context.Background()
 	staffID := int64(100)
@@ -1087,6 +1139,8 @@ func TestAbsGetAbsencesForRange_Success(t *testing.T) {
 }
 
 func TestAbsGetAbsencesForRange_Empty(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -1102,6 +1156,8 @@ func TestAbsGetAbsencesForRange_Empty(t *testing.T) {
 }
 
 func TestAbsGetAbsencesForRange_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -1118,6 +1174,8 @@ func TestAbsGetAbsencesForRange_RepoError(t *testing.T) {
 }
 
 func TestAbsListAbsences_ByStatus(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
@@ -1153,6 +1211,8 @@ func TestAbsListAbsences_ByStatus(t *testing.T) {
 }
 
 func TestAbsListAbsences_RejectsInvalidFilters(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := absSetupService()
 	from := timezone.NewDate(2026, 1, 1)
 
@@ -1193,6 +1253,8 @@ func TestAbsListAbsences_RejectsInvalidFilters(t *testing.T) {
 // ============================================================================
 
 func TestAbsHasAbsenceOnDate_Found(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 	date := timezone.NewDate(2026, 2, 11)
@@ -1214,6 +1276,8 @@ func TestAbsHasAbsenceOnDate_Found(t *testing.T) {
 }
 
 func TestAbsHasAbsenceOnDate_NotFound(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.StaffAbsence, error) {
@@ -1227,6 +1291,8 @@ func TestAbsHasAbsenceOnDate_NotFound(t *testing.T) {
 }
 
 func TestAbsHasAbsenceOnDate_RepoError(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 
 	absRepo.getByStaffAndDateFunc = func(_ context.Context, _ int64, _ timezone.Date) (*activeModels.StaffAbsence, error) {
@@ -1241,6 +1307,8 @@ func TestAbsHasAbsenceOnDate_RepoError(t *testing.T) {
 }
 
 func TestAbsHasAbsenceOnDate_IgnoresPendingAndCanceled(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 	date := timezone.NewDate(2026, 2, 11)
@@ -1269,6 +1337,8 @@ func TestAbsHasAbsenceOnDate_IgnoresPendingAndCanceled(t *testing.T) {
 }
 
 func TestAbsCountWorkingDays_HalfDayOnWeekendDoesNotGoNegative(t *testing.T) {
+	t.Parallel()
+
 	saturday := timezone.NewDate(2027, 2, 13)
 	sunday := timezone.NewDate(2027, 2, 14)
 
@@ -1276,6 +1346,8 @@ func TestAbsCountWorkingDays_HalfDayOnWeekendDoesNotGoNegative(t *testing.T) {
 }
 
 func TestAbsRequestVacation_RejectsWeekendOnlyHalfDayRange(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
@@ -1297,6 +1369,8 @@ func TestAbsRequestVacation_RejectsWeekendOnlyHalfDayRange(t *testing.T) {
 }
 
 func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
@@ -1331,6 +1405,8 @@ func TestAbsRequestVacation_IgnoresDeclinedOverlap(t *testing.T) {
 }
 
 func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	broadcaster := testpkg.NewRecordingBroadcaster()
@@ -1390,6 +1466,8 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 }
 
 func TestAbsDenyAbsence_WritesAudit(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{
@@ -1433,6 +1511,8 @@ func TestAbsDenyAbsence_WritesAudit(t *testing.T) {
 }
 
 func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{
@@ -1472,6 +1552,8 @@ func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
 }
 
 func TestAbsVacationCutoffUsesBerlinCalendarDay(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 7, 0, 30, 0, 0, timezone.Berlin)
 	yesterday := timezone.NewDate(2026, 6, 6)
 	today := timezone.NewDate(2026, 6, 7)
@@ -1481,6 +1563,8 @@ func TestAbsVacationCutoffUsesBerlinCalendarDay(t *testing.T) {
 }
 
 func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	quotaRepo := &absVacationQuotaRepoMock{}
 	svc := &staffAbsenceService{
@@ -1520,6 +1604,8 @@ func TestAbsGetVacationQuotaSummary_SplitsCrossYearVacation(t *testing.T) {
 }
 
 func TestAbsUpsertVacationQuota_RejectsInvalidPrecision(t *testing.T) {
+	t.Parallel()
+
 	quotaRepo := &absVacationQuotaRepoMock{}
 	upsertCalled := false
 	quotaRepo.upsertFunc = func(context.Context, *activeModels.StaffVacationQuota) error {
@@ -1611,6 +1697,8 @@ func absSetupServiceWithSyncer() (*staffAbsenceService, *absStaffAbsenceRepoMock
 }
 
 func TestAbsCreateAbsenceFor_SickCascadesWithActor(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	subjectID, creatorID, accountID := int64(100), int64(200), int64(77)
 
@@ -1642,6 +1730,8 @@ func TestAbsCreateAbsenceFor_SickCascadesWithActor(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name string
 		req  CreateAbsenceRequest
@@ -1662,6 +1752,8 @@ func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDaySickReport(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	createCalled := false
 	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
@@ -1683,6 +1775,8 @@ func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDaySickReport(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDayCompTime(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	createCalled := false
 	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
@@ -1708,6 +1802,8 @@ func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDayCompTime(t *testing.T) {
 // at the anchor. The create must reject it, mirroring the balance-adjustment
 // guard (#1420).
 func TestAbsCreateAbsenceFor_RejectsCompTimeBeforeAccountStart(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
 	createCalled := false
@@ -1731,6 +1827,8 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeBeforeAccountStart(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_AllowsCompTimeOnAccountStart(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -1756,6 +1854,8 @@ func TestAbsCreateAbsenceFor_AllowsCompTimeOnAccountStart(t *testing.T) {
 // Non-comp_time absences may legitimately predate the account start (a sick
 // day from before the Stundenkonto existed is still a fact worth recording).
 func TestAbsCreateAbsenceFor_AllowsSickBeforeAccountStart(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-08-01"}
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -1779,6 +1879,8 @@ func TestAbsCreateAbsenceFor_AllowsSickBeforeAccountStart(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_RejectsMultiDayHalfDaySickReport(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	existing := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -1805,6 +1907,8 @@ func TestAbsUpdateAbsence_RejectsMultiDayHalfDaySickReport(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_CascadeErrorAbortsCreate(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	syncer.markErr = errors.New("boom")
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -1820,6 +1924,8 @@ func TestAbsCreateAbsenceFor_CascadeErrorAbortsCreate(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_MergeCascadesMergedRange(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	existing := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -1847,6 +1953,8 @@ func TestAbsCreateAbsenceFor_MergeCascadesMergedRange(t *testing.T) {
 }
 
 func TestAbsDeleteAbsenceFor_SickReversesCascadeBeforeDelete(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	sick := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -1874,6 +1982,8 @@ func TestAbsDeleteAbsenceFor_SickReversesCascadeBeforeDelete(t *testing.T) {
 }
 
 func TestAbsDeleteAbsenceFor_ReversalErrorKeepsAbsence(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	syncer.clearErr = errors.New("boom")
 	sick := &activeModels.StaffAbsence{
@@ -1899,6 +2009,8 @@ func TestAbsDeleteAbsenceFor_ReversalErrorKeepsAbsence(t *testing.T) {
 }
 
 func TestAbsDeleteAbsence_ReversalRunsUnconditionally(t *testing.T) {
+	t.Parallel()
+
 	// The reversal is keyed by provenance stamps, so it must run for EVERY
 	// delete: a non-sick or half-day row that never cascaded is a no-op, but
 	// a mutated row must still release whatever it stamped (#1843 review).
@@ -1921,6 +2033,8 @@ func TestAbsDeleteAbsence_ReversalRunsUnconditionally(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_RejectsSickHalfDayFlip(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	sick := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -1945,6 +2059,8 @@ func (m *absShiftPlanSyncerMock) ReassignSickStamps(_ context.Context, fromAbsen
 }
 
 func TestAbsUpdateAbsence_RejectsSickTypeChange(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name    string
 		current string
@@ -1976,6 +2092,8 @@ func TestAbsUpdateAbsence_RejectsSickTypeChange(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_ReconcilesSickDateDifference(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	existing := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -2008,6 +2126,8 @@ func TestAbsUpdateAbsence_ReconcilesSickDateDifference(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_ReconcileFailurePropagates(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	syncer.reconcileErr = errors.New("plan write failed")
 	existing := &activeModels.StaffAbsence{
@@ -2033,6 +2153,8 @@ func TestAbsUpdateAbsence_ReconcileFailurePropagates(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_MergeReassignsSecondaryStamps(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	primaryRow := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -2069,6 +2191,8 @@ func TestAbsCreateAbsenceFor_MergeReassignsSecondaryStamps(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_RejectsMixedDurationSickMerge(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	halfDayExisting := &activeModels.StaffAbsence{
 		StaffID:      100,
@@ -2097,6 +2221,8 @@ func TestAbsCreateAbsenceFor_RejectsMixedDurationSickMerge(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDaySickReport(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	fullDayExisting := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -2127,6 +2253,8 @@ func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDaySickReport(t *testi
 // not merge: the merge keeps the primary's HalfDay flag, so it would extend a
 // half-day row across multiple days and deduct the wrong Stundenkonto amount.
 func TestAbsCreateAbsenceFor_RejectsMixedDurationCompTimeMerge(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	halfDayExisting := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -2157,6 +2285,8 @@ func TestAbsCreateAbsenceFor_RejectsMixedDurationCompTimeMerge(t *testing.T) {
 // The mirror case: a half-day comp_time create overlapping a stored full-day
 // comp_time must not silently shrink the requested full day to a half day.
 func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDayCompTime(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	fullDayExisting := &activeModels.StaffAbsence{
 		StaffID:     100,
@@ -2184,6 +2314,8 @@ func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDayCompTime(t *testing
 }
 
 func TestAbsCreateAbsenceFor_RejectsOversizedSickRange(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	checkedOverlap := false
 	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -2204,6 +2336,8 @@ func TestAbsCreateAbsenceFor_RejectsOversizedSickRange(t *testing.T) {
 }
 
 func TestAbsUpdateAbsence_RejectsOversizedSickRange(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	existing := &activeModels.StaffAbsence{
 		StaffID: 100, CreatedBy: 100,
@@ -2223,6 +2357,8 @@ func TestAbsUpdateAbsence_RejectsOversizedSickRange(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_MergeDeleteFailureAborts(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	primary := &activeModels.StaffAbsence{
 		StaffID: 100, AbsenceType: activeModels.AbsenceTypeSick,
@@ -2264,6 +2400,8 @@ func TestAbsCreateAbsenceFor_MergeDeleteFailureAborts(t *testing.T) {
 // ============================================================================
 
 func TestAbsQuestionAbsence_WritesAuditAndDecisionNote(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{
@@ -2307,6 +2445,8 @@ func TestAbsQuestionAbsence_WritesAuditAndDecisionNote(t *testing.T) {
 }
 
 func TestAbsQuestionAbsence_RequiresNote(t *testing.T) {
+	t.Parallel()
+
 	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
 
 	result, err := svc.QuestionAbsence(context.Background(), int64(1101), int64(2101), "")
@@ -2317,6 +2457,8 @@ func TestAbsQuestionAbsence_RequiresNote(t *testing.T) {
 }
 
 func TestAbsQuestionAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
+	t.Parallel()
+
 	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
 
 	result, err := svc.QuestionAbsence(context.Background(), int64(1101), int64(2101), " \t\n ")
@@ -2327,6 +2469,8 @@ func TestAbsQuestionAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
 }
 
 func TestAbsQuestionAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
@@ -2353,6 +2497,8 @@ func TestAbsQuestionAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
 }
 
 func TestAbsQuestionAbsence_OnlyFromRequested(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: &absStaffAbsenceAuditRepoMock{}}
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -2370,6 +2516,8 @@ func TestAbsQuestionAbsence_OnlyFromRequested(t *testing.T) {
 }
 
 func TestAbsApproveAbsence_FromQuestion(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
@@ -2402,6 +2550,8 @@ func TestAbsApproveAbsence_FromQuestion(t *testing.T) {
 }
 
 func TestAbsDenyAbsence_FromQuestion(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: &absStaffAbsenceAuditRepoMock{}}
 
@@ -2427,6 +2577,8 @@ func TestAbsDenyAbsence_FromQuestion(t *testing.T) {
 }
 
 func TestAbsResubmitAbsence_RestampsAndAudits(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
@@ -2468,6 +2620,8 @@ func TestAbsResubmitAbsence_RestampsAndAudits(t *testing.T) {
 }
 
 func TestAbsResubmitAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
+	t.Parallel()
+
 	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
 
 	result, err := svc.ResubmitAbsence(context.Background(), int64(4105), int64(2105), int64(1105), " \t\n ")
@@ -2478,6 +2632,8 @@ func TestAbsResubmitAbsence_RejectsWhitespaceOnlyNote(t *testing.T) {
 }
 
 func TestAbsResubmitAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
@@ -2510,6 +2666,8 @@ func TestAbsResubmitAbsence_TrimsStoredAndAuditedNote(t *testing.T) {
 }
 
 func TestAbsResubmitAbsence_OwnershipGuard(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo}
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -2528,6 +2686,8 @@ func TestAbsResubmitAbsence_OwnershipGuard(t *testing.T) {
 }
 
 func TestAbsResubmitAbsence_OnlyFromQuestion(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo}
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
@@ -2546,6 +2706,8 @@ func TestAbsResubmitAbsence_OnlyFromQuestion(t *testing.T) {
 }
 
 func TestAbsListPendingRequests_IncludesQuestionRows(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	svc := &staffAbsenceService{absenceRepo: absRepo}
 	absRepo.listByStatusesFunc = func(_ context.Context, statuses []string) ([]*activeModels.StaffAbsence, error) {
@@ -2613,6 +2775,8 @@ func absEmailStaffRepoMock() *testpkg.StaffRepoMock {
 }
 
 func TestAbsRequestVacation_SendsApproverEmail(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
@@ -2640,6 +2804,8 @@ func TestAbsRequestVacation_SendsApproverEmail(t *testing.T) {
 }
 
 func TestAbsQuestionAbsence_SendsRequesterEmail(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
 		absence := &activeModels.StaffAbsence{
@@ -2667,6 +2833,8 @@ func TestAbsQuestionAbsence_SendsRequesterEmail(t *testing.T) {
 }
 
 func TestAbsEmails_SettingDisabled_NoSend(t *testing.T) {
+	t.Parallel()
+
 	absRepo := &absStaffAbsenceRepoMock{}
 	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, nil
@@ -2721,6 +2889,8 @@ func (m *absMonthServiceMock) GetBalanceReductionCapacity(_ context.Context, _ i
 // Stundenkonto has accrued must be rejected — the same overdraft guard the
 // payout/comp-time adjustments enforce.
 func TestAbsCreateAbsenceFor_RejectsCompTimeAboveBalance(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, syncer := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	svc.monthService = &absMonthServiceMock{capacity: 480, deduction: 960}
@@ -2744,6 +2914,8 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeAboveBalance(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_AllowsCompTimeWithinBalance(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	svc.monthService = &absMonthServiceMock{capacity: 960, deduction: 960}
@@ -2766,6 +2938,8 @@ func TestAbsCreateAbsenceFor_AllowsCompTimeWithinBalance(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_AllowsWorkedHalfCoveredByAccruedBalance(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	// The current closing balance is zero after four accrued hours pay for the
@@ -2792,6 +2966,8 @@ func TestAbsCreateAbsenceFor_AllowsWorkedHalfCoveredByAccruedBalance(t *testing.
 }
 
 func TestAbsCreateAbsenceFor_AllowsFullDayCoveredByAccruedBalance(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	// The current closing balance is zero after one accrued day pays for the
@@ -2817,6 +2993,8 @@ func TestAbsCreateAbsenceFor_AllowsFullDayCoveredByAccruedBalance(t *testing.T) 
 }
 
 func TestAbsCreateAbsenceFor_RejectsWorkedHalfWithExistingDeficit(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	svc.monthService = &absMonthServiceMock{capacity: -1, deduction: 240}
@@ -2843,6 +3021,8 @@ func TestAbsCreateAbsenceFor_RejectsWorkedHalfWithExistingDeficit(t *testing.T) 
 // shared staff lock serializes both writes, so the second debit must see the
 // first and reject their combined overdraft.
 func TestAbsCreateAbsenceFor_RejectsCompTimeCombinedWithSameDayAdjustment(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	svc.monthService = &absMonthServiceMock{
@@ -2870,6 +3050,8 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeCombinedWithSameDayAdjustment(t *tes
 
 // On the account-start day no credit exists to cover the target.
 func TestAbsCreateAbsenceFor_RejectsCompTimeOnAccountStartWithoutAccrual(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := absSetupServiceWithSyncer()
 	today := timezone.TodayDate()
 	svc.settings = &wtmMockSettings{accountStart: today.String()}
@@ -2892,6 +3074,8 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeOnAccountStartWithoutAccrual(t *test
 // capacity only for the newly added part; the existing row is already
 // reserved by the timeline capacity calculation.
 func TestAbsCreateAbsenceFor_RejectsCompTimeMergeAboveBalance(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	svc.monthService = &absMonthServiceMock{
@@ -2928,6 +3112,8 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeMergeAboveBalance(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_RejectsCompTimeAgainstLaterLedgerCapacity(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	monthService := &absMonthServiceMock{capacity: 300, deduction: 480}
@@ -2954,6 +3140,8 @@ func TestAbsCreateAbsenceFor_RejectsCompTimeAgainstLaterLedgerCapacity(t *testin
 // The timeline capacity has no defined result beyond the carry-chain horizon,
 // so far-future comp_time must be a client error, not a 500.
 func TestAbsCreateAbsenceFor_RejectsFarFutureCompTime(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	svc.settings = &wtmMockSettings{accountStart: "2026-06-01"}
 	svc.monthService = &absMonthServiceMock{capacity: 10000, deduction: 480}

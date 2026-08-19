@@ -135,6 +135,8 @@ func readConsentTimestamp(t *testing.T, tc *testContext, studentID int64) bool {
 //     the on-disk file is gone after the response.
 //  3. Emit a broadcastStudentUpdated event so SSE listeners refetch.
 func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
@@ -185,6 +187,8 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 // the row would carry consent_given_at=NULL even after the OK response,
 // which would later trip the consent gate on photo upload.
 func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
@@ -226,6 +230,8 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 // carries consent — the operation must not unstamp the original audit
 // timestamp.
 func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
@@ -262,6 +268,8 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 // the file via tenant.RegisterAfterCommit. Without this, deleting a
 // student would leave their JPEG orphaned under public/uploads/.
 func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "ApiPath", "PD1")
@@ -297,6 +305,8 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 // where the unlink hook fires unconditionally and the unguarded path
 // resolution returns an error on empty input.
 func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DelNoPhoto", "ApiPath", "DN1")
@@ -327,6 +337,8 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 // (line ~1252) — without the feature flag enabled the response strips
 // photo-related fields, even on a row that has a photo_path.
 func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
@@ -354,6 +366,8 @@ func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
 // response payload must not leak photo URL details — even if the row
 // happens to carry an old photo_path.
 func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Deliberately do NOT enable the feature.
 

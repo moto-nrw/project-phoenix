@@ -75,6 +75,8 @@ func createCareMaterializationException(
 }
 
 func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing timeframe", func(t *testing.T) {
 		db, svc, phase, cleanup := setupCareTest(t)
 		defer cleanup()
@@ -124,6 +126,8 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 }
 
 func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	monday := timezone.NewDate(2026, time.September, 7)
@@ -164,6 +168,8 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 }
 
 func TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	monday := timezone.NewDate(2026, time.September, 7)
@@ -193,6 +199,8 @@ func TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence(t *
 }
 
 func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	firstMonday := timezone.NewDate(2026, time.September, 7)
@@ -240,6 +248,8 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 }
 
 func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	firstMonday := timezone.NewDate(2026, time.September, 7)
@@ -299,6 +309,10 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 		"a root exception on the successor date must not apply to the successor segment")
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(t *testing.T) {
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
@@ -331,6 +345,10 @@ func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(
 		"materialization deliberately accepts inactive timeframes with complete clock times")
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExceptionBecomesInvalid(t *testing.T) {
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
@@ -363,6 +381,8 @@ func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExce
 }
 
 func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	monday := timezone.NewDate(2026, time.September, 7)
@@ -388,6 +408,8 @@ func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing
 }
 
 func TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	monday := timezone.NewDate(2026, time.September, 7)

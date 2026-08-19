@@ -51,6 +51,8 @@ type weekdayRosterScenario struct {
 }
 
 func TestCreateTemplate_PerWeekdayRoster_MaterializesTheWeekdaysOwnPeople(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 
@@ -111,6 +113,8 @@ func TestCreateTemplate_PerWeekdayRoster_MaterializesTheWeekdaysOwnPeople(t *tes
 // A weekday without its own entry falls back to the series' shared roster.
 // That is the "gemeinsamer Standard + Abweichung" shape the planner UI edits.
 func TestCreateTemplate_PerWeekdayRoster_UnlistedWeekdayKeepsSharedDefault(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 
@@ -161,6 +165,8 @@ func TestCreateTemplate_PerWeekdayRoster_UnlistedWeekdayKeepsSharedDefault(t *te
 // did before #2129: one roster, every weekday. This is the compatibility
 // guarantee for every Regeltermin that already exists.
 func TestCreateTemplate_WithoutWeekdayAssignments_KeepsOneSharedRoster(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 
@@ -203,6 +209,8 @@ func TestCreateTemplate_WithoutWeekdayAssignments_KeepsOneSharedRoster(t *testin
 }
 
 func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	s := makeWeekdayRosterScenario(t, monday)
@@ -299,6 +307,8 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 // dropping back to a single shared roster when the planner turns the
 // per-weekday mode off again.
 func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 
@@ -365,6 +375,8 @@ func TestUpdateTemplate_SwitchesBetweenSharedAndPerWeekdayRoster(t *testing.T) {
 }
 
 func TestUpdateTemplate_PinningPeriodRetiresUnscopedEditorRoster(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	s := makeWeekdayRosterScenario(t, monday)
@@ -448,6 +460,8 @@ func TestUpdateTemplate_PinningPeriodRetiresUnscopedEditorRoster(t *testing.T) {
 }
 
 func TestUpdateTemplate_UnpinningPeriodRetiresScopedEditorRoster(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
@@ -514,6 +528,8 @@ func TestUpdateTemplate_UnpinningPeriodRetiresScopedEditorRoster(t *testing.T) {
 }
 
 func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	s := makeWeekdayRosterScenario(t, monday)
@@ -585,6 +601,8 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 }
 
 func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	s := makeWeekdayRosterScenario(t, monday)
@@ -647,6 +665,8 @@ func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T
 // A weekday the series does not run on is rejected rather than silently
 // dropped or silently added to the recurrence.
 func TestCreateTemplate_WeekdayAssignmentOutsideRecurrence_IsRejected(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
@@ -671,6 +691,8 @@ func TestCreateTemplate_WeekdayAssignmentOutsideRecurrence_IsRejected(t *testing
 }
 
 func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
@@ -743,6 +765,8 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 }
 
 func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	s := makeWeekdayRosterScenario(t, monday)
@@ -834,6 +858,8 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 }
 
 func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)
@@ -874,6 +900,8 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 }
 
 func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	s := makeWeekdayRosterScenario(t, monday)
 	defer s.teardown(t)

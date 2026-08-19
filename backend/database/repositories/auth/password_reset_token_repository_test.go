@@ -17,6 +17,8 @@ import (
 // ============================================================================
 
 func TestPasswordResetTokenRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -48,6 +50,8 @@ func TestPasswordResetTokenRepository_Create(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -80,6 +84,8 @@ func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -112,6 +118,8 @@ func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -156,6 +164,8 @@ func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -207,6 +217,8 @@ func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -236,6 +248,8 @@ func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -278,6 +292,8 @@ func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) 
 }
 
 func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken
@@ -329,6 +345,8 @@ func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_UpdateDeliveryResult(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := repositories.NewFactory(db).PasswordResetToken

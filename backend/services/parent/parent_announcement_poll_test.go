@@ -68,6 +68,8 @@ func seedPublishedPoll(
 }
 
 func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -122,6 +124,8 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 // A portal-visible child without a guardian who may answer remains visible to
 // staff, but cannot make completion or reminders look permanently outstanding.
 func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
+	t.Parallel()
+
 	_, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -155,6 +159,8 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 // Re-answering replaces the previous selection rather than adding a second vote:
 // a single-choice poll must never count one child twice.
 func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -182,6 +188,8 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 // The deadline is the answer cut-off, checked in the same statement as the
 // write. A closed poll rejects the answer instead of silently dropping it.
 func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -207,6 +215,8 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 
 // A guardian may not answer for a child that is not theirs.
 func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -222,6 +232,8 @@ func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 
 // A plain Mitteilung accepts no answers at all.
 func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -236,6 +248,8 @@ func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 // The unread badge keeps counting an open poll the guardian has already read but
 // not answered — that is the whole point of the reminder.
 func TestAnnouncementPoll_UnansweredPollStaysInUnreadCount(t *testing.T) {
+	t.Parallel()
+
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)

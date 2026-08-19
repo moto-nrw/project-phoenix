@@ -50,6 +50,8 @@ func letterOnlySuffix(t *testing.T) string {
 // (future) enrollments. A revert must return each graduate to the status it
 // held before the transition, not blanket-activate everyone.
 func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -103,6 +105,8 @@ func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
 // has since written, so the server must reject it (409 → ErrNotLatestApplied)
 // until the newer one is reverted first.
 func TestGradeTransitionService_Revert_EnforcesReverseOrder(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -152,6 +156,8 @@ func TestGradeTransitionService_Revert_EnforcesReverseOrder(t *testing.T) {
 // the transition is reverted, because their current class no longer matches the
 // class the transition assigned.
 func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -209,6 +215,8 @@ func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
 // a graduating child with an open visit would become an alumnus the kiosk can
 // no longer check out. The apply must be refused until they are checked out.
 func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -257,6 +265,8 @@ func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 // a class name without a grade pattern must be flagged Ambiguous so the editor
 // does not silently preselect Abgang for placeholder/free-form classes.
 func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -300,6 +310,8 @@ func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
 // applying the confirmed preview would graduate a child nobody approved — so the
 // apply must be refused (409 → ErrPreviewStale) until the preview is reloaded.
 func TestGradeTransitionService_ApplyChecked_RejectsStalePreview(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
@@ -379,6 +391,8 @@ func (r *failingCountRepo) GetStudentCountByClass(_ context.Context, _ string) (
 // create a transition that omits an affected cohort without ever seeing an
 // error.
 func TestGradeTransitionService_SuggestMappings_CountErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	_, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 

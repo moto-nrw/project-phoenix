@@ -51,6 +51,8 @@ func newSettingValue(tb testing.TB, key, value string, updatedBy *int64) *config
 
 // TestNewRepository tests repository creation
 func TestNewRepository(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -62,6 +64,8 @@ func TestNewRepository(t *testing.T) {
 
 // TestRepository_Create tests the Create method
 func TestRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -84,6 +88,8 @@ func TestRepository_Create(t *testing.T) {
 
 // TestRepository_Create_NilEntity tests Create with nil entity
 func TestRepository_Create_NilEntity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -97,6 +103,8 @@ func TestRepository_Create_NilEntity(t *testing.T) {
 
 // TestRepository_FindByID tests the FindByID method
 func TestRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -122,6 +130,8 @@ func TestRepository_FindByID(t *testing.T) {
 
 // TestRepository_FindByID_NotFound tests FindByID with non-existent ID
 func TestRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -133,6 +143,8 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 
 // TestRepository_Update tests the Update method
 func TestRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -165,6 +177,8 @@ func TestRepository_Update(t *testing.T) {
 
 // TestRepository_Update_NilEntity tests Update with nil entity
 func TestRepository_Update_NilEntity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -178,6 +192,8 @@ func TestRepository_Update_NilEntity(t *testing.T) {
 
 // TestRepository_Delete tests the Delete method
 func TestRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -207,6 +223,8 @@ func TestRepository_Delete(t *testing.T) {
 // to this test's rows only — required because base_test.go runs in parallel
 // with other tests touching config.setting_values.
 func TestRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	acct := testpkg.CreateTestAccount(t, db, "base_repo_list")
@@ -240,6 +258,8 @@ func TestRepository_List(t *testing.T) {
 
 // TestRepository_List_NoFilters tests List with empty filters
 func TestRepository_List_NoFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
@@ -313,6 +333,8 @@ func cleanupTenantSettingValues(t *testing.T, db *bun.DB, tenantID int64) {
 }
 
 func TestRepository_CountWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -356,6 +378,8 @@ func TestRepository_CountWithOptions(t *testing.T) {
 }
 
 func TestRepository_OldestBefore(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -398,6 +422,8 @@ func TestRepository_OldestBefore(t *testing.T) {
 }
 
 func TestRepository_DeleteOlderThan(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
@@ -438,6 +464,8 @@ func TestRepository_DeleteOlderThan(t *testing.T) {
 }
 
 func TestRepository_UpdateColumns(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)

@@ -47,6 +47,8 @@ func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
 // is locked by another edit, so the update is refused as retriable — and, just
 // as important, refuses BEFORE writing anything.
 func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)
@@ -100,6 +102,8 @@ func TestStudentRepository_Update_RefusesWhenFarEndLocked(t *testing.T) {
 // reach for the far end's row at all, or every widening plan change would start
 // failing while a linked child happens to be open somewhere else.
 func TestStudentRepository_Update_UnaffectedWhenNoEdgeIsDropped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	ctx := testpkg.Ctx(t)

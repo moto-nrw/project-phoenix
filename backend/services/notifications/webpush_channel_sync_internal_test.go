@@ -46,6 +46,8 @@ func guardianSyncEvent() Event {
 // accepted. "Nobody to deliver to" must be distinguishable from "delivery
 // failed": the first is final, the second is worth retrying.
 func TestWebPushDeliverSynchronouslyReportsMissingSubscribers(t *testing.T) {
+	t.Parallel()
+
 	t.Run("without VAPID keys there is no push service to accept anything", func(t *testing.T) {
 		channel := testChannel(&fakePushRepo{}, &fakeSender{})
 		channel.vapid = VAPIDConfig{}
@@ -94,6 +96,8 @@ func TestWebPushDeliverSynchronouslyReportsMissingSubscribers(t *testing.T) {
 }
 
 func TestWebPushDeliverSynchronouslySendsToRegisteredDevices(t *testing.T) {
+	t.Parallel()
+
 	db, mock := mockTenantTx(t)
 	guardian := testSub(3, 41, "https://fcm.googleapis.com/g")
 	guardian.Portal = iot.PushPortalParent
@@ -113,6 +117,8 @@ func TestWebPushDeliverSynchronouslySendsToRegisteredDevices(t *testing.T) {
 // second device's failure must not make the producer retry and duplicate the
 // notification on the device that already got it.
 func TestWebPushSynchronousDispatchSucceedsIfAnyDeviceAccepts(t *testing.T) {
+	t.Parallel()
+
 	good := testSub(1, 41, "https://fcm.googleapis.com/good")
 	bad := testSub(2, 41, "https://fcm.googleapis.com/bad")
 	sender := &fakeSender{errorByEndpoint: map[string]error{
@@ -127,6 +133,8 @@ func TestWebPushSynchronousDispatchSucceedsIfAnyDeviceAccepts(t *testing.T) {
 }
 
 func TestWebPushSynchronousDispatchReportsWhenEveryDeviceFails(t *testing.T) {
+	t.Parallel()
+
 	first := testSub(1, 41, "https://fcm.googleapis.com/first")
 	second := testSub(2, 41, "https://fcm.googleapis.com/second")
 	sendErr := errors.New("push service unreachable")
@@ -143,6 +151,8 @@ func TestWebPushSynchronousDispatchReportsWhenEveryDeviceFails(t *testing.T) {
 }
 
 func TestWebPushSynchronousDispatchHandlesCancellation(t *testing.T) {
+	t.Parallel()
+
 	// A full slot channel forces the dispatch loop into its cancellation branch:
 	// with no slot available, the only ready case is ctx.Done().
 	fillSlots := func(c *webPushChannel) {
@@ -223,6 +233,8 @@ func TestWebPushSynchronousDispatchHandlesCancellation(t *testing.T) {
 // below is a different answer to the producer's question "may I mark this
 // reminder delivered?".
 func TestWebPushSendOneSynchronouslyClassifiesResponses(t *testing.T) {
+	t.Parallel()
+
 	event := guardianSyncEvent()
 
 	t.Run("an untrusted endpoint never reaches the network", func(t *testing.T) {

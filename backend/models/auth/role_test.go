@@ -8,6 +8,8 @@ import (
 )
 
 func TestRole_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		role    *Role
@@ -56,6 +58,8 @@ func TestRole_Validate(t *testing.T) {
 }
 
 func TestRole_Validate_Normalization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		inputName    string
@@ -95,6 +99,8 @@ func TestRole_Validate_Normalization(t *testing.T) {
 }
 
 func TestRole_Validate_BaseRole(t *testing.T) {
+	t.Parallel()
+
 	validUser := "user"
 	validAdmin := "admin"
 	validGuardian := "guardian"
@@ -167,6 +173,8 @@ func TestRole_Validate_BaseRole(t *testing.T) {
 }
 
 func TestRole_IsSystemFlag(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default is false", func(t *testing.T) {
 		role := &Role{
 			Name: "custom",
@@ -190,6 +198,8 @@ func TestRole_IsSystemFlag(t *testing.T) {
 }
 
 func TestRole_GetTenantID(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns tenant ID when set", func(t *testing.T) {
 		tid := int64(42)
 		role := &Role{Name: "test", TenantID: &tid}
@@ -207,6 +217,8 @@ func TestRole_GetTenantID(t *testing.T) {
 }
 
 func TestRole_SetTenantID(t *testing.T) {
+	t.Parallel()
+
 	role := &Role{Name: "test"}
 	role.SetTenantID(99)
 	if role.TenantID == nil || *role.TenantID != 99 {
@@ -215,6 +227,8 @@ func TestRole_SetTenantID(t *testing.T) {
 }
 
 func TestRole_GetID(t *testing.T) {
+	t.Parallel()
+
 	role := &Role{
 		Model: base.Model{ID: 42},
 		Name:  "test",
@@ -227,6 +241,8 @@ func TestRole_GetID(t *testing.T) {
 }
 
 func TestRole_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	role := &Role{
 		Model: base.Model{CreatedAt: now},
@@ -239,6 +255,8 @@ func TestRole_GetCreatedAt(t *testing.T) {
 }
 
 func TestRole_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	role := &Role{
 		Model: base.Model{UpdatedAt: now},

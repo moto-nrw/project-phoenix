@@ -13,6 +13,8 @@ import (
 )
 
 func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -57,6 +59,8 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 }
 
 func TestAccountTenantRepository_CreateValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -72,6 +76,8 @@ func TestAccountTenantRepository_CreateValidation(t *testing.T) {
 }
 
 func TestAccountTenantRepository_EnsureActive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -116,6 +122,8 @@ func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 }
 
 func TestAccountTenantRepository_Deactivate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -184,10 +192,12 @@ func TestAccountTenantRepository_Deactivate(t *testing.T) {
 }
 
 func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90001)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, "list-by-tenant")
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
@@ -233,10 +243,12 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 }
 
 func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90002)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	role := testpkg.GetOrCreateTestRole(t, db, "admin")
 
@@ -268,10 +280,12 @@ func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitatio
 }
 
 func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90003)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	orgID := tenantID // EnsureTestTenant creates org with same ID
 
@@ -310,10 +324,12 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 }
 
 func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90004)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "list-all")
@@ -355,10 +371,12 @@ func containsAccount(accounts []authModels.OrgAccountInfo, email string) bool {
 // the global org-accounts listing hides accounts whose tenant school is in the
 // Papierkorb (soft-deleted), and re-includes them after restore.
 func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90011)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "list-all-deleted")

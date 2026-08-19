@@ -15,6 +15,8 @@ import (
 )
 
 func TestSchoolRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewSchoolRepository(db)
@@ -62,6 +64,8 @@ func TestSchoolRepository_Create(t *testing.T) {
 }
 
 func TestSchoolRepository_QueryMethods(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := platformRepo.NewSchoolRepository(db)

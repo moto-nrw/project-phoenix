@@ -15,6 +15,8 @@ import (
 // =============================================================================
 
 func TestSecurityHeaders_SetsXFrameOptions(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -30,6 +32,8 @@ func TestSecurityHeaders_SetsXFrameOptions(t *testing.T) {
 }
 
 func TestSecurityHeaders_SetsXContentTypeOptions(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +49,8 @@ func TestSecurityHeaders_SetsXContentTypeOptions(t *testing.T) {
 }
 
 func TestSecurityHeaders_SetsXXSSProtection(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -60,6 +66,8 @@ func TestSecurityHeaders_SetsXXSSProtection(t *testing.T) {
 }
 
 func TestSecurityHeaders_SetsReferrerPolicy(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +83,8 @@ func TestSecurityHeaders_SetsReferrerPolicy(t *testing.T) {
 }
 
 func TestSecurityHeaders_SetsPermissionsPolicy(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -90,6 +100,8 @@ func TestSecurityHeaders_SetsPermissionsPolicy(t *testing.T) {
 }
 
 func TestSecurityHeaders_SetsContentSecurityPolicy(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +131,8 @@ func TestSecurityHeaders_SetsContentSecurityPolicy(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_NoHSTS_HTTPRequest(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +150,8 @@ func TestSecurityHeaders_NoHSTS_HTTPRequest(t *testing.T) {
 }
 
 func TestSecurityHeaders_HSTS_TLSRequest(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +173,8 @@ func TestSecurityHeaders_HSTS_TLSRequest(t *testing.T) {
 }
 
 func TestSecurityHeaders_HSTS_XForwardedProtoHTTPS(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +193,8 @@ func TestSecurityHeaders_HSTS_XForwardedProtoHTTPS(t *testing.T) {
 }
 
 func TestSecurityHeaders_NoHSTS_XForwardedProtoHTTP(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -196,6 +216,8 @@ func TestSecurityHeaders_NoHSTS_XForwardedProtoHTTP(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_AllHeadersPresent(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -222,6 +244,8 @@ func TestSecurityHeaders_AllHeadersPresent(t *testing.T) {
 }
 
 func TestSecurityHeaders_AllHeadersPresentWithHTTPS(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -254,6 +278,8 @@ func TestSecurityHeaders_AllHeadersPresentWithHTTPS(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_HandlerExecuted(t *testing.T) {
+	t.Parallel()
+
 	handlerCalled := false
 
 	r := chi.NewRouter()
@@ -274,6 +300,8 @@ func TestSecurityHeaders_HandlerExecuted(t *testing.T) {
 }
 
 func TestSecurityHeaders_PreservesHandlerHeaders(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -297,6 +325,8 @@ func TestSecurityHeaders_PreservesHandlerHeaders(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_AllHTTPMethods(t *testing.T) {
+	t.Parallel()
+
 	methods := []string{
 		http.MethodGet,
 		http.MethodPost,
@@ -331,6 +361,8 @@ func TestSecurityHeaders_AllHTTPMethods(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_DifferentResponseStatuses(t *testing.T) {
+	t.Parallel()
+
 	statuses := []int{
 		http.StatusOK,
 		http.StatusCreated,
@@ -366,6 +398,8 @@ func TestSecurityHeaders_DifferentResponseStatuses(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_CSP_DefaultSrc(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -382,6 +416,8 @@ func TestSecurityHeaders_CSP_DefaultSrc(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSP_ScriptSrc(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -398,6 +434,8 @@ func TestSecurityHeaders_CSP_ScriptSrc(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSP_ImgSrc(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -414,6 +452,8 @@ func TestSecurityHeaders_CSP_ImgSrc(t *testing.T) {
 }
 
 func TestSecurityHeaders_CSP_FrameAncestors(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -435,6 +475,8 @@ func TestSecurityHeaders_CSP_FrameAncestors(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_HSTS_MaxAge(t *testing.T) {
+	t.Parallel()
+
 	r := chi.NewRouter()
 	r.Use(SecurityHeaders)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
@@ -457,6 +499,8 @@ func TestSecurityHeaders_HSTS_MaxAge(t *testing.T) {
 // =============================================================================
 
 func TestSecurityHeaders_WorksWithOtherMiddleware(t *testing.T) {
+	t.Parallel()
+
 	customMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Custom-Middleware", "applied")

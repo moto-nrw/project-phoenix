@@ -20,6 +20,8 @@ import (
 // chain and pins that query VALUES never reach the log while method, path,
 // status, and duration survive.
 func TestAccessLogOmitsQueryValues(t *testing.T) {
+	t.Parallel()
+
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
 

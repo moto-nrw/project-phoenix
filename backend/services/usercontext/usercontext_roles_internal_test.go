@@ -21,11 +21,15 @@ func contextWithRoles(tb testing.TB, userID int, roles ...string) context.Contex
 }
 
 func TestIsAuthenticated(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, isAuthenticated(contextWithRoles(t, 42, "Admin")))
 	assert.False(t, isAuthenticated(context.Background()))
 }
 
 func TestGetMyGroups_RejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
+
 	service := &userContextService{}
 
 	groups, err := service.GetMyGroups(context.Background())
@@ -34,6 +38,8 @@ func TestGetMyGroups_RejectsUnauthenticated(t *testing.T) {
 }
 
 func TestUserContextServiceGetLogger_FallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	service := &userContextService{}
 	assert.NotNil(t, service.getLogger())
 }

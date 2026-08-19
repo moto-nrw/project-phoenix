@@ -36,6 +36,8 @@ func (c *schedulerSettingQueryCounter) BeforeQuery(ctx context.Context, event *b
 func (*schedulerSettingQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
 func TestSchedulerPollingSettingKeysAreRegisteredUniqueAndNonSecret(t *testing.T) {
+	t.Parallel()
+
 	seen := make(map[string]struct{}, len(schedulerPollingSettingKeys))
 	for _, key := range schedulerPollingSettingKeys {
 		require.NotEmpty(t, key)
@@ -51,10 +53,15 @@ func TestSchedulerPollingSettingKeysAreRegisteredUniqueAndNonSecret(t *testing.T
 }
 
 func TestSchedulerPollingSettingKeysIncludeAppointmentReminderSettings(t *testing.T) {
+	t.Parallel()
+
 	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyCalendarAppointmentReminderEnabled)
 	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyCalendarAppointmentReminderLeadHours)
 }
 
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
@@ -84,6 +91,8 @@ func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 }
 
 func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2026, time.July, 30, 12, 15, 10, 0, time.UTC)
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -128,6 +137,8 @@ func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {
 }
 
 func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
+	t.Parallel()
+
 	current := time.Date(2026, time.July, 30, 12, 15, 10, 0, time.UTC)
 	loadErr := errors.New("settings unavailable")
 	var calls atomic.Int32
@@ -153,6 +164,8 @@ func TestGetMinuteSnapshotRetriesOnlyAfterMinuteChanges(t *testing.T) {
 }
 
 func TestGetMinuteSnapshotSlowPriorMinuteCannotOverwriteCurrent(t *testing.T) {
+	t.Parallel()
+
 	current := time.Date(2026, time.July, 30, 12, 15, 59, 0, time.UTC)
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})

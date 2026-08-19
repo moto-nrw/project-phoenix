@@ -229,6 +229,8 @@ func (t *timetableBridgeCompleterForSessionUnitTest) CompleteActiveByActiveGroup
 }
 
 func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	activityID := int64(200)
 	findCalls := 0
@@ -278,6 +280,8 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 }
 
 func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
@@ -330,6 +334,8 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 // (the kiosk /timeout endpoint and the abandoned-session sweep) come through
 // ProcessSessionTimeoutByID, so one guard covers both.
 func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
@@ -385,6 +391,8 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 // failure leaves the session open beside it — a split the next sweep cannot
 // repair, because it only ever sees the still-active session (#1747 review).
 func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
@@ -475,6 +483,8 @@ func newEndGroupService(
 }
 
 func TestEndActiveGroupSession_CompletesTimetableMirrorBeforeEndingSession(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	newService := func(order *[]string, group *activeModels.Group, bridgeErr error) *service {
@@ -536,6 +546,8 @@ func TestEndActiveGroupSession_CompletesTimetableMirrorBeforeEndingSession(t *te
 }
 
 func TestUpdateSessionActivity_RepositoryMissesAreMapped(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	missErr := &modelBase.DatabaseError{Op: "update last activity - session not found", Err: sql.ErrNoRows}
 
@@ -594,6 +606,8 @@ func TestUpdateSessionActivity_RepositoryMissesAreMapped(t *testing.T) {
 }
 
 func TestUpdateSessionActivity_NonMissUpdateErrorIsPreserved(t *testing.T) {
+	t.Parallel()
+
 	svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
 		updateLastActivityFunc: func(context.Context, int64, time.Time) error {
 			return errors.New("deadlock")
@@ -608,6 +622,8 @@ func TestUpdateSessionActivity_NonMissUpdateErrorIsPreserved(t *testing.T) {
 }
 
 func TestSessionDeviceOnlineWindowResolution(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("default without settings", func(t *testing.T) {
@@ -642,6 +658,8 @@ func TestSessionDeviceOnlineWindowResolution(t *testing.T) {
 }
 
 func TestSessionIsDeviceOnline(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
 	recent := now.Add(-time.Minute)
 	old := now.Add(-10 * time.Minute)
@@ -654,6 +672,8 @@ func TestSessionIsDeviceOnline(t *testing.T) {
 }
 
 func TestUpdateDeviceLocationBestEffort(t *testing.T) {
+	t.Parallel()
+
 	calls := 0
 	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), DeviceRepo: &deviceRepoForSessionUnitTest{
 		updateRoomIDFunc: func(context.Context, int64, int64) error {
@@ -669,6 +689,8 @@ func TestUpdateDeviceLocationBestEffort(t *testing.T) {
 }
 
 func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	checkInResults := map[int64]error{
 		10: errors.New("auto check-in failed"),
@@ -704,6 +726,8 @@ func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *t
 }
 
 func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("savepoint create failure skips operation", func(t *testing.T) {
@@ -778,6 +802,8 @@ func TestRunBestEffortDB_SavepointBranches(t *testing.T) {
 }
 
 func TestCreateSessionBase_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("create failure is returned before side effects", func(t *testing.T) {
@@ -858,6 +884,8 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 }
 
 func TestMarkRollbackOnRoomCapacity(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithRollbackMarker(context.Background())
 	capacityErr := &RoomCapacityError{RoomID: 30, RoomName: "Mensa", CurrentOccupancy: 43, MaxCapacity: 43}
 
@@ -873,6 +901,8 @@ func TestMarkRollbackOnRoomCapacity(t *testing.T) {
 }
 
 func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing.T) {
+	t.Parallel()
+
 	var assigned []int64
 	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), GroupRepo: &mockGroupRepository{
 		createFunc: func(_ context.Context, group *activeModels.Group) error {
@@ -899,6 +929,8 @@ func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing
 }
 
 func TestManualRoomSelectionStrategies(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("ignore strategy skips conflict check", func(t *testing.T) {
@@ -951,6 +983,8 @@ func (a *activityGroupRepoForRoomUnitTest) FindByID(context.Context, any) (*acti
 }
 
 func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("planned room is used when configured", func(t *testing.T) {
@@ -984,6 +1018,8 @@ func TestDetermineRoomIDWithStrategy_NoSelectionAndNoPlannedRoom(t *testing.T) {
 }
 
 func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("skips nil and invalid sessions", func(t *testing.T) {
@@ -1045,6 +1081,8 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 }
 
 func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	visitErr := errors.New("visit update failed")
 	supervisorErr := errors.New("supervisor lookup failed")
@@ -1077,6 +1115,8 @@ func TestTransferForceStartedActivityState_PropagatesTransferErrors(t *testing.T
 }
 
 func TestCompleteTimetableMirrorsForEndedSessions_PropagatesRepositoryError(t *testing.T) {
+	t.Parallel()
+
 	expectedErr := errors.New("bridge update failed")
 	svc := &service{ServiceDependencies: ServiceDependencies{TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
 		completeFunc: func(_ context.Context, activeGroupIDs []int64, _ time.Time) (int64, error) {
@@ -1093,6 +1133,8 @@ func TestCompleteTimetableMirrorsForEndedSessions_PropagatesRepositoryError(t *t
 }
 
 func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	today := timezone.TodayDate()
 
@@ -1202,6 +1244,8 @@ func TestTransferActiveSupervisorsBetweenGroups_ErrorBranches(t *testing.T) {
 }
 
 func TestTransferActiveVisitsBetweenGroups_DelegatesToConditionalRepositoryTransfer(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	var gotOldGroupID, gotNewGroupID int64
 	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
@@ -1222,6 +1266,8 @@ func TestTransferActiveVisitsBetweenGroups_DelegatesToConditionalRepositoryTrans
 }
 
 func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("find error is returned", func(t *testing.T) {
@@ -1282,6 +1328,8 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 }
 
 func TestAppendActiveGroupID_DeduplicatesAndSkipsInvalid(t *testing.T) {
+	t.Parallel()
+
 	ids := appendActiveGroupID(nil, 0)
 	ids = appendActiveGroupID(ids, -1)
 	ids = appendActiveGroupID(ids, 10)
@@ -1292,6 +1340,8 @@ func TestAppendActiveGroupID_DeduplicatesAndSkipsInvalid(t *testing.T) {
 }
 
 func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	startDate := timezone.TodayDate()
 
@@ -1373,6 +1423,8 @@ func TestSupervisorReplacement_ErrorBranches(t *testing.T) {
 }
 
 func TestGetDeviceIDString(t *testing.T) {
+	t.Parallel()
+
 	deviceID := int64(42)
 
 	assert.Equal(t, "unknown", getDeviceIDString(nil))
@@ -1380,11 +1432,15 @@ func TestGetDeviceIDString(t *testing.T) {
 }
 
 func TestNormalizeTransferredSupervisorRole(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "supervisor", normalizeTransferredSupervisorRole("Supervisor"))
 	assert.Equal(t, "helper", normalizeTransferredSupervisorRole("helper"))
 }
 
 func TestValidateSessionForTimeout_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("not found", func(t *testing.T) {
@@ -1420,6 +1476,8 @@ func TestValidateSessionForTimeout_Branches(t *testing.T) {
 }
 
 func TestEndDailySessions_RepositoryFailures(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	activeGroup := &activeModels.Group{Model: modelBase.Model{ID: 100}}
 
@@ -1515,6 +1573,8 @@ func TestEndDailySessions_RepositoryFailures(t *testing.T) {
 }
 
 func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	today := timezone.TodayDate()
 

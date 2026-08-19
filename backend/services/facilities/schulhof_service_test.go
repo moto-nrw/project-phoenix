@@ -2,7 +2,6 @@ package facilities_test
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -23,34 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// cleanupSchulhofArtifacts removes all Schulhof-related database rows to ensure
-// hermetic test isolation. This is necessary because Go test packages run in
-// parallel, and other packages (e.g. api/iot/checkin) may create Schulhof
-// infrastructure concurrently. Without cleanup, findSchulhofActivity could
-// return a stale activity group from another test, causing GroupID mismatches.
-func cleanupSchulhofArtifacts(t *testing.T, db *bun.DB) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.SchulhofCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.SchulhofRoomName),
-	}
-	for _, stmt := range stmts {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			t.Logf("schulhof cleanup: %v (stmt: %s)", err, stmt)
-		}
-	}
-}
 
 // setupSchulhofService creates a Schulhof service with real database connection.
 func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofService {
@@ -155,6 +126,8 @@ func createOpenSchulhofGroup(t *testing.T, db *bun.DB, service facilitiesSvc.Sch
 // ============================================================================
 
 func TestSchulhofService_GetSchulhofStatus_NoInfrastructure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
@@ -181,6 +154,8 @@ func TestSchulhofService_GetSchulhofStatus_NoInfrastructure(t *testing.T) {
 }
 
 func TestSchulhofService_EnsureInfrastructureRejectsLegacyActivityInNonCanonicalRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := createFacilityTestTenant(t, db)
@@ -227,10 +202,9 @@ func TestSchulhofService_EnsureInfrastructureRejectsLegacyActivityInNonCanonical
 }
 
 func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupSchulhofArtifacts(t, db)
-	defer cleanupSchulhofArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -258,10 +232,9 @@ func TestSchulhofService_GetSchulhofStatus_WithInfrastructureNoSession(t *testin
 }
 
 func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupSchulhofArtifacts(t, db)
-	defer cleanupSchulhofArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -286,10 +259,9 @@ func TestSchulhofService_GetSchulhofStatus_WithActiveSessionNoSupervisor(t *test
 }
 
 func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
 
-	cleanupSchulhofArtifacts(t, db)
-	defer cleanupSchulhofArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -332,11 +304,11 @@ func TestSchulhofService_GetSchulhofStatus_WithSupervisor(t *testing.T) {
 }
 
 func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	// Clean up any Schulhof artifacts left by parallel test packages
-	cleanupSchulhofArtifacts(t, db)
-	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -386,6 +358,8 @@ func TestSchulhofService_GetSchulhofStatus_WithMultipleSupervisors(t *testing.T)
 }
 
 func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
+	t.Parallel()
+
 	// Use a dedicated DB connection to avoid cross-test interference.
 	// CleanupActivityFixtures silently fails (BUN nil model bug), so stale
 	// active groups from earlier tests can cause findTodayActiveGroup to
@@ -394,8 +368,6 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 
 	// Clean up any Schulhof artifacts left by parallel test packages (e.g. api/iot/checkin)
 	// to ensure findSchulhofActivity returns the activity group created by THIS test.
-	cleanupSchulhofArtifacts(t, db)
-	defer cleanupSchulhofArtifacts(t, db)
 
 	service := setupSchulhofService(t, db)
 	ctx := testpkg.Ctx(t)
@@ -446,6 +418,8 @@ func TestSchulhofService_GetSchulhofStatus_WithStudents(t *testing.T) {
 // ============================================================================
 
 func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
@@ -467,6 +441,8 @@ func TestSchulhofService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 }
 
 func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
@@ -492,6 +468,8 @@ func TestSchulhofService_EnsureInfrastructure_Idempotent(t *testing.T) {
 // TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions verifies that ended
 // supervisions are excluded from the status response.
 func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
@@ -547,6 +525,8 @@ func TestSchulhofService_GetSchulhofStatus_SkipsEndedSupervisions(t *testing.T) 
 // TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising verifies that status
 // correctly shows IsUserSupervising=false for a staff member who is NOT the supervisor.
 func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
@@ -594,6 +574,8 @@ func TestSchulhofService_GetSchulhofStatus_OtherStaffNotSupervising(t *testing.T
 // ensureSchulhofRoom and ensureSchulhofCategory reuse existing entities when
 // only the activity group is missing.
 func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)
@@ -639,6 +621,8 @@ func TestSchulhofService_EnsureInfrastructure_ExistingRoomAndCategory(t *testing
 // TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited verifies that
 // student count is 0 when all visits have exit times.
 func TestSchulhofService_GetSchulhofStatus_WithStudentsAllExited(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupSchulhofService(t, db)

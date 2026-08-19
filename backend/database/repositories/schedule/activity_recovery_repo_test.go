@@ -17,6 +17,8 @@ func (s stubSQLResult) LastInsertId() (int64, error) { return 0, nil }
 func (s stubSQLResult) RowsAffected() (int64, error) { return s.rows, s.rowsErr }
 
 func TestExpectRestoredRows(t *testing.T) {
+	t.Parallel()
+
 	require.EqualError(t, expectRestoredRows(nil, errors.New("exec failed"), 1, "visits"), "exec failed")
 
 	require.EqualError(t, expectRestoredRows(stubSQLResult{rowsErr: errors.New("count failed")}, nil, 1, "visits"), "count failed")

@@ -20,6 +20,8 @@ func validBalanceAdjustment() *StaffBalanceAdjustment {
 }
 
 func TestStaffBalanceAdjustmentValidate_AcceptsEveryType(t *testing.T) {
+	t.Parallel()
+
 	for _, adjustmentType := range ValidBalanceAdjustmentTypes {
 		adjustment := validBalanceAdjustment()
 		adjustment.Type = adjustmentType
@@ -31,6 +33,8 @@ func TestStaffBalanceAdjustmentValidate_AcceptsEveryType(t *testing.T) {
 }
 
 func TestStaffBalanceAdjustmentValidate_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		mutate func(*StaffBalanceAdjustment)

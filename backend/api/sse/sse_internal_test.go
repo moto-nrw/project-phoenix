@@ -41,6 +41,8 @@ func newMockFlusher() *mockFlusher {
 // =============================================================================
 
 func TestSSEConnection_WriteSSEMessage(t *testing.T) {
+	t.Parallel()
+
 	mf := newMockFlusher()
 	conn := &sseConnection{
 		writer:  mf,
@@ -58,6 +60,8 @@ func TestSSEConnection_WriteSSEMessage(t *testing.T) {
 }
 
 func TestSSEConnection_WriteSSEMessage_EmptyData(t *testing.T) {
+	t.Parallel()
+
 	mf := newMockFlusher()
 	conn := &sseConnection{
 		writer:  mf,
@@ -74,6 +78,8 @@ func TestSSEConnection_WriteSSEMessage_EmptyData(t *testing.T) {
 }
 
 func TestSSEConnection_SendHeartbeat(t *testing.T) {
+	t.Parallel()
+
 	mf := newMockFlusher()
 	conn := &sseConnection{
 		writer:  mf,
@@ -90,6 +96,8 @@ func TestSSEConnection_SendHeartbeat(t *testing.T) {
 }
 
 func TestSSEConnection_SendConnectedEvent(t *testing.T) {
+	t.Parallel()
+
 	mf := newMockFlusher()
 	conn := &sseConnection{
 		writer:  mf,
@@ -124,6 +132,8 @@ func TestSSEConnection_SendConnectedEvent(t *testing.T) {
 }
 
 func TestSSEConnection_SendConnectedEvent_EmptyTopics(t *testing.T) {
+	t.Parallel()
+
 	mf := newMockFlusher()
 	conn := &sseConnection{
 		writer:  mf,
@@ -146,6 +156,8 @@ func TestSSEConnection_SendConnectedEvent_EmptyTopics(t *testing.T) {
 }
 
 func TestSSEConnection_SendEvent(t *testing.T) {
+	t.Parallel()
+
 	mf := newMockFlusher()
 	conn := &sseConnection{
 		writer:  mf,
@@ -170,6 +182,8 @@ func TestSSEConnection_SendEvent(t *testing.T) {
 }
 
 func TestRunEventLoopDoesNotSendBufferedEventAfterDeadline(t *testing.T) {
+	t.Parallel()
+
 	for range 32 {
 		hub := realtime.NewHub(slog.Default())
 		rs := &Resource{hub: hub}
@@ -200,6 +214,8 @@ func TestRunEventLoopDoesNotSendBufferedEventAfterDeadline(t *testing.T) {
 // =============================================================================
 
 func TestSetupSSEConnection_Success(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	// Create a mock ResponseWriter that implements http.Flusher
@@ -217,6 +233,8 @@ func TestSetupSSEConnection_Success(t *testing.T) {
 }
 
 func TestSetupSSEConnection_NonFlusher(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	// Regular ResponseRecorder doesn't implement http.Flusher interface directly
@@ -229,6 +247,8 @@ func TestSetupSSEConnection_NonFlusher(t *testing.T) {
 }
 
 func TestWithSSETokenDeadlineAppliesAccessTokenExpiry(t *testing.T) {
+	t.Parallel()
+
 	expiresAt := time.Now().Add(time.Hour)
 	token, err := jwxjwt.NewBuilder().Expiration(expiresAt).Build()
 	require.NoError(t, err)
@@ -244,6 +264,8 @@ func TestWithSSETokenDeadlineAppliesAccessTokenExpiry(t *testing.T) {
 }
 
 func TestWithSSETokenDeadlineRejectsTokenWithoutExpiry(t *testing.T) {
+	t.Parallel()
+
 	token, err := jwxjwt.NewBuilder().Build()
 	require.NoError(t, err)
 
@@ -255,6 +277,8 @@ func TestWithSSETokenDeadlineRejectsTokenWithoutExpiry(t *testing.T) {
 }
 
 func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
+	t.Parallel()
+
 	hub := realtime.NewHub(slog.Default())
 	rs := &Resource{hub: hub}
 	conn := &sseConnection{
@@ -273,6 +297,8 @@ func TestCreateAndRegisterClientPreservesAdminScope(t *testing.T) {
 }
 
 func TestHasEffectiveAdminScope(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		isAdmin     bool
@@ -312,6 +338,8 @@ func (w *nonFlusherResponseWriter) WriteHeader(int) {}
 // =============================================================================
 
 func TestSSETopics_EmptyState(t *testing.T) {
+	t.Parallel()
+
 	topics := &sseTopics{
 		activeGroupIDs: []string{},
 		eduTopics:      []string{},
@@ -324,6 +352,8 @@ func TestSSETopics_EmptyState(t *testing.T) {
 }
 
 func TestSSETopics_WithData(t *testing.T) {
+	t.Parallel()
+
 	topics := &sseTopics{
 		activeGroupIDs: []string{"1", "2", "3"},
 		eduTopics:      []string{"edu:5", "edu:6"},
@@ -340,6 +370,8 @@ func TestSSETopics_WithData(t *testing.T) {
 // =============================================================================
 
 func TestConnectedEvent_Marshaling(t *testing.T) {
+	t.Parallel()
+
 	event := connectedEvent{
 		Status:                   "ready",
 		SupervisedGroupCount:     3,
@@ -368,6 +400,8 @@ func TestConnectedEvent_Marshaling(t *testing.T) {
 // =============================================================================
 
 func TestNewResource(t *testing.T) {
+	t.Parallel()
+
 	hub := realtime.NewHub(slog.Default())
 
 	// Test with nil services (should not panic)
@@ -377,6 +411,8 @@ func TestNewResource(t *testing.T) {
 }
 
 func TestResource_Router(t *testing.T) {
+	t.Parallel()
+
 	hub := realtime.NewHub(slog.Default())
 	resource := NewResource(hub, nil, nil, slog.Default())
 
@@ -385,6 +421,8 @@ func TestResource_Router(t *testing.T) {
 }
 
 func TestResource_EventsHandler(t *testing.T) {
+	t.Parallel()
+
 	hub := realtime.NewHub(slog.Default())
 	resource := NewResource(hub, nil, nil, slog.Default())
 

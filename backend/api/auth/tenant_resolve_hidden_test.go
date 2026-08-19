@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,9 +21,11 @@ import (
 )
 
 func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
+	t.Parallel()
+
 	db, svc := testutil.SetupAPITest(t)
 
-	const tenantID int64 = 9911
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	_, err := db.ExecContext(context.Background(),
@@ -45,7 +48,8 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
 
-	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=t9911", nil)
+	req := httptest.NewRequest("GET",
+		fmt.Sprintf("/auth/tenant/resolve?slug=t%d", tenantID), nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 

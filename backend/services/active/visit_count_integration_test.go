@@ -16,6 +16,8 @@ import (
 // =============================================================================
 
 func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -96,6 +98,8 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -155,6 +159,8 @@ func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
@@ -206,6 +212,8 @@ func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetStudentCurrentVisit_Refactored(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)

@@ -226,6 +226,8 @@ func careOfferingsService(
 }
 
 func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
 	today := timezone.TodayDate()
 	description := "Mit Mittagessen"
@@ -321,6 +323,8 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 }
 
 func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
 	svc := careOfferingsService(db, permittedCareOfferingsChild(t), nil)
 	svc.RequestChildRepo = carePeriodRepoStub{}
@@ -334,6 +338,8 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 }
 
 func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	period := &enrollmentModels.StudentCarePeriod{
 		RequestChildID:   101,
@@ -363,6 +369,8 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 }
 
 func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
+	t.Parallel()
+
 	dependencyErr := errors.New("dependency failed")
 	tests := []struct {
 		name  string
@@ -435,6 +443,8 @@ func currentCarePeriodStub() carePeriodRepoStub {
 }
 
 func TestCurrentCarePeriodSelection(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2027, time.January, 15)
 	current := &enrollmentModels.StudentCarePeriod{
 		RequestChildID:   1,
@@ -497,6 +507,8 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 }
 
 func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	activePeriod := &enrollmentModels.StudentCarePeriod{ServiceEndDate: today.AddDays(1)}
 	endedPeriod := &enrollmentModels.StudentCarePeriod{ServiceEndDate: today.AddDays(-1)}
@@ -569,6 +581,8 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 }
 
 func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
 	today := timezone.TodayDate()
 	child := permittedCareOfferingsChild(t)
@@ -599,6 +613,8 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 }
 
 func TestWithdrawOfferingChangeRequestAllowsOwnerWithoutSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
 	child := permittedCareOfferingsChild(t)
 	child.GuardianPermissions = map[string]interface{}{
@@ -614,6 +630,8 @@ func TestWithdrawOfferingChangeRequestAllowsOwnerWithoutSubmitPermission(t *test
 }
 
 func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateErrors(t *testing.T) {
+	t.Parallel()
+
 	delegateErr := errors.New("delegate failed")
 	tests := []struct {
 		name   string

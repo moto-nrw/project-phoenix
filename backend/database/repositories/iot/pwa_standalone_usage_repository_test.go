@@ -39,6 +39,8 @@ func fetchPWAUsageRows(t *testing.T, db *bun.DB, accountID int64) []*iotModels.P
 }
 
 func TestPWAStandaloneUsageRepository(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 
 	repo := iotRepo.NewPWAStandaloneUsageRepository(db)
